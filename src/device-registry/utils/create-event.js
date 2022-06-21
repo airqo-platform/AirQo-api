@@ -316,7 +316,13 @@ const createEvent = {
         external_humidity,
         external_pressure,
         external_altitude,
-        type,
+        category,
+        rtc_adc,
+        rtc_v,
+        rtc,
+        stc_adc,
+        stc_v,
+        stc,
       } = req.body;
 
       let stringPositionsAndValues = {};
@@ -332,13 +338,13 @@ const createEvent = {
       stringPositionsAndValues[9] = external_humidity || null;
       stringPositionsAndValues[10] = external_pressure || null;
       stringPositionsAndValues[11] = external_altitude || null;
-      stringPositionsAndValues[12] = type || null;
+      stringPositionsAndValues[12] = category || null;
 
       const otherDataString = createEvent.generateOtherDataString(
         stringPositionsAndValues
       );
-
-      let requestBody = {
+      let requestBody = {};
+      const lowCostRequestBody = {
         api_key: api_key,
         created_at: time,
         field1: s1_pm2_5,
@@ -353,6 +359,29 @@ const createEvent = {
         longitude: longitude,
         status: status,
       };
+
+      const bamRequestBody = {
+        api_key: api_key,
+        created_at: time,
+        field1: rtc_adc,
+        field2: rtc_v,
+        field3: rtc,
+        field4: stc_adc,
+        field5: stc_v,
+        field6: stc,
+        field7: battery,
+        field8: otherDataString,
+        latitude: latitude,
+        longitude: longitude,
+        status: status,
+      };
+
+      if (category === "bam") {
+        requestBody = bamRequestBody;
+      } else if (category === "lowcost") {
+        requestBody = lowCostRequestBody;
+      }
+
       return {
         success: true,
         message: "successfully created ThingSpeak body",
@@ -366,76 +395,22 @@ const createEvent = {
       };
     }
   },
-  getTSField: (measurement, res) => {
-    try {
-      let requestBody = {
-        api_key: "api_key",
-        created_at: "created_at",
-        s1_pm2_5: "field1",
-        s1_pm10: "field2",
-        s2_pm2_5: "field3",
-        s2_pm10: "field4",
-        latitude: "field5",
-        longitude: "field6",
-        battery: "field7",
-        latitude: "latitude",
-        longitude: "longitude",
-        status: "field8",
-        altitude: "field8",
-        wind_speed: "field8",
-        satellites: "field8",
-        hdop: "field8",
-        internal_temperature: "field8",
-        internal_humidity: "field8",
-        external_temperature: "field8",
-        external_humidity: "field8",
-        external_pressure: "field8",
-        external_altitude: "field8",
-        type: "field8",
-      };
-
-      if (requestBody.hasOwnProperty(measurement)) {
-        return {
-          success: true,
-          data: requestBody[measurement],
-          status: HTTPStatus.OK,
-        };
-      } else {
-        return {
-          success: false,
-          message: `the provided quantity kind (${measurement}) does not exist for this organization`,
-          status: HTTPStatus.BAD_REQUEST,
-        };
-      }
-    } catch (error) {
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      };
-    }
-  },
   transmitMultipleSensorValues: async (request) => {
     try {
       let requestBody = {};
-      const responseFromCreateRequestBody = createEvent.createThingSpeakRequestBody(
-        request
-      );
-
-      if (responseFromCreateRequestBody.success === true) {
-        requestBody = responseFromCreateRequestBody.data;
-      } else {
-        return {
-          success: false,
-          message: responseFromCreateRequestBody.message,
-          status: responseFromCreateRequestBody.status,
-        };
-      }
       const responseFromListDevice = await createDeviceUtil.list(request);
       let deviceDetail = {};
       if (responseFromListDevice.success === true) {
         if (responseFromListDevice.data.length === 1) {
           deviceDetail = responseFromListDevice.data[0];
+          if (isEmpty(deviceDetail.category)) {
+            return {
+              success: false,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+              message:
+                "unable to categorise this device, please first update device details",
+            };
+          }
         } else {
           return {
             success: false,
@@ -458,6 +433,30 @@ const createEvent = {
           status,
         };
       }
+
+      let requestBodyForCreateThingsSpeakBody = request;
+      requestBodyForCreateThingsSpeakBody["body"]["category"] =
+        deviceDetail.category;
+
+      logObject(
+        "requestBodyForCreateThingsSpeakBody",
+        requestBodyForCreateThingsSpeakBody
+      );
+
+      const responseFromCreateRequestBody = createEvent.createThingSpeakRequestBody(
+        requestBodyForCreateThingsSpeakBody
+      );
+
+      if (responseFromCreateRequestBody.success === true) {
+        requestBody = responseFromCreateRequestBody.data;
+      } else {
+        return {
+          success: false,
+          message: responseFromCreateRequestBody.message,
+          status: responseFromCreateRequestBody.status,
+        };
+      }
+
       let api_key = deviceDetail.writeKey;
       const responseFromDecryptKey = await createDeviceUtil.decryptKey(api_key);
       if (responseFromDecryptKey.success === true) {
@@ -494,7 +493,7 @@ const createEvent = {
         .catch(function(error) {
           return {
             success: false,
-            message: "Server Error",
+            message: "Internal Server Error",
             errors: {
               message: error.response
                 ? error.response.data.error.details
@@ -522,28 +521,33 @@ const createEvent = {
       const { name, chid, device_number, tenant } = request.query;
       const { body } = request;
 
-      let requestDeviceList = {};
-      requestDeviceList["query"] = {};
-      requestDeviceList["query"]["name"] = name;
-      requestDeviceList["query"]["tenant"] = tenant;
-      requestDeviceList["query"]["device_number"] = chid || device_number;
-
-      const responseFromListDevice = await createDeviceUtil.list(
-        requestDeviceList
-      );
+      const responseFromListDevice = await createDeviceUtil.list(request);
 
       let deviceDetail = {};
 
       if (responseFromListDevice.success === true) {
         if (responseFromListDevice.data.length === 1) {
           deviceDetail = responseFromListDevice.data[0];
+          if (isEmpty(deviceDetail.category)) {
+            return {
+              success: false,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+              message:
+                "unable to categorise this device, please first update device details",
+            };
+          }
+        } else {
+          return {
+            success: false,
+            status: httpStatus.NOT_FOUND,
+            message: "device not found for this organisation",
+          };
         }
       } else if (responseFromListDevice.success === false) {
         return responseFromListDevice;
       }
 
       const channel = deviceDetail.device_number;
-
       let api_key = deviceDetail.writeKey;
 
       const responseFromDecryptKey = await createDeviceUtil.decryptKey(api_key);
@@ -552,10 +556,17 @@ const createEvent = {
       } else if (responseFromDecryptKey.success === false) {
         return responseFromDecryptKey;
       }
+      let enrichedBody = [];
+
+      body.forEach((value) => {
+        value["category"] = deviceDetail.category;
+        enrichedBody.push(value);
+      });
 
       let responseFromTransformMeasurements = await createEvent.transformMeasurementFields(
-        body
+        enrichedBody
       );
+
       let transformedUpdates = {};
       if (responseFromTransformMeasurements.success === true) {
         transformedUpdates = responseFromTransformMeasurements.data;
@@ -591,10 +602,10 @@ const createEvent = {
         .catch(function(error) {
           return {
             success: false,
-            message: "Server Error",
+            message: "Internal Server Error",
             errors: {
               message: error.response
-                ? error.response.data.error.details
+                ? error.response.data.error
                 : "Unable to establish connection with external system",
             },
             status: error.response
@@ -777,12 +788,11 @@ const createEvent = {
       if (responseFromGetDeviceDetails.success === true) {
         if (responseFromGetDeviceDetails.data.length === 1) {
           let deviceDetails = responseFromGetDeviceDetails.data[0];
-          logObject("the device details baby", deviceDetails);
+
           enrichedEvent["is_test_data"] = !deviceDetails.isActive;
           enrichedEvent["is_device_primary"] =
             deviceDetails.isPrimaryInLocation;
 
-          logObject("enrichedEvent", enrichedEvent);
           return {
             success: true,
             message: "successfully enriched",
@@ -825,14 +835,11 @@ const createEvent = {
         `the body received for transformation -- ${JSON.stringify(body)}`
       );
       let promises = body.map(async (event) => {
-        logObject("the event", event);
         let data = event;
         let map = constants.EVENT_MAPPINGS;
         let context = event;
         context["device_id"] = ObjectId(event.device_id);
         context["site_id"] = ObjectId(event.site_id);
-
-        logObject("context", context);
 
         let responseFromTransformEvent = await createEvent.transformOneEvent({
           data,
@@ -840,7 +847,6 @@ const createEvent = {
           context,
         });
 
-        logObject("responseFromTransformEvent", responseFromTransformEvent);
         logger.info(
           `responseFromTransformEvent -- ${JSON.stringify(
             responseFromTransformEvent
@@ -877,11 +883,6 @@ const createEvent = {
           for (const result of results) {
             transforms.push(result.data);
           }
-          return {
-            success: true,
-            data: transforms,
-            message: "successful transformations",
-          };
         } else if (results.every((res) => res.success === false)) {
           for (const result of results) {
             let error = result.errors ? result.errors : { message: "" };
@@ -890,14 +891,16 @@ const createEvent = {
           logger.error(
             `unsuccessful tranformEvents -- ${JSON.stringify(errors)}}`
           );
-          return {
-            success: false,
-            errors,
-            message: "failed transformations",
-          };
         }
+        return {
+          success: true,
+          errors,
+          message: "transaction happened",
+          data: transforms,
+        };
       });
     } catch (error) {
+      logObject("transformEvents error", error);
       logger.error(`transformEvents -- ${error.message}`);
       return {
         success: false,
@@ -915,7 +918,7 @@ const createEvent = {
       let responseFromTransformEvents = await createEvent.transformManyEvents(
         request
       );
-      logObject("responseFromTransformEvents", responseFromTransformEvents);
+
       logger.info(
         `responseFromTransformEvents -- ${JSON.stringify(
           responseFromTransformEvents
@@ -937,8 +940,6 @@ const createEvent = {
           tenant,
           transformedMeasurements
         );
-
-        logObject("responseFromInsertEvents", responseFromInsertEvents);
 
         if (responseFromInsertEvents.success) {
           return {
@@ -976,9 +977,8 @@ const createEvent = {
       let update = {};
       let modifiedFilter = {};
       let dot = new Dot(".");
-      logObject("the transformed events received", events);
+
       for (const event of events) {
-        logObject("the event in events", event);
         try {
           options = event.options;
           value = event;
@@ -994,16 +994,11 @@ const createEvent = {
             value
           );
           logger.info(`the value -- ${JSON.stringify(value)}`);
-          logObject("the value", value);
 
           update["$push"] = { values: value };
           logger.info(`the update -- ${JSON.stringify(update)}`);
 
           logger.info(`the options -- ${JSON.stringify(options)}`);
-
-          logObject("update", update);
-          logObject("options", options);
-          logObject("modifiedFilter", modifiedFilter);
 
           const addedEvents = await Model(tenant).updateOne(
             modifiedFilter,
@@ -1039,7 +1034,6 @@ const createEvent = {
           }
         } catch (error) {
           logger.error(`insertTransformedEvents -- ${error.message}`);
-          logObject;
           dot.delete("nValues", filter);
           let errMsg = {
             msg: "duplicate event",
@@ -1136,7 +1130,6 @@ const createEvent = {
 
       let filter = {};
       let responseFromFilter = generateFilter.events_v2(request);
-      logObject("responseFromFilter", responseFromFilter);
 
       if (responseFromFilter.success == true) {
         filter = responseFromFilter.data;
@@ -1272,7 +1265,6 @@ const createEvent = {
       //   },
       // });
     } catch (error) {
-      logObject("the error", error);
       return {
         success: false,
         message: "Internal Server Error",
@@ -1383,7 +1375,8 @@ const createEvent = {
         logger.error(`internal server serror ${e.message}`);
         eventsRejected.push(measurement);
         let errMsg = {
-          msg: "there is a system conflict, most likely a duplicate record",
+          msg:
+            "there is a system conflict, most likely a cast error or duplicate record",
           more: e.message,
           record: {
             ...(measurement.device ? { device: measurement.device } : {}),

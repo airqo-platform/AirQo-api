@@ -63,6 +63,39 @@ const validation = {
       isValid: isEmpty(errors),
     };
   },
+
+  inquire: (data) => {
+    let errors = {};
+    // Convert empty fields to an empty string so as to use validator functions
+    data.fullName = !isEmpty(data.fullName) ? data.fullName : "";
+    data.email = !isEmpty(data.email) ? data.email : "";
+    data.message = !isEmpty(data.message) ? data.message : "";
+
+    if (Validator.isEmpty(data.fullName)) {
+      errors.fullName = "fullName field is required";
+    }
+
+    if (Validator.isEmpty(data.category)) {
+      errors.category = "Category is required";
+    }
+
+    if (Validator.isEmpty(data.message)) {
+      errors.message = "Message is required";
+    }
+
+    // Email checks
+    if (Validator.isEmpty(data.email)) {
+      errors.email = "Email field is required";
+    } else if (!Validator.isEmail(data.email)) {
+      errors.email = "Email is invalid";
+    }
+
+    return {
+      errors,
+      isValid: isEmpty(errors),
+    };
+  },
+
   forgot: (email) => {
     let errors = {};
     // Convert empty fields to an empty string so we can use validator functions
@@ -214,7 +247,11 @@ const validation = {
   checkEmailExistenceUsingKickbox: async (email, callback) => {
     try {
       await kickbox.verify(email, async (err, response) => {
-        if (response.body.result === "undeliverable") {
+        if (
+          response &&
+          response.body &&
+          response.body.result === "undeliverable"
+        ) {
           callback({
             success: false,
             message: `undeliverable email, did you mean ${response.body.did_you_mean}?`,
@@ -232,7 +269,11 @@ const validation = {
           });
         }
 
-        if (response.body.result === "deliverable") {
+        if (
+          response &&
+          response.body &&
+          response.body.result === "deliverable"
+        ) {
           callback({
             success: true,
             message: "deliverable",
@@ -240,7 +281,7 @@ const validation = {
           });
         }
 
-        if (response.body.result === "risky") {
+        if (response && response.body && response.body.result === "risky") {
           callback({
             success: false,
             message: "risky email",
@@ -249,7 +290,7 @@ const validation = {
           });
         }
 
-        if (response.body.result === "unknown") {
+        if (response && response.body && response.body.result === "unknown") {
           callback({
             success: false,
             message: "unknown email",
@@ -258,7 +299,7 @@ const validation = {
           });
         }
 
-        if (response.body.role === true) {
+        if (response && response.body && response.body.role === true) {
           callback({
             success: false,
             message: "role email addresses are not accepted",

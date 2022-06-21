@@ -6,6 +6,7 @@ from google.cloud import bigquery
 
 from api.models.base.base_model import BasePyMongoModel
 from api.utils.dates import date_to_str
+from api.utils.pollutants.pm_25 import POLLUTANT_BIGQUERY_MAPPER
 from main import cache, CONFIGURATIONS
 
 
@@ -23,22 +24,21 @@ class EventsModel(BasePyMongoModel):
 
     @classmethod
     @cache.memoize()
-    def from_bigquery(cls, tenant, sites, start_date, end_date, frequency, pollutants):
+    def from_bigquery(cls, tenant, sites, start_date, end_date, frequency, pollutants, additional_columns=None):
+        if additional_columns is None:
+            additional_columns = []
+
         decimal_places = 2
-        pollutant_mappings = dict({
-            "pm2_5": ["pm2_5_calibrated_value", "pm2_5_raw_value"],
-            "pm10": ["pm10_calibrated_value", "pm10_raw_value"],
-            "no2": ["no2_calibrated_value", "no2_raw_value"],
-        })
 
         columns = ["name", "FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', timestamp) AS datetime",
                    f"{cls.BIGQUERY_SITES}.latitude", f"{cls.BIGQUERY_SITES}.longitude"]
+        columns.extend(additional_columns)
 
         for pollutant in pollutants:
-            pollutant_mapping = pollutant_mappings.get(pollutant, [])
+            pollutant_mapping = POLLUTANT_BIGQUERY_MAPPER.get(pollutant, [])
             columns.extend([f'ROUND({mapping}, {decimal_places}) AS {mapping}' for mapping in pollutant_mapping])
 
-        QUERY = f"SELECT {', '.join(map(str, columns))} " \
+        QUERY = f"SELECT {', '.join(map(str, set(columns)))} " \
                 f"FROM {cls.BIGQUERY_EVENTS} " \
                 f"JOIN {cls.BIGQUERY_SITES} ON {cls.BIGQUERY_SITES}.id = {cls.BIGQUERY_EVENTS}.site_id " \
                 f"WHERE {cls.BIGQUERY_EVENTS}.tenant = '{tenant}' " \

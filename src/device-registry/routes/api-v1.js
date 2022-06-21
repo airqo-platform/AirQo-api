@@ -300,6 +300,8 @@ router.get(
       query("device_number")
         .optional()
         .notEmpty()
+        .withMessage("device_number must not be empty if provided")
+        .bail()
         .trim()
         .isInt()
         .withMessage("device_number must be an integer")
@@ -308,6 +310,8 @@ router.get(
       query("id")
         .optional()
         .notEmpty()
+        .withMessage("id must not be empty if provided")
+        .bail()
         .trim()
         .isMongoId()
         .withMessage("id must be an object ID")
@@ -318,6 +322,8 @@ router.get(
       query("site_id")
         .optional()
         .notEmpty()
+        .withMessage("site_id must not be empty if provided")
+        .bail()
         .trim()
         .isMongoId()
         .withMessage("site_id must be an object ID")
@@ -325,6 +331,17 @@ router.get(
         .customSanitizer((value) => {
           return ObjectId(value);
         }),
+      query("category")
+        .optional()
+        .notEmpty()
+        .withMessage("category must not be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["bam", "lowcost"])
+        .withMessage(
+          "the category value is not among the expected ones which include: lowcost and bam"
+        ),
       query("name")
         .optional()
         .notEmpty()
@@ -380,6 +397,16 @@ router.post(
         .isIn(["pole", "wall", "faceboard", "rooftop", "suspended"])
         .withMessage(
           "the mountType value is not among the expected ones which include: pole, wall, faceboard, suspended and rooftop "
+        ),
+      body("category")
+        .exists()
+        .withMessage("the category should be provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["bam", "lowcost"])
+        .withMessage(
+          "the category value is not among the expected ones which include: LOWCOST and BAM"
         ),
       body("powerType")
         .optional()
@@ -690,6 +717,15 @@ router.put(
         .withMessage(
           "the powerType value is not among the expected ones which include: solar, mains and alternator"
         ),
+      body("category")
+        .optional()
+        .notEmpty()
+        .trim()
+        .toLowerCase()
+        .isIn(["bam", "lowcost"])
+        .withMessage(
+          "the category value is not among the expected ones which include: LOWCOST and BAM"
+        ),
       body("isActive")
         .optional()
         .notEmpty()
@@ -903,6 +939,16 @@ router.post(
         .withMessage(
           "the mountType value is not among the expected ones which include: pole, wall, faceboard, suspended and rooftop "
         ),
+      body("category")
+        .exists()
+        .withMessage("the category should be provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["bam", "lowcost"])
+        .withMessage(
+          "the category value is not among the expected ones which include: LOWCOST and BAM"
+        ),
       body("powerType")
         .optional()
         .notEmpty()
@@ -1046,6 +1092,15 @@ router.put(
         .isIn(["solar", "mains", "alternator"])
         .withMessage(
           "the powerType value is not among the expected ones which include: solar, mains and alternator"
+        ),
+      body("category")
+        .optional()
+        .notEmpty()
+        .trim()
+        .toLowerCase()
+        .isIn(["bam", "lowcost"])
+        .withMessage(
+          "the category value is not among the expected ones which include: LOWCOST and BAM"
         ),
       body("isActive")
         .optional()
@@ -2204,9 +2259,9 @@ router.post(
         })
         .bail()
         .customSanitizer((value) => {
-          return numeral(value).format("0.00000");
+          return numeral(value).format("0.00000000000000");
         })
-        .isDecimal({ decimal_digits: 5 })
+        .isDecimal({ decimal_digits: 14 })
         .withMessage("the latitude must have atleast 5 decimal places in it"),
       body("longitude")
         .exists()
@@ -2226,9 +2281,9 @@ router.post(
         })
         .bail()
         .customSanitizer((value) => {
-          return numeral(value).format("0.00000");
+          return numeral(value).format("0.00000000000000");
         })
-        .isDecimal({ decimal_digits: 5 })
+        .isDecimal({ decimal_digits: 14 })
         .withMessage("the longitude must have atleast 5 decimal places in it"),
       body("name")
         .exists()
@@ -2747,6 +2802,60 @@ router.get(
   siteController.findNearestSite
 );
 
+router.post(
+  "/sites/approximate",
+  oneOf([
+    [
+      body("latitude")
+        .exists()
+        .withMessage("the latitude should be provided")
+        .bail()
+        .matches(constants.LATITUDE_REGEX, "i")
+        .withMessage("the latitude provided is not valid")
+        .bail()
+        .custom((value) => {
+          let dp = decimalPlaces(value);
+          if (dp < 2) {
+            return Promise.reject(
+              "the latitude must have 2 or more characters"
+            );
+          }
+          return Promise.resolve("latitude validation test has passed");
+        })
+        .withMessage("the latitude must have atleast 2 decimal places in it")
+        .bail()
+        .customSanitizer((value) => {
+          return numeral(value).format("0.00000000000000");
+        })
+        .isDecimal({ decimal_digits: 14 }),
+
+      body("longitude")
+        .exists()
+        .withMessage("the longitude is is missing in your request")
+        .bail()
+        .matches(constants.LONGITUDE_REGEX, "i")
+        .withMessage("the longitude should be provided")
+        .bail()
+        .custom((value) => {
+          let dp = decimalPlaces(value);
+          if (dp < 2) {
+            return Promise.reject(
+              "the longitude must have 2 or more characters"
+            );
+          }
+          return Promise.resolve("longitude validation test has passed");
+        })
+        .withMessage("the longitude must have atleast 2 decimal places in it")
+        .bail()
+        .customSanitizer((value) => {
+          return numeral(value).format("0.00000000000000");
+        })
+        .isDecimal({ decimal_digits: 14 }),
+    ],
+  ]),
+  siteController.createApproximateCoordinates
+);
+
 /******************* create-event use-case *******************************/
 router.post(
   "/events",
@@ -3066,188 +3175,180 @@ router.post(
         .isISO8601({ strict: true, strictSeparator: true })
         .withMessage("time must be a valid datetime."),
       body("s1_pm10")
-        .optional()
-        .notEmpty()
-        .withMessage("s1_pm10 should not be empty if/when provided")
-        .bail()
-        .isNumeric()
-        .withMessage("s1_pm_10 should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage("s1_pm10 should not be empty if/when provided")
+        // .bail()
+        // .isNumeric()
+        // .withMessage("s1_pm_10 should be an integer value")
         .trim(),
       body("s1_pm2_5")
-        .optional()
-        .notEmpty()
-        .withMessage("s1_pm2_5 should not be empty if/when provided")
-        .bail()
-        .isNumeric()
-        .withMessage("s1_pm2_5 should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage("s1_pm2_5 should not be empty if/when provided")
+        // .bail()
+        // .isNumeric()
+        // .withMessage("s1_pm2_5 should be an integer value")
         .trim(),
       body("s2_pm2_5")
-        .optional()
-        .notEmpty()
-        .withMessage("s2_pm2_5 should not be empty if/when provided")
-        .bail()
-        .isInt()
-        .withMessage("s2_pm2_5 should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage("s2_pm2_5 should not be empty if/when provided")
+        // .bail()
+        // .isInt()
+        // .withMessage("s2_pm2_5 should be an integer value")
         .trim(),
       body("s2_pm10")
-        .optional()
-        .notEmpty()
-        .withMessage("s2_pm10 should not be empty if/when provided")
-        .bail()
-        .isInt()
-        .withMessage("s2_pm10 should be an integer value")
-        .bail()
+        // .optional()
+        // .notEmpty()
+        // .withMessage("s2_pm10 should not be empty if/when provided")
+        // .bail()
+        // .isInt()
+        // .withMessage("s2_pm10 should be an integer value")
+        // .bail()
         .trim(),
       body("latitude")
-        .optional()
-        .notEmpty()
-        .withMessage("provided latitude cannot be empty")
-        .bail()
-        .trim()
-        .matches(constants.LATITUDE_REGEX, "i")
-        .withMessage("please provide valid latitude value")
-        .bail()
-        .custom((value) => {
-          let dp = decimalPlaces(value);
-          if (dp < 5) {
-            return Promise.reject(
-              "the latitude must have 5 or more characters"
-            );
-          }
-          return Promise.resolve("latitude validation test has passed");
-        })
-        .bail()
-        .customSanitizer((value) => {
-          return numeral(value).format("0.00000");
-        })
-        .isDecimal({ decimal_digits: 5 })
-        .withMessage("the latitude must have atleast 5 decimal places in it"),
+        // .optional()
+        // .notEmpty()
+        // .withMessage("provided latitude cannot be empty")
+        // .bail()
+        // .trim()
+        // .matches(constants.LATITUDE_REGEX, "i")
+        // .withMessage("please provide valid latitude value")
+        // .bail()
+        // .custom((value) => {
+        //   let dp = decimalPlaces(value);
+        //   if (dp < 5) {
+        //     return Promise.reject(
+        //       "the latitude must have 5 or more characters"
+        //     );
+        //   }
+        //   return Promise.resolve("latitude validation test has passed");
+        // })
+        // .bail()
+        // .customSanitizer((value) => {
+        //   return numeral(value).format("0.00000");
+        // })
+        // .isDecimal({ decimal_digits: 5 })
+        // .withMessage("the latitude must have atleast 5 decimal places in it"),
+        .trim(),
       body("longitude")
-        .optional()
-        .notEmpty()
-        .withMessage("provided longitude cannot be empty")
-        .bail()
-        .trim()
-        .matches(constants.LONGITUDE_REGEX, "i")
-        .withMessage("please provide valid longitude value")
-        .bail()
-        .custom((value) => {
-          let dp = decimalPlaces(value);
-          if (dp < 5) {
-            return Promise.reject(
-              "the longitude must have 5 or more characters"
-            );
-          }
-          return Promise.resolve("longitude validation test has passed");
-        })
-        .bail()
-        .customSanitizer((value) => {
-          return numeral(value).format("0.00000");
-        })
-        .isDecimal({ decimal_digits: 5 })
-        .withMessage("the longitude must have atleast 5 decimal places in it"),
+        // .optional()
+        // .notEmpty()
+        // .withMessage("provided longitude cannot be empty")
+        // .bail()
+        // .trim()
+        // .matches(constants.LONGITUDE_REGEX, "i")
+        // .withMessage("please provide valid longitude value")
+        // .bail()
+        // .custom((value) => {
+        //   let dp = decimalPlaces(value);
+        //   if (dp < 5) {
+        //     return Promise.reject(
+        //       "the longitude must have 5 or more characters"
+        //     );
+        //   }
+        //   return Promise.resolve("longitude validation test has passed");
+        // })
+        // .bail()
+        // .customSanitizer((value) => {
+        //   return numeral(value).format("0.00000");
+        // })
+        // .isDecimal({ decimal_digits: 5 })
+        // .withMessage("the longitude must have atleast 5 decimal places in it"),
+        .trim(),
       body("battery")
-        .optional()
-        .notEmpty()
-        .withMessage("battery should not be empty if/when provided")
-        .bail()
-        .isInt()
-        .withMessage("battery should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage("battery should not be empty if/when provided")
+        // .bail()
+        // .isInt()
+        // .withMessage("battery should be an integer value")
         .trim(),
       body("altitude")
-        .optional()
-        .notEmpty()
-        .withMessage("altitude should not be empty if/when provided")
-        .bail()
-        .isInt()
-        .withMessage("altitude should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage("altitude should not be empty if/when provided")
+        // .bail()
+        // .isInt()
+        // .withMessage("altitude should be an integer value")
         .trim(),
       body("wind_speed")
-        .optional()
-        .notEmpty()
-        .withMessage("wind_speed should not be empty if/when provided")
-        .bail()
-        .isInt()
-        .withMessage("wind_speed should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage("wind_speed should not be empty if/when provided")
+        // .bail()
+        // .isInt()
+        // .withMessage("wind_speed should be an integer value")
         .trim(),
       body("satellites")
-        .optional()
-        .notEmpty()
-        .withMessage("satellites should not be empty if/when provided")
-        .bail()
-        .isInt()
-        .withMessage("satellites should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage("satellites should not be empty if/when provided")
+        // .bail()
+        // .isInt()
+        // .withMessage("satellites should be an integer value")
         .trim(),
       body("hdop")
-        .optional()
-        .notEmpty()
-        .withMessage("hdop should not be empty if/when provided")
-        .bail()
-        .isInt()
-        .withMessage("hdop should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage("hdop should not be empty if/when provided")
+        // .bail()
+        // .isInt()
+        // .withMessage("hdop should be an integer value")
         .trim(),
       body("internal_temperature")
-        .optional()
-        .notEmpty()
-        .withMessage(
-          "internal_temperature should not be empty if/when provided"
-        )
-        .bail()
-        .isInt()
-        .withMessage("internal_temperature should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage(
+        //   "internal_temperature should not be empty if/when provided"
+        // )
+        // .bail()
+        // .isInt()
+        // .withMessage("internal_temperature should be an integer value")
         .trim(),
       body("internal_humidity")
-        .optional()
-        .notEmpty()
-        .withMessage("internal_humidity should not be empty if/when provided")
-        .bail()
-        .isInt()
-        .withMessage("internal_humidity should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage("internal_humidity should not be empty if/when provided")
+        // .bail()
+        // .isInt()
+        // .withMessage("internal_humidity should be an integer value")
         .trim(),
       body("external_temperature")
-        .optional()
-        .notEmpty()
-        .withMessage(
-          "external_temperature should not be empty if/when provided"
-        )
-        .bail()
-        .isInt()
-        .withMessage("external_temperature should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage(
+        //   "external_temperature should not be empty if/when provided"
+        // )
+        // .bail()
+        // .isInt()
+        // .withMessage("external_temperature should be an integer value")
         .trim(),
       body("external_humidity")
-        .optional()
-        .notEmpty()
-        .withMessage("external_humidity should not be empty if/when provided")
-        .bail()
-        .isInt()
-        .withMessage("external_humidity should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage("external_humidity should not be empty if/when provided")
+        // .bail()
+        // .isInt()
+        // .withMessage("external_humidity should be an integer value")
         .trim(),
       body("external_pressure")
-        .optional()
-        .notEmpty()
-        .withMessage("external_pressure should not be empty if/when provided")
-        .bail()
-        .isInt()
-        .withMessage("external_pressure should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage("external_pressure should not be empty if/when provided")
+        // .bail()
+        // .isInt()
+        // .withMessage("external_pressure should be an integer value")
         .trim(),
       body("external_altitude")
-        .optional()
-        .notEmpty()
-        .withMessage("external_altitude should not be empty if/when provided")
-        .bail()
-        .isInt()
-        .withMessage("external_altitude should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage("external_altitude should not be empty if/when provided")
+        // .bail()
+        // .isInt()
+        // .withMessage("external_altitude should be an integer value")
         .trim(),
-      body("type")
-        .exists()
-        .trim()
-        .withMessage("type is missing")
-        .bail()
-        .trim()
-        .isIn(["BAM", "LOWCOST"])
-        .withMessage(
-          "the type body parameter value is not among the expected ones which are: BAM and LOWCOST"
-        ),
       body("status")
         .optional()
         .notEmpty()
@@ -3304,192 +3405,184 @@ router.post(
         .isISO8601({ strict: true, strictSeparator: true })
         .withMessage("time must be a valid datetime."),
       body("*.s1_pm10")
-        .optional()
-        .notEmpty()
-        .withMessage("s1_pm10 should not be empty if/when provided")
-        .bail()
-        .isNumeric()
-        .withMessage("s1_pm_10 should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage("s1_pm10 should not be empty if/when provided")
+        // .bail()
+        // .isNumeric()
+        // .withMessage("s1_pm_10 should be an integer value")
         .trim(),
       body("*.s1_pm2_5")
-        .optional()
-        .notEmpty()
-        .withMessage("s1_pm2_5 should not be empty if/when provided")
-        .bail()
-        .isNumeric()
-        .withMessage("s1_pm2_5 should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage("s1_pm2_5 should not be empty if/when provided")
+        // .bail()
+        // .isNumeric()
+        // .withMessage("s1_pm2_5 should be an integer value")
         .trim(),
       body("*.s2_pm2_5")
-        .optional()
-        .notEmpty()
-        .withMessage("s2_pm2_5 should not be empty if/when provided")
-        .bail()
-        .isInt()
-        .withMessage("s2_pm2_5 should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage("s2_pm2_5 should not be empty if/when provided")
+        // .bail()
+        // .isInt()
+        // .withMessage("s2_pm2_5 should be an integer value")
         .trim(),
       body("*.s2_pm10")
         .optional()
-        .notEmpty()
-        .withMessage("s2_pm10 should not be empty if/when provided")
-        .bail()
-        .isInt()
-        .withMessage("s2_pm10 should be an integer value")
-        .bail()
+        // .notEmpty()
+        // .withMessage("s2_pm10 should not be empty if/when provided")
+        // .bail()
+        // .isInt()
+        // .withMessage("s2_pm10 should be an integer value")
+        // .bail()
         .trim(),
       body("*.latitude")
-        .optional()
-        .notEmpty()
-        .withMessage("provided latitude cannot be empty")
-        .bail()
-        .trim()
-        .matches(constants.LATITUDE_REGEX, "i")
-        .withMessage("please provide valid latitude value")
-        .bail()
-        .custom((value) => {
-          let dp = decimalPlaces(value);
-          if (dp < 5) {
-            return Promise.reject(
-              "the latitude must have 5 or more characters"
-            );
-          }
-          return Promise.resolve("latitude validation test has passed");
-        })
-        .bail()
-        .customSanitizer((value) => {
-          return numeral(value).format("0.00000");
-        })
-        .isDecimal({ decimal_digits: 5 })
-        .withMessage("the latitude must have atleast 5 decimal places in it"),
+        // .optional()
+        // .notEmpty()
+        // .withMessage("provided latitude cannot be empty")
+        // .bail()
+        // .trim()
+        // .matches(constants.LATITUDE_REGEX, "i")
+        // .withMessage("please provide valid latitude value")
+        // .bail()
+        // .custom((value) => {
+        //   let dp = decimalPlaces(value);
+        //   if (dp < 5) {
+        //     return Promise.reject(
+        //       "the latitude must have 5 or more characters"
+        //     );
+        //   }
+        //   return Promise.resolve("latitude validation test has passed");
+        // })
+        // .bail()
+        // .customSanitizer((value) => {
+        //   return numeral(value).format("0.00000");
+        // })
+        // .isDecimal({ decimal_digits: 5 })
+        // .withMessage("the latitude must have atleast 5 decimal places in it"),
+        .trim(),
       body("*.longitude")
-        .optional()
-        .notEmpty()
-        .withMessage("provided longitude cannot be empty")
-        .bail()
-        .trim()
-        .matches(constants.LONGITUDE_REGEX, "i")
-        .withMessage("please provide valid longitude value")
-        .bail()
-        .custom((value) => {
-          let dp = decimalPlaces(value);
-          if (dp < 5) {
-            return Promise.reject(
-              "the longitude must have 5 or more characters"
-            );
-          }
-          return Promise.resolve("longitude validation test has passed");
-        })
-        .bail()
-        .customSanitizer((value) => {
-          return numeral(value).format("0.00000");
-        })
-        .isDecimal({ decimal_digits: 5 })
-        .withMessage("the longitude must have atleast 5 decimal places in it"),
+        // .optional()
+        // .notEmpty()
+        // .withMessage("provided longitude cannot be empty")
+        // .bail()
+        // .trim()
+        // .matches(constants.LONGITUDE_REGEX, "i")
+        // .withMessage("please provide valid longitude value")
+        // .bail()
+        // .custom((value) => {
+        //   let dp = decimalPlaces(value);
+        //   if (dp < 5) {
+        //     return Promise.reject(
+        //       "the longitude must have 5 or more characters"
+        //     );
+        //   }
+        //   return Promise.resolve("longitude validation test has passed");
+        // })
+        // .bail()
+        // .customSanitizer((value) => {
+        //   return numeral(value).format("0.00000");
+        // })
+        // .isDecimal({ decimal_digits: 5 })
+        // .withMessage("the longitude must have atleast 5 decimal places in it"),
+        .trim(),
       body("*.battery")
-        .optional()
-        .notEmpty()
-        .withMessage("battery should not be empty if/when provided")
-        .bail()
-        .isInt()
-        .withMessage("battery should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage("battery should not be empty if/when provided")
+        // .bail()
+        // .isInt()
+        // .withMessage("battery should be an integer value")
         .trim(),
       body("*.altitude")
-        .optional()
-        .notEmpty()
-        .withMessage("altitude should not be empty if/when provided")
-        .bail()
-        .isInt()
-        .withMessage("altitude should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage("altitude should not be empty if/when provided")
+        // .bail()
+        // .isInt()
+        // .withMessage("altitude should be an integer value")
         .trim(),
       body("*.wind_speed")
-        .optional()
-        .notEmpty()
-        .withMessage("wind_speed should not be empty if/when provided")
-        .bail()
-        .isInt()
-        .withMessage("wind_speed should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage("wind_speed should not be empty if/when provided")
+        // .bail()
+        // .isInt()
+        // .withMessage("wind_speed should be an integer value")
         .trim(),
       body("*.satellites")
-        .optional()
-        .notEmpty()
-        .withMessage("satellites should not be empty if/when provided")
-        .bail()
-        .isInt()
-        .withMessage("satellites should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage("satellites should not be empty if/when provided")
+        // .bail()
+        // .isInt()
+        // .withMessage("satellites should be an integer value")
         .trim(),
       body("*.hdop")
-        .optional()
-        .notEmpty()
-        .withMessage("hdop should not be empty if/when provided")
-        .bail()
-        .isInt()
-        .withMessage("hdop should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage("hdop should not be empty if/when provided")
+        // .bail()
+        // .isInt()
+        // .withMessage("hdop should be an integer value")
         .trim(),
       body("*.internal_temperature")
-        .optional()
-        .notEmpty()
-        .withMessage(
-          "internal_temperature should not be empty if/when provided"
-        )
-        .bail()
-        .isInt()
-        .withMessage("internal_temperature should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage(
+        //   "internal_temperature should not be empty if/when provided"
+        // )
+        // .bail()
+        // .isInt()
+        // .withMessage("internal_temperature should be an integer value")
         .trim(),
       body("*.internal_humidity")
-        .optional()
-        .notEmpty()
-        .withMessage("internal_humidity should not be empty if/when provided")
-        .bail()
-        .isInt()
-        .withMessage("internal_humidity should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage("internal_humidity should not be empty if/when provided")
+        // .bail()
+        // .isInt()
+        // .withMessage("internal_humidity should be an integer value")
         .trim(),
       body("*.external_temperature")
-        .optional()
-        .notEmpty()
-        .withMessage(
-          "external_temperature should not be empty if/when provided"
-        )
-        .bail()
-        .isInt()
-        .withMessage("external_temperature should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage(
+        //   "external_temperature should not be empty if/when provided"
+        // )
+        // .bail()
+        // .isInt()
+        // .withMessage("external_temperature should be an integer value")
         .trim(),
       body("*.external_humidity")
-        .optional()
-        .notEmpty()
-        .withMessage("external_humidity should not be empty if/when provided")
-        .bail()
-        .isInt()
-        .withMessage("external_humidity should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage("external_humidity should not be empty if/when provided")
+        // .bail()
+        // .isInt()
+        // .withMessage("external_humidity should be an integer value")
         .trim(),
       body("*.external_pressure")
-        .optional()
-        .notEmpty()
-        .withMessage("external_pressure should not be empty if/when provided")
-        .bail()
-        .isInt()
-        .withMessage("external_pressure should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage("external_pressure should not be empty if/when provided")
+        // .bail()
+        // .isInt()
+        // .withMessage("external_pressure should be an integer value")
         .trim(),
       body("*.external_altitude")
-        .optional()
-        .notEmpty()
-        .withMessage("external_altitude should not be empty if/when provided")
-        .bail()
-        .isInt()
-        .withMessage("external_altitude should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage("external_altitude should not be empty if/when provided")
+        // .bail()
+        // .isInt()
+        // .withMessage("external_altitude should be an integer value")
         .trim(),
-      body("*.type")
-        .exists()
-        .trim()
-        .withMessage("type is missing")
-        .bail()
-        .trim()
-        .isIn(["BAM", "LOWCOST"])
-        .withMessage(
-          "the type body parameter value is not among the expected ones which are: BAM and LOWCOST"
-        ),
-      body("*.status")
-        .optional()
-        .notEmpty()
-        .withMessage("status cannot be empty if provided"),
+      body("*.status"),
+      // .optional()
+      // .notEmpty()
+      // .withMessage("status cannot be empty if provided"),
     ],
   ]),
   eventController.bulkTransmitMultipleSensorValues

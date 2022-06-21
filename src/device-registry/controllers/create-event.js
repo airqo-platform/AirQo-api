@@ -388,7 +388,6 @@ const createEvent = {
           : HTTPStatus.OK;
         res.status(status).json({
           message: responseFromBulkTransmitMultipleSensorValues.message,
-          response: responseFromBulkTransmitMultipleSensorValues.data,
         });
       } else {
         const status = responseFromBulkTransmitMultipleSensorValues.status

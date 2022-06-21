@@ -124,9 +124,7 @@ const device = {
           message: responseFromCreateDevice.message,
           created_device: responseFromCreateDevice.data,
         });
-      }
-
-      if (responseFromCreateDevice.success === false) {
+      } else if (responseFromCreateDevice.success === false) {
         let errors = responseFromCreateDevice.errors
           ? responseFromCreateDevice.errors
           : "";
@@ -401,7 +399,6 @@ const device = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logObject(" nestedErrors", nestedErrors);
         return errors.badRequest(
           res,
           "bad request errors",

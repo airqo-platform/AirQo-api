@@ -16,7 +16,7 @@ const generateFilter = require("./generate-filter");
 const log4js = require("log4js");
 const HTTPStatus = require("http-status");
 const logger = log4js.getLogger("create-site-util");
-const distance = require("./distance");
+const distanceUtil = require("./distance");
 
 const SiteModel = (tenant) => {
   getModelByTenant(tenant.toLowerCase(), "site", SiteSchema);
@@ -360,7 +360,14 @@ const manageSite = {
     try {
       const { body, query } = req;
       const { tenant } = query;
-      const { name, latitude, longitude, airqlouds } = body;
+      const {
+        name,
+        latitude,
+        longitude,
+        airqlouds,
+        approximate_distance_in_km,
+      } = body;
+
       let request = {};
       request["body"] = {};
       request["query"] = {};
@@ -369,6 +376,27 @@ const manageSite = {
       request["body"]["airqlouds"] = airqlouds;
       request["body"]["name"] = name;
       request["query"]["tenant"] = tenant;
+
+      const responseFromApproximateCoordinates = manageSite.createApproximateCoordinates(
+        { latitude, longitude, approximate_distance_in_km }
+      );
+
+      if (responseFromApproximateCoordinates.success === true) {
+        const {
+          approximate_latitude,
+          approximate_longitude,
+          bearing_in_radians,
+          approximate_distance_in_km,
+        } = responseFromApproximateCoordinates.data;
+        request["body"]["approximate_latitude"] = approximate_latitude;
+        request["body"]["approximate_longitude"] = approximate_longitude;
+        request["body"]["bearing_in_radians"] = bearing_in_radians;
+        request["body"][
+          "approximate_distance_in_km"
+        ] = approximate_distance_in_km;
+      } else if (responseFromApproximateCoordinates.success === false) {
+        return responseFromApproximateCoordinates;
+      }
 
       let generated_name = null;
       let requestBodyForCreatingSite = {};
@@ -1224,7 +1252,7 @@ const manageSite = {
         let nearest_sites = [];
         sites.forEach((site) => {
           if ("latitude" in site && "longitude" in site) {
-            let distanceBetweenTwoPoints = distance.distanceBtnTwoPoints(
+            let distanceBetweenTwoPoints = distanceUtil.distanceBtnTwoPoints(
               latitude,
               longitude,
               site["latitude"],
@@ -1232,7 +1260,7 @@ const manageSite = {
             );
 
             if (distanceBetweenTwoPoints < radius) {
-              site["distance"] = distance;
+              site["distance"] = distanceBetweenTwoPoints;
               nearest_sites.push(site);
             }
           }
@@ -1582,6 +1610,39 @@ const manageSite = {
       return { activityBody };
     } catch (e) {
       tryCatchErrors(res, e);
+    }
+  },
+
+  createApproximateCoordinates: ({
+    latitude,
+    longitude,
+    approximate_distance_in_km,
+    bearing,
+  }) => {
+    try {
+      const responseFromDistanceUtil = distanceUtil.createApproximateCoordinates(
+        {
+          latitude,
+          longitude,
+          approximate_distance_in_km,
+          bearing,
+        }
+      );
+
+      return {
+        success: true,
+        data: responseFromDistanceUtil,
+        message: "successfully approximated the GPS coordinates",
+      };
+    } catch (error) {
+      logObject("error in util", error);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: {
+          message: error.message,
+        },
+      };
     }
   },
 };

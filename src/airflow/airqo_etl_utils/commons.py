@@ -5,12 +5,9 @@ from functools import reduce
 
 import numpy as np
 import pandas as pd
-from airflow.hooks.base import BaseHook
-from airflow.providers.slack.operators.slack_webhook import SlackWebhookOperator
 from google.cloud import storage
 
 from airqo_etl_utils.airqo_api import AirQoApi
-from airqo_etl_utils.config import configuration
 from airqo_etl_utils.constants import AirQuality, Pollutant
 from airqo_etl_utils.date import (
     str_to_date,
@@ -239,68 +236,6 @@ def resample_weather_data(
         devices_weather_data.extend(device_weather_data)
 
     return pd.DataFrame(devices_weather_data)
-
-
-def slack_success_notification(context):
-    slack_webhook_token = BaseHook.get_connection("slack").password
-
-    msg = """
-          :green_circle: Task Successful. 
-          *Task*: {task}  
-          *Dag*: {dag} 
-          *Execution Time*: {exec_date}  
-          *Log Url*: {log_url} 
-          """.format(
-        task=context.get("task_instance").task_id,
-        dag=context.get("task_instance").dag_id,
-        ti=context.get("task_instance"),
-        exec_date=context.get("execution_date"),
-        log_url=context.get("task_instance").log_url,
-    )
-
-    success_alert = SlackWebhookOperator(
-        task_id="slack_success_notification",
-        http_conn_id="slack",
-        webhook_token=slack_webhook_token,
-        message=msg,
-        username="airflow",
-    )
-
-    return success_alert.execute(context=context)
-
-
-def slack_dag_failure_notification(context):
-    slack_webhook_token = BaseHook.get_connection("slack").password
-    icon_color = (
-        ":red_circle"
-        if configuration.ENVIRONMENT.lower() == "production"
-        else ":yellow_circle"
-    )
-
-    msg = """
-          {icon_color}: Task Failed. 
-          *Task*: {task}  
-          *Dag*: {dag}
-          *Execution Time*: {exec_date}  
-          *Log Url*: {log_url} 
-          """.format(
-        icon_color=icon_color,
-        task=context.get("task_instance").task_id,
-        dag=context.get("task_instance").dag_id,
-        ti=context.get("task_instance"),
-        exec_date=context.get("execution_date"),
-        log_url=context.get("task_instance").log_url,
-    )
-
-    failed_alert = SlackWebhookOperator(
-        task_id="slack_failed_notification",
-        http_conn_id="slack",
-        webhook_token=slack_webhook_token,
-        message=msg,
-        username="airflow",
-    )
-
-    return failed_alert.execute(context=context)
 
 
 def download_file_from_gcs(bucket_name: str, source_file: str, destination_file: str):

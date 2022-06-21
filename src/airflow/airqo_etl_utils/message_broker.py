@@ -9,11 +9,32 @@ class KafkaBrokerClient:
         self.__partitions = configuration.TOPIC_PARTITIONS
         self.__bootstrap_servers = configuration.BOOTSTRAP_SERVERS
         self.__partitions = [0, 1, 2]
+        self.bam_measurements_topic = configuration.BAM_MEASUREMENTS_TOPIC
         # self.__schema_registry_url = configuration.SCHEMA_REGISTRY_URL
         # self.__registry_client = SchemaRegistry(
         #     self.__schema_registry_url,
         #     headers={"Content-Type": "application/vnd.schemaregistry.v1+json"},
         # )
+
+    def get_topic_schema(self, topic: str) -> list:
+
+        if topic == self.bam_measurements_topic:
+            return [
+                "pm2_5",
+                "pm10",
+                "no2",
+                "latitude",
+                "longitude",
+                "timestamp",
+                "site_id",
+                "device_number",
+                "device_id",
+                "tenant",
+                "latitude",
+                "device",
+            ]
+        else:
+            raise Exception("Invalid topic")
 
     def get_partition(self, current_partition) -> int:
         current_partition = current_partition + 1
@@ -42,7 +63,7 @@ class KafkaBrokerClient:
             bootstrap_servers=self.__bootstrap_servers,
             api_version_auto_timeout_ms=300000,
             retries=5,
-            request_timeout_ms=300000
+            request_timeout_ms=300000,
         )
 
         if len(data) > 50:

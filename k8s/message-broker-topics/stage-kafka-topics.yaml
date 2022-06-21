@@ -6,7 +6,7 @@ metadata:
   labels:
     strimzi.io/cluster: stage-kafka-cluster
 spec:
-  partitions: 1
+  partitions: 3
   replicas: 1
   config:
     retention.ms: 86400000
@@ -128,6 +128,20 @@ apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaTopic
 metadata:
   name: photos-topic
+  namespace: staging
+  labels:
+    strimzi.io/cluster: stage-kafka-cluster
+spec:
+  partitions: 1
+  replicas: 1
+  config:
+    retention.ms: 86400000
+
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: bam-measurements-topic
   namespace: staging
   labels:
     strimzi.io/cluster: stage-kafka-cluster

@@ -1,6 +1,5 @@
 import argparse
 import os
-import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -16,8 +15,6 @@ BASE_DIR = Path(__file__).resolve().parent
 dotenv_path = os.path.join(BASE_DIR, ".env")
 load_dotenv(dotenv_path)
 
-sys.path.append("/")
-
 
 def kcca_hourly_measurements(start_date_time: str, end_date_time: str):
     from airqo_etl_utils.kcca_utils import (
@@ -32,7 +29,7 @@ def kcca_hourly_measurements(start_date_time: str, end_date_time: str):
         start_time=start_date_time, end_time=end_date_time, freq="hourly"
     )
     pd.DataFrame(kcca_unclean_data).to_csv(
-        path_or_buf="outputs/kcca_unclean_data.csv", index=False
+        path_or_buf="kcca_unclean_data.csv", index=False
     )
 
     # API
@@ -196,6 +193,28 @@ def insights_forecast():
     pd.DataFrame(insights_data).to_csv(
         path_or_buf="insights_forecast_data.csv", index=False
     )
+
+
+def app_notifications():
+    from airqo_etl_utils.app_notification_utils import (
+        get_notification_recipients,
+        get_notification_templates,
+        create_notification_messages,
+        NOTIFICATION_TEMPLATE_MAPPER,
+    )
+
+    recipients = get_notification_recipients(16)
+    recipients.to_csv(path_or_buf="recipients.csv", index=False)
+
+    templates = get_notification_templates(
+        NOTIFICATION_TEMPLATE_MAPPER["monday_morning"]
+    )
+    pd.DataFrame(templates).to_csv(path_or_buf="templates.csv", index=False)
+
+    notification_messages = create_notification_messages(
+        templates=templates, recipients=recipients
+    )
+    notification_messages.to_csv(path_or_buf="notification_messages.csv", index=False)
 
 
 def daily_insights(start_date_time: str, end_date_time: str):
@@ -496,6 +515,29 @@ def merge_historical_calibrated_data(
     )
 
 
+def airnow_bam_data():
+    from airqo_etl_utils.airnow_utils import (
+        extract_airnow_data_from_api,
+        process_airnow_data,
+        process_for_message_broker,
+        process_for_big_query,
+    )
+
+    extracted_bam_data = extract_airnow_data_from_api(
+        start_date_time="2022-06-13T18:00", end_date_time="2022-06-13T18:00"
+    )
+    extracted_bam_data.to_csv("airnow_unprocessed_data.csv", index=False)
+
+    processed_bam_data = process_airnow_data(extracted_bam_data)
+    processed_bam_data.to_csv("airnow_processed_data.csv", index=False)
+
+    message_broker_data = pd.DataFrame(process_for_message_broker(processed_bam_data))
+    message_broker_data.to_csv("airnow_message_broker_data.csv", index=False)
+
+    bigquery_data = pd.DataFrame(process_for_big_query(processed_bam_data))
+    bigquery_data.to_csv("airnow_bigquery_data.csv", index=False)
+
+
 if __name__ == "__main__":
 
     from airqo_etl_utils.date import date_to_str_hours
@@ -539,7 +581,9 @@ if __name__ == "__main__":
             "forecast_insights_data",
             "meta_data",
             "upload_to_gcs",
+            "app_notifications",
             "calibrate_historical_data",
+            "airnow_bam_data",
         ],
     )
 
@@ -563,6 +607,9 @@ if __name__ == "__main__":
     elif args.action == "forecast_insights_data":
         insights_forecast()
 
+    elif args.action == "app_notifications":
+        app_notifications()
+
     elif args.action == "meta_data":
         meta_data()
 
@@ -573,5 +620,7 @@ if __name__ == "__main__":
         calibrate_historical_data(
             start_date_time=args.start, end_date_time=args.end, tenant=args.tenant
         )
+    elif args.action == "airnow_bam_data":
+        airnow_bam_data()
     else:
         pass
