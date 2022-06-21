@@ -3,6 +3,7 @@ const { logObject, logText } = require("../utils/log");
 const isEmpty = require("is-empty");
 const constants = require("../config/constants");
 const msgs = require("../utils/email.msgs");
+const msgTemplates = require("../utils/email.templates");
 const httpStatus = require("http-status");
 
 const mailer = {
@@ -56,10 +57,13 @@ const mailer = {
         bcc = constants.REQUEST_ACCESS_EMAILS;
       }
 
+      const categoryNameWithFirstLetterCapital =
+        category.charAt(0).toUpperCase() + category.slice(1);
+
       const mailOptionsForAirQo = {
         to: `${email}`,
-        subject: `Welcome to AirQo, for ${category}`,
-        text: msgs.inquiry(fullName),
+        subject: `Welcome to AirQo, for ${categoryNameWithFirstLetterCapital}`,
+        html: msgTemplates.inquiryTemplate(fullName),
         bcc,
       };
 

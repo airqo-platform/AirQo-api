@@ -26,13 +26,7 @@ spec:
         - name: calibrate-pickle
           image: us.gcr.io/airqo-250220/airqo-calibrate-pickle-file:latest
           imagePullPolicy: Always
-          resources:
-            requests:
-              memory: 100Mi
-              cpu: 50m
-            limits:
-              memory: 500Mi
-              cpu: 200m
+          resources: {}
           envFrom:
             - configMapRef:
                 name: prod-calibrate-api-config

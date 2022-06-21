@@ -42,7 +42,7 @@ class KafkaBrokerClient:
             bootstrap_servers=self.__bootstrap_servers,
             api_version_auto_timeout_ms=300000,
             retries=5,
-            request_timeout_ms=300000
+            request_timeout_ms=300000,
         )
 
         if len(data) > 50:
