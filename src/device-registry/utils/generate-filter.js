@@ -531,6 +531,7 @@ const generateFilter = {
         device_name,
         device_id,
         device_number,
+        category,
       } = req.query;
 
       if (name) {
@@ -549,6 +550,10 @@ const generateFilter = {
 
       if (channel) {
         filter["device_number"] = channel;
+      }
+
+      if (category) {
+        filter["category"] = category;
       }
 
       if (device_number) {

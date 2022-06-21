@@ -7,7 +7,7 @@ metadata:
     strimzi.io/cluster: prod-kafka-cluster
 spec:
   partitions: 3
-  replicas: 1
+  replicas: 2
   config:
     retention.ms: 86400000
 
@@ -21,7 +21,7 @@ metadata:
     strimzi.io/cluster: prod-kafka-cluster
 spec:
   partitions: 3
-  replicas: 1
+  replicas: 2
   config:
     retention.ms: 86400000
 
@@ -35,7 +35,7 @@ metadata:
     strimzi.io/cluster: prod-kafka-cluster
 spec:
   partitions: 3
-  replicas: 1
+  replicas: 2
   config:
     retention.ms: 86400000
 
@@ -49,7 +49,7 @@ metadata:
     strimzi.io/cluster: prod-kafka-cluster
 spec:
   partitions: 3
-  replicas: 1
+  replicas: 2
   config:
     retention.ms: 86400000
 
@@ -63,7 +63,7 @@ metadata:
     strimzi.io/cluster: prod-kafka-cluster
 spec:
   partitions: 1
-  replicas: 1
+  replicas: 2
   config:
     retention.ms: 86400000 
 
@@ -77,7 +77,7 @@ metadata:
     strimzi.io/cluster: prod-kafka-cluster
 spec:
   partitions: 1
-  replicas: 1
+  replicas: 2
   config:
     retention.ms: 86400000 
 
@@ -91,7 +91,7 @@ metadata:
     strimzi.io/cluster: prod-kafka-cluster
 spec:
   partitions: 1
-  replicas: 1
+  replicas: 2
   config:
     retention.ms: 86400000
 
@@ -105,7 +105,7 @@ metadata:
     strimzi.io/cluster: prod-kafka-cluster
 spec:
   partitions: 1
-  replicas: 1
+  replicas: 2
   config:
     retention.ms: 86400000
 
@@ -119,6 +119,20 @@ metadata:
     strimzi.io/cluster: prod-kafka-cluster
 spec:
   partitions: 1
-  replicas: 1
+  replicas: 2
+  config:
+    retention.ms: 86400000
+
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: bam-measurements-topic
+  namespace: production
+  labels:
+    strimzi.io/cluster: prod-kafka-cluster
+spec:
+  partitions: 1
+  replicas: 2
   config:
     retention.ms: 86400000
