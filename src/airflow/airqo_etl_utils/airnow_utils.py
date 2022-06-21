@@ -56,9 +56,7 @@ def extract_airnow_data_from_api(
             traceback.print_exc()
             print(ex)
 
-    dataframe = pd.DataFrame(airnow_data)
-    dataframe.drop_duplicates(keep="first", inplace=True)
-    return dataframe
+    return pd.DataFrame(airnow_data)
 
 
 def parameter_column_name(parameter: str) -> str:
