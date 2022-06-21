@@ -374,9 +374,10 @@ deviceSchema.statics = {
         };
       } else {
         return {
-          success: false,
-          message: "device does not exist, please crosscheck",
-          status: HTTPStatus.NOT_FOUND,
+          success: true,
+          message: "no device details exist for this search, please crosscheck",
+          status: HTTPStatus.OK,
+          data: [],
         };
       }
     } catch (error) {

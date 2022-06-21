@@ -300,6 +300,8 @@ router.get(
       query("device_number")
         .optional()
         .notEmpty()
+        .withMessage("device_number must not be empty if provided")
+        .bail()
         .trim()
         .isInt()
         .withMessage("device_number must be an integer")
@@ -308,6 +310,8 @@ router.get(
       query("id")
         .optional()
         .notEmpty()
+        .withMessage("id must not be empty if provided")
+        .bail()
         .trim()
         .isMongoId()
         .withMessage("id must be an object ID")
@@ -318,6 +322,8 @@ router.get(
       query("site_id")
         .optional()
         .notEmpty()
+        .withMessage("site_id must not be empty if provided")
+        .bail()
         .trim()
         .isMongoId()
         .withMessage("site_id must be an object ID")
@@ -325,6 +331,17 @@ router.get(
         .customSanitizer((value) => {
           return ObjectId(value);
         }),
+      query("category")
+        .optional()
+        .notEmpty()
+        .withMessage("category must not be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["bam", "lowcost"])
+        .withMessage(
+          "the category value is not among the expected ones which include: lowcost and bam"
+        ),
       query("name")
         .optional()
         .notEmpty()
@@ -2798,19 +2815,20 @@ router.post(
         .bail()
         .custom((value) => {
           let dp = decimalPlaces(value);
-          if (dp < 5) {
+          if (dp < 2) {
             return Promise.reject(
-              "the latitude must have 5 or more characters"
+              "the latitude must have 2 or more characters"
             );
           }
           return Promise.resolve("latitude validation test has passed");
         })
+        .withMessage("the latitude must have atleast 2 decimal places in it")
         .bail()
         .customSanitizer((value) => {
           return numeral(value).format("0.00000000000000");
         })
-        .isDecimal({ decimal_digits: 14 })
-        .withMessage("the latitude must have atleast 5 decimal places in it"),
+        .isDecimal({ decimal_digits: 14 }),
+
       body("longitude")
         .exists()
         .withMessage("the longitude is is missing in your request")
@@ -2820,19 +2838,19 @@ router.post(
         .bail()
         .custom((value) => {
           let dp = decimalPlaces(value);
-          if (dp < 5) {
+          if (dp < 2) {
             return Promise.reject(
-              "the longitude must have 5 or more characters"
+              "the longitude must have 2 or more characters"
             );
           }
           return Promise.resolve("longitude validation test has passed");
         })
+        .withMessage("the longitude must have atleast 2 decimal places in it")
         .bail()
         .customSanitizer((value) => {
           return numeral(value).format("0.00000000000000");
         })
-        .isDecimal({ decimal_digits: 14 })
-        .withMessage("the longitude must have atleast 5 decimal places in it"),
+        .isDecimal({ decimal_digits: 14 }),
     ],
   ]),
   siteController.createApproximateCoordinates

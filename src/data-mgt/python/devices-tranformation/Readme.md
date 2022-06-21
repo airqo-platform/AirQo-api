@@ -61,10 +61,10 @@ Updates the `search_name` and `location_name` of sites. You must add to this dir
 
 Sample `sites.csv` file
 
-| id         | search_name   | location_name   |
-|------------|---------------|-----------------|
-| site_01_id | Masaka        | Central, Uganda |
-| site_02_id | AirQo Offices | Kampala, Uganda |
+| id         | search_name  | location_name   | tenant |
+|------------|--------------|-----------------|--------|
+| site_01_id | Masaka       | Central, Uganda | airqo  |
+| site_02_id | KCCA Offices | Kampala, Uganda | kcca   |
 
 ```bash
     python main.py --action=update_site_search_names
