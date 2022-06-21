@@ -1,6 +1,5 @@
 import argparse
 import os
-import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -16,8 +15,6 @@ BASE_DIR = Path(__file__).resolve().parent
 dotenv_path = os.path.join(BASE_DIR, ".env")
 load_dotenv(dotenv_path)
 
-sys.path.append("/")
-
 
 def kcca_hourly_measurements(start_date_time: str, end_date_time: str):
     from airqo_etl_utils.kcca_utils import (
@@ -32,7 +29,7 @@ def kcca_hourly_measurements(start_date_time: str, end_date_time: str):
         start_time=start_date_time, end_time=end_date_time, freq="hourly"
     )
     pd.DataFrame(kcca_unclean_data).to_csv(
-        path_or_buf="outputs/kcca_unclean_data.csv", index=False
+        path_or_buf="kcca_unclean_data.csv", index=False
     )
 
     # API
@@ -196,6 +193,28 @@ def insights_forecast():
     pd.DataFrame(insights_data).to_csv(
         path_or_buf="insights_forecast_data.csv", index=False
     )
+
+
+def app_notifications():
+    from airqo_etl_utils.app_notification_utils import (
+        get_notification_recipients,
+        get_notification_templates,
+        create_notification_messages,
+        NOTIFICATION_TEMPLATE_MAPPER,
+    )
+
+    recipients = get_notification_recipients(16)
+    recipients.to_csv(path_or_buf="recipients.csv", index=False)
+
+    templates = get_notification_templates(
+        NOTIFICATION_TEMPLATE_MAPPER["monday_morning"]
+    )
+    pd.DataFrame(templates).to_csv(path_or_buf="templates.csv", index=False)
+
+    notification_messages = create_notification_messages(
+        templates=templates, recipients=recipients
+    )
+    notification_messages.to_csv(path_or_buf="notification_messages.csv", index=False)
 
 
 def daily_insights(start_date_time: str, end_date_time: str):
@@ -562,6 +581,7 @@ if __name__ == "__main__":
             "forecast_insights_data",
             "meta_data",
             "upload_to_gcs",
+            "app_notifications",
             "calibrate_historical_data",
             "airnow_bam_data",
         ],
@@ -586,6 +606,9 @@ if __name__ == "__main__":
 
     elif args.action == "forecast_insights_data":
         insights_forecast()
+
+    elif args.action == "app_notifications":
+        app_notifications()
 
     elif args.action == "meta_data":
         meta_data()
