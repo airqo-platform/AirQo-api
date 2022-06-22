@@ -40,12 +40,12 @@ spec:
             - configMapRef:
                 name: stage-view-api-config
           readinessProbe:
-            initialDelaySeconds: 30
+            initialDelaySeconds: 120
             httpGet:
               port: 8080
               path: api/v1/view/actuator/health/readiness
           livenessProbe:
-            initialDelaySeconds: 30
+            initialDelaySeconds: 120
             httpGet:
               port: 8080
               path: api/v1/view/actuator/health/liveness
@@ -70,12 +70,12 @@ spec:
             - configMapRef:
                 name: stage-views-api-config
           readinessProbe:
-            initialDelaySeconds: 30
+            initialDelaySeconds: 120
             httpGet:
               port: 8081
               path: api/v1/views/actuator/health/readiness
           livenessProbe:
-            initialDelaySeconds: 30
+            initialDelaySeconds: 120
             httpGet:
               port: 8081
               path: api/v1/views/actuator/health/liveness
