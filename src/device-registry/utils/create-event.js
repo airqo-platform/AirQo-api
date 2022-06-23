@@ -19,38 +19,61 @@ const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const { BigQuery } = require("@google-cloud/bigquery");
 const bigquery = new BigQuery();
-
-const { generateDateFormat, generateDateFormatWithoutHrs } = require("./date");
+const {
+  generateDateFormat,
+  threeMonthsFromNow,
+  generateDateFormatWithoutHrs,
+  addMonthsToProvideDateTime,
+  monthsInfront,
+  isTimeEmpty,
+  getDifferenceInMonths,
+  addDays,
+  addMinutes,
+} = require("./date");
 
 const httpStatus = require("http-status");
 
 const createEvent = {
-  getMeasurementsFromBigQuery: async () => {
+  getMeasurementsFromBigQuery: async (req) => {
     try {
-      const query = `SELECT site_id, name, \`airqo-250220.metadata_stage.sites\`.latitude,
+      const { query } = req;
+      const {
+        frequency,
+        device,
+        startTime,
+        endTime,
+        tenant,
+        limit,
+        skip,
+      } = query;
+
+      const currentDate = generateDateFormatWithoutHrs(new Date());
+      logElement("currentDate", currentDate);
+
+      const twoMonthsBack = generateDateFormatWithoutHrs(
+        addMonthsToProvideDateTime(currentDate, -2)
+      );
+      logElement("twoMonthsBack ", twoMonthsBack);
+
+      const queryStatement = `SELECT site_id, name, \`airqo-250220.metadata_stage.sites\`.latitude,
         \`airqo-250220.metadata_stage.sites\`.longitude, timestamp, pm2_5, pm10 
         FROM \`airqo-250220.averaged_data_stage.hourly_device_measurements\` 
         JOIN \`airqo-250220.metadata_stage.sites\` 
         ON \`airqo-250220.metadata_stage.sites\`.id = \`airqo-250220.averaged_data_stage.hourly_device_measurements\`.site_id 
-        WHERE  \`airqo-250220.averaged_data_stage.hourly_device_measurements\`.timestamp > '2022-01-01T00:00:00Z' 
-        LIMIT 10`;
+        WHERE  \`airqo-250220.averaged_data_stage.hourly_device_measurements\`.timestamp 
+        BETWEEN DATE(${
+          startTime ? startTime : twoMonthsBack
+        }) AND DATE(${currentDate})
+        LIMIT ${limit ? limit : constants.DEFAULT_EVENTS_LIMIT}`;
 
-      const queryTwo = `SELECT name
-      FROM \`bigquery-public-data.usa_names.usa_1910_2013\`
-      WHERE state = 'TX'
-      LIMIT 100`;
-      // For all options, see https://cloud.google.com/bigquery/docs/reference/rest/v2/jobs/query
       const options = {
-        query: query,
-        // Location must match that of the dataset(s) referenced in the query.
-        location: "EU",
+        query: queryStatement,
+        location: constants.BIG_QUERY_LOCATION,
       };
 
-      // Run the query as a job
       const [job] = await bigquery.createQueryJob(options);
       console.log(`Job ${job.id} started.`);
 
-      // Wait for the query to finish
       const [rows] = await job.getQueryResults();
 
       return {
