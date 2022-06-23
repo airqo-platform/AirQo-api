@@ -10,7 +10,6 @@ spec:
   selector:
     matchLabels:
       app: view-api
-  replicas: 2
   minReadySeconds: 10
   strategy:
     type: RollingUpdate
@@ -27,12 +26,9 @@ spec:
           image: us.gcr.io/airqo-250220/airqo-stage-view-api:latest
           imagePullPolicy: Always
           resources:
-            requests:
-              cpu: 100m
-              memory: 250Mi
             limits:
-              cpu: 200m
-              memory: 700Mi
+              cpu: 250m
+              memory: 300Mi
           ports:
             - containerPort: 8080
               name: view-api
@@ -57,12 +53,9 @@ spec:
           image: us.gcr.io/airqo-250220/airqo-stage-view-api:latest
           imagePullPolicy: Always
           resources:
-            requests:
-              cpu: 100m
-              memory: 250Mi
             limits:
-              cpu: 200m
-              memory: 700Mi
+              cpu: 250m
+              memory: 300Mi
           ports:
             - containerPort: 8081
               name: views-api
@@ -114,11 +107,11 @@ spec:
     kind: Deployment
     name: airqo-stage-view-api
   minReplicas: 1
-  maxReplicas: 2
+  maxReplicas: 4
   metrics:
   - type: Resource
     resource:
-      name: cpu
+      name: memory
       target:
         type: Utilization
         averageUtilization: 80

@@ -10,7 +10,6 @@ spec:
   selector:
     matchLabels:
       app: locate-api
-  replicas: 3
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -40,12 +39,9 @@ spec:
             - configMapRef:
                 name: env-locate-production
           resources:
-            requests:
-              cpu: 100m
-              memory: 250Mi
             limits:
-              cpu: 200m
-              memory: 700Mi
+              cpu: 250m
+              memory: 300Mi
 
 ---
 kind: Service
@@ -74,11 +70,11 @@ spec:
     kind: Deployment
     name: airqo-locate-api
   minReplicas: 1
-  maxReplicas: 3
+  maxReplicas: 6
   metrics:
   - type: Resource
     resource:
-      name: cpu
+      name: memory
       target:
         type: Utilization
         averageUtilization: 70

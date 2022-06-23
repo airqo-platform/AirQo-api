@@ -10,7 +10,6 @@ spec:
   selector:
     matchLabels:
       app: prod-fault-detection
-  replicas: 3
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -57,12 +56,9 @@ spec:
             - containerPort: 4001
               name: fault-detection
           resources:
-            requests:
-              cpu: 100m
-              memory: 250Mi
             limits:
-              cpu: 200m
-              memory: 700Mi
+              cpu: 250m
+              memory: 300Mi
           env:
             - name: LSTM_MODEL
               value: /usr/models/lstm.h5
@@ -107,11 +103,11 @@ spec:
     kind: Deployment
     name: prod-fault-detection-api
   minReplicas: 1
-  maxReplicas: 3
+  maxReplicas: 6
   metrics:
   - type: Resource
     resource:
-      name: cpu
+      name: memory
       target:
         type: Utilization
         averageUtilization: 70

@@ -10,7 +10,6 @@ spec:
   selector:
     matchLabels:
       app: calibrate
-  replicas: 3
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -55,12 +54,9 @@ spec:
           #   periodSeconds: 3
           #   successThreshold: 1
           resources:
-            requests:
-              cpu: 100m
-              memory: 250Mi
             limits:
-              cpu: 200m
-              memory: 700Mi
+              cpu: 500m
+              memory: 1000Mi
           env:
             - name: RF_REG_MODEL
               value: /usr/pickle-files/rf_reg_model.pkl
@@ -112,7 +108,7 @@ spec:
   metrics:
   - type: Resource
     resource:
-      name: cpu
+      name: memory
       target:
         type: Utilization
         averageUtilization: 70

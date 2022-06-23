@@ -7,7 +7,6 @@ spec:
   selector:
     matchLabels:
       app: view-message-broker
-  replicas: 2
   minReadySeconds: 10
   strategy:
     type: RollingUpdate
@@ -29,12 +28,9 @@ spec:
             - configMapRef:
                 name: prod-view-message-broker-config
           resources:
-            requests:
-              cpu: 100m
-              memory: 250Mi
             limits:
-              cpu: 200m
-              memory: 700Mi
+              cpu: 250m
+              memory: 300Mi
 
 ---
 kind: HorizontalPodAutoscaler
@@ -47,11 +43,11 @@ spec:
     kind: Deployment
     name: airqo-view-message-broker
   minReplicas: 1
-  maxReplicas: 2
+  maxReplicas: 6
   metrics:
   - type: Resource
     resource:
-      name: cpu
+      name: memory
       target:
         type: Utilization
-        averageUtilization: 80
+        averageUtilization: 70

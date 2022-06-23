@@ -10,7 +10,6 @@ spec:
   selector:
     matchLabels:
       app: stage-airqo-tahmo-values-stream
-  replicas: 2
   minReadySeconds: 10
   strategy:
     type: RollingUpdate
@@ -29,12 +28,9 @@ spec:
           image: us.gcr.io/airqo-250220/stage-tahmo-values-stream:latest
           imagePullPolicy: Always
           resources:
-            requests:
-              cpu: 100m
-              memory: 250Mi
             limits:
-              cpu: 200m
-              memory: 700Mi
+              cpu: 250m
+              memory: 300Mi
           envFrom:
             - configMapRef:
                 name: stage-tahmo-streams-config
@@ -52,11 +48,11 @@ spec:
     kind: Deployment
     name: stage-airqo-tahmo-values-stream
   minReplicas: 1
-  maxReplicas: 2
+  maxReplicas: 4
   metrics:
   - type: Resource
     resource:
-      name: cpu
+      name: memory
       target:
         type: Utilization
         averageUtilization: 80

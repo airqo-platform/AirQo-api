@@ -10,7 +10,6 @@ spec:
   selector:
     matchLabels:
       app: sta-device-reg-api
-  replicas: 2
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -40,12 +39,9 @@ spec:
             - configMapRef:
                 name: env-device-registry-staging
           resources:
-            requests:
-              cpu: 100m
-              memory: 250Mi
             limits:
-              cpu: 200m
-              memory: 700Mi
+              cpu: 250m
+              memory: 300Mi
 
 ---
 kind: Service
@@ -74,11 +70,11 @@ spec:
     kind: Deployment
     name: airqo-stage-device-registry-api
   minReplicas: 1
-  maxReplicas: 2
+  maxReplicas: 4
   metrics:
   - type: Resource
     resource:
-      name: cpu
+      name: memory
       target:
         type: Utilization
         averageUtilization: 80
