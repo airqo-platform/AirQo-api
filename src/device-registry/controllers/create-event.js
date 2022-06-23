@@ -113,7 +113,9 @@ const createEvent = {
 
   listFromBigQuery: async (req, res) => {
     try {
-      const responseFromListFromBigQuery = await createEventUtil.getMeasurementsFromBigQuery();
+      const responseFromListFromBigQuery = await createEventUtil.getMeasurementsFromBigQuery(
+        req
+      );
       logObject("responseFromListFromBigQuery", responseFromListFromBigQuery);
       if (responseFromListFromBigQuery.success === true) {
         return res.status(HTTPStatus.OK).json({
@@ -129,6 +131,7 @@ const createEvent = {
         });
       }
     } catch (error) {
+      logObject("error", error);
       res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
