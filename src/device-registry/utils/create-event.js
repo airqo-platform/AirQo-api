@@ -40,6 +40,7 @@ const createEvent = {
       const {
         frequency,
         device,
+        name,
         startTime,
         endTime,
         tenant,
@@ -48,22 +49,20 @@ const createEvent = {
       } = query;
 
       const currentDate = generateDateFormatWithoutHrs(new Date());
-      logElement("currentDate", currentDate);
 
       const twoMonthsBack = generateDateFormatWithoutHrs(
         addMonthsToProvideDateTime(currentDate, -2)
       );
-      logElement("twoMonthsBack ", twoMonthsBack);
 
-      const queryStatement = `SELECT site_id, name, \`airqo-250220.metadata_stage.sites\`.latitude,
-        \`airqo-250220.metadata_stage.sites\`.longitude, timestamp, pm2_5, pm10 
+      const queryStatement = `SELECT site_id, name, \`airqo-250220.metadata_stage.sites\`.latitude AS latitude,
+        \`airqo-250220.metadata_stage.sites\`.longitude AS longitude, timestamp, pm2_5, pm10 
         FROM \`airqo-250220.averaged_data_stage.hourly_device_measurements\` 
         JOIN \`airqo-250220.metadata_stage.sites\` 
         ON \`airqo-250220.metadata_stage.sites\`.id = \`airqo-250220.averaged_data_stage.hourly_device_measurements\`.site_id 
-        WHERE  \`airqo-250220.averaged_data_stage.hourly_device_measurements\`.timestamp 
-        BETWEEN DATE(${
-          startTime ? startTime : twoMonthsBack
-        }) AND DATE(${currentDate})
+        WHERE timestamp  
+       >= "${startTime ? startTime : twoMonthsBack}" AND timestamp <= "${
+        endTime ? endTime : currentDate
+      }" 
         LIMIT ${limit ? limit : constants.DEFAULT_EVENTS_LIMIT}`;
 
       const options = {

@@ -116,7 +116,6 @@ const createEvent = {
       const responseFromListFromBigQuery = await createEventUtil.getMeasurementsFromBigQuery(
         req
       );
-      logObject("responseFromListFromBigQuery", responseFromListFromBigQuery);
       if (responseFromListFromBigQuery.success === true) {
         return res.status(HTTPStatus.OK).json({
           success: true,
