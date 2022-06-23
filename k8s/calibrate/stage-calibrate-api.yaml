@@ -10,7 +10,6 @@ spec:
   selector:
     matchLabels:
       app: sta-calibrate
-  replicas: 1
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -56,8 +55,8 @@ spec:
           #   successThreshold: 1
           resources:
             limits:
-              cpu: 500m
-              memory: 1000Mi
+              cpu: 250m
+              memory: 300Mi
           env:
             - name: RF_REG_MODEL
               value: /usr/pickle-files/rf_reg_model.pkl
@@ -105,7 +104,7 @@ spec:
     kind: Deployment
     name: airqo-stage-calibrate-api
   minReplicas: 1
-  maxReplicas: 2
+  maxReplicas: 4
   metrics:
   - type: Resource
     resource:

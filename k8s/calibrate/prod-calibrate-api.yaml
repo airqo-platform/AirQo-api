@@ -55,8 +55,8 @@ spec:
           #   successThreshold: 1
           resources:
             limits:
-              cpu: 500m
-              memory: 1000Mi
+              cpu: 250m
+              memory: 300Mi
           env:
             - name: RF_REG_MODEL
               value: /usr/pickle-files/rf_reg_model.pkl
@@ -104,7 +104,7 @@ spec:
     kind: Deployment
     name: airqo-calibrate-api
   minReplicas: 1
-  maxReplicas: 3
+  maxReplicas: 6
   metrics:
   - type: Resource
     resource:
