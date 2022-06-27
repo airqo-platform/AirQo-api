@@ -26,7 +26,7 @@ def monday_morning_notifications():
     def extract_recipients_by_countries():
         from airqo_etl_utils.firebase_api import FirebaseApi
 
-        return FirebaseApi().get_notification_recipients_by_countries(test_countries)
+        return FirebaseApi.get_notification_recipients_by_countries(test_countries)
 
     @task()
     def create_notifications(data):
@@ -75,7 +75,7 @@ def friday_evening_notifications():
     def extract_recipients_by_countries():
         from airqo_etl_utils.firebase_api import FirebaseApi
 
-        return FirebaseApi().get_notification_recipients_by_countries(test_countries)
+        return FirebaseApi.get_notification_recipients_by_countries(test_countries)
 
     @task()
     def create_notifications(data):
@@ -125,7 +125,7 @@ def morning_notifications():
     def extract_recipients_by_countries():
         from airqo_etl_utils.firebase_api import FirebaseApi
 
-        return FirebaseApi().get_notification_recipients_by_countries(test_countries)
+        return FirebaseApi.get_notification_recipients_by_countries(test_countries)
 
     @task()
     def create_notifications(data):
@@ -177,7 +177,7 @@ def evening_notifications():
     def extract_recipients_by_countries():
         from airqo_etl_utils.firebase_api import FirebaseApi
 
-        return FirebaseApi().get_notification_recipients_by_countries(test_countries)
+        return FirebaseApi.get_notification_recipients_by_countries(test_countries)
 
     @task()
     def create_notifications(data):
