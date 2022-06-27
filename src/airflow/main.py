@@ -197,16 +197,20 @@ def insights_forecast():
 
 def app_notifications():
     from airqo_etl_utils.app_notification_utils import (
-        get_notification_recipients,
-        get_notification_templates,
         create_notification_messages,
         NOTIFICATION_TEMPLATE_MAPPER,
     )
+    from airqo_etl_utils.firebase_api import FirebaseApi
 
-    recipients = get_notification_recipients(16)
+    recipients_by_countries = FirebaseApi.get_notification_recipients_by_countries(
+        ["+256", "+255", "+254"]
+    )
+    recipients_by_countries.to_csv(path_or_buf="recipients.csv", index=False)
+
+    recipients = FirebaseApi.get_notification_recipients_by_timezone_offset(16)
     recipients.to_csv(path_or_buf="recipients.csv", index=False)
 
-    templates = get_notification_templates(
+    templates = FirebaseApi.get_notification_templates(
         NOTIFICATION_TEMPLATE_MAPPER["monday_morning"]
     )
     pd.DataFrame(templates).to_csv(path_or_buf="templates.csv", index=False)

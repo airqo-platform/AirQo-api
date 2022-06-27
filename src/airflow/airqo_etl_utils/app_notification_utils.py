@@ -6,10 +6,8 @@ import firebase_admin
 import numpy as np
 import pandas as pd
 from firebase_admin import credentials, messaging
-from firebase_admin import firestore
 
 from airqo_etl_utils.config import configuration
-from airqo_etl_utils.date import get_utc_offset_for_hour
 
 cred = credentials.Certificate(configuration.GOOGLE_APPLICATION_CREDENTIALS)
 firebase_admin.initialize_app(cred)
@@ -33,50 +31,6 @@ def get_valid_name(name):
     if not isinstance(name, str) or name.strip() == "" or name == np.nan:
         return ""
     return name
-
-
-def get_notification_recipients(
-    hour: int,
-    enabled_notifications: bool = True,
-) -> pd.DataFrame:
-    offset = get_utc_offset_for_hour(hour)
-    db = firestore.client()
-    docs = (
-        db.collection(configuration.APP_USERS_DATABASE)
-        .where("utcOffset", "==", offset)
-        .stream()
-    )
-    recipients = []
-    for doc in docs:
-        user_info = dict(doc.to_dict())
-        device = user_info.get("device", None)
-
-        if device:
-            recipient = {
-                "device": device,
-                "firstName": get_valid_name(user_info.get("firstName", "")),
-                "lastName": get_valid_name(user_info.get("lastName", "")),
-            }
-            recipients.append(recipient)
-
-    recipients = pd.DataFrame(recipients)
-    recipients.dropna(inplace=True)
-
-    recipients["firstName"] = recipients["firstName"].apply(lambda x: x.title())
-    recipients["lastName"] = recipients["lastName"].apply(lambda x: x.title())
-
-    return recipients
-
-
-def get_notification_templates(template_name: str) -> list:
-    db = firestore.client()
-    value = (
-        db.collection(configuration.APP_NOTIFICATION_TEMPLATES_DATABASE)
-        .document(template_name)
-        .get()
-        .to_dict()
-    )
-    return value["templates"]
 
 
 def create_notification_messages(
