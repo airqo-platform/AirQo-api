@@ -9,13 +9,12 @@ spec:
   class: purpleAir.PurpleAirConnector
   tasksMax: 2
   config:
-    # topic: purple-air-measurements-topic
-    purpleAirTopicGroup: purple-air-measurements-topic-group
-    pollInterval: "30000"
+    purpleAirTopicGroup: ${configmaps:kafka-strimzi/purple-air-measurements-connector-config:purpleAirTopicGroup}
+    pollInterval: ${configmaps:kafka-strimzi/purple-air-measurements-connector-config:pollInterval}
     topic: ${configmaps:kafka-strimzi/purple-air-measurements-connector-config:topic}
-    purpleAirApiBaseUrl: https://api.purpleair.com/v1
-    purpleAirApiKey: ${file:/opt/kafka/external-configuration/purple-air-connector-config/purple-air-credentials.properties:api_key}
-    purpleAirFields: name,latitude,longitude,pm1.0,pm2.5,pm10.0,altitude,pressure,humidity,temperature
+    purpleAirApiKey: ${secrets:kafka-strimzi/purple-air-measurements-connector-secrets:purpleAirApiKey}
+    purpleAirApiBaseUrl: ${configmaps:kafka-strimzi/purple-air-measurements-connector-config:purpleAirApiBaseUrl}
+    purpleAirFields: ${configmaps:kafka-strimzi/purple-air-measurements-connector-config:purpleAirFields}
     key.converter: org.apache.kafka.connect.json.JsonConverter
     key.converter.schemas.enable: false
     value.converter: org.apache.kafka.connect.json.JsonConverter

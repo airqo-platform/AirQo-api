@@ -9,18 +9,13 @@ spec:
   version: 3.2.0
   image: ${MEASUREMENTS_CONNECTOR_CLUSTER_IMAGE}
   replicas: 2
-  bootstrapServers: kafka-cluster-kafka-bootstrap:9092
+  bootstrapServers: ${KAFKA_CLUSTER}
   readinessProbe:
     initialDelaySeconds: 15
     timeoutSeconds: 5
   livenessProbe:
     initialDelaySeconds: 15
     timeoutSeconds: 5
-  externalConfiguration:
-    volumes:
-      - name: purple-air-connector-config
-        secret:
-          secretName: purple-air-credentials
   config:
     group.id: measurements-connector-cluster
     offset.storage.topic: measurements-connector-cluster-offsets
@@ -34,8 +29,9 @@ spec:
     config.storage.replication.factor: -1
     offset.storage.replication.factor: -1
     status.storage.replication.factor: -1
-    config.providers: file,configmaps
+    config.providers: file,configmaps,secrets
     config.providers.configmaps.class: io.strimzi.kafka.KubernetesConfigMapConfigProvider
+    config.providers.secrets.class: io.strimzi.kafka.KubernetesSecretConfigProvider
     config.providers.file.class: org.apache.kafka.common.config.provider.FileConfigProvider
   template:
     connectContainer:

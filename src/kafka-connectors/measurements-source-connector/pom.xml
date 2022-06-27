@@ -60,11 +60,16 @@
             <scope>provided</scope>
         </dependency>
 
+        <!--
+        https://mvnrepository.com/artifact/io.strimzi/kafka-kubernetes-config-provider
+        https://github.com/strimzi/kafka-kubernetes-config-provider
+        -->
         <dependency>
             <groupId>io.strimzi</groupId>
             <artifactId>kafka-kubernetes-config-provider</artifactId>
-            <version>0.1.0</version>
+            <version>1.0.0</version>
         </dependency>
+
 
     </dependencies>
 
