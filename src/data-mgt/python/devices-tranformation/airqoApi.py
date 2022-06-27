@@ -11,6 +11,14 @@ class AirQoApi:
         self.AIRQO_BASE_URL = os.getenv("AIRQO_BASE_URL")
         self.AIRQO_API_KEY = f"JWT {os.getenv('AIRQO_API_KEY')}"
 
+    def approximate_coordinates(self, latitude, longitude) -> dict:
+        response = self.__request(endpoint="devices/sites/approximate", body={
+            "latitude": latitude,
+            "longitude": longitude
+        }, params=None, method="post",)
+
+        return dict(response["approximate_coordinates"]) if response else None
+
     def get_devices(self, tenant, active=True, all_devices=False):
         params = {
             "tenant": tenant,
@@ -57,7 +65,7 @@ class AirQoApi:
         return response
 
     def get_sites(self, tenant):
-        response = self.__request("devices/sites", {"tenant": tenant})
+        response = self.__request("devices/sites", {"tenant": tenant},)
 
         if "sites" in response:
             return response["sites"]

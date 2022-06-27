@@ -1,8 +1,14 @@
 import os
+from pathlib import Path
 
 import urllib3
+from dotenv import load_dotenv
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+dotenv_path = os.path.join(BASE_DIR, ".env")
+load_dotenv(dotenv_path)
 
 
 class Config:
@@ -25,6 +31,16 @@ class Config:
 
     AIRFLOW_XCOM_BUCKET = os.getenv("AIRFLOW_XCOM_BUCKET")
 
+    BIGQUERY_HOURLY_EVENTS_TABLE_SCHEMA = os.getenv(
+        "BIGQUERY_HOURLY_EVENTS_TABLE_SCHEMA", "measurements.json"
+    )
+    BIGQUERY_HOURLY_WEATHER_TABLE_SCHEMA = os.getenv(
+        "BIGQUERY_HOURLY_WEATHER_TABLE_SCHEMA", "weather_data.json"
+    )
+    BIGQUERY_ANALYTICS_TABLE_SCHEMA = os.getenv(
+        "BIGQUERY_ANALYTICS_TABLE_SCHEMA", "data_warehouse.json"
+    )
+
     POST_EVENTS_BODY_SIZE = os.getenv("POST_EVENTS_BODY_SIZE", 10)
     POST_WEATHER_BODY_SIZE = os.getenv("POST_EVENTS_BODY_SIZE", 10)
     CALIBRATE_REQUEST_BODY_SIZE = os.getenv("CALIBRATE_REQUEST_BODY_SIZE", 40)
@@ -41,11 +57,24 @@ class Config:
     WEATHER_MEASUREMENTS_TOPIC = os.getenv("WEATHER_MEASUREMENTS_TOPIC")
     INSIGHTS_MEASUREMENTS_TOPIC = os.getenv("INSIGHTS_MEASUREMENTS_TOPIC")
     HOURLY_MEASUREMENTS_TOPIC = os.getenv("HOURLY_MEASUREMENTS_TOPIC")
+    BAM_MEASUREMENTS_TOPIC = os.getenv("BAM_MEASUREMENTS_TOPIC")
 
     AIRQO_BASE_URL = os.getenv("AIRQO_BASE_URL")
     CALIBRATION_BASE_URL = os.getenv("CALIBRATION_BASE_URL")
     AIRQO_BASE_URL_V2 = os.getenv("AIRQO_BASE_URL_V2")
     AIRQO_API_KEY = os.getenv("AIRQO_API_KEY")
+
+    AIRNOW_BASE_URL = os.getenv("AIRNOW_BASE_URL")
+    AIRNOW_API_KEY = os.getenv("AIRNOW_API_KEY")
+    AIRNOW_COUNTRIES_METADATA_JSON_FILE = os.getenv(
+        "AIRNOW_COUNTRIES_METADATA_JSON_FILE"
+    )
+
+    GOOGLE_APPLICATION_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+    APP_USERS_DATABASE = os.getenv("APP_USERS_DATABASE")
+    APP_NOTIFICATION_TEMPLATES_DATABASE = os.getenv(
+        "APP_NOTIFICATION_TEMPLATES_DATABASE"
+    )
 
 
 configuration = Config()

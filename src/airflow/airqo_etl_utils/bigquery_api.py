@@ -1,12 +1,12 @@
-import json
 import os
 
 import pandas as pd
 from google.cloud import bigquery
 
 from airqo_etl_utils.config import configuration
-from airqo_etl_utils.constants import JobAction
+from airqo_etl_utils.constants import JobAction, DataType
 from airqo_etl_utils.date import date_to_str
+from airqo_etl_utils.utils import get_file_content
 
 
 class BigQueryApi:
@@ -57,7 +57,7 @@ class BigQueryApi:
         date_time_columns = (
             date_time_columns
             if date_time_columns
-            else self.get_columns(table=table, data_type="TIMESTAMP")
+            else self.get_columns(table=table, data_type=DataType.TIMESTAMP)
         )
         dataframe[date_time_columns] = dataframe[date_time_columns].apply(
             pd.to_datetime, errors="coerce"
@@ -67,7 +67,7 @@ class BigQueryApi:
         numeric_columns = (
             numeric_columns
             if numeric_columns
-            else self.get_columns(table=table, data_type="FLOAT")
+            else self.get_columns(table=table, data_type=DataType.FLOAT)
         )
         dataframe[numeric_columns] = dataframe[numeric_columns].apply(
             pd.to_numeric, errors="coerce"
@@ -75,42 +75,32 @@ class BigQueryApi:
 
         return dataframe
 
-    def get_columns(self, table: str, data_type="") -> list:
+    def get_columns(self, table: str, data_type: DataType = DataType.NONE) -> list:
 
         if (
             table == self.hourly_measurements_table
             or table == self.raw_measurements_table
         ):
-            schema_path = "schema/measurements.json"
-            schema = "measurements.json"
+            schema_file = "measurements.json"
         elif table == self.hourly_weather_table or table == self.raw_weather_table:
-            schema_path = "schema/weather_data.json"
-            schema = "weather_data.json"
+            schema_file = "weather_data.json"
         elif table == self.calibrated_hourly_measurements_table:
-            schema_path = "schema/calibrated_measurements.json"
-            schema = "calibrated_measurements.json"
+            schema_file = "calibrated_measurements.json"
         elif table == self.analytics_table:
-            schema_path = "schema/data_warehouse.json"
-            schema = "data_warehouse.json"
+            schema_file = "data_warehouse.json"
         elif table == self.sites_table:
-            schema_path = "schema/sites.json"
-            schema = "sites.json"
+            schema_file = "sites.json"
         elif table == self.devices_table:
-            schema_path = "schema/devices.json"
-            schema = "devices.json"
+            schema_file = "devices.json"
         else:
             raise Exception("Invalid table")
 
-        try:
-            schema_file = open(os.path.join(self.package_directory, schema_path))
-        except FileNotFoundError:
-            schema_file = open(os.path.join(self.package_directory, schema))
+        schema = get_file_content(file_name=schema_file)
 
-        schema = json.load(schema_file)
         columns = []
-        if data_type:
+        if data_type != DataType.NONE:
             for column in schema:
-                if column["type"] == data_type:
+                if column["type"] == data_type.to_string():
                     columns.append(column["name"])
         else:
             columns = [column["name"] for column in schema]

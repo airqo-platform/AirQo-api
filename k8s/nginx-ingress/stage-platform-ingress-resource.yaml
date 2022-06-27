@@ -8,7 +8,37 @@ metadata:
     nginx.ingress.kubernetes.io/rewrite-target: /
     nginx.ingress.kubernetes.io/use-regex: "true"
 spec:
-  rules:
+  rules:    
+    - host: staging.airqo.net
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: airqo-stage-website-svc
+                port: 
+                  number: 8000
+    - host: staging.airqo.africa
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: airqo-stage-website-svc
+                port: 
+                  number: 8000
+    - host: staging-airqalibrate.airqo.net
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: airqo-stage-calibrate-app-svc
+                port: 
+                  number: 80
     - host: staging-platform.airqo.net
       http:
         paths:
@@ -194,4 +224,3 @@ spec:
                 name: airqo-stage-network-uptime-api-svc
                 port: 
                   number: 8501
-

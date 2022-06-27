@@ -9,13 +9,13 @@ spec:
   image: "{{ .Values.spec.image.repository }}:{{ .Values.spec.image.tag }}"
   replicas: {{ .Values.spec.replicas }}
   bootstrapServers: {{ .Values.spec.bootstrapServers }}
-  resources: {}
-    # requests:
-    #   cpu: "250m"
-    #   memory: 1Gi
-    # limits:
-    #   cpu: "700m"
-    #   memory: 2Gi
+  resources:
+    requests:
+      cpu: 20m
+      memory: 50Mi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
   readinessProbe:
   {{- range $key, $val := .Values.spec.readinessProbe }}
     {{ $key }}: {{ $val }}
