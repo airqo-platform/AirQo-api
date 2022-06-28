@@ -1,0 +1,14 @@
+{
+  "name": "firebase-backup",
+  "version": "1.0.0",
+  "description": "Firebase Backup Mobile App user data",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@google-cloud/firestore": "^1.3.0"
+  }
+}
