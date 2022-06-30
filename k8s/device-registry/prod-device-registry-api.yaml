@@ -46,7 +46,14 @@ spec:
             limits:
               cpu: 200m
               memory: 700Mi
-
+          volumeMounts:
+          - name: config-volume
+            mountPath: /etc/config
+      volumes:
+        - name: config-volume
+          configMap:
+            name: device-registry-config-files
+            
 ---
 kind: Service
 apiVersion: v1
