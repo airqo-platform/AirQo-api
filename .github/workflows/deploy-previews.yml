@@ -267,7 +267,7 @@ jobs:
             --port=3000 \
             --cpu=1000m \
             --memory=256Mi \
-            --update-secrets=/etc/env/.env=sta-env-device-registry:latest \
+            --update-secrets=/etc/env/.env=sta-env-device-registry:latest,/etc/config/google_application_credentials.json=sta-key-device-registry-service-account:latest \
             --command="/bin/sh","-c","cat /etc/env/.env >> /usr/src/app/.env; npm run stage-mac" \
             --allow-unauthenticated
 
