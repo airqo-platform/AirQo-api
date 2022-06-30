@@ -91,7 +91,6 @@ def create_notification_messages(
 
         recipient_first_name = recipient["firstName"]
         recipient_last_name = recipient["lastName"]
-
         name = ""
         if recipient_first_name or recipient_last_name:
             name = recipient_first_name if recipient_first_name else recipient_last_name
