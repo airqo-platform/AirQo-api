@@ -19,8 +19,23 @@
     "type": "FLOAT",
     "mode": "NULLABLE"
   },
+    {
+    "name": "approximate_latitude",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "approximate_longitude",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
   {
     "name": "name",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "generated_name",
     "type": "STRING",
     "mode": "NULLABLE"
   },

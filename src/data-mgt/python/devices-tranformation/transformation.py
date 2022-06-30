@@ -17,6 +17,29 @@ class Transformation:
         self.airqo_api = AirQoApi()
         self.tahmo_api = TahmoApi()
 
+    def approximate_site_coordinates(self, tenant):
+
+        sites = self.airqo_api.get_sites(tenant)
+        updated_sites = []
+
+        for site in sites:
+
+            try:
+                approximated_coordinates = self.airqo_api.approximate_coordinates(latitude=site["latitude"],
+                                                                                  longitude=site["longitude"],)
+
+                if approximated_coordinates:
+                    updated_sites.append({
+                        "id": site["_id"],
+                        "approximate_latitude": approximated_coordinates["approximate_latitude"],
+                        "approximate_longitude": approximated_coordinates["approximate_longitude"],
+                        "tenant": tenant
+                    })
+            except Exception as ex:
+                print(ex)
+
+        self.airqo_api.update_sites(updated_sites)
+
     def update_primary_devices(self):
 
         devices = pd.read_csv("devices.csv")

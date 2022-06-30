@@ -6,7 +6,7 @@ import pandas as pd
 from airqo_etl_utils.airnow_api import AirNowApi
 from airqo_etl_utils.airqo_api import AirQoApi
 from airqo_etl_utils.bigquery_api import BigQueryApi
-from airqo_etl_utils.date import date_to_str
+from airqo_etl_utils.date import date_to_str, str_to_date
 from airqo_etl_utils.message_broker import KafkaBrokerClient
 
 
@@ -56,9 +56,7 @@ def extract_airnow_data_from_api(
             traceback.print_exc()
             print(ex)
 
-    dataframe = pd.DataFrame(airnow_data)
-    dataframe.drop_duplicates(keep="first", inplace=True)
-    return dataframe
+    return pd.DataFrame(airnow_data)
 
 
 def parameter_column_name(parameter: str) -> str:
@@ -98,9 +96,6 @@ def process_airnow_data(data: pd.DataFrame) -> pd.DataFrame:
                     airnow_data.append(
                         {
                             "timestamp": date_to_str(
-                                datetime.strptime(row["UTC"], "%Y-%m-%dT%H:%M")
-                            ),
-                            "time": date_to_str(
                                 datetime.strptime(row["UTC"], "%Y-%m-%dT%H:%M")
                             ),
                             "tenant": device["tenant"],
@@ -151,6 +146,8 @@ def process_for_message_broker(bam_data_dataframe: pd.DataFrame) -> list:
 
 def process_for_big_query(bam_data_dataframe: pd.DataFrame) -> pd.DataFrame:
     big_query_api = BigQueryApi()
+    bam_data_dataframe["timestamp"] = bam_data_dataframe["timestamp"].apply(str_to_date)
+    bam_data_dataframe["time"] = bam_data_dataframe["timestamp"]
     return bam_data_dataframe[
         big_query_api.get_columns(big_query_api.hourly_measurements_table)
     ]

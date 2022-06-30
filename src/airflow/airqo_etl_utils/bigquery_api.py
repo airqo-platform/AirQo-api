@@ -4,7 +4,7 @@ import pandas as pd
 from google.cloud import bigquery
 
 from airqo_etl_utils.config import configuration
-from airqo_etl_utils.constants import JobAction
+from airqo_etl_utils.constants import JobAction, DataType
 from airqo_etl_utils.date import date_to_str
 from airqo_etl_utils.utils import get_file_content
 
@@ -57,7 +57,7 @@ class BigQueryApi:
         date_time_columns = (
             date_time_columns
             if date_time_columns
-            else self.get_columns(table=table, data_type="TIMESTAMP")
+            else self.get_columns(table=table, data_type=DataType.TIMESTAMP)
         )
         dataframe[date_time_columns] = dataframe[date_time_columns].apply(
             pd.to_datetime, errors="coerce"
@@ -67,7 +67,7 @@ class BigQueryApi:
         numeric_columns = (
             numeric_columns
             if numeric_columns
-            else self.get_columns(table=table, data_type="FLOAT")
+            else self.get_columns(table=table, data_type=DataType.FLOAT)
         )
         dataframe[numeric_columns] = dataframe[numeric_columns].apply(
             pd.to_numeric, errors="coerce"
@@ -75,7 +75,7 @@ class BigQueryApi:
 
         return dataframe
 
-    def get_columns(self, table: str, data_type="") -> list:
+    def get_columns(self, table: str, data_type: DataType = DataType.NONE) -> list:
 
         if (
             table == self.hourly_measurements_table
@@ -98,9 +98,9 @@ class BigQueryApi:
         schema = get_file_content(file_name=schema_file)
 
         columns = []
-        if data_type:
+        if data_type != DataType.NONE:
             for column in schema:
-                if column["type"] == data_type:
+                if column["type"] == data_type.to_string():
                     columns.append(column["name"])
         else:
             columns = [column["name"] for column in schema]

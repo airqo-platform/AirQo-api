@@ -84,13 +84,17 @@ def create_notification_messages(
     recipients: pd.DataFrame,
 ) -> pd.DataFrame:
     messages = []
+    recipients.fillna("", inplace=True)
     for _, recipient in recipients.iterrows():
         message_index = random.randrange(len(templates))
         message_template = dict(templates[message_index])
 
         recipient_first_name = recipient["firstName"]
         recipient_last_name = recipient["lastName"]
-        name = recipient_first_name if recipient_first_name else recipient_last_name
+
+        name = ""
+        if recipient_first_name or recipient_last_name:
+            name = recipient_first_name if recipient_first_name else recipient_last_name
 
         message_title = message_template["title"]
         message_body = message_template["body"]

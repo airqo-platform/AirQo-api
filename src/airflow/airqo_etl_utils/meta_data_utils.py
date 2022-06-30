@@ -2,6 +2,7 @@ import pandas as pd
 
 from airqo_etl_utils.airqo_api import AirQoApi
 from airqo_etl_utils.commons import format_dataframe_column_type
+from airqo_etl_utils.constants import DataType
 
 
 def extract_meta_data(component: str, tenant=None) -> pd.DataFrame:
@@ -15,9 +16,7 @@ def extract_meta_data(component: str, tenant=None) -> pd.DataFrame:
 
     dataframe = pd.json_normalize(meta_data)
 
-    numeric_columns = []
     date_time_columns = []
-    rename_columns = {}
 
     if component == "sites":
 
@@ -27,6 +26,9 @@ def extract_meta_data(component: str, tenant=None) -> pd.DataFrame:
                 "latitude",
                 "tenant",
                 "longitude",
+                "approximate_latitude",
+                "approximate_longitude",
+                "generated_name",
                 "name",
                 "bearing_to_kampala_center",
                 "landform_90",
@@ -54,6 +56,8 @@ def extract_meta_data(component: str, tenant=None) -> pd.DataFrame:
         numeric_columns = [
             "latitude",
             "longitude",
+            "approximate_latitude",
+            "approximate_longitude",
             "bearing_to_kampala_center",
             "landform_90",
             "distance_to_kampala_center",
@@ -132,10 +136,14 @@ def extract_meta_data(component: str, tenant=None) -> pd.DataFrame:
         raise Exception("Invalid component. Valid values are sites and devices.")
 
     dataframe = format_dataframe_column_type(
-        dataframe=dataframe, data_type="float", columns=numeric_columns
+        dataframe=dataframe,
+        data_type=DataType.FLOAT,
+        columns=numeric_columns,
     )
     dataframe = format_dataframe_column_type(
-        dataframe=dataframe, data_type="datetime_str", columns=date_time_columns
+        dataframe=dataframe,
+        data_type=DataType.TIMESTAMP_STR,
+        columns=date_time_columns,
     )
     dataframe.rename(columns=rename_columns, inplace=True)
     dataframe.reset_index(drop=True, inplace=True)
