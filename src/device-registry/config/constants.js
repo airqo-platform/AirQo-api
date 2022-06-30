@@ -49,6 +49,8 @@ const stageConfig = {
 };
 
 const defaultConfig = {
+  BIG_QUERY_LOCATION: process.env.BIG_QUERY_LOCATION,
+  TENANTS: process.env.TENANTS.split(","),
   SITES_TOPIC: process.env.SITES_TOPIC,
   DEVICES_TOPIC: process.env.DEVICES_TOPIC,
   LOCATIONS_TOPIC: process.env.LOCATIONS_TOPIC,
