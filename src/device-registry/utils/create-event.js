@@ -65,7 +65,7 @@ const createEvent = {
       );
 
       const start = generateDateFormatWithoutHrs(
-        startTime ? endTime : twoMonthsBack
+        startTime ? startTime : twoMonthsBack
       );
       const end = generateDateFormatWithoutHrs(endTime ? endTime : currentDate);
 
