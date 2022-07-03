@@ -20,6 +20,10 @@ const phoneUtil = require("google-libphonenumber").PhoneNumberUtil.getInstance()
 const decimalPlaces = require("decimal-places");
 const activityController = require("../controllers/create-activity");
 const cors = require("cors");
+const corsOptions = {
+  origin: "https://staging.airqo.net",
+  optionsSuccessStatus: 200,
+};
 
 middlewareConfig(router);
 
@@ -4210,7 +4214,7 @@ router.get(
 
 router.get(
   "/airqlouds/summary",
-  cors(),
+  cors(corsOptions),
   oneOf([
     query("tenant")
       .exists()
