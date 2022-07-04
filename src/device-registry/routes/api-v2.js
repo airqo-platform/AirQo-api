@@ -4,7 +4,6 @@ const deviceController = require("../controllers/create-device");
 const siteController = require("../controllers/create-site");
 const locationController = require("../controllers/create-location");
 const airqloudController = require("../controllers/create-airqloud");
-const middlewareConfig = require("../config/router.middleware");
 const eventController = require("../controllers/create-event");
 const photoController = require("../controllers/create-photo");
 const activityController = require("../controllers/create-activity");
@@ -20,7 +19,16 @@ const { isBoolean, isEmpty } = require("underscore");
 const phoneUtil = require("google-libphonenumber").PhoneNumberUtil.getInstance();
 const decimalPlaces = require("decimal-places");
 
-middlewareConfig(router);
+const headers = (req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "https://staging.airqo.net/");
+  res.header(
+    "Access-Control-Allow-Headers",
+    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
+  );
+  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
+  next();
+};
+router.use(headers);
 
 /******************* create device use-case ***************************/
 /*** decrypt read and write keys */
