@@ -55,6 +55,67 @@ Make a "POST" request to http://localhost:4001/api/v1/calibrate with the followi
     ]
 }
 ```
+## Calibrate minimum version - sample request body
+[POST] http://127.0.0.1:4001/api/v1/calibrate/minimum
+
+{
+ "datetime": "2020-07-15 13:00:00", 
+"raw_values": [ 
+{
+"device_id":"aq_01", 
+"average_pm": 44.12 , 
+"temperature":25.3, 
+"humidity":62.0 
+}, 
+{ 
+"device_id":"aq_02", 
+"average_pm": 12.12 , 
+"temperature":26.5, 
+"humidity":70.0 
+}, 
+{
+"device_id":"aq_03", 
+"average_pm": 80 , 
+"temperature":24.0, 
+"humidity":90.0
+},
+{
+"device_id":"aq_01", 
+"average_pm": 44.12 , 
+"temperature":25.3, 
+"humidity":62.0 
+}, 
+{ 
+"device_id":"aq_02", 
+"average_pm": 12.12 , 
+"temperature":26.5, 
+"humidity":70.0 
+}, 
+{
+"device_id":"aq_03", 
+"average_pm": 80 , 
+"temperature":24.0, 
+"humidity":90.0
+},
+{
+"device_id":"aq_01", 
+"average_pm": 44.12 , 
+"temperature":25.3, 
+"humidity":62.0 
+}, 
+{ 
+"device_id":"aq_02", 
+"average_pm": 12.12 , 
+"temperature":26.5, 
+"humidity":70.0 
+}, 
+{
+"device_id":"aq_03", 
+"average_pm": 80 , 
+"temperature":24.0, 
+"humidity":90.0
+}
+] }
 
 
 ## Calibrate Tool Endpoint
@@ -71,4 +132,5 @@ Make a `POST` request to http://localhost:4001/api/v1/calibrate_tool using form 
 
 ### Sample form data
 ![Sample form data](https://storage.googleapis.com/airqo_open_data/calibrate_tool_request.png)
+
 
