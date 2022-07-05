@@ -178,20 +178,6 @@ spec:
                 name: prod-fault-detection-api-svc
                 port: 
                   number: 4001
-          - path: /api/v1/incentives
-            pathType: Prefix
-            backend:
-              service:
-                name: airqo-incentives-api-svc
-                port: 
-                  number: 3000
-          - path: /api/v2/incentives
-            pathType: Prefix
-            backend:
-              service:
-                name: airqo-incentives-api-svc
-                port: 
-                  number: 3000
           - path: /api/v1/datawarehouse
             pathType: Prefix
             backend:
