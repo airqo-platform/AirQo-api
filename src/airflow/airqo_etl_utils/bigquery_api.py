@@ -100,7 +100,7 @@ class BigQueryApi:
         columns = []
         if data_type != DataType.NONE:
             for column in schema:
-                if column["type"] == data_type:
+                if column["type"] == data_type.to_string():
                     columns.append(column["name"])
         else:
             columns = [column["name"] for column in schema]

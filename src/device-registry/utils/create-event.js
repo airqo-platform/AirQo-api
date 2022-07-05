@@ -17,12 +17,119 @@ const axios = require("axios");
 const { kafkaConsumer } = require("../config/kafkajs");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
-
-const { generateDateFormat, generateDateFormatWithoutHrs } = require("./date");
+const { BigQuery } = require("@google-cloud/bigquery");
+const bigquery = new BigQuery();
+const {
+  generateDateFormat,
+  threeMonthsFromNow,
+  generateDateFormatWithoutHrs,
+  addMonthsToProvideDateTime,
+  monthsInfront,
+  isTimeEmpty,
+  getDifferenceInMonths,
+  addDays,
+  addMinutes,
+} = require("./date");
 
 const httpStatus = require("http-status");
 
 const createEvent = {
+  getMeasurementsFromBigQuery: async (req) => {
+    try {
+      const { query } = req;
+      const {
+        frequency,
+        device,
+        name,
+        startTime,
+        endTime,
+        tenant,
+        limit,
+        skip,
+        site,
+      } = query;
+
+      /**
+       *
+       * 1. We now just have to test the datetime
+       * things and we shall be good to go
+       *
+       * 2. We also need to embrace the usage of ENVs for
+       * some of the variables below
+       */
+
+      const currentDate = generateDateFormatWithoutHrs(new Date());
+
+      const twoMonthsBack = generateDateFormatWithoutHrs(
+        addMonthsToProvideDateTime(currentDate, -2)
+      );
+
+      const start = generateDateFormatWithoutHrs(
+        startTime ? endTime : twoMonthsBack
+      );
+      const end = generateDateFormatWithoutHrs(endTime ? endTime : currentDate);
+
+      let table = "airqo-250220.averaged_data_stage.hourly_device_measurements";
+      let pm2_5 = "";
+      let pm10 = "";
+
+      if (frequency === "raw") {
+        table = "airqo-250220.raw_data.device_measurements";
+        pm2_5 = "";
+        pm10 = "";
+      }
+
+      const queryStatement = `SELECT site_id, name, device, \`airqo-250220.metadata_stage.sites\`.latitude AS latitude,
+        \`airqo-250220.metadata_stage.sites\`.longitude AS longitude, timestamp, pm2_5, pm10, pm2_5_raw_value, pm2_5_calibrated_value, pm10_raw_value, pm10_calibrated_value,
+        \`airqo-250220.metadata_stage.sites\`.tenant AS tenant 
+        FROM \`${table}\` 
+        JOIN \`airqo-250220.metadata_stage.sites\` 
+        ON \`airqo-250220.metadata_stage.sites\`.id = \`${table}\`.site_id 
+        WHERE timestamp  
+       >= "${start ? start : twoMonthsBack}" AND timestamp <= "${
+        end ? end : currentDate
+      }" 
+      ${site ? `AND site_id="${site}"` : ""}
+      ${device ? `AND device="${device}"` : ""}
+      ${
+        tenant
+          ? `AND \`airqo-250220.metadata_stage.sites\`.tenant="${tenant}"`
+          : ""
+      }
+        LIMIT ${limit ? limit : constants.DEFAULT_EVENTS_LIMIT}`;
+
+      /***********************
+ * research/pending works:
+ * ***********************
+ * 
+  device: shall we juse name, ID?
+  site: shall we use name, ID?
+  tenant: shall we use string or ID?
+ */
+
+      const options = {
+        query: queryStatement,
+        location: constants.BIG_QUERY_LOCATION,
+      };
+
+      const [job] = await bigquery.createQueryJob(options);
+      console.log(`Job ${job.id} started.`);
+
+      const [rows] = await job.getQueryResults();
+
+      return {
+        success: true,
+        data: rows,
+        message: "successfully retrieved the measurements",
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      };
+    }
+  },
   list: async (request, callback) => {
     try {
       const { query } = request;
@@ -134,6 +241,7 @@ const createEvent = {
       });
     }
   },
+
   create: async (request) => {
     try {
       const responseFromTransformEvent = await createEvent.transformManyEvents(
