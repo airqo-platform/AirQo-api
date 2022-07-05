@@ -3,6 +3,7 @@ from flask import Blueprint, request, jsonify, make_response
 
 from models import calibrate_tool as calibration_tool
 from models import regression as rg
+from models import regression_minimum as rg_min
 from models import train_calibrate_tool as training_tool
 from routes import api
 
@@ -105,3 +106,33 @@ def train_calibrate_tool():
     resp.headers["Content-Disposition"] = "attachment; filename=calibrated_data_ext.csv"
     resp.headers["Content-Type"] = "text/csv"
     return resp
+
+@calibrate_bp.route(api.route['calibrate_minimum'], methods=['POST'])
+def calibrate_minimum():
+    data = request.get_json()
+    datetime = data.get('datetime')
+    raw_values = data.get('raw_values')
+    if not (datetime and raw_values):
+        return jsonify({"message": "Please specify the datetime and raw_values values in the body. "
+                                   "Refer to the API documentation for details.",
+                        "success": False}), 400
+    rg_model_min = rg_min.Regression()
+
+    response = []
+    for raw_value in raw_values:
+        device_id = raw_value.get('device_id')
+        average_pm = raw_value.get('average_pm')
+        temperature = raw_value.get('temperature')
+        humidity = raw_value.get('humidity')
+
+        if not (device_id and average_pm and temperature and humidity):
+            return jsonify({"message": "Please specify the device_id, datetime, average PM, temperature and humidity values in the body. "
+                                       "Refer to the API documentation for details.",
+                            "success": False}), 400
+
+        calibrated_pm = rg_model_min.compute_calibrated_val(
+            average_pm, temperature, humidity)
+
+        response.append({'device_id': device_id, 'calibrated_PM': calibrated_pm})
+
+    return jsonify(response), 200
