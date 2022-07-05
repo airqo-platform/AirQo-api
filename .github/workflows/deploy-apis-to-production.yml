@@ -43,7 +43,6 @@ jobs:
       run_view: ${{ steps.check_files.outputs.run_view }} # view
       run_calibrate: ${{ steps.check_files.outputs.run_calibrate }} # calibrate
       run_average_jobs: ${{ steps.check_files.outputs.run_average_jobs }} # average and calibration jobs
-      run_events_check: ${{ steps.check_files.outputs.run_events_check }} # event checks
       run_notifications: ${{ steps.check_files.outputs.run_notifications }} # notification
       run_airflow: ${{ steps.check_files.outputs.run_airflow }} # airflow
       run_network_uptime: ${{ steps.check_files.outputs.run_network_uptime }} # network_uptime
@@ -83,7 +82,6 @@ jobs:
           echo "::set-output name=run_view::false"
           echo "::set-output name=run_calibrate::false"
           echo "::set-output name=run_average_jobs::false"
-          echo "::set-output name=run_events_check::false"
           echo "::set-output name=run_notifications::false"
           echo "::set-output name=run_airflow::false"
           echo "::set-output name=run_network_uptime::false"
@@ -154,10 +152,6 @@ jobs:
               echo "::set-output name=run_average_jobs::true"
             fi
 
-            if [[ $file == src/data-mgt/python/events-monitor/* ]]; then
-              echo "::set-output name=run_events_check::true"
-            fi
-
             if [[ $file == src/notifications/* ]]; then
               echo "::set-output name=run_notifications::true"
             fi
@@ -184,7 +178,6 @@ jobs:
 
             if [[ $file == workflow-trigger ]]; then
               echo "::set-output name=run_notifications::true"
-              echo "::set-output name=run_events_check::true"
               echo "::set-output name=run_calibrate::true"
               echo "::set-output name=run_average_jobs::true"
               echo "::set-output name=run_datawarehouse::true"
@@ -873,40 +866,6 @@ jobs:
           kubectl set image deployment/airqo-calibrate-api calibrate-pickle=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-pickle-file:${{ needs.image-tag.outputs.build_id }} -n production
           kubectl set image deployment/airqo-calibrate-api calibrate=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-api:${{ needs.image-tag.outputs.build_id }} -n production
           kubectl annotate deployment/airqo-calibrate-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
-
-  ### events check ###
-  events-check:
-    name: build-push-events-check
-    needs: [check, image-tag]
-    if: needs.check.outputs.run_events_check == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-      
-      ### run unit tests ###
-      
-      - name: Login to GCR
-        uses: docker/login-action@v1
-        with:
-          registry: ${{ secrets.REGISTRY_URL }}
-          username: _json_key
-          password: ${{ secrets.GCR_CONFIG }}
-
-      - name: Login to K8S
-        uses: azure/k8s-set-context@v1
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
-      
-      - name: Build and Push Docker Image
-        run: |
-          cd src/data-mgt/python/events-monitor/
-          docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-events-notifs-job:latest .
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-events-notifs-job:latest
-      - name: Deploy to K8S
-        run: |
-          kubectl apply -f k8s/events-monitor/prod-events-notifs-cronjob.yaml -n production
 
   #### notification ######
   notification:
