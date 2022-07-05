@@ -1,12 +1,14 @@
-apiVersion: batch/v1beta1
+apiVersion: batch/v1
 kind: CronJob
+spec:
+  suspend: true
 metadata:
   name: stage-events-notifs-job
   namespace: staging
 spec:
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 1
-  schedule: "30 * * * *"
+  schedule: "0 0 31 2 *" # Run at 00:00 on 31st of February.
   jobTemplate:
     metadata:
       name: stage-events-notifs-job
