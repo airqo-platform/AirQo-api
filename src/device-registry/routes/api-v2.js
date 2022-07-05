@@ -20,10 +20,7 @@ const phoneUtil = require("google-libphonenumber").PhoneNumberUtil.getInstance()
 const decimalPlaces = require("decimal-places");
 
 const headers = (req, res, next) => {
-  res.header(
-    "Access-Control-Allow-Origin",
-    "https://staging.airqo.net/, https://airqo.net/, https://airqo.africa/, https://airqo.org/, https://airqo.mak.ac.ug/, https://airqo.io/"
-  );
+  res.header("Access-Control-Allow-Origin", "*");
   res.header(
     "Access-Control-Allow-Headers",
     "Origin, X-Requested-With, Content-Type, Accept, Authorization"
