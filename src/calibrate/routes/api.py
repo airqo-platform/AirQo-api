@@ -4,5 +4,6 @@ route = {
     'root': '/',
     'calibrate': f'{base_url}',
     'calibrate_tool': f'{base_url}/tool',
-    'train_calibrate_tool': f'{base_url}/tool/train'
+    'train_calibrate_tool': f'{base_url}/tool/train',
+    'calibrate_minimum': f'{base_url}/minimum'
 }
