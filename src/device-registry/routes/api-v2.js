@@ -38,7 +38,7 @@ const corsOptions = {
   },
 };
 
-router.use(cors(corsOptions));
+router.use(cors());
 
 // const headers = (req, res, next) => {
 //   res.header("Access-Control-Allow-Origin", "*");
