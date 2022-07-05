@@ -20,7 +20,7 @@ const decimalPlaces = require("decimal-places");
 const activityController = require("../controllers/create-activity");
 
 const headers = (req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "https://staging.airqo.net/");
+  res.header("Access-Control-Allow-Origin", "*");
   res.header(
     "Access-Control-Allow-Headers",
     "Origin, X-Requested-With, Content-Type, Accept, Authorization"
