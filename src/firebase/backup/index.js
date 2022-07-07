@@ -1,13 +1,15 @@
 const firestore = require('@google-cloud/firestore');
 const client = new firestore.v1.FirestoreAdminClient();
+require('dotenv').config;
 // Replace BUCKET_NAME
 const bucket = process.env.EXPORT_BUCKET;
 
 exports.scheduledFirestoreExport = (event, context) => {
   const databaseName = client.databasePath(
-    process.env.GCLOUD_PROJECT,
-    '(default)'
+      process.env.GCLOUD_PROJECT,
+      "(default)"
   );
+
 
   return client
     .exportDocuments({
