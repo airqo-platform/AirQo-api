@@ -29,23 +29,16 @@ spec:
           ports:
             - containerPort: 3000
               name: sta-dev-reg-api
-          # readinessProbe:
-          #   httpGet:
-          #     path: /health
-          #     port: 3000
-          #   initialDelaySecond: 5
-          #   periodSeconds: 3
-          #   successThreshold: 1
           envFrom:
             - configMapRef:
                 name: env-device-registry-staging
-          resources:
-            requests:
-              cpu: 100m
-              memory: 250Mi
-            limits:
-              cpu: 200m
-              memory: 700Mi
+          volumeMounts:
+          - name: config-volume
+            mountPath: /etc/config
+      volumes:
+        - name: config-volume
+          configMap:
+            name: device-registry-config-files
 
 ---
 kind: Service
@@ -62,23 +55,3 @@ spec:
       targetPort: 3000
       nodePort: 31002
   type: NodePort
-
----
-kind: HorizontalPodAutoscaler
-apiVersion: autoscaling/v2
-metadata:
-  name: airqo-stage-device-registry-api-hpa
-spec:
-  scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: airqo-stage-device-registry-api
-  minReplicas: 1
-  maxReplicas: 2
-  metrics:
-  - type: Resource
-    resource:
-      name: cpu
-      target:
-        type: Utilization
-        averageUtilization: 80

@@ -18,7 +18,7 @@ mongodb;
 runKafkaProducer();
 runKafkaConsumer();
 
-var app = express();
+const app = express();
 
 app.use(log4js.connectLogger(log4js.getLogger("http"), { level: "auto" }));
 app.use(bodyParser.json());

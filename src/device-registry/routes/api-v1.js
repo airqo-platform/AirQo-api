@@ -4,7 +4,6 @@ const deviceController = require("../controllers/create-device");
 const siteController = require("../controllers/create-site");
 const locationController = require("../controllers/create-location");
 const airqloudController = require("../controllers/create-airqloud");
-const middlewareConfig = require("../config/router.middleware");
 const eventController = require("../controllers/create-event");
 const photoController = require("../controllers/create-photo");
 const { check, oneOf, query, body, param } = require("express-validator");
@@ -19,8 +18,38 @@ const { isBoolean, isEmpty } = require("underscore");
 const phoneUtil = require("google-libphonenumber").PhoneNumberUtil.getInstance();
 const decimalPlaces = require("decimal-places");
 const activityController = require("../controllers/create-activity");
+const cors = require("cors");
 
-middlewareConfig(router);
+const whitelist = [
+  "https://staging.airqo.net/",
+  "https://airqo.net/",
+  "https://airqo.africa/",
+  "https://airqo.org/",
+  "https://airqo.mak.ac.ug/",
+  "https://airqo.io/",
+];
+const corsOptions = {
+  origin: function(origin, callback) {
+    if (whitelist.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+};
+
+router.use(cors());
+
+// const headers = (req, res, next) => {
+//   res.header("Access-Control-Allow-Origin", "*");
+//   res.header(
+//     "Access-Control-Allow-Headers",
+//     "Origin, X-Requested-With, Content-Type, Accept, Authorization"
+//   );
+//   res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
+//   next();
+// };
+// router.use(headers);
 
 /******************* create device use-case ***************************/
 /*** decrypt read and write keys */
