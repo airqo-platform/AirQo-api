@@ -185,7 +185,10 @@ const transform = {
         (newObj, [field, value]) => {
           if (value) {
             let transformedField = "";
-            if (responseFromTransformFieldValues.DeviceType === "BAM") {
+            if (
+              responseFromTransformFieldValues.DeviceType === "BAM" ||
+              responseFromTransformFieldValues.DeviceType === "bam"
+            ) {
               logText("the device is a BAM");
               transformedField = transform.getBamFieldLabel(field);
               logElement("transformedField", transformedField);
