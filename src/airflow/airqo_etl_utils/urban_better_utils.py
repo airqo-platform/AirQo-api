@@ -17,38 +17,26 @@ def extract_urban_better_data_from_api(
     data = pd.DataFrame(
         [],
         columns=[
-            "no2",
-            "voc",
-            "pm2_5",
-            "pm10",
-            "pm1",
-            "timestamp",
+            "pollutants.no2.value",
+            "pollutants.voc.value",
+            "pollutants.pm25.value",
+            "pollutants.pm10.value",
+            "pollutants.pm1.value",
+            "date",
             "device",
             "organization",
         ],
     )
-    api_data = plume_labs_api.get_data(
+    api_data = plume_labs_api.get_sensor_measures(
         start_date_time=str_to_date(start_date_time),
         end_date_time=str_to_date(end_date_time),
     )
     for organization_api_data in api_data:
         organization = organization_api_data["organization"]
-        organisation_data = organization_api_data["data"]
+        organisation_data = organization_api_data["measures"]
         for org_device_data in organisation_data:
             device = org_device_data["device"]
             device_data = pd.json_normalize(org_device_data["device_data"])
-
-            device_data.rename(
-                columns={
-                    "pollutants.no2.value": "no2",
-                    "pollutants.voc.value": "voc",
-                    "pollutants.pm25.value": "pm2_5",
-                    "pollutants.pm10.value": "pm10",
-                    "pollutants.pm1.value": "pm1",
-                    "date": "timestamp",
-                },
-                inplace=True,
-            )
             device_data["device"] = device
             device_data["organization"] = organization
             data = data.append(
@@ -56,6 +44,58 @@ def extract_urban_better_data_from_api(
                 ignore_index=True,
             )
 
+    data.rename(
+        columns={
+            "pollutants.no2.value": "no2",
+            "pollutants.voc.value": "voc",
+            "pollutants.pm25.value": "pm2_5",
+            "pollutants.pm10.value": "pm10",
+            "pollutants.pm1.value": "pm1",
+            "date": "timestamp",
+        },
+        inplace=True,
+    )
+    data["timestamp"] = data["timestamp"].apply(datetime.datetime.fromtimestamp)
+    return data
+
+
+def extract_urban_better_sensor_positions_from_api(
+    start_date_time: str, end_date_time: str
+) -> pd.DataFrame:
+    plume_labs_api = PlumeLabsApi()
+    data = pd.DataFrame(
+        [],
+        columns=[
+            "horizontal_accuracy",
+            "longitude",
+            "latitude",
+            "date",
+            "device",
+            "organization",
+        ],
+    )
+    api_data = plume_labs_api.get_sensor_positions(
+        start_date_time=str_to_date(start_date_time),
+        end_date_time=str_to_date(end_date_time),
+    )
+    for organization_api_data in api_data:
+        organization = organization_api_data["organization"]
+        positions = organization_api_data["positions"]
+        for device_data in positions:
+            device = device_data["device"]
+            device_positions = pd.DataFrame(device_data["device_positions"])
+            device_positions["device"] = device
+            device_positions["organization"] = organization
+            data = data.append(
+                device_positions,
+                ignore_index=True,
+            )
+    data.rename(
+        columns={
+            "date": "timestamp",
+        },
+        inplace=True,
+    )
     data["timestamp"] = data["timestamp"].apply(datetime.datetime.fromtimestamp)
     return data
 

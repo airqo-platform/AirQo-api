@@ -35,7 +35,7 @@ class PlumeLabsApi:
             )
         return organizations_details
 
-    def __query_data(
+    def __query_sensor_measures(
         self,
         start_timestamp,
         end_timestamp,
@@ -61,7 +61,7 @@ class PlumeLabsApi:
 
         if api_response["more"]:
             sensor_data.extend(
-                self.__query_data(
+                self.__query_sensor_measures(
                     start_timestamp=start_timestamp,
                     end_timestamp=end_timestamp,
                     sensor_id=sensor_id,
@@ -72,7 +72,81 @@ class PlumeLabsApi:
             )
         return sensor_data
 
-    def get_data(
+    def __query_sensor_positions(
+        self,
+        start_timestamp,
+        end_timestamp,
+        sensor_id,
+        token,
+        organization,
+        offset=None,
+    ) -> list:
+        params = {
+            "token": token,
+            "sensor_id": sensor_id,
+            "start_date": start_timestamp,
+            "end_date": end_timestamp,
+        }
+        if offset:
+            params["offset"] = offset
+        api_response = self.__request(
+            endpoint=f"/organizations/{organization}/sensors/positions",
+            params=params,
+        )
+
+        sensor_data = api_response["positions"]
+
+        if api_response["more"]:
+            sensor_data.extend(
+                self.__query_sensor_positions(
+                    start_timestamp=start_timestamp,
+                    end_timestamp=end_timestamp,
+                    sensor_id=sensor_id,
+                    token=token,
+                    organization=organization,
+                    offset=api_response["offset"],
+                )
+            )
+        return sensor_data
+
+    def get_sensor_positions(
+        self,
+        start_date_time: datetime.datetime,
+        end_date_time: datetime.datetime,
+    ) -> list:
+        organizations_meta_data = self.__get_organizations_meta_data()
+        organizations_data = []
+        for organization in organizations_meta_data:
+            sensors_positions = []
+            for sensor in organization["sensors"]:
+                sensor_id = sensor["id"]
+                sensor_positions = self.__query_sensor_positions(
+                    token=organization["token"],
+                    sensor_id=sensor_id,
+                    organization=organization["id"],
+                    start_timestamp=int(start_date_time.timestamp()),
+                    end_timestamp=int(end_date_time.timestamp()),
+                )
+
+                if sensor_positions:
+                    sensors_positions.append(
+                        {
+                            "device": sensor_id,
+                            "device_positions": sensor_positions,
+                        }
+                    )
+
+            if sensors_positions:
+                organizations_data.append(
+                    {
+                        "organization": organization["id"],
+                        "positions": sensors_positions,
+                    }
+                )
+
+        return organizations_data
+
+    def get_sensor_measures(
         self,
         start_date_time: datetime.datetime,
         end_date_time: datetime.datetime,
@@ -83,7 +157,7 @@ class PlumeLabsApi:
             sensors_data = []
             for sensor in organization["sensors"]:
                 sensor_id = sensor["id"]
-                sensor_data = self.__query_data(
+                sensor_data = self.__query_sensor_measures(
                     token=organization["token"],
                     sensor_id=sensor_id,
                     organization=organization["id"],
@@ -103,7 +177,7 @@ class PlumeLabsApi:
                 organizations_data.append(
                     {
                         "organization": organization["id"],
-                        "data": sensors_data,
+                        "measures": sensors_data,
                     }
                 )
 
