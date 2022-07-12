@@ -49,15 +49,6 @@ const createEvent = {
         site,
       } = query;
 
-      /**
-       *
-       * 1. We now just have to test the datetime
-       * things and we shall be good to go
-       *
-       * 2. We also need to embrace the usage of ENVs for
-       * some of the variables below
-       */
-
       const currentDate = generateDateFormatWithoutHrs(new Date());
 
       const twoMonthsBack = generateDateFormatWithoutHrs(
@@ -97,15 +88,6 @@ const createEvent = {
           : ""
       }
         LIMIT ${limit ? limit : constants.DEFAULT_EVENTS_LIMIT}`;
-
-      /***********************
- * research/pending works:
- * ***********************
- * 
-  device: shall we juse name, ID?
-  site: shall we use name, ID?
-  tenant: shall we use string or ID?
- */
 
       const options = {
         query: queryStatement,
