@@ -76,5 +76,8 @@ class Config:
         "APP_NOTIFICATION_TEMPLATES_DATABASE"
     )
 
+    PLUME_LABS_BASE_URL = os.getenv("PLUME_LABS_BASE_URL")
+    PLUME_LABS_ORGANISATIONS_CRED = os.getenv("PLUME_LABS_ORGANISATIONS_CRED")
+
 
 configuration = Config()
