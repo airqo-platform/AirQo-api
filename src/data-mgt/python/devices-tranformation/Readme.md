@@ -80,3 +80,9 @@ Sample `sites.csv` file
 ```bash
     python main.py --action=approximate_coordinates
 ```
+
+
+## Missing fields in sites
+```bash
+    python main.py --action=missing_fields --outputFormat=csv --fields=search_name
+```
