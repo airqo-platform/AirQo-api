@@ -2,7 +2,7 @@
   {
     "name": "tenant",
     "type": "STRING",
-    "mode": "REQUIRED"
+    "mode": "NULLABLE"
   },
   {
     "name": "phone_timestamp",
@@ -17,32 +17,32 @@
   {
     "name": "timestamp_abs_diff",
     "type": "FLOAT",
-    "mode": "REQUIRED"
+    "mode": "NULLABLE"
   },
   {
     "name": "phone_latitude",
     "type": "FLOAT",
-    "mode": "REQUIRED"
+    "mode": "NULLABLE"
   },
   {
     "name": "phone_longitude",
     "type": "FLOAT",
-    "mode": "REQUIRED"
+    "mode": "NULLABLE"
   },
   {
     "name": "phone_horizontal_accuracy",
     "type": "FLOAT",
-    "mode": "REQUIRED"
+    "mode": "NULLABLE"
   },
   {
     "name": "organization",
-    "type": "STRING",
-    "mode": "REQUIRED"
+    "type": "FLOAT",
+    "mode": "NULLABLE"
   },
   {
     "name": "device",
-    "type": "STRING",
-    "mode": "REQUIRED"
+    "type": "FLOAT",
+    "mode": "NULLABLE"
   },
   {
     "name": "pm1_pi_value",

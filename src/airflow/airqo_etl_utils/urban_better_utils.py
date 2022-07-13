@@ -123,6 +123,9 @@ def get_nearest_gps_coordinates(
 def merge_urban_better_data(
     measures: pd.DataFrame, sensor_positions: pd.DataFrame
 ) -> pd.DataFrame:
+    measures["timestamp"] = measures["timestamp"].apply(pd.to_datetime)
+    sensor_positions["timestamp"] = sensor_positions["timestamp"].apply(pd.to_datetime)
+
     organization_groups = measures.groupby("organization")
     urban_better_data = []
 
