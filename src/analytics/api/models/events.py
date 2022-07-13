@@ -31,7 +31,8 @@ class EventsModel(BasePyMongoModel):
         decimal_places = 2
 
         columns = ["name", "FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', timestamp) AS datetime",
-                   f"{cls.BIGQUERY_SITES}.latitude", f"{cls.BIGQUERY_SITES}.longitude"]
+                   f"{cls.BIGQUERY_SITES}.approximate_latitude AS latitude",
+                   f"{cls.BIGQUERY_SITES}.approximate_longitude  AS longitude"]
         columns.extend(additional_columns)
 
         for pollutant in pollutants:
