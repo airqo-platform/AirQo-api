@@ -49,6 +49,7 @@ const stageConfig = {
 };
 
 const defaultConfig = {
+  DOMAIN_WHITELIST: process.env.DOMAIN_WHITELIST.split(","),
   BIG_QUERY_LOCATION: process.env.BIG_QUERY_LOCATION,
   TENANTS: process.env.TENANTS.split(","),
   SITES_TOPIC: process.env.SITES_TOPIC,
