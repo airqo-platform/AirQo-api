@@ -60,22 +60,28 @@ const createEvent = {
       );
       const end = generateDateFormatWithoutHrs(endTime ? endTime : currentDate);
 
-      let table = "airqo-250220.averaged_data_stage.hourly_device_measurements";
+      let table = `${constants.DATAWAREHOUSE_AVERAGED_DATA}.hourly_device_measurements`;
       let pm2_5 = "";
       let pm10 = "";
 
       if (frequency === "raw") {
-        table = "airqo-250220.raw_data.device_measurements";
+        table = `${constants.DATAWAREHOUSE_RAW_DATA}.device_measurements`;
         pm2_5 = "";
         pm10 = "";
       }
 
-      const queryStatement = `SELECT site_id, name, device, \`airqo-250220.metadata_stage.sites\`.latitude AS latitude,
-        \`airqo-250220.metadata_stage.sites\`.longitude AS longitude, timestamp, pm2_5, pm10, pm2_5_raw_value, pm2_5_calibrated_value, pm10_raw_value, pm10_calibrated_value,
-        \`airqo-250220.metadata_stage.sites\`.tenant AS tenant 
+      const queryStatement = `SELECT site_id, name, device, \`${
+        constants.DATAWAREHOUSE_METADATA
+      }.sites\`.latitude AS latitude,
+        \`${
+          constants.DATAWAREHOUSE_METADATA
+        }.sites\`.longitude AS longitude, timestamp, pm2_5, pm10, pm2_5_raw_value, pm2_5_calibrated_value, pm10_raw_value, pm10_calibrated_value,
+        \`${constants.DATAWAREHOUSE_METADATA}.sites\`.tenant AS tenant 
         FROM \`${table}\` 
-        JOIN \`airqo-250220.metadata_stage.sites\` 
-        ON \`airqo-250220.metadata_stage.sites\`.id = \`${table}\`.site_id 
+        JOIN \`${constants.DATAWAREHOUSE_METADATA}.sites\` 
+        ON \`${
+          constants.DATAWAREHOUSE_METADATA
+        }.sites\`.id = \`${table}\`.site_id 
         WHERE timestamp  
        >= "${start ? start : twoMonthsBack}" AND timestamp <= "${
         end ? end : currentDate
@@ -84,7 +90,7 @@ const createEvent = {
       ${device ? `AND device="${device}"` : ""}
       ${
         tenant
-          ? `AND \`airqo-250220.metadata_stage.sites\`.tenant="${tenant}"`
+          ? `AND \`${constants.DATAWAREHOUSE_METADATA}.sites\`.tenant="${tenant}"`
           : ""
       }
         LIMIT ${limit ? limit : constants.DEFAULT_EVENTS_LIMIT}`;
