@@ -100,80 +100,59 @@ def extract_urban_better_sensor_positions_from_api(
     return data
 
 
-def parameter_column_name(parameter: str) -> str:
-    parameter = parameter.lower()
-    if parameter == "pm2.5":
-        return "pm2_5"
-    elif parameter == "pm10":
-        return "pm10"
-    elif parameter == "no2":
-        return "no2"
-    else:
-        raise Exception(f"Unknown parameter {parameter}")
+def get_nearest_gps_coordinates(
+    date_time: datetime.datetime, sensor_positions: pd.DataFrame
+) -> dict:
+    date_time = pd.to_datetime(date_time)
+    sensor_positions["timestamp"] = sensor_positions["timestamp"].apply(pd.to_datetime)
+    sensor_positions.index = sensor_positions["timestamp"]
+    sensor_positions.sort_index(inplace=True)
+    index = sensor_positions.index[
+        sensor_positions.index.get_loc(date_time, method="nearest")
+    ]
+    return sensor_positions.loc[index].to_dict()
 
 
-def process_airnow_data(data: pd.DataFrame) -> pd.DataFrame:
-    device_groups = data.groupby("device_id")
-    airnow_data = []
-    devices = AirQoApi().get_devices(tenant="airqo")
+def merge_urban_better_data(
+    measures: pd.DataFrame, sensor_positions: pd.DataFrame
+) -> pd.DataFrame:
+    organization_groups = measures.groupby("organization")
+    urban_better_data = []
 
-    for _, device_group in device_groups:
+    for _, organization_group in organization_groups:
+        organization = organization_group.iloc[0]["organization"]
+        organization_devices_group = organization_group.groupby("device")
 
-        device = list(
-            filter(lambda x: (x["_id"] == device_group.iloc[0]["device_id"]), devices),
-        )[0]
+        for _, organization_device_group in organization_devices_group:
+            device = organization_group.iloc[0]["device"]
+            device_positions = sensor_positions.loc[
+                (sensor_positions["organization"] == organization)
+                & (sensor_positions["device"] == device)
+            ]
 
-        time_groups = device_group.groupby("UTC")
+            for _, value in organization_device_group.iterrows():
+                timestamp = value["timestamp"]
+                nearest_timestamp = get_nearest_gps_coordinates(
+                    date_time=timestamp, sensor_positions=device_positions
+                )
+                merged_data = {
+                    **value.to_dict(),
+                    **nearest_timestamp,
+                    "device_timestamp": timestamp,
+                }
+                urban_better_data.append(merged_data)
 
-        for _, time_group in time_groups:
-            for _, row in time_group.iterrows():
-                try:
-                    pollutant_value = dict({"pm2_5": None, "pm10": None, "no2": None})
-
-                    parameter_col_name = parameter_column_name(row["Parameter"])
-
-                    pollutant_value[parameter_col_name] = row["Value"]
-
-                    airnow_data.append(
-                        {
-                            "timestamp": date_to_str(
-                                datetime.strptime(row["UTC"], "%Y-%m-%dT%H:%M")
-                            ),
-                            "tenant": device["tenant"],
-                            "site_id": device["site"]["_id"],
-                            "device_id": device["_id"],
-                            "device_number": device["device_number"],
-                            "device": device["name"],
-                            "latitude": row["Latitude"],
-                            "longitude": row["Longitude"],
-                            "pm2_5": pollutant_value["pm2_5"],
-                            "s1_pm2_5": pollutant_value["pm2_5"],
-                            "s2_pm2_5": None,
-                            "pm2_5_raw_value": pollutant_value["pm2_5"],
-                            "pm2_5_calibrated_value": pollutant_value["pm2_5"],
-                            "pm10": pollutant_value["pm10"],
-                            "s1_pm10": pollutant_value["pm10"],
-                            "s2_pm10": None,
-                            "pm10_raw_value": pollutant_value["pm10"],
-                            "pm10_calibrated_value": pollutant_value["pm10"],
-                            "no2": pollutant_value["no2"],
-                            "no2_raw_value": pollutant_value["no2"],
-                            "no2_calibrated_value": pollutant_value["no2"],
-                            "pm1": None,
-                            "pm1_raw_value": None,
-                            "pm1_calibrated_value": None,
-                            "external_temperature": None,
-                            "external_humidity": None,
-                            "wind_speed": None,
-                            "altitude": None,
-                        }
-                    )
-                except Exception as ex:
-                    print(ex)
-                    traceback.print_exc()
-
-    print(f"Airnow data => {len(airnow_data)}")
-    return pd.DataFrame(airnow_data)
+    urban_better_data_df = pd.DataFrame(urban_better_data)
+    urban_better_data_df.rename(
+        columns={
+            "timestamp": "phone_timestamp",
+            "longitude": "phone_longitude",
+            "latitude": "phone_latitude",
+            "horizontal_accuracy": "phone_horizontal_accuracy",
+        },
+        inplace=True,
+    )
+    return urban_better_data_df
 
 
 def process_for_message_broker(bam_data_dataframe: pd.DataFrame) -> list:
