@@ -538,6 +538,38 @@ def airnow_bam_data():
     bigquery_data.to_csv("airnow_bigquery_data.csv", index=False)
 
 
+def urban_better_data():
+    from airqo_etl_utils.urban_better_utils import (
+        extract_urban_better_data_from_api,
+        extract_urban_better_sensor_positions_from_api,
+        merge_urban_better_data,
+        process_for_big_query,
+    )
+
+    extracted_urban_better_data = extract_urban_better_data_from_api(
+        start_date_time="2022-07-11T00:00:00Z", end_date_time="2022-07-12T00:00:00Z"
+    )
+    extracted_urban_better_data.to_csv("urban_better_unprocessed_data.csv", index=False)
+
+    extracted_sensor_positions_data = extract_urban_better_sensor_positions_from_api(
+        start_date_time="2022-07-11T00:00:00Z", end_date_time="2022-07-12T00:00:00Z"
+    )
+    extracted_sensor_positions_data.to_csv(
+        "sensor_positions_unprocessed_data.csv", index=False
+    )
+
+    processed_urban_better_data = merge_urban_better_data(
+        measures=extracted_urban_better_data,
+        sensor_positions=extracted_sensor_positions_data,
+    )
+    processed_urban_better_data.to_csv("urban_better_processed_data.csv", index=False)
+
+    bigquery_data = pd.DataFrame(
+        process_for_big_query(dataframe=processed_urban_better_data)
+    )
+    bigquery_data.to_csv("urban_better_bigquery_data.csv", index=False)
+
+
 if __name__ == "__main__":
 
     from airqo_etl_utils.date import date_to_str_hours
@@ -584,6 +616,7 @@ if __name__ == "__main__":
             "app_notifications",
             "calibrate_historical_data",
             "airnow_bam_data",
+            "urban_better_data",
         ],
     )
 
@@ -622,5 +655,8 @@ if __name__ == "__main__":
         )
     elif args.action == "airnow_bam_data":
         airnow_bam_data()
+
+    elif args.action == "urban_better_data":
+        urban_better_data()
     else:
         pass

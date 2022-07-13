@@ -1,12 +1,9 @@
-import traceback
 import datetime
 
 import pandas as pd
 
-from airqo_etl_utils.airqo_api import AirQoApi
 from airqo_etl_utils.bigquery_api import BigQueryApi
-from airqo_etl_utils.date import date_to_str, str_to_date
-from airqo_etl_utils.message_broker import KafkaBrokerClient
+from airqo_etl_utils.date import str_to_date
 from airqo_etl_utils.plume_labs_api import PlumeLabsApi
 
 
@@ -18,10 +15,15 @@ def extract_urban_better_data_from_api(
         [],
         columns=[
             "pollutants.no2.value",
+            "pollutants.no2.pi",
             "pollutants.voc.value",
+            "pollutants.voc.pi",
             "pollutants.pm25.value",
+            "pollutants.pm25.pi",
             "pollutants.pm10.value",
+            "pollutants.pm10.pi",
             "pollutants.pm1.value",
+            "pollutants.pm1.pi",
             "date",
             "device",
             "organization",
@@ -46,11 +48,16 @@ def extract_urban_better_data_from_api(
 
     data.rename(
         columns={
-            "pollutants.no2.value": "no2",
-            "pollutants.voc.value": "voc",
-            "pollutants.pm25.value": "pm2_5",
-            "pollutants.pm10.value": "pm10",
-            "pollutants.pm1.value": "pm1",
+            "pollutants.no2.value": "no2_value",
+            "pollutants.voc.value": "voc_value",
+            "pollutants.pm25.value": "pm2_5_value",
+            "pollutants.pm10.value": "pm10_value",
+            "pollutants.pm1.value": "pm1_value",
+            "pollutants.no2.pi": "no2_pi_value",
+            "pollutants.voc.pi": "voc_pi_value",
+            "pollutants.pm25.pi": "pm2_5_pi_value",
+            "pollutants.pm10.pi": "pm10_pi_value",
+            "pollutants.pm1.pi": "pm1_pi_value",
             "date": "timestamp",
         },
         inplace=True,
@@ -139,6 +146,9 @@ def merge_urban_better_data(
                     **value.to_dict(),
                     **nearest_timestamp,
                     "device_timestamp": timestamp,
+                    "timestamp_abs_diff": abs(
+                        (nearest_timestamp["timestamp"] - timestamp).total_seconds()
+                    ),
                 }
                 urban_better_data.append(merged_data)
 
@@ -152,22 +162,14 @@ def merge_urban_better_data(
         },
         inplace=True,
     )
+    urban_better_data_df["tenant"] = "urban_better"
     return urban_better_data_df
 
 
-def process_for_message_broker(bam_data_dataframe: pd.DataFrame) -> list:
-    kafka = KafkaBrokerClient()
-    bam_data_dataframe = bam_data_dataframe[
-        kafka.get_topic_schema(kafka.bam_measurements_topic)
-    ]
-
-    return [row.to_dict() for _, row in bam_data_dataframe.iterrows()]
-
-
-def process_for_big_query(bam_data_dataframe: pd.DataFrame) -> pd.DataFrame:
+def process_for_big_query(dataframe: pd.DataFrame) -> pd.DataFrame:
     big_query_api = BigQueryApi()
-    bam_data_dataframe["timestamp"] = bam_data_dataframe["timestamp"].apply(str_to_date)
-    bam_data_dataframe["time"] = bam_data_dataframe["timestamp"]
-    return bam_data_dataframe[
-        big_query_api.get_columns(big_query_api.hourly_measurements_table)
+    dataframe["device_timestamp"] = dataframe["device_timestamp"].apply(pd.to_datetime)
+    dataframe["phone_timestamp"] = dataframe["phone_timestamp"].apply(pd.to_datetime)
+    return dataframe[
+        big_query_api.get_columns(big_query_api.raw_mobile_measurements_table)
     ]
