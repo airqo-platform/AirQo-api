@@ -41,6 +41,13 @@ const deviceSchema = new mongoose.Schema(
     readKey: {
       type: String,
     },
+    name_id: {
+      type: String,
+      unique: true,
+      trim: true,
+      match: noSpaces,
+      lowercase: true,
+    },
     name: {
       type: String,
       required: [true, "the Device name is required!"],
@@ -212,6 +219,7 @@ deviceSchema.methods = {
       phoneNumber: this.phoneNumber,
       visibility: this.visibility,
       description: this.description,
+      name_id: this.name_id,
       isPrimaryInLocation: this.isPrimaryInLocation,
       nextMaintenance: this.nextMaintenance,
       deployment_date: this.deployment_date,
@@ -309,6 +317,7 @@ deviceSchema.statics = {
           isPrimaryInLocation: 1,
           nextMaintenance: 1,
           deployment_date: 1,
+          name_id: 1,
           recall_date: 1,
           maintenance_date: 1,
           device_number: 1,
