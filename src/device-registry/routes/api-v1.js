@@ -3771,9 +3771,10 @@ router.post(
           "county",
           "subcounty",
           "country",
+          "state",
         ])
         .withMessage(
-          "admin_level values include: village, county, subcounty, village, parish, country, division and district"
+          "admin_level values include: state, village, county, subcounty, village, parish, country, division and district"
         ),
       body("location_tags")
         .optional()
@@ -3841,9 +3842,10 @@ router.get(
           "county",
           "subcounty",
           "country",
+          "state",
         ])
         .withMessage(
-          "admin_level values include: village, county, subcounty, village, parish, country, division and district"
+          "admin_level values include: state, village, county, subcounty, village, parish, country, division and district"
         ),
     ],
   ]),
@@ -3910,9 +3912,10 @@ router.put(
           "county",
           "subcounty",
           "country",
+          "state",
         ])
         .withMessage(
-          "admin_level values include: village, county, subcounty, village, parish, country, division and district"
+          "admin_level values include: state, village, county, subcounty, village, parish, country, division and district"
         ),
       body("description")
         .optional()
@@ -4114,9 +4117,10 @@ router.post(
           "county",
           "subcounty",
           "country",
+          "state",
         ])
         .withMessage(
-          "admin_level values include: village, county, subcounty, village, parish, country, division and district"
+          "admin_level values include: state, village, county, subcounty, village, parish, country, division and district"
         ),
       body("airqloud_tags")
         .optional()
@@ -4227,9 +4231,10 @@ router.get(
           "county",
           "subcounty",
           "country",
+          "state",
         ])
         .withMessage(
-          "admin_level values include: village, county, subcounty, village, parish, country, division and district"
+          "admin_level values include: state, village, county, subcounty, village, parish, country, division and district"
         ),
     ],
   ]),
@@ -4281,9 +4286,10 @@ router.get(
           "county",
           "subcounty",
           "country",
+          "state",
         ])
         .withMessage(
-          "admin_level values include: village, county, subcounty, village, parish, country, division and district"
+          "admin_level values include: state, village, county, subcounty, village, parish, country, division and district"
         ),
     ],
   ]),
@@ -4344,9 +4350,10 @@ router.get(
         "county",
         "subcounty",
         "country",
+        "state",
       ])
       .withMessage(
-        "admin_level values include: village, county, subcounty, village, parish, country, division and district"
+        "admin_level values include: state, village, county, subcounty, village, parish, country, division and district"
       ),
   ]),
   airqloudController.findSites
@@ -4412,9 +4419,10 @@ router.put(
           "county",
           "subcounty",
           "country",
+          "state",
         ])
         .withMessage(
-          "admin_level values include: village, county, subcounty, village, parish, country, division and district"
+          "admin_level values include: state, village, county, subcounty, village, parish, country, division and district"
         ),
       body("description")
         .optional()
@@ -4591,9 +4599,10 @@ router.get(
         "county",
         "subcounty",
         "country",
+        "state",
       ])
       .withMessage(
-        "admin_level values include: village, county, subcounty, village, parish, country, division and district"
+        "admin_level values include: state, village, county, subcounty, village, parish, country, division and district"
       ),
   ]),
   airqloudController.calculateGeographicalCenter
