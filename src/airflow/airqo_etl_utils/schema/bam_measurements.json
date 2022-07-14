@@ -57,28 +57,5 @@
     "type": "FLOAT",
     "mode": "NULLABLE",
     "description": "μg/m3."
-  },
-  {
-    "name": "external_temperature",
-    "type": "FLOAT",
-    "mode": "NULLABLE",
-    "description": "°C.\nExternal temperature"
-  },
-  {
-    "name": "external_humidity",
-    "type": "FLOAT",
-    "mode": "NULLABLE",
-    "description": "%.\nRelative humidity"
-  },
-  {
-    "name": "wind_speed",
-    "type": "FLOAT",
-    "mode": "NULLABLE",
-    "description": "m/s."
-  },
-  {
-    "name": "altitude",
-    "type": "FLOAT",
-    "mode": "NULLABLE"
   }
 ]
