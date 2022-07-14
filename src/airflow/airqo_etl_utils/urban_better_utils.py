@@ -165,7 +165,7 @@ def merge_urban_better_data(
         },
         inplace=True,
     )
-    urban_better_data_df["tenant"] = "urban_better"
+    urban_better_data_df["tenant"] = "urbanbetter"
     return urban_better_data_df
 
 
