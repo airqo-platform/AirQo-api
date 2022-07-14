@@ -14,6 +14,9 @@ class BigQueryApi:
         self.client = bigquery.Client()
         self.hourly_measurements_table = configuration.BIGQUERY_HOURLY_EVENTS_TABLE
         self.raw_measurements_table = configuration.BIGQUERY_RAW_EVENTS_TABLE
+        self.raw_mobile_measurements_table = (
+            configuration.BIGQUERY_RAW_MOBILE_EVENTS_TABLE
+        )
         self.hourly_weather_table = configuration.BIGQUERY_HOURLY_WEATHER_TABLE
         self.raw_weather_table = configuration.BIGQUERY_RAW_WEATHER_TABLE
         self.analytics_table = configuration.BIGQUERY_ANALYTICS_TABLE
@@ -92,6 +95,8 @@ class BigQueryApi:
             schema_file = "sites.json"
         elif table == self.devices_table:
             schema_file = "devices.json"
+        elif table == self.raw_mobile_measurements_table:
+            schema_file = "mobile_measurements.json"
         else:
             raise Exception("Invalid table")
 

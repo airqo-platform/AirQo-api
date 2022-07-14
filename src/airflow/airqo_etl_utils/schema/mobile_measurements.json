@@ -1,0 +1,107 @@
+[
+  {
+    "name": "tenant",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "phone_timestamp",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "device_timestamp",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "timestamp_abs_diff",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "phone_latitude",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "phone_longitude",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "phone_horizontal_accuracy",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "organization",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "device",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "pm1_pi_value",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "μg/m3."
+  },
+  {
+    "name": "pm1_value",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "μg/m3."
+  },
+  {
+    "name": "pm2_5_pi_value",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "μg/m3."
+  },
+  {
+    "name": "pm2_5_value",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "μg/m3."
+  },
+  {
+    "name": "pm10_pi_value",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "μg/m3."
+  },
+  {
+    "name": "pm10_value",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "μg/m3."
+  },
+  {
+    "name": "voc_pi_value",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "ppb."
+  },
+  {
+    "name": "voc_value",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "ppb."
+  },
+  {
+    "name": "no2_pi_value",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "ppb."
+  },
+  {
+    "name": "no2_value",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "ppb."
+  }
+]
