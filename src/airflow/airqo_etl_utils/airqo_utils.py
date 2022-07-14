@@ -531,6 +531,40 @@ def restructure_airqo_data_for_api(data: pd.DataFrame) -> list:
     return restructured_data
 
 
+def restructure_airnow_data_for_api_storage(data: pd.DataFrame) -> list:
+    restructured_data = []
+
+    for _, data_row in data.iterrows():
+        restructured_data.append(
+            {
+                "tenant": "airqo",
+                "time": data_row["timestamp"],
+                "frequency": "hourly",
+                "site_id": data_row["site_id"],
+                "device_number": data_row["device_number"],
+                "device": data_row["device"],
+                "device_id": data_row["device_id"],
+                "location": {
+                    "latitude": {"value": data_row["latitude"]},
+                    "longitude": {"value": data_row["longitude"]},
+                },
+                "pm2_5": {"value": data_row["pm2_5"]},
+                "s1_pm2_5": {"value": data_row["s1_pm2_5"]},
+                "s2_pm2_5": {"value": data_row["s2_pm2_5"]},
+                "pm10": {"value": data_row["pm10"]},
+                "s1_pm10": {"value": data_row["s1_pm10"]},
+                "s2_pm10": {"value": data_row["s2_pm10"]},
+                "no2": {"value": data_row["no2"]},
+                "pm1": {"value": data_row["pm1"]},
+                "external_temperature": {"value": data_row["external_temperature"]},
+                "external_humidity": {"value": data_row["external_humidity"]},
+                "speed": {"value": data_row["wind_speed"]},
+            }
+        )
+
+    return restructured_data
+
+
 def map_site_ids_to_historical_measurements(
     data: pd.DataFrame, deployment_logs: pd.DataFrame
 ) -> pd.DataFrame:
