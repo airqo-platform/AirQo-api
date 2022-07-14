@@ -21,6 +21,7 @@ from airqo_etl_utils.commons import (
     get_column_value,
 )
 from airqo_etl_utils.config import configuration
+from airqo_etl_utils.constants import DeviceCategory
 from airqo_etl_utils.date import date_to_str, str_to_date
 
 
@@ -370,6 +371,111 @@ def extract_airqo_data_from_thingspeak(start_time: str, end_time: str) -> pd.Dat
     return clean_channel_data_df
 
 
+def extract_airqo_bam_data_from_thingspeak(
+    start_time: str, end_time: str
+) -> pd.DataFrame:
+    thingspeak_base_url = configuration.THINGSPEAK_CHANNEL_URL
+
+    airqo_api = AirQoApi()
+    airqo_devices = airqo_api.get_devices(tenant="airqo", category=DeviceCategory.BAM)
+    read_keys = airqo_api.get_read_keys(devices=airqo_devices)
+
+    bam_data = pd.DataFrame()
+
+    frequency = get_frequency(start_time=start_time, end_time=end_time)
+
+    dates = pd.date_range(start_time, end_time, freq=frequency)
+    last_date_time = dates.values[len(dates.values) - 1]
+    for device in airqo_devices:
+        try:
+
+            channel_id = str(device["device_number"])
+
+            for date in dates:
+
+                start = date_to_str(date)
+                end_date_time = date + timedelta(hours=dates.freq.n)
+
+                if np.datetime64(end_date_time) > last_date_time:
+                    end = end_time
+                else:
+                    end = date_to_str(end_date_time)
+
+                read_key = read_keys[str(channel_id)]
+
+                channel_url = f"{thingspeak_base_url}{channel_id}/feeds.json?start={start}&end={end}&api_key={read_key}"
+                print(f"{channel_url}")
+
+                data = json.loads(
+                    requests.get(channel_url, timeout=100.0).content.decode("utf-8")
+                )
+                if (data != -1) and ("feeds" in data):
+                    feeds = pd.DataFrame(
+                        data["feeds"],
+                        columns=[
+                            "field1",
+                            "field2",
+                            "field3",
+                            "field4",
+                            "field5",
+                            "field6",
+                            "field7",
+                            "created_at",
+                        ],
+                    )
+                    channel_info = data["channel"]
+
+                    if feeds.empty:
+                        print(
+                            f"{channel_id} does not have data between {start} and {end}"
+                        )
+                        continue
+
+                    feeds.rename(
+                        columns={
+                            "field1": "pm2_5",
+                            "field2": "pm10",
+                            "field3": "pm2_5",
+                            "field4": "pm10",
+                            "field5": "latitude",
+                            "field6": "longitude",
+                            "field7": "pm10",
+                            "created_at": "datetime",
+                        },
+                        inplace=True,
+                    )
+
+                    feeds["pm2_5"] = feeds["pm2_5"].apply(
+                        lambda x: get_valid_value(x, "pm2_5")
+                    )
+                    feeds["pm10"] = feeds["pm10"].apply(
+                        lambda x: get_valid_value(x, "pm10")
+                    )
+                    feeds["latitude"] = feeds["latitude"].apply(
+                        lambda x: get_valid_value(x, "latitude")
+                    )
+                    feeds["longitude"] = feeds["longitude"].apply(
+                        lambda x: get_valid_value(x, "longitude")
+                    )
+
+                    feeds["device_number"] = channel_info["channel"]["id"]
+                    feeds["device"] = device["name"]
+                    feeds["frequency"] = "raw"
+                    feeds["device_id"] = device["_id"]
+                    feeds["site_id"] = device["site"]["_id"]
+
+                    bam_data = bam_data.append(feeds, ignore_index=True)
+
+        except Exception as ex:
+            print(ex)
+            traceback.print_exc()
+
+    bam_data = remove_invalid_dates(
+        dataframe=bam_data, start_time=start_time, end_time=end_time
+    )
+    return bam_data
+
+
 def average_airqo_data(data: pd.DataFrame, frequency="hourly") -> pd.DataFrame:
     device_groups = data.groupby("device_id")
     sampled_data = []
@@ -709,11 +815,11 @@ def restructure_airqo_data_for_bigquery(data: pd.DataFrame) -> pd.DataFrame:
     restructured_data = []
 
     columns = list(data.columns)
-
+    datetime_column = "time" if "time" in list(data.columns) else "datetime"
     for _, data_row in data.iterrows():
         device_data = dict(
             {
-                "timestamp": str_to_date(data_row["time"]),
+                "timestamp": str_to_date(data_row[datetime_column]),
                 "tenant": "airqo",
                 "site_id": data_row["site_id"],
                 "device_number": data_row["device_number"],

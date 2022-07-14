@@ -331,15 +331,19 @@ def remove_invalid_dates(
     start = pd.to_datetime(start_time)
     end = pd.to_datetime(end_time)
 
-    dataframe["time"] = pd.to_datetime(dataframe["time"])
-    data_frame = dataframe.set_index(["time"])
+    date_time_column = "time" if "time" in list(dataframe.columns) else "datetime"
+
+    dataframe[date_time_column] = pd.to_datetime(dataframe[date_time_column])
+    data_frame = dataframe.set_index([date_time_column])
 
     time_data_frame = data_frame.loc[
         (data_frame.index >= start) & (data_frame.index <= end)
     ]
 
-    time_data_frame["time"] = time_data_frame.index
-    time_data_frame["time"] = time_data_frame["time"].apply(lambda x: date_to_str(x))
+    time_data_frame[date_time_column] = time_data_frame.index
+    time_data_frame[date_time_column] = time_data_frame[date_time_column].apply(
+        lambda x: date_to_str(x)
+    )
     time_data_frame = time_data_frame.reset_index(drop=True)
 
     return time_data_frame

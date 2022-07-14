@@ -4,6 +4,7 @@ import requests
 import simplejson
 
 from airqo_etl_utils.config import configuration
+from airqo_etl_utils.constants import DeviceCategory
 
 
 class AirQoApi:
@@ -103,19 +104,25 @@ class AirQoApi:
 
         return calibrated_data
 
-    def get_devices(self, tenant) -> list:
+    def get_devices(self, tenant=None, category: DeviceCategory = None) -> list:
 
         devices_with_tenant = []
 
         if tenant:
-            response = self.__request("devices", {"tenant": tenant})
+            params = {"tenant": tenant}
+            if category:
+                params["category"] = category.get_api_query_str()
+            response = self.__request("devices", params)
             if "devices" in response:
                 for device in response["devices"]:
                     device["tenant"] = tenant
                     devices_with_tenant.append(device)
         else:
             for x in ["airqo", "kcca"]:
-                response = self.__request("devices", {"tenant": x})
+                params = {"tenant": x}
+                if category:
+                    params["category"] = category.get_api_query_str()
+                response = self.__request("devices", params)
                 if "devices" in response:
                     for device in response["devices"]:
                         device["tenant"] = x
