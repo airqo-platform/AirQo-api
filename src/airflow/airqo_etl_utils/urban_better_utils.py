@@ -59,6 +59,7 @@ def extract_urban_better_data_from_api(
             "pollutants.pm10.pi": "pm10_pi_value",
             "pollutants.pm1.pi": "pm1_pi_value",
             "date": "timestamp",
+            "device": "device_number",
         },
         inplace=True,
     )
@@ -100,6 +101,7 @@ def extract_urban_better_sensor_positions_from_api(
     data.rename(
         columns={
             "date": "timestamp",
+            "device": "device_number",
         },
         inplace=True,
     )
@@ -131,13 +133,13 @@ def merge_urban_better_data(
 
     for _, organization_group in organization_groups:
         organization = organization_group.iloc[0]["organization"]
-        organization_devices_group = organization_group.groupby("device")
+        organization_devices_group = organization_group.groupby("device_number")
 
         for _, organization_device_group in organization_devices_group:
-            device = organization_group.iloc[0]["device"]
+            device_number = organization_group.iloc[0]["device_number"]
             device_positions = sensor_positions.loc[
                 (sensor_positions["organization"] == organization)
-                & (sensor_positions["device"] == device)
+                & (sensor_positions["device_number"] == device_number)
             ]
 
             for _, value in organization_device_group.iterrows():

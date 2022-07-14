@@ -4,14 +4,14 @@ from airqo_etl_utils.airflow_custom_utils import slack_dag_failure_notification
 
 
 @dag(
-    "AirQo-Bam-Historical-Raw-Measurements",
+    "AirQo-Bam-Historical-Measurements",
     schedule_interval=None,
     on_failure_callback=slack_dag_failure_notification,
     start_date=datetime(2021, 1, 1),
     catchup=False,
-    tags=["airqo", "raw", "historical", "bam"],
+    tags=["airqo", "historical", "bam"],
 )
-def bam_historical_raw_measurements_etl():
+def bam_historical_measurements_etl():
     import pandas as pd
 
     @task()
@@ -60,7 +60,7 @@ def bam_historical_raw_measurements_etl():
         big_query_api = BigQueryApi()
         big_query_api.load_data(
             dataframe=airqo_restructured_data,
-            table=big_query_api.raw_measurements_table,
+            table=big_query_api.bam_measurements_table,
         )
 
     extracted_airqo_data = extract_raw_data()
@@ -77,7 +77,7 @@ def bam_historical_raw_measurements_etl():
     on_failure_callback=slack_dag_failure_notification,
     start_date=datetime(2021, 1, 1),
     catchup=False,
-    tags=["airqo", "bam", "realtime", "raw"],
+    tags=["airqo", "bam", "realtime"],
 )
 def bam_realtime_measurements_etl():
     import pandas as pd
@@ -90,18 +90,12 @@ def bam_realtime_measurements_etl():
     end_time = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
 
     @task()
-    def extract_raw_data():
+    def extract_bam_data():
         from airqo_etl_utils.airqo_utils import extract_airqo_bam_data_from_thingspeak
 
         return extract_airqo_bam_data_from_thingspeak(
             start_time=start_time, end_time=end_time
         )
-
-    @task()
-    def process_data(raw_data: pd.DataFrame):
-        from airqo_etl_utils.airqo_utils import average_airqo_data
-
-        return average_airqo_data(data=raw_data, frequency="hourly")
 
     @task()
     def load(airqo_data: pd.DataFrame):
@@ -116,13 +110,12 @@ def bam_realtime_measurements_etl():
         big_query_api = BigQueryApi()
         big_query_api.load_data(
             dataframe=airqo_restructured_data,
-            table=big_query_api.raw_measurements_table,
+            table=big_query_api.bam_measurements_table,
         )
 
-    extracted_airqo_data = extract_raw_data()
-    averaged_airqo_data = process_data(extracted_airqo_data)
-    load(averaged_airqo_data)
+    extracted_data = extract_bam_data()
+    load(extracted_data)
 
 
-airqo_realtime_measurements_etl_dag = bam_realtime_measurements_etl()
-historical_raw_measurements_etl_dag = bam_historical_raw_measurements_etl()
+realtime_measurements_etl_dag = bam_realtime_measurements_etl()
+historical_measurements_etl_dag = bam_historical_measurements_etl()

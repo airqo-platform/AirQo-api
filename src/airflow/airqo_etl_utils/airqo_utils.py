@@ -387,88 +387,89 @@ def extract_airqo_bam_data_from_thingspeak(
     dates = pd.date_range(start_time, end_time, freq=frequency)
     last_date_time = dates.values[len(dates.values) - 1]
     for device in airqo_devices:
-        try:
 
-            channel_id = str(device["device_number"])
+        channel_id = str(device["device_number"])
+        read_key = read_keys.get(str(channel_id), None)
+        if not read_key:
+            print(f"{channel_id} does not have a read key")
+            continue
 
-            for date in dates:
+        for date in dates:
 
-                start = date_to_str(date)
-                end_date_time = date + timedelta(hours=dates.freq.n)
+            start = date_to_str(date)
+            end_date_time = date + timedelta(hours=dates.freq.n)
 
-                if np.datetime64(end_date_time) > last_date_time:
-                    end = end_time
-                else:
-                    end = date_to_str(end_date_time)
+            if np.datetime64(end_date_time) > last_date_time:
+                end = end_time
+            else:
+                end = date_to_str(end_date_time)
 
-                read_key = read_keys[str(channel_id)]
-
-                channel_url = f"{thingspeak_base_url}{channel_id}/feeds.json?start={start}&end={end}&api_key={read_key}"
-                print(f"{channel_url}")
+            try:
+                url = f"{thingspeak_base_url}{channel_id}/feeds.json?start={start}&end={end}&api_key={read_key}"
+                print(f"{url}")
 
                 data = json.loads(
-                    requests.get(channel_url, timeout=100.0).content.decode("utf-8")
+                    requests.get(url, timeout=100.0).content.decode("utf-8")
                 )
-                if (data != -1) and ("feeds" in data):
-                    feeds = pd.DataFrame(
-                        data["feeds"],
-                        columns=[
-                            "field1",
-                            "field2",
-                            "field3",
-                            "field4",
-                            "field5",
-                            "field6",
-                            "field7",
-                            "created_at",
-                        ],
-                    )
-                    channel_info = data["channel"]
+                if (data == -1) or ("feeds" not in data):
+                    print(f"No data for {url}")
+                    continue
 
-                    if feeds.empty:
-                        print(
-                            f"{channel_id} does not have data between {start} and {end}"
-                        )
-                        continue
+                feeds = pd.DataFrame(
+                    data["feeds"],
+                    columns=[
+                        "field1",
+                        "field2",
+                        "field3",
+                        "field4",
+                        "field5",
+                        "field6",
+                        "field7",
+                        "created_at",
+                    ],
+                )
 
-                    feeds.rename(
-                        columns={
-                            "field1": "pm2_5",
-                            "field2": "pm10",
-                            "field3": "pm2_5",
-                            "field4": "pm10",
-                            "field5": "latitude",
-                            "field6": "longitude",
-                            "field7": "pm10",
-                            "created_at": "datetime",
-                        },
-                        inplace=True,
-                    )
+                if feeds.empty:
+                    print(f"{channel_id} does not have data between {start} and {end}")
+                    continue
 
-                    feeds["pm2_5"] = feeds["pm2_5"].apply(
-                        lambda x: get_valid_value(x, "pm2_5")
-                    )
-                    feeds["pm10"] = feeds["pm10"].apply(
-                        lambda x: get_valid_value(x, "pm10")
-                    )
-                    feeds["latitude"] = feeds["latitude"].apply(
-                        lambda x: get_valid_value(x, "latitude")
-                    )
-                    feeds["longitude"] = feeds["longitude"].apply(
-                        lambda x: get_valid_value(x, "longitude")
-                    )
+                feeds.rename(
+                    columns={
+                        "field1": "pm2_5",
+                        "field2": "pm10",
+                        "field3": "pm2_5",
+                        "field4": "pm10",
+                        "field5": "latitude",
+                        "field6": "longitude",
+                        "field7": "pm10",
+                        "created_at": "timestamp",
+                    },
+                    inplace=True,
+                )
 
-                    feeds["device_number"] = channel_info["channel"]["id"]
-                    feeds["device"] = device["name"]
-                    feeds["frequency"] = "raw"
-                    feeds["device_id"] = device["_id"]
-                    feeds["site_id"] = device["site"]["_id"]
+                feeds["pm2_5"] = feeds["pm2_5"].apply(
+                    lambda x: get_valid_value(x, "pm2_5")
+                )
+                feeds["pm10"] = feeds["pm10"].apply(
+                    lambda x: get_valid_value(x, "pm10")
+                )
+                feeds["latitude"] = feeds["latitude"].apply(
+                    lambda x: get_valid_value(x, "latitude")
+                )
+                feeds["longitude"] = feeds["longitude"].apply(
+                    lambda x: get_valid_value(x, "longitude")
+                )
 
-                    bam_data = bam_data.append(feeds, ignore_index=True)
+                feeds["device_number"] = channel_id
+                feeds["device"] = device["name"]
+                feeds["frequency"] = "raw"
+                feeds["device_id"] = device["_id"]
+                feeds["site_id"] = device["site"]["_id"]
 
-        except Exception as ex:
-            print(ex)
-            traceback.print_exc()
+                bam_data = bam_data.append(feeds, ignore_index=True)
+            except Exception as ex:
+                print(ex)
+                traceback.print_exc()
 
     bam_data = remove_invalid_dates(
         dataframe=bam_data, start_time=start_time, end_time=end_time
@@ -689,7 +690,7 @@ def map_site_ids_to_historical_measurements(
     devices_logs_df["end_time"] = devices_logs_df["end_time"].apply(
         lambda x: str_to_date(x)
     )
-
+    date_time_column = "time" if "time" in list(data.columns) else "timestamp"
     for _, data_row in data.iterrows():
         device = get_device(devices, device_id=data_row["device_id"])
 
@@ -697,12 +698,12 @@ def map_site_ids_to_historical_measurements(
             continue
 
         site_id = device.get("site").get("_id")
-        time = str_to_date(data_row["time"])
+        date_time = str_to_date(data_row[date_time_column])
         device_logs = devices_logs_df[devices_logs_df["device_id"] == device.get("_id")]
 
         if not device_logs.empty:
             for _, log in device_logs.iterrows():
-                if log["start_time"] <= time <= log["end_time"]:
+                if log["start_time"] <= date_time <= log["end_time"]:
                     site_id = log["site_id"]
 
         data_row["site_id"] = site_id
@@ -815,7 +816,7 @@ def restructure_airqo_data_for_bigquery(data: pd.DataFrame) -> pd.DataFrame:
     restructured_data = []
 
     columns = list(data.columns)
-    datetime_column = "time" if "time" in list(data.columns) else "datetime"
+    datetime_column = "time" if "time" in list(data.columns) else "timestamp"
     for _, data_row in data.iterrows():
         device_data = dict(
             {

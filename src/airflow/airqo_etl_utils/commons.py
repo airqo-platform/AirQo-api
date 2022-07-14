@@ -331,7 +331,7 @@ def remove_invalid_dates(
     start = pd.to_datetime(start_time)
     end = pd.to_datetime(end_time)
 
-    date_time_column = "time" if "time" in list(dataframe.columns) else "datetime"
+    date_time_column = "time" if "time" in list(dataframe.columns) else "timestamp"
 
     dataframe[date_time_column] = pd.to_datetime(dataframe[date_time_column])
     data_frame = dataframe.set_index([date_time_column])
