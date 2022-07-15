@@ -39,14 +39,6 @@ class BigQueryApi:
         date_time_columns=None,
         numeric_columns=None,
     ) -> pd.DataFrame:
-
-        # time is depreciated. It will be replaced with timestamp
-        if (
-            table == self.hourly_measurements_table
-            or table == self.raw_measurements_table
-        ):
-            dataframe["time"] = dataframe["timestamp"]
-
         columns = self.get_columns(table=table)
 
         if set(columns).issubset(set(list(dataframe.columns))):
@@ -168,25 +160,13 @@ class BigQueryApi:
         tenant="airqo",
     ) -> pd.DataFrame:
 
-        try:
-            query = f"""
-                SELECT {', '.join(map(str, columns))}
-                FROM `{table}`
-                WHERE timestamp >= '{start_date_time}' and timestamp <= '{end_date_time}' and tenant = '{tenant}'
-            """
-            dataframe = self.client.query(query=query).result().to_dataframe()
-        except Exception as ex:
-            print(ex)
-            query = f"""
-                SELECT {', '.join(map(str, columns))}
-                FROM `{table}`
-                WHERE time >= '{start_date_time}' and time <= '{end_date_time}' and tenant = '{tenant}'
-            """
-
-            dataframe = self.client.query(query=query).result().to_dataframe()
+        query = f"""
+            SELECT {', '.join(map(str, columns))}
+            FROM `{table}`
+            WHERE timestamp >= '{start_date_time}' and timestamp <= '{end_date_time}' and tenant = '{tenant}'
+        """
+        dataframe = self.client.query(query=query).result().to_dataframe()
 
         dataframe["timestamp"] = dataframe["timestamp"].apply(lambda x: date_to_str(x))
-        if "time" in list(dataframe.columns):
-            dataframe["time"] = dataframe["time"].apply(lambda x: date_to_str(x))
 
         return dataframe

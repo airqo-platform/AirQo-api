@@ -824,8 +824,12 @@ def restructure_airqo_data(data: pd.DataFrame, destination: str) -> Any:
 
 
 def restructure_airqo_data_for_bigquery(data: pd.DataFrame) -> pd.DataFrame:
-    datetime_column = "time" if "time" in list(data.columns) else "timestamp"
-    data["timestamp"] = data[datetime_column].apply(pd.to_datetime)
+
+    if "time" in list(data.columns) and "timestamp" not in list(data.columns):
+        data["timestamp"] = data["time"]
+        del data["time"]
+
+    data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
     data["tenant"] = "airqo"
 
     columns = [
@@ -864,7 +868,6 @@ def restructure_airqo_data_for_bigquery(data: pd.DataFrame) -> pd.DataFrame:
 
     return data.rename(
         columns={
-            datetime_column: "timestamp",
             "humidity": "external_humidity",
             "temperature": "external_temperature",
             "raw_no2": "no2_raw_value",
@@ -891,7 +894,7 @@ def merge_airqo_and_weather_data(
     )
 
     if ("site_id" in weather_data.columns) and ("site_id" in airqo_data.columns):
-        weather_data.drop(columns=["site_id"])
+        weather_data.drop(columns=["site_id"], inplace=True)
 
     merged_data = pd.merge(
         airqo_data,

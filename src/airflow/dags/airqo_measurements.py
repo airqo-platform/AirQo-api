@@ -107,31 +107,25 @@ def historical_raw_measurements_etl():
         )
 
         start_time, end_time = get_date_time_values(**kwargs)
-        raw_airqo_data = extract_airqo_data_from_thingspeak(
+        return extract_airqo_data_from_thingspeak(
             start_time=start_time, end_time=end_time
         )
-
-        return raw_airqo_data
 
     @task()
     def extract_device_deployment_logs():
 
         from airqo_etl_utils.airqo_utils import extract_airqo_devices_deployment_history
 
-        logs = extract_airqo_devices_deployment_history()
-
-        return logs
+        return extract_airqo_devices_deployment_history()
 
     @task()
     def map_site_ids(airqo_data: pd.DataFrame, deployment_logs: pd.DataFrame):
 
         from airqo_etl_utils.airqo_utils import map_site_ids_to_historical_measurements
 
-        restructured_data = map_site_ids_to_historical_measurements(
+        return map_site_ids_to_historical_measurements(
             data=airqo_data, deployment_logs=deployment_logs
         )
-
-        return restructured_data
 
     @task()
     def load(airqo_data: pd.DataFrame, **kwargs):
@@ -214,37 +208,31 @@ def airqo_realtime_measurements_etl():
     def extract_raw_data():
         from airqo_etl_utils.airqo_utils import extract_airqo_data_from_thingspeak
 
-        raw_airqo_data = extract_airqo_data_from_thingspeak(
+        return extract_airqo_data_from_thingspeak(
             start_time=start_time, end_time=end_time
         )
-        return raw_airqo_data
 
     @task()
     def average_data_by_hour(raw_data: pd.DataFrame):
         from airqo_etl_utils.airqo_utils import average_airqo_data
 
-        average_data = average_airqo_data(data=raw_data, frequency="hourly")
-
-        return average_data
+        return average_airqo_data(data=raw_data, frequency="hourly")
 
     @task()
     def extract_hourly_weather_data():
         from airqo_etl_utils.airqo_utils import extract_airqo_weather_data_from_tahmo
 
-        airqo_weather_data = extract_airqo_weather_data_from_tahmo(
+        return extract_airqo_weather_data_from_tahmo(
             start_time=start_time, end_time=end_time, frequency="hourly"
         )
-        return airqo_weather_data
 
     @task()
     def merge_data(averaged_hourly_data: pd.DataFrame, weather_data: pd.DataFrame):
         from airqo_etl_utils.airqo_utils import merge_airqo_and_weather_data
 
-        merged_measurements = merge_airqo_and_weather_data(
+        return merge_airqo_and_weather_data(
             airqo_data=averaged_hourly_data, weather_data=weather_data
         )
-
-        return merged_measurements
 
     # @task.virtualenv(
     #     task_id="calibrate",
@@ -267,9 +255,7 @@ def airqo_realtime_measurements_etl():
     def calibrate(data: pd.DataFrame):
         from airqo_etl_utils.airqo_utils import calibrate_hourly_airqo_measurements
 
-        airqo_calibrated_data = calibrate_hourly_airqo_measurements(measurements=data)
-
-        return airqo_calibrated_data
+        return calibrate_hourly_airqo_measurements(measurements=data)
 
     @task()
     def send_hourly_measurements_to_api(airqo_data: pd.DataFrame):
@@ -335,17 +321,6 @@ def airqo_realtime_measurements_etl():
             airqo_restructured_data, table=big_query_api.raw_measurements_table
         )
 
-    @task()
-    def send_raw_measurements_to_api(airqo_data: pd.DataFrame):
-        from airqo_etl_utils.airqo_utils import restructure_airqo_data
-        from airqo_etl_utils.airqo_api import AirQoApi
-
-        airqo_restructured_data = restructure_airqo_data(
-            data=airqo_data, destination="api"
-        )
-        airqo_api = AirQoApi()
-        airqo_api.save_events(measurements=airqo_restructured_data, tenant="airqo")
-
     extracted_airqo_data = extract_raw_data()
     averaged_airqo_data = average_data_by_hour(extracted_airqo_data)
 
@@ -359,9 +334,6 @@ def airqo_realtime_measurements_etl():
     send_hourly_measurements_to_bigquery(calibrated_data)
     update_app_insights(calibrated_data)
     send_raw_measurements_to_bigquery(extracted_airqo_data)
-
-    # Temporarily disabling sanding raw data device registry API
-    # send_raw_measurements_to_api(extracted_airqo_data)
 
 
 @dag(
