@@ -1,6 +1,19 @@
 from enum import Enum
 
 
+class DeviceCategory(Enum):
+    LOW_COST = 1
+    BAM = 2
+
+    def get_api_query_str(self):
+        if self == self.LOW_COST:
+            return "lowcost"
+        elif self == self.BAM:
+            return "bam"
+        else:
+            return ""
+
+
 class JobAction(Enum):
     APPEND = 1
     OVERWRITE = 2

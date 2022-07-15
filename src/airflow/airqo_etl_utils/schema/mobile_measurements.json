@@ -40,8 +40,8 @@
     "mode": "NULLABLE"
   },
   {
-    "name": "device",
-    "type": "FLOAT",
+    "name": "device_number",
+    "type": "INTEGER",
     "mode": "NULLABLE"
   },
   {
