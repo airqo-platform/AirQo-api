@@ -817,10 +817,11 @@ def restructure_airqo_data_for_bigquery(data: pd.DataFrame) -> pd.DataFrame:
 
     columns = list(data.columns)
     datetime_column = "time" if "time" in list(data.columns) else "timestamp"
+    data[datetime_column] = data[datetime_column].apply(pd.to_datetime)
     for _, data_row in data.iterrows():
         device_data = dict(
             {
-                "timestamp": str_to_date(data_row[datetime_column]),
+                "timestamp": data_row[datetime_column],
                 "tenant": "airqo",
                 "site_id": data_row["site_id"],
                 "device_number": data_row["device_number"],

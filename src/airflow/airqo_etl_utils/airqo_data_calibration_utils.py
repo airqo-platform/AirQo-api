@@ -2,6 +2,7 @@ import pandas as pd
 
 from airqo_etl_utils.airqo_api import AirQoApi
 from airqo_etl_utils.bigquery_api import BigQueryApi
+from airqo_etl_utils.date import date_to_str
 
 
 def extract_raw_device_measurements_from_bigquery(
@@ -31,7 +32,7 @@ def extract_raw_device_measurements_from_bigquery(
         return pd.DataFrame([], columns=cols)
 
     measurements = measurements.dropna(subset=["timestamp"])
-    measurements["timestamp"] = pd.to_datetime(measurements["timestamp"])
+    measurements["timestamp"] = measurements["timestamp"].apply(pd.to_datetime)
     averaged_measurements = pd.DataFrame()
     devices_groups = measurements.groupby("device_number")
 
@@ -43,6 +44,7 @@ def extract_raw_device_measurements_from_bigquery(
             site_id = device_site.iloc[0]["site_id"]
             data = device_site.sort_index(axis=0)
             averages = pd.DataFrame(data.resample("1H", on="timestamp").mean())
+            averages["timestamp"] = averages.index
             averages["device_number"] = device_number
             averages["site_id"] = site_id
             averaged_measurements = averaged_measurements.append(
@@ -70,7 +72,7 @@ def extract_raw_weather_data_from_bigquery(
         return pd.DataFrame([], columns=cols)
 
     measurements = measurements.dropna(subset=["timestamp"])
-    measurements["timestamp"] = pd.to_datetime(measurements["timestamp"])
+    measurements["timestamp"] = measurements["timestamp"].apply(pd.to_datetime)
 
     averaged_measurements = pd.DataFrame()
     sites_groups = measurements.groupby("site_id")
@@ -79,6 +81,7 @@ def extract_raw_weather_data_from_bigquery(
         site_id = site_weather.iloc[0]["site_id"]
         site_weather = measurements.sort_index(axis=0)
         averages = pd.DataFrame(site_weather.resample("1H", on="timestamp").mean())
+        averages["timestamp"] = averages.index
         averages["site_id"] = site_id
         averaged_measurements = averaged_measurements.append(
             averages, ignore_index=True
@@ -90,8 +93,11 @@ def extract_raw_weather_data_from_bigquery(
 def merge_device_measurements_and_weather_data(
     device_measurements: pd.DataFrame, weather_data: pd.DataFrame
 ) -> pd.DataFrame:
-    weather_data["timestamp"] = pd.to_datetime(weather_data["timestamp"])
-    weather_data["timestamp"] = pd.to_datetime(weather_data["timestamp"])
+
+    weather_data["timestamp"] = weather_data["timestamp"].apply(pd.to_datetime)
+    device_measurements["timestamp"] = device_measurements["timestamp"].apply(
+        pd.to_datetime
+    )
 
     measurements = pd.merge(
         left=device_measurements,
@@ -148,7 +154,7 @@ def calibrate_historical_data(measurements: pd.DataFrame):
         data = time_group.copy()
         timestamp = data.iloc[0]["timestamp"]
         response = airqo_api.calibrate_data(
-            time=timestamp, data=data, cols=col_mappings
+            time=timestamp, data=data.copy(), cols=col_mappings
         )
 
         response_df = pd.DataFrame(
