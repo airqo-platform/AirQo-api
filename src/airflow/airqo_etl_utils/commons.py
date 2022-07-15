@@ -470,7 +470,7 @@ def format_dataframe_column_type(
     return dataframe
 
 
-def get_device(devices=None, channel_id=None, device_id=None):
+def get_device(devices=None, channel_id=None, device_id=None) -> dict:
     if devices is None:
         devices = []
 
@@ -479,4 +479,4 @@ def get_device(devices=None, channel_id=None, device_id=None):
         if channel_id
         else list(filter(lambda x: x["_id"] == device_id, devices))
     )
-    return None if not result else result[0]
+    return {} if not result else result[0]
