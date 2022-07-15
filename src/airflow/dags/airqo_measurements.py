@@ -17,132 +17,73 @@ def historical_hourly_measurements_etl():
     import pandas as pd
 
     @task()
-    def extract_hourly_raw_data(**kwargs):
-
+    def extract_device_measurements(**kwargs):
         from airqo_etl_utils.commons import get_date_time_values
-        from airqo_etl_utils.airqo_utils import (
-            extract_airqo_data_from_thingspeak,
-            average_airqo_data,
+        from airqo_etl_utils.airqo_data_calibration_utils import (
+            extract_raw_device_measurements_from_bigquery,
         )
 
-        start_time, end_time = get_date_time_values(**kwargs)
-        raw_airqo_data = extract_airqo_data_from_thingspeak(
-            start_time=start_time, end_time=end_time
-        )
-        average_data = average_airqo_data(data=raw_airqo_data, frequency="hourly")
+        start_date_time, end_date_time = get_date_time_values(**kwargs)
 
-        return average_data
-
-    @task()
-    def extract_device_deployment_logs():
-
-        from airqo_etl_utils.airqo_utils import extract_airqo_devices_deployment_history
-
-        logs = extract_airqo_devices_deployment_history()
-
-        return logs
-
-    @task()
-    def map_site_ids(airqo_data: pd.DataFrame, deployment_logs: pd.DataFrame):
-
-        from airqo_etl_utils.airqo_utils import map_site_ids_to_historical_measurements
-
-        restructured_data = map_site_ids_to_historical_measurements(
-            data=airqo_data, deployment_logs=deployment_logs
+        return extract_raw_device_measurements_from_bigquery(
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
         )
 
-        return restructured_data
-
     @task()
-    def extract_hourly_weather_data(**kwargs):
-
+    def extract_weather_data(**kwargs):
         from airqo_etl_utils.commons import get_date_time_values
-        from airqo_etl_utils.airqo_utils import extract_airqo_weather_data_from_tahmo
-
-        start_time, end_time = get_date_time_values(**kwargs)
-        airqo_weather_data = extract_airqo_weather_data_from_tahmo(
-            start_time=start_time, end_time=end_time, frequency="hourly"
-        )
-        return airqo_weather_data
-
-    @task()
-    def merge_data(averaged_airqo_data: pd.DataFrame, weather_data: pd.DataFrame):
-
-        from airqo_etl_utils.airqo_utils import merge_airqo_and_weather_data
-
-        merged_measurements = merge_airqo_and_weather_data(
-            airqo_data=averaged_airqo_data, weather_data=weather_data
+        from airqo_etl_utils.airqo_data_calibration_utils import (
+            extract_raw_weather_data_from_bigquery,
         )
 
-        return merged_measurements
+        start_date_time, end_date_time = get_date_time_values(**kwargs)
+
+        return extract_raw_weather_data_from_bigquery(
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+        )
 
     @task()
-    def calibrate(data: pd.DataFrame):
+    def merge_data(device_measurements: pd.DataFrame, weather_data: pd.DataFrame):
 
-        from airqo_etl_utils.airqo_utils import calibrate_hourly_airqo_measurements
+        from airqo_etl_utils.airqo_data_calibration_utils import (
+            merge_device_measurements_and_weather_data,
+        )
 
-        airqo_calibrated_data = calibrate_hourly_airqo_measurements(measurements=data)
-
-        return airqo_calibrated_data
+        return merge_device_measurements_and_weather_data(
+            device_measurements=device_measurements, weather_data=weather_data
+        )
 
     @task()
-    def load(airqo_data: pd.DataFrame, **kwargs):
+    def calibrate_data(measurements: pd.DataFrame):
+
+        from airqo_etl_utils.airqo_data_calibration_utils import (
+            calibrate_historical_data,
+        )
+
+        return calibrate_historical_data(measurements=measurements)
+
+    @task()
+    def load(data: pd.DataFrame):
 
         from airqo_etl_utils.bigquery_api import BigQueryApi
-        from airqo_etl_utils.airqo_api import AirQoApi
         from airqo_etl_utils.airqo_utils import restructure_airqo_data
-        from airqo_etl_utils.config import configuration
-        from airqo_etl_utils.message_broker import KafkaBrokerClient
 
-        try:
-            dag_run = kwargs.get("dag_run")
-            destination = dag_run.conf["destination"]
-        except KeyError:
-            destination = "bigquery"
+        restructured_data = restructure_airqo_data(data=data, destination="bigquery")
+        big_query_api = BigQueryApi()
+        big_query_api.load_data(
+            dataframe=restructured_data,
+            table=big_query_api.hourly_measurements_table,
+        )
 
-        if destination == "bigquery":
-            airqo_restructured_data = restructure_airqo_data(
-                data=airqo_data, destination="bigquery"
-            )
-            big_query_api = BigQueryApi()
-            big_query_api.load_data(
-                dataframe=airqo_restructured_data,
-                table=big_query_api.hourly_measurements_table,
-            )
-
-        elif destination == "message-broker":
-            airqo_restructured_data = restructure_airqo_data(
-                data=airqo_data, destination="message-broker"
-            )
-
-            info = {
-                "data": airqo_restructured_data,
-                "action": "insert",
-                "tenant": "airqo",
-            }
-            kafka = KafkaBrokerClient()
-            kafka.send_data(info=info, topic=configuration.HOURLY_MEASUREMENTS_TOPIC)
-        elif destination == "api":
-            airqo_restructured_data = restructure_airqo_data(
-                data=airqo_data, destination="api"
-            )
-            airqo_api = AirQoApi()
-            airqo_api.save_events(measurements=airqo_restructured_data, tenant="airqo")
-        else:
-            raise Exception(
-                "Invalid data destination. Valid values are bigquery, message-broker and api"
-            )
-
-    extracted_airqo_data = extract_hourly_raw_data()
-    device_logs = extract_device_deployment_logs()
-    data_with_site_ids = map_site_ids(
-        airqo_data=extracted_airqo_data, deployment_logs=device_logs
-    )
-    extracted_weather_data = extract_hourly_weather_data()
+    extracted_device_measurements = extract_device_measurements()
+    extracted_weather_data = extract_weather_data()
     merged_data = merge_data(
-        averaged_airqo_data=data_with_site_ids, weather_data=extracted_weather_data
+        device_measurements=extracted_device_measurements,
+        weather_data=extracted_weather_data,
     )
-    calibrated_data = calibrate(merged_data)
+    calibrated_data = calibrate_data(merged_data)
     load(calibrated_data)
 
 
