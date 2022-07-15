@@ -36,7 +36,7 @@
   },
   {
     "name": "organization",
-    "type": "FLOAT",
+    "type": "INTEGER",
     "mode": "NULLABLE"
   },
   {
