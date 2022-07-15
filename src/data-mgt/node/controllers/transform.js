@@ -329,7 +329,10 @@ const data = {
           const errors = result.errors
             ? result.errors
             : { message: "Internal Server Error" };
-          return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+          const status = result.status
+            ? result.status
+            : HTTPStatus.INTERNAL_SERVER_ERROR;
+          return res.status(status).json({
             message: result.message,
             errors,
             success: false,
@@ -502,9 +505,14 @@ const data = {
             api_key = result.data;
           }
           if (result.success === false) {
-            res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+            const errors = result.errors ? result.errors : { message: "" };
+            const status = result.status
+              ? result.status
+              : HTTPStatus.INTERNAL_SERVER_ERROR;
+            res.status(status).json({
               message: result.message,
-              errors: result.errors,
+              errors,
+              success: result.success,
             });
           }
         });

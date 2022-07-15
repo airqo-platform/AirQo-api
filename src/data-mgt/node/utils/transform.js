@@ -5,6 +5,7 @@ const constants = require("../config/constants");
 const redis = require("../config/redis");
 const { generateDateFormatWithoutHrs } = require("./date");
 const cleanDeep = require("clean-deep");
+const HTTPStatus = require("http-status");
 
 const transform = {
   readDeviceMeasurementsFromThingspeak: ({ request } = {}) => {
@@ -77,8 +78,17 @@ const transform = {
         let responseJSON = response.data;
         if (responseJSON.success === true) {
           let deviceDetails = responseJSON.devices[0];
-          let readKey = deviceDetails.readKey;
-          if (!isEmpty(readKey)) {
+
+          if (isEmpty(deviceDetails)) {
+            return callback({
+              success: false,
+              message: "device does not exist",
+              status: HTTPStatus.NOT_FOUND,
+            });
+          }
+
+          if (!isEmpty(deviceDetails.readKey)) {
+            let readKey = deviceDetails.readKey;
             const url = constants.DECYPT_DEVICE_KEY_URL;
             return axios
               .post(url, {
@@ -95,7 +105,8 @@ const transform = {
           } else {
             return callback({
               success: false,
-              message: "readKey unavailable, please update device details",
+              message: "readKey unavailable, this might be an external device",
+              status: HTTPStatus.NOT_FOUND,
             });
           }
         } else if (responseJSON.success === false) {
@@ -115,8 +126,12 @@ const transform = {
         }
       })
       .catch((error) => {
-        logObject("the server error for GET_API _KEY", error.response.data);
-        return callback(error.response.data);
+        logObject("the server error for GET_API _KEY", error);
+        return callback({
+          success: false,
+          message: "Internal Server Error",
+          errors: { message: error },
+        });
       });
   },
   getFieldLabel: (field) => {
