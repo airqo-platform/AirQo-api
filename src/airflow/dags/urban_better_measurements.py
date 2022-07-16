@@ -20,47 +20,37 @@ def historical_raw_measurements_etl():
     def extract_measures(**kwargs):
 
         from airqo_etl_utils.commons import get_date_time_values
-        from airqo_etl_utils.urban_better_utils import (
-            extract_urban_better_data_from_api,
-        )
+        from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
 
         start_time, end_time = get_date_time_values(**kwargs)
-        raw_data = extract_urban_better_data_from_api(
+        return UrbanBetterUtils.extract_urban_better_data_from_api(
             start_date_time=start_time, end_date_time=end_time
         )
-
-        return raw_data
 
     @task()
     def extract_sensor_positions(**kwargs):
 
         from airqo_etl_utils.commons import get_date_time_values
-        from airqo_etl_utils.urban_better_utils import (
-            extract_urban_better_sensor_positions_from_api,
-        )
+        from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
 
         start_time, end_time = get_date_time_values(**kwargs)
-        sensor_positions = extract_urban_better_sensor_positions_from_api(
+        return UrbanBetterUtils.extract_urban_better_sensor_positions_from_api(
             start_date_time=start_time, end_date_time=end_time
         )
 
-        return sensor_positions
-
     @task()
-    def merge_data(devices_measures: pd.DataFrame, sensor_positions: pd.DataFrame):
+    def process_data(devices_measures: pd.DataFrame, sensor_positions: pd.DataFrame):
 
-        from airqo_etl_utils.urban_better_utils import merge_urban_better_data
+        from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
 
-        data = merge_urban_better_data(
+        return UrbanBetterUtils.merge_urban_better_data(
             measures=devices_measures, sensor_positions=sensor_positions
         )
-
-        return data
 
     @task()
     def load(urban_better_data: pd.DataFrame, **kwargs):
 
-        from airqo_etl_utils.urban_better_utils import process_for_big_query
+        from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
 
         try:
             dag_run = kwargs.get("dag_run")
@@ -71,7 +61,9 @@ def historical_raw_measurements_etl():
         if destination == "bigquery":
             from airqo_etl_utils.bigquery_api import BigQueryApi
 
-            restructured_data = process_for_big_query(dataframe=urban_better_data)
+            restructured_data = UrbanBetterUtils.process_for_big_query(
+                dataframe=urban_better_data
+            )
             big_query_api = BigQueryApi()
             big_query_api.load_data(
                 dataframe=restructured_data,
@@ -82,10 +74,10 @@ def historical_raw_measurements_etl():
                 "Invalid data destination. Valid values are bigquery, message-broker and api"
             )
 
-    devices_measures_data = extract_measures()
-    sensor_positions_data = extract_sensor_positions()
-    merged_data = merge_data(
-        devices_measures=devices_measures_data, sensor_positions=sensor_positions_data
+    measures = extract_measures()
+    device_sensor_positions = extract_sensor_positions()
+    merged_data = process_data(
+        devices_measures=measures, sensor_positions=device_sensor_positions
     )
     load(merged_data)
 
@@ -110,46 +102,38 @@ def realtime_measurements_etl():
 
     @task()
     def extract_measures():
-        from airqo_etl_utils.urban_better_utils import (
-            extract_urban_better_data_from_api,
-        )
+        from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
 
-        raw_data = extract_urban_better_data_from_api(
+        return UrbanBetterUtils.extract_urban_better_data_from_api(
             start_date_time=start_time, end_date_time=end_time
         )
-
-        return raw_data
 
     @task()
     def extract_sensor_positions():
-        from airqo_etl_utils.urban_better_utils import (
-            extract_urban_better_sensor_positions_from_api,
-        )
+        from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
 
-        sensor_positions = extract_urban_better_sensor_positions_from_api(
+        return UrbanBetterUtils.extract_urban_better_sensor_positions_from_api(
             start_date_time=start_time, end_date_time=end_time
         )
-
-        return sensor_positions
 
     @task()
     def merge_data(devices_measures: pd.DataFrame, sensor_positions: pd.DataFrame):
 
-        from airqo_etl_utils.urban_better_utils import merge_urban_better_data
+        from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
 
-        data = merge_urban_better_data(
+        return UrbanBetterUtils.merge_urban_better_data(
             measures=devices_measures, sensor_positions=sensor_positions
         )
-
-        return data
 
     @task()
     def load(urban_better_data: pd.DataFrame):
 
-        from airqo_etl_utils.urban_better_utils import process_for_big_query
+        from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
-        restructured_data = process_for_big_query(dataframe=urban_better_data)
+        restructured_data = UrbanBetterUtils.process_for_big_query(
+            dataframe=urban_better_data
+        )
         big_query_api = BigQueryApi()
         big_query_api.load_data(
             dataframe=restructured_data,
