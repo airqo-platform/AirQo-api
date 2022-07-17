@@ -61,6 +61,7 @@ class ProductionConfig(Config):
     DB_NAME = env_var("MONGO_PROD")
     BIGQUERY_SITES = env_var("BIGQUERY_SITES_PROD")
     BIGQUERY_EVENTS = env_var("BIGQUERY_EVENTS_PROD")
+    BIGQUERY_MOBILE_EVENTS = env_var("BIGQUERY_MOBILE_EVENTS_PROD")
 
 
 class DevelopmentConfig(Config):
@@ -70,6 +71,7 @@ class DevelopmentConfig(Config):
     DB_NAME = env_var("MONGO_DEV")
     BIGQUERY_SITES = env_var("BIGQUERY_SITES_STAGE")
     BIGQUERY_EVENTS = env_var("BIGQUERY_EVENTS_STAGE")
+    BIGQUERY_MOBILE_EVENTS = env_var("BIGQUERY_MOBILE_EVENTS_STAGE")
 
 
 class TestingConfig(Config):
@@ -79,6 +81,7 @@ class TestingConfig(Config):
     DB_NAME = env_var("MONGO_STAGE")
     BIGQUERY_SITES = env_var("BIGQUERY_SITES_STAGE")
     BIGQUERY_EVENTS = env_var("BIGQUERY_EVENTS_STAGE")
+    BIGQUERY_MOBILE_EVENTS = env_var("BIGQUERY_MOBILE_EVENTS_STAGE")
 
 
 config = {
