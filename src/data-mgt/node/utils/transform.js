@@ -3,7 +3,7 @@ const isEmpty = require("is-empty");
 const { logElement, logText, logObject } = require("./log");
 const constants = require("../config/constants");
 const redis = require("../config/redis");
-const { generateDateFormatWithoutHrs } = require("./date");
+const { generateDateFormatWithoutHrs, isDate } = require("./date");
 const cleanDeep = require("clean-deep");
 const HTTPStatus = require("http-status");
 
@@ -78,7 +78,7 @@ const transform = {
         let responseJSON = response.data;
         if (responseJSON.success === true) {
           let deviceDetails = responseJSON.devices[0];
-
+          logObject("deviceDetails", deviceDetails);
           if (isEmpty(deviceDetails)) {
             return callback({
               success: false,
@@ -89,12 +89,14 @@ const transform = {
 
           if (!isEmpty(deviceDetails.readKey)) {
             let readKey = deviceDetails.readKey;
+            logElement("readKey", readKey);
             const url = constants.DECYPT_DEVICE_KEY_URL;
             return axios
               .post(url, {
                 encrypted_key: readKey,
               })
               .then((response) => {
+                // logObject("thee response", response);
                 let decrypted_key = response.data.decrypted_key;
                 return callback({
                   success: true,
@@ -157,9 +159,15 @@ const transform = {
       logElement("the getFieldByLabel error", error.message);
     }
   },
-  getPositionLabel: (position) => {
+  getPositionLabel: ({ position = "", deviceCategory = "" } = {}) => {
     try {
-      return constants.POSITIONS_AND_LABELS[position];
+      if (deviceCategory === "lowcost") {
+        return constants.POSITIONS_AND_LABELS[position];
+      } else if (deviceCategory === "reference") {
+        return constants.BAM_POSITIONS_AND_LABELS[position];
+      } else {
+        return {};
+      }
     } catch (error) {
       logElement("the getPositionLabel error", error.message);
     }
@@ -173,13 +181,17 @@ const transform = {
     }
   },
 
-  trasformFieldValues: async (field) => {
+  trasformFieldValues: async ({ otherData = "", deviceCategory = "" } = {}) => {
     try {
-      let arrayValues = transform.getValuesFromString(field);
+      let arrayValues = transform.getValuesFromString(otherData);
       let newObj = await Object.entries(arrayValues).reduce(
         (newObj, [position, value]) => {
           if (value) {
-            let transformedPosition = transform.getPositionLabel(position);
+            let transformedPosition = transform.getPositionLabel({
+              position,
+              deviceCategory,
+            });
+
             return { ...newObj, [transformedPosition]: value.trim() };
           }
         },
@@ -193,6 +205,9 @@ const transform = {
 
   transformMeasurement: async (measurement) => {
     try {
+      const deviceCategory = measurement.field9
+        ? measurement.field9
+        : "lowcost";
       let responseFromTransformFieldValues =
         await transform.trasformFieldValues(measurement.field8);
 
@@ -200,15 +215,16 @@ const transform = {
         (newObj, [field, value]) => {
           if (value) {
             let transformedField = "";
-            if (
-              responseFromTransformFieldValues.DeviceType === "BAM" ||
-              responseFromTransformFieldValues.DeviceType === "bam"
-            ) {
+            if (deviceCategory === "reference") {
               logText("the device is a BAM");
               transformedField = transform.getBamFieldLabel(field);
               logElement("transformedField", transformedField);
-            } else {
+            } else if (deviceCategory === "lowcost") {
+              logText("the device is a lowcost one");
               transformedField = transform.getFieldLabel(field);
+            } else {
+              logText("the device does not have a category/type");
+              return {};
             }
             return {
               ...newObj,
