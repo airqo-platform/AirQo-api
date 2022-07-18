@@ -801,7 +801,7 @@ def restructure_airqo_data(data: pd.DataFrame, destination: str) -> Any:
     device_groups = data.groupby("device_number")
 
     for _, device_group in device_groups:
-        device_number = data.iloc[0]["device_number"]
+        device_number = device_group.iloc[0]["device_number"]
         device_details = get_device(devices=devices, channel_id=device_number)
         device_group["device"] = device_details.get("name", None)
         device_group["device_id"] = device_details.get("_id", None)

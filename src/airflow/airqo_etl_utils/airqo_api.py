@@ -335,6 +335,7 @@ class AirQoApi:
             return None
 
         print(api_request.request.url)
+        print(api_request.request.body)
 
         if api_request.status_code == 200 or api_request.status_code == 201:
             return api_request.json()

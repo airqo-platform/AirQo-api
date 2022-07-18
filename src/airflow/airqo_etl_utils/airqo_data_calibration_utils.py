@@ -2,7 +2,6 @@ import pandas as pd
 
 from airqo_etl_utils.airqo_api import AirQoApi
 from airqo_etl_utils.bigquery_api import BigQueryApi
-from airqo_etl_utils.date import date_to_str
 
 
 def extract_raw_device_measurements_from_bigquery(
