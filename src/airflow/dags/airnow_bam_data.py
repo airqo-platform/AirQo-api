@@ -63,10 +63,20 @@ def airnow_bam_data_etl():
             info=data, topic=configuration.BAM_MEASUREMENTS_TOPIC, partition=0
         )
 
+    @task()
+    def send_measurements_to_api(airnow_data: pd.DataFrame):
+        from airqo_etl_utils.airqo_api import AirQoApi
+        from airqo_etl_utils.airqo_utils import restructure_airnow_data_for_api_storage
+
+        restructured_data = restructure_airnow_data_for_api_storage(data=airnow_data)
+        airqo_api = AirQoApi()
+        airqo_api.save_events(measurements=restructured_data, tenant="airqo")
+
     extracted_bam_data = extract_usa_embassies_bam_data()
     processed_bam_data = process_data(extracted_bam_data)
     send_to_bigquery(processed_bam_data)
     send_to_message_broker(processed_bam_data)
+    send_measurements_to_api(processed_bam_data)
 
 
 airnow_bam_data_etl_dag = airnow_bam_data_etl()

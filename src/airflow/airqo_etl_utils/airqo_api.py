@@ -1,9 +1,11 @@
 import traceback
 
+import pandas as pd
 import requests
 import simplejson
 
 from airqo_etl_utils.config import configuration
+from airqo_etl_utils.constants import DeviceCategory
 
 
 class AirQoApi:
@@ -40,6 +42,41 @@ class AirQoApi:
         elif "device_activities" in response:
             return response["device_activities"]
         return []
+
+    def calibrate_data(self, time: str, data: pd.DataFrame, cols: dict) -> list:
+        data.rename(
+            columns={
+                cols["device_number"]: "device_id",
+                cols["s1_pm2_5"]: "sensor1_pm2.5",
+                cols["s2_pm2_5"]: "sensor2_pm2.5",
+                cols["s1_pm10"]: "sensor1_pm10",
+                cols["s2_pm10"]: "sensor2_pm10",
+                cols["temperature"]: "temperature",
+                cols["humidity"]: "humidity",
+            },
+            inplace=True,
+        )
+
+        request_body = {"datetime": time, "raw_values": data.to_dict("records")}
+
+        base_url = (
+            self.CALIBRATION_BASE_URL
+            if self.CALIBRATION_BASE_URL
+            else self.AIRQO_BASE_URL
+        )
+
+        try:
+            response = self.__request(
+                endpoint="calibrate",
+                method="post",
+                body=request_body,
+                base_url=base_url,
+            )
+            return response if response else []
+        except Exception as ex:
+            traceback.print_exc()
+            print(ex)
+            return []
 
     def get_calibrated_values(self, time: str, calibrate_body: list) -> list:
         calibrated_data = []
@@ -103,19 +140,25 @@ class AirQoApi:
 
         return calibrated_data
 
-    def get_devices(self, tenant) -> list:
+    def get_devices(self, tenant=None, category: DeviceCategory = None) -> list:
 
         devices_with_tenant = []
 
         if tenant:
-            response = self.__request("devices", {"tenant": tenant})
+            params = {"tenant": tenant}
+            if category:
+                params["category"] = category.get_api_query_str()
+            response = self.__request("devices", params)
             if "devices" in response:
                 for device in response["devices"]:
                     device["tenant"] = tenant
                     devices_with_tenant.append(device)
         else:
             for x in ["airqo", "kcca"]:
-                response = self.__request("devices", {"tenant": x})
+                params = {"tenant": x}
+                if category:
+                    params["category"] = category.get_api_query_str()
+                response = self.__request("devices", params)
                 if "devices" in response:
                     for device in response["devices"]:
                         device["tenant"] = x
