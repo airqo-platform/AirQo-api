@@ -253,7 +253,9 @@ def weather_data(start_date_time: str, end_date_time: str):
     cleaned_weather_data = WeatherDataUtils.transform_raw_data(data=raw_weather_data)
     cleaned_weather_data.to_csv(path_or_buf="cleaned_weather_data.csv", index=False)
 
-    hourly_weather_data = WeatherDataUtils.resample_data(data=cleaned_weather_data)
+    hourly_weather_data = WeatherDataUtils.resample_station_data(
+        data=cleaned_weather_data
+    )
     hourly_weather_data.to_csv(path_or_buf="hourly_weather_data.csv", index=False)
 
     sites_weather_data = WeatherDataUtils.add_site_information(data=hourly_weather_data)
@@ -320,7 +322,7 @@ def calibrate_historical_data(start_date_time, end_date_time, tenant):
             "external_humidity",
         ],
         table=bigquery_api.hourly_measurements_table,
-        tenant=tenant,
+        where_fields={"tenant": "airqo"},
     )
 
     weather_data = bigquery_api.query_data(
@@ -328,7 +330,7 @@ def calibrate_historical_data(start_date_time, end_date_time, tenant):
         end_date_time=end_date_time,
         columns=["site_id", "timestamp", "temperature", "humidity"],
         table=bigquery_api.hourly_weather_table,
-        tenant=tenant,
+        where_fields={"tenant": "airqo"},
     )
 
     measurements = pd.merge(

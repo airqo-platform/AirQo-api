@@ -24,7 +24,7 @@ def extract_raw_device_measurements_from_bigquery(
         end_date_time=end_date_time,
         columns=cols,
         table=bigquery_api.raw_measurements_table,
-        tenant="airqo",
+        where_fields={"tenant": "airqo"},
     )
 
     if measurements.empty:
@@ -64,7 +64,7 @@ def extract_raw_weather_data_from_bigquery(
         end_date_time=end_date_time,
         columns=cols,
         table=bigquery_api.raw_weather_table,
-        tenant="airqo",
+        where_fields={"tenant": "airqo"},
     )
 
     if measurements.empty:

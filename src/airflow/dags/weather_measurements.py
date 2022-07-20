@@ -30,12 +30,6 @@ def historical_raw_weather_measurements_etl():
         return WeatherDataUtils.transform_raw_data(data=data)
 
     @task()
-    def add_site_data(data: pd.DataFrame) -> pd.DataFrame:
-        from airqo_etl_utils.weather_data_utils import WeatherDataUtils
-
-        return WeatherDataUtils.add_site_information(data=data)
-
-    @task()
     def save_to_bigquery(data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
@@ -50,8 +44,7 @@ def historical_raw_weather_measurements_etl():
 
     extracted_raw_data = extract()
     transformed_data = transform(extracted_raw_data)
-    sites_data = add_site_data(transformed_data)
-    save_to_bigquery(sites_data)
+    save_to_bigquery(transformed_data)
 
 
 @dag(
@@ -78,7 +71,7 @@ def historical_hourly_weather_measurements_etl():
     def average(data: pd.DataFrame) -> pd.DataFrame:
         from airqo_etl_utils.weather_data_utils import WeatherDataUtils
 
-        return WeatherDataUtils.resample_data(data=data)
+        return WeatherDataUtils.resample_station_data(data=data)
 
     @task()
     def save_to_bigquery(weather_data: pd.DataFrame):
@@ -124,12 +117,6 @@ def weather_measurements_etl():
         return WeatherDataUtils.transform_raw_data(data=data)
 
     @task()
-    def add_site_data(data: pd.DataFrame) -> pd.DataFrame:
-        from airqo_etl_utils.weather_data_utils import WeatherDataUtils
-
-        return WeatherDataUtils.add_site_information(data=data)
-
-    @task()
     def save_raw_data_to_bigquery(data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
@@ -146,7 +133,7 @@ def weather_measurements_etl():
     def average_raw_data(data: pd.DataFrame) -> pd.DataFrame:
         from airqo_etl_utils.weather_data_utils import WeatherDataUtils
 
-        return WeatherDataUtils.resample_data(data=data)
+        return WeatherDataUtils.resample_station_data(data=data)
 
     @task()
     def save_hourly_data_to_bigquery(data: pd.DataFrame):
@@ -163,9 +150,8 @@ def weather_measurements_etl():
 
     raw_data = extract()
     transformed_data = transform(raw_data)
-    site_data = add_site_data(transformed_data)
-    save_raw_data_to_bigquery(site_data)
-    averaged_data = average_raw_data(site_data)
+    save_raw_data_to_bigquery(transformed_data)
+    averaged_data = average_raw_data(transformed_data)
     save_hourly_data_to_bigquery(averaged_data)
 
 

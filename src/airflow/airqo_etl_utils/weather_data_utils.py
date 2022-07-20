@@ -28,11 +28,9 @@ class WeatherDataUtils:
         return measurements
 
     @staticmethod
-    def query_raw_data_from_tahmo(
-        start_date_time, end_date_time, tenant=None
-    ) -> pd.DataFrame:
+    def query_raw_data_from_tahmo(start_date_time, end_date_time) -> pd.DataFrame:
         airqo_api = AirQoApi()
-        sites = airqo_api.get_sites(tenant=tenant)
+        sites = airqo_api.get_sites()
         station_codes = []
         for site in sites:
             try:
@@ -117,7 +115,7 @@ class WeatherDataUtils:
         return add_missing_columns(data=weather_data, cols=cols)
 
     @staticmethod
-    def resample_data(data: pd.DataFrame) -> pd.DataFrame:
+    def resample_station_data(data: pd.DataFrame) -> pd.DataFrame:
 
         data = data.dropna(subset=["timestamp"])
         data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
@@ -138,7 +136,7 @@ class WeatherDataUtils:
         return averaged_measurements
 
     @staticmethod
-    def add_site_information(data: pd.DataFrame) -> pd.DataFrame:
+    def __add_site_information(data: pd.DataFrame) -> pd.DataFrame:
         airqo_api = AirQoApi()
         sites_weather_data = pd.DataFrame()
 
