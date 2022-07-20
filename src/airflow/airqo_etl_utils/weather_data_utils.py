@@ -16,6 +16,16 @@ from airqo_etl_utils.tahmo import TahmoApi
 
 class WeatherDataUtils:
     @staticmethod
+    def remove_outliers(value: float, field: str):
+        if not value or not field:
+            return value
+        if field == "humidity" and value <= 0 or value > 100:
+            return None
+        if field == "temperature" and value <= 0 or value > 45:
+            return None
+        return value
+
+    @staticmethod
     def extract_raw_data_from_bigquery(start_date_time, end_date_time) -> pd.DataFrame:
 
         bigquery_api = BigQueryApi()
@@ -110,6 +120,14 @@ class WeatherDataUtils:
                 weather_data.append(timestamp_data)
 
         weather_data = pd.DataFrame(weather_data)
+
+        weather_data["temperature"] = weather_data["temperature"].apply(
+            lambda x: WeatherDataUtils.remove_outliers(value=x, field="temperature")
+        )
+        weather_data["humidity"] = weather_data["humidity"].apply(
+            lambda x: WeatherDataUtils.remove_outliers(value=x, field="humidity")
+        )
+
         cols = [value for value in parameter_mappings.values()]
 
         return add_missing_columns(data=weather_data, cols=cols)
