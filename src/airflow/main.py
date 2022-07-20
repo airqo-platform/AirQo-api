@@ -243,40 +243,26 @@ def daily_insights(start_date_time: str, end_date_time: str):
 
 
 def weather_data(start_date_time: str, end_date_time: str):
-    from airqo_etl_utils.weather_data_utils import (
-        resample_weather_data,
-        query_weather_data_from_tahmo,
-        add_site_info_to_weather_data,
-        transform_weather_data_for_bigquery,
-    )
-    from airqo_etl_utils.bigquery_api import BigQueryApi
+    from airqo_etl_utils.weather_data_utils import WeatherDataUtils
 
-    raw_weather_data = query_weather_data_from_tahmo(
+    raw_weather_data = WeatherDataUtils.query_raw_data_from_tahmo(
         start_date_time=start_date_time, end_date_time=end_date_time
     )
-    pd.DataFrame(raw_weather_data).to_csv(
-        path_or_buf="raw_weather_data.csv", index=False
-    )
+    raw_weather_data.to_csv(path_or_buf="raw_weather_data.csv", index=False)
 
-    hourly_weather_data = resample_weather_data(
-        data=raw_weather_data, frequency="hourly"
-    )
-    pd.DataFrame(hourly_weather_data).to_csv(
-        path_or_buf="hourly_weather_data.csv", index=False
-    )
+    cleaned_weather_data = WeatherDataUtils.transform_raw_data(data=raw_weather_data)
+    cleaned_weather_data.to_csv(path_or_buf="cleaned_weather_data.csv", index=False)
 
-    sites_weather_data = add_site_info_to_weather_data(data=hourly_weather_data)
-    pd.DataFrame(sites_weather_data).to_csv(
-        path_or_buf="sites_weather_data.csv", index=False
-    )
+    hourly_weather_data = WeatherDataUtils.resample_data(data=cleaned_weather_data)
+    hourly_weather_data.to_csv(path_or_buf="hourly_weather_data.csv", index=False)
 
-    bigquery_data = transform_weather_data_for_bigquery(data=sites_weather_data)
-    bigquery_data_df = pd.DataFrame(bigquery_data)
-    bigquery_api = BigQueryApi()
-    bigquery_data_df = bigquery_api.validate_data(
-        dataframe=bigquery_data_df, table=bigquery_api.hourly_weather_table
+    sites_weather_data = WeatherDataUtils.add_site_information(data=hourly_weather_data)
+    sites_weather_data.to_csv(path_or_buf="sites_weather_data.csv", index=False)
+
+    bigquery_weather_data = WeatherDataUtils.transform_for_bigquery(
+        data=sites_weather_data
     )
-    bigquery_data_df.to_csv(path_or_buf="bigquery_weather_data.csv", index=False)
+    bigquery_weather_data.to_csv(path_or_buf="bigquery_weather_data.csv", index=False)
 
 
 def upload_to_gcs():

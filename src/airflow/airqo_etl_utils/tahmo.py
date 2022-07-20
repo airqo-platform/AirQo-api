@@ -23,7 +23,7 @@ class TahmoApi:
 
         stations = set(station_codes)
         columns = ["value", "variable", "station", "time"]
-        measurements_df = pd.DataFrame(columns=columns)
+        measurements = pd.DataFrame(columns=columns)
 
         for code in stations:
 
@@ -38,18 +38,17 @@ class TahmoApi:
                     values = results[0]["series"][0]["values"]
                     columns = results[0]["series"][0]["columns"]
 
-                    station_measurements_df = pd.DataFrame(data=values, columns=columns)
+                    station_measurements = pd.DataFrame(data=values, columns=columns)
 
-                    station_measurements_df = station_measurements_df[columns]
-                    measurements_df = pd.concat(
-                        [measurements_df, station_measurements_df], ignore_index=True
+                    measurements = measurements.append(
+                        station_measurements[columns], ignore_index=True
                     )
 
             except Exception as ex:
                 print(ex)
                 continue
 
-        return measurements_df.to_dict(orient="records")
+        return measurements.to_dict(orient="records")
 
     def __request(self, endpoint, params):
         api_request = requests.get(
