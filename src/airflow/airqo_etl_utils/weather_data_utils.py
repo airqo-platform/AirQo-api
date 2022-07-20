@@ -16,6 +16,18 @@ from airqo_etl_utils.tahmo import TahmoApi
 
 class WeatherDataUtils:
     @staticmethod
+    def extract_raw_data_from_bigquery(start_date_time, end_date_time) -> pd.DataFrame:
+
+        bigquery_api = BigQueryApi()
+        measurements = bigquery_api.query_data(
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            table=bigquery_api.raw_weather_table,
+        )
+
+        return measurements
+
+    @staticmethod
     def query_raw_data_from_tahmo(
         start_date_time, end_date_time, tenant=None
     ) -> pd.DataFrame:

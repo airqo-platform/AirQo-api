@@ -155,18 +155,20 @@ class BigQueryApi:
         self,
         start_date_time: str,
         end_date_time: str,
-        columns: list,
         table: str,
         tenant="airqo",
+        columns: list = None,
     ) -> pd.DataFrame:
 
+        columns = ", ".join(map(str, columns)) if columns else " * "
+
         query = f"""
-            SELECT {', '.join(map(str, columns))}
+            SELECT {columns}
             FROM `{table}`
             WHERE timestamp >= '{start_date_time}' and timestamp <= '{end_date_time}' and tenant = '{tenant}'
         """
         dataframe = self.client.query(query=query).result().to_dataframe()
 
-        dataframe["timestamp"] = dataframe["timestamp"].apply(lambda x: date_to_str(x))
+        dataframe["timestamp"] = dataframe["timestamp"].apply(date_to_str)
 
         return dataframe
