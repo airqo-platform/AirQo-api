@@ -19,13 +19,11 @@ def historical_hourly_measurements_etl():
     @task()
     def extract_device_measurements(**kwargs):
         from airqo_etl_utils.commons import get_date_time_values
-        from airqo_etl_utils.airqo_data_calibration_utils import (
-            extract_raw_device_measurements_from_bigquery,
-        )
+        from airqo_etl_utils.airqo_data_calibration_utils import CalibrationUtils
 
         start_date_time, end_date_time = get_date_time_values(**kwargs)
 
-        return extract_raw_device_measurements_from_bigquery(
+        return CalibrationUtils.extract_hourly_device_measurements(
             start_date_time=start_date_time,
             end_date_time=end_date_time,
         )
@@ -33,13 +31,11 @@ def historical_hourly_measurements_etl():
     @task()
     def extract_weather_data(**kwargs):
         from airqo_etl_utils.commons import get_date_time_values
-        from airqo_etl_utils.airqo_data_calibration_utils import (
-            extract_raw_weather_data_from_bigquery,
-        )
+        from airqo_etl_utils.airqo_data_calibration_utils import CalibrationUtils
 
         start_date_time, end_date_time = get_date_time_values(**kwargs)
 
-        return extract_raw_weather_data_from_bigquery(
+        return CalibrationUtils.extract_hourly_weather_data(
             start_date_time=start_date_time,
             end_date_time=end_date_time,
         )
@@ -47,22 +43,18 @@ def historical_hourly_measurements_etl():
     @task()
     def merge_data(device_measurements: pd.DataFrame, weather_data: pd.DataFrame):
 
-        from airqo_etl_utils.airqo_data_calibration_utils import (
-            merge_device_measurements_and_weather_data,
-        )
+        from airqo_etl_utils.airqo_data_calibration_utils import CalibrationUtils
 
-        return merge_device_measurements_and_weather_data(
+        return CalibrationUtils.merge_device_measurements_and_weather_data(
             device_measurements=device_measurements, weather_data=weather_data
         )
 
     @task()
     def calibrate_data(measurements: pd.DataFrame):
 
-        from airqo_etl_utils.airqo_data_calibration_utils import (
-            calibrate_historical_data,
-        )
+        from airqo_etl_utils.airqo_data_calibration_utils import CalibrationUtils
 
-        return calibrate_historical_data(measurements=measurements)
+        return CalibrationUtils.calibrate_historical_data(measurements=measurements)
 
     @task()
     def load(data: pd.DataFrame):
