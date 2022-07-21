@@ -276,6 +276,15 @@ def get_airqo_api_frequency(freq: str) -> str:
         return "5H"
 
 
+def add_missing_columns(data: pd.DataFrame, cols: list) -> pd.DataFrame:
+    for col in cols:
+        if col not in list(data.columns):
+            print(f"{col} missing in dataset")
+            data[col] = None
+
+    return data
+
+
 def get_weather_data_from_tahmo(
     start_time=None, end_time=None, tenant="airqo"
 ) -> pd.DataFrame:
