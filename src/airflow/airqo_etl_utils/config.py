@@ -82,5 +82,8 @@ class Config:
     PLUME_LABS_BASE_URL = os.getenv("PLUME_LABS_BASE_URL")
     PLUME_LABS_ORGANISATIONS_CRED = os.getenv("PLUME_LABS_ORGANISATIONS_CRED")
 
+    AIR_BEAM_USERNAMES = os.getenv("AIR_BEAM_USERNAMES")
+    AIR_BEAM_BASE_URL = os.getenv("AIR_BEAM_BASE_URL")
+
 
 configuration = Config()
