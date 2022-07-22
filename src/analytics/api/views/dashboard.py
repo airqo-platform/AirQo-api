@@ -61,7 +61,6 @@ class DownloadCustomisedDataResource(Resource):
                 end_date_time=end_date,
             )
         else:
-            additional_columns = ["site_id"] if output_format == "aqcsv" else None
             data = EventsModel.from_bigquery(
                 tenant=tenant,
                 sites=sites,
@@ -69,7 +68,7 @@ class DownloadCustomisedDataResource(Resource):
                 end_date=end_date,
                 frequency=frequency,
                 pollutants=pollutants,
-                additional_columns=additional_columns,
+                output_format=output_format,
             )
 
             if output_format == "aqcsv":
