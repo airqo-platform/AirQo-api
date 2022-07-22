@@ -2,14 +2,113 @@ import datetime
 
 import pandas as pd
 
+from airqo_etl_utils.air_beam_api import AirBeamApi
 from airqo_etl_utils.bigquery_api import BigQueryApi
+from airqo_etl_utils.config import configuration
 from airqo_etl_utils.date import str_to_date
 from airqo_etl_utils.plume_labs_api import PlumeLabsApi
 
 
 class UrbanBetterUtils:
     @staticmethod
-    def extract_urban_better_data_from_plume_labs_api(
+    def extract_stream_ids_from_air_beam(
+        start_date_time: str, end_date_time: str
+    ) -> pd.DataFrame:
+
+        start_date_time = str_to_date(start_date_time)
+        end_date_time = str_to_date(end_date_time)
+
+        air_beam_api = AirBeamApi()
+
+        usernames = configuration.AIR_BEAM_USERNAMES.split(",")
+        stream_ids = []
+        for username in usernames:
+            for pollutant in ["pm2.5", "pm10"]:
+
+                api_response = air_beam_api.get_stream_ids(
+                    start_date_time=start_date_time,
+                    end_date_time=end_date_time,
+                    username=username,
+                    pollutant=pollutant,
+                )
+                if not api_response:
+                    continue
+
+                sessions = dict(api_response).get("sessions", [])
+                for session in sessions:
+                    streams = dict(session).get("streams", {})
+                    for stream in streams.keys():
+                        stream_id = dict(streams.get(stream)).get("id", None)
+                        device_id = dict(streams.get(stream)).get(
+                            "sensor_package_name", None
+                        )
+                        if stream_id:
+                            stream_ids.append(
+                                {
+                                    "stream_id": stream_id,
+                                    "pollutant": pollutant,
+                                    "device_id": device_id,
+                                }
+                            )
+
+        return pd.DataFrame(stream_ids)
+
+    @staticmethod
+    def extract_measurements_from_air_beam(
+        start_date_time: str, end_date_time: str, stream_ids: pd.DataFrame
+    ) -> pd.DataFrame:
+        start_date_time = str_to_date(start_date_time)
+        end_date_time = str_to_date(end_date_time)
+        air_beam_api = AirBeamApi()
+        measurements = pd.DataFrame()
+        for _, row in stream_ids.iterrows():
+            stream_id = row["stream_id"]
+            api_response = air_beam_api.get_measurements(
+                start_date_time=start_date_time,
+                end_date_time=end_date_time,
+                stream_id=stream_id,
+            )
+
+            if api_response:
+                pollutant = row["pollutant"]
+                stream_df = pd.DataFrame(api_response)
+                stream_df["stream_id"] = stream_id
+                stream_df["device_id"] = row["device_id"]
+
+                if pollutant == "pm2.5":
+                    stream_df.rename(columns={"value": "pm2_5_value"}, inplace=True)
+                if pollutant == "pm10":
+                    stream_df.rename(columns={"value": "pm10_value"}, inplace=True)
+                measurements = measurements.append(stream_df, ignore_index=True)
+
+        pm2_5_data = measurements[
+            ["pm2_5_value", "time", "device_id", "latitude", "longitude"]
+        ]
+        pm10_data = measurements[
+            ["pm10_value", "time", "device_id", "latitude", "longitude"]
+        ]
+
+        measurements = pd.merge(
+            left=pm2_5_data,
+            right=pm10_data,
+            on=["time", "device_id", "latitude", "longitude"],
+            how="outer",
+        )
+
+        measurements["tenant"] = "urbanbetter"
+        measurements.rename(
+            columns={
+                "time": "timestamp",
+                "pm2_5_value": "pm2_5_raw_value",
+                "pm10_value": "pm10_raw_value",
+            }
+        )
+        measurements["timestamp"] = measurements["timestamp"].apply(pd.to_datetime)
+
+        return measurements
+
+    @staticmethod
+    def extract_measurements_from_plume_labs(
         start_date_time: str, end_date_time: str
     ) -> pd.DataFrame:
         plume_labs_api = PlumeLabsApi()
@@ -71,7 +170,7 @@ class UrbanBetterUtils:
         return data
 
     @staticmethod
-    def extract_urban_better_sensor_positions_from_plume_labs_api(
+    def extract_sensor_positions_from_plume_labs(
         start_date_time: str, end_date_time: str
     ) -> pd.DataFrame:
         plume_labs_api = PlumeLabsApi()
@@ -205,6 +304,11 @@ class UrbanBetterUtils:
             dataframe["gps_device_timestamp"] = dataframe["gps_device_timestamp"].apply(
                 pd.to_datetime
             )
+        columns = big_query_api.get_columns(big_query_api.raw_mobile_measurements_table)
+
+        for column in columns:
+            if column not in dataframe.columns:
+                dataframe[column] = None
 
         return dataframe[
             big_query_api.get_columns(big_query_api.raw_mobile_measurements_table)

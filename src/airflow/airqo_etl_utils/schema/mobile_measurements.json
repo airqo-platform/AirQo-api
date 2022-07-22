@@ -15,6 +15,11 @@
     "mode": "NULLABLE"
   },
   {
+    "name": "device_id",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
     "name": "latitude",
     "type": "FLOAT",
     "mode": "NULLABLE"

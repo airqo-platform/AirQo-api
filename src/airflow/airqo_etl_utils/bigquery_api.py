@@ -72,6 +72,7 @@ class BigQueryApi:
             pd.to_numeric, errors="coerce"
         )
 
+        # TODO : validate INTEGERS
         return dataframe
 
     def get_columns(self, table: str, data_type: DataType = DataType.NONE) -> list:
