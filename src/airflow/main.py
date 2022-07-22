@@ -462,13 +462,15 @@ def airnow_bam_data():
 def urban_better_data():
     from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
 
-    extracted_urban_better_data = UrbanBetterUtils.extract_urban_better_data_from_api(
-        start_date_time="2022-07-11T00:00:00Z", end_date_time="2022-07-12T00:00:00Z"
+    extracted_urban_better_data = (
+        UrbanBetterUtils.extract_urban_better_data_from_plume_labs_api(
+            start_date_time="2022-07-11T00:00:00Z", end_date_time="2022-07-12T00:00:00Z"
+        )
     )
     extracted_urban_better_data.to_csv("urban_better_unprocessed_data.csv", index=False)
 
     extracted_sensor_positions_data = (
-        UrbanBetterUtils.extract_urban_better_sensor_positions_from_api(
+        UrbanBetterUtils.extract_urban_better_sensor_positions_from_plume_labs_api(
             start_date_time="2022-07-11T00:00:00Z", end_date_time="2022-07-12T00:00:00Z"
         )
     )
@@ -476,7 +478,7 @@ def urban_better_data():
         "sensor_positions_unprocessed_data.csv", index=False
     )
 
-    processed_urban_better_data = UrbanBetterUtils.merge_urban_better_data(
+    processed_urban_better_data = UrbanBetterUtils.merge_measures_and_sensor_positions(
         measures=extracted_urban_better_data,
         sensor_positions=extracted_sensor_positions_data,
     )

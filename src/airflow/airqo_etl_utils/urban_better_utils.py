@@ -9,7 +9,7 @@ from airqo_etl_utils.plume_labs_api import PlumeLabsApi
 
 class UrbanBetterUtils:
     @staticmethod
-    def extract_urban_better_data_from_api(
+    def extract_urban_better_data_from_plume_labs_api(
         start_date_time: str, end_date_time: str
     ) -> pd.DataFrame:
         plume_labs_api = PlumeLabsApi()
@@ -71,7 +71,7 @@ class UrbanBetterUtils:
         return data
 
     @staticmethod
-    def extract_urban_better_sensor_positions_from_api(
+    def extract_urban_better_sensor_positions_from_plume_labs_api(
         start_date_time: str, end_date_time: str
     ) -> pd.DataFrame:
         plume_labs_api = PlumeLabsApi()
@@ -132,7 +132,7 @@ class UrbanBetterUtils:
         return sensor_positions.loc[index].to_dict()
 
     @staticmethod
-    def merge_urban_better_data(
+    def merge_measures_and_sensor_positions(
         measures: pd.DataFrame, sensor_positions: pd.DataFrame
     ) -> pd.DataFrame:
         measures["device_timestamp"] = measures["device_timestamp"].apply(
@@ -186,18 +186,26 @@ class UrbanBetterUtils:
     @staticmethod
     def process_for_big_query(dataframe: pd.DataFrame) -> pd.DataFrame:
         big_query_api = BigQueryApi()
-        dataframe["device_timestamp"] = dataframe["device_timestamp"].apply(
-            pd.to_datetime
-        )
+        if "device_timestamp" in dataframe.columns:
+            dataframe.rename(
+                columns={
+                    "device_timestamp": "timestamp",
+                },
+                inplace=True,
+            )
+            dataframe["timestamp"] = dataframe["timestamp"].apply(pd.to_datetime)
 
-        dataframe["gps_timestamp"] = dataframe["gps_timestamp"].apply(pd.to_datetime)
-        dataframe["timestamp"] = dataframe["device_timestamp"]
-        dataframe.rename(
-            columns={
-                "gps_timestamp": "gps_device_timestamp",
-            },
-            inplace=True,
-        )
+        if "gps_timestamp" in dataframe.columns:
+            dataframe.rename(
+                columns={
+                    "gps_timestamp": "gps_device_timestamp",
+                },
+                inplace=True,
+            )
+            dataframe["gps_device_timestamp"] = dataframe["gps_device_timestamp"].apply(
+                pd.to_datetime
+            )
+
         return dataframe[
             big_query_api.get_columns(big_query_api.raw_mobile_measurements_table)
         ]

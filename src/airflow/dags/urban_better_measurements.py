@@ -6,14 +6,14 @@ from airqo_etl_utils.airflow_custom_utils import slack_dag_failure_notification
 
 
 @dag(
-    "Urban-Better-Historical-Raw-Measurements",
+    "Urban-Better-Plume-Labs-Historical-Raw-Measurements",
     schedule_interval=None,
     on_failure_callback=slack_dag_failure_notification,
     start_date=datetime(2021, 1, 1),
     catchup=False,
-    tags=["urban better", "raw", "historical"],
+    tags=["urban better", "raw", "historical", "plume labs"],
 )
-def historical_raw_measurements_etl():
+def historical_raw_measurements_etl__plume_labs():
     import pandas as pd
 
     @task()
@@ -23,7 +23,7 @@ def historical_raw_measurements_etl():
         from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
 
         start_time, end_time = get_date_time_values(**kwargs)
-        return UrbanBetterUtils.extract_urban_better_data_from_api(
+        return UrbanBetterUtils.extract_urban_better_data_from_plume_labs_api(
             start_date_time=start_time, end_date_time=end_time
         )
 
@@ -34,8 +34,10 @@ def historical_raw_measurements_etl():
         from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
 
         start_time, end_time = get_date_time_values(**kwargs)
-        return UrbanBetterUtils.extract_urban_better_sensor_positions_from_api(
-            start_date_time=start_time, end_date_time=end_time
+        return (
+            UrbanBetterUtils.extract_urban_better_sensor_positions_from_plume_labs_api(
+                start_date_time=start_time, end_date_time=end_time
+            )
         )
 
     @task()
@@ -43,7 +45,7 @@ def historical_raw_measurements_etl():
 
         from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
 
-        return UrbanBetterUtils.merge_urban_better_data(
+        return UrbanBetterUtils.merge_measures_and_sensor_positions(
             measures=devices_measures, sensor_positions=sensor_positions
         )
 
@@ -83,14 +85,14 @@ def historical_raw_measurements_etl():
 
 
 @dag(
-    "Urban-Better-Realtime-Raw-Measurements",
+    "Urban-Better-Plume-Labs-Realtime-Raw-Measurements",
     schedule_interval="10 * * * *",
     on_failure_callback=slack_dag_failure_notification,
     start_date=datetime(2021, 1, 1),
     catchup=False,
     tags=["urban better", "realtime", "raw"],
 )
-def realtime_measurements_etl():
+def realtime_measurements_etl__plume_labs():
     import pandas as pd
 
     from airqo_etl_utils.date import date_to_str_hours
@@ -104,7 +106,7 @@ def realtime_measurements_etl():
     def extract_measures():
         from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
 
-        return UrbanBetterUtils.extract_urban_better_data_from_api(
+        return UrbanBetterUtils.extract_urban_better_data_from_plume_labs_api(
             start_date_time=start_time, end_date_time=end_time
         )
 
@@ -112,8 +114,10 @@ def realtime_measurements_etl():
     def extract_sensor_positions():
         from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
 
-        return UrbanBetterUtils.extract_urban_better_sensor_positions_from_api(
-            start_date_time=start_time, end_date_time=end_time
+        return (
+            UrbanBetterUtils.extract_urban_better_sensor_positions_from_plume_labs_api(
+                start_date_time=start_time, end_date_time=end_time
+            )
         )
 
     @task()
@@ -121,7 +125,7 @@ def realtime_measurements_etl():
 
         from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
 
-        return UrbanBetterUtils.merge_urban_better_data(
+        return UrbanBetterUtils.merge_measures_and_sensor_positions(
             measures=devices_measures, sensor_positions=sensor_positions
         )
 
@@ -148,5 +152,7 @@ def realtime_measurements_etl():
     load(merged_data)
 
 
-realtime_measurements_etl_dag = realtime_measurements_etl()
-historical_raw_measurements_etl_dag = historical_raw_measurements_etl()
+realtime_measurements_etl__plume_labs_dag = realtime_measurements_etl__plume_labs()
+historical_raw_measurements_etl__plume_labs_dag = (
+    historical_raw_measurements_etl__plume_labs()
+)
