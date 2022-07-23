@@ -21,6 +21,9 @@ class BigQueryApi:
         self.raw_mobile_measurements_table = (
             configuration.BIGQUERY_RAW_MOBILE_EVENTS_TABLE
         )
+        self.airqo_mobile_measurements_table = (
+            configuration.BIGQUERY_AIRQO_MOBILE_EVENTS_TABLE
+        )
         self.hourly_weather_table = configuration.BIGQUERY_HOURLY_WEATHER_TABLE
         self.raw_weather_table = configuration.BIGQUERY_RAW_WEATHER_TABLE
         self.analytics_table = configuration.BIGQUERY_ANALYTICS_TABLE
@@ -37,7 +40,8 @@ class BigQueryApi:
         table: str,
         raise_column_exception=True,
         date_time_columns=None,
-        numeric_columns=None,
+        float_columns=None,
+        integer_columns=None,
     ) -> pd.DataFrame:
         columns = self.get_columns(table=table)
 
@@ -63,13 +67,23 @@ class BigQueryApi:
         )
 
         # validating floats
-        numeric_columns = (
-            numeric_columns
-            if numeric_columns
+        float_columns = (
+            float_columns
+            if float_columns
             else self.get_columns(table=table, data_type=DataType.FLOAT)
         )
-        dataframe[numeric_columns] = dataframe[numeric_columns].apply(
+        dataframe[float_columns] = dataframe[float_columns].apply(
             pd.to_numeric, errors="coerce"
+        )
+
+        # validating integers
+        integer_columns = (
+            integer_columns
+            if integer_columns
+            else self.get_columns(table=table, data_type=DataType.INTEGER)
+        )
+        dataframe[integer_columns] = dataframe[integer_columns].apply(
+            lambda x: pd.to_numeric(x, errors="coerce", downcast="integer")
         )
 
         return dataframe
@@ -93,6 +107,8 @@ class BigQueryApi:
             schema_file = "devices.json"
         elif table == self.raw_mobile_measurements_table:
             schema_file = "mobile_measurements.json"
+        elif table == self.airqo_mobile_measurements_table:
+            schema_file = "airqo_mobile_measurements.json"
         elif (
             table == self.bam_measurements_table
             or table == self.bam_hourly_measurements_table
