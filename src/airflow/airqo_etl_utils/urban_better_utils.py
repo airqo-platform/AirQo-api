@@ -4,6 +4,7 @@ import pandas as pd
 
 from airqo_etl_utils.air_beam_api import AirBeamApi
 from airqo_etl_utils.bigquery_api import BigQueryApi
+from airqo_etl_utils.commons import Utils
 from airqo_etl_utils.config import configuration
 from airqo_etl_utils.date import str_to_date
 from airqo_etl_utils.plume_labs_api import PlumeLabsApi
@@ -72,21 +73,20 @@ class UrbanBetterUtils:
             if api_response:
                 pollutant = row["pollutant"]
                 stream_df = pd.DataFrame(api_response)
-                stream_df["stream_id"] = stream_id
                 stream_df["device_id"] = row["device_id"]
 
                 if pollutant == "pm2.5":
-                    stream_df.rename(columns={"value": "pm2_5_value"}, inplace=True)
+                    stream_df.rename(columns={"value": "pm2_5_raw_value"}, inplace=True)
                 if pollutant == "pm10":
-                    stream_df.rename(columns={"value": "pm10_value"}, inplace=True)
+                    stream_df.rename(columns={"value": "pm10_raw_value"}, inplace=True)
                 measurements = measurements.append(stream_df, ignore_index=True)
 
         pm2_5_data = measurements[
-            ["pm2_5_value", "time", "device_id", "latitude", "longitude"]
-        ]
+            ["pm2_5_raw_value", "time", "device_id", "latitude", "longitude"]
+        ].dropna(subset=["pm2_5_raw_value"])
         pm10_data = measurements[
-            ["pm10_value", "time", "device_id", "latitude", "longitude"]
-        ]
+            ["pm10_raw_value", "time", "device_id", "latitude", "longitude"]
+        ].dropna(subset=["pm10_raw_value"])
 
         measurements = pd.merge(
             left=pm2_5_data,
@@ -99,11 +99,10 @@ class UrbanBetterUtils:
         measurements.rename(
             columns={
                 "time": "timestamp",
-                "pm2_5_value": "pm2_5_raw_value",
-                "pm10_value": "pm10_raw_value",
-            }
+            },
+            inplace=True,
         )
-        measurements["timestamp"] = measurements["timestamp"].apply(pd.to_datetime)
+        measurements["timestamp"] = pd.to_datetime(measurements["timestamp"], unit="ms")
 
         return measurements
 
@@ -306,10 +305,6 @@ class UrbanBetterUtils:
             )
         columns = big_query_api.get_columns(big_query_api.raw_mobile_measurements_table)
 
-        for column in columns:
-            if column not in dataframe.columns:
-                dataframe[column] = None
+        dataframe = Utils.populate_missing_columns(data=dataframe, cols=columns)
 
-        return dataframe[
-            big_query_api.get_columns(big_query_api.raw_mobile_measurements_table)
-        ]
+        return dataframe[columns]

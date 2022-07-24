@@ -488,24 +488,24 @@ def urban_better_data_from_plume_labs():
 def urban_better_data_from_air_beam():
     from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
 
-    start_date_time = "2022-07-11T10:00:00Z"
-    end_date_time = "2022-07-11T14:00:00Z"
+    start_date_time = "2022-07-21T07:00:00Z"
+    end_date_time = "2022-07-21T17:00:00Z"
     stream_ids = UrbanBetterUtils.extract_stream_ids_from_air_beam(
         start_date_time=start_date_time, end_date_time=end_date_time
     )
-    stream_ids.to_csv("urban_better_stream_ids.csv", index=False)
+    stream_ids.to_csv("urban_better_air_beam_stream_ids.csv", index=False)
 
     measurements = UrbanBetterUtils.extract_measurements_from_air_beam(
         start_date_time=start_date_time,
         end_date_time=end_date_time,
         stream_ids=stream_ids,
     )
-    measurements.to_csv("urban_better_measurements.csv", index=False)
+    measurements.to_csv("urban_better_air_beam_measurements.csv", index=False)
 
     bigquery_data = pd.DataFrame(
         UrbanBetterUtils.process_for_big_query(dataframe=measurements)
     )
-    bigquery_data.to_csv("urban_better_bigquery_data.csv", index=False)
+    bigquery_data.to_csv("urban_better_air_beam_bigquery_data.csv", index=False)
 
 
 if __name__ == "__main__":
@@ -554,7 +554,8 @@ if __name__ == "__main__":
             "app_notifications",
             "calibrate_historical_data",
             "airnow_bam_data",
-            "urban_better_data",
+            "urban_better_data_plume_labs",
+            "urban_better_data_air_beam",
         ],
     )
 
@@ -593,8 +594,10 @@ if __name__ == "__main__":
     elif args.action == "airnow_bam_data":
         airnow_bam_data()
 
-    elif args.action == "urban_better_data":
+    elif args.action == "urban_better_data_plume_labs":
         urban_better_data_from_plume_labs()
+
+    elif args.action == "urban_better_data_air_beam":
         urban_better_data_from_air_beam()
     else:
         pass
