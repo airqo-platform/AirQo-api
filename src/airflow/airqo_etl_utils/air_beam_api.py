@@ -1,4 +1,5 @@
 import datetime
+import json
 
 import pandas as pd
 import requests
@@ -16,30 +17,38 @@ class AirBeamApi:
         end_date_time: datetime.datetime,
         username: str,
         pollutant: str,
-    ) -> pd.DataFrame:
+    ):
 
-        params = {
-            "g": {
-                "time_from": int(start_date_time.timestamp()),
-                "time_to": int(end_date_time.timestamp()),
-                "tags": "",
-                "usernames": username,
-                "west": 10.581214853439886,
-                "east": 38.08577769782265,
-                "south": -36.799337832603314,
-                "north": -19.260169583742446,
-                "limit": 100,
-                "offset": 0,
-                "sensor_name": f"airbeam3-{pollutant}",
-                "measurement_type": "Particulate Matter",
-                "unit_symbol": "µg/m³",
-            }
-        }
-
-        return self.__request(
-            endpoint=f"/mobile/sessions.json",
-            params=params,
+        request = requests.get(
+            url=f"{self.AIR_BEAM_BASE_URL}/mobile/sessions.json",
+            params={
+                "q": json.dumps(
+                    {
+                        "time_from": int(start_date_time.timestamp()),
+                        "time_to": int(end_date_time.timestamp()),
+                        "tags": "",
+                        "usernames": username,
+                        "west": 10.581214853439886,
+                        "east": 38.08577769782265,
+                        "south": -36.799337832603314,
+                        "north": -19.260169583742446,
+                        "limit": 100,
+                        "offset": 0,
+                        "sensor_name": f"airbeam3-{pollutant}",
+                        "measurement_type": "Particulate Matter",
+                        "unit_symbol": "µg/m³",
+                    }
+                )
+            },
         )
+
+        print(request.request.url)
+
+        if request.status_code == 200:
+            return request.json()
+        else:
+            handle_api_error(request)
+            return None
 
     def get_measurements(
         self,
@@ -49,8 +58,8 @@ class AirBeamApi:
     ) -> pd.DataFrame:
 
         params = {
-            "start_time": int(start_date_time.timestamp()),
-            "end_time": int(end_date_time.timestamp()),
+            "start_time": int(start_date_time.timestamp()) * 1000,
+            "end_time": int(end_date_time.timestamp()) * 1000,
             "stream_ids": stream_id,
         }
         return self.__request(

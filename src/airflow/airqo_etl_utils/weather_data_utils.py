@@ -5,11 +5,7 @@ import pandas as pd
 
 from airqo_etl_utils.airqo_api import AirQoApi
 from airqo_etl_utils.bigquery_api import BigQueryApi
-from airqo_etl_utils.commons import (
-    get_frequency,
-    remove_invalid_dates,
-    add_missing_columns,
-)
+from airqo_etl_utils.commons import get_frequency, remove_invalid_dates, Utils
 from airqo_etl_utils.date import date_to_str
 from airqo_etl_utils.tahmo import TahmoApi
 
@@ -130,7 +126,7 @@ class WeatherDataUtils:
 
         cols = [value for value in parameter_mappings.values()]
 
-        return add_missing_columns(data=weather_data, cols=cols)
+        return Utils.populate_missing_columns(data=weather_data, cols=cols)
 
     @staticmethod
     def resample_station_data(data: pd.DataFrame) -> pd.DataFrame:
@@ -179,4 +175,4 @@ class WeatherDataUtils:
         bigquery = BigQueryApi()
         cols = bigquery.get_columns(table=bigquery.hourly_weather_table)
 
-        return add_missing_columns(data=data, cols=cols)
+        return Utils.populate_missing_columns(data=data, cols=cols)
