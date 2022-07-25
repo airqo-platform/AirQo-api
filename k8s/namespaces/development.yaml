@@ -11,8 +11,8 @@ metadata:
   namespace: development
 spec:
   hard:
-    cpu: 2000
-    memory: 4Gi
+    limits.cpu: 2000
+    limits.memory: 4Gi
     pods: 10
     replicationcontrollers: 20
     resourcequotas: 1

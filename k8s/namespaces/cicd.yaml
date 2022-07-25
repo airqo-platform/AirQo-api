@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cicd
+
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: pipeline-quota
+  namespace: pipeline
+spec:
+  hard:
+    limits.cpu: 1000
+    limits.memory: 2Gi
+    resourcequotas: 1
