@@ -1,8 +1,8 @@
 kind: Deployment
 apiVersion: apps/v1
 metadata:
-  name: airflow
-  namespace: stage-airflow
+  name: stage-airflow
+  namespace: pipeline
 spec:
   selector:
     matchLabels:
@@ -80,7 +80,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: stage-airflow-sa
-  namespace: stage-airflow
+  namespace: pipeline
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -113,20 +113,20 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: stage-airflow-sa
-  namespace: stage-airflow
+  namespace: pipeline
 
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: stage-airflow-workers
+  name: pipeline-workers
   
 ---
 kind: Service
 apiVersion: v1
 metadata:
  name: airflow-svc
- namespace: stage-airflow
+ namespace: pipeline
 spec:
  ports:
   - port: 8080
