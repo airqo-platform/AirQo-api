@@ -2,7 +2,7 @@ apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaTopic
 metadata:
   name: app-insights-topic
-  namespace: kafka-strimzi
+  namespace: message-broker
   labels:
     strimzi.io/cluster: kafka-cluster
 spec:
@@ -16,7 +16,7 @@ apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaTopic
 metadata:
   name: hourly-measurements-topic
-  namespace: kafka-strimzi
+  namespace: message-broker
   labels:
     strimzi.io/cluster: kafka-cluster
 spec:
@@ -30,7 +30,7 @@ apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaTopic
 metadata:
   name: sites-topic
-  namespace: kafka-strimzi
+  namespace: message-broker
   labels:
     strimzi.io/cluster: kafka-cluster
 spec:
@@ -44,7 +44,7 @@ apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaTopic
 metadata:
   name: devices-topic
-  namespace: kafka-strimzi
+  namespace: message-broker
   labels:
     strimzi.io/cluster: kafka-cluster
 spec:
@@ -58,7 +58,7 @@ apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaTopic
 metadata:
   name: locations-topic
-  namespace: kafka-strimzi
+  namespace: message-broker
   labels:
     strimzi.io/cluster: kafka-cluster
 spec:
@@ -72,7 +72,7 @@ apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaTopic
 metadata:
   name: sensors-topic
-  namespace: kafka-strimzi
+  namespace: message-broker
   labels:
     strimzi.io/cluster: kafka-cluster
 spec:
@@ -86,7 +86,7 @@ apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaTopic
 metadata:
   name: airqlouds-topic
-  namespace: kafka-strimzi
+  namespace: message-broker
   labels:
     strimzi.io/cluster: kafka-cluster
 spec:
@@ -100,7 +100,7 @@ apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaTopic
 metadata:
   name: activities-topic
-  namespace: kafka-strimzi
+  namespace: message-broker
   labels:
     strimzi.io/cluster: kafka-cluster
 spec:
@@ -114,7 +114,7 @@ apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaTopic
 metadata:
   name: photos-topic
-  namespace: kafka-strimzi
+  namespace: message-broker
   labels:
     strimzi.io/cluster: kafka-cluster
 spec:
