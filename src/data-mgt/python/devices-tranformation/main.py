@@ -28,6 +28,7 @@ def run_function():
             "refresh_sites",
             "export_sites",
             "export_devices",
+            "missing_fields",
         ],
     )
     parser.add_argument(
@@ -39,6 +40,12 @@ def run_function():
             "airqo",
             "kcca",
         ],
+    )
+    parser.add_argument(
+        "--fields",
+        required=False,
+        type=str.lower,
+        default="",
     )
     parser.add_argument(
         "--outputFormat",
@@ -53,7 +60,7 @@ def run_function():
     )
     args = parser.parse_args()
 
-    transformation = Transformation(args.outputFormat)
+    transformation = Transformation(output_format=args.outputFormat)
 
     if args.action == "site_tahmo_mapping":
         transformation.map_sites_to_tahmo_station()
@@ -78,6 +85,9 @@ def run_function():
 
     elif args.action == "approximate_site_coordinates":
         transformation.approximate_site_coordinates(tenant=args.tenant)
+
+    elif args.action == "missing_fields":
+        transformation.get_missing_fields(missing_fields=args.fields)
 
     else:
         pass

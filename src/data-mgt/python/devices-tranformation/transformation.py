@@ -25,16 +25,24 @@ class Transformation:
         for site in sites:
 
             try:
-                approximated_coordinates = self.airqo_api.approximate_coordinates(latitude=site["latitude"],
-                                                                                  longitude=site["longitude"],)
+                approximated_coordinates = self.airqo_api.approximate_coordinates(
+                    latitude=site["latitude"],
+                    longitude=site["longitude"],
+                )
 
                 if approximated_coordinates:
-                    updated_sites.append({
-                        "id": site["_id"],
-                        "approximate_latitude": approximated_coordinates["approximate_latitude"],
-                        "approximate_longitude": approximated_coordinates["approximate_longitude"],
-                        "tenant": tenant
-                    })
+                    updated_sites.append(
+                        {
+                            "id": site["_id"],
+                            "approximate_latitude": approximated_coordinates[
+                                "approximate_latitude"
+                            ],
+                            "approximate_longitude": approximated_coordinates[
+                                "approximate_longitude"
+                            ],
+                            "tenant": tenant,
+                        }
+                    )
             except Exception as ex:
                 print(ex)
 
@@ -194,6 +202,32 @@ class Transformation:
                     pass
 
         self.__print(data=updated_sites)
+
+    def get_missing_fields(self, missing_fields=""):
+        sites = self.airqo_api.get_sites(self.tenant)
+
+        if not missing_fields:
+            return []
+
+        missing_fields = missing_fields.split(",")
+
+        sites_missing_fields = []
+
+        for site in sites:
+            site_dict = dict(site)
+            site_missing_fields = []
+
+            for field in missing_fields:
+                if field not in site_dict.keys():
+                    site_missing_fields.append(field)
+
+            if site_missing_fields:
+                sites_missing_fields.append(
+                    {"site_id": site_dict.get("_id"), "fields": site_missing_fields}
+                )
+
+        self.output_format = "csv"
+        self.__print(data=sites_missing_fields)
 
     def refresh_sites(self):
 
