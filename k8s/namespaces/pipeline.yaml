@@ -11,6 +11,6 @@ metadata:
   namespace: pipeline
 spec:
   hard:
-    limits.cpu: 2000
-    limits.memory: 4Gi
+    limits.cpu: 4000
+    limits.memory: 8Gi
     resourcequotas: 1

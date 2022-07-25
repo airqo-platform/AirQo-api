@@ -11,6 +11,6 @@ metadata:
   namespace: message-broker
 spec:
   hard:
-    limits.cpu: 1000
-    limits.memory: 2Gi
+    limits.cpu: 2000
+    limits.memory: 4Gi
     resourcequotas: 1
