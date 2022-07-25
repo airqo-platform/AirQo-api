@@ -7,8 +7,8 @@ metadata:
 apiVersion: v1
 kind: ResourceQuota
 metadata:
-  name: pipeline-quota
-  namespace: pipeline
+  name: cicd-quota
+  namespace: cicd
 spec:
   hard:
     limits.cpu: 1000
