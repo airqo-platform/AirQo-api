@@ -196,6 +196,10 @@ jobs:
               echo "::set-output name=run_airflow::true"
             fi
 
+            if [[ $file == k8s/airflow/* ]]; then
+              echo "::set-output name=run_airflow::true"
+            fi
+
             if [[ $file == src/network-uptime/* ]]; then
               echo "::set-output name=run_network_uptime::true"
             fi
@@ -396,7 +400,7 @@ jobs:
         uses: azure/k8s-set-context@v1
         with:
           method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_PIPELINE_CONFIG }}
+          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
       -
         name: Build and push app
         uses: docker/build-push-action@v2
@@ -417,7 +421,7 @@ jobs:
       # - name: Deploy to K8S
       #   uses: Azure/k8s-deploy@v1.4
       #   with:
-      #     namespace: "stage-airflow"
+      #     namespace: "pipeline"
       #     manifests: |
       #       k8s/airflow/stage-airflow-app.yaml
       #     images: "${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-apache-airflow:${{ needs.image-tag.outputs.build_id }}"
@@ -425,8 +429,8 @@ jobs:
       
       - name: Deploy to K8S
         run: |
-          kubectl apply -f k8s/airflow/stage-airflow-app.yaml -n stage-airflow
-          kubectl rollout restart deployment airflow  -n stage-airflow
+          kubectl apply -f k8s/airflow/stage-airflow-app.yaml -n pipeline
+          kubectl rollout restart deployment stage-airflow  -n pipeline
 
   ### predict api and jobs ###
   predict-service:
