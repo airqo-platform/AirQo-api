@@ -15,20 +15,7 @@ from airqo_etl_utils.date import (
     date_to_str_days,
     date_to_str_hours,
 )
-from airqo_etl_utils.tahmo import TahmoApi
-
-
-def measurement_time_to_string(time: str, daily=False):
-    date_time = str_to_date(time)
-    return date_to_str_days(date_time) if daily else date_to_str_hours(date_time)
-
-
-def to_double(x):
-    try:
-        value = float(x)
-        return None if (math.isnan(value) or np.isnan(value)) else value
-    except Exception:
-        return None
+from airqo_etl_utils.tahmo_api import TahmoApi
 
 
 def get_valid_value(raw_value, name=None):
@@ -63,6 +50,19 @@ def get_valid_value(raw_value, name=None):
         pass
 
     return value
+
+
+def measurement_time_to_string(time: str, daily=False):
+    date_time = str_to_date(time)
+    return date_to_str_days(date_time) if daily else date_to_str_hours(date_time)
+
+
+def to_double(x):
+    try:
+        value = float(x)
+        return None if (math.isnan(value) or np.isnan(value)) else value
+    except Exception:
+        return None
 
 
 def get_site_ids_from_station(station: str, sites: list):

@@ -10,20 +10,31 @@ from airqo_etl_utils.commons import (
     remove_invalid_dates,
     add_missing_columns,
 )
+from airqo_etl_utils.data_validator import DataValidationUtils
 from airqo_etl_utils.date import date_to_str
-from airqo_etl_utils.tahmo import TahmoApi
+from airqo_etl_utils.tahmo_api import TahmoApi
 
 
 class WeatherDataUtils:
     @staticmethod
-    def remove_outliers(value: float, field: str):
-        if not value or not field:
-            return value
-        if field == "humidity" and value <= 0 or value > 100:
-            return None
-        if field == "temperature" and value <= 0 or value > 45:
-            return None
-        return value
+    def get_nearest_tahmo_stations(coordinates_list: list) -> pd.DataFrame:
+        stations = []
+        tahmo_api = TahmoApi()
+        all_stations = tahmo_api.get_stations()
+        for coordinates in coordinates_list:
+            latitude = coordinates.get("latitude")
+            longitude = coordinates.get("longitude")
+            closest_station = tahmo_api.get_closest_station(
+                latitude=latitude, longitude=longitude, all_stations=all_stations
+            )
+            stations.append(
+                {
+                    "station_code": closest_station.get("code"),
+                    "latitude": latitude,
+                    "longitude": longitude,
+                }
+            )
+        return pd.DataFrame(stations)
 
     @staticmethod
     def extract_raw_data_from_bigquery(start_date_time, end_date_time) -> pd.DataFrame:
@@ -38,16 +49,19 @@ class WeatherDataUtils:
         return measurements
 
     @staticmethod
-    def query_raw_data_from_tahmo(start_date_time, end_date_time) -> pd.DataFrame:
+    def query_raw_data_from_tahmo(
+        start_date_time, end_date_time, station_codes: list = None
+    ) -> pd.DataFrame:
         airqo_api = AirQoApi()
         sites = airqo_api.get_sites()
-        station_codes = []
-        for site in sites:
-            try:
-                if "nearest_tahmo_station" in dict(site).keys():
-                    station_codes.append(site["nearest_tahmo_station"]["code"])
-            except Exception as ex:
-                print(ex)
+        if station_codes is None:
+            station_codes = []
+            for site in sites:
+                try:
+                    if "nearest_tahmo_station" in dict(site).keys():
+                        station_codes.append(site["nearest_tahmo_station"]["code"])
+                except Exception as ex:
+                    print(ex)
 
         measurements = []
         tahmo_api = TahmoApi()
@@ -72,9 +86,7 @@ class WeatherDataUtils:
         measurements_df = pd.DataFrame(data=measurements)
 
         if measurements_df.empty:
-            return pd.DataFrame(
-                [], columns=["value", "variable", "time", "station_code"]
-            )
+            return pd.DataFrame([], columns=["value", "variable", "time", "station"])
 
         return remove_invalid_dates(
             dataframe=measurements_df,
@@ -121,19 +133,14 @@ class WeatherDataUtils:
 
         weather_data = pd.DataFrame(weather_data)
 
-        weather_data["temperature"] = weather_data["temperature"].apply(
-            lambda x: WeatherDataUtils.remove_outliers(value=x, field="temperature")
-        )
-        weather_data["humidity"] = weather_data["humidity"].apply(
-            lambda x: WeatherDataUtils.remove_outliers(value=x, field="humidity")
-        )
-
         cols = [value for value in parameter_mappings.values()]
 
-        return add_missing_columns(data=weather_data, cols=cols)
+        weather_data = add_missing_columns(data=weather_data, cols=cols)
+
+        return DataValidationUtils.get_validate_values(weather_data)
 
     @staticmethod
-    def resample_station_data(data: pd.DataFrame) -> pd.DataFrame:
+    def aggregate_data(data: pd.DataFrame) -> pd.DataFrame:
 
         data = data.dropna(subset=["timestamp"])
         data["timestamp"] = data["timestamp"].apply(pd.to_datetime)

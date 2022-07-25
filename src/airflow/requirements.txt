@@ -7,4 +7,5 @@ kafka-python
 confluent-avro
 simplejson
 sentry-sdk
+geopy
 black
