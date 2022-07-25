@@ -480,6 +480,7 @@ jobs:
       -
         name: Deploy to K8S
         run: |
+          kubectl apply -f k8s/kafka-clusters/namespace.yaml
           bash k8s/kafka-operator/deployment-script.sh
 
   ### kafka cluster ###
@@ -504,7 +505,7 @@ jobs:
           export KAFKA_BROKER_0=${{ secrets.STAGE_KAFKA_BROKER_0 }}
           export KAFKA_BROKER_1=${{ secrets.STAGE_KAFKA_BROKER_1 }}
           export KAFKA_BROKER_2=${{ secrets.STAGE_KAFKA_BROKER_2 }}
-          kubectl apply -f k8s/kafka-clusters/kafka-cluster.yaml -n kafka-strimzi
+          cat k8s/kafka-clusters/kafka-cluster.yaml | sed "s/{{KAFKA_BROKER_0}}/$STAGE_KAFKA_BROKER_0/g" | sed "s/{{KAFKA_BROKER_1}}/$STAGE_KAFKA_BROKER_1/g" | sed "s/{{KAFKA_BROKER_2}}/$STAGE_KAFKA_BROKER_2/g" | kubectl apply -n kafka-strimzi -f-
 
   ### kafka topics ###
   kafka-topics:
