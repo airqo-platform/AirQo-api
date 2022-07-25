@@ -505,7 +505,7 @@ jobs:
           export KAFKA_BROKER_0=${{ secrets.STAGE_KAFKA_BROKER_0 }}
           export KAFKA_BROKER_1=${{ secrets.STAGE_KAFKA_BROKER_1 }}
           export KAFKA_BROKER_2=${{ secrets.STAGE_KAFKA_BROKER_2 }}
-          cat k8s/kafka-clusters/kafka-cluster.yaml | sed "s/{{KAFKA_BROKER_0}}/$STAGE_KAFKA_BROKER_0/g" | sed "s/{{KAFKA_BROKER_1}}/$STAGE_KAFKA_BROKER_1/g" | sed "s/{{KAFKA_BROKER_2}}/$STAGE_KAFKA_BROKER_2/g" | kubectl apply -n kafka-strimzi -f-
+          cat k8s/kafka-clusters/kafka-cluster.yaml | sed "s/{{KAFKA_BROKER_0}}/$STAGE_KAFKA_BROKER_0/g" | sed "s/{{KAFKA_BROKER_1}}/$STAGE_KAFKA_BROKER_1/g" | sed "s/{{KAFKA_BROKER_2}}/$STAGE_KAFKA_BROKER_2/g" | kubectl apply -n message-broker -f-
 
   ### kafka topics ###
   kafka-topics:
@@ -525,7 +525,7 @@ jobs:
       - 
         name: Deploy to K8S
         run: |
-          kubectl apply -f k8s/kafka-topics/kafka-topics.yaml -n kafka-strimzi
+          kubectl apply -f k8s/kafka-topics/kafka-topics.yaml -n message-broker
 
   #### Device Registry ######
   device-registry:
