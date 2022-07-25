@@ -39,29 +39,59 @@ class ScheduleDag:
         return base64_string
 
     @staticmethod
-    def dag_frequency(dag: str) -> int:
-        mapping = dict(
-            {
-                "airqo_historical_hourly_data": 240,
-                "historical_weather_data": 360,
-                "data_warehouse": 360,
-                "kcca_historical_hourly_data": 360,
-                "app_historical_daily_insights": 720,
-                "app_historical_hourly_insights": 360,
-            }
-        )
-        return mapping.get(dag)
-
-    @staticmethod
-    def dag_names() -> dict:
+    def dags() -> dict:
         return dict(
             {
-                "airqo_historical_hourly_data": "AirQo-Historical-Hourly-Measurements",
-                "historical_weather_data": "Historical-Hourly-Weather-Measurements",
-                "data_warehouse": "Data-Warehouse-ETL",
-                "kcca_historical_hourly_data": "Kcca-Historical-Hourly-Measurements",
-                "app_historical_daily_insights": "App-Historical-Daily-Insights",
-                "app_historical_hourly_insights": "App-Historical-Hourly-Insights",
+                # AirQo Data
+                "airqo_historical_hourly_data": {
+                    "name": "AirQo-Historical-Hourly-Measurements",
+                    "data_duration": "240H",
+                },
+                "airqo_historical_raw_data": {
+                    "name": "AirQo-Historical-Raw-Measurements",
+                    "data_duration": "240H",
+                },
+                # Weather Data
+                "historical_hourly_weather_data": {
+                    "name": "Historical-Hourly-Weather-Measurements",
+                    "data_duration": "360H",
+                },
+                "historical_raw_weather_data": {
+                    "name": "Historical-Raw-Weather-Measurements",
+                    "data_duration": "240H",
+                },
+                # KCCA Data
+                "kcca_historical_hourly_data": {
+                    "name": "Kcca-Historical-Hourly-Measurements",
+                    "data_duration": "360H",
+                },
+                "kcca_historical_raw_data": {
+                    "name": "Kcca-Historical-Raw-Measurements",
+                    "data_duration": "240H",
+                },
+                # Data warehouse
+                "data_warehouse": {
+                    "name": "Data-Warehouse-ETL",
+                    "data_duration": "360H",
+                },
+                # Mobile App Data
+                "app_historical_daily_insights": {
+                    "name": "App-Historical-Daily-Insights",
+                    "data_duration": "720H",
+                },
+                "app_historical_hourly_insights": {
+                    "name": "App-Historical-Hourly-Insights",
+                    "data_duration": "360H",
+                },
+                # Mobile devices data
+                "historical_urban_better_plume_labs": {
+                    "name": "Urban-Better-Plume-Labs-Historical-Raw-Measurements",
+                    "data_duration": "240H",
+                },
+                "historical_urban_better_air_beam": {
+                    "name": "Urban-Better-Air-Beam-Historical-Raw-Measurements",
+                    "data_duration": "240H",
+                },
             }
         )
 
@@ -78,12 +108,12 @@ class ScheduleDag:
         print(f"\n{json.loads(api_request.content)}")
 
     def schedule(self, dag: str):
-        frequency = self.dag_frequency(dag=dag)
+        dag = ScheduleDag.dags().get(dag)
         dates = pd.date_range(
-            self.start_date_time, self.end_date_time, freq=f"{frequency}H"
+            self.start_date_time, self.end_date_time, freq=dag["data_duration"]
         )
         last_date_time = dates.values[len(dates.values) - 1]
-        logical_date = datetime.utcnow() + timedelta(minutes=30)
+        logical_date = datetime.utcnow() + timedelta(hours=30)
         for date in dates:
 
             start = date_to_str(date)
@@ -97,16 +127,16 @@ class ScheduleDag:
             pay_load = {
                 "dag_run_id": f"{start}-{end}",
                 "logical_date": date_to_str(logical_date),
-                "conf": {"startDateTime": start, "endDateTime": end},
+                "conf": {"start_date_time": start, "end_date_time": end},
             }
-            self.post_dag(payload=pay_load, dag=self.dag_names().get(dag))
+            self.post_dag(payload=pay_load, dag=dag["name"])
             logical_date = logical_date + timedelta(minutes=self.logical_date_interval)
 
 
 if __name__ == "__main__":
     hour_of_day = datetime.utcnow() - timedelta(hours=1)
-
-    valid_dag_names = ", ".join([str(name) for name in ScheduleDag.dag_names()])
+    dags = ScheduleDag.dags().keys()
+    valid_dag_names = ", ".join([str(name) for name in dags])
     parser = argparse.ArgumentParser(description="DAG configuration")
     parser.add_argument(
         "--start",
@@ -127,7 +157,11 @@ if __name__ == "__main__":
         help="range interval in minutes",
     )
     parser.add_argument(
-        "--dag", required=True, type=str, help=f"DAG. Examples: {valid_dag_names}"
+        "--dag",
+        required=True,
+        type=str,
+        help=f"DAG. Examples: {valid_dag_names}",
+        choices=dags,
     )
     args = parser.parse_args()
 
@@ -137,7 +171,4 @@ if __name__ == "__main__":
         logical_date_interval=args.logical_date_minutes_interval,
     )
 
-    if args.dag in ScheduleDag.dag_names().keys():
-        schedule_dag.schedule(dag=args.dag)
-    else:
-        raise Exception(f"Invalid dag. Valid values are {valid_dag_names}")
+    schedule_dag.schedule(dag=args.dag)

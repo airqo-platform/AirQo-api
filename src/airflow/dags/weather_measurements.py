@@ -4,6 +4,50 @@ from airflow.decorators import dag, task
 
 
 @dag(
+    "Historical-Raw-Weather-Measurements",
+    schedule_interval=None,
+    start_date=datetime(2021, 1, 1),
+    catchup=False,
+    tags=["weather", "historical", "raw"],
+)
+def historical_raw_weather_measurements_etl():
+    import pandas as pd
+
+    @task()
+    def extract(**kwargs) -> pd.DataFrame:
+        from airqo_etl_utils.weather_data_utils import WeatherDataUtils
+        from airqo_etl_utils.commons import get_date_time_values
+
+        start_date_time, end_date_time = get_date_time_values(**kwargs)
+        return WeatherDataUtils.query_raw_data_from_tahmo(
+            start_date_time=start_date_time, end_date_time=end_date_time
+        )
+
+    @task()
+    def transform(data: pd.DataFrame) -> pd.DataFrame:
+        from airqo_etl_utils.weather_data_utils import WeatherDataUtils
+
+        return WeatherDataUtils.transform_raw_data(data=data)
+
+    @task()
+    def save_to_bigquery(data: pd.DataFrame):
+        from airqo_etl_utils.bigquery_api import BigQueryApi
+
+        from airqo_etl_utils.weather_data_utils import WeatherDataUtils
+
+        bigquery_data = WeatherDataUtils.transform_for_bigquery(data=data)
+
+        big_query_api = BigQueryApi()
+        big_query_api.load_data(
+            dataframe=bigquery_data, table=big_query_api.raw_weather_table
+        )
+
+    extracted_raw_data = extract()
+    transformed_data = transform(extracted_raw_data)
+    save_to_bigquery(transformed_data)
+
+
+@dag(
     "Historical-Hourly-Weather-Measurements",
     schedule_interval=None,
     start_date=datetime(2021, 1, 1),
@@ -11,86 +55,108 @@ from airflow.decorators import dag, task
     tags=["weather", "historical", "hourly"],
 )
 def historical_hourly_weather_measurements_etl():
-    @task(multiple_outputs=True)
-    def extract(**kwargs):
-        from airqo_etl_utils.weather_data_utils import (
-            extract_weather_data_from_tahmo,
-        )
-        from airqo_etl_utils.commons import fill_nan, get_date_time_values
+    import pandas as pd
+
+    @task()
+    def extract(**kwargs) -> pd.DataFrame:
+        from airqo_etl_utils.weather_data_utils import WeatherDataUtils
+        from airqo_etl_utils.commons import get_date_time_values
 
         start_date_time, end_date_time = get_date_time_values(**kwargs)
-        weather_data = extract_weather_data_from_tahmo(
+        return WeatherDataUtils.extract_raw_data_from_bigquery(
             start_date_time=start_date_time, end_date_time=end_date_time
         )
 
-        return dict({"data": fill_nan(data=weather_data)})
+    @task()
+    def average(data: pd.DataFrame) -> pd.DataFrame:
+        from airqo_etl_utils.weather_data_utils import WeatherDataUtils
+
+        return WeatherDataUtils.aggregate_data(data=data)
 
     @task()
-    def save_to_bigquery(inputs: dict):
+    def save_to_bigquery(weather_data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
-        from airqo_etl_utils.commons import un_fill_nan
-
-        from airqo_etl_utils.weather_data_utils import (
-            transform_weather_data_for_bigquery,
-        )
-
-        weather_data = un_fill_nan(inputs.get("data"))
-        bigquery_data = transform_weather_data_for_bigquery(data=weather_data)
 
         big_query_api = BigQueryApi()
-        big_query_api.save_data(
-            data=bigquery_data, table=big_query_api.hourly_weather_table
+        big_query_api.load_data(
+            dataframe=weather_data, table=big_query_api.hourly_weather_table
         )
 
     extracted_data = extract()
-    save_to_bigquery(extracted_data)
+    averaged_data = average(extracted_data)
+    save_to_bigquery(averaged_data)
 
 
 @dag(
-    "Hourly-Weather-Measurements",
+    "Weather-Measurements",
     schedule_interval="40 * * * *",
     start_date=datetime(2021, 1, 1),
     catchup=False,
-    tags=["weather", "hourly"],
+    tags=["weather", "hourly", "raw"],
 )
-def hourly_weather_measurements_etl():
-    @task(multiple_outputs=True)
-    def extract():
+def weather_measurements_etl():
+    import pandas as pd
+
+    @task()
+    def extract() -> pd.DataFrame:
+        from airqo_etl_utils.weather_data_utils import WeatherDataUtils
         from airqo_etl_utils.date import date_to_str_hours
-        from airqo_etl_utils.weather_data_utils import (
-            extract_weather_data_from_tahmo,
-        )
-        from airqo_etl_utils.commons import fill_nan
 
         hour_of_day = datetime.utcnow() - timedelta(hours=1)
         start_date_time = date_to_str_hours(hour_of_day)
         end_date_time = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
 
-        weather_data = extract_weather_data_from_tahmo(
+        return WeatherDataUtils.query_raw_data_from_tahmo(
             start_date_time=start_date_time, end_date_time=end_date_time
         )
 
-        return dict({"data": fill_nan(data=weather_data)})
+    @task()
+    def transform(data: pd.DataFrame) -> pd.DataFrame:
+        from airqo_etl_utils.weather_data_utils import WeatherDataUtils
+
+        return WeatherDataUtils.transform_raw_data(data=data)
 
     @task()
-    def save_to_bigquery(inputs: dict):
+    def save_raw_data_to_bigquery(data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
-        from airqo_etl_utils.commons import un_fill_nan
-        from airqo_etl_utils.weather_data_utils import (
-            transform_weather_data_for_bigquery,
-        )
 
-        weather_data = un_fill_nan(inputs.get("data"))
-        bigquery_data = transform_weather_data_for_bigquery(data=weather_data)
+        from airqo_etl_utils.weather_data_utils import WeatherDataUtils
+
+        bigquery_data = WeatherDataUtils.transform_for_bigquery(data=data)
 
         big_query_api = BigQueryApi()
-        big_query_api.save_data(
-            data=bigquery_data, table=big_query_api.hourly_weather_table
+        big_query_api.load_data(
+            dataframe=bigquery_data, table=big_query_api.raw_weather_table
         )
 
-    extracted_data = extract()
-    save_to_bigquery(extracted_data)
+    @task()
+    def average_raw_data(data: pd.DataFrame) -> pd.DataFrame:
+        from airqo_etl_utils.weather_data_utils import WeatherDataUtils
+
+        return WeatherDataUtils.aggregate_data(data=data)
+
+    @task()
+    def save_hourly_data_to_bigquery(data: pd.DataFrame):
+        from airqo_etl_utils.bigquery_api import BigQueryApi
+
+        from airqo_etl_utils.weather_data_utils import WeatherDataUtils
+
+        bigquery_data = WeatherDataUtils.transform_for_bigquery(data=data)
+
+        big_query_api = BigQueryApi()
+        big_query_api.load_data(
+            dataframe=bigquery_data, table=big_query_api.hourly_weather_table
+        )
+
+    raw_data = extract()
+    transformed_data = transform(raw_data)
+    save_raw_data_to_bigquery(transformed_data)
+    averaged_data = average_raw_data(transformed_data)
+    save_hourly_data_to_bigquery(averaged_data)
 
 
-historical_weather_measurements_etl_dag = historical_hourly_weather_measurements_etl()
-hourly_weather_measurements_etl_dag = hourly_weather_measurements_etl()
+historical_raw_weather_measurements_etl_dag = historical_raw_weather_measurements_etl()
+historical_hourly_weather_measurements_etl_dag = (
+    historical_hourly_weather_measurements_etl()
+)
+weather_measurements_etl_dag = weather_measurements_etl()

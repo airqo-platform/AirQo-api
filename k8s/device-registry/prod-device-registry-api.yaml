@@ -10,7 +10,7 @@ spec:
   selector:
     matchLabels:
       app: device-reg-api
-  replicas: 2
+  replicas: 3
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -29,17 +29,17 @@ spec:
           ports:
             - containerPort: 3000
               name: device-reg-api
-          # readinessProbe:
-          #   httpGet:
-          #     path: /health
-          #     port: 3000
-          #   initialDelaySecond: 5
-          #   periodSeconds: 3
-          #   successThreshold: 1
           envFrom:
             - configMapRef:
                 name: env-device-registry-production
-
+          volumeMounts:
+          - name: config-volume
+            mountPath: /etc/config
+      volumes:
+        - name: config-volume
+          configMap:
+            name: device-registry-config-files
+            
 ---
 kind: Service
 apiVersion: v1

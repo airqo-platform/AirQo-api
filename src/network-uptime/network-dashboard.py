@@ -6,32 +6,52 @@ import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
 import requests
+from datetime import datetime, timedelta
 import streamlit as st
 
 dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
 load_dotenv(dotenv_path)
 
 BASE_API_URL = os.getenv('BASE_URL')
-START_QUERY_DATE = os.getenv('START_DATE')
-END_QUERY_DATE = os.getenv('END_DATE')
 
 matplotlib.use('Agg')
 
 st.set_page_config(page_title='NETWORK UPTIME AND DOWNTIME', layout="wide")
-st.title('Data report on network uptime and outages over the first quarter, 2022')
+st.title('Data report on network uptime and outages')
 
 
 api_url = f"{BASE_API_URL}/devices?tenant=airqo"
 results = requests.get(api_url)
 devices_data = results.json()["devices"]
 
+st.sidebar.markdown(
+    "<h1 style='text-align: center;'>SELECT QUERY DATE</h1>", unsafe_allow_html=True)
+side_row1_col1, side_row1_col2 = st.sidebar.columns([1, 1])
+with side_row1_col1:
+    selected_start_date = st.date_input(
+        'start date', datetime.now() - timedelta(weeks=12))
+with side_row1_col2:
+    selected_end_date = st.date_input(
+        'end date', datetime.now())
+
+st.sidebar.markdown("""---""")
+st.sidebar.markdown(
+    "<h2 style='text-align: center;'>FILTER</h2>", unsafe_allow_html=True)
+selected_start_date_formated = datetime.fromisoformat(selected_start_date.strftime(
+    "%Y-%m-%d %H:%M:%S"))
+selected_end_date_formated = datetime.fromisoformat(selected_end_date.strftime(
+    "%Y-%m-%d %H:%M:%S"))
+
+
 device_name = devices_name = [data['name'] for data in devices_data]
 selected_device = st.sidebar.selectbox('Device name', device_name)
 
 
 @st.cache(suppress_st_warning=True)
-def load_device_data(device):
-    api = f"{BASE_API_URL}/monitor/devices/uptime?tenant=airqo&startDate={START_QUERY_DATE}&endDate={END_QUERY_DATE}&device_name=" + device
+def load_device_data(device, startDate, endDate):
+    api = f"{BASE_API_URL}/monitor/devices/uptime?tenant=airqo&startDate=" \
+        + startDate.isoformat() + ".001Z&endDate=" + endDate.isoformat() \
+        + ".001Z&device_name=" + device
     api_result = requests.get(api)
     try:
         values = api_result.json()['data'][0]['values']
@@ -79,7 +99,8 @@ def load_device_dataframe(json_data):
     return device_name_data
 
 
-json_data = load_device_data(selected_device)
+json_data = load_device_data(
+    device=selected_device, startDate=selected_start_date_formated, endDate=selected_end_date_formated)
 device_name_data = load_device_dataframe(json_data)
 
 device_name_data_year = device_name_data.index.year.unique()

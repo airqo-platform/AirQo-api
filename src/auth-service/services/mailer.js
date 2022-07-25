@@ -3,6 +3,7 @@ const { logObject, logText } = require("../utils/log");
 const isEmpty = require("is-empty");
 const constants = require("../config/constants");
 const msgs = require("../utils/email.msgs");
+const msgTemplates = require("../utils/email.templates");
 const httpStatus = require("http-status");
 
 const mailer = {
@@ -23,6 +24,50 @@ const mailer = {
       };
 
       let response = transporter.sendMail(mailOptions);
+      let data = await response;
+      if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
+        return {
+          success: true,
+          message: "email successfully sent",
+          data,
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: false,
+          message: "email not sent",
+          status: httpStatus.BAD_GATEWAY,
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "mailer server error",
+        error: error.message,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  inquiry: async (fullName, email, category, message, tenant) => {
+    try {
+      let bcc = "";
+
+      if (tenant.toLowerCase() === "airqo") {
+        bcc = constants.REQUEST_ACCESS_EMAILS;
+      }
+
+      const categoryNameWithFirstLetterCapital =
+        category.charAt(0).toUpperCase() + category.slice(1);
+
+      const mailOptionsForAirQo = {
+        to: `${email}`,
+        subject: `Welcome to AirQo, for ${categoryNameWithFirstLetterCapital}`,
+        html: msgTemplates.inquiryTemplate(fullName),
+        bcc,
+      };
+
+      let response = transporter.sendMail(mailOptionsForAirQo);
       let data = await response;
       if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
         return {

@@ -1,0 +1,44 @@
+[
+  {
+    "name": "tenant",
+    "type": "STRING",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "site_id",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "device_id",
+    "type": "STRING",
+    "mode": "NULLABLE",
+    "description": "string that uniquely identifies a device in an organisation"
+  },
+  {
+    "name": "device_number",
+    "type": "INTEGER",
+    "mode": "NULLABLE",
+     "description": "integer that uniquely identifies a device in an organisation"
+  },
+  {
+    "name": "device_name",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "latitude",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "longitude",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "category",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  }
+]

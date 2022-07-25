@@ -24,6 +24,17 @@ jobs:
             echo "::set-output name=build_id::stage-${sha}-${timestamp}"
             echo "::set-output name=datetime::${datetime}"
 
+  branch-name:
+    name: Format branch name string
+    runs-on: ubuntu-latest
+    outputs:
+      lowercase: ${{ steps.string.outputs.lowercase }} # lowercase version
+    steps:
+      - id: string
+        uses: ASzc/change-string-case-action@v2
+        with:
+          string: ${{ github.head_ref || github.ref_name }}
+
   check:
     if: github.event.pull_request.merged == true
     #if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true
@@ -46,9 +57,14 @@ jobs:
       run_average_jobs: ${{ steps.check_files.outputs.run_average_jobs }} # average and calibration jobs
       run_events_check: ${{ steps.check_files.outputs.run_events_check }} # event checks
       run_notifications: ${{ steps.check_files.outputs.run_notifications }} # notification
+      run_kafka_cluster_operator: ${{ steps.check_files.outputs.run_kafka_cluster_operator }} # kafka cluster operator
+      run_kafka_cluster: ${{ steps.check_files.outputs.run_kafka_cluster }} # kafka cluster
+      run_kafka_topics: ${{ steps.check_files.outputs.run_kafka_topics }} # kafka topics
       run_airflow: ${{ steps.check_files.outputs.run_airflow }} # airflow
       run_network_uptime: ${{ steps.check_files.outputs.run_network_uptime }} # network_uptime
       run_channel_data: ${{ steps.check_files.outputs.run_channel_data }} # channel data job
+      run_message_broker_topics: ${{ steps.check_files.outputs.run_message_broker_topics }} # message broker topics
+      run_fault_detection: ${{ steps.check_files.outputs.run_fault_detection }} # fault detection
 
     runs-on: ubuntu-latest
     steps:
@@ -84,9 +100,14 @@ jobs:
           echo "::set-output name=run_average_jobs::false"
           echo "::set-output name=run_events_check::false"
           echo "::set-output name=run_notifications::false"
+          echo "::set-output name=run_kafka_cluster_operator::false"
+          echo "::set-output name=run_kafka_cluster::false"
+          echo "::set-output name=run_kafka_topics::false"
           echo "::set-output name=run_airflow::false"
           echo "::set-output name=run_network_uptime::false"
           echo "::set-output name=run_channel_data::false"
+          echo "::set-output name=run_message_broker_topics::false"
+          echo "::set-output name=run_fault_detection::false"
 
           while IFS= read -r file
           do
@@ -159,6 +180,18 @@ jobs:
               echo "::set-output name=run_notifications::true"
             fi
 
+            if [[ $file == k8s/kafka-clusters/* ]]; then
+              echo "::set-output name=run_kafka_cluster::true"
+            fi
+
+            if [[ $file == k8s/kafka-operator/* ]]; then
+              echo "::set-output name=run_kafka_cluster_operator::true"
+            fi
+
+            if [[ $file == k8s/kafka-topics/* ]]; then
+              echo "::set-output name=run_kafka_topics::true"
+            fi
+
             if [[ $file == src/airflow/* ]]; then
               echo "::set-output name=run_airflow::true"
             fi
@@ -169,6 +202,14 @@ jobs:
             
             if [[ $file == src/channel-data/* ]]; then
               echo "::set-output name=run_channel_data::true"
+            fi
+
+            if [[ $file == src/fault-detection/* ]]; then
+              echo "::set-output name=run_fault_detection::true"
+            fi
+
+            if [[ $file == k8s/message-broker-topics/* ]]; then
+              echo "::set-output name=run_message_broker_topics::true"
             fi
 
             if [[ $file == workflow-trigger ]]; then
@@ -191,10 +232,12 @@ jobs:
               echo "::set-output name=run_airflow::true"
               echo "::set-output name=run_network_uptime::true"
               echo "::set-output name=run_channel_data::true"
+              echo "::set-output name=run_fault_detection::true"
+              echo "::set-output name=run_view::true"
+              echo "::set-output name=run_message_broker_topics::true"
             fi
 
           done < files.txt
-
 
   ### auth service ###
   auth-service:
@@ -232,6 +275,100 @@ jobs:
           kubectl set image deployment/airqo-stage-auth-api sta-auth-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-auth-api:${{ needs.image-tag.outputs.build_id }} -n staging
           kubectl annotate deployment/airqo-stage-auth-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-auth-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
 
+      # clean up after merge
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          
+      - name: Setup Cloud SDK
+        uses: 'google-github-actions/setup-gcloud@v0'
+        
+      - name: Delete PR deploy preview
+        run: |-
+          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-auth-service-preview \
+            --region=${{ secrets.REGION }} \
+            --quiet
+
+  #### Fault Detection ######
+  fault-detection:
+    name: build-push-deploy-fault-detection
+    needs: [check, image-tag]
+    if: needs.check.outputs.run_fault_detection == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      -
+        name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
+      -
+        name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+      - 
+        name: Login to GCR
+        uses: docker/login-action@v1
+        with:
+          registry: ${{ secrets.REGISTRY_URL }}
+          username: _json_key
+          password: ${{ secrets.GCR_CONFIG }}
+      -
+        name: Build and push train catboost model
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          context: src/fault-detection
+          target: train-catboost-model
+          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-train-catboost-model:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-train-catboost-model:latest
+      -
+        name: Build and push train lstm model
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          context: src/fault-detection
+          target: train-lstm-model
+          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-train-lstm-model:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-train-lstm-model:latest
+      -
+        name: Build and push fault detection API
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          context: src/fault-detection
+          target: staging
+          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-fault-detection-api:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-fault-detection-api:latest
+      - 
+        name: Login to k8s cluster
+        uses: azure/k8s-set-context@v1
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+      - 
+        name: Deploy to k8s cluster
+        run: |
+          kubectl apply -f k8s/fault-detection/stage-fault-detection-api.yaml -n staging
+          kubectl rollout restart deployment stage-fault-detection-api  -n staging
+
+  ### message broker topics ###
+  message-broker-topics:
+    name: build-push-deploy-message-broker-topics
+    needs: [check]
+    if: needs.check.outputs.run_message_broker_topics == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - 
+        name: Login to K8S
+        uses: azure/k8s-set-context@v1
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_PIPELINE_CONFIG }}
+      - 
+        name: Deploy to K8S
+        run: |
+          kubectl apply -f k8s/message-broker-topics/stage-kafka-topics.yaml -n staging
+
   ### airflow ###
   airflow:
     name: build-push-deploy-airflow
@@ -261,13 +398,21 @@ jobs:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_PIPELINE_CONFIG }}
       -
-        name: Build and push
+        name: Build and push app
         uses: docker/build-push-action@v2
         with:
           push: true
           context: src/airflow
           target: deployment
           tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-apache-airflow:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-apache-airflow:latest
+      -
+        name: Build and push XCom
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          context: src/airflow
+          target: xcom-setup
+          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-apache-airflow-xcom:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-apache-airflow-xcom:latest
 
       # - name: Deploy to K8S
       #   uses: Azure/k8s-deploy@v1.4
@@ -286,7 +431,7 @@ jobs:
   ### predict api and jobs ###
   predict-service:
     name: build-push-deploy-predict-service
-    needs: [check, image-tag]
+    needs: [check, image-tag, branch-name]
     if: needs.check.outputs.run_predict == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -343,11 +488,93 @@ jobs:
           kubectl rollout restart deployment airqo-stage-prediction-api  -n staging
           kubectl apply -f k8s/predict/stage-airqo-predict-job.yaml -n staging
           kubectl apply -f k8s/predict/stage-airqo-train-job.yaml -n staging
+  
+      # clean up after merge
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          
+      - name: Setup Cloud SDK
+        uses: 'google-github-actions/setup-gcloud@v0'
+        
+      - name: Delete PR deploy preview
+        run: |-
+          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-predict-service \
+            --region=${{ secrets.REGION }} \
+            --quiet
+
+  ### kafka cluster operator ###
+  kafka-cluster-operator:
+    name: build-push-deploy-kafka-cluster-operator
+    needs: [check]
+    if: needs.check.outputs.run_kafka_cluster_operator == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - 
+        name: Checkout
+        uses: actions/checkout@v2
+      - 
+        name: Login to K8S
+        uses: azure/k8s-set-context@v1
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+      -
+        name: Deploy to K8S
+        run: |
+          kubectl apply -f k8s/kafka-operator/namespace.yaml
+          bash k8s/kafka-operator/deployment-script.sh
+
+  ### kafka cluster ###
+  kafka-cluster:
+    name: build-push-deploy-kafka-cluster
+    needs: [check]
+    if: ${{ (needs.check.outputs.run_kafka_cluster == 'true') || (needs.check.outputs.run_kafka_cluster_operator == 'true') }}
+    runs-on: ubuntu-latest
+    steps:
+      - 
+        name: Checkout
+        uses: actions/checkout@v2
+      - 
+        name: Login to K8S
+        uses: azure/k8s-set-context@v1
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+      -
+        name: Deploy to K8S
+        run: |
+          export KAFKA_BROKER_0=${{ secrets.STAGE_KAFKA_BROKER_0 }}
+          export KAFKA_BROKER_1=${{ secrets.STAGE_KAFKA_BROKER_1 }}
+          export KAFKA_BROKER_2=${{ secrets.STAGE_KAFKA_BROKER_2 }}
+          cat k8s/kafka-clusters/kafka-cluster.yaml | sed "s/{{KAFKA_BROKER_0}}/$STAGE_KAFKA_BROKER_0/g" | sed "s/{{KAFKA_BROKER_1}}/$STAGE_KAFKA_BROKER_1/g" | sed "s/{{KAFKA_BROKER_2}}/$STAGE_KAFKA_BROKER_2/g" | kubectl apply -n message-broker -f-
+
+  ### kafka topics ###
+  kafka-topics:
+    name: build-push-deploy-kafka-topics
+    needs: [check]
+    if: ${{ (needs.check.outputs.run_kafka_cluster == 'true') || (needs.check.outputs.run_kafka_topics == 'true') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - 
+        name: Login to K8S
+        uses: azure/k8s-set-context@v1
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+      - 
+        name: Deploy to K8S
+        run: |
+          kubectl apply -f k8s/kafka-topics/kafka-topics.yaml -n message-broker
 
   #### Device Registry ######
   device-registry:
     name: build-push-deploy-device-registry
-    needs: [check, image-tag]
+    needs: [check, image-tag, branch-name]
     if: needs.check.outputs.run_device_registry == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -380,10 +607,26 @@ jobs:
           kubectl set image deployment/airqo-stage-device-registry-api sta-dev-reg-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-registry-api:${{ needs.image-tag.outputs.build_id }} -n staging
           kubectl annotate deployment/airqo-stage-device-registry-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-registry-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
 
+      # clean up after merge
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          
+      - name: Setup Cloud SDK
+        uses: 'google-github-actions/setup-gcloud@v0'
+        
+      - name: Delete PR deploy preview
+        run: |-
+          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-device-registry-preview \
+            --region=${{ secrets.REGION }} \
+            --quiet
+
   ### device monitoring ###
   device-monitoring:
     name: build-push-deploy-device-monitoring
-    needs: [check, image-tag]
+    needs: [check, image-tag, branch-name]
     if: needs.check.outputs.run_device_monitoring == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -418,6 +661,22 @@ jobs:
           kubectl set image deployment/airqo-stage-device-monitor-api sta-dev-monitor=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-monitor-api:${{ needs.image-tag.outputs.build_id }} -n staging
           kubectl annotate deployment/airqo-stage-device-monitor-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-monitor-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
   
+      # clean up after merge
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          
+      - name: Setup Cloud SDK
+        uses: 'google-github-actions/setup-gcloud@v0'
+        
+      - name: Delete PR deploy preview
+        run: |-
+          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-device-monitoring-preview \
+            --region=${{ secrets.REGION }} \
+            --quiet
+
   ### data-mgt ###
   data-mgt:
     name: build-push-deploy-data-mgt
@@ -451,10 +710,26 @@ jobs:
           kubectl apply -f k8s/data-mgt/stage-data-mgt-api.yaml -n staging
           kubectl rollout restart deployment/airqo-stage-data-mgt-api -n staging
   
+      # clean up after merge
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          
+      - name: Setup Cloud SDK
+        uses: 'google-github-actions/setup-gcloud@v0'
+        
+      - name: Delete PR deploy preview
+        run: |-
+          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-data-mgt-preview \
+            --region=${{ secrets.REGION }} \
+            --quiet
+
   ### analytics ###
   analytics:
     name: build-push-deploy-analytics
-    needs: [check, image-tag]
+    needs: [check, image-tag, branch-name]
     if: needs.check.outputs.run_analytics == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -490,6 +765,22 @@ jobs:
           kubectl set image deployment/airqo-stage-analytics-api sta-alytics-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-analytics-api:${{ needs.image-tag.outputs.build_id }} -n staging
           kubectl annotate deployment/airqo-stage-analytics-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-analytics-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
   
+      # clean up after merge
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          
+      - name: Setup Cloud SDK
+        uses: 'google-github-actions/setup-gcloud@v0'
+        
+      - name: Delete PR deploy preview
+        run: |-
+          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-analytics-preview \
+            --region=${{ secrets.REGION }} \
+            --quiet
+  
   ### device uptime ###
   device-uptime:
     name: build-push-deploy-device-uptime
@@ -500,8 +791,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
       
-      ### run unit tests ###
-      
+      ### run unit tests ###  
       - name: Login to GCR
         uses: docker/login-action@v1
         with:
@@ -523,7 +813,7 @@ jobs:
       - name: Deploy to K8S
         run: |
           kubectl apply -f k8s/device-uptime/stage-airqo-device-uptime-job.yaml
-  
+
   ### device status ###
   device-status:
     name: build-push-deploy-device-status
@@ -561,7 +851,7 @@ jobs:
   ### locate ###
   locate:
     name: build-push-deploy-locate
-    needs: [check, image-tag]
+    needs: [check, image-tag, branch-name]
     if: needs.check.outputs.run_locate == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -595,6 +885,22 @@ jobs:
           kubectl apply -f k8s/locate/stage-locate-api.yaml -n staging
           kubectl set image deployment/airqo-stage-locate-api sta-locate-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-locate-api:${{ needs.image-tag.outputs.build_id }} -n staging
           kubectl annotate deployment/airqo-stage-locate-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-locate-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
+  
+      # clean up after merge
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          
+      - name: Setup Cloud SDK
+        uses: 'google-github-actions/setup-gcloud@v0'
+        
+      - name: Delete PR deploy preview
+        run: |-
+          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-locate \
+            --region=${{ secrets.REGION }} \
+            --quiet
   
   ### gp model ###
   gp-model:
@@ -633,7 +939,7 @@ jobs:
   ### exceddences ###
   exceedance:
     name: build-push-deploy-exceedances
-    needs: check
+    needs: [check, image-tag, branch-name]
     if: needs.check.outputs.run_exceedances == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -654,25 +960,32 @@ jobs:
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
-      
-      - name: Build and Push Docker Image
+      -
+        name: Build and push AirQo Docker image
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          context: src/exceedances
+          target: airqo-staging
+          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-airqo-exceedance-job:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-airqo-exceedance-job:latest
+      -
+        name: Build and push KCCA Docker image
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          context: src/exceedances
+          target: kcca-staging
+          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-kcca-exceedance-job:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-kcca-exceedance-job:latest
+      - 
+        name: Deploy to K8S
         run: |
-          cd src/exceedances/
-          docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-airqo-exceedance-job:latest -f Dockerfile.stage.airqo .
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-airqo-exceedance-job:latest
-
-          docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-kcca-exceedance-job:latest -f Dockerfile.stage.kcca .
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-kcca-exceedance-job:latest
-      - name: Deploy to K8S
-        run: |
-          cd k8s/exceedance/
-          kubectl apply -f stage-airqo-exceedance-job.yaml
-          kubectl apply -f stage-kcca-exceedance-job.yaml
-
+          kubectl apply -f k8s/exceedance/stage-airqo-exceedance-job.yaml
+          kubectl apply -f k8s/exceedance/stage-kcca-exceedance-job.yaml
+  
   ### datawarehouse ###
   datawarehouse:
     name: build-push-deploy-datawarehouse
-    needs: [check, image-tag]
+    needs: [check, image-tag, branch-name]
     if: needs.check.outputs.run_datawarehouse == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -708,10 +1021,26 @@ jobs:
           kubectl set image deployment/airqo-stage-datawarehouse-api datawarehouse=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-datawarehouse-api:${{ needs.image-tag.outputs.build_id }} -n staging
           kubectl annotate deployment/airqo-stage-datawarehouse-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-datawarehouse-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
   
+      # clean up after merge
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          
+      - name: Setup Cloud SDK
+        uses: 'google-github-actions/setup-gcloud@v0'
+        
+      - name: Delete PR deploy preview
+        run: |-
+          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-datawarehouse \
+            --region=${{ secrets.REGION }} \
+            --quiet
+  
   ### view  ###
   view:
     name: build-push-deploy-view
-    needs: [check, image-tag]
+    needs: [check, image-tag, branch-name]
     if: needs.check.outputs.run_view == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -763,11 +1092,27 @@ jobs:
         run: |
           kubectl apply -f k8s/view-api/stage-view-message-broker.yaml -n staging
           kubectl rollout restart deployment airqo-stage-view-message-broker  -n staging
+  
+      # clean up after merge
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          
+      - name: Setup Cloud SDK
+        uses: 'google-github-actions/setup-gcloud@v0'
+        
+      - name: Delete PR deploy preview
+        run: |-
+          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-view \
+            --region=${{ secrets.REGION }} \
+            --quiet
 
   #### Calibrate ######
   calibrate:
     name: build-push-deploy-calibrate
-    needs: [check, image-tag]
+    needs: [check, image-tag, branch-name]
     if: needs.check.outputs.run_calibrate == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -828,11 +1173,27 @@ jobs:
           kubectl set image deployment/airqo-stage-calibrate-api calibrate-pickle=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-calibrate-pickle-file:${{ needs.image-tag.outputs.build_id }} -n staging
           kubectl set image deployment/airqo-stage-calibrate-api sta-calibrate=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-calibrate-api:${{ needs.image-tag.outputs.build_id }} -n staging
           kubectl annotate deployment/airqo-stage-calibrate-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-calibrate-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
+  
+      # clean up after merge
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          
+      - name: Setup Cloud SDK
+        uses: 'google-github-actions/setup-gcloud@v0'
+        
+      - name: Delete PR deploy preview
+        run: |-
+          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-calibrate \
+            --region=${{ secrets.REGION }} \
+            --quiet
 
   ### events check ###
   events-check:
     name: build-push-events-check
-    needs: [check, image-tag]
+    needs: [check, image-tag, branch-name]
     if: needs.check.outputs.run_events_check == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -862,11 +1223,27 @@ jobs:
       - name: Deploy to K8S
         run: |
           kubectl apply -f k8s/events-monitor/stage-events-notifs-cronjob.yaml -n staging
+  
+      # clean up after merge
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          
+      - name: Setup Cloud SDK
+        uses: 'google-github-actions/setup-gcloud@v0'
+        
+      - name: Delete PR deploy preview
+        run: |-
+          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-events-check \
+            --region=${{ secrets.REGION }} \
+            --quiet
 
   #### notification ######
   notification:
     name: build-push-deploy-notification
-    needs: [check, image-tag]
+    needs: [check, image-tag, branch-name]
     if: needs.check.outputs.run_notifications == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -900,11 +1277,27 @@ jobs:
           kubectl apply -f k8s/notification-service/stage-notification-api.yaml
           kubectl set image deployment/airqo-stage-notification-api sta-notification-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-notification-api:${{ needs.image-tag.outputs.build_id }} -n staging
           kubectl annotate deployment/airqo-stage-notification-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-notification-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
+  
+      # clean up after merge
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          
+      - name: Setup Cloud SDK
+        uses: 'google-github-actions/setup-gcloud@v0'
+        
+      - name: Delete PR deploy preview
+        run: |-
+          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-notifications \
+            --region=${{ secrets.REGION }} \
+            --quiet
 
   ### network uptime ###
   network-uptime:
     name: build-push-network-uptime
-    needs: [check, image-tag]
+    needs: [check, image-tag, branch-name]
     if: needs.check.outputs.run_network_uptime == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -937,10 +1330,26 @@ jobs:
           kubectl set image deployment/airqo-stage-network-uptime-api sta-network-uptime=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-network-uptime-api:${{ needs.image-tag.outputs.build_id }} -n staging
           kubectl annotate deployment/airqo-stage-network-uptime-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-network-uptime-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
   
+      # clean up after merge
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          
+      - name: Setup Cloud SDK
+        uses: 'google-github-actions/setup-gcloud@v0'
+        
+      - name: Delete PR deploy preview
+        run: |-
+          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-network_uptime \
+            --region=${{ secrets.REGION }} \
+            --quiet
+  
   #### Channel data ######
   channel-data:
     name: build-push-deploy-channel-data-job
-    needs: [check, image-tag]
+    needs: [check, image-tag, branch-name]
     if: needs.check.outputs.run_channel_data == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -968,4 +1377,19 @@ jobs:
       - name: Deploy to K8S
         run: |
           kubectl apply -f k8s/channel-data/stage-airqo-update-channel-data-job.yaml -n staging
-    
+  
+      # clean up after merge
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          
+      - name: Setup Cloud SDK
+        uses: 'google-github-actions/setup-gcloud@v0'
+        
+      - name: Delete PR deploy preview
+        run: |-
+          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-channel-data \
+            --region=${{ secrets.REGION }} \
+            --quiet    

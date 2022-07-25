@@ -26,13 +26,7 @@ spec:
         - name: calibrate-pickle
           image: us.gcr.io/airqo-250220/airqo-stage-calibrate-pickle-file:latest
           imagePullPolicy: Always
-          resources:
-            requests:
-              memory: 256Mi
-              cpu: "500m"
-            limits:
-              memory: 1Gi
-              cpu: "2000m"
+          resources: {}
           envFrom:
             - configMapRef:
                 name: stage-calibrate-api-config
@@ -65,7 +59,7 @@ spec:
               memory: 256Mi
               cpu: "500m"
             limits:
-              memory: 1Gi
+              memory: 2Gi
               cpu: "2000m"
           env:
             - name: RF_REG_MODEL

@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const joinController = require("../controllers/join");
 const requestController = require("../controllers/request");
+const inquiryController = require("../controllers/inquire");
 const defaultsController = require("../controllers/defaults");
 const organizationController = require("../controllers/create-organization");
 const { check, oneOf, query, body, param } = require("express-validator");
@@ -197,6 +198,42 @@ router.delete(
   setJWTAuth,
   authJWT,
   joinController.delete
+);
+
+router.post(
+  "/newsletter/subscribe",
+  oneOf([
+    query("tenant")
+      .if(query("tenant").exists())
+      .notEmpty()
+      .withMessage("tenant cannot be empty if provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    [
+      body("email")
+        .exists()
+        .withMessage("the email must be provided")
+        .bail()
+        .isEmail()
+        .withMessage("this is not a valid email address")
+        .trim(),
+      body("tags")
+        .optional()
+        .notEmpty()
+        .withMessage("the tags should not be empty if provided")
+        .bail()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the tags should be an array"),
+    ],
+  ]),
+  joinController.subscribeToNewsLetter
 );
 
 /************************* settings/defaults **********************************/
@@ -579,6 +616,7 @@ router.post(
     body("email")
       .exists()
       .withMessage("the email should be provided")
+      .bail()
       .isEmail()
       .withMessage("this is not a valid email address")
       .trim(),
@@ -691,6 +729,155 @@ router.put(
   setJWTAuth,
   authJWT,
   requestController.update
+);
+
+//************************ inquiries ***********************************************
+router.post(
+  "/inquiries/register",
+  oneOf([
+    query("tenant")
+      .exists()
+      .withMessage("tenant should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    [
+      body("email")
+        .exists()
+        .withMessage("the email should be provided")
+        .bail()
+        .trim()
+        .isEmail()
+        .withMessage("this is not a valid email address"),
+      body("category")
+        .exists()
+        .withMessage("the category should be provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn([
+          "general",
+          "data",
+          "feedback",
+          "monitors",
+          "partners",
+          "researchers",
+          "policy",
+          "champions",
+          "developers",
+        ])
+        .withMessage(
+          "the category value is not among the expected ones which are: general, data, feedback, monitors, partners,researchers,policy,champions,developers"
+        ),
+      body("message")
+        .exists()
+        .withMessage("the message should be provided")
+        .bail()
+        .trim(),
+      body("fullName")
+        .exists()
+        .withMessage("the fullName should be provided")
+        .bail()
+        .trim(),
+    ],
+  ]),
+  inquiryController.create
+);
+router.get(
+  "/inquiries",
+  oneOf([
+    query("tenant")
+      .exists()
+      .withMessage("tenant should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  setJWTAuth,
+  authJWT,
+  inquiryController.list
+);
+
+router.delete(
+  "/inquiries",
+  oneOf([
+    query("tenant")
+      .exists()
+      .withMessage("tenant should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    query("id")
+      .exists()
+      .withMessage(
+        "the candidate identifier is missing in request, consider using the id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+  ]),
+  setJWTAuth,
+  authJWT,
+  inquiryController.delete
+);
+router.put(
+  "/inquiries",
+  oneOf([
+    query("tenant")
+      .exists()
+      .withMessage("tenant should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    query("id")
+      .exists()
+      .withMessage(
+        "the candidate identifier is missing in request, consider using the id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+  ]),
+  oneOf([
+    [
+      body("status")
+        .if(body("status").exists())
+        .notEmpty()
+        .trim()
+        .toLowerCase()
+        .isIn(["pending", "rejected"])
+        .withMessage(
+          "the status value is not among the expected ones which include: rejected and pending"
+        ),
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  inquiryController.update
 );
 
 /**************** create organization use case ***********************/

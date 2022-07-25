@@ -531,6 +531,7 @@ const generateFilter = {
         device_name,
         device_id,
         device_number,
+        category,
       } = req.query;
 
       if (name) {
@@ -549,6 +550,10 @@ const generateFilter = {
 
       if (channel) {
         filter["device_number"] = channel;
+      }
+
+      if (category) {
+        filter["category"] = category;
       }
 
       if (device_number) {
@@ -641,6 +646,8 @@ const generateFilter = {
       county,
       parish,
       name,
+      _id,
+      google_place_id,
     } = req.query;
     let filter = {};
 
@@ -658,6 +665,14 @@ const generateFilter = {
 
     if (id) {
       filter["_id"] = ObjectId(id);
+    }
+
+    if (_id) {
+      filter["_id"] = ObjectId(_id);
+    }
+
+    if (google_place_id) {
+      filter["google_place_id"] = google_place_id;
     }
 
     if (generated_name) {
@@ -691,11 +706,15 @@ const generateFilter = {
     return filter;
   },
   airqlouds: (req) => {
-    let { id, name, admin_level } = req.query;
+    let { id, name, admin_level, summary } = req.query;
     let filter = {};
 
     if (name) {
       filter["name"] = name;
+    }
+
+    if (summary === "yes") {
+      filter["summary"] = summary;
     }
 
     if (id) {

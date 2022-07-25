@@ -1,9 +1,11 @@
 import traceback
 
+import pandas as pd
 import requests
 import simplejson
 
 from airqo_etl_utils.config import configuration
+from airqo_etl_utils.constants import DeviceCategory
 
 
 class AirQoApi:
@@ -40,6 +42,52 @@ class AirQoApi:
         elif "device_activities" in response:
             return response["device_activities"]
         return []
+
+    def calibrate_data(self, time: str, data: pd.DataFrame, cols: dict) -> list:
+        data.rename(
+            columns={
+                cols["device_number"]: "device_id",
+                cols["s1_pm2_5"]: "sensor1_pm2.5",
+                cols["s2_pm2_5"]: "sensor2_pm2.5",
+                cols["s1_pm10"]: "sensor1_pm10",
+                cols["s2_pm10"]: "sensor2_pm10",
+                cols["temperature"]: "temperature",
+                cols["humidity"]: "humidity",
+            },
+            inplace=True,
+        )
+        data = data[
+            [
+                "device_id",
+                "sensor1_pm2.5",
+                "sensor2_pm2.5",
+                "sensor1_pm10",
+                "sensor2_pm10",
+                "temperature",
+                "humidity",
+            ]
+        ]
+
+        request_body = {"datetime": time, "raw_values": data.to_dict("records")}
+
+        base_url = (
+            self.CALIBRATION_BASE_URL
+            if self.CALIBRATION_BASE_URL
+            else self.AIRQO_BASE_URL
+        )
+
+        try:
+            response = self.__request(
+                endpoint="calibrate",
+                method="post",
+                body=request_body,
+                base_url=base_url,
+            )
+            return response if response else []
+        except Exception as ex:
+            traceback.print_exc()
+            print(ex)
+            return []
 
     def get_calibrated_values(self, time: str, calibrate_body: list) -> list:
         calibrated_data = []
@@ -103,18 +151,31 @@ class AirQoApi:
 
         return calibrated_data
 
-    def get_devices(self, tenant, all_devices=True) -> list:
-        params = {
-            "tenant": tenant,
-        }
-        if not all_devices:
-            params["active"] = "yes"
-        response = self.__request("devices", params)
+    def get_devices(self, tenant=None, category: DeviceCategory = None) -> list:
 
-        if "devices" in response:
-            return response["devices"]
+        devices_with_tenant = []
 
-        return []
+        if tenant:
+            params = {"tenant": tenant}
+            if category:
+                params["category"] = category.get_api_query_str()
+            response = self.__request("devices", params)
+            if "devices" in response:
+                for device in response["devices"]:
+                    device["tenant"] = tenant
+                    devices_with_tenant.append(device)
+        else:
+            for x in ["airqo", "kcca"]:
+                params = {"tenant": x}
+                if category:
+                    params["category"] = category.get_api_query_str()
+                response = self.__request("devices", params)
+                if "devices" in response:
+                    for device in response["devices"]:
+                        device["tenant"] = x
+                        devices_with_tenant.append(device)
+
+        return devices_with_tenant
 
     def get_read_keys(self, devices: list) -> dict:
 
@@ -228,9 +289,8 @@ class AirQoApi:
         if tenant:
             response = self.__request("devices/sites", {"tenant": tenant})
             if "sites" in response:
-                sites = response["sites"]
                 sites_with_tenant = []
-                for site in sites:
+                for site in response["sites"]:
                     site["tenant"] = tenant
                     sites_with_tenant.append(site)
                 return sites_with_tenant
@@ -239,8 +299,7 @@ class AirQoApi:
             for x in ["airqo", "kcca"]:
                 response = self.__request("devices/sites", {"tenant": x})
                 if "sites" in response:
-                    sites = response["sites"]
-                    for site in sites:
+                    for site in response["sites"]:
                         site["tenant"] = x
                         sites_with_tenant.append(site)
             return sites_with_tenant

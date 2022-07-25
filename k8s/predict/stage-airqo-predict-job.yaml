@@ -17,7 +17,7 @@ spec:
           schedulerName: default-scheduler
           containers:
           - name: stage-airqo-predict-job
-            image: us.gcr.io/airqo-250220/airqo-stage-predict-job:latest
+            image: us.gcr.io/airqo-250220/stage-airqo-predict-job:latest
             imagePullPolicy: Always
             envFrom:
               - configMapRef:
@@ -25,6 +25,13 @@ spec:
             volumeMounts:
               - name: config-volume
                 mountPath: /etc/config
+            resources:
+              requests:
+                cpu: 20m
+                memory: 50Mi
+              limits:
+                cpu: 2000m
+                memory: 2Gi
           volumes:
             - name: config-volume
               configMap:

@@ -200,6 +200,43 @@ airqloudSchema.statics = {
   async list({ filter = {}, _limit = 1000, _skip = 0 } = {}) {
     try {
       logElement("the limit in the model", _limit);
+      const { summary } = filter;
+
+      let projectAll = {
+        _id: 1,
+        name: 1,
+        long_name: 1,
+        description: 1,
+        airqloud_tags: 1,
+        location: 1,
+        admin_level: 1,
+        isCustom: 1,
+        metadata: 1,
+        center_point: 1,
+        sites: "$sites",
+      };
+
+      const projectSummary = {
+        _id: 1,
+        name: 1,
+        long_name: 1,
+        admin_level: 1,
+        numberOfSites: {
+          $cond: {
+            if: { $isArray: "$sites" },
+            then: { $size: "$sites" },
+            else: "NA",
+          },
+        },
+      };
+
+      let projection = projectAll;
+
+      if (!isEmpty(summary)) {
+        projection = projectSummary;
+        delete filter.summary;
+      }
+
       let data = await this.aggregate()
         .match(filter)
         .lookup({
@@ -209,19 +246,7 @@ airqloudSchema.statics = {
           as: "sites",
         })
         .sort({ createdAt: -1 })
-        .project({
-          _id: 1,
-          name: 1,
-          long_name: 1,
-          description: 1,
-          airqloud_tags: 1,
-          location: 1,
-          admin_level: 1,
-          isCustom: 1,
-          metadata: 1,
-          center_point: 1,
-          sites: "$sites",
-        })
+        .project(projection)
         .project({
           "sites.altitude": 0,
           "sites.greenness": 0,
@@ -287,7 +312,11 @@ airqloudSchema.statics = {
   },
   async modify({ filter = {}, update = {} } = {}) {
     try {
-      let options = { new: true, useFindAndModify: false };
+      let options = {
+        new: true,
+        useFindAndModify: false,
+        projection: { location: 0, __v: 0 },
+      };
       let modifiedUpdateBody = update;
       if (update._id) {
         delete modifiedUpdateBody._id;

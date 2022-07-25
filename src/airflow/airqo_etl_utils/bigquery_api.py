@@ -2,114 +2,143 @@ import os
 
 import pandas as pd
 from google.cloud import bigquery
-from airqo_etl_utils.config import configuration
-import json
 
+from airqo_etl_utils.config import configuration
+from airqo_etl_utils.constants import JobAction, DataType
 from airqo_etl_utils.date import date_to_str
+from airqo_etl_utils.utils import get_file_content
 
 
 class BigQueryApi:
     def __init__(self):
         self.client = bigquery.Client()
         self.hourly_measurements_table = configuration.BIGQUERY_HOURLY_EVENTS_TABLE
+        self.raw_measurements_table = configuration.BIGQUERY_RAW_EVENTS_TABLE
+        self.bam_measurements_table = configuration.BIGQUERY_BAM_EVENTS_TABLE
+        self.bam_hourly_measurements_table = (
+            configuration.BIGQUERY_BAM_HOURLY_EVENTS_TABLE
+        )
+        self.raw_mobile_measurements_table = (
+            configuration.BIGQUERY_RAW_MOBILE_EVENTS_TABLE
+        )
+        self.airqo_mobile_measurements_table = (
+            configuration.BIGQUERY_AIRQO_MOBILE_EVENTS_TABLE
+        )
         self.hourly_weather_table = configuration.BIGQUERY_HOURLY_WEATHER_TABLE
+        self.raw_weather_table = configuration.BIGQUERY_RAW_WEATHER_TABLE
         self.analytics_table = configuration.BIGQUERY_ANALYTICS_TABLE
+        self.sites_table = configuration.BIGQUERY_SITES_TABLE
+        self.devices_table = configuration.BIGQUERY_DEVICES_TABLE
+        self.calibrated_hourly_measurements_table = (
+            configuration.BIGQUERY_CALIBRATED_HOURLY_EVENTS_TABLE
+        )
         self.package_directory, _ = os.path.split(__file__)
 
-        self.analytics_numeric_columns = self.get_column_names(
-            table=self.analytics_table, data_type="FLOAT"
-        )
-        self.hourly_measurements_numeric_columns = self.get_column_names(
-            table=self.hourly_measurements_table, data_type="FLOAT"
-        )
-        self.hourly_weather_numeric_columns = self.get_column_names(
-            table=self.hourly_weather_table, data_type="FLOAT"
-        )
-
-        self.hourly_measurements_columns = self.get_column_names(
-            table=self.hourly_measurements_table
-        )
-        self.hourly_weather_columns = self.get_column_names(
-            table=self.hourly_weather_table
-        )
-        self.analytics_columns = self.get_column_names(table=self.analytics_table)
-
     def validate_data(
-        self, dataframe: pd.DataFrame, columns: list, numeric_columns: list, table: str
+        self,
+        dataframe: pd.DataFrame,
+        table: str,
+        raise_column_exception=True,
+        date_time_columns=None,
+        float_columns=None,
+        integer_columns=None,
     ) -> pd.DataFrame:
+        columns = self.get_columns(table=table)
 
-        # time id depreciated. It will be replaced with timestamp
-        if table == self.hourly_measurements_table:
-            dataframe["time"] = dataframe["timestamp"]
-
-        if sorted(list(dataframe.columns)) != sorted(columns):
+        if set(columns).issubset(set(list(dataframe.columns))):
+            dataframe = dataframe[columns]
+        else:
             print(f"Required columns {columns}")
             print(f"Dataframe columns {list(dataframe.columns)}")
             print(
                 f"Difference between required and received {list(set(columns) - set(dataframe.columns))}"
             )
-            raise Exception("Invalid columns")
+            if raise_column_exception:
+                raise Exception("Invalid columns")
 
-        dataframe["timestamp"] = pd.to_datetime(dataframe["timestamp"])
-        dataframe[numeric_columns] = dataframe[numeric_columns].apply(
+        # validating timestamp
+        date_time_columns = (
+            date_time_columns
+            if date_time_columns
+            else self.get_columns(table=table, data_type=DataType.TIMESTAMP)
+        )
+        dataframe[date_time_columns] = dataframe[date_time_columns].apply(
+            pd.to_datetime, errors="coerce"
+        )
+
+        # validating floats
+        float_columns = (
+            float_columns
+            if float_columns
+            else self.get_columns(table=table, data_type=DataType.FLOAT)
+        )
+        dataframe[float_columns] = dataframe[float_columns].apply(
             pd.to_numeric, errors="coerce"
+        )
+
+        # validating integers
+        integer_columns = (
+            integer_columns
+            if integer_columns
+            else self.get_columns(table=table, data_type=DataType.INTEGER)
+        )
+        dataframe[integer_columns] = dataframe[integer_columns].apply(
+            lambda x: pd.to_numeric(x, errors="coerce", downcast="integer")
         )
 
         return dataframe
 
-    def get_column_names(self, table: str, data_type="") -> list:
-        if table == self.hourly_measurements_table:
-            schema_path = "schema/measurements.json"
-            schema = "measurements.json"
-        elif table == self.hourly_weather_table:
-            schema_path = "schema/weather_data.json"
-            schema = "weather_data.json"
+    def get_columns(self, table: str, data_type: DataType = DataType.NONE) -> list:
+
+        if (
+            table == self.hourly_measurements_table
+            or table == self.raw_measurements_table
+        ):
+            schema_file = "measurements.json"
+        elif table == self.hourly_weather_table or table == self.raw_weather_table:
+            schema_file = "weather_data.json"
+        elif table == self.calibrated_hourly_measurements_table:
+            schema_file = "calibrated_measurements.json"
         elif table == self.analytics_table:
-            schema_path = "schema/data_warehouse.json"
-            schema = "data_warehouse.json"
+            schema_file = "data_warehouse.json"
+        elif table == self.sites_table:
+            schema_file = "sites.json"
+        elif table == self.devices_table:
+            schema_file = "devices.json"
+        elif table == self.raw_mobile_measurements_table:
+            schema_file = "mobile_measurements.json"
+        elif table == self.airqo_mobile_measurements_table:
+            schema_file = "airqo_mobile_measurements.json"
+        elif (
+            table == self.bam_measurements_table
+            or table == self.bam_hourly_measurements_table
+        ):
+            schema_file = "bam_measurements.json"
         else:
             raise Exception("Invalid table")
 
-        try:
-            schema_file = open(os.path.join(self.package_directory, schema_path))
-        except FileNotFoundError:
-            schema_file = open(os.path.join(self.package_directory, schema))
+        schema = get_file_content(file_name=schema_file)
 
-        schema = json.load(schema_file)
         columns = []
-        if data_type:
+        if data_type != DataType.NONE:
             for column in schema:
-                if column["type"] == data_type:
-
+                if column["type"] == data_type.to_string():
                     columns.append(column["name"])
         else:
             columns = [column["name"] for column in schema]
         return columns
 
-    def save_data(self, data: list, table: str) -> None:
-        if table == self.hourly_measurements_table:
-            columns = self.hourly_measurements_columns
-            numeric_columns = self.hourly_measurements_numeric_columns
-        elif table == self.hourly_weather_table:
-            columns = self.hourly_weather_columns
-            numeric_columns = self.hourly_weather_numeric_columns
-        elif table == self.analytics_table:
-            columns = self.analytics_columns
-            numeric_columns = self.analytics_numeric_columns
-        else:
-            raise Exception("Invalid destination table")
-
-        dataframe = pd.DataFrame(data)
-
-        dataframe = self.validate_data(
-            dataframe=dataframe,
-            columns=columns,
-            numeric_columns=numeric_columns,
-            table=table,
-        )
+    def load_data(
+        self,
+        dataframe: pd.DataFrame,
+        table: str,
+        job_action: JobAction = JobAction.APPEND,
+    ) -> None:
+        dataframe.reset_index(drop=True, inplace=True)
+        dataframe = self.validate_data(dataframe=dataframe, table=table)
 
         job_config = bigquery.LoadJobConfig(
-            write_disposition="WRITE_APPEND",
+            write_disposition=job_action.get_name(),
         )
 
         job = self.client.load_table_from_dataframe(
@@ -118,41 +147,51 @@ class BigQueryApi:
         job.result()
 
         destination_table = self.client.get_table(table)
-        print("Table for loading {} ".format(table))
-        print(
-            "Loaded {} rows and {} columns to {}".format(
-                destination_table.num_rows,
-                len(destination_table.schema),
-                destination_table.friendly_name,
-            )
-        )
+        print(f"Loaded {len(dataframe)} rows to {table}")
+        print(f"Total rows after load :  {destination_table.num_rows}")
 
-    def get_hourly_data(
-        self, start_date_time: str, end_date_time: str, columns: list, table: str
+    def reload_data(
+        self,
+        dataframe: pd.DataFrame,
+        table: str,
+        start_date_time: str,
+        end_date_time: str,
+        tenant: str,
+    ) -> None:
+
+        query = f"""
+            DELETE FROM `{table}`
+            WHERE timestamp >= '{start_date_time}' and timestamp <= '{end_date_time}' and tenant = '{tenant}'
+        """
+        self.client.query(query=query).result()
+
+        self.load_data(dataframe=dataframe, table=table, job_action=JobAction.APPEND)
+
+    def query_data(
+        self,
+        start_date_time: str,
+        end_date_time: str,
+        table: str,
+        columns: list = None,
+        where_fields=None,
     ) -> pd.DataFrame:
 
-        try:
-            query = f"""
-                SELECT {', '.join(map(str, columns))}
-                FROM `{table}`
-                WHERE timestamp >= '{start_date_time}' and timestamp <= '{end_date_time}'
-            """
-            dataframe = self.client.query(query=query).result().to_dataframe()
-        except Exception as ex:
-            print(ex)
-            query = f"""
-                SELECT {', '.join(map(str, columns))}
-                FROM `{table}`
-                WHERE time >= '{start_date_time}' and time <= '{end_date_time}'
-            """
+        if where_fields is None:
+            where_fields = {}
 
-            dataframe = self.client.query(query=query).result().to_dataframe()
+        columns = ", ".join(map(str, columns)) if columns else " * "
 
-        dataframe["timestamp"] = dataframe["timestamp"].apply(lambda x: date_to_str(x))
-        if "time" in list(dataframe.columns):
-            dataframe["time"] = dataframe["time"].apply(lambda x: date_to_str(x))
+        where_clause = ""
+        for key in where_fields.keys():
+            where_clause = where_clause + f" and {key} = '{where_fields[key]}'"
+
+        query = f"""
+            SELECT {columns}
+            FROM `{table}`
+            WHERE timestamp >= '{start_date_time}' and timestamp <= '{end_date_time}' {where_clause}
+        """
+        dataframe = self.client.query(query=query).result().to_dataframe()
+
+        dataframe["timestamp"] = dataframe["timestamp"].apply(date_to_str)
 
         return dataframe
-
-    def save_raw_measurements(self, measurements: list) -> None:
-        pass

@@ -329,7 +329,6 @@ const createAirqloud = {
       }
 
       const responseFromFindSites = await createAirqloud.findSites(request);
-      logObject("responseFromFindSites ", responseFromFindSites);
       if (responseFromFindSites.success === true) {
         const sites = responseFromFindSites.data;
         requestForUpdateAirQloud["body"]["sites"] = sites;
@@ -371,7 +370,7 @@ const createAirqloud = {
       if (responseFromUpdateAirQloud.success === true) {
         return {
           success: true,
-          message: responseFromUpdateAirQloud.message,
+          message: "successfully refreshed the AirQloud",
           status: httpStatus.OK,
           data: responseFromUpdateAirQloud.data,
         };
@@ -416,8 +415,9 @@ const createAirqloud = {
           } else {
             return {
               success: false,
-              message: "unable to retrieve one respective airqloud",
-              status: httpStatus.NOT_FOUND,
+              message: `unable to find the provided airqloud: ${id}`,
+              status: responseFromListAirQloud.status,
+              errors: { message: "" },
             };
           }
         } else if (responseFromListAirQloud.success === false) {
@@ -502,18 +502,26 @@ const createAirqloud = {
 
         if (responseFromListSites.success === true) {
           const sites = responseFromListSites.data;
-          logObject("sites", sites);
           for (const site of sites) {
-            const { latitude, longitude } = site;
-
-            const isSiteInAirQloud = geolib.isPointInPolygon(
-              { latitude, longitude },
-              airqloudPolygon
-            );
-
-            if (isSiteInAirQloud === true) {
-              site_ids.push(site._id);
-            } else if (isSiteInAirQloud === false) {
+            const { latitude, longitude, _id, description } = site;
+            if (!isEmpty(latitude) && !isEmpty(longitude)) {
+              const isSiteInAirQloud = geolib.isPointInPolygon(
+                { latitude, longitude },
+                airqloudPolygon
+              );
+              if (isSiteInAirQloud === true) {
+                site_ids.push(site._id);
+              } else if (isSiteInAirQloud === false) {
+                logger.info(
+                  `Site ${site._id} does not belong to this AirQloud`
+                );
+              } else {
+                logger.info(`unable to categorise this Site ${site._id} `);
+              }
+            } else {
+              logger.error(
+                `missing GPS coordinates for site id -- ${_id} and description -- ${description}`
+              );
             }
           }
 

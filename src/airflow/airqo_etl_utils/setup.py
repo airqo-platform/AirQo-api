@@ -4,7 +4,6 @@ VERSION = "1.0.0"
 DESCRIPTION = "AirQo Airflow custom python package"
 LONG_DESCRIPTION = "This package contains functions shared by the DAG files"
 
-
 setup(
     name="airqo_etl_utils",
     version=VERSION,
@@ -21,6 +20,7 @@ setup(
         "kafka-python",
         "numpy",
         "google-cloud-bigquery",
+        "firebase-admin",
     ],
     keywords=["python", "airflow", "AirQo"],
     license="MIT",

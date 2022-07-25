@@ -29,11 +29,24 @@ const deviceSchema = new mongoose.Schema(
     longitude: {
       type: Number,
     },
+    approximate_distance_in_km: {
+      type: Number,
+    },
+    bearing_in_radians: {
+      type: Number,
+    },
     writeKey: {
       type: String,
     },
     readKey: {
       type: String,
+    },
+    name_id: {
+      type: String,
+      unique: true,
+      trim: true,
+      match: noSpaces,
+      lowercase: true,
     },
     name: {
       type: String,
@@ -136,6 +149,12 @@ const deviceSchema = new mongoose.Schema(
       trim: true,
       unique: true,
     },
+    category: {
+      type: String,
+      required: [true, "the category is required"],
+      default: "lowcost",
+      trim: true,
+    },
     isActive: {
       type: Boolean,
       default: false,
@@ -193,11 +212,14 @@ deviceSchema.methods = {
       long_name: this.long_name,
       latitude: this.latitude,
       longitude: this.longitude,
+      approximate_distance_in_km: this.approximate_distance_in_km,
+      bearing_in_radians: this.bearing_in_radians,
       createdAt: this.createdAt,
       ISP: this.ISP,
       phoneNumber: this.phoneNumber,
       visibility: this.visibility,
       description: this.description,
+      name_id: this.name_id,
       isPrimaryInLocation: this.isPrimaryInLocation,
       nextMaintenance: this.nextMaintenance,
       deployment_date: this.deployment_date,
@@ -214,6 +236,7 @@ deviceSchema.methods = {
       pictures: this.pictures,
       site_id: this.site_id,
       height: this.height,
+      category: this.category,
     };
   },
 };
@@ -284,6 +307,8 @@ deviceSchema.statics = {
           long_name: 1,
           latitude: 1,
           longitude: 1,
+          approximate_distance_in_km: 1,
+          bearing_in_radians: 1,
           createdAt: 1,
           ISP: 1,
           phoneNumber: 1,
@@ -292,6 +317,7 @@ deviceSchema.statics = {
           isPrimaryInLocation: 1,
           nextMaintenance: 1,
           deployment_date: 1,
+          name_id: 1,
           recall_date: 1,
           maintenance_date: 1,
           device_number: 1,
@@ -304,6 +330,7 @@ deviceSchema.statics = {
           height: 1,
           mobility: 1,
           status: 1,
+          category: 1,
           site: { $arrayElemAt: ["$site", 0] },
         })
         .project({
@@ -356,9 +383,10 @@ deviceSchema.statics = {
         };
       } else {
         return {
-          success: false,
-          message: "device does not exist, please crosscheck",
-          status: HTTPStatus.NOT_FOUND,
+          success: true,
+          message: "no device details exist for this search, please crosscheck",
+          status: HTTPStatus.OK,
+          data: [],
         };
       }
     } catch (error) {
@@ -388,6 +416,8 @@ deviceSchema.statics = {
 
       if (!isEmpty(updatedDevice)) {
         let data = updatedDevice._doc;
+        delete data.__v;
+
         return {
           success: true,
           message: "successfully modified the device",
@@ -476,7 +506,13 @@ deviceSchema.statics = {
   async remove({ filter = {} } = {}) {
     try {
       let options = {
-        projection: { _id: 1, name: 1, device_number: 1, long_name: 1 },
+        projection: {
+          _id: 1,
+          name: 1,
+          device_number: 1,
+          long_name: 1,
+          category: 1,
+        },
       };
       let removedDevice = await this.findOneAndRemove(filter, options).exec();
 

@@ -5,49 +5,17 @@ from functools import reduce
 
 import numpy as np
 import pandas as pd
-from airflow.hooks.base import BaseHook
-from airflow.providers.slack.operators.slack_webhook import SlackWebhookOperator
 from google.cloud import storage
 
 from airqo_etl_utils.airqo_api import AirQoApi
-from airqo_etl_utils.config import configuration
+from airqo_etl_utils.constants import AirQuality, Pollutant, DataType
 from airqo_etl_utils.date import (
     str_to_date,
     date_to_str,
     date_to_str_days,
     date_to_str_hours,
 )
-from airqo_etl_utils.tahmo import TahmoApi
-
-
-def measurement_time_to_string(time: str, daily=False):
-    date_time = str_to_date(time)
-    if daily:
-        return date_to_str_days(date_time)
-    else:
-        return date_to_str_hours(date_time)
-
-
-def to_double(x):
-    try:
-        value = float(x)
-        if math.isnan(value) or np.isnan(value):
-            return None
-        return value
-    except Exception:
-        return None
-
-
-def fill_nan(data: list) -> list:
-    data_df = pd.DataFrame(data)
-    data_df = data_df.fillna("none")
-    return data_df.to_dict(orient="records")
-
-
-def un_fill_nan(data: list) -> list:
-    data_df = pd.DataFrame(data)
-    data_df = data_df.replace(to_replace="none", value=np.nan)
-    return data_df.to_dict(orient="records")
+from airqo_etl_utils.tahmo_api import TahmoApi
 
 
 def get_valid_value(raw_value, name=None):
@@ -82,6 +50,19 @@ def get_valid_value(raw_value, name=None):
         pass
 
     return value
+
+
+def measurement_time_to_string(time: str, daily=False):
+    date_time = str_to_date(time)
+    return date_to_str_days(date_time) if daily else date_to_str_hours(date_time)
+
+
+def to_double(x):
+    try:
+        value = float(x)
+        return None if (math.isnan(value) or np.isnan(value)) else value
+    except Exception:
+        return None
 
 
 def get_site_ids_from_station(station: str, sites: list):
@@ -170,10 +151,11 @@ def resample_data(data: pd.DataFrame, frequency: str) -> pd.DataFrame:
     return averages
 
 
-def resample_weather_data(data: list, frequency: str):
-    weather_raw_data = pd.DataFrame(data)
-    if weather_raw_data.empty:
-        return weather_raw_data.to_dict(orient="records")
+def resample_weather_data(
+    raw_weather_data: pd.DataFrame, frequency: str
+) -> pd.DataFrame:
+    if raw_weather_data.empty:
+        return raw_weather_data.to_dict(orient="records")
 
     airqo_api = AirQoApi()
     sites = airqo_api.get_sites(tenant="airqo")
@@ -181,17 +163,14 @@ def resample_weather_data(data: list, frequency: str):
         filter(lambda x: "nearest_tahmo_station" in dict(x).keys(), sites)
     )
 
-    # to include site id
-    # devices = get_devices_or_sites(configuration.AIRQO_BASE_URL, tenant='airqo', sites=False)
-
-    temperature = weather_raw_data.loc[
-        weather_raw_data["variable"] == "te", ["value", "variable", "station", "time"]
+    temperature = raw_weather_data.loc[
+        raw_weather_data["variable"] == "te", ["value", "variable", "station", "time"]
     ]
-    humidity = weather_raw_data.loc[
-        weather_raw_data["variable"] == "rh", ["value", "variable", "station", "time"]
+    humidity = raw_weather_data.loc[
+        raw_weather_data["variable"] == "rh", ["value", "variable", "station", "time"]
     ]
-    wind_speed = weather_raw_data.loc[
-        weather_raw_data["variable"] == "ws", ["value", "variable", "station", "time"]
+    wind_speed = raw_weather_data.loc[
+        raw_weather_data["variable"] == "ws", ["value", "variable", "station", "time"]
     ]
 
     humidity["value"] = pd.to_numeric(humidity["value"], errors="coerce")
@@ -254,79 +233,9 @@ def resample_weather_data(data: list, frequency: str):
             traceback.print_exc()
             continue
 
-        # to include site id
-        # device_station_data_df = pd.DataFrame(device_weather_data)
-        # device_station_data_df['site_id'] = device_station_data_df['device_id'].apply(
-        #     lambda x: get_device_site_id(x, devices))
-        # devices_weather_data.extend(device_station_data_df.to_dict(orient='records'))
-
         devices_weather_data.extend(device_weather_data)
 
-    # pd.DataFrame(devices_weather_data).to_csv(path_or_buf='devices_weather.csv', index=False)
-
-    return devices_weather_data
-
-
-def slack_success_notification(context):
-    slack_webhook_token = BaseHook.get_connection("slack").password
-
-    msg = """
-          :green_circle: Task Successful. 
-          *Task*: {task}  
-          *Dag*: {dag} 
-          *Execution Time*: {exec_date}  
-          *Log Url*: {log_url} 
-          """.format(
-        task=context.get("task_instance").task_id,
-        dag=context.get("task_instance").dag_id,
-        ti=context.get("task_instance"),
-        exec_date=context.get("execution_date"),
-        log_url=context.get("task_instance").log_url,
-    )
-
-    success_alert = SlackWebhookOperator(
-        task_id="slack_success_notification",
-        http_conn_id="slack",
-        webhook_token=slack_webhook_token,
-        message=msg,
-        username="airflow",
-    )
-
-    return success_alert.execute(context=context)
-
-
-def slack_dag_failure_notification(context):
-    slack_webhook_token = BaseHook.get_connection("slack").password
-    icon_color = (
-        ":red_circle"
-        if configuration.ENVIRONMENT.lower() == "production"
-        else ":yellow_circle"
-    )
-
-    msg = """
-          {icon_color}: Task Failed. 
-          *Task*: {task}  
-          *Dag*: {dag}
-          *Execution Time*: {exec_date}  
-          *Log Url*: {log_url} 
-          """.format(
-        icon_color=icon_color,
-        task=context.get("task_instance").task_id,
-        dag=context.get("task_instance").dag_id,
-        ti=context.get("task_instance"),
-        exec_date=context.get("execution_date"),
-        log_url=context.get("task_instance").log_url,
-    )
-
-    failed_alert = SlackWebhookOperator(
-        task_id="slack_failed_notification",
-        http_conn_id="slack",
-        webhook_token=slack_webhook_token,
-        message=msg,
-        username="airflow",
-    )
-
-    return failed_alert.execute(context=context)
+    return pd.DataFrame(devices_weather_data)
 
 
 def download_file_from_gcs(bucket_name: str, source_file: str, destination_file: str):
@@ -367,7 +276,34 @@ def get_airqo_api_frequency(freq: str) -> str:
         return "5H"
 
 
-def get_weather_data_from_tahmo(start_time=None, end_time=None, tenant="airqo"):
+class Utils:
+    @staticmethod
+    def populate_missing_columns(data: pd.DataFrame, cols: list) -> pd.DataFrame:
+        for col in cols:
+            if col not in list(data.columns):
+                print(f"{col} missing in dataset")
+                data[col] = None
+
+        return data
+
+    @staticmethod
+    def get_dag_date_time_config(interval_in_days: int = 1, **kwargs):
+        try:
+            dag_run = kwargs.get("dag_run")
+            start_date_time = dag_run.conf["start_date_time"]
+            end_date_time = dag_run.conf["end_date_time"]
+        except KeyError:
+            end_date = datetime.utcnow()
+            start_date = end_date - timedelta(days=interval_in_days)
+            start_date_time = datetime.strftime(start_date, "%Y-%m-%dT00:00:00Z")
+            end_date_time = datetime.strftime(end_date, "%Y-%m-%dT11:59:59Z")
+
+        return start_date_time, end_date_time
+
+
+def get_weather_data_from_tahmo(
+    start_time=None, end_time=None, tenant="airqo"
+) -> pd.DataFrame:
     airqo_api = AirQoApi()
     airqo_sites = airqo_api.get_sites(tenant=tenant)
     station_codes = []
@@ -411,7 +347,7 @@ def get_weather_data_from_tahmo(start_time=None, end_time=None, tenant="airqo"):
     clean_measurements_df = remove_invalid_dates(
         dataframe=measurements_df, start_time=start_time, end_time=end_time
     )
-    return clean_measurements_df.to_dict(orient="records")
+    return clean_measurements_df
 
 
 def remove_invalid_dates(
@@ -420,15 +356,19 @@ def remove_invalid_dates(
     start = pd.to_datetime(start_time)
     end = pd.to_datetime(end_time)
 
-    dataframe["time"] = pd.to_datetime(dataframe["time"])
-    data_frame = dataframe.set_index(["time"])
+    date_time_column = "time" if "time" in list(dataframe.columns) else "timestamp"
+
+    dataframe[date_time_column] = pd.to_datetime(dataframe[date_time_column])
+    data_frame = dataframe.set_index([date_time_column])
 
     time_data_frame = data_frame.loc[
         (data_frame.index >= start) & (data_frame.index <= end)
     ]
 
-    time_data_frame["time"] = time_data_frame.index
-    time_data_frame["time"] = time_data_frame["time"].apply(lambda x: date_to_str(x))
+    time_data_frame[date_time_column] = time_data_frame.index
+    time_data_frame[date_time_column] = time_data_frame[date_time_column].apply(
+        lambda x: date_to_str(x)
+    )
     time_data_frame = time_data_frame.reset_index(drop=True)
 
     return time_data_frame
@@ -475,8 +415,8 @@ def get_site_and_device_id(devices, channel_id=None, device_name=None):
 def get_date_time_values(interval_in_days: int = 1, **kwargs):
     try:
         dag_run = kwargs.get("dag_run")
-        start_date_time = dag_run.conf["startDateTime"]
-        end_date_time = dag_run.conf["endDateTime"]
+        start_date_time = dag_run.conf["start_date_time"]
+        end_date_time = dag_run.conf["end_date_time"]
     except KeyError:
         end_date = datetime.utcnow()
         start_date = end_date - timedelta(days=interval_in_days)
@@ -486,20 +426,82 @@ def get_date_time_values(interval_in_days: int = 1, **kwargs):
     return start_date_time, end_date_time
 
 
-def get_device(devices=None, channel_id=None, device_id=None):
+def get_tenant(**kwargs) -> str:
+    try:
+        dag_run = kwargs.get("dag_run")
+        tenant = dag_run.conf["tenant"]
+    except KeyError:
+        tenant = None
+
+    return tenant
+
+
+def get_air_quality(value: float, pollutant: Pollutant):
+    if pollutant == Pollutant.PM10:
+        if value <= 50.99:
+            return AirQuality.GOOD
+        elif 51.00 <= value <= 100.99:
+            return AirQuality.MODERATE
+        elif 101.00 <= value <= 250.99:
+            return AirQuality.UNHEALTHY_FSGs
+        elif 251.00 <= value <= 350.99:
+            return AirQuality.UNHEALTHY
+        elif 351.00 <= value <= 430.99:
+            return AirQuality.VERY_UNHEALTHY
+        else:
+            return AirQuality.HAZARDOUS
+    elif pollutant == Pollutant.PM2_5:
+        if value <= 12.09:
+            return AirQuality.GOOD
+        elif 12.1 <= value <= 35.49:
+            return AirQuality.MODERATE
+        elif 35.5 <= value <= 55.49:
+            return AirQuality.UNHEALTHY_FSGs
+        elif 55.5 <= value <= 150.49:
+            return AirQuality.UNHEALTHY
+        elif 150.5 <= value <= 250.49:
+            return AirQuality.VERY_UNHEALTHY
+        else:
+            return AirQuality.HAZARDOUS
+    else:
+        return None
+
+
+def format_dataframe_column_type(
+    dataframe: pd.DataFrame,
+    data_type: DataType,
+    columns: list,
+) -> pd.DataFrame:
+    if not columns:
+        return dataframe
+    if data_type == DataType.FLOAT:
+        dataframe[columns] = dataframe[columns].apply(pd.to_numeric, errors="coerce")
+
+    if data_type == DataType.TIMESTAMP:
+        dataframe[columns] = dataframe[columns].apply(pd.to_datetime, errors="coerce")
+
+    if data_type == DataType.TIMESTAMP_STR:
+        dataframe[columns] = dataframe[columns].apply(pd.to_datetime, errors="coerce")
+
+        def _date_to_str(date: datetime):
+            try:
+                return date_to_str(date=date)
+            except Exception:
+                return None
+
+        for column in columns:
+            dataframe[column] = dataframe[column].apply(_date_to_str)
+
+    return dataframe
+
+
+def get_device(devices=None, channel_id=None, device_id=None) -> dict:
     if devices is None:
         devices = []
 
-    if channel_id:
-        result = list(filter(lambda x: x["device_number"] == channel_id, devices))
-        if not result:
-            return None
-        return result[0]
-
-    elif device_id:
-        result = list(filter(lambda x: x["_id"] == device_id, devices))
-        if not result:
-            return None
-        return result[0]
-
-    return None
+    result = (
+        list(filter(lambda x: x["device_number"] == channel_id, devices))
+        if channel_id
+        else list(filter(lambda x: x["_id"] == device_id, devices))
+    )
+    return {} if not result else result[0]

@@ -11,11 +11,18 @@ class AirQoApi:
         self.AIRQO_BASE_URL = os.getenv("AIRQO_BASE_URL")
         self.AIRQO_API_KEY = f"JWT {os.getenv('AIRQO_API_KEY')}"
 
+    def approximate_coordinates(self, latitude, longitude) -> dict:
+        response = self.__request(
+            endpoint="devices/sites/approximate",
+            body={"latitude": latitude, "longitude": longitude},
+            params=None,
+            method="post",
+        )
+
+        return dict(response["approximate_coordinates"]) if response else None
+
     def get_devices(self, tenant, active=True, all_devices=False):
-        params = {
-            "tenant": tenant,
-            "active": "yes" if active else "no"
-        }
+        params = {"tenant": tenant, "active": "yes" if active else "no"}
         if all_devices:
             params.pop("active")
         response = self.__request("devices", params)
@@ -34,7 +41,9 @@ class AirQoApi:
             "latitude": latitude,
             "selected_datetime": selected_datetime,
         }
-        response = self.__request(endpoint="predict", params=params, body=body, method="post")
+        response = self.__request(
+            endpoint="predict", params=params, body=body, method="post"
+        )
 
         if response is not None and "formatted_results" in response:
             formatted_results = response["formatted_results"]
@@ -53,11 +62,16 @@ class AirQoApi:
         return []
 
     def get_airqo_device_current_measurements(self, device_number):
-        response = self.__request("data/feeds/transform/recent", {"channel": device_number})
+        response = self.__request(
+            "data/feeds/transform/recent", {"channel": device_number}
+        )
         return response
 
     def get_sites(self, tenant):
-        response = self.__request("devices/sites", {"tenant": tenant})
+        response = self.__request(
+            "devices/sites",
+            {"tenant": tenant},
+        )
 
         if "sites" in response:
             return response["sites"]
@@ -67,11 +81,11 @@ class AirQoApi:
     def update_primary_device(self, tenant, name, primary=False):
 
         params = {"tenant": tenant, "name": name}
-        body = {
-            "isPrimaryInLocation": "true" if primary else "false"
-        }
+        body = {"isPrimaryInLocation": "true" if primary else "false"}
 
-        response = self.__request(endpoint="devices", params=params, body=body, method="put")
+        response = self.__request(
+            endpoint="devices", params=params, body=body, method="put"
+        )
         print(response)
 
     def update_sites(self, updated_sites):
@@ -94,27 +108,27 @@ class AirQoApi:
 
     def __request(self, endpoint, params, body=None, method=None):
 
-        headers = {'Authorization': self.AIRQO_API_KEY}
+        headers = {"Authorization": self.AIRQO_API_KEY}
         if method is None or method == "get":
             api_request = requests.get(
-                '%s%s' % (self.AIRQO_BASE_URL, endpoint),
+                "%s%s" % (self.AIRQO_BASE_URL, endpoint),
                 params=params,
                 headers=headers,
                 verify=False,
             )
         elif method == "put":
-            headers['Content-Type'] = 'application/json'
+            headers["Content-Type"] = "application/json"
             api_request = requests.put(
-                '%s%s' % (self.AIRQO_BASE_URL, endpoint),
+                "%s%s" % (self.AIRQO_BASE_URL, endpoint),
                 params=params,
                 headers=headers,
                 data=json.dumps(body),
                 verify=False,
             )
         elif method == "post":
-            headers['Content-Type'] = 'application/json'
+            headers["Content-Type"] = "application/json"
             api_request = requests.post(
-                '%s%s/' % (self.AIRQO_BASE_URL, endpoint),
+                "%s%s/" % (self.AIRQO_BASE_URL, endpoint),
                 params=params,
                 headers=headers,
                 data=json.dumps(body),

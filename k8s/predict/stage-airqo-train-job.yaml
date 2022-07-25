@@ -1,4 +1,4 @@
-apiVersion: batch/v1beta1
+apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: stage-airqo-train-job
@@ -17,7 +17,7 @@ spec:
           schedulerName: default-scheduler
           containers:
           - name: stage-airqo-train-job
-            image: us.gcr.io/airqo-250220/airqo-stage-train-job:latest
+            image: us.gcr.io/airqo-250220/stage-airqo-train-job:latest
             imagePullPolicy: Always
             envFrom:
               - configMapRef:
@@ -25,6 +25,13 @@ spec:
             volumeMounts:
               - name: config-volume
                 mountPath: /etc/config
+            resources:
+              requests:
+                cpu: 100m
+                memory: 200Mi
+              limits:
+                cpu: 2000m
+                memory: 2Gi
           volumes:
             - name: config-volume
               configMap:
