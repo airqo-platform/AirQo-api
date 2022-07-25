@@ -3,7 +3,6 @@ kind: Namespace
 metadata:
   name: cicd
 
-
 ---
 apiVersion: v1
 kind: ResourceQuota
@@ -14,4 +13,3 @@ spec:
   hard:
     limits.cpu: 1000
     limits.memory: 2Gi
-    resourcequotas: 1

@@ -3,7 +3,6 @@ kind: Namespace
 metadata:
   name: development
 
-
 ---
 apiVersion: v1
 kind: ResourceQuota
@@ -16,5 +15,4 @@ spec:
     limits.memory: 4Gi
     pods: 10
     replicationcontrollers: 20
-    resourcequotas: 1
     persistentvolumeclaims: 1

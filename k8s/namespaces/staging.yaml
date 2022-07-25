@@ -3,7 +3,6 @@ kind: Namespace
 metadata:
   name: staging
 
-
 ---
 apiVersion: v1
 kind: ResourceQuota
@@ -11,7 +10,4 @@ metadata:
   name: staging-quota
   namespace: staging
 spec:
-  hard:
-    limits.cpu: 4000
-    limits.memory: 8Gi
-    resourcequotas: 1
+  hard: {}

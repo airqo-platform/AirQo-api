@@ -3,7 +3,6 @@ kind: Namespace
 metadata:
   name: message-broker
 
-
 ---
 apiVersion: v1
 kind: ResourceQuota
@@ -11,7 +10,4 @@ metadata:
   name: message-broker-quota
   namespace: message-broker
 spec:
-  hard:
-    limits.cpu: 2000
-    limits.memory: 4Gi
-    resourcequotas: 1
+  hard: {}
