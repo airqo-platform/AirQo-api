@@ -3,6 +3,7 @@ kind: Namespace
 metadata:
   name: development
 
+
 ---
 apiVersion: v1
 kind: ResourceQuota

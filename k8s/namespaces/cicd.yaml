@@ -3,6 +3,7 @@ kind: Namespace
 metadata:
   name: cicd
 
+
 ---
 apiVersion: v1
 kind: ResourceQuota

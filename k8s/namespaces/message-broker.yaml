@@ -3,6 +3,7 @@ kind: Namespace
 metadata:
   name: message-broker
 
+
 ---
 apiVersion: v1
 kind: ResourceQuota

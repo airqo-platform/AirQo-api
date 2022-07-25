@@ -3,6 +3,7 @@ kind: Namespace
 metadata:
   name: pipeline
 
+
 ---
 apiVersion: v1
 kind: ResourceQuota
