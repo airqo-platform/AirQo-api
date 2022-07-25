@@ -276,13 +276,29 @@ def get_airqo_api_frequency(freq: str) -> str:
         return "5H"
 
 
-def add_missing_columns(data: pd.DataFrame, cols: list) -> pd.DataFrame:
-    for col in cols:
-        if col not in list(data.columns):
-            print(f"{col} missing in dataset")
-            data[col] = None
+class Utils:
+    @staticmethod
+    def populate_missing_columns(data: pd.DataFrame, cols: list) -> pd.DataFrame:
+        for col in cols:
+            if col not in list(data.columns):
+                print(f"{col} missing in dataset")
+                data[col] = None
 
-    return data
+        return data
+
+    @staticmethod
+    def get_dag_date_time_config(interval_in_days: int = 1, **kwargs):
+        try:
+            dag_run = kwargs.get("dag_run")
+            start_date_time = dag_run.conf["start_date_time"]
+            end_date_time = dag_run.conf["end_date_time"]
+        except KeyError:
+            end_date = datetime.utcnow()
+            start_date = end_date - timedelta(days=interval_in_days)
+            start_date_time = datetime.strftime(start_date, "%Y-%m-%dT00:00:00Z")
+            end_date_time = datetime.strftime(end_date, "%Y-%m-%dT11:59:59Z")
+
+        return start_date_time, end_date_time
 
 
 def get_weather_data_from_tahmo(
@@ -399,8 +415,8 @@ def get_site_and_device_id(devices, channel_id=None, device_name=None):
 def get_date_time_values(interval_in_days: int = 1, **kwargs):
     try:
         dag_run = kwargs.get("dag_run")
-        start_date_time = dag_run.conf["startDateTime"]
-        end_date_time = dag_run.conf["endDateTime"]
+        start_date_time = dag_run.conf["start_date_time"]
+        end_date_time = dag_run.conf["end_date_time"]
     except KeyError:
         end_date = datetime.utcnow()
         start_date = end_date - timedelta(days=interval_in_days)
