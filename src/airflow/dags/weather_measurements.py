@@ -71,7 +71,7 @@ def historical_hourly_weather_measurements_etl():
     def average(data: pd.DataFrame) -> pd.DataFrame:
         from airqo_etl_utils.weather_data_utils import WeatherDataUtils
 
-        return WeatherDataUtils.resample_station_data(data=data)
+        return WeatherDataUtils.aggregate_data(data=data)
 
     @task()
     def save_to_bigquery(weather_data: pd.DataFrame):
@@ -133,7 +133,7 @@ def weather_measurements_etl():
     def average_raw_data(data: pd.DataFrame) -> pd.DataFrame:
         from airqo_etl_utils.weather_data_utils import WeatherDataUtils
 
-        return WeatherDataUtils.resample_station_data(data=data)
+        return WeatherDataUtils.aggregate_data(data=data)
 
     @task()
     def save_hourly_data_to_bigquery(data: pd.DataFrame):
