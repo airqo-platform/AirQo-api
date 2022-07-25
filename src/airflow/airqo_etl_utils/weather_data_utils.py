@@ -132,7 +132,7 @@ class WeatherDataUtils:
 
         cols = [value for value in parameter_mappings.values()]
 
-        weather_data = add_missing_columns(data=weather_data, cols=cols)
+        weather_data = Utils.populate_missing_columns(data=weather_data, cols=cols)
 
         return DataValidationUtils.get_validate_values(weather_data)
 
