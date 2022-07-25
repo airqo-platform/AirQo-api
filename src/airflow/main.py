@@ -304,7 +304,6 @@ def calibrate_historical_data():
 
     hourly_weather_data = CalibrationUtils.extract_hourly_weather_data(
         start_date_time=start_date_time, end_date_time=end_date_time
-
     )
     hourly_weather_data.to_csv("historical_weather_data.csv", index=False)
 
