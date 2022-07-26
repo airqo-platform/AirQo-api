@@ -128,9 +128,11 @@ metadata:
  name: airflow-svc
  namespace: pipeline
 spec:
+ type: NodePort
  ports:
   - port: 8080
     protocol: TCP
     targetPort: 8080
+    nodePort: 30036
  selector:
   app: airflow
