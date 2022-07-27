@@ -84,8 +84,12 @@ class ScheduleDag:
                     "data_duration": "360H",
                 },
                 # Mobile devices data
-                "historical_urban_better_mobile_devices": {
-                    "name": "Urban-Better-Historical-Raw-Measurements",
+                "historical_urban_better_plume_labs": {
+                    "name": "Urban-Better-Plume-Labs-Historical-Raw-Measurements",
+                    "data_duration": "240H",
+                },
+                "historical_urban_better_air_beam": {
+                    "name": "Urban-Better-Air-Beam-Historical-Raw-Measurements",
                     "data_duration": "240H",
                 },
             }
@@ -123,7 +127,7 @@ class ScheduleDag:
             pay_load = {
                 "dag_run_id": f"{start}-{end}",
                 "logical_date": date_to_str(logical_date),
-                "conf": {"startDateTime": start, "endDateTime": end},
+                "conf": {"start_date_time": start, "end_date_time": end},
             }
             self.post_dag(payload=pay_load, dag=dag["name"])
             logical_date = logical_date + timedelta(minutes=self.logical_date_interval)

@@ -3770,9 +3770,10 @@ router.post(
           "subcounty",
           "country",
           "state",
+          "province",
         ])
         .withMessage(
-          "admin_level values include: state, village, county, subcounty, village, parish, country, division and district"
+          "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district"
         ),
       body("location_tags")
         .optional()
@@ -3841,9 +3842,10 @@ router.get(
           "subcounty",
           "country",
           "state",
+          "province",
         ])
         .withMessage(
-          "admin_level values include: state, village, county, subcounty, village, parish, country, division and district"
+          "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district"
         ),
     ],
   ]),
@@ -3911,9 +3913,10 @@ router.put(
           "subcounty",
           "country",
           "state",
+          "province",
         ])
         .withMessage(
-          "admin_level values include: state, village, county, subcounty, village, parish, country, division and district"
+          "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district"
         ),
       body("description")
         .optional()
@@ -4116,9 +4119,10 @@ router.post(
           "subcounty",
           "country",
           "state",
+          "province",
         ])
         .withMessage(
-          "admin_level values include: state, village, county, subcounty, village, parish, country, division and district"
+          "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district"
         ),
       body("airqloud_tags")
         .optional()
@@ -4230,9 +4234,10 @@ router.get(
           "subcounty",
           "country",
           "state",
+          "province",
         ])
         .withMessage(
-          "admin_level values include: state, village, county, subcounty, village, parish, country, division and district"
+          "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district"
         ),
     ],
   ]),
@@ -4285,9 +4290,10 @@ router.get(
           "subcounty",
           "country",
           "state",
+          "province",
         ])
         .withMessage(
-          "admin_level values include: state, village, county, subcounty, village, parish, country, division and district"
+          "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district"
         ),
     ],
   ]),
@@ -4349,9 +4355,10 @@ router.get(
         "subcounty",
         "country",
         "state",
+        "province",
       ])
       .withMessage(
-        "admin_level values include: state, village, county, subcounty, village, parish, country, division and district"
+        "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district"
       ),
   ]),
   airqloudController.findSites
@@ -4418,9 +4425,10 @@ router.put(
           "subcounty",
           "country",
           "state",
+          "province",
         ])
         .withMessage(
-          "admin_level values include: state, village, county, subcounty, village, parish, country, division and district"
+          "admin_level values include:province, state, village, county, subcounty, village, parish, country, division and district"
         ),
       body("description")
         .optional()
@@ -4598,9 +4606,10 @@ router.get(
         "subcounty",
         "country",
         "state",
+        "province",
       ])
       .withMessage(
-        "admin_level values include: state, village, county, subcounty, village, parish, country, division and district"
+        "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district"
       ),
   ]),
   airqloudController.calculateGeographicalCenter

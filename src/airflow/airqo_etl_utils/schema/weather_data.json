@@ -1,15 +1,5 @@
 [
   {
-    "name": "tenant",
-    "type": "STRING",
-    "mode": "REQUIRED"
-  },
-  {
-    "name": "site_id",
-    "type": "STRING",
-    "mode": "REQUIRED"
-  },
-  {
     "name": "station_code",
     "type": "STRING",
     "mode": "REQUIRED"
@@ -23,13 +13,13 @@
     "name": "temperature",
     "type": "FLOAT",
     "mode": "NULLABLE",
-    "description": "°C.\nExternal temperature"
+    "description": "°C."
   },
   {
     "name": "humidity",
     "type": "FLOAT",
     "mode": "NULLABLE",
-    "description": "%.\nRelative humidity"
+    "description": "%."
   },
   {
     "name": "wind_speed",
