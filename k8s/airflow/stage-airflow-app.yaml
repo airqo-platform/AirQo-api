@@ -142,7 +142,7 @@ kind: Service
 apiVersion: v1
 metadata:
   name: airflow-svc
-  namespace: staging
+  namespace: pipeline
 spec:
   type: ExternalName
   externalName: airflow-svc.pipeline.svc.cluster.local
