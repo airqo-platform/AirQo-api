@@ -3077,14 +3077,12 @@ router.get(
         .optional()
         .notEmpty()
         .trim()
-        .toDate()
         .isISO8601({ strict: true, strictSeparator: true })
         .withMessage("startTime must be a valid datetime."),
       query("endTime")
         .optional()
         .notEmpty()
         .trim()
-        .toDate()
         .isISO8601({ strict: true, strictSeparator: true })
         .withMessage("endTime must be a valid datetime."),
       query("frequency")
