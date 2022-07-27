@@ -42,6 +42,10 @@ const isTimeEmpty = (dateTime) => {
   return true;
 };
 
+const formatDate = (dateTime) => {
+  return new Date(dateTime).toISOString();
+};
+
 const generateDateFormatWithoutHrs = (ISODate) => {
   try {
     let date = new Date(ISODate);
@@ -166,4 +170,5 @@ module.exports = {
   getDifferenceInMonths,
   addDays,
   addMinutes,
+  formatDate,
 };
