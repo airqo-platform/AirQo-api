@@ -133,7 +133,7 @@ spec:
   - port: 8080
     protocol: TCP
     targetPort: 8080
-    nodePort: 30036
+    nodePort: 31036
  selector:
   app: airflow
 
