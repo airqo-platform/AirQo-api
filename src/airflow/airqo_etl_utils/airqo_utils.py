@@ -8,8 +8,8 @@ import numpy as np
 import pandas as pd
 import requests
 
-from airqo_etl_utils.airqo_api import AirQoApi
-from airqo_etl_utils.commons import (
+from airqo_api import AirQoApi
+from commons import (
     get_device,
     get_valid_value,
     get_weather_data_from_tahmo,
@@ -20,10 +20,10 @@ from airqo_etl_utils.commons import (
     get_frequency,
     get_column_value,
 )
-from airqo_etl_utils.config import configuration
-from airqo_etl_utils.constants import DeviceCategory
-from airqo_etl_utils.data_validator import DataValidationUtils
-from airqo_etl_utils.date import date_to_str, str_to_date, date_to_str_hours
+from config import configuration
+from constants import DeviceCategory
+from data_validator import DataValidationUtils
+from date import date_to_str, str_to_date, date_to_str_hours
 
 
 class AirQoDataUtils:
@@ -234,7 +234,7 @@ class AirQoDataUtils:
     def extract_mobile_devices_weather_data(
         stations: pd.DataFrame, meta_data: list
     ) -> pd.DataFrame:
-        from airqo_etl_utils.weather_data_utils import WeatherDataUtils
+        from weather_data_utils import WeatherDataUtils
 
         meta_data_df = pd.DataFrame(meta_data)
         meta_data_df = meta_data_df[
@@ -1066,7 +1066,7 @@ def restructure_airqo_data(data: pd.DataFrame, destination: str) -> Any:
     elif destination == "message-broker":
         return restructure_airqo_data_for_message_broker(formatted_data)
     elif destination == "app-insights":
-        from airqo_etl_utils.app_insights_utils import format_airqo_data_to_insights
+        from app_insights_utils import format_airqo_data_to_insights
 
         return format_airqo_data_to_insights(formatted_data)
     elif destination == "bigquery":

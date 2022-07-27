@@ -24,6 +24,7 @@ const {
   threeMonthsFromNow,
   generateDateFormatWithoutHrs,
   addMonthsToProvideDateTime,
+  formatDate,
   monthsInfront,
   isTimeEmpty,
   getDifferenceInMonths,
@@ -35,6 +36,100 @@ const httpStatus = require("http-status");
 
 const createEvent = {
   getMeasurementsFromBigQuery: async (req) => {
+    try {
+      const { query } = req;
+      const {
+        frequency,
+        device,
+        device_number,
+        name,
+        startTime,
+        endTime,
+        tenant,
+        limit,
+        skip,
+        site,
+      } = query;
+
+      const currentDate = formatDate(new Date());
+
+      const twoMonthsBack = formatDate(
+        addMonthsToProvideDateTime(currentDate, -2)
+      );
+
+      const start = startTime ? startTime : twoMonthsBack;
+
+      const end = endTime ? endTime : currentDate;
+
+      let table = `${constants.DATAWAREHOUSE_AVERAGED_DATA}.hourly_device_measurements`;
+      let pm2_5 = "";
+      let pm10 = "";
+
+      if (frequency === "raw") {
+        table = `${constants.DATAWAREHOUSE_RAW_DATA}.device_measurements`;
+        pm2_5 = "";
+        pm10 = "";
+      }
+
+      const queryStatement = `SELECT site_id, name, device, device_number, \`${
+        constants.DATAWAREHOUSE_METADATA
+      }.sites\`.latitude AS latitude,
+        \`${
+          constants.DATAWAREHOUSE_METADATA
+        }.sites\`.longitude AS longitude, timestamp , pm2_5, pm10, pm2_5_raw_value, pm2_5_calibrated_value, pm10_raw_value, pm10_calibrated_value,
+        \`${constants.DATAWAREHOUSE_METADATA}.sites\`.tenant AS tenant 
+        FROM \`${table}\` 
+        JOIN \`${constants.DATAWAREHOUSE_METADATA}.sites\` 
+        ON \`${
+          constants.DATAWAREHOUSE_METADATA
+        }.sites\`.id = \`${table}\`.site_id 
+        WHERE timestamp 
+       >= "${start ? formatDate(start) : twoMonthsBack}" AND timestamp <= "${
+        end ? formatDate(end) : currentDate
+      }" 
+      ${site ? `AND site_id="${site}"` : ""}
+      ${device ? `AND device="${device}"` : ""}
+      ${device_number ? `AND device_number=${device_number}` : ""}
+      ${
+        tenant
+          ? `AND \`${constants.DATAWAREHOUSE_METADATA}.sites\`.tenant="${tenant}"`
+          : ""
+      }
+      ORDER BY timestamp
+      DESC LIMIT ${limit ? limit : constants.DEFAULT_EVENTS_LIMIT}`;
+
+      const options = {
+        query: queryStatement,
+        location: constants.BIG_QUERY_LOCATION,
+      };
+
+      const [job] = await bigquery.createQueryJob(options);
+      console.log(`Job ${job.id} started.`);
+
+      const [rows] = await job.getQueryResults();
+
+      const sanitizedMeasurements = rows.map((item) => {
+        return {
+          ...item,
+          timestamp: item.timestamp,
+        };
+      });
+
+      return {
+        success: true,
+        data: sanitizedMeasurements,
+        message: "successfully retrieved the measurements",
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      };
+    }
+  },
+
+  latestFromBigQuery: async (req) => {
     try {
       const { query } = req;
       const {
@@ -93,7 +188,7 @@ const createEvent = {
           ? `AND \`${constants.DATAWAREHOUSE_METADATA}.sites\`.tenant="${tenant}"`
           : ""
       }
-        LIMIT ${limit ? limit : constants.DEFAULT_EVENTS_LIMIT}`;
+       LIMIT ${limit ? limit : constants.DEFAULT_EVENTS_LIMIT}`;
 
       const options = {
         query: queryStatement,
@@ -118,6 +213,7 @@ const createEvent = {
       };
     }
   },
+
   list: async (request, callback) => {
     try {
       const { query } = request;

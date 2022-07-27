@@ -56,6 +56,7 @@ const stageConfig = {
 
 const defaultConfig = {
   DATAWAREHOUSE_RAW_DATA: process.env.DATAWAREHOUSE_RAW_DATA,
+  MOESIF_APPLICATION_ID: process.env.MOESIF_APPLICATION_ID,
   DOMAIN_WHITELIST: process.env.DOMAIN_WHITELIST.split(","),
   BIG_QUERY_LOCATION: process.env.BIG_QUERY_LOCATION,
   TENANTS: process.env.TENANTS.split(","),

@@ -21,6 +21,7 @@ setup(
         "numpy",
         "google-cloud-bigquery",
         "firebase-admin",
+        "geopy",
     ],
     keywords=["python", "airflow", "AirQo"],
     license="MIT",
