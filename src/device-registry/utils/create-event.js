@@ -71,7 +71,7 @@ const createEvent = {
         pm10 = "";
       }
 
-      const queryStatement = `SELECT site_id, name, device,device_number, \`${
+      const queryStatement = `SELECT site_id, name, device, device_number, \`${
         constants.DATAWAREHOUSE_METADATA
       }.sites\`.latitude AS latitude,
         \`${
@@ -89,7 +89,7 @@ const createEvent = {
       }" 
       ${site ? `AND site_id="${site}"` : ""}
       ${device ? `AND device="${device}"` : ""}
-      ${device_number ? `AND device_number="${device_number}"` : ""}
+      ${device_number ? `AND device_number=${device_number}` : ""}
       ${
         tenant
           ? `AND \`${constants.DATAWAREHOUSE_METADATA}.sites\`.tenant="${tenant}"`
