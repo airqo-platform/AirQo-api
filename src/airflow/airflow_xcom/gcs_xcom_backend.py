@@ -68,6 +68,8 @@ class GCSXComBackend(BaseXCom):
                 destination_file=filename,
             )
             result = pd.read_csv(filename)
+            if result.empty:
+                result = pd.DataFrame([], columns=["None"])
             result.reset_index(drop=True, inplace=True)
 
         return result

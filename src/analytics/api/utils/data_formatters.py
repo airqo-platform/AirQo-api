@@ -16,7 +16,8 @@ def format_to_aqcsv(data: list, pollutants: list, frequency: str) -> list:
     # Optional fields : lat, lon,
 
     dataframe = pd.DataFrame(data)
-
+    if dataframe.empty:
+        return []
     dataframe.rename(
         columns={
             "timestamp": "datetime",

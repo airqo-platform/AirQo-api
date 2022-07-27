@@ -1,6 +1,19 @@
 from enum import Enum
 
 
+class DeviceCategory(Enum):
+    LOW_COST = 1
+    BAM = 2
+
+    def get_api_query_str(self):
+        if self == self.LOW_COST:
+            return "lowcost"
+        elif self == self.BAM:
+            return "bam"
+        else:
+            return ""
+
+
 class JobAction(Enum):
     APPEND = 1
     OVERWRITE = 2
@@ -18,13 +31,16 @@ class DataType(Enum):
     TIMESTAMP = 1
     FLOAT = 2
     TIMESTAMP_STR = 3
-    NONE = 4
+    INTEGER = 4
+    NONE = 5
 
     def to_string(self):
         if self == self.TIMESTAMP:
             return "TIMESTAMP"
         elif self == self.FLOAT:
             return "FLOAT"
+        elif self == self.INTEGER:
+            return "INTEGER"
         elif self == self.TIMESTAMP_STR:
             return "TIMESTAMP_STR"
         else:

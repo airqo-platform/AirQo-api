@@ -17,8 +17,29 @@ mongodb;
 
 runKafkaProducer();
 runKafkaConsumer();
+const cors = require("cors");
 
-var app = express();
+const app = express();
+
+const whitelist = [
+  "https://staging.airqo.net/",
+  "https://airqo.net/",
+  "https://airqo.africa/",
+  "https://airqo.org/",
+  "https://airqo.mak.ac.ug/",
+  "https://airqo.io/",
+];
+const corsOptions = {
+  origin: function(origin, callback) {
+    if (whitelist.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+};
+
+app.use(cors());
 
 app.use(log4js.connectLogger(log4js.getLogger("http"), { level: "auto" }));
 app.use(bodyParser.json());

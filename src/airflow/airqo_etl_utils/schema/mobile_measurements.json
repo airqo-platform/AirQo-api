@@ -1,0 +1,107 @@
+[
+  {
+    "name": "tenant",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "timestamp",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "device_number",
+    "type": "INTEGER",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "device_id",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "latitude",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "longitude",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "horizontal_accuracy",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "pm2_5_raw_value",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "μg/m3."
+  },
+  {
+    "name": "pm1_raw_value",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "μg/m3."
+  },
+  {
+    "name": "pm10_raw_value",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "μg/m3."
+  },
+  {
+    "name": "no2_raw_value",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "ppb."
+  },
+  {
+    "name": "voc_raw_value",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "ppb."
+  },
+  {
+    "name": "pm1_pi_value",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "μg/m3."
+  },
+  {
+    "name": "pm2_5_pi_value",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "μg/m3."
+  },
+  {
+    "name": "pm10_pi_value",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "μg/m3."
+  },
+  {
+    "name": "voc_pi_value",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "ppb."
+  },
+  {
+    "name": "no2_pi_value",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "ppb."
+  },
+  {
+    "name": "gps_device_timestamp",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "timestamp_abs_diff",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  }
+]

@@ -14,6 +14,16 @@ class BigQueryApi:
         self.client = bigquery.Client()
         self.hourly_measurements_table = configuration.BIGQUERY_HOURLY_EVENTS_TABLE
         self.raw_measurements_table = configuration.BIGQUERY_RAW_EVENTS_TABLE
+        self.bam_measurements_table = configuration.BIGQUERY_BAM_EVENTS_TABLE
+        self.bam_hourly_measurements_table = (
+            configuration.BIGQUERY_BAM_HOURLY_EVENTS_TABLE
+        )
+        self.raw_mobile_measurements_table = (
+            configuration.BIGQUERY_RAW_MOBILE_EVENTS_TABLE
+        )
+        self.airqo_mobile_measurements_table = (
+            configuration.BIGQUERY_AIRQO_MOBILE_EVENTS_TABLE
+        )
         self.hourly_weather_table = configuration.BIGQUERY_HOURLY_WEATHER_TABLE
         self.raw_weather_table = configuration.BIGQUERY_RAW_WEATHER_TABLE
         self.analytics_table = configuration.BIGQUERY_ANALYTICS_TABLE
@@ -30,16 +40,9 @@ class BigQueryApi:
         table: str,
         raise_column_exception=True,
         date_time_columns=None,
-        numeric_columns=None,
+        float_columns=None,
+        integer_columns=None,
     ) -> pd.DataFrame:
-
-        # time is depreciated. It will be replaced with timestamp
-        if (
-            table == self.hourly_measurements_table
-            or table == self.raw_measurements_table
-        ):
-            dataframe["time"] = dataframe["timestamp"]
-
         columns = self.get_columns(table=table)
 
         if set(columns).issubset(set(list(dataframe.columns))):
@@ -64,13 +67,23 @@ class BigQueryApi:
         )
 
         # validating floats
-        numeric_columns = (
-            numeric_columns
-            if numeric_columns
+        float_columns = (
+            float_columns
+            if float_columns
             else self.get_columns(table=table, data_type=DataType.FLOAT)
         )
-        dataframe[numeric_columns] = dataframe[numeric_columns].apply(
+        dataframe[float_columns] = dataframe[float_columns].apply(
             pd.to_numeric, errors="coerce"
+        )
+
+        # validating integers
+        integer_columns = (
+            integer_columns
+            if integer_columns
+            else self.get_columns(table=table, data_type=DataType.INTEGER)
+        )
+        dataframe[integer_columns] = dataframe[integer_columns].apply(
+            lambda x: pd.to_numeric(x, errors="coerce", downcast="integer")
         )
 
         return dataframe
@@ -92,6 +105,15 @@ class BigQueryApi:
             schema_file = "sites.json"
         elif table == self.devices_table:
             schema_file = "devices.json"
+        elif table == self.raw_mobile_measurements_table:
+            schema_file = "mobile_measurements.json"
+        elif table == self.airqo_mobile_measurements_table:
+            schema_file = "airqo_mobile_measurements.json"
+        elif (
+            table == self.bam_measurements_table
+            or table == self.bam_hourly_measurements_table
+        ):
+            schema_file = "bam_measurements.json"
         else:
             raise Exception("Invalid table")
 
@@ -149,30 +171,27 @@ class BigQueryApi:
         self,
         start_date_time: str,
         end_date_time: str,
-        columns: list,
         table: str,
-        tenant="airqo",
+        columns: list = None,
+        where_fields=None,
     ) -> pd.DataFrame:
 
-        try:
-            query = f"""
-                SELECT {', '.join(map(str, columns))}
-                FROM `{table}`
-                WHERE timestamp >= '{start_date_time}' and timestamp <= '{end_date_time}' and tenant = '{tenant}'
-            """
-            dataframe = self.client.query(query=query).result().to_dataframe()
-        except Exception as ex:
-            print(ex)
-            query = f"""
-                SELECT {', '.join(map(str, columns))}
-                FROM `{table}`
-                WHERE time >= '{start_date_time}' and time <= '{end_date_time}' and tenant = '{tenant}'
-            """
+        if where_fields is None:
+            where_fields = {}
 
-            dataframe = self.client.query(query=query).result().to_dataframe()
+        columns = ", ".join(map(str, columns)) if columns else " * "
 
-        dataframe["timestamp"] = dataframe["timestamp"].apply(lambda x: date_to_str(x))
-        if "time" in list(dataframe.columns):
-            dataframe["time"] = dataframe["time"].apply(lambda x: date_to_str(x))
+        where_clause = ""
+        for key in where_fields.keys():
+            where_clause = where_clause + f" and {key} = '{where_fields[key]}'"
+
+        query = f"""
+            SELECT {columns}
+            FROM `{table}`
+            WHERE timestamp >= '{start_date_time}' and timestamp <= '{end_date_time}' {where_clause}
+        """
+        dataframe = self.client.query(query=query).result().to_dataframe()
+
+        dataframe["timestamp"] = dataframe["timestamp"].apply(date_to_str)
 
         return dataframe
