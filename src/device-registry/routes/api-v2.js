@@ -3089,7 +3089,7 @@ router.get(
         .withMessage("the tenant should not be empty if provided")
         .trim()
         .toLowerCase()
-        .isIn(["kcca", "airqo", "view"])
+        .isIn(["kcca", "airqo", "view", "urbanbetter"])
         .withMessage("the tenant value is not among the expected ones"),
       query("startTime")
         .optional()
@@ -3144,7 +3144,7 @@ router.get(
         .withMessage("the tenant should not be empty if provided")
         .trim()
         .toLowerCase()
-        .isIn(["kcca", "airqo", "view"])
+        .isIn(["kcca", "airqo", "view", "urbanbetter"])
         .withMessage("the tenant value is not among the expected ones"),
       query("startTime")
         .optional()
