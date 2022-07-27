@@ -2,19 +2,19 @@ apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaConnector
 metadata:
   name: purple-air-connector
-  namespace: kafka-strimzi
+  namespace: message-broker
   labels:
-    strimzi.io/cluster: measurements-connector-cluster
+    strimzi.io/cluster: measurements-connect
 spec:
   class: purpleAir.PurpleAirConnector
   tasksMax: 2
   config:
-    purpleAirTopicGroup: ${configmaps:kafka-strimzi/purple-air-measurements-connector-config:purpleAirTopicGroup}
-    pollInterval: ${configmaps:kafka-strimzi/purple-air-measurements-connector-config:pollInterval}
-    topic: ${configmaps:kafka-strimzi/purple-air-measurements-connector-config:topic}
-    purpleAirApiKey: ${secrets:kafka-strimzi/purple-air-measurements-connector-secrets:purpleAirApiKey}
-    purpleAirApiBaseUrl: ${configmaps:kafka-strimzi/purple-air-measurements-connector-config:purpleAirApiBaseUrl}
-    purpleAirFields: ${configmaps:kafka-strimzi/purple-air-measurements-connector-config:purpleAirFields}
+    purpleAirTopicGroup: ${configmaps:message-broker/purple-air-measurements-connector-config:purpleAirTopicGroup}
+    pollInterval: ${configmaps:message-broker/purple-air-measurements-connector-config:pollInterval}
+    topic: ${configmaps:message-broker/purple-air-measurements-connector-config:topic}
+    purpleAirApiKey: ${secrets:message-broker/purple-air-measurements-connector-secrets:purpleAirApiKey}
+    purpleAirApiBaseUrl: ${configmaps:message-broker/purple-air-measurements-connector-config:purpleAirApiBaseUrl}
+    purpleAirFields: ${configmaps:message-broker/purple-air-measurements-connector-config:purpleAirFields}
     key.converter: org.apache.kafka.connect.json.JsonConverter
     key.converter.schemas.enable: false
     value.converter: org.apache.kafka.connect.json.JsonConverter

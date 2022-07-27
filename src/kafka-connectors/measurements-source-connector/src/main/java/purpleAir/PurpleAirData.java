@@ -13,9 +13,7 @@ import java.util.List;
 @ToString
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class PurpleAirData implements Serializable {
-
-    private Long time_stamp;
+    private Long data_time_stamp;
     private List<String> fields;
     private List<List<Object>> data;
-
 }

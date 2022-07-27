@@ -29,13 +29,10 @@ public class PurpleAirConnector extends SourceConnector {
         } catch (ConfigException e) {
             throw new ConnectException("Couldn't start PurpleAirConnector due to configuration error", e);
         }
-
     }
 
     private Map<String, String> setupPropertiesWithDefaultsIfMissing(Map<String, String> props) {
-
         return new PurpleAirConnectorConfig(props).propertiesWithDefaultsValuesIfMissing();
-
     }
 
     @Override
@@ -56,7 +53,6 @@ public class PurpleAirConnector extends SourceConnector {
 
     @Override
     public void stop() {
-
     }
 
     @Override
