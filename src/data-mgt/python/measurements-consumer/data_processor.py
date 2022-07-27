@@ -38,11 +38,10 @@ class DataProcessor:
             columns = self.big_query_api.get_columns(
                 self.big_query_api.raw_measurements_table
             )
-
             dataframe = Utils.populate_missing_columns(data=dataframe, cols=columns)
-
-            print(dataframe.columns)
-            print(dataframe.head())
+            self.big_query_api.load_data(
+                dataframe=dataframe, table=self.big_query_api.raw_measurements_table
+            )
 
         except Exception as ex:
             traceback.print_exc()
