@@ -7,12 +7,6 @@ spec:
   kafka:
     version: 3.2.0
     replicas: 3
-    readinessProbe:
-      initialDelaySeconds: 15
-      timeoutSeconds: 5
-    livenessProbe:
-      initialDelaySeconds: 15
-      timeoutSeconds: 5
     listeners:
       - name: plain
         port: 9092
@@ -54,12 +48,6 @@ spec:
     replicas: 3
     storage:
       type: ephemeral
-    readinessProbe:
-      initialDelaySeconds: 15
-      timeoutSeconds: 5
-    livenessProbe:
-      initialDelaySeconds: 15
-      timeoutSeconds: 5
   entityOperator:
     topicOperator: {}
     userOperator: {}

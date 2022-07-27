@@ -7,15 +7,15 @@ import numpy as np
 import pandas as pd
 from google.cloud import storage
 
-from airqo_etl_utils.airqo_api import AirQoApi
-from airqo_etl_utils.constants import AirQuality, Pollutant, DataType
-from airqo_etl_utils.date import (
+from airqo_api import AirQoApi
+from constants import AirQuality, Pollutant, DataType
+from date import (
     str_to_date,
     date_to_str,
     date_to_str_days,
     date_to_str_hours,
 )
-from airqo_etl_utils.tahmo_api import TahmoApi
+from tahmo_api import TahmoApi
 
 
 def get_valid_value(raw_value, name=None):

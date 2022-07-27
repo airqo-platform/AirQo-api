@@ -1,7 +1,7 @@
 import simplejson
 from kafka import KafkaProducer
 
-from airqo_etl_utils.config import configuration
+from config import configuration
 
 
 class KafkaBrokerClient:

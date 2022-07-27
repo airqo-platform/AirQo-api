@@ -2,12 +2,12 @@ import datetime
 
 import pandas as pd
 
-from airqo_etl_utils.air_beam_api import AirBeamApi
-from airqo_etl_utils.bigquery_api import BigQueryApi
-from airqo_etl_utils.commons import Utils
-from airqo_etl_utils.config import configuration
-from airqo_etl_utils.date import str_to_date
-from airqo_etl_utils.plume_labs_api import PlumeLabsApi
+from air_beam_api import AirBeamApi
+from bigquery_api import BigQueryApi
+from commons import Utils
+from config import configuration
+from date import str_to_date
+from plume_labs_api import PlumeLabsApi
 
 
 class UrbanBetterUtils:

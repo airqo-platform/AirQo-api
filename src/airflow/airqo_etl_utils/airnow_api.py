@@ -2,7 +2,7 @@ import json
 
 import requests
 
-from airqo_etl_utils.config import configuration
+from config import configuration
 
 
 class AirNowApi:

@@ -3,10 +3,10 @@ import os
 import pandas as pd
 from google.cloud import bigquery
 
-from airqo_etl_utils.config import configuration
-from airqo_etl_utils.constants import JobAction, DataType
-from airqo_etl_utils.date import date_to_str
-from airqo_etl_utils.utils import get_file_content
+from config import configuration
+from constants import JobAction, DataType
+from date import date_to_str
+from utils import get_file_content
 
 
 class BigQueryApi:
