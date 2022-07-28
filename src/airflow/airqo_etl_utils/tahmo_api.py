@@ -1,7 +1,7 @@
 import pandas as pd
 import requests
 
-from airqo_etl_utils.config import configuration
+from config import configuration
 from geopy import distance
 
 

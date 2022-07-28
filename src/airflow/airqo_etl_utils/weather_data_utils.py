@@ -3,13 +3,13 @@ from datetime import timedelta
 import numpy as np
 import pandas as pd
 
-from airqo_etl_utils.airqo_api import AirQoApi
-from airqo_etl_utils.bigquery_api import BigQueryApi
-from airqo_etl_utils.commons import get_frequency, remove_invalid_dates, Utils
-from airqo_etl_utils.data_validator import DataValidationUtils
+from airqo_api import AirQoApi
+from bigquery_api import BigQueryApi
+from commons import get_frequency, remove_invalid_dates, Utils
+from data_validator import DataValidationUtils
 
-from airqo_etl_utils.date import date_to_str
-from airqo_etl_utils.tahmo_api import TahmoApi
+from date import date_to_str
+from tahmo_api import TahmoApi
 
 
 class WeatherDataUtils:

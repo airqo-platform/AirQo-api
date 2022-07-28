@@ -1,6 +1,6 @@
 from airflow.hooks.base import BaseHook
 from airflow.providers.slack.operators.slack_webhook import SlackWebhookOperator
-from airqo_etl_utils.config import configuration
+from config import configuration
 
 
 def slack_success_notification(context):
