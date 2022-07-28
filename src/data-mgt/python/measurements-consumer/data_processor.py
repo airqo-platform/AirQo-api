@@ -22,9 +22,6 @@ class DataProcessor:
             dataframe = pd.DataFrame(
                 columns=value_data.get("fields"), data=value_data.get("data")
             )
-            dataframe["timestamp"] = value_data.get("data_time_stamp")
-            dataframe["timestamp"] = pd.to_datetime(dataframe["timestamp"], unit="s")
-
             dataframe.rename(
                 columns={
                     "sensor_index": "device_number",
@@ -34,6 +31,10 @@ class DataProcessor:
                 },
                 inplace=True,
             )
+
+            dataframe["timestamp"] = value_data.get("data_time_stamp")
+            dataframe["timestamp"] = pd.to_datetime(dataframe["timestamp"], unit="s")
+            dataframe["tenant"] = "urbanbetter"
 
             columns = self.big_query_api.get_columns(
                 self.big_query_api.raw_measurements_table
