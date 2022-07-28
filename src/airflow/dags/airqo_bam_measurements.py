@@ -18,12 +18,10 @@ def bam_historical_measurements_etl():
     def extract_raw_data(**kwargs):
 
         from airqo_etl_utils.commons import get_date_time_values
-        from airqo_etl_utils.airqo_utils import (
-            extract_airqo_bam_data_from_thingspeak,
-        )
+        from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
         start_time, end_time = get_date_time_values(**kwargs)
-        return extract_airqo_bam_data_from_thingspeak(
+        return AirQoDataUtils.extract_bam_data_from_thingspeak(
             start_time=start_time, end_time=end_time
         )
 
@@ -84,6 +82,7 @@ def bam_realtime_measurements_etl():
 
     from airqo_etl_utils.date import date_to_str_hours
     from datetime import datetime, timedelta
+    from airqo_etl_utils.constants import BamDataType
 
     hour_of_day = datetime.utcnow() - timedelta(hours=1)
     start_time = date_to_str_hours(hour_of_day)
@@ -91,30 +90,43 @@ def bam_realtime_measurements_etl():
 
     @task()
     def extract_bam_data():
-        from airqo_etl_utils.airqo_utils import extract_airqo_bam_data_from_thingspeak
+        from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
-        return extract_airqo_bam_data_from_thingspeak(
+        return AirQoDataUtils.extract_bam_data_from_thingspeak(
             start_time=start_time, end_time=end_time
         )
 
     @task()
-    def load(airqo_data: pd.DataFrame):
+    def transform_bam_data(bam_data: pd.DataFrame, data_type: BamDataType):
+        from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
-        from airqo_etl_utils.airqo_utils import restructure_airqo_data
+        return AirQoDataUtils.process_bam_data(data=bam_data, data_type=data_type)
 
+    @task()
+    def load_outliers(bam_data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
-        airqo_restructured_data = restructure_airqo_data(
-            data=airqo_data, destination="bigquery"
-        )
         big_query_api = BigQueryApi()
         big_query_api.load_data(
-            dataframe=airqo_restructured_data,
+            dataframe=bam_data,
+            table=big_query_api.bam_outliers_table,
+        )
+
+    @task()
+    def load_measurements(bam_data: pd.DataFrame):
+        from airqo_etl_utils.bigquery_api import BigQueryApi
+
+        big_query_api = BigQueryApi()
+        big_query_api.load_data(
+            dataframe=bam_data,
             table=big_query_api.bam_measurements_table,
         )
 
-    extracted_data = extract_bam_data()
-    load(extracted_data)
+    data = extract_bam_data()
+    outliers = transform_bam_data(bam_data=data, data_type=BamDataType.OUTLIERS)
+    load_outliers(outliers)
+    measurements = transform_bam_data(bam_data=data, data_type=BamDataType.MEASUREMENTS)
+    load_measurements(measurements)
 
 
 realtime_measurements_etl_dag = bam_realtime_measurements_etl()
