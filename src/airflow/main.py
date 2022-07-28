@@ -6,6 +6,7 @@ from pathlib import Path
 import pandas as pd
 from dotenv import load_dotenv
 
+from airqo_etl_utils.calibration_utils import CalibrationUtils
 from airqo_etl_utils.arg_parse_validator import valid_datetime_format
 from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.commons import download_file_from_gcs
@@ -243,44 +244,26 @@ def daily_insights(start_date_time: str, end_date_time: str):
 
 
 def weather_data(start_date_time: str, end_date_time: str):
-    from airqo_etl_utils.weather_data_utils import (
-        resample_weather_data,
-        query_weather_data_from_tahmo,
-        add_site_info_to_weather_data,
-        transform_weather_data_for_bigquery,
-    )
-    from airqo_etl_utils.bigquery_api import BigQueryApi
+    from airqo_etl_utils.weather_data_utils import WeatherDataUtils
 
-    raw_weather_data = query_weather_data_from_tahmo(
+    raw_weather_data = WeatherDataUtils.query_raw_data_from_tahmo(
         start_date_time=start_date_time, end_date_time=end_date_time
     )
-    pd.DataFrame(raw_weather_data).to_csv(
-        path_or_buf="raw_weather_data.csv", index=False
-    )
+    raw_weather_data.to_csv(path_or_buf="raw_weather_data.csv", index=False)
 
-    hourly_weather_data = resample_weather_data(
-        data=raw_weather_data, frequency="hourly"
-    )
-    pd.DataFrame(hourly_weather_data).to_csv(
-        path_or_buf="hourly_weather_data.csv", index=False
-    )
+    cleaned_weather_data = WeatherDataUtils.transform_raw_data(data=raw_weather_data)
+    cleaned_weather_data.to_csv(path_or_buf="cleaned_weather_data.csv", index=False)
 
-    sites_weather_data = add_site_info_to_weather_data(data=hourly_weather_data)
-    pd.DataFrame(sites_weather_data).to_csv(
-        path_or_buf="sites_weather_data.csv", index=False
-    )
+    hourly_weather_data = WeatherDataUtils.aggregate_data(data=cleaned_weather_data)
+    hourly_weather_data.to_csv(path_or_buf="hourly_weather_data.csv", index=False)
 
-    bigquery_data = transform_weather_data_for_bigquery(data=sites_weather_data)
-    bigquery_data_df = pd.DataFrame(bigquery_data)
-    bigquery_api = BigQueryApi()
-    bigquery_data_df = bigquery_api.validate_data(
-        dataframe=bigquery_data_df, table=bigquery_api.hourly_weather_table
+    bigquery_weather_data = WeatherDataUtils.transform_for_bigquery(
+        data=hourly_weather_data
     )
-    bigquery_data_df.to_csv(path_or_buf="bigquery_weather_data.csv", index=False)
+    bigquery_weather_data.to_csv(path_or_buf="bigquery_weather_data.csv", index=False)
 
 
 def upload_to_gcs():
-    test_data = pd.DataFrame([{"name": "joe doe"}])
     download_file_from_gcs(
         bucket_name="airflow_xcom",
         source_file="test_data.csv",
@@ -313,98 +296,47 @@ def meta_data():
     bigquery_data_df.to_csv(path_or_buf="bigquery_devices_data.csv", index=False)
 
 
-def calibrate_historical_data(start_date_time, end_date_time, tenant):
-    from airqo_etl_utils.airqo_utils import calibrate_hourly_airqo_measurements
-    from airqo_etl_utils.bigquery_api import BigQueryApi
+def calibrate_historical_data():
+    from airqo_etl_utils.calibration_utils import CalibrationUtils
 
-    bigquery_api = BigQueryApi()
+    start_date_time = "2022-01-01T00:00:00Z"
+    end_date_time = "2022-01-10T00:00:00Z"
 
-    device_measurements = bigquery_api.query_data(
-        start_date_time=start_date_time,
-        end_date_time=end_date_time,
-        columns=[
-            "s1_pm2_5",
-            "s2_pm2_5",
-            "s1_pm10",
-            "s2_pm10",
-            "timestamp",
-            "device_number",
-            "site_id",
-            "external_temperature",
-            "external_humidity",
-        ],
-        table=bigquery_api.hourly_measurements_table,
-        tenant=tenant,
+    hourly_weather_data = CalibrationUtils.extract_hourly_weather_data(
+        start_date_time=start_date_time, end_date_time=end_date_time
     )
+    hourly_weather_data.to_csv("historical_weather_data.csv", index=False)
 
-    weather_data = bigquery_api.query_data(
-        start_date_time=start_date_time,
-        end_date_time=end_date_time,
-        columns=["site_id", "timestamp", "temperature", "humidity"],
-        table=bigquery_api.hourly_weather_table,
-        tenant=tenant,
+    device_measurements = CalibrationUtils.extract_hourly_device_measurements(
+        start_date_time=start_date_time, end_date_time=end_date_time
     )
+    device_measurements.to_csv("historical_device_measurements.csv", index=False)
 
-    measurements = pd.merge(
-        left=device_measurements,
-        right=weather_data,
-        on=["site_id", "timestamp"],
-        how="left",
+    merged_data = CalibrationUtils.merge_device_measurements_and_weather_data(
+        device_measurements=device_measurements,
+        weather_data=hourly_weather_data,
     )
-
-    measurements = measurements.dropna(
-        subset=[
-            "site_id",
-            "device_number",
-            "s1_pm2_5",
-            "s2_pm2_5",
-            "s1_pm10",
-            "s2_pm10",
-            "timestamp",
-        ]
+    merged_data.to_csv("historical_merged_data.csv", index=False)
+    merged_data = pd.read_csv(
+        "historical_merged_data.csv",
     )
+    hourly_weather_data.to_csv("historical_weather_data.csv", index=False)
 
-    measurements["humidity"] = measurements["humidity"].fillna(
-        measurements["external_humidity"]
+    device_measurements = CalibrationUtils.extract_hourly_device_measurements(
+        start_date_time=start_date_time, end_date_time=end_date_time
     )
-    measurements["temperature"] = measurements["temperature"].fillna(
-        measurements["external_temperature"]
+    device_measurements.to_csv("historical_device_measurements.csv", index=False)
+
+    merged_data = CalibrationUtils.merge_device_measurements_and_weather_data(
+        device_measurements=device_measurements,
+        weather_data=hourly_weather_data,
     )
+    merged_data.to_csv("historical_merged_data.csv", index=False)
 
-    del measurements["external_temperature"]
-    del measurements["external_humidity"]
-
-    measurements = measurements.dropna(subset=["temperature", "humidity"])
-
-    measurements.rename(
-        columns={"timestamp": "time", "device_number": "device_id"}, inplace=True
+    calibrated_data = CalibrationUtils.calibrate_historical_data(
+        measurements=merged_data,
     )
-
-    n = 1000
-    measurements_list = [
-        measurements[i : i + n] for i in range(0, measurements.shape[0], n)
-    ]
-    index = 0
-    for chunk in measurements_list:
-        calibrated_data = calibrate_hourly_airqo_measurements(measurements=chunk)
-        calibrated_data.rename(
-            columns={
-                "time": "timestamp",
-                "device_id": "device_number",
-                "calibrated_pm2_5": "pm2_5_calibrated_value",
-                "calibrated_pm10": "pm10_calibrated_value",
-            },
-            inplace=True,
-        )
-        calibrated_data["tenant"] = tenant
-        bigquery_api.validate_data(
-            dataframe=calibrated_data,
-            table=bigquery_api.calibrated_hourly_measurements_table,
-        )
-        calibrated_data.to_csv(
-            path_or_buf=f"historical_calibrated_data_{index}.csv", index=False
-        )
-        index = index + 1
+    calibrated_data.to_csv("historical_calibrated_data.csv", index=False)
 
 
 def merge_historical_calibrated_data(
@@ -538,36 +470,122 @@ def airnow_bam_data():
     bigquery_data.to_csv("airnow_bigquery_data.csv", index=False)
 
 
-def urban_better_data():
-    from airqo_etl_utils.urban_better_utils import (
-        extract_urban_better_data_from_api,
-        extract_urban_better_sensor_positions_from_api,
-        merge_urban_better_data,
-        process_for_big_query,
-    )
+def urban_better_data_from_plume_labs():
+    from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
 
-    extracted_urban_better_data = extract_urban_better_data_from_api(
-        start_date_time="2022-07-11T00:00:00Z", end_date_time="2022-07-12T00:00:00Z"
+    start_date_time = "2022-07-11T00:00:00Z"
+    end_date_time = "2022-07-12T00:00:00Z"
+    measurements = UrbanBetterUtils.extract_measurements_from_plume_labs(
+        start_date_time=start_date_time, end_date_time=end_date_time
     )
-    extracted_urban_better_data.to_csv("urban_better_unprocessed_data.csv", index=False)
+    measurements.to_csv("urban_better_unprocessed_data.csv", index=False)
 
-    extracted_sensor_positions_data = extract_urban_better_sensor_positions_from_api(
-        start_date_time="2022-07-11T00:00:00Z", end_date_time="2022-07-12T00:00:00Z"
+    sensor_positions = UrbanBetterUtils.extract_sensor_positions_from_plume_labs(
+        start_date_time=start_date_time, end_date_time=end_date_time
     )
-    extracted_sensor_positions_data.to_csv(
-        "sensor_positions_unprocessed_data.csv", index=False
-    )
+    sensor_positions.to_csv("sensor_positions_unprocessed_data.csv", index=False)
 
-    processed_urban_better_data = merge_urban_better_data(
-        measures=extracted_urban_better_data,
-        sensor_positions=extracted_sensor_positions_data,
+    urban_better_data = UrbanBetterUtils.merge_measures_and_sensor_positions(
+        measures=measurements,
+        sensor_positions=sensor_positions,
     )
-    processed_urban_better_data.to_csv("urban_better_processed_data.csv", index=False)
+    urban_better_data.to_csv("urban_better_processed_data.csv", index=False)
 
     bigquery_data = pd.DataFrame(
-        process_for_big_query(dataframe=processed_urban_better_data)
+        UrbanBetterUtils.process_for_big_query(dataframe=urban_better_data)
     )
     bigquery_data.to_csv("urban_better_bigquery_data.csv", index=False)
+
+
+def urban_better_data_from_air_beam():
+    from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
+
+    start_date_time = "2022-07-21T07:00:00Z"
+    end_date_time = "2022-07-21T17:00:00Z"
+    stream_ids = UrbanBetterUtils.extract_stream_ids_from_air_beam(
+        start_date_time=start_date_time, end_date_time=end_date_time
+    )
+    stream_ids.to_csv("urban_better_air_beam_stream_ids.csv", index=False)
+
+    measurements = UrbanBetterUtils.extract_measurements_from_air_beam(
+        start_date_time=start_date_time,
+        end_date_time=end_date_time,
+        stream_ids=stream_ids,
+    )
+    measurements.to_csv("urban_better_air_beam_measurements.csv", index=False)
+
+    bigquery_data = pd.DataFrame(
+        UrbanBetterUtils.process_for_big_query(dataframe=measurements)
+    )
+    bigquery_data.to_csv("urban_better_air_beam_bigquery_data.csv", index=False)
+
+
+def airqo_mobile_device_measurements():
+    from airqo_etl_utils.airqo_utils import AirQoDataUtils
+    from airqo_etl_utils.weather_data_utils import WeatherDataUtils
+
+    input_meta_data = [
+        {
+            "latitude": 0.2959788757479883,
+            "longitude": 32.57946554294726,
+            "start_date_time": "2022-07-20T10:00:00Z",
+            "end_date_time": "2022-07-20T18:00:00Z",
+            "device_numbers": [1575539, 1606118],
+        },
+        {
+            "latitude": 0.30112943343101545,
+            "longitude": 32.587149313048286,
+            "start_date_time": "2022-07-21T10:00:00Z",
+            "end_date_time": "2022-07-21T18:00:00Z",
+            "device_numbers": [1351544, 1371829],
+        },
+    ]
+
+    raw_data = AirQoDataUtils.extract_data_from_thingspeak(
+        start_date_time="", end_date_time="", meta_data=input_meta_data
+    )
+    raw_data.to_csv("raw_device_measurements_data.csv", index=False)
+
+    aggregated_mobile_devices_data = AirQoDataUtils.aggregate_mobile_devices_data(
+        raw_data
+    )
+    aggregated_mobile_devices_data.to_csv(
+        "aggregated_mobile_devices_data.csv", index=False
+    )
+
+    weather_stations = WeatherDataUtils.get_nearest_tahmo_stations(
+        coordinates_list=input_meta_data
+    )
+    weather_stations.to_csv("weather_stations.csv", index=False)
+
+    mobile_devices_weather_data = AirQoDataUtils.extract_mobile_devices_weather_data(
+        stations=weather_stations, meta_data=input_meta_data
+    )
+    mobile_devices_weather_data.to_csv("mobile_devices_weather_data.csv", index=False)
+
+    merged_mobile_devices_data = (
+        AirQoDataUtils.merge_mobile_devices_data_and_weather_data(
+            measurements=aggregated_mobile_devices_data,
+            weather_data=mobile_devices_weather_data,
+        )
+    )
+    merged_mobile_devices_data.to_csv("merged_mobile_devices_data.csv", index=False)
+
+    calibrated_mobile_devices_data = CalibrationUtils.calibrate_mobile_devices_data(
+        measurements=merged_mobile_devices_data
+    )
+    calibrated_mobile_devices_data.to_csv(
+        "calibrated_mobile_devices_data.csv", index=False
+    )
+
+    bigquery_data = AirQoDataUtils.restructure_airqo_mobile_data_for_bigquery(
+        calibrated_mobile_devices_data
+    )
+    bigquery_api = BigQueryApi()
+    bigquery_data = bigquery_api.validate_data(
+        dataframe=bigquery_data, table=bigquery_api.airqo_mobile_measurements_table
+    )
+    bigquery_data.to_csv("bigquery_mobile_devices_data.csv", index=False)
 
 
 if __name__ == "__main__":
@@ -616,7 +634,9 @@ if __name__ == "__main__":
             "app_notifications",
             "calibrate_historical_data",
             "airnow_bam_data",
-            "urban_better_data",
+            "urban_better_data_plume_labs",
+            "urban_better_data_air_beam",
+            "airqo_mobile_device_measurements",
         ],
     )
 
@@ -650,13 +670,19 @@ if __name__ == "__main__":
         upload_to_gcs()
 
     elif args.action == "calibrate_historical_data":
-        calibrate_historical_data(
-            start_date_time=args.start, end_date_time=args.end, tenant=args.tenant
-        )
+        calibrate_historical_data()
+
     elif args.action == "airnow_bam_data":
         airnow_bam_data()
 
-    elif args.action == "urban_better_data":
-        urban_better_data()
+    elif args.action == "urban_better_data_plume_labs":
+        urban_better_data_from_plume_labs()
+
+    elif args.action == "urban_better_data_air_beam":
+        urban_better_data_from_air_beam()
+
+    elif args.action == "airqo_mobile_device_measurements":
+        airqo_mobile_device_measurements()
+
     else:
         pass

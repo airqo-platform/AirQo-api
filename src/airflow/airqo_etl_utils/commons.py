@@ -7,28 +7,15 @@ import numpy as np
 import pandas as pd
 from google.cloud import storage
 
-from airqo_etl_utils.airqo_api import AirQoApi
-from airqo_etl_utils.constants import AirQuality, Pollutant, DataType
-from airqo_etl_utils.date import (
+from airqo_api import AirQoApi
+from constants import AirQuality, Pollutant, DataType
+from date import (
     str_to_date,
     date_to_str,
     date_to_str_days,
     date_to_str_hours,
 )
-from airqo_etl_utils.tahmo import TahmoApi
-
-
-def measurement_time_to_string(time: str, daily=False):
-    date_time = str_to_date(time)
-    return date_to_str_days(date_time) if daily else date_to_str_hours(date_time)
-
-
-def to_double(x):
-    try:
-        value = float(x)
-        return None if (math.isnan(value) or np.isnan(value)) else value
-    except Exception:
-        return None
+from tahmo_api import TahmoApi
 
 
 def get_valid_value(raw_value, name=None):
@@ -63,6 +50,19 @@ def get_valid_value(raw_value, name=None):
         pass
 
     return value
+
+
+def measurement_time_to_string(time: str, daily=False):
+    date_time = str_to_date(time)
+    return date_to_str_days(date_time) if daily else date_to_str_hours(date_time)
+
+
+def to_double(x):
+    try:
+        value = float(x)
+        return None if (math.isnan(value) or np.isnan(value)) else value
+    except Exception:
+        return None
 
 
 def get_site_ids_from_station(station: str, sites: list):
@@ -276,6 +276,31 @@ def get_airqo_api_frequency(freq: str) -> str:
         return "5H"
 
 
+class Utils:
+    @staticmethod
+    def populate_missing_columns(data: pd.DataFrame, cols: list) -> pd.DataFrame:
+        for col in cols:
+            if col not in list(data.columns):
+                print(f"{col} missing in dataset")
+                data[col] = None
+
+        return data
+
+    @staticmethod
+    def get_dag_date_time_config(interval_in_days: int = 1, **kwargs):
+        try:
+            dag_run = kwargs.get("dag_run")
+            start_date_time = dag_run.conf["start_date_time"]
+            end_date_time = dag_run.conf["end_date_time"]
+        except KeyError:
+            end_date = datetime.utcnow()
+            start_date = end_date - timedelta(days=interval_in_days)
+            start_date_time = datetime.strftime(start_date, "%Y-%m-%dT00:00:00Z")
+            end_date_time = datetime.strftime(end_date, "%Y-%m-%dT11:59:59Z")
+
+        return start_date_time, end_date_time
+
+
 def get_weather_data_from_tahmo(
     start_time=None, end_time=None, tenant="airqo"
 ) -> pd.DataFrame:
@@ -390,8 +415,8 @@ def get_site_and_device_id(devices, channel_id=None, device_name=None):
 def get_date_time_values(interval_in_days: int = 1, **kwargs):
     try:
         dag_run = kwargs.get("dag_run")
-        start_date_time = dag_run.conf["startDateTime"]
-        end_date_time = dag_run.conf["endDateTime"]
+        start_date_time = dag_run.conf["start_date_time"]
+        end_date_time = dag_run.conf["end_date_time"]
     except KeyError:
         end_date = datetime.utcnow()
         start_date = end_date - timedelta(days=interval_in_days)

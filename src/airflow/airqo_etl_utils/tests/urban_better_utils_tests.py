@@ -3,7 +3,7 @@ import unittest
 
 import pandas as pd
 
-from airqo_etl_utils.urban_better_utils import get_nearest_gps_coordinates
+from urban_better_utils import UrbanBetterUtils
 
 
 class TestUrbanBetterUtils(unittest.TestCase):
@@ -32,7 +32,7 @@ class TestUrbanBetterUtils(unittest.TestCase):
             ]
         )
 
-        coordinates = get_nearest_gps_coordinates(
+        coordinates = UrbanBetterUtils.get_nearest_gps_coordinates(
             sensor_positions=pd.DataFrame(sensor_positions), date_time=now
         )
         self.assertEqual(coordinates["timestamp"], now + datetime.timedelta(minutes=2))

@@ -4,8 +4,8 @@ import pandas as pd
 import requests
 import simplejson
 
-from airqo_etl_utils.config import configuration
-from airqo_etl_utils.constants import DeviceCategory
+from config import configuration
+from constants import DeviceCategory
 
 
 class AirQoApi:
@@ -56,6 +56,17 @@ class AirQoApi:
             },
             inplace=True,
         )
+        data = data[
+            [
+                "device_id",
+                "sensor1_pm2.5",
+                "sensor2_pm2.5",
+                "sensor1_pm10",
+                "sensor2_pm10",
+                "temperature",
+                "humidity",
+            ]
+        ]
 
         request_body = {"datetime": time, "raw_values": data.to_dict("records")}
 
