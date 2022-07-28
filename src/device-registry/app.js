@@ -10,6 +10,7 @@ require("app-module-path").addPath(__dirname);
 var cookieParser = require("cookie-parser");
 var apiV1 = require("./routes/api-v1");
 var apiV2 = require("./routes/api-v2");
+const constants = require("./config/constants");
 const { mongodb } = require("./config/database");
 const { runKafkaConsumer, runKafkaProducer } = require("./config/kafkajs");
 
@@ -18,8 +19,16 @@ mongodb;
 runKafkaProducer();
 runKafkaConsumer();
 const cors = require("cors");
+const moesif = require("moesif-nodejs");
 
 const app = express();
+
+const moesifMiddleware = moesif({
+  applicationId: constants.MOESIF_APPLICATION_ID,
+  identifyUser: function(req, res) {
+    return req.user ? req.user.id : undefined;
+  },
+});
 
 const whitelist = [
   "https://staging.airqo.net/",
@@ -40,6 +49,8 @@ const corsOptions = {
 };
 
 app.use(cors());
+
+app.use(moesifMiddleware);
 
 app.use(log4js.connectLogger(log4js.getLogger("http"), { level: "auto" }));
 app.use(bodyParser.json());

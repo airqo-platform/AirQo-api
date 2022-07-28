@@ -57,9 +57,13 @@ jobs:
       run_average_jobs: ${{ steps.check_files.outputs.run_average_jobs }} # average and calibration jobs
       run_events_check: ${{ steps.check_files.outputs.run_events_check }} # event checks
       run_notifications: ${{ steps.check_files.outputs.run_notifications }} # notification
+      run_kafka_cluster_operator: ${{ steps.check_files.outputs.run_kafka_cluster_operator }} # kafka cluster operator
+      run_kafka_cluster: ${{ steps.check_files.outputs.run_kafka_cluster }} # kafka cluster
+      run_kafka_topics: ${{ steps.check_files.outputs.run_kafka_topics }} # kafka topics
       run_airflow: ${{ steps.check_files.outputs.run_airflow }} # airflow
       run_network_uptime: ${{ steps.check_files.outputs.run_network_uptime }} # network_uptime
       run_channel_data: ${{ steps.check_files.outputs.run_channel_data }} # channel data job
+      run_kafka_connectors: ${{ steps.check_files.outputs.run_kafka_connectors }} # kafka connectors
       run_message_broker_topics: ${{ steps.check_files.outputs.run_message_broker_topics }} # message broker topics
       run_fault_detection: ${{ steps.check_files.outputs.run_fault_detection }} # fault detection
 
@@ -97,9 +101,13 @@ jobs:
           echo "::set-output name=run_average_jobs::false"
           echo "::set-output name=run_events_check::false"
           echo "::set-output name=run_notifications::false"
+          echo "::set-output name=run_kafka_cluster_operator::false"
+          echo "::set-output name=run_kafka_cluster::false"
+          echo "::set-output name=run_kafka_topics::false"
           echo "::set-output name=run_airflow::false"
           echo "::set-output name=run_network_uptime::false"
           echo "::set-output name=run_channel_data::false"
+          echo "::set-output name=run_kafka_connectors::false"
           echo "::set-output name=run_message_broker_topics::false"
           echo "::set-output name=run_fault_detection::false"
 
@@ -174,7 +182,23 @@ jobs:
               echo "::set-output name=run_notifications::true"
             fi
 
+            if [[ $file == k8s/kafka-clusters/* ]]; then
+              echo "::set-output name=run_kafka_cluster::true"
+            fi
+
+            if [[ $file == k8s/kafka-operator/* ]]; then
+              echo "::set-output name=run_kafka_cluster_operator::true"
+            fi
+
+            if [[ $file == k8s/kafka-topics/* ]]; then
+              echo "::set-output name=run_kafka_topics::true"
+            fi
+
             if [[ $file == src/airflow/* ]]; then
+              echo "::set-output name=run_airflow::true"
+            fi
+
+            if [[ $file == k8s/airflow/* ]]; then
               echo "::set-output name=run_airflow::true"
             fi
 
@@ -188,6 +212,10 @@ jobs:
 
             if [[ $file == src/fault-detection/* ]]; then
               echo "::set-output name=run_fault_detection::true"
+            fi
+
+            if [[ $file == src/kafka-connectors/* ]]; then
+              echo "::set-output name=run_kafka_connectors::true"
             fi
 
             if [[ $file == k8s/message-broker-topics/* ]]; then
@@ -216,6 +244,7 @@ jobs:
               echo "::set-output name=run_channel_data::true"
               echo "::set-output name=run_fault_detection::true"
               echo "::set-output name=run_view::true"
+              echo "::set-output name=run_kafka_connectors::true"
               echo "::set-output name=run_message_broker_topics::true"
             fi
 
@@ -272,6 +301,49 @@ jobs:
           gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-auth-service-preview \
             --region=${{ secrets.REGION }} \
             --quiet
+
+  #### Kafka Connectors ######
+  kafka-connectors:
+    name: build-push-deploy-kafka-connectors
+    needs: [check, image-tag]
+    if: needs.check.outputs.run_kafka_connectors == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      -
+        name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
+      -
+        name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+      - 
+        name: Login to GCR
+        uses: docker/login-action@v1
+        with:
+          registry: ${{ secrets.REGISTRY_URL }}
+          username: _json_key
+          password: ${{ secrets.GCR_CONFIG }}
+      -
+        name: Build and push measurements source connectors
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          context: src/kafka-connectors/measurements-source-connector
+          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-measurements-connect:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-measurements-connect:latest
+      -
+        name: Login to k8s cluster
+        uses: azure/k8s-set-context@v1
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+      - 
+        name: Deploy to k8s cluster
+        run: |
+          export MEASUREMENTS_CONNECT_IMAGE=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-measurements-connect:${{ needs.image-tag.outputs.build_id }}
+          export STAGE_KAFKA_CLUSTER=${{ secrets.STAGE_KAFKA_CLUSTER }}
+          cat k8s/kafka-connectors/measurements-connect.yaml | sed "s/{{MEASUREMENTS_CONNECT_IMAGE}}/$MEASUREMENTS_CONNECT_IMAGE/g" | sed "s/{{KAFKA_CLUSTER}}/$STAGE_KAFKA_CLUSTER/g" | kubectl apply -n message-broker -f-
+          kubectl apply -f k8s/kafka-connectors/purple-air-connector.yaml -n message-broker
 
   #### Fault Detection ######
   fault-detection:
@@ -334,7 +406,7 @@ jobs:
   ### message broker topics ###
   message-broker-topics:
     name: build-push-deploy-message-broker-topics
-    needs: [check, image-tag]
+    needs: [check]
     if: needs.check.outputs.run_message_broker_topics == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -378,7 +450,7 @@ jobs:
         uses: azure/k8s-set-context@v1
         with:
           method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_PIPELINE_CONFIG }}
+          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
       -
         name: Build and push app
         uses: docker/build-push-action@v2
@@ -399,7 +471,7 @@ jobs:
       # - name: Deploy to K8S
       #   uses: Azure/k8s-deploy@v1.4
       #   with:
-      #     namespace: "stage-airflow"
+      #     namespace: "pipeline"
       #     manifests: |
       #       k8s/airflow/stage-airflow-app.yaml
       #     images: "${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-apache-airflow:${{ needs.image-tag.outputs.build_id }}"
@@ -407,8 +479,8 @@ jobs:
       
       - name: Deploy to K8S
         run: |
-          kubectl apply -f k8s/airflow/stage-airflow-app.yaml -n stage-airflow
-          kubectl rollout restart deployment airflow  -n stage-airflow
+          kubectl apply -f k8s/airflow/stage-airflow-app.yaml
+          kubectl rollout restart deployment stage-airflow
 
   ### predict api and jobs ###
   predict-service:
@@ -486,6 +558,72 @@ jobs:
           gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-predict-service \
             --region=${{ secrets.REGION }} \
             --quiet
+
+  ### kafka cluster operator ###
+  kafka-cluster-operator:
+    name: build-push-deploy-kafka-cluster-operator
+    needs: [check]
+    if: needs.check.outputs.run_kafka_cluster_operator == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - 
+        name: Checkout
+        uses: actions/checkout@v2
+      - 
+        name: Login to K8S
+        uses: azure/k8s-set-context@v1
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+      -
+        name: Deploy to K8S
+        run: |
+          kubectl apply -f k8s/kafka-operator/namespace.yaml
+          bash k8s/kafka-operator/deployment-script.sh
+
+  ### kafka cluster ###
+  kafka-cluster:
+    name: build-push-deploy-kafka-cluster
+    needs: [check]
+    if: ${{ (needs.check.outputs.run_kafka_cluster == 'true') || (needs.check.outputs.run_kafka_cluster_operator == 'true') }}
+    runs-on: ubuntu-latest
+    steps:
+      - 
+        name: Checkout
+        uses: actions/checkout@v2
+      - 
+        name: Login to K8S
+        uses: azure/k8s-set-context@v1
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+      -
+        name: Deploy to K8S
+        run: |
+          export KAFKA_BROKER_0=${{ secrets.STAGE_KAFKA_BROKER_0 }}
+          export KAFKA_BROKER_1=${{ secrets.STAGE_KAFKA_BROKER_1 }}
+          export KAFKA_BROKER_2=${{ secrets.STAGE_KAFKA_BROKER_2 }}
+          cat k8s/kafka-clusters/kafka-cluster.yaml | sed "s/{{KAFKA_BROKER_0}}/$STAGE_KAFKA_BROKER_0/g" | sed "s/{{KAFKA_BROKER_1}}/$STAGE_KAFKA_BROKER_1/g" | sed "s/{{KAFKA_BROKER_2}}/$STAGE_KAFKA_BROKER_2/g" | kubectl apply -n message-broker -f-
+
+  ### kafka topics ###
+  kafka-topics:
+    name: build-push-deploy-kafka-topics
+    needs: [check]
+    if: ${{ (needs.check.outputs.run_kafka_cluster == 'true') || (needs.check.outputs.run_kafka_topics == 'true') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - 
+        name: Login to K8S
+        uses: azure/k8s-set-context@v1
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+      - 
+        name: Deploy to K8S
+        run: |
+          kubectl apply -f k8s/kafka-topics/kafka-topics.yaml -n message-broker
 
   #### Device Registry ######
   device-registry:

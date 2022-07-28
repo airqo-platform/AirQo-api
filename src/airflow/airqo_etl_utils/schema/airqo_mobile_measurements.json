@@ -1,0 +1,152 @@
+[
+    {
+        "name": "tenant",
+        "type": "STRING",
+        "mode": "REQUIRED"
+    },
+    {
+        "name": "timestamp",
+        "type": "TIMESTAMP",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "device_number",
+        "type": "INTEGER",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "latitude",
+        "type": "FLOAT",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "longitude",
+        "type": "FLOAT",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "s1_pm2_5",
+        "type": "FLOAT",
+        "mode": "NULLABLE",
+        "description": " μg/m3."
+    },
+    {
+        "name": "s2_pm2_5",
+        "type": "FLOAT",
+        "mode": "NULLABLE",
+        "description": " μg/m3."
+    },
+    {
+        "name": "s1_pm10",
+        "type": "FLOAT",
+        "mode": "NULLABLE",
+        "description": " μg/m3."
+    },
+    {
+        "name": "s2_pm10",
+        "type": "FLOAT",
+        "mode": "NULLABLE",
+        "description": " μg/m3."
+    },
+    {
+        "name": "wind_speed",
+        "type": "FLOAT",
+        "mode": "NULLABLE",
+        "description": "m/s."
+    },
+    {
+        "name": "altitude",
+        "type": "FLOAT",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "battery",
+        "type": "FLOAT",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "satellites",
+        "type": "FLOAT",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "hdop",
+        "type": "FLOAT",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "internalTemperature",
+        "type": "FLOAT",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "internalHumidity",
+        "type": "FLOAT",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "atmospheric_pressure",
+        "type": "FLOAT",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "temperature",
+        "type": "FLOAT",
+        "mode": "NULLABLE",
+        "description": "°C.\nExternal temperature"
+    },
+    {
+        "name": "humidity",
+        "type": "FLOAT",
+        "mode": "NULLABLE",
+        "description": "%.\nRelative humidity"
+    },
+    {
+        "name": "precipitation",
+        "type": "FLOAT",
+        "mode": "NULLABLE",
+        "description": "°C.\nExternal temperature"
+    },
+    {
+        "name": "wind_direction",
+        "type": "FLOAT",
+        "mode": "NULLABLE",
+        "description": "%.\nRelative humidity"
+    },
+    {
+        "name": "radiation",
+        "type": "FLOAT",
+        "mode": "NULLABLE",
+        "description": "°C.\nExternal temperature"
+    },
+    {
+        "name": "wind_gusts",
+        "type": "FLOAT",
+        "mode": "NULLABLE",
+        "description": "%.\nRelative humidity"
+    },
+    {
+        "name": "pm2_5_calibrated_value",
+        "type": "FLOAT",
+        "mode": "NULLABLE",
+        "description": " μg/m3."
+    },
+    {
+        "name": "pm10_calibrated_value",
+        "type": "FLOAT",
+        "mode": "NULLABLE",
+        "description": " μg/m3."
+    },
+    {
+        "name": "pm2_5_raw_value",
+        "type": "FLOAT",
+        "mode": "NULLABLE",
+        "description": " μg/m3."
+    },
+    {
+        "name": "pm10_raw_value",
+        "type": "FLOAT",
+        "mode": "NULLABLE",
+        "description": " μg/m3."
+    }
+]

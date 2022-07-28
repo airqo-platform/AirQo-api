@@ -3089,20 +3089,18 @@ router.get(
         .withMessage("the tenant should not be empty if provided")
         .trim()
         .toLowerCase()
-        .isIn(["kcca", "airqo", "view"])
+        .isIn(["kcca", "airqo", "view", "urbanbetter"])
         .withMessage("the tenant value is not among the expected ones"),
       query("startTime")
         .optional()
         .notEmpty()
         .trim()
-        .toDate()
         .isISO8601({ strict: true, strictSeparator: true })
         .withMessage("startTime must be a valid datetime."),
       query("endTime")
         .optional()
         .notEmpty()
         .trim()
-        .toDate()
         .isISO8601({ strict: true, strictSeparator: true })
         .withMessage("endTime must be a valid datetime."),
       query("frequency")
@@ -3135,6 +3133,62 @@ router.get(
   ]),
   eventController.listFromBigQuery
 );
+
+router.get(
+  "/events/latest",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("the tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo", "view", "urbanbetter"])
+        .withMessage("the tenant value is not among the expected ones"),
+      query("startTime")
+        .optional()
+        .notEmpty()
+        .trim()
+        .isISO8601({ strict: true, strictSeparator: true })
+        .withMessage("startTime must be a valid datetime."),
+      query("endTime")
+        .optional()
+        .notEmpty()
+        .trim()
+        .isISO8601({ strict: true, strictSeparator: true })
+        .withMessage("endTime must be a valid datetime."),
+      query("frequency")
+        .optional()
+        .notEmpty()
+        .trim()
+        .toLowerCase()
+        .isIn(["hourly", "daily", "raw"])
+        .withMessage(
+          "the frequency value is not among the expected ones which include: hourly, daily,and raw"
+        ),
+      query("device")
+        .optional()
+        .notEmpty()
+        .trim(),
+      query("site")
+        .optional()
+        .notEmpty()
+        .trim(),
+      query("metadata")
+        .optional()
+        .notEmpty()
+        .trim()
+        .toLowerCase()
+        .isIn(["site", "site_id", "device", "device_id"])
+        .withMessage(
+          "valid values include: site, site_id, device and device_id"
+        ),
+    ],
+  ]),
+  eventController.latestFromBigQuery
+);
+
 router.post(
   "/events/transmit",
   oneOf([
@@ -3438,9 +3492,10 @@ router.post(
           "subcounty",
           "country",
           "state",
+          "province",
         ])
         .withMessage(
-          "admin_level values include: state, village, county, subcounty, village, parish, country, division and district"
+          "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district"
         ),
       body("location_tags")
         .optional()
@@ -3509,9 +3564,10 @@ router.get(
           "subcounty",
           "country",
           "state",
+          "province",
         ])
         .withMessage(
-          "admin_level values include: state, village, county, subcounty, village, parish, country, division and district"
+          "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district"
         ),
     ],
   ]),
@@ -3579,9 +3635,10 @@ router.put(
           "subcounty",
           "country",
           "state",
+          "province",
         ])
         .withMessage(
-          "admin_level values include: state, village, county, subcounty, village, parish, country, division and district"
+          "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district"
         ),
       body("description")
         .optional()
@@ -3784,9 +3841,10 @@ router.post(
           "subcounty",
           "country",
           "state",
+          "province",
         ])
         .withMessage(
-          "admin_level values include: state, village, county, subcounty, village, parish, country, division and district"
+          "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district"
         ),
       body("airqloud_tags")
         .optional()
@@ -3898,9 +3956,10 @@ router.get(
           "subcounty",
           "country",
           "state",
+          "province",
         ])
         .withMessage(
-          "admin_level values include: state, village, county, subcounty, village, parish, country, division and district"
+          "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district"
         ),
     ],
   ]),
@@ -3962,9 +4021,10 @@ router.get(
         "subcounty",
         "country",
         "state",
+        "province",
       ])
       .withMessage(
-        "admin_level values include: state, village, county, subcounty, village, parish, country, division and district"
+        "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district"
       ),
   ]),
   airqloudController.findSites
@@ -4031,9 +4091,10 @@ router.put(
           "subcounty",
           "country",
           "state",
+          "province",
         ])
         .withMessage(
-          "admin_level values include: state, village, county, subcounty, village, parish, country, division and district"
+          "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district"
         ),
       body("description")
         .optional()
@@ -4211,9 +4272,10 @@ router.get(
         "subcounty",
         "country",
         "state",
+        "province",
       ])
       .withMessage(
-        "admin_level values include: state, village, county, subcounty, village, parish, country, division and district"
+        "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district"
       ),
   ]),
   airqloudController.calculateGeographicalCenter

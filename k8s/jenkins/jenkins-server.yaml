@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: jenkins
-  namespace: jenkins
+  namespace: cicd
 spec:
   replicas: 1
   selector:
@@ -34,3 +34,32 @@ spec:
       volumes:
         - name: jenkins-vol
           emptyDir: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jenkins
+  namespace: cicd
+spec:
+  type: NodePort
+  ports:
+    - port: 8080
+      targetPort: 8080
+      nodePort: 32104
+  selector:
+    app: jenkins
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jenkins-jnlp
+  namespace: cicd
+spec:
+  type: ClusterIP
+  ports:
+    - port: 50000
+      targetPort: 50000
+  selector:
+    app: jenkins
