@@ -1,8 +1,8 @@
 import pandas as pd
 
-from airqo_etl_utils.airqo_api import AirQoApi
-from airqo_etl_utils.bigquery_api import BigQueryApi
-from airqo_etl_utils.date import date_to_str
+from airqo_api import AirQoApi
+from bigquery_api import BigQueryApi
+from date import date_to_str
 
 
 class CalibrationUtils:

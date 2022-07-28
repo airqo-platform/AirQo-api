@@ -168,17 +168,17 @@ jobs:
               echo "::set-output name=run_notifications::true"
             fi
           
-            if [[ $file == k8s/kafka-clusters/* ]]; then
-              echo "::set-output name=run_kafka_cluster::true"
-            fi
+            # if [[ $file == k8s/kafka-clusters/* ]]; then
+            #   echo "::set-output name=run_kafka_cluster::true"
+            # fi
 
-            if [[ $file == k8s/kafka-operator/* ]]; then
-              echo "::set-output name=run_kafka_cluster_operator::true"
-            fi
+            # if [[ $file == k8s/kafka-operator/* ]]; then
+            #   echo "::set-output name=run_kafka_cluster_operator::true"
+            # fi
 
-            if [[ $file == k8s/kafka-topics/* ]]; then
-              echo "::set-output name=run_kafka_topics::true"
-            fi
+            # if [[ $file == k8s/kafka-topics/* ]]; then
+            #   echo "::set-output name=run_kafka_topics::true"
+            # fi
 
             if [[ $file == src/airflow/* ]]; then
               echo "::set-output name=run_airflow::true"
@@ -632,6 +632,7 @@ jobs:
       -
         name: Deploy to K8S
         run: |
+          kubectl apply -f k8s/kafka-operator/namespace.yaml
           bash k8s/kafka-operator/deployment-script.sh
 
   ### kafka cluster ###
@@ -656,7 +657,8 @@ jobs:
           export KAFKA_BROKER_0=${{ secrets.PROD_KAFKA_BROKER_0 }}
           export KAFKA_BROKER_1=${{ secrets.PROD_KAFKA_BROKER_1 }}
           export KAFKA_BROKER_2=${{ secrets.PROD_KAFKA_BROKER_2 }}
-          kubectl apply -f k8s/kafka-clusters/kafka-cluster.yaml -n kafka-strimzi
+          cat k8s/kafka-clusters/kafka-cluster.yaml | sed "s/{{KAFKA_BROKER_0}}/$PROD_KAFKA_BROKER_0/g" | sed "s/{{KAFKA_BROKER_1}}/$PROD_KAFKA_BROKER_1/g" | sed "s/{{KAFKA_BROKER_2}}/$PROD_KAFKA_BROKER_2/g" | kubectl apply -n message-broker -f-
+
 
   ### kafka topics ###
   kafka-topics:
@@ -676,7 +678,7 @@ jobs:
       - 
         name: Deploy to K8S
         run: |
-          kubectl apply -f k8s/kafka-topics/kafka-topics.yaml -n kafka-strimzi
+          kubectl apply -f k8s/kafka-topics/kafka-topics.yaml -n message-broker
 
   ### locate ###
   locate:

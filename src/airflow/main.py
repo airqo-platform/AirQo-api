@@ -519,6 +519,7 @@ def urban_better_data_from_air_beam():
     )
     bigquery_data.to_csv("urban_better_air_beam_bigquery_data.csv", index=False)
 
+
 def airqo_mobile_device_measurements():
     from airqo_etl_utils.airqo_utils import AirQoDataUtils
     from airqo_etl_utils.weather_data_utils import WeatherDataUtils

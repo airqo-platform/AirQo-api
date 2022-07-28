@@ -62,6 +62,7 @@ jobs:
       run_airflow: ${{ steps.check_files.outputs.run_airflow }} # airflow
       run_network_uptime: ${{ steps.check_files.outputs.run_network_uptime }} # network_uptime
       run_channel_data: ${{ steps.check_files.outputs.run_channel_data }} # channel data job
+      run_kafka_connectors: ${{ steps.check_files.outputs.run_kafka_connectors }} # kafka connectors
       run_message_broker_topics: ${{ steps.check_files.outputs.run_message_broker_topics }} # message broker topics
       run_fault_detection: ${{ steps.check_files.outputs.run_fault_detection }} # fault detection
 
@@ -105,6 +106,7 @@ jobs:
           echo "::set-output name=run_airflow::false"
           echo "::set-output name=run_network_uptime::false"
           echo "::set-output name=run_channel_data::false"
+          echo "::set-output name=run_kafka_connectors::false"
           echo "::set-output name=run_message_broker_topics::false"
           echo "::set-output name=run_fault_detection::false"
 
@@ -211,6 +213,10 @@ jobs:
               echo "::set-output name=run_fault_detection::true"
             fi
 
+            if [[ $file == src/kafka-connectors/* ]]; then
+              echo "::set-output name=run_kafka_connectors::true"
+            fi
+
             if [[ $file == k8s/message-broker-topics/* ]]; then
               echo "::set-output name=run_message_broker_topics::true"
             fi
@@ -237,6 +243,7 @@ jobs:
               echo "::set-output name=run_channel_data::true"
               echo "::set-output name=run_fault_detection::true"
               echo "::set-output name=run_view::true"
+              echo "::set-output name=run_kafka_connectors::true"
               echo "::set-output name=run_message_broker_topics::true"
             fi
 
@@ -277,6 +284,49 @@ jobs:
           kubectl apply -f k8s/auth-service/stage-auth-api.yaml
           kubectl set image deployment/airqo-stage-auth-api sta-auth-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-auth-api:${{ needs.image-tag.outputs.build_id }} -n staging
           kubectl annotate deployment/airqo-stage-auth-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-auth-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
+
+  #### Kafka Connectors ######
+  kafka-connectors:
+    name: build-push-deploy-kafka-connectors
+    needs: [check, image-tag]
+    if: needs.check.outputs.run_kafka_connectors == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      -
+        name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
+      -
+        name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+      - 
+        name: Login to GCR
+        uses: docker/login-action@v1
+        with:
+          registry: ${{ secrets.REGISTRY_URL }}
+          username: _json_key
+          password: ${{ secrets.GCR_CONFIG }}
+      -
+        name: Build and push measurements source connectors
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          context: src/kafka-connectors/measurements-source-connector
+          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-measurements-connect:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-measurements-connect:latest
+      -
+        name: Login to k8s cluster
+        uses: azure/k8s-set-context@v1
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+      - 
+        name: Deploy to k8s cluster
+        run: |
+          export MEASUREMENTS_CONNECT_IMAGE=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-measurements-connect:${{ needs.image-tag.outputs.build_id }}
+          export STAGE_KAFKA_CLUSTER=${{ secrets.STAGE_KAFKA_CLUSTER }}
+          cat k8s/kafka-connectors/measurements-connect.yaml | sed "s/{{MEASUREMENTS_CONNECT_IMAGE}}/$MEASUREMENTS_CONNECT_IMAGE/g" | sed "s/{{KAFKA_CLUSTER}}/$STAGE_KAFKA_CLUSTER/g" | kubectl apply -n message-broker -f-
+          kubectl apply -f k8s/kafka-connectors/purple-air-connector.yaml -n message-broker
 
   #### Fault Detection ######
   fault-detection:
@@ -412,8 +462,8 @@ jobs:
       
       - name: Deploy to K8S
         run: |
-          kubectl apply -f k8s/airflow/stage-airflow-app.yaml -n pipeline
-          kubectl rollout restart deployment stage-airflow  -n pipeline
+          kubectl apply -f k8s/airflow/stage-airflow-app.yaml
+          kubectl rollout restart deployment stage-airflow
 
   ### predict api and jobs ###
   predict-service:
