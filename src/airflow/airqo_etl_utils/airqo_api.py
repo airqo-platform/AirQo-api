@@ -188,7 +188,6 @@ class AirQoApi:
                 response = self.__request("devices/decrypt", body=body, method="post")
                 decrypted_keys[str(device["device_number"])] = response["decrypted_key"]
             except Exception as ex:
-                traceback.print_exc()
                 print(ex)
 
         return decrypted_keys

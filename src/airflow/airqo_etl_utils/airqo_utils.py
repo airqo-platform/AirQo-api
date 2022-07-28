@@ -340,9 +340,7 @@ class AirQoDataUtils:
         return data
 
     @staticmethod
-    def extract_bam_data_from_thingspeak(
-        start_date_time: str, end_date_time: str
-    ) -> pd.DataFrame:
+    def extract_bam_data(start_date_time: str, end_date_time: str) -> pd.DataFrame:
         thingspeak_base_url = configuration.THINGSPEAK_CHANNEL_URL
 
         airqo_api = AirQoApi()
@@ -371,7 +369,7 @@ class AirQoDataUtils:
                 end_date_time = date + timedelta(hours=dates.freq.n)
 
                 if np.datetime64(end_date_time) > last_date_time:
-                    end = end_date_time
+                    end = last_date_time
                 else:
                     end = date_to_str(end_date_time)
 
@@ -387,6 +385,7 @@ class AirQoDataUtils:
                         continue
 
                     feeds = pd.DataFrame(data["feeds"])
+                    channel = data["channel"]
                     if feeds.empty:
                         print(
                             f"{channel_id} does not have data between {start} and {end}"
@@ -396,25 +395,15 @@ class AirQoDataUtils:
                     feeds = feeds[
                         [
                             "field1",
-                            "field2",
                             "field3",
-                            "field4",
-                            "field5",
                             "field6",
-                            "field7",
-                            "created_at",
                         ]
                     ]
                     feeds.rename(
                         columns={
-                            "field1": "pm2_5",
-                            "field2": "pm10",
+                            "field1": "timestamp",
                             "field3": "pm2_5",
-                            "field4": "pm10",
-                            "field5": "latitude",
-                            "field6": "longitude",
-                            "field7": "pm10",
-                            "created_at": "timestamp",
+                            "field6": "status",
                         },
                         inplace=True,
                     )
@@ -422,24 +411,26 @@ class AirQoDataUtils:
                     feeds["pm2_5"] = feeds["pm2_5"].apply(
                         lambda x: get_valid_value(x, "pm2_5")
                     )
-                    feeds["pm10"] = feeds["pm10"].apply(
-                        lambda x: get_valid_value(x, "pm10")
-                    )
-                    feeds["latitude"] = feeds["latitude"].apply(
-                        lambda x: get_valid_value(x, "latitude")
-                    )
-                    feeds["longitude"] = feeds["longitude"].apply(
-                        lambda x: get_valid_value(x, "longitude")
-                    )
 
                     feeds["device_number"] = channel_id
                     feeds["device_id"] = device["_id"]
-                    feeds["site_id"] = device["site"]["_id"]
+                    feeds["latitude"] = channel["latitude"]
+                    feeds["longitude"] = channel["longitude"]
 
                     bam_data = bam_data.append(feeds, ignore_index=True)
                 except Exception as ex:
                     print(ex)
                     traceback.print_exc()
+
+        bam_data["timestamp"] = bam_data["timestamp"].apply(pd.to_datetime)
+        bam_data["timestamp"] = bam_data["timestamp"].apply(date_to_str)
+
+        bam_data["latitude"] = bam_data["latitude"].apply(
+            lambda x: get_valid_value(x, "latitude")
+        )
+        bam_data["longitude"] = bam_data["longitude"].apply(
+            lambda x: get_valid_value(x, "longitude")
+        )
 
         bam_data = remove_invalid_dates(
             dataframe=bam_data, start_time=start_date_time, end_time=end_date_time
@@ -464,7 +455,7 @@ class AirQoDataUtils:
         return data
 
     @staticmethod
-    def process_for_bigquery(data: pd.DataFrame) -> pd.DataFrame:
+    def process_bam_measurements_for_bigquery(data: pd.DataFrame) -> pd.DataFrame:
         data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
         big_query_api = BigQueryApi()
         cols = big_query_api.get_columns(table=big_query_api.bam_measurements_table)

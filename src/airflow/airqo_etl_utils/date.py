@@ -44,7 +44,7 @@ def predict_str_to_date(st: str):
     return date_time
 
 
-def str_to_date(st: str):
+def str_to_date(st: str, date_format="%Y-%m-%dT%H:%M:%SZ"):
     """
     Converts a string to datetime
     """
@@ -52,7 +52,7 @@ def str_to_date(st: str):
     try:
         return datetime.strptime(st, "%Y-%m-%dT%H:%M:%S.%fZ")
     except:
-        return datetime.strptime(st, "%Y-%m-%dT%H:%M:%SZ")
+        return datetime.strptime(st, date_format)
 
 
 def date_to_str(date: datetime, str_format="%Y-%m-%dT%H:%M:%SZ"):

@@ -21,7 +21,7 @@ def bam_historical_measurements_etl():
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
         start_time, end_time = get_date_time_values(**kwargs)
-        return AirQoDataUtils.extract_bam_data_from_thingspeak(
+        return AirQoDataUtils.extract_bam_data(
             start_date_time=start_time, end_date_time=end_time
         )
 
@@ -88,7 +88,7 @@ def bam_realtime_measurements_etl():
 
         start_date_time, end_date_time = DateUtils.get_realtime_date_time_values()
 
-        return AirQoDataUtils.extract_bam_data_from_thingspeak(
+        return AirQoDataUtils.extract_bam_data(
             start_date_time=start_date_time, end_date_time=end_date_time
         )
 
@@ -113,7 +113,7 @@ def bam_realtime_measurements_etl():
         from airqo_etl_utils.bigquery_api import BigQueryApi
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
-        bam_data = AirQoDataUtils.process_for_bigquery(data=bam_data)
+        bam_data = AirQoDataUtils.process_bam_measurements_for_bigquery(data=bam_data)
         big_query_api = BigQueryApi()
         big_query_api.load_data(
             dataframe=bam_data,
