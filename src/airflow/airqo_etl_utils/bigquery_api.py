@@ -3,10 +3,10 @@ import os
 import pandas as pd
 from google.cloud import bigquery
 
-from config import configuration
-from constants import JobAction, DataType
-from date import date_to_str
-from utils import get_file_content
+from .config import configuration
+from .constants import JobAction, DataType
+from .date import date_to_str
+from .utils import get_file_content
 
 
 class BigQueryApi:

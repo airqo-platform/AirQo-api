@@ -115,7 +115,9 @@ def bam_realtime_measurements_etl():
     @task()
     def load_measurements(bam_data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
+        from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
+        bam_data = AirQoDataUtils.process_for_bigquery(data=bam_data)
         big_query_api = BigQueryApi()
         big_query_api.load_data(
             dataframe=bam_data,

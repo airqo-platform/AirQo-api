@@ -448,25 +448,17 @@ def merge_historical_calibrated_data(
 
 
 def airnow_bam_data():
-    from airqo_etl_utils.airnow_utils import (
-        extract_airnow_data_from_api,
-        process_airnow_data,
-        process_for_message_broker,
-        process_for_big_query,
-    )
+    from airqo_etl_utils.airnow_utils import AirnowDataUtils
 
-    extracted_bam_data = extract_airnow_data_from_api(
+    extracted_bam_data = AirnowDataUtils.extract_bam_data(
         start_date_time="2022-06-13T18:00", end_date_time="2022-06-13T18:00"
     )
     extracted_bam_data.to_csv("airnow_unprocessed_data.csv", index=False)
 
-    processed_bam_data = process_airnow_data(extracted_bam_data)
+    processed_bam_data = AirnowDataUtils.process_bam_data(extracted_bam_data)
     processed_bam_data.to_csv("airnow_processed_data.csv", index=False)
 
-    message_broker_data = pd.DataFrame(process_for_message_broker(processed_bam_data))
-    message_broker_data.to_csv("airnow_message_broker_data.csv", index=False)
-
-    bigquery_data = pd.DataFrame(process_for_big_query(processed_bam_data))
+    bigquery_data = AirnowDataUtils.process_for_bigquery(processed_bam_data)
     bigquery_data.to_csv("airnow_bigquery_data.csv", index=False)
 
 

@@ -4,8 +4,8 @@ import pandas as pd
 import requests
 import simplejson
 
-from config import configuration
-from constants import DeviceCategory
+from .config import configuration
+from .constants import DeviceCategory
 
 
 class AirQoApi:

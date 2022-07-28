@@ -8,8 +8,9 @@ import numpy as np
 import pandas as pd
 import requests
 
-from airqo_api import AirQoApi
-from commons import (
+from .airqo_api import AirQoApi
+from .bigquery_api import BigQueryApi
+from .commons import (
     get_device,
     get_valid_value,
     get_weather_data_from_tahmo,
@@ -19,11 +20,12 @@ from commons import (
     download_file_from_gcs,
     get_frequency,
     get_column_value,
+    Utils,
 )
-from config import configuration
-from constants import DeviceCategory, BamDataType
-from data_validator import DataValidationUtils
-from date import date_to_str, str_to_date, date_to_str_hours
+from .config import configuration
+from .constants import DeviceCategory, BamDataType
+from .data_validator import DataValidationUtils
+from .date import date_to_str, str_to_date, date_to_str_hours
 
 
 class AirQoDataUtils:
@@ -460,6 +462,13 @@ class AirQoDataUtils:
             data = data.loc[data["status"] == 0]
 
         return data
+
+    @staticmethod
+    def process_for_bigquery(data: pd.DataFrame) -> pd.DataFrame:
+        data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
+        big_query_api = BigQueryApi()
+        cols = big_query_api.get_columns(table=big_query_api.bam_measurements_table)
+        return Utils.populate_missing_columns(data=data, cols=cols)
 
 
 def extract_airqo_devices_deployment_history() -> pd.DataFrame:

@@ -8,8 +8,8 @@ import pandas as pd
 from firebase_admin import credentials, messaging
 from firebase_admin import firestore
 
-from config import configuration
-from date import get_utc_offset_for_hour
+from .config import configuration
+from .date import get_utc_offset_for_hour
 
 cred = credentials.Certificate(configuration.GOOGLE_APPLICATION_CREDENTIALS)
 firebase_admin.initialize_app(cred)
