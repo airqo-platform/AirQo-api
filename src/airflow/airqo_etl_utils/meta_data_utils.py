@@ -1,8 +1,8 @@
 import pandas as pd
 
-from airqo_etl_utils.airqo_api import AirQoApi
-from airqo_etl_utils.commons import format_dataframe_column_type
-from airqo_etl_utils.constants import DataType
+from airqo_api import AirQoApi
+from commons import format_dataframe_column_type
+from constants import DataType
 
 
 def extract_meta_data(component: str, tenant=None) -> pd.DataFrame:

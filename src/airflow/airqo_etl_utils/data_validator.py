@@ -1,6 +1,6 @@
 import pandas as pd
 
-from airqo_etl_utils.commons import get_valid_value
+from commons import get_valid_value
 
 
 class DataValidationUtils:
