@@ -341,7 +341,7 @@ class AirQoDataUtils:
 
     @staticmethod
     def extract_bam_data_from_thingspeak(
-        start_time: str, end_time: str
+        start_date_time: str, end_date_time: str
     ) -> pd.DataFrame:
         thingspeak_base_url = configuration.THINGSPEAK_CHANNEL_URL
 
@@ -353,9 +353,9 @@ class AirQoDataUtils:
 
         bam_data = pd.DataFrame()
 
-        frequency = get_frequency(start_time=start_time, end_time=end_time)
+        frequency = get_frequency(start_time=start_date_time, end_time=end_date_time)
 
-        dates = pd.date_range(start_time, end_time, freq=frequency)
+        dates = pd.date_range(start_date_time, end_date_time, freq=frequency)
         last_date_time = dates.values[len(dates.values) - 1]
         for device in airqo_devices:
 
@@ -371,7 +371,7 @@ class AirQoDataUtils:
                 end_date_time = date + timedelta(hours=dates.freq.n)
 
                 if np.datetime64(end_date_time) > last_date_time:
-                    end = end_time
+                    end = end_date_time
                 else:
                     end = date_to_str(end_date_time)
 
@@ -442,7 +442,7 @@ class AirQoDataUtils:
                     traceback.print_exc()
 
         bam_data = remove_invalid_dates(
-            dataframe=bam_data, start_time=start_time, end_time=end_time
+            dataframe=bam_data, start_time=start_date_time, end_time=end_date_time
         )
         return bam_data
 

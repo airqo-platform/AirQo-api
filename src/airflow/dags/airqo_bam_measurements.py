@@ -22,7 +22,7 @@ def bam_historical_measurements_etl():
 
         start_time, end_time = get_date_time_values(**kwargs)
         return AirQoDataUtils.extract_bam_data_from_thingspeak(
-            start_time=start_time, end_time=end_time
+            start_date_time=start_time, end_date_time=end_time
         )
 
     @task()
@@ -79,21 +79,17 @@ def bam_historical_measurements_etl():
 )
 def bam_realtime_measurements_etl():
     import pandas as pd
-
-    from airqo_etl_utils.date import date_to_str_hours
-    from datetime import datetime, timedelta
     from airqo_etl_utils.constants import BamDataType
-
-    hour_of_day = datetime.utcnow() - timedelta(hours=1)
-    start_time = date_to_str_hours(hour_of_day)
-    end_time = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
 
     @task()
     def extract_bam_data():
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
+        from airqo_etl_utils.date import DateUtils
+
+        start_date_time, end_date_time = DateUtils.get_realtime_date_time_values()
 
         return AirQoDataUtils.extract_bam_data_from_thingspeak(
-            start_time=start_time, end_time=end_time
+            start_date_time=start_date_time, end_date_time=end_date_time
         )
 
     @task()

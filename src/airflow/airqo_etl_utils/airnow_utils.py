@@ -6,6 +6,7 @@ from .airnow_api import AirNowApi
 from .airqo_api import AirQoApi
 from .bigquery_api import BigQueryApi
 from .commons import Utils
+from .date import str_to_date, date_to_str
 
 
 class AirnowDataUtils:
@@ -24,7 +25,12 @@ class AirnowDataUtils:
     @staticmethod
     def extract_bam_data(start_date_time: str, end_date_time: str) -> pd.DataFrame:
         airnow_api = AirNowApi()
-
+        start_date_time = date_to_str(
+            str_to_date(start_date_time), str_format="%Y-%m-%dT%H:%M"
+        )
+        end_date_time = date_to_str(
+            str_to_date(end_date_time), str_format="%Y-%m-%dT%H:%M"
+        )
         countries_metadata = dict(airnow_api.get_countries_metadata())
         devices = pd.DataFrame(AirQoApi().get_devices(tenant="airqo"))
         data = []
