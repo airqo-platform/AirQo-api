@@ -20,16 +20,9 @@ const ObjectId = mongoose.Types.ObjectId;
 const { BigQuery } = require("@google-cloud/bigquery");
 const bigquery = new BigQuery();
 const {
-  generateDateFormat,
-  threeMonthsFromNow,
   generateDateFormatWithoutHrs,
   addMonthsToProvideDateTime,
   formatDate,
-  monthsInfront,
-  isTimeEmpty,
-  getDifferenceInMonths,
-  addDays,
-  addMinutes,
 } = require("./date");
 
 const httpStatus = require("http-status");
@@ -84,8 +77,8 @@ const createEvent = {
           constants.DATAWAREHOUSE_METADATA
         }.sites\`.id = \`${table}\`.site_id 
         WHERE timestamp 
-       >= "${start ? formatDate(start) : twoMonthsBack}" AND timestamp <= "${
-        end ? formatDate(end) : currentDate
+       >= "${start ? start : twoMonthsBack}" AND timestamp <= "${
+        end ? end : currentDate
       }" 
       ${site ? `AND site_id="${site}"` : ""}
       ${device ? `AND device="${device}"` : ""}
