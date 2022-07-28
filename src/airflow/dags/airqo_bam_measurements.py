@@ -4,7 +4,7 @@ from airqo_etl_utils.airflow_custom_utils import slack_dag_failure_notification
 
 
 @dag(
-    "AirQo-Bam-Historical-Measurements",
+    "AirQo-Historical-Bam-Measurements",
     schedule_interval=None,
     on_failure_callback=slack_dag_failure_notification,
     start_date=datetime(2021, 1, 1),
@@ -70,8 +70,8 @@ def bam_historical_measurements_etl():
 
 
 @dag(
-    "AirQo-Bam-Realtime-Measurements",
-    schedule_interval=None,
+    "AirQo-Realtime-Bam-Measurements",
+    schedule_interval="30 * * * *",
     on_failure_callback=slack_dag_failure_notification,
     start_date=datetime(2021, 1, 1),
     catchup=False,
@@ -121,8 +121,6 @@ def bam_realtime_measurements_etl():
         )
 
     data = extract_bam_data()
-    outliers = transform_bam_data(bam_data=data, data_type=BamDataType.OUTLIERS)
-    load_outliers(outliers)
     measurements = transform_bam_data(bam_data=data, data_type=BamDataType.MEASUREMENTS)
     load_measurements(measurements)
 

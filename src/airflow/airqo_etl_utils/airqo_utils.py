@@ -369,9 +369,13 @@ class AirQoDataUtils:
                 end_date_time = date + timedelta(hours=dates.freq.n)
 
                 if np.datetime64(end_date_time) > last_date_time:
-                    end = last_date_time
+                    timestring = pd.to_datetime(str(last_date_time))
+                    end = date_to_str(timestring)
                 else:
                     end = date_to_str(end_date_time)
+
+                if start == end:
+                    end = date_to_str(date, str_format="%Y-%m-%dT%H:59:59Z")
 
                 try:
                     url = f"{thingspeak_base_url}{channel_id}/feeds.json?start={start}&end={end}&api_key={read_key}"
@@ -432,9 +436,6 @@ class AirQoDataUtils:
             lambda x: get_valid_value(x, "longitude")
         )
 
-        bam_data = remove_invalid_dates(
-            dataframe=bam_data, start_time=start_date_time, end_time=end_date_time
-        )
         return bam_data
 
     @staticmethod
@@ -442,6 +443,10 @@ class AirQoDataUtils:
 
         data.drop_duplicates(
             subset=["timestamp", "device_number"], keep="first", inplace=True
+        )
+
+        data["status"] = data["status"].apply(
+            lambda x: pd.to_numeric(x, errors="coerce", downcast="integer")
         )
 
         data["timestamp"] = data["timestamp"].apply(pd.to_datetime)

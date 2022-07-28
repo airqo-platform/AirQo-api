@@ -7,7 +7,7 @@ from airqo_etl_utils.airflow_custom_utils import slack_dag_failure_notification
 
 @dag(
     "Airnow-Historical-Bam-Data",
-    schedule_interval="30 * * * *",
+    schedule_interval=None,
     on_failure_callback=slack_dag_failure_notification,
     start_date=datetime(2021, 1, 1),
     catchup=False,
@@ -41,7 +41,7 @@ def airnow_bam_historical_data_etl():
         bam_data = AirnowDataUtils.process_for_bigquery(airnow_data)
 
         big_query_api = BigQueryApi()
-        big_query_api.load_data(bam_data, table=big_query_api.hourly_measurements_table)
+        big_query_api.load_data(bam_data, table=big_query_api.bam_measurements_table)
 
     extracted_bam_data = extract_bam_data()
     processed_bam_data = process_data(extracted_bam_data)
@@ -84,7 +84,7 @@ def airnow_bam_realtime_data_etl():
         bam_data = AirnowDataUtils.process_for_bigquery(airnow_data)
 
         big_query_api = BigQueryApi()
-        big_query_api.load_data(bam_data, table=big_query_api.hourly_measurements_table)
+        big_query_api.load_data(bam_data, table=big_query_api.bam_measurements_table)
 
     @task()
     def send_measurements_to_api(airnow_data: pd.DataFrame):

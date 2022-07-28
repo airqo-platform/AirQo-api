@@ -1,11 +1,13 @@
 import traceback
+from datetime import timedelta
 
+import numpy as np
 import pandas as pd
 
 from .airnow_api import AirNowApi
 from .airqo_api import AirQoApi
 from .bigquery_api import BigQueryApi
-from .commons import Utils
+from .commons import Utils, get_frequency
 from .date import str_to_date, date_to_str
 
 
@@ -23,7 +25,7 @@ class AirnowDataUtils:
             raise Exception(f"Unknown parameter {parameter}")
 
     @staticmethod
-    def extract_bam_data(start_date_time: str, end_date_time: str) -> pd.DataFrame:
+    def query_bam_data(start_date_time: str, end_date_time: str) -> pd.DataFrame:
         airnow_api = AirNowApi()
         start_date_time = date_to_str(
             str_to_date(start_date_time), str_format="%Y-%m-%dT%H:%M"
@@ -69,6 +71,35 @@ class AirnowDataUtils:
                 print(ex)
 
         return pd.DataFrame(data)
+
+    @staticmethod
+    def extract_bam_data(start_date_time: str, end_date_time: str) -> pd.DataFrame:
+
+        frequency = get_frequency(start_time=start_date_time, end_time=end_date_time)
+        dates = pd.date_range(start_date_time, end_date_time, freq=frequency)
+        last_date_time = dates.values[len(dates.values) - 1]
+        data = pd.DataFrame()
+
+        for date in dates:
+
+            start = date_to_str(date)
+            end_date = date + timedelta(hours=dates.freq.n)
+
+            if np.datetime64(end_date) > last_date_time:
+                timestring = pd.to_datetime(str(last_date_time))
+                end = date_to_str(timestring)
+            else:
+                end = date_to_str(end_date)
+
+            if start == end:
+                end = date_to_str(date, str_format="%Y-%m-%dT%H:59:59Z")
+
+            query_data = AirnowDataUtils.query_bam_data(
+                start_date_time=start, end_date_time=end
+            )
+            data = data.append(query_data, ignore_index=True)
+
+        return data
 
     @staticmethod
     def process_bam_data(data: pd.DataFrame) -> pd.DataFrame:

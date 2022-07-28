@@ -451,7 +451,7 @@ def airnow_bam_data():
     from airqo_etl_utils.airnow_utils import AirnowDataUtils
 
     extracted_bam_data = AirnowDataUtils.extract_bam_data(
-        start_date_time="2022-06-13T18:00:00Z", end_date_time="2022-06-13T18:00:00Z"
+        start_date_time="2022-06-13T10:00:00Z", end_date_time="2022-06-13T18:00:00Z"
     )
     extracted_bam_data.to_csv("airnow_unprocessed_data.csv", index=False)
 
@@ -466,7 +466,7 @@ def airqo_bam_data():
     from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
     extracted_bam_data = AirQoDataUtils.extract_bam_data(
-        start_date_time="2022-07-28T10:00:00Z", end_date_time="2022-07-28T12:00:00Z"
+        start_date_time="2022-07-28T19:00:00Z", end_date_time="2022-07-28T19:59:59Z"
     )
     extracted_bam_data.to_csv("airqo_bam_unprocessed_data.csv", index=False)
 
