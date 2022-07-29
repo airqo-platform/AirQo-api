@@ -462,6 +462,21 @@ def airnow_bam_data():
     bigquery_data.to_csv("airnow_bigquery_data.csv", index=False)
 
 
+def purple_air_data():
+    from airqo_etl_utils.purple_air_utils import PurpleDataUtils
+
+    extracted_data = PurpleDataUtils.extract_data(
+        start_date_time="2022-07-28T19:00:00Z", end_date_time="2022-07-28T19:59:59Z"
+    )
+    extracted_data.to_csv("purple_air_unprocessed_data.csv", index=False)
+
+    processed_data = PurpleDataUtils.process_data(extracted_data)
+    processed_data.to_csv("purple_air_processed_data.csv", index=False)
+
+    bigquery_data = PurpleDataUtils.process_for_bigquery(processed_data)
+    bigquery_data.to_csv("purple_air_bigquery_data.csv", index=False)
+
+
 def airqo_bam_data():
     from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
@@ -649,6 +664,7 @@ if __name__ == "__main__":
             "urban_better_data_air_beam",
             "airqo_mobile_device_measurements",
             "airqo_bam_data",
+            "purple_air_data",
         ],
     )
 
@@ -689,6 +705,9 @@ if __name__ == "__main__":
 
     elif args.action == "airqo_bam_data":
         airqo_bam_data()
+
+    elif args.action == "purple_air_data":
+        purple_air_data()
 
     elif args.action == "urban_better_data_plume_labs":
         urban_better_data_from_plume_labs()

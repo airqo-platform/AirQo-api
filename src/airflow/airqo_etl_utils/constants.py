@@ -14,6 +14,19 @@ class DeviceCategory(Enum):
             return ""
 
 
+class Tenant(Enum):
+    NASA = 1
+    URBAN_BETTER = 2
+
+    def __str__(self) -> str:
+        if self == self.NASA:
+            return "nasa"
+        elif self == self.URBAN_BETTER:
+            return "urban_better"
+        else:
+            return ""
+
+
 class BamDataType(Enum):
     OUTLIERS = 1
     MEASUREMENTS = 2
