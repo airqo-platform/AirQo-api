@@ -25,6 +25,8 @@ const {
   formatDate,
 } = require("./date");
 
+const { Parser } = require("json2csv");
+
 const httpStatus = require("http-status");
 
 const createEvent = {
@@ -35,13 +37,13 @@ const createEvent = {
         frequency,
         device,
         device_number,
-        name,
         startTime,
         endTime,
         tenant,
         limit,
         skip,
         site,
+        format,
       } = query;
 
       const currentDate = formatDate(new Date());
@@ -89,7 +91,9 @@ const createEvent = {
           : ""
       }
       ORDER BY timestamp
-      DESC LIMIT ${limit ? limit : constants.DEFAULT_EVENTS_LIMIT}`;
+      DESC LIMIT ${limit ? limit : constants.DEFAULT_EVENTS_LIMIT} OFFSET ${
+        skip ? skip : constants.DEFAULT_EVENTS_SKIP
+      }`;
 
       const options = {
         query: queryStatement,
@@ -104,13 +108,24 @@ const createEvent = {
       const sanitizedMeasurements = rows.map((item) => {
         return {
           ...item,
-          timestamp: item.timestamp,
+          timestamp: item.timestamp.value,
         };
       });
 
+      let data = sanitizedMeasurements;
+
+      if (format && format === "csv") {
+        try {
+          const parser = new Parser();
+          const csv = parser.parse(sanitizedMeasurements);
+          data = csv;
+        } catch (error) {
+          logObject("the json to csv conversion error", error);
+        }
+      }
       return {
         success: true,
-        data: sanitizedMeasurements,
+        data,
         message: "successfully retrieved the measurements",
       };
     } catch (error) {

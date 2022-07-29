@@ -5,15 +5,15 @@ import numpy as np
 import pandas as pd
 import requests
 
-from airqo_api import AirQoApi
-from commons import (
+from .airqo_api import AirQoApi
+from .commons import (
     get_valid_column_value,
     to_double,
     get_site_and_device_id,
     get_column_value,
 )
-from config import configuration
-from date import (
+from .config import configuration
+from .date import (
     date_to_str,
     str_to_date,
     frequency_time,

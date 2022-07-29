@@ -2,7 +2,7 @@ import json
 
 import requests
 
-from config import configuration
+from .config import configuration
 
 
 class AirNowApi:

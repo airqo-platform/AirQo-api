@@ -4,7 +4,7 @@ import json
 import pandas as pd
 import requests
 
-from config import configuration
+from .config import configuration
 
 
 class AirBeamApi:

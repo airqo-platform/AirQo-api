@@ -1,6 +1,6 @@
 import pandas as pd
 
-from commons import get_valid_value
+from .commons import get_valid_value
 
 
 class DataValidationUtils:

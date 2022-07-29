@@ -92,6 +92,11 @@ class ScheduleDag:
                     "name": "Urban-Better-Air-Beam-Historical-Raw-Measurements",
                     "data_duration": "240H",
                 },
+                # AirNow Data
+                "airnow_historical_bam_data": {
+                    "name": "Airnow-Historical-Bam-Data",
+                    "data_duration": "240H",
+                },
             }
         )
 

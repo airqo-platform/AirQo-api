@@ -20,8 +20,10 @@ runKafkaProducer();
 runKafkaConsumer();
 const cors = require("cors");
 const moesif = require("moesif-nodejs");
+const compression = require("compression");
 
 const app = express();
+app.use(compression());
 
 const moesifMiddleware = moesif({
   applicationId: constants.MOESIF_APPLICATION_ID,

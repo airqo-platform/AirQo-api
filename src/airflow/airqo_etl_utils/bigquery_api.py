@@ -3,10 +3,10 @@ import os
 import pandas as pd
 from google.cloud import bigquery
 
-from config import configuration
-from constants import JobAction, DataType
-from date import date_to_str
-from utils import get_file_content
+from .config import configuration
+from .constants import JobAction, DataType
+from .date import date_to_str
+from .utils import get_file_content
 
 
 class BigQueryApi:
@@ -15,9 +15,7 @@ class BigQueryApi:
         self.hourly_measurements_table = configuration.BIGQUERY_HOURLY_EVENTS_TABLE
         self.raw_measurements_table = configuration.BIGQUERY_RAW_EVENTS_TABLE
         self.bam_measurements_table = configuration.BIGQUERY_BAM_EVENTS_TABLE
-        self.bam_hourly_measurements_table = (
-            configuration.BIGQUERY_BAM_HOURLY_EVENTS_TABLE
-        )
+        self.bam_outliers_table = configuration.BIGQUERY_BAM_OUTLIERS_TABLE
         self.raw_mobile_measurements_table = (
             configuration.BIGQUERY_RAW_MOBILE_EVENTS_TABLE
         )
@@ -109,10 +107,7 @@ class BigQueryApi:
             schema_file = "mobile_measurements.json"
         elif table == self.airqo_mobile_measurements_table:
             schema_file = "airqo_mobile_measurements.json"
-        elif (
-            table == self.bam_measurements_table
-            or table == self.bam_hourly_measurements_table
-        ):
+        elif table == self.bam_measurements_table or table == self.bam_outliers_table:
             schema_file = "bam_measurements.json"
         else:
             raise Exception("Invalid table")

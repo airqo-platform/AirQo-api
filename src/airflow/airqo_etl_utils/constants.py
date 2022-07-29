@@ -14,6 +14,19 @@ class DeviceCategory(Enum):
             return ""
 
 
+class BamDataType(Enum):
+    OUTLIERS = 1
+    MEASUREMENTS = 2
+
+    def get_api_query_str(self):
+        if self == self.OUTLIERS:
+            return "outliers"
+        elif self == self.MEASUREMENTS:
+            return "measurements"
+        else:
+            return ""
+
+
 class JobAction(Enum):
     APPEND = 1
     OVERWRITE = 2

@@ -28,9 +28,9 @@ x-common-data: &common-data
     PYTHONPATH: /etc/airflow_xcom
 
   volumes:
-    - ${PWD}/google_application_credentials.json:/etc/config/google_application_credentials.json
-    - ${PWD}/airnow_countries_metadata.json:/etc/config/airnow_countries_metadata.json
-    - ${PWD}/plume_labs_metadata.json:/etc/config/plume_labs_metadata.json
+    - ${PWD}/meta_data/google_application_credentials.json:/etc/config/google_application_credentials.json
+    - ${PWD}/meta_data/airnow_countries_metadata.json:/etc/config/airnow_countries_metadata.json
+    - ${PWD}/meta_data/plume_labs_metadata.json:/etc/config/plume_labs_metadata.json
     - ${PWD}/airflow_xcom:/etc/airflow_xcom
 
 
