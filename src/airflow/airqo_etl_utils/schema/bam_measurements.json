@@ -2,7 +2,7 @@
   {
     "name": "tenant",
     "type": "STRING",
-    "mode": "REQUIRED"
+    "mode": "NULLABLE"
   },
   {
     "name": "site_id",
@@ -15,24 +15,24 @@
     "mode": "NULLABLE"
   },
   {
-    "name": "device",
+    "name": "device_id",
     "type": "STRING",
     "mode": "NULLABLE"
   },
   {
     "name": "timestamp",
     "type": "TIMESTAMP",
-    "mode": "REQUIRED"
+    "mode": "NULLABLE"
   },
   {
     "name": "latitude",
     "type": "FLOAT",
-    "mode": "REQUIRED"
+    "mode": "NULLABLE"
   },
   {
     "name": "longitude",
     "type": "FLOAT",
-    "mode": "REQUIRED"
+    "mode": "NULLABLE"
   },
   {
     "name": "pm2_5",

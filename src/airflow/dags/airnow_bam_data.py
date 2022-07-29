@@ -6,62 +6,85 @@ from airqo_etl_utils.airflow_custom_utils import slack_dag_failure_notification
 
 
 @dag(
-    "Airnow-Bam-Data",
-    schedule_interval="30 * * * *",
+    "Airnow-Historical-Bam-Data",
+    schedule_interval=None,
     on_failure_callback=slack_dag_failure_notification,
     start_date=datetime(2021, 1, 1),
     catchup=False,
-    tags=["bam", "airnow"],
+    tags=["bam", "airnow", "historical"],
 )
-def airnow_bam_data_etl():
+def airnow_bam_historical_data_etl():
     import pandas as pd
-    from datetime import datetime, timedelta
-
-    date_time = datetime.strftime(
-        datetime.utcnow() - timedelta(hours=1), "%Y-%m-%dT%H:00"
-    )
 
     @task()
-    def extract_usa_embassies_bam_data():
-        from airqo_etl_utils.airnow_utils import extract_airnow_data_from_api
+    def extract_bam_data(**kwargs):
+        from airqo_etl_utils.date import DateUtils
 
-        return extract_airnow_data_from_api(
-            start_date_time=date_time, end_date_time=date_time
+        start_date_time, end_date_time = DateUtils.get_gad_date_time_values(**kwargs)
+        from airqo_etl_utils.airnow_utils import AirnowDataUtils
+
+        return AirnowDataUtils.extract_bam_data(
+            start_date_time=start_date_time, end_date_time=end_date_time
         )
 
     @task()
     def process_data(airnow_data: pd.DataFrame):
-        from airqo_etl_utils.airnow_utils import process_airnow_data
+        from airqo_etl_utils.airnow_utils import AirnowDataUtils
 
-        return process_airnow_data(data=airnow_data)
+        return AirnowDataUtils.process_bam_data(data=airnow_data)
 
     @task()
     def send_to_bigquery(airnow_data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
-        from airqo_etl_utils.airnow_utils import process_for_big_query
+        from airqo_etl_utils.airnow_utils import AirnowDataUtils
 
-        bam_data = process_for_big_query(airnow_data)
+        bam_data = AirnowDataUtils.process_for_bigquery(airnow_data)
 
         big_query_api = BigQueryApi()
-        big_query_api.load_data(bam_data, table=big_query_api.hourly_measurements_table)
+        big_query_api.load_data(bam_data, table=big_query_api.bam_measurements_table)
+
+    extracted_bam_data = extract_bam_data()
+    processed_bam_data = process_data(extracted_bam_data)
+    send_to_bigquery(processed_bam_data)
+
+
+@dag(
+    "Airnow-Realtime-Bam-Data",
+    schedule_interval="30 * * * *",
+    on_failure_callback=slack_dag_failure_notification,
+    start_date=datetime(2021, 1, 1),
+    catchup=False,
+    tags=["bam", "airnow", "realtime"],
+)
+def airnow_bam_realtime_data_etl():
+    import pandas as pd
 
     @task()
-    def send_to_message_broker(airnow_data: pd.DataFrame):
-        from airqo_etl_utils.airnow_utils import process_for_message_broker
-        from airqo_etl_utils.config import configuration
-        from airqo_etl_utils.message_broker import KafkaBrokerClient
+    def extract_bam_data():
+        from airqo_etl_utils.airnow_utils import AirnowDataUtils
+        from airqo_etl_utils.date import DateUtils
 
-        bam_data = process_for_message_broker(airnow_data)
+        start_date_time, end_date_time = DateUtils.get_realtime_date_time_values()
 
-        data = {
-            "data": bam_data,
-            "action": "save",
-        }
-
-        kafka = KafkaBrokerClient()
-        kafka.send_data(
-            info=data, topic=configuration.BAM_MEASUREMENTS_TOPIC, partition=0
+        return AirnowDataUtils.extract_bam_data(
+            start_date_time=start_date_time, end_date_time=end_date_time
         )
+
+    @task()
+    def process_data(airnow_data: pd.DataFrame):
+        from airqo_etl_utils.airnow_utils import AirnowDataUtils
+
+        return AirnowDataUtils.process_bam_data(data=airnow_data)
+
+    @task()
+    def send_to_bigquery(airnow_data: pd.DataFrame):
+        from airqo_etl_utils.bigquery_api import BigQueryApi
+        from airqo_etl_utils.airnow_utils import AirnowDataUtils
+
+        bam_data = AirnowDataUtils.process_for_bigquery(airnow_data)
+
+        big_query_api = BigQueryApi()
+        big_query_api.load_data(bam_data, table=big_query_api.bam_measurements_table)
 
     @task()
     def send_measurements_to_api(airnow_data: pd.DataFrame):
@@ -72,11 +95,10 @@ def airnow_bam_data_etl():
         airqo_api = AirQoApi()
         airqo_api.save_events(measurements=restructured_data, tenant="airqo")
 
-    extracted_bam_data = extract_usa_embassies_bam_data()
+    extracted_bam_data = extract_bam_data()
     processed_bam_data = process_data(extracted_bam_data)
     send_to_bigquery(processed_bam_data)
-    send_to_message_broker(processed_bam_data)
-    send_measurements_to_api(processed_bam_data)
 
 
-airnow_bam_data_etl_dag = airnow_bam_data_etl()
+airnow_bam_realtime_data_etl_dag = airnow_bam_realtime_data_etl()
+airnow_bam_historical_data_etl_dag = airnow_bam_historical_data_etl()

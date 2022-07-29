@@ -10,7 +10,7 @@ from airqo_etl_utils.calibration_utils import CalibrationUtils
 from airqo_etl_utils.arg_parse_validator import valid_datetime_format
 from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.commons import download_file_from_gcs
-from airqo_etl_utils.constants import JobAction
+from airqo_etl_utils.constants import JobAction, BamDataType
 
 BASE_DIR = Path(__file__).resolve().parent
 dotenv_path = os.path.join(BASE_DIR, ".env")
@@ -448,26 +448,37 @@ def merge_historical_calibrated_data(
 
 
 def airnow_bam_data():
-    from airqo_etl_utils.airnow_utils import (
-        extract_airnow_data_from_api,
-        process_airnow_data,
-        process_for_message_broker,
-        process_for_big_query,
-    )
+    from airqo_etl_utils.airnow_utils import AirnowDataUtils
 
-    extracted_bam_data = extract_airnow_data_from_api(
-        start_date_time="2022-06-13T18:00", end_date_time="2022-06-13T18:00"
+    extracted_bam_data = AirnowDataUtils.extract_bam_data(
+        start_date_time="2022-06-13T10:00:00Z", end_date_time="2022-06-13T18:00:00Z"
     )
     extracted_bam_data.to_csv("airnow_unprocessed_data.csv", index=False)
 
-    processed_bam_data = process_airnow_data(extracted_bam_data)
+    processed_bam_data = AirnowDataUtils.process_bam_data(extracted_bam_data)
     processed_bam_data.to_csv("airnow_processed_data.csv", index=False)
 
-    message_broker_data = pd.DataFrame(process_for_message_broker(processed_bam_data))
-    message_broker_data.to_csv("airnow_message_broker_data.csv", index=False)
-
-    bigquery_data = pd.DataFrame(process_for_big_query(processed_bam_data))
+    bigquery_data = AirnowDataUtils.process_for_bigquery(processed_bam_data)
     bigquery_data.to_csv("airnow_bigquery_data.csv", index=False)
+
+
+def airqo_bam_data():
+    from airqo_etl_utils.airqo_utils import AirQoDataUtils
+
+    extracted_bam_data = AirQoDataUtils.extract_bam_data(
+        start_date_time="2022-07-28T19:00:00Z", end_date_time="2022-07-28T19:59:59Z"
+    )
+    extracted_bam_data.to_csv("airqo_bam_unprocessed_data.csv", index=False)
+
+    processed_bam_data = AirQoDataUtils.process_bam_data(
+        extracted_bam_data, data_type=BamDataType.MEASUREMENTS
+    )
+    processed_bam_data.to_csv("airqo_bam_processed_data.csv", index=False)
+
+    bigquery_data = AirQoDataUtils.process_bam_measurements_for_bigquery(
+        processed_bam_data
+    )
+    bigquery_data.to_csv("airqo_bam_bigquery_data.csv", index=False)
 
 
 def urban_better_data_from_plume_labs():
@@ -637,6 +648,7 @@ if __name__ == "__main__":
             "urban_better_data_plume_labs",
             "urban_better_data_air_beam",
             "airqo_mobile_device_measurements",
+            "airqo_bam_data",
         ],
     )
 
@@ -674,6 +686,9 @@ if __name__ == "__main__":
 
     elif args.action == "airnow_bam_data":
         airnow_bam_data()
+
+    elif args.action == "airqo_bam_data":
+        airqo_bam_data()
 
     elif args.action == "urban_better_data_plume_labs":
         urban_better_data_from_plume_labs()

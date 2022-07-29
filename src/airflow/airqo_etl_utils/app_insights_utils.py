@@ -4,23 +4,23 @@ from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
 
-from airqo_api import AirQoApi
-from commons import (
+from .airqo_api import AirQoApi
+from .commons import (
     get_airqo_api_frequency,
     resample_data,
     get_frequency,
     get_column_value,
     get_air_quality,
 )
-from config import configuration
-from date import (
+from .config import configuration
+from .date import (
     date_to_str_hours,
     date_to_str_days,
     date_to_str,
     predict_str_to_date,
     str_to_date,
 )
-from message_broker import KafkaBrokerClient
+from .message_broker import KafkaBrokerClient
 
 insights_columns = ["time", "pm2_5", "pm10", "siteId", "frequency", "forecast", "empty"]
 
@@ -308,7 +308,7 @@ def query_insights_data(
 def create_insights_data_from_bigquery(
     start_date_time: str, end_date_time: str
 ) -> pd.DataFrame:
-    from bigquery_api import BigQueryApi
+    from .bigquery_api import BigQueryApi
 
     bigquery_api = BigQueryApi()
 
