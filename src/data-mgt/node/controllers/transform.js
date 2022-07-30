@@ -496,9 +496,9 @@ const data = {
 
   generateDescriptiveLastEntry: async (req, res) => {
     try {
-      const { channel, device, start, end } = req.query;
+      const { channel, device, device_number, start, end } = req.query;
       let deviceCategory = "";
-      if (channel) {
+      if (channel || device_number || device) {
         let api_key = "";
         let errors = [];
         await transformUtil.getAPIKey(channel, (result) => {
@@ -521,239 +521,115 @@ const data = {
         let ts = Date.now();
         let day = await generateDateFormat(ts);
         let cacheID = `descriptive_last_entry_${channel.trim()}_${day}`;
-        logElement("the cache ID", cacheID);
-        logText("we are in the text zone");
-        let request = {};
-        request["channel"] = channel;
-        request["api_key"] = api_key;
-        request["start"] = start;
-        request["end"] = end;
-        logObject("oooh request", request);
-        return axios
-          .get(transformUtil.readDeviceMeasurementsFromThingspeak({ request }))
-          .then(async (response) => {
-            const readings = response.data;
-            const { feeds } = readings;
-            let lastEntryId = readings.channel.last_entry_id;
+        redis.get(cacheID, (err, result) => {
+          if (result) {
+            const resultJSON = JSON.parse(result);
+            return res.status(HTTPStatus.OK).json(resultJSON);
+          } else {
+            let request = {};
+            request["channel"] = channel;
+            request["api_key"] = api_key;
+            request["start"] = start;
+            request["end"] = end;
+            logObject("oooh request", request);
+            return axios
+              .get(
+                transformUtil.readDeviceMeasurementsFromThingspeak({ request })
+              )
+              .then(async (response) => {
+                const readings = response.data;
+                const { feeds } = readings;
+                let lastEntryId = readings.channel.last_entry_id;
 
-            if (isEmpty(lastEntryId) && isEmpty(feeds)) {
-              return res.status(HTTPStatus.NOT_FOUND).json({
-                success: true,
-                message: "no recent measurements for this device",
-              });
-            }
+                if (isEmpty(lastEntryId) && isEmpty(feeds)) {
+                  return res.status(HTTPStatus.NOT_FOUND).json({
+                    success: true,
+                    message: "no recent measurements for this device",
+                  });
+                }
 
-            let recentReadings = await readings.feeds.filter((item) => {
-              return item.entry_id === lastEntryId;
-            });
-            logObject("recentReadings", recentReadings);
-            let responseData = recentReadings[0];
-            logObject("responseData", responseData);
+                let recentReadings = await readings.feeds.filter((item) => {
+                  return item.entry_id === lastEntryId;
+                });
 
-            delete responseData.entry_id;
+                let responseData = recentReadings[0];
 
-            let cleanedDeviceMeasurements = transformUtil.clean(responseData);
-            /**
-             * ether before or after transformation, we need to also check
-             * for device type and act accordingly
-             *
-             * if field1 is a date, then transform measurements differently
-             * using different configurations
-             */
+                delete responseData.entry_id;
 
-            logElement(
-              "cleanedDeviceMeasurements.field1",
-              cleanedDeviceMeasurements.field1
-            );
-            const makeDate = new Date(cleanedDeviceMeasurements.field1);
-            const isProvidedDateReal = isDate(makeDate);
-            logElement("isProvidedDateReal", isProvidedDateReal);
-            if (isProvidedDateReal) {
-              cleanedDeviceMeasurements.field9 = "reference";
-              deviceCategory = "reference";
-            } else {
-              cleanedDeviceMeasurements.field9 = "lowcost";
-              deviceCategory = "lowcost";
-            }
-            logObject("cleanedDeviceMeasurements", cleanedDeviceMeasurements);
-            let transformedData = await transformUtil.transformMeasurement(
-              cleanedDeviceMeasurements
-            );
-            logObject("transformedData", transformedData);
+                let cleanedDeviceMeasurements =
+                  transformUtil.clean(responseData);
 
-            let transformedField = {};
-            let otherData = transformedData.other_data;
+                const makeDate = new Date(cleanedDeviceMeasurements.field1);
+                const isProvidedDateReal = isDate(makeDate);
 
-            logObject("otherData", otherData);
+                if (isProvidedDateReal) {
+                  cleanedDeviceMeasurements.field9 = "reference";
+                  deviceCategory = "reference";
+                } else {
+                  cleanedDeviceMeasurements.field9 = "lowcost";
+                  deviceCategory = "lowcost";
+                }
+                let transformedData = await transformUtil.transformMeasurement(
+                  cleanedDeviceMeasurements
+                );
 
-            if (otherData) {
-              /**
-               * handle transformation differently
-               * based on device category
-               */
-              logElement("");
-              transformedField = await transformUtil.trasformFieldValues({
-                otherData,
-                deviceCategory,
-              });
-              delete transformedData.other_data;
-            }
+                let transformedField = {};
+                let otherData = transformedData.other_data;
 
-            let newResp = {
-              success: true,
-              ...transformedData,
-              ...transformedField,
-              errors,
-            };
+                if (otherData) {
+                  transformedField = await transformUtil.trasformFieldValues({
+                    otherData,
+                    deviceCategory,
+                  });
+                  delete transformedData.other_data;
+                }
 
-            let cleanedFinalTransformation = transformUtil.clean(newResp);
+                let newResp = {
+                  success: true,
+                  ...transformedData,
+                  ...transformedField,
+                  errors,
+                };
 
-            logObject(
-              "cleanedTransformedMeasurement",
-              cleanedFinalTransformation
-            );
-            redis.set(
-              cacheID,
-              JSON.stringify({
-                isCache: true,
-                ...cleanedFinalTransformation,
+                let cleanedFinalTransformation = transformUtil.clean(newResp);
+
+                redis.set(
+                  cacheID,
+                  JSON.stringify({
+                    isCache: true,
+                    ...cleanedFinalTransformation,
+                  })
+                );
+
+                redis.expire(
+                  cacheID,
+                  constants.GET_DESCRPIPTIVE_LAST_ENTRY_CACHE_EXPIRATION
+                );
+
+                return res.status(HTTPStatus.OK).json({
+                  isCache: false,
+                  ...cleanedFinalTransformation,
+                });
               })
-            );
+              .catch((err) => {
+                let error = {};
+                if (err.response) {
+                  error["response"] = err.response.data;
+                } else if (err.request) {
+                  error["request"] = err.request;
+                } else {
+                  error["config"] = err.config;
+                }
+                let message = err.response
+                  ? err.response.data
+                  : "Internal Server Error";
 
-            redis.expire(
-              cacheID,
-              constants.GET_DESCRPIPTIVE_LAST_ENTRY_CACHE_EXPIRATION
-            );
-
-            return res.status(HTTPStatus.OK).json({
-              isCache: false,
-              ...cleanedFinalTransformation,
-            });
-          })
-          .catch((err) => {
-            let error = {};
-            if (err.response) {
-              error["response"] = err.response.data;
-            } else if (err.request) {
-              error["request"] = err.request;
-            } else {
-              error["config"] = err.config;
-            }
-            let message = err.response
-              ? err.response.data
-              : "Internal Server Error";
-
-            let statusCode = HTTPStatus.INTERNAL_SERVER_ERROR;
-            errorsUtil.errorResponse({ res, message, statusCode, error });
-          });
-        // redis.get(cacheID, (err, result) => {
-        //   logObject("result", result);
-        //   logObject("err", err);
-        //   if (result) {
-        //     logText("oh no!");
-        //     const resultJSON = JSON.parse(result);
-        //     return res.status(HTTPStatus.OK).json(resultJSON);
-        //   } else {
-        //     logText("we are in the text zone");
-        //     let request = {};
-        //     request["channel"] = channel;
-        //     request["api_key"] = api_key;
-        //     request["start"] = start;
-        //     request["end"] = end;
-        //     logObject("oooh request", request);
-        //     return axios
-        //       .get(
-        //         transformUtil.readDeviceMeasurementsFromThingspeak({ request })
-        //       )
-        //       .then(async (response) => {
-        //         const readings = response.data;
-        //         const { feeds } = readings;
-        //         let lastEntryId = readings.channel.last_entry_id;
-
-        //         if (isEmpty(lastEntryId) && isEmpty(feeds)) {
-        //           return res.status(HTTPStatus.NOT_FOUND).json({
-        //             success: true,
-        //             message: "no recent measurements for this device",
-        //           });
-        //         }
-
-        //         logObject("readings");
-        //         let recentReadings = await readings.feeds.filter((item) => {
-        //           return item.entry_id === lastEntryId;
-        //         });
-        //         logObject("recentReadings", recentReadings);
-        //         let responseData = recentReadings[0];
-        //         logObject("responseData", responseData);
-
-        //         delete responseData.entry_id;
-
-        //         let cleanedDeviceMeasurements =
-        //           transformUtil.clean(responseData);
-
-        //         let transformedData = await transformUtil.transformMeasurement(
-        //           cleanedDeviceMeasurements
-        //         );
-        //         let transformedField = {};
-        //         let otherData = transformedData.other_data;
-
-        //         if (otherData) {
-        //           transformedField = await transformUtil.trasformFieldValues(
-        //             otherData
-        //           );
-        //           delete transformedData.other_data;
-        //         }
-
-        //         let newResp = {
-        //           success: true,
-        //           ...transformedData,
-        //           ...transformedField,
-        //           errors,
-        //         };
-
-        //         let cleanedFinalTransformation = transformUtil.clean(newResp);
-
-        //         logObject(
-        //           "cleanedTransformedMeasurement",
-        //           cleanedFinalTransformation
-        //         );
-        //         redis.set(
-        //           cacheID,
-        //           JSON.stringify({
-        //             isCache: true,
-        //             ...cleanedFinalTransformation,
-        //           })
-        //         );
-
-        //         redis.expire(
-        //           cacheID,
-        //           constants.GET_DESCRPIPTIVE_LAST_ENTRY_CACHE_EXPIRATION
-        //         );
-
-        //         return res.status(HTTPStatus.OK).json({
-        //           isCache: false,
-        //           ...cleanedFinalTransformation,
-        //         });
-        //       })
-        //       .catch((err) => {
-        //         let error = {};
-        //         if (err.response) {
-        //           error["response"] = err.response.data;
-        //         } else if (err.request) {
-        //           error["request"] = err.request;
-        //         } else {
-        //           error["config"] = err.config;
-        //         }
-        //         let message = err.response
-        //           ? err.response.data
-        //           : "Internal Server Error";
-
-        //         let statusCode = HTTPStatus.INTERNAL_SERVER_ERROR;
-        //         errorsUtil.errorResponse({ res, message, statusCode, error });
-        //       });
-        //   }
-        // });
+                let statusCode = HTTPStatus.INTERNAL_SERVER_ERROR;
+                errorsUtil.errorResponse({ res, message, statusCode, error });
+              });
+          }
+        });
       } else {
-        logText("we are good...");
         let message = "missing some request parameters";
         let statusCode = HTTPStatus.BAD_REQUEST;
         let error = {};
