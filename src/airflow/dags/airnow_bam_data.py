@@ -89,9 +89,9 @@ def airnow_bam_realtime_data_etl():
     @task()
     def send_measurements_to_api(airnow_data: pd.DataFrame):
         from airqo_etl_utils.airqo_api import AirQoApi
-        from airqo_etl_utils.airqo_utils import restructure_airnow_data_for_api_storage
+        from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
-        restructured_data = restructure_airnow_data_for_api_storage(data=airnow_data)
+        restructured_data = AirQoDataUtils.process_airnow_data_for_api(data=airnow_data)
         airqo_api = AirQoApi()
         airqo_api.save_events(measurements=restructured_data, tenant="airqo")
 

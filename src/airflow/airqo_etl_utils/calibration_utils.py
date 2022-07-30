@@ -86,100 +86,29 @@ class CalibrationUtils:
         return calibrated_data.append(uncalibrated_data, ignore_index=True)
 
     @staticmethod
-    def extract_hourly_device_measurements(
-        start_date_time, end_date_time
-    ) -> pd.DataFrame:
-        cols = [
-            "s1_pm2_5",
-            "s2_pm2_5",
-            "s1_pm10",
-            "s2_pm10",
-            "timestamp",
-            "external_temperature",
-            "external_humidity",
-            "device_number",
-            "site_id",
-        ]
-        bigquery_api = BigQueryApi()
-        measurements = bigquery_api.query_data(
-            start_date_time=start_date_time,
-            end_date_time=end_date_time,
-            columns=cols,
-            table=bigquery_api.raw_measurements_table,
-            where_fields={"tenant": "airqo"},
-        )
+    def format_calibrated_data(data: pd.DataFrame) -> pd.DataFrame:
+        data["pm2_5_raw_value"] = data[["s1_pm2_5", "s2_pm2_5"]].mean(axis=1)
+        data["pm10_raw_value"] = data[["s1_pm10", "s2_pm10"]].mean(axis=1)
 
-        if measurements.empty:
-            return pd.DataFrame([], columns=cols)
+        if "pm2_5_calibrated_value" in data.columns:
+            data["pm2_5"] = data["pm2_5_calibrated_value"]
+        else:
+            data["pm2_5_calibrated_value"] = None
+            data["pm2_5"] = None
 
-        measurements = measurements.dropna(subset=["timestamp"])
-        measurements["timestamp"] = measurements["timestamp"].apply(pd.to_datetime)
-        averaged_measurements = pd.DataFrame()
-        devices_groups = measurements.groupby("device_number")
+        if "pm10_calibrated_value" in data.columns:
+            data["pm10"] = data["pm10_calibrated_value"]
+        else:
+            data["pm10_calibrated_value"] = None
+            data["pm10"] = None
 
-        for _, device_group in devices_groups:
-            device_number = device_group.iloc[0]["device_number"]
-            device_site_groups = device_group.groupby("site_id")
+        data["pm2_5"] = data["pm2_5"].fillna(data["pm2_5_raw_value"])
+        data["pm10"] = data["pm10"].fillna(data["pm10_raw_value"])
 
-            for _, device_site in device_site_groups:
-                site_id = device_site.iloc[0]["site_id"]
-                data = device_site.sort_index(axis=0)
-                averages = pd.DataFrame(data.resample("1H", on="timestamp").mean())
-                averages["timestamp"] = averages.index
-                averages["device_number"] = device_number
-                averages["site_id"] = site_id
-                averaged_measurements = averaged_measurements.append(
-                    averages, ignore_index=True
-                )
-
-        return averaged_measurements
+        return data
 
     @staticmethod
-    def merge_device_measurements_and_weather_data(
-        device_measurements: pd.DataFrame, weather_data: pd.DataFrame
-    ) -> pd.DataFrame:
-
-        weather_data["timestamp"] = weather_data["timestamp"].apply(pd.to_datetime)
-        device_measurements["timestamp"] = device_measurements["timestamp"].apply(
-            pd.to_datetime
-        )
-
-        airqo_api = AirQoApi()
-        sites = airqo_api.get_sites()
-        sites_df = pd.json_normalize(sites)
-        sites_df = sites_df[["_id", "nearest_tahmo_station.code"]]
-        sites_df.rename(
-            columns={"nearest_tahmo_station.code": "station_code", "_id": "site_id"},
-            inplace=True,
-        )
-
-        device_measurements = pd.merge(
-            left=device_measurements, right=sites_df, on=["site_id"], how="left"
-        )
-
-        measurements = pd.merge(
-            left=device_measurements,
-            right=weather_data,
-            how="left",
-            on=["station_code", "timestamp"],
-        )
-
-        measurements["temperature"] = measurements["temperature"].fillna(
-            measurements["external_temperature"]
-        )
-
-        measurements["humidity"] = measurements["humidity"].fillna(
-            measurements["external_humidity"]
-        )
-
-        del measurements["external_humidity"]
-        del measurements["external_temperature"]
-        del measurements["station_code"]
-
-        return measurements
-
-    @staticmethod
-    def calibrate_historical_data(measurements: pd.DataFrame):
+    def calibrate_airqo_data(measurements: pd.DataFrame):
         measurements["timestamp"] = measurements["timestamp"].apply(pd.to_datetime)
 
         sites_data = measurements[["site_id", "device_number", "timestamp"]]
@@ -220,9 +149,10 @@ class CalibrationUtils:
                 time=timestamp, data=data.copy(), cols=col_mappings
             )
 
-            response_df = pd.DataFrame(
-                response, columns=["calibrated_PM2.5", "calibrated_PM10", "device_id"]
-            )
+            response_df = pd.DataFrame(response)[
+                ["calibrated_PM2.5", "calibrated_PM10", "device_id"]
+            ]
+
             merged_data = pd.merge(
                 left=data,
                 right=response_df,
@@ -230,15 +160,16 @@ class CalibrationUtils:
                 right_on=["device_id"],
                 left_on=["device_number"],
             )
-            merged_data.rename(
-                columns={
-                    "calibrated_PM2.5": "calibrated_pm2_5",
-                    "calibrated_PM10": "calibrated_pm10",
-                },
-                inplace=True,
-            )
 
             calibrated_data = calibrated_data.append(merged_data, ignore_index=True)
+
+        calibrated_data.rename(
+            columns={
+                "calibrated_PM2.5": "pm2_5_calibrated_value",
+                "calibrated_PM10": "pm10_calibrated_value",
+            },
+            inplace=True,
+        )
 
         calibrated_data = pd.merge(
             left=calibrated_data,
@@ -247,4 +178,6 @@ class CalibrationUtils:
             on=["device_number", "timestamp"],
         )
 
-        return calibrated_data.append(uncalibrated_data, ignore_index=True)
+        data = calibrated_data.append(uncalibrated_data, ignore_index=True)
+
+        return CalibrationUtils.format_calibrated_data(data)

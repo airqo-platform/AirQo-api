@@ -13,6 +13,7 @@ from .commons import (
     get_air_quality,
 )
 from .config import configuration
+from .constants import Frequency
 from .date import (
     date_to_str_hours,
     date_to_str_days,
@@ -23,6 +24,64 @@ from .date import (
 from .message_broker import KafkaBrokerClient
 
 insights_columns = ["time", "pm2_5", "pm10", "siteId", "frequency", "forecast", "empty"]
+
+
+class AirQoAppUtils:
+    @staticmethod
+    def format_data_to_insights(
+        data: pd.DataFrame, frequency: Frequency
+    ) -> pd.DataFrame:
+
+        insights = data[["site_id", "timestamp", "pm2_5", "pm10"]]
+        insights.rename(
+            columns={"timestamp": "time", "site_id": "siteId"}, inplace=True
+        )
+        insights["frequency"] = frequency
+        insights[["empty", "forecast"]] = False
+
+        return AirQoAppUtils.create_insights(insights)
+
+    @staticmethod
+    def create_insights(data: pd.DataFrame) -> pd.DataFrame:
+
+        data = data.copy()
+
+        if data.empty:
+            return pd.DataFrame(columns=insights_columns)
+
+        data["frequency"] = data["frequency"].apply(lambda x: str(x).upper())
+        data["forecast"] = data["forecast"].fillna(False)
+        data["empty"] = False
+        data["pm2_5"] = data["pm2_5"].apply(lambda x: round_off_value(x, "pm2_5"))
+        data["pm10"] = data["pm10"].apply(lambda x: round_off_value(x, "pm10"))
+        if sorted(list(data.columns)) != sorted(insights_columns):
+            print(f"Required columns {insights_columns}")
+            print(f"Dataframe columns {list(data.columns)}")
+            raise Exception("Invalid columns")
+
+        data = data.dropna()
+
+        return data
+
+    @staticmethod
+    def save_insights(insights_data: pd.DataFrame = None, partition: int = 0):
+        insights_data = (
+            [] if insights_data.empty else insights_data.to_dict(orient="records")
+        )
+
+        print(f"saving {len(insights_data)} insights .... ")
+
+        data = {
+            "data": insights_data,
+            "action": "",
+        }
+
+        kafka = KafkaBrokerClient()
+        kafka.send_data(
+            info=data,
+            topic=configuration.INSIGHTS_MEASUREMENTS_TOPIC,
+            partition=partition,
+        )
 
 
 def format_measurements_to_insights(data: list):
