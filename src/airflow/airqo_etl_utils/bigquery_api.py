@@ -4,7 +4,7 @@ import pandas as pd
 from google.cloud import bigquery
 
 from .config import configuration
-from .constants import JobAction, DataType
+from .constants import JobAction, DataType, Tenant
 from .date import date_to_str
 from .utils import get_file_content
 
@@ -14,6 +14,7 @@ class BigQueryApi:
         self.client = bigquery.Client()
         self.hourly_measurements_table = configuration.BIGQUERY_HOURLY_EVENTS_TABLE
         self.raw_measurements_table = configuration.BIGQUERY_RAW_EVENTS_TABLE
+        self.temp_raw_measurements_table = configuration.BIGQUERY_TEMP_RAW_EVENTS_TABLE
         self.bam_measurements_table = configuration.BIGQUERY_BAM_EVENTS_TABLE
         self.bam_outliers_table = configuration.BIGQUERY_BAM_OUTLIERS_TABLE
         self.raw_mobile_measurements_table = (
@@ -27,6 +28,7 @@ class BigQueryApi:
         self.analytics_table = configuration.BIGQUERY_ANALYTICS_TABLE
         self.sites_table = configuration.BIGQUERY_SITES_TABLE
         self.devices_table = configuration.BIGQUERY_DEVICES_TABLE
+        self.devices_data_table = configuration.BIGQUERY_DEVICES_DATA_TABLE
         self.calibrated_hourly_measurements_table = (
             configuration.BIGQUERY_CALIBRATED_HOURLY_EVENTS_TABLE
         )
@@ -93,6 +95,8 @@ class BigQueryApi:
             or table == self.raw_measurements_table
         ):
             schema_file = "measurements.json"
+        elif table == self.temp_raw_measurements_table:
+            schema_file = "raw_measurements.json"
         elif table == self.hourly_weather_table or table == self.raw_weather_table:
             schema_file = "weather_data.json"
         elif table == self.calibrated_hourly_measurements_table:
@@ -189,4 +193,11 @@ class BigQueryApi:
 
         dataframe["timestamp"] = dataframe["timestamp"].apply(date_to_str)
 
+        return dataframe
+
+    def query_devices(self, tenant: Tenant) -> pd.DataFrame:
+        query = f"""
+            SELECT * FROM `{self.devices_data_table}` WHERE tenant = '{tenant}'
+        """
+        dataframe = self.client.query(query=query).result().to_dataframe()
         return dataframe

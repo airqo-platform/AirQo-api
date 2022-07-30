@@ -16,6 +16,11 @@
     "description": "string that uniquely identifies a device in an organisation"
   },
   {
+    "name": "device_manufacturer",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
     "name": "device_number",
     "type": "INTEGER",
     "mode": "NULLABLE",
