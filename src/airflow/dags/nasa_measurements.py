@@ -42,7 +42,7 @@ def nasa_historical_data_etl():
 
         big_query_api = BigQueryApi()
         big_query_api.load_data(
-            bigquery_data, table=big_query_api.temp_raw_measurements_table
+            bigquery_data, table=big_query_api.raw_measurements_table
         )
 
     extracted_bam_data = extract_data()
@@ -87,7 +87,7 @@ def nasa_realtime_data_etl():
 
         big_query_api = BigQueryApi()
         big_query_api.load_data(
-            bigquery_data, table=big_query_api.temp_raw_measurements_table
+            bigquery_data, table=big_query_api.raw_measurements_table
         )
 
     extracted_bam_data = extract_data()

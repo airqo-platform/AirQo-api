@@ -14,7 +14,6 @@ class BigQueryApi:
         self.client = bigquery.Client()
         self.hourly_measurements_table = configuration.BIGQUERY_HOURLY_EVENTS_TABLE
         self.raw_measurements_table = configuration.BIGQUERY_RAW_EVENTS_TABLE
-        self.temp_raw_measurements_table = configuration.BIGQUERY_TEMP_RAW_EVENTS_TABLE
         self.bam_measurements_table = configuration.BIGQUERY_BAM_EVENTS_TABLE
         self.bam_outliers_table = configuration.BIGQUERY_BAM_OUTLIERS_TABLE
         self.raw_mobile_measurements_table = (
@@ -29,9 +28,7 @@ class BigQueryApi:
         self.sites_table = configuration.BIGQUERY_SITES_TABLE
         self.devices_table = configuration.BIGQUERY_DEVICES_TABLE
         self.devices_data_table = configuration.BIGQUERY_DEVICES_DATA_TABLE
-        self.calibrated_hourly_measurements_table = (
-            configuration.BIGQUERY_CALIBRATED_HOURLY_EVENTS_TABLE
-        )
+
         self.package_directory, _ = os.path.split(__file__)
 
     def validate_data(
@@ -90,17 +87,12 @@ class BigQueryApi:
 
     def get_columns(self, table: str, data_type: DataType = DataType.NONE) -> list:
 
-        if (
-            table == self.hourly_measurements_table
-            or table == self.raw_measurements_table
-        ):
+        if table == self.hourly_measurements_table:
             schema_file = "measurements.json"
-        elif table == self.temp_raw_measurements_table:
+        elif table == self.raw_measurements_table:
             schema_file = "raw_measurements.json"
         elif table == self.hourly_weather_table or table == self.raw_weather_table:
             schema_file = "weather_data.json"
-        elif table == self.calibrated_hourly_measurements_table:
-            schema_file = "calibrated_measurements.json"
         elif table == self.analytics_table:
             schema_file = "data_warehouse.json"
         elif table == self.sites_table:

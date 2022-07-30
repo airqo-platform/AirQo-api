@@ -130,6 +130,21 @@
     "mode": "NULLABLE"
   },
   {
+    "name": "voc",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "s1_voc",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "s2_voc",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
     "name": "wind_speed",
     "type": "FLOAT",
     "mode": "NULLABLE",

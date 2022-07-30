@@ -95,8 +95,8 @@ class CalibrationUtils:
             "s1_pm10",
             "s2_pm10",
             "timestamp",
-            "external_temperature",
-            "external_humidity",
+            "temperature",
+            "humidity",
             "device_number",
             "site_id",
         ]
@@ -140,6 +140,13 @@ class CalibrationUtils:
     ) -> pd.DataFrame:
 
         weather_data["timestamp"] = weather_data["timestamp"].apply(pd.to_datetime)
+        device_measurements.rename(
+            columns={
+                "temperature": "device_temperature_reading",
+                "humidity": "device_humidity_reading",
+            },
+            inplace=True,
+        )
         device_measurements["timestamp"] = device_measurements["timestamp"].apply(
             pd.to_datetime
         )
@@ -165,15 +172,15 @@ class CalibrationUtils:
         )
 
         measurements["temperature"] = measurements["temperature"].fillna(
-            measurements["external_temperature"]
+            measurements["device_temperature_reading"]
         )
 
         measurements["humidity"] = measurements["humidity"].fillna(
-            measurements["external_humidity"]
+            measurements["device_humidity_reading"]
         )
 
-        del measurements["external_humidity"]
-        del measurements["external_temperature"]
+        del measurements["device_humidity_reading"]
+        del measurements["device_temperature_reading"]
         del measurements["station_code"]
 
         return measurements
