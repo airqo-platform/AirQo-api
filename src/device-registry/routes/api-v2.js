@@ -3106,11 +3106,24 @@ router.get(
       query("frequency")
         .optional()
         .notEmpty()
+        .withMessage("the frequency cannot be empty if provided")
+        .bail()
         .trim()
         .toLowerCase()
         .isIn(["hourly", "daily", "raw"])
         .withMessage(
           "the frequency value is not among the expected ones which include: hourly, daily,and raw"
+        ),
+      query("format")
+        .optional()
+        .notEmpty()
+        .withMessage("the format cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["json", "csv"])
+        .withMessage(
+          "the format value is not among the expected ones which include: csv and json"
         ),
       query("device")
         .optional()
@@ -3161,11 +3174,22 @@ router.get(
       query("frequency")
         .optional()
         .notEmpty()
+        .withMessage("the frequency cannot be empty if provided")
         .trim()
         .toLowerCase()
         .isIn(["hourly", "daily", "raw"])
         .withMessage(
           "the frequency value is not among the expected ones which include: hourly, daily,and raw"
+        ),
+      query("format")
+        .optional()
+        .notEmpty()
+        .withMessage("the format cannot be empty if provided")
+        .trim()
+        .toLowerCase()
+        .isIn(["json", "csv"])
+        .withMessage(
+          "the frequency value is not among the expected ones which include: csv and json"
         ),
       query("device")
         .optional()
