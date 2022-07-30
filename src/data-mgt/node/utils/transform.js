@@ -208,8 +208,6 @@ const transform = {
       const deviceCategory = measurement.field9
         ? measurement.field9
         : "lowcost";
-      let responseFromTransformFieldValues =
-        await transform.trasformFieldValues(measurement.field8);
 
       let newObj = await Object.entries(measurement).reduce(
         (newObj, [field, value]) => {
