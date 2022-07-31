@@ -93,7 +93,7 @@ class AirnowDataUtils:
                 end = date_to_str(end_date)
 
             if start == end:
-                end = date_to_str(start, str_format="%Y-%m-%dT%H:59:59Z")
+                end = date_to_str(date, str_format="%Y-%m-%dT%H:59:59Z")
 
             query_data = AirnowDataUtils.query_bam_data(
                 start_date_time=start, end_date_time=end

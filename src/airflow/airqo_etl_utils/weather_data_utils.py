@@ -174,29 +174,6 @@ class WeatherDataUtils:
 
             aggregated_data = aggregated_data.append(merged_data, ignore_index=True)
 
-        # for _, station_group in station_groups:
-        #     station_group.index = station_group["timestamp"]
-        #     station_group = station_group.sort_index(axis=0)
-        #     station_code = station_group.iloc[0]["station_code"]
-        #
-        #     averaging_data = station_group.copy()
-        #     del averaging_data["precipitation"]
-        #     averages = pd.DataFrame(
-        #         averaging_data.resample("1H", on="timestamp").mean()
-        #     )
-        #     averages["timestamp"] = averages.index
-        #
-        #     summing_data = station_group.copy()["timestamp", "precipitation"]
-        #     sums = pd.DataFrame(
-        #         summing_data.resample("1H", on="timestamp").sum()
-        #     )
-        #     sums["timestamp"] = sums.index
-        #
-        #     merged_data = pd.merge(left=averages, right=sums, on=["timestamp"])
-        #
-        #     merged_data["station_code"] = station_code
-        #     aggregated_data = aggregated_data.append(merged_data, ignore_index=True)
-
         return aggregated_data
 
     @staticmethod
