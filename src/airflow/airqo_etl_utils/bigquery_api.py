@@ -5,7 +5,6 @@ from google.cloud import bigquery
 
 from .config import configuration
 from .constants import JobAction, DataType, Tenant
-from .date import date_to_str
 from .utils import Utils
 
 
@@ -83,7 +82,7 @@ class BigQueryApi:
             lambda x: pd.to_numeric(x, errors="coerce", downcast="integer")
         )
 
-        return dataframe
+        return dataframe.drop_duplicates(keep="first")
 
     def get_columns(self, table: str, data_type: DataType = DataType.NONE) -> list:
 
@@ -183,13 +182,13 @@ class BigQueryApi:
         """
         dataframe = self.client.query(query=query).result().to_dataframe()
 
-        dataframe["timestamp"] = dataframe["timestamp"].apply(date_to_str)
+        dataframe["timestamp"] = dataframe["timestamp"].apply(pd.to_datetime)
 
-        return dataframe
+        return dataframe.drop_duplicates(keep="first")
 
     def query_devices(self, tenant: Tenant) -> pd.DataFrame:
         query = f"""
             SELECT * FROM `{self.devices_data_table}` WHERE tenant = '{tenant}'
         """
         dataframe = self.client.query(query=query).result().to_dataframe()
-        return dataframe
+        return dataframe.drop_duplicates(keep="first")

@@ -9,8 +9,6 @@ from .constants import AirQuality, Pollutant
 from .date import (
     str_to_date,
     date_to_str,
-    date_to_str_days,
-    date_to_str_hours,
 )
 
 
@@ -28,15 +26,15 @@ def get_valid_value(raw_value, name=None):
         return None
     elif name == "battery" and (value < 2.7 or value > 5):
         return None
-    elif (name == "altitude" or name == "hdop") and value < 0:
+    elif (name == "altitude" or name == "hdop") and value <= 0:
         return None
-    elif name == "satellites" and (value < 0 or value > 50):
+    elif name == "satellites" and (value <= 0 or value > 50):
         return None
     elif (name == "temperature") and (value <= 0 or value > 45):
         return None
-    elif (name == "humidity") and (value <= 0 or value > 100):
+    elif (name == "humidity") and (value <= 0 or value > 99):
         return None
-    elif name == "pressure":
+    elif name == "pressure" and (value < 30 or value > 110):
         return None
     else:
         pass
@@ -50,51 +48,6 @@ def to_double(x):
         return None if (math.isnan(value) or np.isnan(value)) else value
     except Exception:
         return None
-
-
-def resample_data(data: pd.DataFrame, frequency: str) -> pd.DataFrame:
-    data = data.dropna(subset=["time"])
-    data["time"] = pd.to_datetime(data["time"])
-    data = data.sort_index(axis=0)
-    if "latitude" in data.columns and "longitude" in data.columns:
-        original_df = data[["time", "latitude", "longitude"]]
-    else:
-        original_df = data[["time"]]
-
-    resample_value = "24H" if frequency.lower() == "daily" else "1H"
-    averages = pd.DataFrame(data.resample(resample_value, on="time").mean())
-
-    averages["time"] = averages.index
-    averages["time"] = averages["time"].apply(lambda x: date_to_str(x))
-    averages = averages.reset_index(drop=True)
-
-    if resample_value == "1H":
-        original_df["time"] = original_df["time"].apply(lambda x: date_to_str_hours(x))
-    elif resample_value == "24H":
-        original_df["time"] = original_df["time"].apply(lambda x: date_to_str_days(x))
-    else:
-        original_df["time"] = original_df["time"].apply(lambda x: date_to_str(x))
-
-    if "latitude" in original_df.columns and "longitude" in original_df.columns:
-
-        def reset_latitude_or_longitude(time: str, field: str):
-            date_row = pd.DataFrame(original_df.loc[original_df["time"] == time])
-            if date_row.empty:
-                return time
-            return (
-                date_row.iloc[0]["latitude"]
-                if field == "latitude"
-                else date_row.iloc[0]["longitude"]
-            )
-
-        averages["latitude"] = averages.apply(
-            lambda row: reset_latitude_or_longitude(row["time"], "latitude"), axis=1
-        )
-        averages["longitude"] = averages.apply(
-            lambda row: reset_latitude_or_longitude(row["time"], "longitude"), axis=1
-        )
-
-    return averages
 
 
 def download_file_from_gcs(bucket_name: str, source_file: str, destination_file: str):
@@ -126,15 +79,6 @@ def get_frequency(start_time: str, end_time: str) -> str:
     return frequency
 
 
-def get_airqo_api_frequency(freq: str) -> str:
-    if freq == "hourly":
-        return "168H"
-    elif freq == "daily":
-        return "720H"
-    else:
-        return "5H"
-
-
 def remove_invalid_dates(
     dataframe: pd.DataFrame, start_time: str, end_time: str
 ) -> pd.DataFrame:
@@ -144,19 +88,18 @@ def remove_invalid_dates(
     date_time_column = "time" if "time" in list(dataframe.columns) else "timestamp"
 
     dataframe[date_time_column] = pd.to_datetime(dataframe[date_time_column])
-    data_frame = dataframe.set_index([date_time_column])
+    dataframe.set_index([date_time_column], inplace=True)
 
-    time_data_frame = data_frame.loc[
-        (data_frame.index >= start) & (data_frame.index <= end)
+    time_data_frame = dataframe.loc[
+        (dataframe.index >= start) & (dataframe.index <= end)
     ]
 
     time_data_frame[date_time_column] = time_data_frame.index
     time_data_frame[date_time_column] = time_data_frame[date_time_column].apply(
-        lambda x: date_to_str(x)
+        date_to_str
     )
-    time_data_frame = time_data_frame.reset_index(drop=True)
 
-    return time_data_frame
+    return time_data_frame.reset_index(drop=True)
 
 
 def get_column_value(column: str, columns: list, series: pd.Series):

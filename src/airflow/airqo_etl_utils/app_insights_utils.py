@@ -7,7 +7,6 @@ import pandas as pd
 from .airqo_api import AirQoApi
 from .bigquery_api import BigQueryApi
 from .commons import (
-    resample_data,
     get_frequency,
     get_air_quality,
 )
@@ -74,6 +73,9 @@ class AirQoAppUtils:
         if data.empty:
             return pd.DataFrame(columns=insights_columns)
 
+        data["time"] = data["time"].apply(pd.to_datetime)
+        data["time"] = data["time"].apply(date_to_str)
+
         data["frequency"] = data["frequency"].apply(lambda x: str(x).upper())
         data["forecast"] = data["forecast"].fillna(False)
         data["empty"] = False
@@ -88,9 +90,7 @@ class AirQoAppUtils:
             print(f"Dataframe columns {list(data.columns)}")
             raise Exception("Invalid columns")
 
-        data = data.dropna()
-
-        return data
+        return data.dropna()
 
     @staticmethod
     def save_insights(insights_data: pd.DataFrame = None, partition: int = 0):
@@ -137,27 +137,30 @@ class AirQoAppUtils:
                 if forecast:
                     forecast_df = pd.DataFrame(forecast)
 
-                    forecast_cleaned_df = pd.DataFrame(columns=insights_columns)
-                    forecast_cleaned_df["time"] = forecast_df["prediction_time"]
-                    forecast_cleaned_df["pm2_5"] = forecast_df["prediction_value"]
-                    forecast_cleaned_df["pm10"] = forecast_df["prediction_value"]
-                    forecast_cleaned_df["siteId"] = site_id
-                    forecast_cleaned_df["frequency"] = "hourly"
-                    forecast_cleaned_df["forecast"] = True
-                    forecast_cleaned_df["empty"] = False
+                    forecast_df.rename(
+                        columns={
+                            "prediction_time": "time",
+                            "prediction_value": "pm2_5",
+                        },
+                        inplace=True,
+                    )
+                    forecast_df["pm10"] = forecast_df["pm2_5"]
+                    forecast_df["siteId"] = site_id
+                    forecast_df["frequency"] = "hourly"
+                    forecast_df["forecast"] = True
+                    forecast_df["empty"] = False
+
+                    forecast_df = forecast_df[insights_columns]
 
                     forecast_measurements = forecast_measurements.append(
-                        forecast_cleaned_df, ignore_index=True
+                        forecast_df, ignore_index=True
                     )
 
         forecast_measurements["time"] = forecast_measurements["time"].apply(
             lambda x: AirQoAppUtils.predict_time_to_string(x)
         )
-        forecast_measurements = forecast_measurements[
-            forecast_measurements["pm2_5"].notna()
-        ]
 
-        return forecast_measurements
+        return forecast_measurements.dropna(subset=["pm2_5", "time"])
 
     @staticmethod
     def predict_time_to_string(time: str):
@@ -191,7 +194,7 @@ class AirQoAppUtils:
                 end = date_to_str(end_date_time)
 
             if start == end:
-                end = date_to_str(start, str_format="%Y-%m-%dT%H:59:59Z")
+                end = date_to_str(date, str_format="%Y-%m-%dT%H:59:59Z")
 
             try:
                 api_results = airqo_api.get_app_insights(
@@ -220,10 +223,11 @@ class AirQoAppUtils:
             forecast=True,
         )
 
-        forecast_data_df = pd.DataFrame(data=forecast_data, columns=insights_columns)
-        forecast_data_df["forecast"] = False
-        forecast_data_df["empty"] = False
-        return forecast_data_df
+        insights = pd.DataFrame(data=forecast_data)
+        insights = insights[insights_columns]
+        insights["forecast"] = False
+        insights["empty"] = False
+        return insights
 
     @staticmethod
     def average_insights(data: pd.DataFrame, frequency="daily") -> pd.DataFrame:
@@ -231,22 +235,26 @@ class AirQoAppUtils:
             return pd.DataFrame(data=[], columns=insights_columns)
 
         site_groups = data.groupby("siteId")
-        sampled_data = []
+        sampled_data = pd.DataFrame()
+        resample_value = "24H" if frequency.lower() == "daily" else "1H"
 
         for _, site_group in site_groups:
             site_id = site_group.iloc[0]["siteId"]
-            insights = site_group[["time", "pm2_5", "pm10"]]
 
-            averages = resample_data(insights, frequency)
+            insights = site_group[["time", "pm2_5", "pm10"]]
+            insights["time"] = insights["time"].apply(pd.to_datetime)
+            averages = pd.DataFrame(insights.resample(resample_value, on="time").mean())
+            averages["time"] = averages.index
+            averages.reset_index(drop=True, inplace=True)
 
             averages["frequency"] = frequency.upper()
             averages["siteId"] = site_id
             averages["forecast"] = False
             averages["empty"] = False
 
-            sampled_data.extend(averages.to_dict(orient="records"))
+            sampled_data = sampled_data.append(averages, ignore_index=True)
 
-        return pd.DataFrame(sampled_data)
+        return sampled_data
 
     @staticmethod
     def round_off_value(value, pollutant, decimals: int = 2):

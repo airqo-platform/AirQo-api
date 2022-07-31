@@ -17,46 +17,23 @@ def app_forecast_insights_etl():
     import pandas as pd
 
     @task()
-    def extract_insights_forecast_data():
-        from airqo_etl_utils.app_insights_utils import (
-            AirQoAppUtils,
-        )
-        from airqo_etl_utils.date import (
-            date_to_str,
-            first_day_of_week,
-            first_day_of_month,
-        )
-
-        now = datetime.now()
-        start_date_time = date_to_str(
-            first_day_of_week(first_day_of_month(date_time=now))
-        )
-        end_date_time = date_to_str(now)
-
-        forecast_data = AirQoAppUtils.transform_old_forecast(
-            start_date_time=start_date_time, end_date_time=end_date_time
-        )
-
-        return AirQoAppUtils.create_insights(data=forecast_data)
-
-    @task()
-    def extract_api_forecast_data():
+    def extract_forecast_data():
         from airqo_etl_utils.app_insights_utils import (
             AirQoAppUtils,
         )
 
-        forecast_data = AirQoAppUtils.extract_forecast_data()
-
-        return AirQoAppUtils.create_insights(data=forecast_data)
+        return AirQoAppUtils.extract_forecast_data()
 
     @task()
     def load(forecast: pd.DataFrame):
         from airqo_etl_utils.app_insights_utils import AirQoAppUtils
 
-        AirQoAppUtils.save_insights(insights_data=forecast, partition=1)
+        insights = AirQoAppUtils.create_insights(data=forecast)
 
-    api_forecast_data = extract_api_forecast_data()
-    load(forecast=api_forecast_data)
+        AirQoAppUtils.save_insights(insights_data=insights, partition=1)
+
+    forecast_data = extract_forecast_data()
+    load(forecast=forecast_data)
 
 
 @dag(
@@ -92,11 +69,11 @@ def app_historical_daily_insights_etl():
             AirQoAppUtils,
         )
 
-        insights_data = AirQoAppUtils.create_insights(data=data)
-        AirQoAppUtils.save_insights(insights_data=insights_data, partition=2)
+        insights = AirQoAppUtils.create_insights(data=data)
+        AirQoAppUtils.save_insights(insights_data=insights, partition=2)
 
-    insights = average_insights_data()
-    load(insights)
+    aggregated_insights = average_insights_data()
+    load(aggregated_insights)
 
 
 @dag(
@@ -134,11 +111,11 @@ def app_realtime_daily_insights_etl():
             AirQoAppUtils,
         )
 
-        insights_data = AirQoAppUtils.create_insights(data=data)
-        AirQoAppUtils.save_insights(insights_data=insights_data)
+        insights = AirQoAppUtils.create_insights(data=data)
+        AirQoAppUtils.save_insights(insights_data=insights)
 
-    insights = average_insights_data()
-    load(insights)
+    aggregated_insights = average_insights_data()
+    load(aggregated_insights)
 
 
 @dag(
@@ -164,20 +141,14 @@ def app_historical_hourly_insights_etl():
         )
 
     @task()
-    def transform(data: pd.DataFrame):
-        from airqo_etl_utils.app_insights_utils import AirQoAppUtils
-
-        return AirQoAppUtils.create_insights(data)
-
-    @task()
     def load_hourly_insights(data: pd.DataFrame):
         from airqo_etl_utils.app_insights_utils import AirQoAppUtils
 
-        AirQoAppUtils.save_insights(insights_data=data, partition=2)
+        insights = AirQoAppUtils.create_insights(data)
+        AirQoAppUtils.save_insights(insights_data=insights, partition=2)
 
     hourly_data = extract_airqo_data()
-    transformed_data = transform(hourly_data)
-    load_hourly_insights(transformed_data)
+    load_hourly_insights(hourly_data)
 
 
 @dag(
@@ -203,20 +174,14 @@ def app_realtime_hourly_insights_etl():
         )
 
     @task()
-    def transform(data: pd.DataFrame):
-        from airqo_etl_utils.app_insights_utils import AirQoAppUtils
-
-        return AirQoAppUtils.create_insights(data)
-
-    @task()
     def load_hourly_insights(data: pd.DataFrame):
         from airqo_etl_utils.app_insights_utils import AirQoAppUtils
 
-        AirQoAppUtils.save_insights(insights_data=data)
+        insights = AirQoAppUtils.create_insights(data)
+        AirQoAppUtils.save_insights(insights_data=insights)
 
     hourly_data = extract_airqo_data()
-    transformed_data = transform(hourly_data)
-    load_hourly_insights(transformed_data)
+    load_hourly_insights(hourly_data)
 
 
 @dag(

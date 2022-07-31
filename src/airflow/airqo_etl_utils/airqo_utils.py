@@ -138,7 +138,7 @@ class AirQoDataUtils:
                     end = date_to_str(end_date_time)
 
                 if start == end:
-                    end = date_to_str(start, str_format="%Y-%m-%dT%H:59:59Z")
+                    end = date_to_str(date, str_format="%Y-%m-%dT%H:59:59Z")
 
                 url = f"{thingspeak_base_url}{channel_id}/feeds.json?start={start}&end={end}&api_key={read_key}"
                 print(f"{url}")
@@ -429,7 +429,7 @@ class AirQoDataUtils:
                     end = date_to_str(end_date_time)
 
                 if start == end:
-                    end = date_to_str(start, str_format="%Y-%m-%dT%H:59:59Z")
+                    end = date_to_str(date, str_format="%Y-%m-%dT%H:59:59Z")
 
                 try:
                     url = f"{thingspeak_base_url}{channel_id}/feeds.json?start={start}&end={end}&api_key={read_key}"
@@ -573,23 +573,26 @@ class AirQoDataUtils:
 
         for _, row in data.iterrows():
             try:
-                device_id = row["device_id"]
+                device_number = row["device_number"]
                 device_details = list(
-                    filter(lambda device: (device["_id"] == device_id), devices)
+                    filter(
+                        lambda device: (device["device_number"] == device_number),
+                        devices,
+                    )
                 )[0]
 
                 restructured_data.append(
                     {
                         "device": device_details["name"],
-                        "device_id": device_id,
+                        "device_id": device_details["_id"],
                         "site_id": row["site_id"],
-                        "device_number": row["device_number"],
+                        "device_number": device_number,
                         "tenant": str(Tenant.AIRQO),
                         "location": {
                             "latitude": {"value": row["latitude"]},
                             "longitude": {"value": row["longitude"]},
                         },
-                        "frequency": frequency,
+                        "frequency": str(frequency),
                         "time": row["timestamp"],
                         "average_pm2_5": {
                             "value": row["pm2_5"],
@@ -638,9 +641,6 @@ class AirQoDataUtils:
     def merge_aggregated_weather_data(
         airqo_data: pd.DataFrame, weather_data: pd.DataFrame
     ) -> pd.DataFrame:
-
-        weather_data = weather_data.copy()
-        airqo_data = airqo_data.copy()
 
         if weather_data.empty:
             return airqo_data

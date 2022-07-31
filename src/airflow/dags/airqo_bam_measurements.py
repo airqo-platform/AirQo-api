@@ -26,21 +26,6 @@ def bam_historical_measurements_etl():
         )
 
     @task()
-    def extract_device_deployment_logs():
-        from airqo_etl_utils.airqo_utils import AirQoDataUtils
-
-        return AirQoDataUtils.extract_devices_deployment_logs()
-
-    @task()
-    def process_data(airqo_data: pd.DataFrame, deployment_logs: pd.DataFrame):
-
-        from airqo_etl_utils.airqo_utils import AirQoDataUtils
-
-        return AirQoDataUtils.map_site_ids_to_historical_data(
-            data=airqo_data, deployment_logs=deployment_logs
-        )
-
-    @task()
     def load(bam_data: pd.DataFrame):
 
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
@@ -55,11 +40,7 @@ def bam_historical_measurements_etl():
         )
 
     extracted_airqo_data = extract_raw_data()
-    device_logs = extract_device_deployment_logs()
-    data_with_site_ids = process_data(
-        airqo_data=extracted_airqo_data, deployment_logs=device_logs
-    )
-    load(data_with_site_ids)
+    load(extracted_airqo_data)
 
 
 @dag(
