@@ -7,7 +7,8 @@ import pandas as pd
 from .airnow_api import AirNowApi
 from .airqo_api import AirQoApi
 from .bigquery_api import BigQueryApi
-from .commons import Utils, get_frequency
+from .commons import get_frequency
+from .utils import Utils
 from .date import str_to_date, date_to_str
 
 

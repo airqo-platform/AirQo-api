@@ -4,7 +4,8 @@ import numpy as np
 import pandas as pd
 
 from .bigquery_api import BigQueryApi
-from .commons import Utils, get_frequency
+from .commons import get_frequency
+from .utils import Utils
 from .constants import Tenant
 from .date import date_to_str
 from .purple_air_api import PurpleAirApi
@@ -90,17 +91,17 @@ class PurpleDataUtils:
                 "pm10.0_atm": "pm10",
                 "pm10.0_atm_a": "s1_pm10",
                 "pm10.0_atm_b": "s2_pm10",
+                "voc_a": "s1_voc",
+                "voc_b": "s2_voc",
             },
             inplace=True,
         )
-        data["tenant"] = Tenant.NASA
+        data["tenant"] = str(Tenant.NASA)
         return data
 
     @staticmethod
     def process_for_bigquery(data: pd.DataFrame) -> pd.DataFrame:
         data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
         big_query_api = BigQueryApi()
-        cols = big_query_api.get_columns(
-            table=big_query_api.temp_raw_measurements_table
-        )
+        cols = big_query_api.get_columns(table=big_query_api.raw_measurements_table)
         return Utils.populate_missing_columns(data=data, cols=cols)
