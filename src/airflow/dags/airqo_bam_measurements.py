@@ -17,10 +17,10 @@ def bam_historical_measurements_etl():
     @task()
     def extract_raw_data(**kwargs):
 
-        from airqo_etl_utils.commons import get_date_time_values
+        from airqo_etl_utils.utils import Utils
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
-        start_time, end_time = get_date_time_values(**kwargs)
+        start_time, end_time = Utils.get_dag_date_time_config(**kwargs)
         return AirQoDataUtils.extract_bam_data(
             start_date_time=start_time, end_date_time=end_time
         )

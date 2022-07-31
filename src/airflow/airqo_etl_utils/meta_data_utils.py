@@ -1,8 +1,8 @@
 import pandas as pd
 
 from .airqo_api import AirQoApi
-from .commons import format_dataframe_column_type
 from .constants import DataType
+from .utils import Utils
 
 
 def extract_meta_data(component: str, tenant=None) -> pd.DataFrame:
@@ -135,12 +135,12 @@ def extract_meta_data(component: str, tenant=None) -> pd.DataFrame:
     else:
         raise Exception("Invalid component. Valid values are sites and devices.")
 
-    dataframe = format_dataframe_column_type(
+    dataframe = Utils.format_dataframe_column_type(
         dataframe=dataframe,
         data_type=DataType.FLOAT,
         columns=numeric_columns,
     )
-    dataframe = format_dataframe_column_type(
+    dataframe = Utils.format_dataframe_column_type(
         dataframe=dataframe,
         data_type=DataType.TIMESTAMP_STR,
         columns=date_time_columns,

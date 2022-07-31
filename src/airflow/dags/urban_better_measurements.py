@@ -19,7 +19,7 @@ def historical_raw_measurements_etl__plume_labs():
     @task()
     def extract_measures(**kwargs):
 
-        from airqo_etl_utils.commons import Utils
+        from airqo_etl_utils.utils import Utils
         from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
 
         start_date_time, end_date_time = Utils.get_dag_date_time_config(**kwargs)
@@ -30,7 +30,7 @@ def historical_raw_measurements_etl__plume_labs():
     @task()
     def extract_sensor_positions(**kwargs):
 
-        from airqo_etl_utils.commons import Utils
+        from airqo_etl_utils.utils import Utils
         from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
 
         start_date_time, end_date_time = Utils.get_dag_date_time_config(**kwargs)
@@ -147,7 +147,7 @@ def historical_measurements_etl__air_beam():
 
     @task()
     def extract_stream_ids(**kwargs):
-        from airqo_etl_utils.commons import Utils
+        from airqo_etl_utils.utils import Utils
         from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
 
         start_date_time, end_date_time = Utils.get_dag_date_time_config(**kwargs)
@@ -157,7 +157,7 @@ def historical_measurements_etl__air_beam():
 
     @task()
     def extract_measurements(ids: pd.DataFrame, **kwargs):
-        from airqo_etl_utils.commons import Utils
+        from airqo_etl_utils.utils import Utils
         from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
 
         start_date_time, end_date_time = Utils.get_dag_date_time_config(**kwargs)

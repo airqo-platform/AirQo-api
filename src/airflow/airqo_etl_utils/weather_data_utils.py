@@ -5,7 +5,8 @@ import pandas as pd
 
 from .airqo_api import AirQoApi
 from .bigquery_api import BigQueryApi
-from .commons import get_frequency, remove_invalid_dates, Utils
+from .commons import get_frequency, remove_invalid_dates
+from .utils import Utils
 from .data_validator import DataValidationUtils
 
 from .date import date_to_str

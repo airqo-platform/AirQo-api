@@ -217,11 +217,7 @@ def airqo_realtime_data():
 
 
 def insights_forecast():
-    from airqo_etl_utils.app_insights_utils import (
-        create_insights_data,
-        get_forecast_data,
-        transform_old_forecast,
-    )
+    from airqo_etl_utils.app_insights_utils import AirQoAppUtils
 
     from airqo_etl_utils.date import date_to_str, first_day_of_week, first_day_of_month
 
@@ -229,15 +225,15 @@ def insights_forecast():
     start_date_time = date_to_str(first_day_of_week(first_day_of_month(date_time=now)))
     end_date_time = date_to_str(now)
 
-    old_forecast = transform_old_forecast(
+    old_forecast = AirQoAppUtils.transform_old_forecast(
         start_date_time=start_date_time, end_date_time=end_date_time
     )
     pd.DataFrame(old_forecast).to_csv(path_or_buf="old_forecast_data.csv", index=False)
 
-    forecast_data = get_forecast_data("airqo")
+    forecast_data = AirQoAppUtils.extract_forecast_data()
     pd.DataFrame(forecast_data).to_csv(path_or_buf="forecast_data.csv", index=False)
 
-    insights_data = create_insights_data(data=forecast_data)
+    insights_data = AirQoAppUtils.create_insights(data=forecast_data)
     pd.DataFrame(insights_data).to_csv(
         path_or_buf="insights_forecast_data.csv", index=False
     )
@@ -266,27 +262,23 @@ def app_notifications():
 
 
 def daily_insights(start_date_time: str, end_date_time: str):
-    from airqo_etl_utils.app_insights_utils import (
-        query_insights_data,
-        average_insights_data,
-        create_insights_data,
-    )
+    from airqo_etl_utils.app_insights_utils import AirQoAppUtils
 
-    hourly_insights_data = query_insights_data(
+    hourly_insights_data = AirQoAppUtils.extract_insights(
         freq="hourly", start_date_time=start_date_time, end_date_time=end_date_time
     )
     pd.DataFrame(hourly_insights_data).to_csv(
         path_or_buf="hourly_insights_airqo_data.csv", index=False
     )
 
-    daily_insights_data = average_insights_data(
+    daily_insights_data = AirQoAppUtils.average_insights(
         frequency="daily", data=hourly_insights_data
     )
     pd.DataFrame(daily_insights_data).to_csv(
         path_or_buf="daily_insights_airqo_data.csv", index=False
     )
 
-    insights_data = create_insights_data(daily_insights_data)
+    insights_data = AirQoAppUtils.create_insights(daily_insights_data)
     pd.DataFrame(insights_data).to_csv(path_or_buf="insights_data.csv", index=False)
 
 
