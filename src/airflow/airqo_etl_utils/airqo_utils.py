@@ -15,8 +15,8 @@ from .commons import (
     remove_invalid_dates,
     download_file_from_gcs,
     get_frequency,
-    Utils,
 )
+from .utils import Utils
 from .config import configuration
 from .constants import DeviceCategory, BamDataType, Tenant, Frequency
 from .data_validator import DataValidationUtils
@@ -136,6 +136,9 @@ class AirQoDataUtils:
                     end = date_to_str(timestring)
                 else:
                     end = date_to_str(end_date_time)
+
+                if start == end:
+                    end = date_to_str(start, str_format="%Y-%m-%dT%H:59:59Z")
 
                 url = f"{thingspeak_base_url}{channel_id}/feeds.json?start={start}&end={end}&api_key={read_key}"
                 print(f"{url}")
@@ -426,7 +429,7 @@ class AirQoDataUtils:
                     end = date_to_str(end_date_time)
 
                 if start == end:
-                    end = date_to_str(date, str_format="%Y-%m-%dT%H:59:59Z")
+                    end = date_to_str(start, str_format="%Y-%m-%dT%H:59:59Z")
 
                 try:
                     url = f"{thingspeak_base_url}{channel_id}/feeds.json?start={start}&end={end}&api_key={read_key}"
@@ -546,7 +549,7 @@ class AirQoDataUtils:
     @staticmethod
     def process_raw_data_for_bigquery(data: pd.DataFrame) -> pd.DataFrame:
         data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
-        data["tenant"] = Tenant.AIRQO
+        data["tenant"] = str(Tenant.AIRQO)
         big_query_api = BigQueryApi()
         cols = big_query_api.get_columns(table=big_query_api.raw_measurements_table)
         return Utils.populate_missing_columns(data=data, cols=cols)
@@ -554,7 +557,7 @@ class AirQoDataUtils:
     @staticmethod
     def process_aggregated_data_for_bigquery(data: pd.DataFrame) -> pd.DataFrame:
         data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
-        data["tenant"] = Tenant.AIRQO
+        data["tenant"] = str(Tenant.AIRQO)
         big_query_api = BigQueryApi()
         cols = big_query_api.get_columns(table=big_query_api.hourly_measurements_table)
         return Utils.populate_missing_columns(data=data, cols=cols)
@@ -581,7 +584,7 @@ class AirQoDataUtils:
                         "device_id": device_id,
                         "site_id": row["site_id"],
                         "device_number": row["device_number"],
-                        "tenant": Tenant.AIRQO,
+                        "tenant": str(Tenant.AIRQO),
                         "location": {
                             "latitude": {"value": row["latitude"]},
                             "longitude": {"value": row["longitude"]},

@@ -6,7 +6,7 @@ from google.cloud import bigquery
 from .config import configuration
 from .constants import JobAction, DataType, Tenant
 from .date import date_to_str
-from .utils import get_file_content
+from .utils import Utils
 
 
 class BigQueryApi:
@@ -108,7 +108,7 @@ class BigQueryApi:
         else:
             raise Exception("Invalid table")
 
-        schema = get_file_content(file_name=schema_file)
+        schema = Utils.load_schema(file_name=schema_file)
 
         columns = []
         if data_type != DataType.NONE:

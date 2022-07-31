@@ -7,7 +7,8 @@ import pandas as pd
 from .airnow_api import AirNowApi
 from .airqo_api import AirQoApi
 from .bigquery_api import BigQueryApi
-from .commons import Utils, get_frequency
+from .commons import get_frequency
+from .utils import Utils
 from .date import str_to_date, date_to_str
 
 
@@ -92,7 +93,7 @@ class AirnowDataUtils:
                 end = date_to_str(end_date)
 
             if start == end:
-                end = date_to_str(date, str_format="%Y-%m-%dT%H:59:59Z")
+                end = date_to_str(start, str_format="%Y-%m-%dT%H:59:59Z")
 
             query_data = AirnowDataUtils.query_bam_data(
                 start_date_time=start, end_date_time=end
