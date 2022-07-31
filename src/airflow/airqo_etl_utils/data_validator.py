@@ -5,9 +5,14 @@ from .commons import get_valid_value
 
 class DataValidationUtils:
     @staticmethod
-    def get_validate_values(raw_value: pd.DataFrame) -> pd.DataFrame:
+    def get_valid_values(raw_value: pd.DataFrame) -> pd.DataFrame:
         valid_data = raw_value.copy()
         columns = valid_data.columns
+
+        if "timestamp" in columns:
+            valid_data["timestamp"] = valid_data["timestamp"].apply(
+                lambda x: pd.to_datetime(x, errors="coerce")
+            )
 
         if "battery" in columns:
             valid_data["battery"] = valid_data["battery"].apply(
@@ -54,18 +59,28 @@ class DataValidationUtils:
                 lambda x: get_valid_value(x, "humidity")
             )
 
-        if "temperature" in columns:
-            valid_data["temperature"] = valid_data["temperature"].apply(
-                lambda x: get_valid_value(x, "temperature")
-            )
-
-        if "internalHumidity" in columns:
-            valid_data["internalHumidity"] = valid_data["internalHumidity"].apply(
+        if "humidity" in columns:
+            valid_data["humidity"] = valid_data["humidity"].apply(
                 lambda x: get_valid_value(x, "humidity")
             )
 
-        if "internalTemperature" in columns:
-            valid_data["internalTemperature"] = valid_data["internalTemperature"].apply(
+        if "wind_speed" in columns:
+            valid_data["wind_speed"] = valid_data["wind_speed"].apply(
+                lambda x: get_valid_value(x, "wind_speed")
+            )
+
+        if "pressure" in columns:
+            valid_data["pressure"] = valid_data["pressure"].apply(
+                lambda x: get_valid_value(x, "pressure")
+            )
+
+        if "device_humidity" in columns:
+            valid_data["device_humidity"] = valid_data["device_humidity"].apply(
+                lambda x: get_valid_value(x, "humidity")
+            )
+
+        if "device_temperature" in columns:
+            valid_data["device_temperature"] = valid_data["device_temperature"].apply(
                 lambda x: get_valid_value(x, "temperature")
             )
 

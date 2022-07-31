@@ -6,12 +6,12 @@ from airqo_etl_utils.airflow_custom_utils import slack_dag_failure_notification
 
 
 @dag(
-    "Nasa-Historical-Data",
+    "Nasa-Historical-Raw-Data",
     schedule_interval=None,
     on_failure_callback=slack_dag_failure_notification,
     start_date=datetime(2021, 1, 1),
     catchup=False,
-    tags=["bam", "nasa", "historical"],
+    tags=["raw", "nasa", "historical"],
 )
 def nasa_historical_data_etl():
     import pandas as pd
@@ -51,12 +51,12 @@ def nasa_historical_data_etl():
 
 
 @dag(
-    "Nasa-Realtime-Data",
+    "Nasa-Realtime-Raw-Data",
     schedule_interval="30 * * * *",
     on_failure_callback=slack_dag_failure_notification,
     start_date=datetime(2021, 1, 1),
     catchup=False,
-    tags=["bam", "nasa", "realtime"],
+    tags=["raw", "nasa", "realtime"],
 )
 def nasa_realtime_data_etl():
     import pandas as pd

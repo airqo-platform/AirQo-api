@@ -27,37 +27,30 @@ def bam_historical_measurements_etl():
 
     @task()
     def extract_device_deployment_logs():
+        from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
-        from airqo_etl_utils.airqo_utils import extract_airqo_devices_deployment_history
-
-        logs = extract_airqo_devices_deployment_history()
-
-        return logs
+        return AirQoDataUtils.extract_devices_deployment_logs()
 
     @task()
     def process_data(airqo_data: pd.DataFrame, deployment_logs: pd.DataFrame):
 
-        from airqo_etl_utils.airqo_utils import map_site_ids_to_historical_measurements
+        from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
-        restructured_data = map_site_ids_to_historical_measurements(
+        return AirQoDataUtils.map_site_ids_to_historical_data(
             data=airqo_data, deployment_logs=deployment_logs
         )
 
-        return restructured_data
-
     @task()
-    def load(airqo_data: pd.DataFrame):
+    def load(bam_data: pd.DataFrame):
 
-        from airqo_etl_utils.airqo_utils import restructure_airqo_data
+        from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
-        airqo_restructured_data = restructure_airqo_data(
-            data=airqo_data, destination="bigquery"
-        )
+        bam_data = AirQoDataUtils.process_bam_data_for_bigquery(data=bam_data)
         big_query_api = BigQueryApi()
         big_query_api.load_data(
-            dataframe=airqo_restructured_data,
+            dataframe=bam_data,
             table=big_query_api.bam_measurements_table,
         )
 
@@ -113,7 +106,7 @@ def bam_realtime_measurements_etl():
         from airqo_etl_utils.bigquery_api import BigQueryApi
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
-        bam_data = AirQoDataUtils.process_bam_measurements_for_bigquery(data=bam_data)
+        bam_data = AirQoDataUtils.process_bam_data_for_bigquery(data=bam_data)
         big_query_api = BigQueryApi()
         big_query_api.load_data(
             dataframe=bam_data,

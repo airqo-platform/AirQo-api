@@ -36,13 +36,9 @@ def get_valid_value(raw_value, name=None):
         return None
     elif name == "satellites" and (value < 0 or value > 50):
         return None
-    elif (name == "externalTemperature" or name == "temperature") and (
-        value <= 0 or value > 45
-    ):
+    elif (name == "temperature") and (value <= 0 or value > 45):
         return None
-    elif (name == "externalHumidity" or name == "humidity") and (
-        value <= 0 or value > 100
-    ):
+    elif (name == "humidity") and (value <= 0 or value > 100):
         return None
     elif name == "pressure":
         return None

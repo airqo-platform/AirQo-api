@@ -154,5 +154,30 @@
     "name": "altitude",
     "type": "FLOAT",
     "mode": "NULLABLE"
+  },
+  {
+    "name": "satellites",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "hdop",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "device_temperature",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "device_humidity",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "battery",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
   }
 ]
