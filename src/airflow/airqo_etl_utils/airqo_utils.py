@@ -20,7 +20,7 @@ from .commons import (
 from .config import configuration
 from .constants import DeviceCategory, BamDataType, Tenant, Frequency
 from .data_validator import DataValidationUtils
-from .date import date_to_str, str_to_date, date_to_str_hours
+from .date import date_to_str, date_to_str_hours
 
 
 class AirQoDataUtils:
@@ -797,7 +797,7 @@ class AirQoDataUtils:
     def extract_devices_deployment_logs() -> pd.DataFrame:
         airqo_api = AirQoApi()
         devices = airqo_api.get_devices(tenant="airqo")
-        devices_history = []
+        devices_history = pd.DataFrame()
         for device in devices:
 
             try:
@@ -816,35 +816,45 @@ class AirQoDataUtils:
                 )
                 log_df = log_df.dropna(subset=["site_id"])
 
-                log_df["start_time"] = pd.to_datetime(log_df["date"])
-                log_df = log_df.sort_values(by="start_time")
-                log_df["end_time"] = log_df["start_time"].shift(-1)
-                log_df["end_time"] = log_df["end_time"].fillna(datetime.utcnow())
+                log_df["start_date_time"] = pd.to_datetime(log_df["date"])
+                log_df = log_df.sort_values(by="start_date_time")
+                log_df["end_date_time"] = log_df["start_date_time"].shift(-1)
+                log_df["end_date_time"] = log_df["end_date_time"].fillna(
+                    datetime.utcnow()
+                )
 
-                log_df["start_time"] = log_df["start_time"].apply(
+                log_df["start_date_time"] = log_df["start_date_time"].apply(
                     lambda x: date_to_str(x)
                 )
-                log_df["end_time"] = log_df["end_time"].apply(lambda x: date_to_str(x))
+                log_df["end_date_time"] = log_df["end_date_time"].apply(
+                    lambda x: date_to_str(x)
+                )
 
                 if len(set(log_df["site_id"].tolist())) == 1:
                     continue
 
-                for _, raw in log_df.iterrows():
-                    device_history = {
-                        "device": raw["device"],
-                        "device_id": device["_id"],
-                        "start_time": raw["start_time"],
-                        "end_time": raw["end_time"],
-                        "site_id": raw["site_id"],
-                    }
+                log_df["device_id"] = device["_id"]
+                log_df["device_number"] = device["device_number"]
 
-                    devices_history.append(device_history)
+                devices_history = devices_history.append(
+                    log_df[
+                        [
+                            "device",
+                            "start_date_time",
+                            "end_date_time",
+                            "site_id",
+                            "device_id",
+                            "device_number",
+                        ]
+                    ],
+                    ignore_index=True,
+                )
 
             except Exception as ex:
                 print(ex)
                 traceback.print_exc()
 
-        return pd.DataFrame(devices_history)
+        return devices_history
 
     @staticmethod
     def map_site_ids_to_historical_data(
@@ -853,19 +863,19 @@ class AirQoDataUtils:
         if deployment_logs.empty or data.empty:
             return data
 
+        data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
+        deployment_logs["start_date_time"] = deployment_logs["start_date_time"].apply(
+            pd.to_datetime
+        )
+        deployment_logs["end_date_time"] = deployment_logs["end_date_time"].apply(
+            pd.to_datetime
+        )
+
         airqo_api = AirQoApi()
         devices = airqo_api.get_devices(tenant="airqo")
 
         mapped_data = []
 
-        devices_logs_df = pd.DataFrame(deployment_logs)
-        devices_logs_df["start_time"] = devices_logs_df["start_time"].apply(
-            lambda x: str_to_date(x)
-        )
-        devices_logs_df["end_time"] = devices_logs_df["end_time"].apply(
-            lambda x: str_to_date(x)
-        )
-        date_time_column = "time" if "time" in list(data.columns) else "timestamp"
         for _, data_row in data.iterrows():
             device = get_device(devices, device_id=data_row["device_id"])
 
@@ -873,14 +883,14 @@ class AirQoDataUtils:
                 continue
 
             site_id = device.get("site").get("_id")
-            date_time = str_to_date(data_row[date_time_column])
-            device_logs = devices_logs_df[
-                devices_logs_df["device_id"] == device.get("_id")
+            date_time = data_row["timestamp"]
+            device_logs = deployment_logs[
+                deployment_logs["device_id"] == device.get("_id")
             ]
 
             if not device_logs.empty:
                 for _, log in device_logs.iterrows():
-                    if log["start_time"] <= date_time <= log["end_time"]:
+                    if log["start_date_time"] <= date_time <= log["end_date_time"]:
                         site_id = log["site_id"]
 
             data_row["site_id"] = site_id

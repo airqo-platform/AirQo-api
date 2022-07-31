@@ -165,9 +165,6 @@ def airqo_realtime_data():
     start_date_time = date_to_str_hours(hour)
     end_date_time = datetime.strftime(hour, "%Y-%m-%dT%H:59:59Z")
 
-    start_date_time = "2022-01-01T10:00:00Z"
-    end_date_time = "2022-01-01T17:00:00Z"
-
     low_cost_sensors_data = AirQoDataUtils.extract_low_cost_sensors_data(
         start_date_time=start_date_time, end_date_time=end_date_time
     )
