@@ -97,6 +97,11 @@ class ScheduleDag:
                     "name": "Airnow-Historical-Bam-Data",
                     "data_duration": "240H",
                 },
+                # Nasa Data
+                "nasa_historical_raw_data": {
+                    "name": "Nasa-Historical-Raw-Data",
+                    "data_duration": "240H",
+                },
             }
         )
 

@@ -7,7 +7,8 @@ import pandas as pd
 from .airnow_api import AirNowApi
 from .airqo_api import AirQoApi
 from .bigquery_api import BigQueryApi
-from .commons import Utils, get_frequency
+from .commons import get_frequency
+from .utils import Utils
 from .date import str_to_date, date_to_str
 
 
@@ -154,7 +155,6 @@ class AirnowDataUtils:
 
         airnow_data = pd.DataFrame(airnow_data)
         airnow_data["timestamp"] = airnow_data["timestamp"].apply(pd.to_datetime)
-        print(f"Airnow data => {len(airnow_data)}")
         return airnow_data
 
     @staticmethod

@@ -192,46 +192,6 @@ class AirQoApi:
 
         return decrypted_keys
 
-    def get_events(
-        self,
-        tenant,
-        start_time,
-        end_time,
-        frequency,
-        device=None,
-        meta_data=None,
-        recent=None,
-    ) -> list:
-        if recent:
-            params = {
-                "tenant": tenant,
-                "frequency": frequency,
-                "recent": "yes",
-                "external": "no",
-            }
-        else:
-            params = {
-                "tenant": tenant,
-                "startTime": start_time,
-                "endTime": end_time,
-                "frequency": frequency,
-                "recent": "no",
-                "external": "no",
-            }
-
-        if device:
-            params["device"] = device
-        if meta_data:
-            params["metadata"] = "site_id" if meta_data == "site" else "device_id"
-
-        endpoint = "devices/events"
-        response = self.__request(endpoint=endpoint, params=params, method="get")
-
-        if "measurements" in response:
-            return response["measurements"]
-
-        return []
-
     def get_app_insights(
         self,
         start_time: str,

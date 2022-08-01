@@ -480,7 +480,7 @@ jobs:
       - name: Deploy to K8S
         run: |
           kubectl apply -f k8s/airflow/stage-airflow-app.yaml
-          kubectl rollout restart deployment stage-airflow
+          kubectl rollout restart deployment stage-airflow -n pipeline
 
   ### predict api and jobs ###
   predict-service:

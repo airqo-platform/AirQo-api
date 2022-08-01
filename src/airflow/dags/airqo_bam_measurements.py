@@ -17,56 +17,30 @@ def bam_historical_measurements_etl():
     @task()
     def extract_raw_data(**kwargs):
 
-        from airqo_etl_utils.commons import get_date_time_values
+        from airqo_etl_utils.utils import Utils
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
-        start_time, end_time = get_date_time_values(**kwargs)
+        start_time, end_time = Utils.get_dag_date_time_config(**kwargs)
         return AirQoDataUtils.extract_bam_data(
             start_date_time=start_time, end_date_time=end_time
         )
 
     @task()
-    def extract_device_deployment_logs():
+    def load(bam_data: pd.DataFrame):
 
-        from airqo_etl_utils.airqo_utils import extract_airqo_devices_deployment_history
-
-        logs = extract_airqo_devices_deployment_history()
-
-        return logs
-
-    @task()
-    def process_data(airqo_data: pd.DataFrame, deployment_logs: pd.DataFrame):
-
-        from airqo_etl_utils.airqo_utils import map_site_ids_to_historical_measurements
-
-        restructured_data = map_site_ids_to_historical_measurements(
-            data=airqo_data, deployment_logs=deployment_logs
-        )
-
-        return restructured_data
-
-    @task()
-    def load(airqo_data: pd.DataFrame):
-
-        from airqo_etl_utils.airqo_utils import restructure_airqo_data
+        from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
-        airqo_restructured_data = restructure_airqo_data(
-            data=airqo_data, destination="bigquery"
-        )
+        bam_data = AirQoDataUtils.process_bam_data_for_bigquery(data=bam_data)
         big_query_api = BigQueryApi()
         big_query_api.load_data(
-            dataframe=airqo_restructured_data,
+            dataframe=bam_data,
             table=big_query_api.bam_measurements_table,
         )
 
     extracted_airqo_data = extract_raw_data()
-    device_logs = extract_device_deployment_logs()
-    data_with_site_ids = process_data(
-        airqo_data=extracted_airqo_data, deployment_logs=device_logs
-    )
-    load(data_with_site_ids)
+    load(extracted_airqo_data)
 
 
 @dag(
@@ -113,7 +87,7 @@ def bam_realtime_measurements_etl():
         from airqo_etl_utils.bigquery_api import BigQueryApi
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
-        bam_data = AirQoDataUtils.process_bam_measurements_for_bigquery(data=bam_data)
+        bam_data = AirQoDataUtils.process_bam_data_for_bigquery(data=bam_data)
         big_query_api = BigQueryApi()
         big_query_api.load_data(
             dataframe=bam_data,

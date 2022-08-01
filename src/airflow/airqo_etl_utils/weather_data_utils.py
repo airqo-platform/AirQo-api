@@ -5,7 +5,8 @@ import pandas as pd
 
 from .airqo_api import AirQoApi
 from .bigquery_api import BigQueryApi
-from .commons import get_frequency, remove_invalid_dates, Utils
+from .commons import get_frequency, remove_invalid_dates
+from .utils import Utils
 from .data_validator import DataValidationUtils
 
 from .date import date_to_str
@@ -92,6 +93,14 @@ class WeatherDataUtils:
         )
 
     @staticmethod
+    def extract_hourly_data(start_date_time, end_date_time) -> pd.DataFrame:
+        raw_data = WeatherDataUtils.query_raw_data_from_tahmo(
+            start_date_time=start_date_time, end_date_time=end_date_time
+        )
+        cleaned_data = WeatherDataUtils.transform_raw_data(raw_data)
+        return WeatherDataUtils.aggregate_data(cleaned_data)
+
+    @staticmethod
     def transform_raw_data(data: pd.DataFrame) -> pd.DataFrame:
 
         data["value"] = pd.to_numeric(data["value"], errors="coerce", downcast="float")
@@ -134,28 +143,38 @@ class WeatherDataUtils:
 
         weather_data = Utils.populate_missing_columns(data=weather_data, cols=cols)
 
-        return DataValidationUtils.get_validate_values(weather_data)
+        return DataValidationUtils.get_valid_values(weather_data)
 
     @staticmethod
     def aggregate_data(data: pd.DataFrame) -> pd.DataFrame:
 
         data = data.dropna(subset=["timestamp"])
         data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
+        aggregated_data = pd.DataFrame()
 
         station_groups = data.groupby("station_code")
-        averaged_measurements = pd.DataFrame()
 
         for _, station_group in station_groups:
-            station_code = station_group.iloc[0]["station_code"]
-            data = station_group.sort_index(axis=0)
-            averages = pd.DataFrame(data.resample("1H", on="timestamp").mean())
-            averages["timestamp"] = averages.index
-            averages["station_code"] = station_code
-            averaged_measurements = averaged_measurements.append(
-                averages, ignore_index=True
-            )
+            station_group.index = station_group["timestamp"]
+            station_group = station_group.sort_index(axis=0)
 
-        return averaged_measurements
+            averaging_data = station_group.copy()
+            del averaging_data["precipitation"]
+            averages = pd.DataFrame(averaging_data.resample("H").mean())
+            averages["timestamp"] = averages.index
+            averages.reset_index(drop=True, inplace=True)
+
+            summing_data = station_group.copy()[["timestamp", "precipitation"]]
+            sums = pd.DataFrame(summing_data.resample("H").sum())
+            sums["timestamp"] = sums.index
+            sums.reset_index(drop=True, inplace=True)
+
+            merged_data = pd.merge(left=averages, right=sums, on="timestamp")
+            merged_data["station_code"] = station_group.iloc[0]["station_code"]
+
+            aggregated_data = aggregated_data.append(merged_data, ignore_index=True)
+
+        return aggregated_data
 
     @staticmethod
     def __add_site_information(data: pd.DataFrame) -> pd.DataFrame:

@@ -14,6 +14,38 @@ class DeviceCategory(Enum):
             return ""
 
 
+class Frequency(Enum):
+    RAW = 1
+    HOURLY = 2
+    DAILY = 3
+
+    def __str__(self) -> str:
+        if self == self.RAW:
+            return "raw"
+        elif self == self.HOURLY:
+            return "hourly"
+        elif self == self.DAILY:
+            return "daily"
+        else:
+            return ""
+
+
+class Tenant(Enum):
+    NASA = 1
+    URBAN_BETTER = 2
+    AIRQO = 3
+
+    def __str__(self) -> str:
+        if self == self.NASA:
+            return "nasa"
+        elif self == self.URBAN_BETTER:
+            return "urban_better"
+        elif self == self.AIRQO:
+            return "airqo"
+        else:
+            return ""
+
+
 class BamDataType(Enum):
     OUTLIERS = 1
     MEASUREMENTS = 2
