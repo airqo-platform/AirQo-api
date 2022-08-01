@@ -1,7 +1,7 @@
 import pandas as pd
 
-from airqo_etl_utils.airqo_api import AirQoApi
-from airqo_etl_utils.bigquery_api import BigQueryApi
+from .airqo_api import AirQoApi
+from .bigquery_api import BigQueryApi
 
 
 def query_hourly_measurements(start_date_time: str, end_date_time: str) -> pd.DataFrame:

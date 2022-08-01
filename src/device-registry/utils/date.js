@@ -42,6 +42,10 @@ const isTimeEmpty = (dateTime) => {
   return true;
 };
 
+const formatDate = (dateTime) => {
+  return new Date(dateTime).toISOString();
+};
+
 const generateDateFormatWithoutHrs = (ISODate) => {
   try {
     let date = new Date(ISODate);
@@ -126,6 +130,16 @@ const addDays = (number) => {
   }
 };
 
+const addMinutes = (number) => {
+  try {
+    let d = new Date();
+    let target = d.setMinutes(d.getMinutes() + number);
+    return d;
+  } catch (e) {
+    console.log("server side error: ", e.message);
+  }
+};
+
 const getDifferenceInMonths = (d1, d2) => {
   let months;
   let start = new Date(d1);
@@ -155,4 +169,6 @@ module.exports = {
   isTimeEmpty,
   getDifferenceInMonths,
   addDays,
+  addMinutes,
+  formatDate,
 };

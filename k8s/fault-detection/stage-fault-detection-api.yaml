@@ -56,7 +56,13 @@ spec:
           ports:
             - containerPort: 4001
               name: fault-detection
-          resources: {}
+          resources:
+            requests:
+              cpu: 100m
+              memory: 250Mi
+            limits:
+              cpu: 200m
+              memory: 700Mi
           env:
             - name: LSTM_MODEL
               value: /usr/models/lstm.h5
@@ -89,3 +95,23 @@ spec:
       targetPort: 4001
       nodePort: 31013
   type: NodePort
+
+---
+kind: HorizontalPodAutoscaler
+apiVersion: autoscaling/v2
+metadata:
+  name: stage-fault-detection-api-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: stage-fault-detection-api
+  minReplicas: 1
+  maxReplicas: 2
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 80

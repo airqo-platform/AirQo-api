@@ -4,7 +4,6 @@ const deviceController = require("../controllers/create-device");
 const siteController = require("../controllers/create-site");
 const locationController = require("../controllers/create-location");
 const airqloudController = require("../controllers/create-airqloud");
-const middlewareConfig = require("../config/router.middleware");
 const eventController = require("../controllers/create-event");
 const photoController = require("../controllers/create-photo");
 const { check, oneOf, query, body, param } = require("express-validator");
@@ -19,8 +18,38 @@ const { isBoolean, isEmpty } = require("underscore");
 const phoneUtil = require("google-libphonenumber").PhoneNumberUtil.getInstance();
 const decimalPlaces = require("decimal-places");
 const activityController = require("../controllers/create-activity");
+const cors = require("cors");
 
-middlewareConfig(router);
+const whitelist = [
+  "https://staging.airqo.net/",
+  "https://airqo.net/",
+  "https://airqo.africa/",
+  "https://airqo.org/",
+  "https://airqo.mak.ac.ug/",
+  "https://airqo.io/",
+];
+const corsOptions = {
+  origin: function(origin, callback) {
+    if (whitelist.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+};
+
+router.use(cors());
+
+// const headers = (req, res, next) => {
+//   res.header("Access-Control-Allow-Origin", "*");
+//   res.header(
+//     "Access-Control-Allow-Headers",
+//     "Origin, X-Requested-With, Content-Type, Accept, Authorization"
+//   );
+//   res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
+//   next();
+// };
+// router.use(headers);
 
 /******************* create device use-case ***************************/
 /*** decrypt read and write keys */
@@ -44,7 +73,7 @@ router.put(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo"])
+      .isIn(["kcca", "airqo", "urbanbetter"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -278,7 +307,7 @@ router.get(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["kcca", "airqo"])
+        .isIn(["kcca", "airqo", "urbanbetter"])
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -295,11 +324,13 @@ router.get(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["kcca", "airqo"])
+        .isIn(["kcca", "airqo", "urbanbetter"])
         .withMessage("the tenant value is not among the expected ones"),
       query("device_number")
         .optional()
         .notEmpty()
+        .withMessage("device_number must not be empty if provided")
+        .bail()
         .trim()
         .isInt()
         .withMessage("device_number must be an integer")
@@ -308,6 +339,8 @@ router.get(
       query("id")
         .optional()
         .notEmpty()
+        .withMessage("id must not be empty if provided")
+        .bail()
         .trim()
         .isMongoId()
         .withMessage("id must be an object ID")
@@ -318,6 +351,8 @@ router.get(
       query("site_id")
         .optional()
         .notEmpty()
+        .withMessage("site_id must not be empty if provided")
+        .bail()
         .trim()
         .isMongoId()
         .withMessage("site_id must be an object ID")
@@ -325,6 +360,17 @@ router.get(
         .customSanitizer((value) => {
           return ObjectId(value);
         }),
+      query("category")
+        .optional()
+        .notEmpty()
+        .withMessage("category must not be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["bam", "lowcost"])
+        .withMessage(
+          "the category value is not among the expected ones which include: lowcost and bam"
+        ),
       query("name")
         .optional()
         .notEmpty()
@@ -344,7 +390,7 @@ router.post(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["kcca", "airqo"])
+        .isIn(["kcca", "airqo", "urbanbetter"])
         .withMessage("the tenant value is not among the expected ones"),
       body("device_number")
         .optional()
@@ -380,6 +426,16 @@ router.post(
         .isIn(["pole", "wall", "faceboard", "rooftop", "suspended"])
         .withMessage(
           "the mountType value is not among the expected ones which include: pole, wall, faceboard, suspended and rooftop "
+        ),
+      body("category")
+        .exists()
+        .withMessage("the category should be provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["bam", "lowcost"])
+        .withMessage(
+          "the category value is not among the expected ones which include: LOWCOST and BAM"
         ),
       body("powerType")
         .optional()
@@ -552,7 +608,7 @@ router.delete(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo"])
+      .isIn(["kcca", "airqo", "urbanbetter"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -604,7 +660,7 @@ router.put(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo"])
+      .isIn(["kcca", "airqo", "urbanbetter"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -689,6 +745,15 @@ router.put(
         .isIn(["solar", "mains", "alternator"])
         .withMessage(
           "the powerType value is not among the expected ones which include: solar, mains and alternator"
+        ),
+      body("category")
+        .optional()
+        .notEmpty()
+        .trim()
+        .toLowerCase()
+        .isIn(["bam", "lowcost"])
+        .withMessage(
+          "the category value is not among the expected ones which include: LOWCOST and BAM"
         ),
       body("isActive")
         .optional()
@@ -859,7 +924,7 @@ router.post(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["kcca", "airqo"])
+        .isIn(["kcca", "airqo", "urbanbetter"])
         .withMessage("the tenant value is not among the expected ones"),
       body("visibility")
         .exists()
@@ -903,6 +968,16 @@ router.post(
         .withMessage(
           "the mountType value is not among the expected ones which include: pole, wall, faceboard, suspended and rooftop "
         ),
+      body("category")
+        .exists()
+        .withMessage("the category should be provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["bam", "lowcost"])
+        .withMessage(
+          "the category value is not among the expected ones which include: LOWCOST and BAM"
+        ),
       body("powerType")
         .optional()
         .notEmpty()
@@ -927,7 +1002,7 @@ router.delete(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo"])
+      .isIn(["kcca", "airqo", "urbanbetter"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -978,7 +1053,7 @@ router.put(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo"])
+      .isIn(["kcca", "airqo", "urbanbetter"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -1046,6 +1121,15 @@ router.put(
         .isIn(["solar", "mains", "alternator"])
         .withMessage(
           "the powerType value is not among the expected ones which include: solar, mains and alternator"
+        ),
+      body("category")
+        .optional()
+        .notEmpty()
+        .trim()
+        .toLowerCase()
+        .isIn(["bam", "lowcost"])
+        .withMessage(
+          "the category value is not among the expected ones which include: LOWCOST and BAM"
         ),
       body("isActive")
         .optional()
@@ -1211,7 +1295,7 @@ router.get(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo"])
+      .isIn(["kcca", "airqo", "urbanbetter"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -1275,7 +1359,7 @@ router.delete(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["kcca", "airqo"])
+        .isIn(["kcca", "airqo", "urbanbetter"])
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -1336,7 +1420,7 @@ router.post(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["kcca", "airqo"])
+        .isIn(["kcca", "airqo", "urbanbetter"])
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -1392,7 +1476,7 @@ router.put(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["kcca", "airqo"])
+        .isIn(["kcca", "airqo", "urbanbetter"])
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -1488,7 +1572,7 @@ router.get(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["kcca", "airqo"])
+        .isIn(["kcca", "airqo", "urbanbetter"])
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -1552,7 +1636,7 @@ router.post(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["kcca", "airqo"])
+        .isIn(["kcca", "airqo", "urbanbetter"])
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -1655,7 +1739,7 @@ router.put(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["kcca", "airqo"])
+        .isIn(["kcca", "airqo", "urbanbetter"])
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -1835,7 +1919,7 @@ router.delete(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["kcca", "airqo"])
+        .isIn(["kcca", "airqo", "urbanbetter"])
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -1919,7 +2003,7 @@ router.post(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["kcca", "airqo"])
+        .isIn(["kcca", "airqo", "urbanbetter"])
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -1944,7 +2028,7 @@ router.post(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["kcca", "airqo"])
+        .isIn(["kcca", "airqo", "urbanbetter"])
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -2027,7 +2111,7 @@ router.post(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["kcca", "airqo"])
+        .isIn(["kcca", "airqo", "urbanbetter"])
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -2080,7 +2164,7 @@ router.get(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo"])
+      .isIn(["kcca", "airqo", "urbanbetter"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   siteController.list
@@ -2096,7 +2180,7 @@ router.get(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo"])
+      .isIn(["kcca", "airqo", "urbanbetter"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -2140,7 +2224,7 @@ router.get(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo"])
+      .isIn(["kcca", "airqo", "urbanbetter"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -2184,7 +2268,7 @@ router.post(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["kcca", "airqo"])
+        .isIn(["kcca", "airqo", "urbanbetter"])
         .withMessage("the tenant value is not among the expected ones"),
       body("latitude")
         .exists()
@@ -2204,9 +2288,9 @@ router.post(
         })
         .bail()
         .customSanitizer((value) => {
-          return numeral(value).format("0.00000");
+          return numeral(value).format("0.00000000000000");
         })
-        .isDecimal({ decimal_digits: 5 })
+        .isDecimal({ decimal_digits: 14 })
         .withMessage("the latitude must have atleast 5 decimal places in it"),
       body("longitude")
         .exists()
@@ -2226,9 +2310,9 @@ router.post(
         })
         .bail()
         .customSanitizer((value) => {
-          return numeral(value).format("0.00000");
+          return numeral(value).format("0.00000000000000");
         })
-        .isDecimal({ decimal_digits: 5 })
+        .isDecimal({ decimal_digits: 14 })
         .withMessage("the longitude must have atleast 5 decimal places in it"),
       body("name")
         .exists()
@@ -2321,7 +2405,7 @@ router.put(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo"])
+      .isIn(["kcca", "airqo", "urbanbetter"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -2609,7 +2693,7 @@ router.put(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo"])
+      .isIn(["kcca", "airqo", "urbanbetter"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -2652,7 +2736,7 @@ router.delete(
     .bail()
     .trim()
     .toLowerCase()
-    .isIn(["kcca", "airqo"])
+    .isIn(["kcca", "airqo", "urbanbetter"])
     .withMessage("the tenant value is not among the expected ones"),
   oneOf([
     query("id")
@@ -2682,7 +2766,7 @@ router.get(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo"])
+      .isIn(["kcca", "airqo", "urbanbetter"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -2747,6 +2831,60 @@ router.get(
   siteController.findNearestSite
 );
 
+router.post(
+  "/sites/approximate",
+  oneOf([
+    [
+      body("latitude")
+        .exists()
+        .withMessage("the latitude should be provided")
+        .bail()
+        .matches(constants.LATITUDE_REGEX, "i")
+        .withMessage("the latitude provided is not valid")
+        .bail()
+        .custom((value) => {
+          let dp = decimalPlaces(value);
+          if (dp < 2) {
+            return Promise.reject(
+              "the latitude must have 2 or more characters"
+            );
+          }
+          return Promise.resolve("latitude validation test has passed");
+        })
+        .withMessage("the latitude must have atleast 2 decimal places in it")
+        .bail()
+        .customSanitizer((value) => {
+          return numeral(value).format("0.00000000000000");
+        })
+        .isDecimal({ decimal_digits: 14 }),
+
+      body("longitude")
+        .exists()
+        .withMessage("the longitude is is missing in your request")
+        .bail()
+        .matches(constants.LONGITUDE_REGEX, "i")
+        .withMessage("the longitude should be provided")
+        .bail()
+        .custom((value) => {
+          let dp = decimalPlaces(value);
+          if (dp < 2) {
+            return Promise.reject(
+              "the longitude must have 2 or more characters"
+            );
+          }
+          return Promise.resolve("longitude validation test has passed");
+        })
+        .withMessage("the longitude must have atleast 2 decimal places in it")
+        .bail()
+        .customSanitizer((value) => {
+          return numeral(value).format("0.00000000000000");
+        })
+        .isDecimal({ decimal_digits: 14 }),
+    ],
+  ]),
+  siteController.createApproximateCoordinates
+);
+
 /******************* create-event use-case *******************************/
 router.post(
   "/events",
@@ -2758,7 +2896,7 @@ router.post(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["kcca", "airqo"])
+        .isIn(["kcca", "airqo", "urbanbetter"])
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -2930,7 +3068,7 @@ router.get(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo"])
+      .isIn(["kcca", "airqo", "urbanbetter"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -2939,24 +3077,35 @@ router.get(
         .optional()
         .notEmpty()
         .trim()
-        .toDate()
         .isISO8601({ strict: true, strictSeparator: true })
         .withMessage("startTime must be a valid datetime."),
       query("endTime")
         .optional()
         .notEmpty()
         .trim()
-        .toDate()
         .isISO8601({ strict: true, strictSeparator: true })
         .withMessage("endTime must be a valid datetime."),
       query("frequency")
         .optional()
         .notEmpty()
+        .withMessage("the frequency cannot be empty if provided")
+        .bail()
         .trim()
         .toLowerCase()
         .isIn(["hourly", "daily", "raw", "minute"])
         .withMessage(
           "the frequency value is not among the expected ones which include: hourly, daily, minute and raw"
+        ),
+      query("format")
+        .optional()
+        .notEmpty()
+        .withMessage("the format cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["json", "csv"])
+        .withMessage(
+          "the format value is not among the expected ones which include: csv and json"
         ),
       query("external")
         .optional()
@@ -3032,7 +3181,7 @@ router.post(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo"])
+      .isIn(["kcca", "airqo", "urbanbetter"])
       .withMessage(
         "the tenant query parameter value is not among the expected ones"
       ),
@@ -3065,188 +3214,180 @@ router.post(
         .isISO8601({ strict: true, strictSeparator: true })
         .withMessage("time must be a valid datetime."),
       body("s1_pm10")
-        .optional()
-        .notEmpty()
-        .withMessage("s1_pm10 should not be empty if/when provided")
-        .bail()
-        .isNumeric()
-        .withMessage("s1_pm_10 should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage("s1_pm10 should not be empty if/when provided")
+        // .bail()
+        // .isNumeric()
+        // .withMessage("s1_pm_10 should be an integer value")
         .trim(),
       body("s1_pm2_5")
-        .optional()
-        .notEmpty()
-        .withMessage("s1_pm2_5 should not be empty if/when provided")
-        .bail()
-        .isNumeric()
-        .withMessage("s1_pm2_5 should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage("s1_pm2_5 should not be empty if/when provided")
+        // .bail()
+        // .isNumeric()
+        // .withMessage("s1_pm2_5 should be an integer value")
         .trim(),
       body("s2_pm2_5")
-        .optional()
-        .notEmpty()
-        .withMessage("s2_pm2_5 should not be empty if/when provided")
-        .bail()
-        .isInt()
-        .withMessage("s2_pm2_5 should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage("s2_pm2_5 should not be empty if/when provided")
+        // .bail()
+        // .isInt()
+        // .withMessage("s2_pm2_5 should be an integer value")
         .trim(),
       body("s2_pm10")
-        .optional()
-        .notEmpty()
-        .withMessage("s2_pm10 should not be empty if/when provided")
-        .bail()
-        .isInt()
-        .withMessage("s2_pm10 should be an integer value")
-        .bail()
+        // .optional()
+        // .notEmpty()
+        // .withMessage("s2_pm10 should not be empty if/when provided")
+        // .bail()
+        // .isInt()
+        // .withMessage("s2_pm10 should be an integer value")
+        // .bail()
         .trim(),
       body("latitude")
-        .optional()
-        .notEmpty()
-        .withMessage("provided latitude cannot be empty")
-        .bail()
-        .trim()
-        .matches(constants.LATITUDE_REGEX, "i")
-        .withMessage("please provide valid latitude value")
-        .bail()
-        .custom((value) => {
-          let dp = decimalPlaces(value);
-          if (dp < 5) {
-            return Promise.reject(
-              "the latitude must have 5 or more characters"
-            );
-          }
-          return Promise.resolve("latitude validation test has passed");
-        })
-        .bail()
-        .customSanitizer((value) => {
-          return numeral(value).format("0.00000");
-        })
-        .isDecimal({ decimal_digits: 5 })
-        .withMessage("the latitude must have atleast 5 decimal places in it"),
+        // .optional()
+        // .notEmpty()
+        // .withMessage("provided latitude cannot be empty")
+        // .bail()
+        // .trim()
+        // .matches(constants.LATITUDE_REGEX, "i")
+        // .withMessage("please provide valid latitude value")
+        // .bail()
+        // .custom((value) => {
+        //   let dp = decimalPlaces(value);
+        //   if (dp < 5) {
+        //     return Promise.reject(
+        //       "the latitude must have 5 or more characters"
+        //     );
+        //   }
+        //   return Promise.resolve("latitude validation test has passed");
+        // })
+        // .bail()
+        // .customSanitizer((value) => {
+        //   return numeral(value).format("0.00000");
+        // })
+        // .isDecimal({ decimal_digits: 5 })
+        // .withMessage("the latitude must have atleast 5 decimal places in it"),
+        .trim(),
       body("longitude")
-        .optional()
-        .notEmpty()
-        .withMessage("provided longitude cannot be empty")
-        .bail()
-        .trim()
-        .matches(constants.LONGITUDE_REGEX, "i")
-        .withMessage("please provide valid longitude value")
-        .bail()
-        .custom((value) => {
-          let dp = decimalPlaces(value);
-          if (dp < 5) {
-            return Promise.reject(
-              "the longitude must have 5 or more characters"
-            );
-          }
-          return Promise.resolve("longitude validation test has passed");
-        })
-        .bail()
-        .customSanitizer((value) => {
-          return numeral(value).format("0.00000");
-        })
-        .isDecimal({ decimal_digits: 5 })
-        .withMessage("the longitude must have atleast 5 decimal places in it"),
+        // .optional()
+        // .notEmpty()
+        // .withMessage("provided longitude cannot be empty")
+        // .bail()
+        // .trim()
+        // .matches(constants.LONGITUDE_REGEX, "i")
+        // .withMessage("please provide valid longitude value")
+        // .bail()
+        // .custom((value) => {
+        //   let dp = decimalPlaces(value);
+        //   if (dp < 5) {
+        //     return Promise.reject(
+        //       "the longitude must have 5 or more characters"
+        //     );
+        //   }
+        //   return Promise.resolve("longitude validation test has passed");
+        // })
+        // .bail()
+        // .customSanitizer((value) => {
+        //   return numeral(value).format("0.00000");
+        // })
+        // .isDecimal({ decimal_digits: 5 })
+        // .withMessage("the longitude must have atleast 5 decimal places in it"),
+        .trim(),
       body("battery")
-        .optional()
-        .notEmpty()
-        .withMessage("battery should not be empty if/when provided")
-        .bail()
-        .isInt()
-        .withMessage("battery should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage("battery should not be empty if/when provided")
+        // .bail()
+        // .isInt()
+        // .withMessage("battery should be an integer value")
         .trim(),
       body("altitude")
-        .optional()
-        .notEmpty()
-        .withMessage("altitude should not be empty if/when provided")
-        .bail()
-        .isInt()
-        .withMessage("altitude should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage("altitude should not be empty if/when provided")
+        // .bail()
+        // .isInt()
+        // .withMessage("altitude should be an integer value")
         .trim(),
       body("wind_speed")
-        .optional()
-        .notEmpty()
-        .withMessage("wind_speed should not be empty if/when provided")
-        .bail()
-        .isInt()
-        .withMessage("wind_speed should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage("wind_speed should not be empty if/when provided")
+        // .bail()
+        // .isInt()
+        // .withMessage("wind_speed should be an integer value")
         .trim(),
       body("satellites")
-        .optional()
-        .notEmpty()
-        .withMessage("satellites should not be empty if/when provided")
-        .bail()
-        .isInt()
-        .withMessage("satellites should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage("satellites should not be empty if/when provided")
+        // .bail()
+        // .isInt()
+        // .withMessage("satellites should be an integer value")
         .trim(),
       body("hdop")
-        .optional()
-        .notEmpty()
-        .withMessage("hdop should not be empty if/when provided")
-        .bail()
-        .isInt()
-        .withMessage("hdop should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage("hdop should not be empty if/when provided")
+        // .bail()
+        // .isInt()
+        // .withMessage("hdop should be an integer value")
         .trim(),
       body("internal_temperature")
-        .optional()
-        .notEmpty()
-        .withMessage(
-          "internal_temperature should not be empty if/when provided"
-        )
-        .bail()
-        .isInt()
-        .withMessage("internal_temperature should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage(
+        //   "internal_temperature should not be empty if/when provided"
+        // )
+        // .bail()
+        // .isInt()
+        // .withMessage("internal_temperature should be an integer value")
         .trim(),
       body("internal_humidity")
-        .optional()
-        .notEmpty()
-        .withMessage("internal_humidity should not be empty if/when provided")
-        .bail()
-        .isInt()
-        .withMessage("internal_humidity should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage("internal_humidity should not be empty if/when provided")
+        // .bail()
+        // .isInt()
+        // .withMessage("internal_humidity should be an integer value")
         .trim(),
       body("external_temperature")
-        .optional()
-        .notEmpty()
-        .withMessage(
-          "external_temperature should not be empty if/when provided"
-        )
-        .bail()
-        .isInt()
-        .withMessage("external_temperature should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage(
+        //   "external_temperature should not be empty if/when provided"
+        // )
+        // .bail()
+        // .isInt()
+        // .withMessage("external_temperature should be an integer value")
         .trim(),
       body("external_humidity")
-        .optional()
-        .notEmpty()
-        .withMessage("external_humidity should not be empty if/when provided")
-        .bail()
-        .isInt()
-        .withMessage("external_humidity should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage("external_humidity should not be empty if/when provided")
+        // .bail()
+        // .isInt()
+        // .withMessage("external_humidity should be an integer value")
         .trim(),
       body("external_pressure")
-        .optional()
-        .notEmpty()
-        .withMessage("external_pressure should not be empty if/when provided")
-        .bail()
-        .isInt()
-        .withMessage("external_pressure should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage("external_pressure should not be empty if/when provided")
+        // .bail()
+        // .isInt()
+        // .withMessage("external_pressure should be an integer value")
         .trim(),
       body("external_altitude")
-        .optional()
-        .notEmpty()
-        .withMessage("external_altitude should not be empty if/when provided")
-        .bail()
-        .isInt()
-        .withMessage("external_altitude should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage("external_altitude should not be empty if/when provided")
+        // .bail()
+        // .isInt()
+        // .withMessage("external_altitude should be an integer value")
         .trim(),
-      body("type")
-        .exists()
-        .trim()
-        .withMessage("type is missing")
-        .bail()
-        .trim()
-        .isIn(["BAM", "LOWCOST"])
-        .withMessage(
-          "the type body parameter value is not among the expected ones which are: BAM and LOWCOST"
-        ),
       body("status")
         .optional()
         .notEmpty()
@@ -3265,7 +3406,7 @@ router.post(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo"])
+      .isIn(["kcca", "airqo", "urbanbetter"])
       .withMessage(
         "the tenant query parameter value is not among the expected ones"
       ),
@@ -3303,192 +3444,184 @@ router.post(
         .isISO8601({ strict: true, strictSeparator: true })
         .withMessage("time must be a valid datetime."),
       body("*.s1_pm10")
-        .optional()
-        .notEmpty()
-        .withMessage("s1_pm10 should not be empty if/when provided")
-        .bail()
-        .isNumeric()
-        .withMessage("s1_pm_10 should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage("s1_pm10 should not be empty if/when provided")
+        // .bail()
+        // .isNumeric()
+        // .withMessage("s1_pm_10 should be an integer value")
         .trim(),
       body("*.s1_pm2_5")
-        .optional()
-        .notEmpty()
-        .withMessage("s1_pm2_5 should not be empty if/when provided")
-        .bail()
-        .isNumeric()
-        .withMessage("s1_pm2_5 should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage("s1_pm2_5 should not be empty if/when provided")
+        // .bail()
+        // .isNumeric()
+        // .withMessage("s1_pm2_5 should be an integer value")
         .trim(),
       body("*.s2_pm2_5")
-        .optional()
-        .notEmpty()
-        .withMessage("s2_pm2_5 should not be empty if/when provided")
-        .bail()
-        .isInt()
-        .withMessage("s2_pm2_5 should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage("s2_pm2_5 should not be empty if/when provided")
+        // .bail()
+        // .isInt()
+        // .withMessage("s2_pm2_5 should be an integer value")
         .trim(),
       body("*.s2_pm10")
         .optional()
-        .notEmpty()
-        .withMessage("s2_pm10 should not be empty if/when provided")
-        .bail()
-        .isInt()
-        .withMessage("s2_pm10 should be an integer value")
-        .bail()
+        // .notEmpty()
+        // .withMessage("s2_pm10 should not be empty if/when provided")
+        // .bail()
+        // .isInt()
+        // .withMessage("s2_pm10 should be an integer value")
+        // .bail()
         .trim(),
       body("*.latitude")
-        .optional()
-        .notEmpty()
-        .withMessage("provided latitude cannot be empty")
-        .bail()
-        .trim()
-        .matches(constants.LATITUDE_REGEX, "i")
-        .withMessage("please provide valid latitude value")
-        .bail()
-        .custom((value) => {
-          let dp = decimalPlaces(value);
-          if (dp < 5) {
-            return Promise.reject(
-              "the latitude must have 5 or more characters"
-            );
-          }
-          return Promise.resolve("latitude validation test has passed");
-        })
-        .bail()
-        .customSanitizer((value) => {
-          return numeral(value).format("0.00000");
-        })
-        .isDecimal({ decimal_digits: 5 })
-        .withMessage("the latitude must have atleast 5 decimal places in it"),
+        // .optional()
+        // .notEmpty()
+        // .withMessage("provided latitude cannot be empty")
+        // .bail()
+        // .trim()
+        // .matches(constants.LATITUDE_REGEX, "i")
+        // .withMessage("please provide valid latitude value")
+        // .bail()
+        // .custom((value) => {
+        //   let dp = decimalPlaces(value);
+        //   if (dp < 5) {
+        //     return Promise.reject(
+        //       "the latitude must have 5 or more characters"
+        //     );
+        //   }
+        //   return Promise.resolve("latitude validation test has passed");
+        // })
+        // .bail()
+        // .customSanitizer((value) => {
+        //   return numeral(value).format("0.00000");
+        // })
+        // .isDecimal({ decimal_digits: 5 })
+        // .withMessage("the latitude must have atleast 5 decimal places in it"),
+        .trim(),
       body("*.longitude")
-        .optional()
-        .notEmpty()
-        .withMessage("provided longitude cannot be empty")
-        .bail()
-        .trim()
-        .matches(constants.LONGITUDE_REGEX, "i")
-        .withMessage("please provide valid longitude value")
-        .bail()
-        .custom((value) => {
-          let dp = decimalPlaces(value);
-          if (dp < 5) {
-            return Promise.reject(
-              "the longitude must have 5 or more characters"
-            );
-          }
-          return Promise.resolve("longitude validation test has passed");
-        })
-        .bail()
-        .customSanitizer((value) => {
-          return numeral(value).format("0.00000");
-        })
-        .isDecimal({ decimal_digits: 5 })
-        .withMessage("the longitude must have atleast 5 decimal places in it"),
+        // .optional()
+        // .notEmpty()
+        // .withMessage("provided longitude cannot be empty")
+        // .bail()
+        // .trim()
+        // .matches(constants.LONGITUDE_REGEX, "i")
+        // .withMessage("please provide valid longitude value")
+        // .bail()
+        // .custom((value) => {
+        //   let dp = decimalPlaces(value);
+        //   if (dp < 5) {
+        //     return Promise.reject(
+        //       "the longitude must have 5 or more characters"
+        //     );
+        //   }
+        //   return Promise.resolve("longitude validation test has passed");
+        // })
+        // .bail()
+        // .customSanitizer((value) => {
+        //   return numeral(value).format("0.00000");
+        // })
+        // .isDecimal({ decimal_digits: 5 })
+        // .withMessage("the longitude must have atleast 5 decimal places in it"),
+        .trim(),
       body("*.battery")
-        .optional()
-        .notEmpty()
-        .withMessage("battery should not be empty if/when provided")
-        .bail()
-        .isInt()
-        .withMessage("battery should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage("battery should not be empty if/when provided")
+        // .bail()
+        // .isInt()
+        // .withMessage("battery should be an integer value")
         .trim(),
       body("*.altitude")
-        .optional()
-        .notEmpty()
-        .withMessage("altitude should not be empty if/when provided")
-        .bail()
-        .isInt()
-        .withMessage("altitude should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage("altitude should not be empty if/when provided")
+        // .bail()
+        // .isInt()
+        // .withMessage("altitude should be an integer value")
         .trim(),
       body("*.wind_speed")
-        .optional()
-        .notEmpty()
-        .withMessage("wind_speed should not be empty if/when provided")
-        .bail()
-        .isInt()
-        .withMessage("wind_speed should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage("wind_speed should not be empty if/when provided")
+        // .bail()
+        // .isInt()
+        // .withMessage("wind_speed should be an integer value")
         .trim(),
       body("*.satellites")
-        .optional()
-        .notEmpty()
-        .withMessage("satellites should not be empty if/when provided")
-        .bail()
-        .isInt()
-        .withMessage("satellites should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage("satellites should not be empty if/when provided")
+        // .bail()
+        // .isInt()
+        // .withMessage("satellites should be an integer value")
         .trim(),
       body("*.hdop")
-        .optional()
-        .notEmpty()
-        .withMessage("hdop should not be empty if/when provided")
-        .bail()
-        .isInt()
-        .withMessage("hdop should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage("hdop should not be empty if/when provided")
+        // .bail()
+        // .isInt()
+        // .withMessage("hdop should be an integer value")
         .trim(),
       body("*.internal_temperature")
-        .optional()
-        .notEmpty()
-        .withMessage(
-          "internal_temperature should not be empty if/when provided"
-        )
-        .bail()
-        .isInt()
-        .withMessage("internal_temperature should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage(
+        //   "internal_temperature should not be empty if/when provided"
+        // )
+        // .bail()
+        // .isInt()
+        // .withMessage("internal_temperature should be an integer value")
         .trim(),
       body("*.internal_humidity")
-        .optional()
-        .notEmpty()
-        .withMessage("internal_humidity should not be empty if/when provided")
-        .bail()
-        .isInt()
-        .withMessage("internal_humidity should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage("internal_humidity should not be empty if/when provided")
+        // .bail()
+        // .isInt()
+        // .withMessage("internal_humidity should be an integer value")
         .trim(),
       body("*.external_temperature")
-        .optional()
-        .notEmpty()
-        .withMessage(
-          "external_temperature should not be empty if/when provided"
-        )
-        .bail()
-        .isInt()
-        .withMessage("external_temperature should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage(
+        //   "external_temperature should not be empty if/when provided"
+        // )
+        // .bail()
+        // .isInt()
+        // .withMessage("external_temperature should be an integer value")
         .trim(),
       body("*.external_humidity")
-        .optional()
-        .notEmpty()
-        .withMessage("external_humidity should not be empty if/when provided")
-        .bail()
-        .isInt()
-        .withMessage("external_humidity should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage("external_humidity should not be empty if/when provided")
+        // .bail()
+        // .isInt()
+        // .withMessage("external_humidity should be an integer value")
         .trim(),
       body("*.external_pressure")
-        .optional()
-        .notEmpty()
-        .withMessage("external_pressure should not be empty if/when provided")
-        .bail()
-        .isInt()
-        .withMessage("external_pressure should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage("external_pressure should not be empty if/when provided")
+        // .bail()
+        // .isInt()
+        // .withMessage("external_pressure should be an integer value")
         .trim(),
       body("*.external_altitude")
-        .optional()
-        .notEmpty()
-        .withMessage("external_altitude should not be empty if/when provided")
-        .bail()
-        .isInt()
-        .withMessage("external_altitude should be an integer value")
+        // .optional()
+        // .notEmpty()
+        // .withMessage("external_altitude should not be empty if/when provided")
+        // .bail()
+        // .isInt()
+        // .withMessage("external_altitude should be an integer value")
         .trim(),
-      body("*.type")
-        .exists()
-        .trim()
-        .withMessage("type is missing")
-        .bail()
-        .trim()
-        .isIn(["BAM", "LOWCOST"])
-        .withMessage(
-          "the type body parameter value is not among the expected ones which are: BAM and LOWCOST"
-        ),
-      body("*.status")
-        .optional()
-        .notEmpty()
-        .withMessage("status cannot be empty if provided"),
+      body("*.status"),
+      // .optional()
+      // .notEmpty()
+      // .withMessage("status cannot be empty if provided"),
     ],
   ]),
   eventController.bulkTransmitMultipleSensorValues
@@ -3504,7 +3637,7 @@ router.delete(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo"])
+      .isIn(["kcca", "airqo", "urbanbetter"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -3570,7 +3703,7 @@ router.post(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["kcca", "airqo"])
+        .isIn(["kcca", "airqo", "urbanbetter"])
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -3649,9 +3782,11 @@ router.post(
           "county",
           "subcounty",
           "country",
+          "state",
+          "province",
         ])
         .withMessage(
-          "admin_level values include: village, county, subcounty, village, parish, country, division and district"
+          "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district"
         ),
       body("location_tags")
         .optional()
@@ -3683,7 +3818,7 @@ router.get(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo"])
+      .isIn(["kcca", "airqo", "urbanbetter"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -3719,9 +3854,11 @@ router.get(
           "county",
           "subcounty",
           "country",
+          "state",
+          "province",
         ])
         .withMessage(
-          "admin_level values include: village, county, subcounty, village, parish, country, division and district"
+          "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district"
         ),
     ],
   ]),
@@ -3737,7 +3874,7 @@ router.put(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo"])
+      .isIn(["kcca", "airqo", "urbanbetter"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -3788,9 +3925,11 @@ router.put(
           "county",
           "subcounty",
           "country",
+          "state",
+          "province",
         ])
         .withMessage(
-          "admin_level values include: village, county, subcounty, village, parish, country, division and district"
+          "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district"
         ),
       body("description")
         .optional()
@@ -3865,7 +4004,7 @@ router.delete(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo"])
+      .isIn(["kcca", "airqo", "urbanbetter"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -3897,7 +4036,7 @@ router.post(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["kcca", "airqo"])
+        .isIn(["kcca", "airqo", "urbanbetter"])
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -3992,9 +4131,11 @@ router.post(
           "county",
           "subcounty",
           "country",
+          "state",
+          "province",
         ])
         .withMessage(
-          "admin_level values include: village, county, subcounty, village, parish, country, division and district"
+          "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district"
         ),
       body("airqloud_tags")
         .optional()
@@ -4032,7 +4173,7 @@ router.put(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo"])
+      .isIn(["kcca", "airqo", "urbanbetter"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -4069,7 +4210,7 @@ router.get(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo"])
+      .isIn(["kcca", "airqo", "urbanbetter"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -4105,9 +4246,11 @@ router.get(
           "county",
           "subcounty",
           "country",
+          "state",
+          "province",
         ])
         .withMessage(
-          "admin_level values include: village, county, subcounty, village, parish, country, division and district"
+          "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district"
         ),
     ],
   ]),
@@ -4123,7 +4266,7 @@ router.get(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo"])
+      .isIn(["kcca", "airqo", "urbanbetter"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -4159,9 +4302,11 @@ router.get(
           "county",
           "subcounty",
           "country",
+          "state",
+          "province",
         ])
         .withMessage(
-          "admin_level values include: village, county, subcounty, village, parish, country, division and district"
+          "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district"
         ),
     ],
   ]),
@@ -4177,7 +4322,7 @@ router.get(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo"])
+      .isIn(["kcca", "airqo", "urbanbetter"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -4222,9 +4367,11 @@ router.get(
         "county",
         "subcounty",
         "country",
+        "state",
+        "province",
       ])
       .withMessage(
-        "admin_level values include: village, county, subcounty, village, parish, country, division and district"
+        "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district"
       ),
   ]),
   airqloudController.findSites
@@ -4239,7 +4386,7 @@ router.put(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo"])
+      .isIn(["kcca", "airqo", "urbanbetter"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -4290,9 +4437,11 @@ router.put(
           "county",
           "subcounty",
           "country",
+          "state",
+          "province",
         ])
         .withMessage(
-          "admin_level values include: village, county, subcounty, village, parish, country, division and district"
+          "admin_level values include:province, state, village, county, subcounty, village, parish, country, division and district"
         ),
       body("description")
         .optional()
@@ -4380,7 +4529,7 @@ router.delete(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo"])
+      .isIn(["kcca", "airqo", "urbanbetter"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -4410,7 +4559,7 @@ router.get(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo"])
+      .isIn(["kcca", "airqo", "urbanbetter"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -4469,9 +4618,11 @@ router.get(
         "county",
         "subcounty",
         "country",
+        "state",
+        "province",
       ])
       .withMessage(
-        "admin_level values include: village, county, subcounty, village, parish, country, division and district"
+        "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district"
       ),
   ]),
   airqloudController.calculateGeographicalCenter

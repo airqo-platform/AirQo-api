@@ -29,17 +29,16 @@ spec:
           ports:
             - containerPort: 3000
               name: sta-dev-reg-api
-          # readinessProbe:
-          #   httpGet:
-          #     path: /health
-          #     port: 3000
-          #   initialDelaySecond: 5
-          #   periodSeconds: 3
-          #   successThreshold: 1
           envFrom:
             - configMapRef:
                 name: env-device-registry-staging
-
+          volumeMounts:
+          - name: config-volume
+            mountPath: /etc/config
+      volumes:
+        - name: config-volume
+          configMap:
+            name: device-registry-config-files
 
 ---
 kind: Service

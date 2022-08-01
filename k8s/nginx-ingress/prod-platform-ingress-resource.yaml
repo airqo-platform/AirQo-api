@@ -88,9 +88,18 @@ metadata:
         proxy_set_header        Content-Length "";
         proxy_set_header        X-Original-URI $request_uri;
       }
-
 spec:
   rules:
+    - host: airqalibrate.airqo.net
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: airqo-calibrate-app-svc
+                port: 
+                  number: 80
     - host: platform.airqo.net
       http:
         paths:

@@ -1,8 +1,8 @@
 kind: Deployment
 apiVersion: apps/v1
 metadata:
-  name: airflow
-  namespace: stage-airflow
+  name: stage-airflow
+  namespace: pipeline
 spec:
   selector:
     matchLabels:
@@ -40,12 +40,6 @@ spec:
           command: ["airflow"]
           args: ["scheduler"]
           resources: {}
-            # requests:
-            #   memory: 2Mi
-            #   cpu: 50m
-            # limits:
-            #   memory: 100Mi
-            #   cpu: 100m
           volumeMounts:
           - name: config-volume
             mountPath: /etc/config
@@ -62,17 +56,11 @@ spec:
           command: ["airflow"]
           args: ["webserver"]
           resources: {}
-            # requests:
-            #   memory: 10Mi
-            #   cpu: 100m
-            # limits:
-            #   memory: 500Mi
-            #   cpu: 500m
           readinessProbe: 
             initialDelaySeconds: 120
             timeoutSeconds: 120
             httpGet:
-              path: /stage-airflow/health
+              path: /airflow/health
               port: 8080
           volumeMounts:
           - name: config-volume
@@ -87,16 +75,14 @@ spec:
           emptyDir: {}
       restartPolicy: Always
 
-
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: stage-airflow-sa
-  namespace: stage-airflow
+  namespace: pipeline
 
 ---
-
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -116,7 +102,6 @@ rules:
   verbs: ["get", "list", "watch"]
 
 ---
-
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -128,25 +113,40 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: stage-airflow-sa
-  namespace: stage-airflow
+  namespace: pipeline
 
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: stage-airflow-workers
+  name: pipeline-workers
   
 ---
 kind: Service
 apiVersion: v1
 metadata:
  name: airflow-svc
- namespace: stage-airflow
+ namespace: pipeline
 spec:
+ type: NodePort
  ports:
   - port: 8080
     protocol: TCP
     targetPort: 8080
+    nodePort: 31036
  selector:
   app: airflow
 
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: airflow-svc
+  namespace: staging
+spec:
+  type: ExternalName
+  externalName: airflow-svc.pipeline.svc.cluster.local
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP

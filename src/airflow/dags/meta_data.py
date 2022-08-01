@@ -2,7 +2,7 @@ from datetime import datetime
 
 from airflow.decorators import dag, task
 
-from airqo_etl_utils.commons import slack_dag_failure_notification
+from airqo_etl_utils.airflow_custom_utils import slack_dag_failure_notification
 
 
 @dag(
@@ -18,10 +18,10 @@ def big_query_update_sites_etl():
 
     @task()
     def extract_sites(**kwargs) -> pd.DataFrame:
-        from airqo_etl_utils.commons import get_tenant
+        from airqo_etl_utils.utils import Utils
         from airqo_etl_utils.meta_data_utils import extract_meta_data
 
-        tenant = get_tenant(**kwargs)
+        tenant = Utils.get_tenant(**kwargs)
 
         sites_data = extract_meta_data(
             component="sites",
@@ -59,10 +59,10 @@ def big_query_update_devices_etl():
 
     @task()
     def extract_devices(**kwargs):
-        from airqo_etl_utils.commons import get_tenant
+        from airqo_etl_utils.utils import Utils
         from airqo_etl_utils.meta_data_utils import extract_meta_data
 
-        tenant = get_tenant(**kwargs)
+        tenant = Utils.get_tenant(**kwargs)
 
         devices_data = extract_meta_data(
             component="devices",

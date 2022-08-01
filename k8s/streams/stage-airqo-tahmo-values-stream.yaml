@@ -30,13 +30,33 @@ spec:
           imagePullPolicy: Always
           resources:
             requests:
-              memory: 256Mi
-              cpu: "200m"
+              cpu: 100m
+              memory: 250Mi
             limits:
+              cpu: 200m
               memory: 700Mi
-              cpu: "1000m"
           envFrom:
             - configMapRef:
                 name: stage-tahmo-streams-config
             # - secretRef:
             #     name: stage-tahmo-streams-secrets
+
+---
+kind: HorizontalPodAutoscaler
+apiVersion: autoscaling/v2
+metadata:
+  name: stage-airqo-tahmo-values-stream-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: stage-airqo-tahmo-values-stream
+  minReplicas: 1
+  maxReplicas: 2
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 80
