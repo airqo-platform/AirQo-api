@@ -155,7 +155,6 @@ class AirnowDataUtils:
 
         airnow_data = pd.DataFrame(airnow_data)
         airnow_data["timestamp"] = airnow_data["timestamp"].apply(pd.to_datetime)
-        print(f"Airnow data => {len(airnow_data)}")
         return airnow_data
 
     @staticmethod
