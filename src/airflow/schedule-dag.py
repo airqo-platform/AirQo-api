@@ -98,8 +98,8 @@ class ScheduleDag:
                     "data_duration": "240H",
                 },
                 # Nasa Data
-                "nasa_data": {
-                    "name": "Nasa-Historical-Data",
+                "nasa_historical_raw_data": {
+                    "name": "Nasa-Historical-Raw-Data",
                     "data_duration": "240H",
                 },
             }

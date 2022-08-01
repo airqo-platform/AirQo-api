@@ -4,7 +4,6 @@ import numpy as np
 import pandas as pd
 
 from .bigquery_api import BigQueryApi
-from .commons import get_frequency
 from .utils import Utils
 from .constants import Tenant
 from .date import date_to_str
@@ -32,8 +31,7 @@ class PurpleDataUtils:
     @staticmethod
     def extract_data(start_date_time: str, end_date_time: str) -> pd.DataFrame:
 
-        frequency = get_frequency(start_time=start_date_time, end_time=end_date_time)
-        dates = pd.date_range(start_date_time, end_date_time, freq=frequency)
+        dates = pd.date_range(start_date_time, end_date_time, freq="72H")
         last_date_time = dates.values[len(dates.values) - 1]
         data = pd.DataFrame()
         bigquery_api = BigQueryApi()
@@ -66,6 +64,7 @@ class PurpleDataUtils:
                     query_data["device_number"] = device_number
                     query_data["latitude"] = device["latitude"]
                     query_data["longitude"] = device["longitude"]
+                    query_data["device_id"] = device["device_id"]
                     data = data.append(query_data, ignore_index=True)
 
         return data
@@ -76,10 +75,8 @@ class PurpleDataUtils:
         data.rename(
             columns={
                 "time_stamp": "timestamp",
-                "humidity_a": "s1_humidity",
-                "humidity_b": "s2_humidity",
-                "temperature_a": "s1_temperature",
-                "temperature_b": "s2_temperature",
+                "humidity": "device_humidity",
+                "temperature": "device_temperature",
                 "pressure_a": "s1_pressure",
                 "pressure_b": "s2_pressure",
                 "pm1.0_atm": "pm1",

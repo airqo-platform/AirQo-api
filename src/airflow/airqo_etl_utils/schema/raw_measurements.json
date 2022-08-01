@@ -105,27 +105,7 @@
     "mode": "NULLABLE"
   },
   {
-    "name": "s1_temperature",
-    "type": "FLOAT",
-    "mode": "NULLABLE"
-  },
-  {
-    "name": "s2_temperature",
-    "type": "FLOAT",
-    "mode": "NULLABLE"
-  },
-  {
     "name": "humidity",
-    "type": "FLOAT",
-    "mode": "NULLABLE"
-  },
-  {
-    "name": "s1_humidity",
-    "type": "FLOAT",
-    "mode": "NULLABLE"
-  },
-  {
-    "name": "s2_humidity",
     "type": "FLOAT",
     "mode": "NULLABLE"
   },

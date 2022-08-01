@@ -479,7 +479,7 @@ def airnow_bam_data():
     from airqo_etl_utils.airnow_utils import AirnowDataUtils
 
     extracted_bam_data = AirnowDataUtils.extract_bam_data(
-        start_date_time="2022-06-13T10:00:00Z", end_date_time="2022-06-13T18:00:00Z"
+        start_date_time="2019-01-01T00:00:00Z", end_date_time="2022-08-01T00:00:00Z"
     )
     extracted_bam_data.to_csv("airnow_unprocessed_data.csv", index=False)
 
@@ -490,7 +490,7 @@ def airnow_bam_data():
     bigquery_data.to_csv("airnow_bigquery_data.csv", index=False)
 
 
-def purple_air_data():
+def nasa_purple_air_data():
     from airqo_etl_utils.purple_air_utils import PurpleDataUtils
 
     extracted_data = PurpleDataUtils.extract_data(
@@ -692,7 +692,7 @@ if __name__ == "__main__":
             "urban_better_data_air_beam",
             "airqo_mobile_device_measurements",
             "airqo_bam_data",
-            "purple_air_data",
+            "nasa_purple_air_data",
         ],
     )
 
@@ -740,8 +740,8 @@ if __name__ == "__main__":
     elif args.action == "airqo_bam_data":
         airqo_bam_data()
 
-    elif args.action == "purple_air_data":
-        purple_air_data()
+    elif args.action == "nasa_purple_air_data":
+        nasa_purple_air_data()
 
     elif args.action == "urban_better_data_plume_labs":
         urban_better_data_from_plume_labs()
