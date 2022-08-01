@@ -66,8 +66,8 @@ def get_frequency(start_time: str, end_time: str) -> str:
         (str_to_date(end_time) - str_to_date(start_time)).total_seconds() / 86400
     )
 
-    if diff_days >= 5:
-        frequency = "96H"
+    if diff_days >= 3:
+        frequency = "72H"
     elif diff_days <= 1:
         diff_hours = round(
             (str_to_date(end_time) - str_to_date(start_time)).seconds / 3600
