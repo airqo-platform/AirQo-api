@@ -4,8 +4,6 @@ python-dotenv
 numpy
 pyarrow
 kafka-python
-confluent-avro
 simplejson
 sentry-sdk
 geopy
-black
