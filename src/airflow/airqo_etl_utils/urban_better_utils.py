@@ -4,6 +4,7 @@ import pandas as pd
 
 from .air_beam_api import AirBeamApi
 from .bigquery_api import BigQueryApi
+from .constants import Tenant
 from .utils import Utils
 from .config import configuration
 from .date import str_to_date
@@ -24,7 +25,7 @@ class UrbanBetterUtils:
         usernames = configuration.AIR_BEAM_USERNAMES.split(",")
         stream_ids = []
         for username in usernames:
-            for pollutant in ["pm2.5", "pm10"]:
+            for pollutant in ["pm2.5", "pm10", "pm1", "rh", "f"]:
 
                 api_response = air_beam_api.get_stream_ids(
                     start_date_time=start_date_time,
@@ -79,6 +80,13 @@ class UrbanBetterUtils:
                     stream_df.rename(columns={"value": "pm2_5_raw_value"}, inplace=True)
                 if pollutant == "pm10":
                     stream_df.rename(columns={"value": "pm10_raw_value"}, inplace=True)
+                if pollutant == "pm1":
+                    stream_df.rename(columns={"value": "pm1_raw_value"}, inplace=True)
+                if pollutant == "rh":
+                    stream_df.rename(columns={"value": "humidity"}, inplace=True)
+                if pollutant == "f":
+                    stream_df.rename(columns={"value": "temperature"}, inplace=True)
+
                 measurements = measurements.append(stream_df, ignore_index=True)
 
         pm2_5_data = measurements[
@@ -95,14 +103,19 @@ class UrbanBetterUtils:
             how="outer",
         )
 
-        measurements["tenant"] = "urbanbetter"
+        measurements["tenant"] = str(Tenant.URBAN_BETTER)
         measurements.rename(
             columns={
                 "time": "timestamp",
             },
             inplace=True,
         )
+
         measurements["timestamp"] = pd.to_datetime(measurements["timestamp"], unit="ms")
+        if "temperature" in measurements.columns:
+            measurements["temperature"] = measurements["temperature"].apply(
+                lambda x: ((x - 32) * 5 / 9)
+            )
 
         return measurements
 
@@ -125,7 +138,8 @@ class UrbanBetterUtils:
                 "pollutants.pm1.value",
                 "pollutants.pm1.pi",
                 "date",
-                "device",
+                "device_number",
+                "device_id",
                 "organization",
             ],
         )
@@ -137,9 +151,11 @@ class UrbanBetterUtils:
             organization = organization_api_data["organization"]
             organisation_data = organization_api_data["measures"]
             for org_device_data in organisation_data:
-                device = org_device_data["device"]
+                device_number = org_device_data["device_number"]
+                device_id = org_device_data["device_id"]
                 device_data = pd.json_normalize(org_device_data["device_data"])
-                device_data["device"] = device
+                device_data["device_number"] = device_number
+                device_data["device_id"] = device_id
                 device_data["organization"] = organization
                 data = data.append(
                     device_data[list(data.columns)],
@@ -159,7 +175,6 @@ class UrbanBetterUtils:
                 "pollutants.pm10.pi": "pm10_pi_value",
                 "pollutants.pm1.pi": "pm1_pi_value",
                 "date": "device_timestamp",
-                "device": "device_number",
             },
             inplace=True,
         )
@@ -266,8 +281,8 @@ class UrbanBetterUtils:
                     gps_timestamp = nearest_sensor_position.get("gps_timestamp", None)
 
                     merged_data = {
-                        **value.to_dict(),
                         **nearest_sensor_position,
+                        **value.to_dict(),
                         **{
                             "timestamp_abs_diff": abs(
                                 (gps_timestamp - device_timestamp).total_seconds()
@@ -278,7 +293,7 @@ class UrbanBetterUtils:
                     urban_better_data.append(merged_data)
 
         urban_better_data_df = pd.DataFrame(urban_better_data)
-        urban_better_data_df["tenant"] = "urbanbetter"
+        urban_better_data_df["tenant"] = str(Tenant.URBAN_BETTER)
         return urban_better_data_df
 
     @staticmethod

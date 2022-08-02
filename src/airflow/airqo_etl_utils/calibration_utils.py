@@ -153,6 +153,15 @@ class CalibrationUtils:
                 ["calibrated_PM2.5", "calibrated_PM10", "device_id"]
             ]
 
+            if response_df.empty:
+                print("\n\nFailed to calibrated\n\n")
+                calibrated_data = calibrated_data.append(data, ignore_index=True)
+                continue
+
+            response_df = response_df[
+                ["calibrated_PM2.5", "calibrated_PM10", "device_id"]
+            ]
+
             merged_data = pd.merge(
                 left=data,
                 right=response_df,
