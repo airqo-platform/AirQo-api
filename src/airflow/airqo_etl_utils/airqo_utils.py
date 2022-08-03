@@ -508,6 +508,32 @@ class AirQoDataUtils:
         return aggregated_data
 
     @staticmethod
+    def aggregate_low_cost_sensors_data(data: pd.DataFrame) -> pd.DataFrame:
+
+        device_groups = data.groupby("device_number")
+        aggregated_data = pd.DataFrame()
+        data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
+
+        for _, device_group in device_groups:
+            site_id = device_group.iloc[0]["site_id"]
+            device_id = device_group.iloc[0]["device_id"]
+            device_number = device_group.iloc[0]["device_number"]
+
+            del device_group["site_id"]
+            del device_group["device_id"]
+            del device_group["device_number"]
+
+            averages = device_group.resample("1H", on="timestamp").mean()
+            averages["timestamp"] = averages.index
+            averages["device_id"] = device_id
+            averages["site_id"] = site_id
+            averages["device_number"] = device_number
+
+            aggregated_data = aggregated_data.append(averages, ignore_index=True)
+
+        return aggregated_data
+
+    @staticmethod
     def process_bam_data(data: pd.DataFrame, data_type: BamDataType) -> pd.DataFrame:
 
         data.drop_duplicates(
