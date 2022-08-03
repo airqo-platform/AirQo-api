@@ -10,8 +10,6 @@ import requests
 from .airqo_api import AirQoApi
 from .bigquery_api import BigQueryApi
 from .commons import (
-    get_device,
-    get_valid_value,
     remove_invalid_dates,
     download_file_from_gcs,
     get_frequency,
@@ -189,7 +187,7 @@ class AirQoDataUtils:
                         )
 
                     feeds["device_number"] = channel_id
-                    feeds["device_id"] = device_dict.get("_id", None)
+                    feeds["device_id"] = device_dict.get("name", None)
                     feeds["site_id"] = device_dict.get("site", {}).get("_id", None)
                     feeds["latitude"] = channel["latitude"]
                     feeds["longitude"] = channel["longitude"]
@@ -411,7 +409,9 @@ class AirQoDataUtils:
         last_date_time = dates.values[len(dates.values) - 1]
         for device in airqo_devices:
 
-            channel_id = str(device["device_number"])
+            device = dict(device)
+
+            channel_id = str(device.get("device_number"))
             read_key = read_keys.get(str(channel_id), None)
             if not read_key:
                 print(f"{channel_id} does not have a read key")
@@ -466,12 +466,8 @@ class AirQoDataUtils:
                         inplace=True,
                     )
 
-                    feeds["pm2_5"] = feeds["pm2_5"].apply(
-                        lambda x: get_valid_value(x, "pm2_5")
-                    )
-
                     feeds["device_number"] = channel_id
-                    feeds["device_id"] = device["_id"]
+                    feeds["device_id"] = device.get("name", None)
                     feeds["latitude"] = channel["latitude"]
                     feeds["longitude"] = channel["longitude"]
 
@@ -483,14 +479,33 @@ class AirQoDataUtils:
         bam_data["timestamp"] = bam_data["timestamp"].apply(pd.to_datetime)
         bam_data["timestamp"] = bam_data["timestamp"].apply(date_to_str)
 
-        bam_data["latitude"] = bam_data["latitude"].apply(
-            lambda x: get_valid_value(x, "latitude")
-        )
-        bam_data["longitude"] = bam_data["longitude"].apply(
-            lambda x: get_valid_value(x, "longitude")
-        )
+        return DataValidationUtils.get_valid_values(bam_data)
 
-        return bam_data
+    @staticmethod
+    def aggregate_low_cost_sensors_data(data: pd.DataFrame) -> pd.DataFrame:
+
+        device_groups = data.groupby("device_number")
+        aggregated_data = pd.DataFrame()
+        data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
+
+        for _, device_group in device_groups:
+            site_id = device_group.iloc[0]["site_id"]
+            device_id = device_group.iloc[0]["device_id"]
+            device_number = device_group.iloc[0]["device_number"]
+
+            del device_group["site_id"]
+            del device_group["device_id"]
+            del device_group["device_number"]
+
+            averages = device_group.resample("1H", on="timestamp").mean()
+            averages["timestamp"] = averages.index
+            averages["device_id"] = device_id
+            averages["site_id"] = site_id
+            averages["device_number"] = device_number
+
+            aggregated_data = aggregated_data.append(averages, ignore_index=True)
+
+        return aggregated_data
 
     @staticmethod
     def aggregate_low_cost_sensors_data(data: pd.DataFrame) -> pd.DataFrame:
@@ -803,9 +818,13 @@ class AirQoDataUtils:
         devices_history = pd.DataFrame()
         for device in devices:
 
+            device = dict(device)
+
             try:
                 maintenance_logs = airqo_api.get_maintenance_logs(
-                    tenant="airqo", device=device["name"], activity_type="deployment"
+                    tenant="airqo",
+                    device=device.get("name", None),
+                    activity_type="deployment",
                 )
 
                 if not maintenance_logs or len(maintenance_logs) <= 1:
@@ -836,8 +855,8 @@ class AirQoDataUtils:
                 if len(set(log_df["site_id"].tolist())) == 1:
                     continue
 
-                log_df["device_id"] = device["_id"]
-                log_df["device_number"] = device["device_number"]
+                log_df["device_id"] = device.get("name", None)
+                log_df["device_number"] = device.get("device_number", None)
 
                 devices_history = devices_history.append(
                     log_df[
@@ -880,15 +899,15 @@ class AirQoDataUtils:
         mapped_data = []
 
         for _, data_row in data.iterrows():
-            device = get_device(devices, device_id=data_row["device_id"])
+            device = list(filter(lambda x: x["name"] == data_row["device_id"], devices))
 
             if not device:
                 continue
-
+            device = dict(device[0])
             site_id = device.get("site").get("_id")
             date_time = data_row["timestamp"]
             device_logs = deployment_logs[
-                deployment_logs["device_id"] == device.get("_id")
+                deployment_logs["device_id"] == device.get("name")
             ]
 
             if not device_logs.empty:

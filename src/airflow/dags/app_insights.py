@@ -30,7 +30,7 @@ def app_forecast_insights_etl():
 
         insights = AirQoAppUtils.create_insights(data=forecast)
 
-        AirQoAppUtils.save_insights(insights_data=insights, partition=1)
+        AirQoAppUtils.save_insights(insights_data=insights)
 
     forecast_data = extract_forecast_data()
     load(forecast=forecast_data)
