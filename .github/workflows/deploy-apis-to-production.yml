@@ -51,7 +51,6 @@ jobs:
       run_airflow: ${{ steps.check_files.outputs.run_airflow }} # airflow
       run_network_uptime: ${{ steps.check_files.outputs.run_network_uptime }} # network_uptime
       run_channel_data: ${{ steps.check_files.outputs.run_channel_data }} # channel data job
-      run_message_broker_topics: ${{ steps.check_files.outputs.run_message_broker_topics }} # message broker topics
       run_fault_detection: ${{ steps.check_files.outputs.run_fault_detection }} # fault detection
 
     runs-on: ubuntu-latest
@@ -94,7 +93,6 @@ jobs:
           echo "::set-output name=run_airflow::false"
           echo "::set-output name=run_network_uptime::false"
           echo "::set-output name=run_channel_data::false"
-          echo "::set-output name=run_message_broker_topics::false"
           echo "::set-output name=run_fault_detection::false"
 
           while IFS= read -r file
@@ -168,17 +166,17 @@ jobs:
               echo "::set-output name=run_notifications::true"
             fi
           
-            # if [[ $file == k8s/kafka-clusters/* ]]; then
-            #   echo "::set-output name=run_kafka_cluster::true"
-            # fi
+            if [[ $file == k8s/kafka-clusters/* ]]; then
+              echo "::set-output name=run_kafka_cluster::true"
+            fi
 
-            # if [[ $file == k8s/kafka-operator/* ]]; then
-            #   echo "::set-output name=run_kafka_cluster_operator::true"
-            # fi
+            if [[ $file == k8s/kafka-operator/* ]]; then
+              echo "::set-output name=run_kafka_cluster_operator::true"
+            fi
 
-            # if [[ $file == k8s/kafka-topics/* ]]; then
-            #   echo "::set-output name=run_kafka_topics::true"
-            # fi
+            if [[ $file == k8s/kafka-topics/* ]]; then
+              echo "::set-output name=run_kafka_topics::true"
+            fi
 
             if [[ $file == src/airflow/* ]]; then
               echo "::set-output name=run_airflow::true"
@@ -194,10 +192,6 @@ jobs:
 
             if [[ $file == src/fault-detection/* ]]; then
               echo "::set-output name=run_fault_detection::true"
-            fi
-
-            if [[ $file == k8s/message-broker-topics/* ]]; then
-              echo "::set-output name=run_message_broker_topics::true"
             fi
 
             if [[ $file == workflow-trigger ]]; then
@@ -222,7 +216,6 @@ jobs:
               echo "::set-output name=run_channel_data::true"
               echo "::set-output name=run_fault_detection::true"
               echo "::set-output name=run_view::true"
-              echo "::set-output name=run_message_broker_topics::true"
             fi
 
           done < files.txt
@@ -321,27 +314,6 @@ jobs:
           kubectl apply -f k8s/fault-detection/prod-fault-detection-api.yaml -n production
           kubectl rollout restart deployment prod-fault-detection-api  -n production
           
-
-  ### message broker topics ###
-  message-broker-topics:
-    name: build-push-deploy-message-broker-topics
-    needs: [check]
-    if: needs.check.outputs.run_message_broker_topics == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-      - 
-        name: Login to K8S
-        uses: azure/k8s-set-context@v1
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_PIPELINE_CONFIG }}
-      - 
-        name: Deploy to K8S
-        run: |
-          kubectl apply -f k8s/message-broker-topics/prod-kafka-topics.yaml -n production
-
   ### airflow ###
   airflow:
     name: build-push-deploy-airflow
@@ -369,7 +341,7 @@ jobs:
         uses: azure/k8s-set-context@v1
         with:
           method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_PIPELINE_CONFIG }}
+          kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
       -
         name: Build and push app
         uses: docker/build-push-action@v2
@@ -398,8 +370,8 @@ jobs:
 
       - name: Deploy to K8S
         run: |
-          kubectl apply -f k8s/airflow/airflow-app.yaml -n airflow
-          kubectl rollout restart deployment airflow  -n airflow
+          kubectl apply -f k8s/airflow/airflow-app.yaml
+          kubectl rollout restart deployment airflow  -n pipeline
 
   #### Device Registry ######
   device-registry:
@@ -940,19 +912,6 @@ jobs:
           kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
       - 
         name: Deploy to Main k8s cluster
-        run: |
-          kubectl apply -f k8s/calibrate/prod-calibrate-api.yaml -n production
-          kubectl set image deployment/airqo-calibrate-api calibrate-pickle=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-pickle-file:${{ needs.image-tag.outputs.build_id }} -n production
-          kubectl set image deployment/airqo-calibrate-api calibrate=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-api:${{ needs.image-tag.outputs.build_id }} -n production
-          kubectl annotate deployment/airqo-calibrate-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
-      -
-        name: Login to Pipeline k8s cluster
-        uses: azure/k8s-set-context@v1
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_PIPELINE_CONFIG }}
-      - 
-        name: Deploy to Pipeline k8s cluster
         run: |
           kubectl apply -f k8s/calibrate/prod-calibrate-api.yaml -n production
           kubectl set image deployment/airqo-calibrate-api calibrate-pickle=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-pickle-file:${{ needs.image-tag.outputs.build_id }} -n production

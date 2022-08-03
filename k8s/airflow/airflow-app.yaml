@@ -2,7 +2,7 @@ kind: Deployment
 apiVersion: apps/v1
 metadata:
   name: airflow
-  namespace: airflow
+  namespace: pipeline
 spec:
   selector:
     matchLabels:
@@ -80,7 +80,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
  name: airflow-sa
- namespace: airflow
+ namespace: pipeline
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -113,7 +113,7 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: airflow-sa
-  namespace: airflow
+  namespace: pipeline
 
 ---
 apiVersion: v1
@@ -126,7 +126,7 @@ kind: Service
 apiVersion: v1
 metadata:
  name: airflow-svc
- namespace: airflow
+ namespace: pipeline
 spec:
  type: NodePort
  ports:
