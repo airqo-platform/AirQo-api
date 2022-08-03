@@ -39,14 +39,14 @@ class PlumeLabsApi:
         self,
         start_timestamp,
         end_timestamp,
-        sensor_id,
+        device_number,
         token,
         organization,
         offset=None,
     ) -> list:
         params = {
             "token": token,
-            "sensor_id": sensor_id,
+            "sensor_id": device_number,
             "start_date": start_timestamp,
             "end_date": end_timestamp,
         }
@@ -64,7 +64,7 @@ class PlumeLabsApi:
                 self.__query_sensor_measures(
                     start_timestamp=start_timestamp,
                     end_timestamp=end_timestamp,
-                    sensor_id=sensor_id,
+                    device_number=device_number,
                     token=token,
                     organization=organization,
                     offset=api_response["offset"],
@@ -156,10 +156,10 @@ class PlumeLabsApi:
         for organization in organizations_meta_data:
             sensors_data = []
             for sensor in organization["sensors"]:
-                sensor_id = sensor["id"]
+                device_number = sensor["id"]
                 sensor_data = self.__query_sensor_measures(
                     token=organization["token"],
-                    sensor_id=sensor_id,
+                    device_number=device_number,
                     organization=organization["id"],
                     start_timestamp=int(start_date_time.timestamp()),
                     end_timestamp=int(end_date_time.timestamp()),
@@ -168,7 +168,8 @@ class PlumeLabsApi:
                 if sensor_data:
                     sensors_data.append(
                         {
-                            "device": sensor_id,
+                            "device_number": device_number,
+                            "device_id": sensor["device_id"],
                             "device_data": sensor_data,
                         }
                     )

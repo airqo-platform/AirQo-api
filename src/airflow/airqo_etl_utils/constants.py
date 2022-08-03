@@ -34,6 +34,7 @@ class Tenant(Enum):
     NASA = 1
     URBAN_BETTER = 2
     AIRQO = 3
+    US_EMBASSY = 4
 
     def __str__(self) -> str:
         if self == self.NASA:
@@ -42,6 +43,8 @@ class Tenant(Enum):
             return "urban_better"
         elif self == self.AIRQO:
             return "airqo"
+        elif self == self.US_EMBASSY:
+            return "us_embassy"
         else:
             return ""
 

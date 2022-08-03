@@ -26,7 +26,9 @@ class AirnowDataUtils:
             raise Exception(f"Unknown parameter {parameter}")
 
     @staticmethod
-    def query_bam_data(start_date_time: str, end_date_time: str) -> pd.DataFrame:
+    def query_bam_data(
+        start_date_time: str, end_date_time: str, devices: pd.DataFrame
+    ) -> pd.DataFrame:
         airnow_api = AirNowApi()
         start_date_time = date_to_str(
             str_to_date(start_date_time), str_format="%Y-%m-%dT%H:%M"
@@ -35,7 +37,6 @@ class AirnowDataUtils:
             str_to_date(end_date_time), str_format="%Y-%m-%dT%H:%M"
         )
         countries_metadata = dict(airnow_api.get_countries_metadata())
-        devices = pd.DataFrame(AirQoApi().get_devices(tenant="airqo"))
         data = []
 
         for country in countries_metadata.keys():
@@ -80,6 +81,7 @@ class AirnowDataUtils:
         dates = pd.date_range(start_date_time, end_date_time, freq=frequency)
         last_date_time = dates.values[len(dates.values) - 1]
         data = pd.DataFrame()
+        devices = pd.DataFrame(AirQoApi().get_devices(tenant="airqo"))
 
         for date in dates:
 
@@ -96,7 +98,7 @@ class AirnowDataUtils:
                 end = date_to_str(date, str_format="%Y-%m-%dT%H:59:59Z")
 
             query_data = AirnowDataUtils.query_bam_data(
-                start_date_time=start, end_date_time=end
+                start_date_time=start, end_date_time=end, devices=devices
             )
             data = data.append(query_data, ignore_index=True)
 
