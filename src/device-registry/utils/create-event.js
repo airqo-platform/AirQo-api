@@ -96,6 +96,7 @@ const createEvent = {
       ${site_id ? `AND site_id=${site_id}` : ""}
       ${airqloud_id ? `AND airqloud_id=${airqloud_id}` : ""}
       ${airqloud_name ? `AND airqloud_name=${airqloud_name}` : ""}
+      ${device_lat_long ? `AND device_lat_long=${device_lat_long}` : ""}
       ${
         tenant
           ? `AND \`${constants.DATAWAREHOUSE_METADATA}.sites\`.tenant="${tenant}"`
