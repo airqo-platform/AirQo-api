@@ -104,7 +104,7 @@ def airqo_historical_hourly_data():
     start_date_time = "2022-01-01T10:00:00Z"
     end_date_time = "2022-01-01T17:00:00Z"
 
-    hourly_device_measurements = AirQoDataUtils.extract_hourly_data(
+    hourly_device_measurements = AirQoDataUtils.extract_aggregated_raw_data(
         start_date_time=start_date_time,
         end_date_time=end_date_time,
     )
@@ -350,7 +350,7 @@ def calibrate_historical_data():
     )
     hourly_weather_data.to_csv("historical_weather_data.csv", index=False)
 
-    device_measurements = AirQoDataUtils.extract_hourly_data(
+    device_measurements = AirQoDataUtils.extract_aggregated_raw_data(
         start_date_time=start_date_time, end_date_time=end_date_time
     )
     device_measurements.to_csv("historical_device_measurements.csv", index=False)
@@ -593,7 +593,7 @@ def airqo_mobile_device_measurements():
         },
     ]
 
-    raw_data = AirQoDataUtils.extract_data_from_thingspeak(
+    raw_data = AirQoDataUtils.extract_low_cost_sensors_data(
         start_date_time="", end_date_time="", meta_data=input_meta_data
     )
     raw_data.to_csv("raw_device_measurements_data.csv", index=False)
@@ -610,8 +610,10 @@ def airqo_mobile_device_measurements():
     )
     weather_stations.to_csv("weather_stations.csv", index=False)
 
-    mobile_devices_weather_data = AirQoDataUtils.extract_mobile_devices_weather_data(
-        stations=weather_stations, meta_data=input_meta_data
+    mobile_devices_weather_data = (
+        AirQoDataUtils.extract_aggregated_mobile_devices_weather_data(
+            stations=weather_stations, meta_data=input_meta_data
+        )
     )
     mobile_devices_weather_data.to_csv("mobile_devices_weather_data.csv", index=False)
 

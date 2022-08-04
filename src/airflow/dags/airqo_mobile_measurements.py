@@ -23,7 +23,7 @@ def airqo_mobile_devices_measurements_etl():
         dag_run = kwargs.get("dag_run")
         meta_data = dag_run.conf["meta_data"]
 
-        return AirQoDataUtils.extract_data_from_thingspeak(
+        return AirQoDataUtils.extract_low_cost_sensors_data(
             start_date_time="", end_date_time="", meta_data=meta_data
         )
 
@@ -49,7 +49,7 @@ def airqo_mobile_devices_measurements_etl():
         dag_run = kwargs.get("dag_run")
         meta_data = dag_run.conf["meta_data"]
 
-        return AirQoDataUtils.extract_mobile_devices_weather_data(
+        return AirQoDataUtils.extract_aggregated_mobile_devices_weather_data(
             stations=stations, meta_data=meta_data
         )
 

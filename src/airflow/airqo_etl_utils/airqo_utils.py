@@ -23,29 +23,17 @@ from .date import date_to_str, date_to_str_hours
 
 class AirQoDataUtils:
     @staticmethod
-    def extract_hourly_data(start_date_time, end_date_time) -> pd.DataFrame:
-        cols = [
-            "s1_pm2_5",
-            "s2_pm2_5",
-            "s1_pm10",
-            "s2_pm10",
-            "timestamp",
-            "temperature",
-            "humidity",
-            "device_number",
-            "site_id",
-        ]
+    def extract_aggregated_raw_data(start_date_time, end_date_time) -> pd.DataFrame:
         bigquery_api = BigQueryApi()
         measurements = bigquery_api.query_data(
             start_date_time=start_date_time,
             end_date_time=end_date_time,
-            columns=cols,
             table=bigquery_api.raw_measurements_table,
             where_fields={"tenant": "airqo"},
         )
 
         if measurements.empty:
-            return pd.DataFrame([], columns=cols)
+            return pd.DataFrame([])
 
         measurements = measurements.dropna(subset=["timestamp"])
         measurements["timestamp"] = measurements["timestamp"].apply(pd.to_datetime)
@@ -80,7 +68,7 @@ class AirQoDataUtils:
             return None
 
     @staticmethod
-    def extract_low_cost_sensors_data(
+    def query_low_cost_sensors_data(
         start_date_time: str, end_date_time: str, device_numbers: list = None
     ) -> pd.DataFrame:
         thingspeak_base_url = configuration.THINGSPEAK_CHANNEL_URL
@@ -206,7 +194,7 @@ class AirQoDataUtils:
         return DataValidationUtils.get_valid_values(measurements)
 
     @staticmethod
-    def extract_data_from_thingspeak(
+    def extract_low_cost_sensors_data(
         start_date_time,
         end_date_time,
         device_numbers: list = None,
@@ -225,7 +213,7 @@ class AirQoDataUtils:
                 end_date_time = dict(value).get("end_date_time")
                 device_numbers = dict(value).get("device_numbers", [])
 
-                measurements = AirQoDataUtils.extract_low_cost_sensors_data(
+                measurements = AirQoDataUtils.query_low_cost_sensors_data(
                     start_date_time=start_date_time,
                     end_date_time=end_date_time,
                     device_numbers=device_numbers,
@@ -236,18 +224,16 @@ class AirQoDataUtils:
                     measurements["longitude"] = longitude
                 data = data.append(measurements, ignore_index=True)
         else:
-            data = AirQoDataUtils.extract_low_cost_sensors_data(
+            data = AirQoDataUtils.query_low_cost_sensors_data(
                 start_date_time=start_date_time,
                 end_date_time=end_date_time,
                 device_numbers=device_numbers,
             )
 
         data["pm2_5_raw_value"] = data[["s1_pm2_5", "s2_pm2_5"]].mean(axis=1)
+        data["pm2_5"] = data[["s1_pm2_5", "s2_pm2_5"]].mean(axis=1)
         data["pm10_raw_value"] = data[["s1_pm10", "s2_pm10"]].mean(axis=1)
-
-        for column in ["wind_speed", "temperature", "humidity"]:
-            if column not in data.columns:
-                data[column] = None
+        data["pm10"] = data[["s1_pm10", "s2_pm10"]].mean(axis=1)
 
         return data
 
@@ -285,7 +271,7 @@ class AirQoDataUtils:
         return aggregated_data
 
     @staticmethod
-    def extract_mobile_devices_weather_data(
+    def extract_aggregated_mobile_devices_weather_data(
         stations: pd.DataFrame, meta_data: list
     ) -> pd.DataFrame:
         from weather_data_utils import WeatherDataUtils
@@ -336,8 +322,19 @@ class AirQoDataUtils:
     def merge_mobile_devices_data_and_weather_data(
         measurements: pd.DataFrame, weather_data: pd.DataFrame
     ) -> pd.DataFrame:
-        measurements = measurements.copy()
-        weather_data = weather_data.copy()
+
+        airqo_data_cols = list(measurements.columns)
+        weather_data_cols = list(weather_data.columns)
+        intersecting_cols = list(set(airqo_data_cols) & set(weather_data_cols))
+        intersecting_cols.remove("timestamp")
+        intersecting_cols.remove("latitude")
+        intersecting_cols.remove("longitude")
+        intersecting_cols.remove("device_number")
+
+        for col in intersecting_cols:
+            measurements.rename(
+                columns={col: f"device_reading_{col}_col"}, inplace=True
+            )
 
         measurements["timestamp"] = measurements["timestamp"].apply(pd.to_datetime)
         measurements[["longitude", "latitude"]] = measurements[
@@ -355,14 +352,6 @@ class AirQoDataUtils:
             lambda x: pd.to_numeric(x, errors="coerce", downcast="integer")
         )
 
-        measurements.rename(
-            columns={
-                "temperature": "sensor_temperature",
-                "humidity": "sensor_humidity",
-                "wind_speed": "sensor_wind_speed",
-            },
-            inplace=True,
-        )
         data = pd.merge(
             measurements,
             weather_data,
@@ -370,17 +359,9 @@ class AirQoDataUtils:
             how="left",
         )
 
-        if "sensor_temperature" in data.columns:
-            data["humidity"] = data["humidity"].fillna(data["sensor_temperature"])
-            del data["sensor_humidity"]
-
-        if "sensor_temperature" in data.columns:
-            data["temperature"] = data["temperature"].fillna(data["sensor_temperature"])
-            del data["sensor_temperature"]
-
-        if "sensor_wind_speed" in data.columns:
-            data["wind_speed"] = data["wind_speed"].fillna(data["sensor_wind_speed"])
-            del data["sensor_wind_speed"]
+        for col in intersecting_cols:
+            data[col].fillna(data[f"device_reading_{col}_col"], inplace=True)
+            del data[f"device_reading_{col}_col"]
 
         return data
 
@@ -477,35 +458,8 @@ class AirQoDataUtils:
                     traceback.print_exc()
 
         bam_data["timestamp"] = bam_data["timestamp"].apply(pd.to_datetime)
-        bam_data["timestamp"] = bam_data["timestamp"].apply(date_to_str)
 
         return DataValidationUtils.get_valid_values(bam_data)
-
-    @staticmethod
-    def aggregate_low_cost_sensors_data(data: pd.DataFrame) -> pd.DataFrame:
-
-        device_groups = data.groupby("device_number")
-        aggregated_data = pd.DataFrame()
-        data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
-
-        for _, device_group in device_groups:
-            site_id = device_group.iloc[0]["site_id"]
-            device_id = device_group.iloc[0]["device_id"]
-            device_number = device_group.iloc[0]["device_number"]
-
-            del device_group["site_id"]
-            del device_group["device_id"]
-            del device_group["device_number"]
-
-            averages = device_group.resample("1H", on="timestamp").mean()
-            averages["timestamp"] = averages.index
-            averages["device_id"] = device_id
-            averages["site_id"] = site_id
-            averages["device_number"] = device_number
-
-            aggregated_data = aggregated_data.append(averages, ignore_index=True)
-
-        return aggregated_data
 
     @staticmethod
     def aggregate_low_cost_sensors_data(data: pd.DataFrame) -> pd.DataFrame:
