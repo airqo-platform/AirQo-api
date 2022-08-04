@@ -36,6 +36,12 @@ const createEvent = {
       const {
         frequency,
         device,
+        device_name,
+        device_id,
+        device_lat_long,
+        site_id,
+        airqloud_id,
+        airqloud_name,
         device_number,
         startTime,
         endTime,
@@ -85,6 +91,12 @@ const createEvent = {
       ${site ? `AND site_id="${site}"` : ""}
       ${device ? `AND device="${device}"` : ""}
       ${device_number ? `AND device_number=${device_number}` : ""}
+      ${device_name ? `AND device_name=${device_name}` : ""}
+      ${device_id ? `AND device_id=${device_id}` : ""}
+      ${site_id ? `AND site_id=${site_id}` : ""}
+      ${airqloud_id ? `AND airqloud_id=${airqloud_id}` : ""}
+      ${airqloud_name ? `AND airqloud_name=${airqloud_name}` : ""}
+      ${device_lat_long ? `AND device_lat_long=${device_lat_long}` : ""}
       ${
         tenant
           ? `AND \`${constants.DATAWAREHOUSE_METADATA}.sites\`.tenant="${tenant}"`
