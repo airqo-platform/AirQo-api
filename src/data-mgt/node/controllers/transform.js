@@ -559,8 +559,22 @@ const data = {
                 let cleanedDeviceMeasurements =
                   transformUtil.clean(responseData);
 
-                const makeDate = new Date(cleanedDeviceMeasurements.field1);
-                const isProvidedDateReal = isDate(makeDate);
+                const fieldOneValue = cleanedDeviceMeasurements.field1
+                  ? cleanedDeviceMeasurements.field1
+                  : null;
+
+                if (isEmpty(fieldOneValue)) {
+                  return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+                    success: false,
+                    message: "unable to categorise device",
+                    errors: {
+                      message:
+                        "please crosscheck device, it is not sending field1",
+                    },
+                  });
+                }
+
+                const isProvidedDateReal = isDate(fieldOneValue);
 
                 if (isProvidedDateReal) {
                   cleanedDeviceMeasurements.field9 = "reference";
