@@ -1,4 +1,4 @@
-const { logText } = require("./log");
+const { logText, logElement } = require("./log");
 
 const generateDateFormat = async (ISODate) => {
   date = new Date(ISODate);
@@ -74,13 +74,12 @@ const addMonthsToProvidedDate = (date, number) => {
 
 const isDate = (date) => {
   try {
-    logText("checking the date");
-    return date instanceof Date && !isNaN(date);
+    return date.includes("-") || date.includes("/");
   } catch (error) {
     return {
       success: false,
       message: "Internal Server Error",
-      errors: { message: "Internal Server Error" },
+      errors: { message: error.message },
     };
   }
 };
