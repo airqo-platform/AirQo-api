@@ -42,4 +42,31 @@ subjects:
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: view
+  name: edit
+
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: dev-dashboard-view-clusterrole
+rules:
+- apiGroups: [""]
+  resources: ["configmaps", "secrets", "services/proxy"]
+  verbs: ["get"]
+- apiGroups: [""]
+  resources: ["services"]
+  verbs: ["proxy"]
+
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: dev-dashboard-view-clusterrolebinding
+subjects:
+- kind: ServiceAccount
+  name: dev-user
+  namespace: development
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: dev-dashboard-view-clusterrole
