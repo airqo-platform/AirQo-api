@@ -42,7 +42,7 @@ subjects:
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: edit
+  name: view
 
 ---
 kind: ClusterRole
@@ -51,8 +51,8 @@ metadata:
   name: dev-dashboard-view-clusterrole
 rules:
 - apiGroups: [""]
-  resources: ["configmaps", "secrets", "services/proxy"]
-  verbs: ["get"]
+  resources: ["pods/attach", "pods/exec", "pods/portforward", "pods/proxy", "services/proxy"]
+  verbs: ["get", "list", "watch", "create"]
 - apiGroups: [""]
   resources: ["services"]
   verbs: ["proxy"]
