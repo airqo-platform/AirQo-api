@@ -1,0 +1,70 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: dev-restricted-user
+  namespace: development
+
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: dev-edit-role
+  namespace: development
+rules:
+- apiGroups: ["", "apps", "extensions"]
+  resources: ["*"]
+  verbs: ["get", "list", "watch", "update", "patch"]
+- apiGroups: ["batch"]
+  resources:
+  - jobs
+  - cronjobs
+  verbs: ["get", "list", "watch"]
+
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: dev-edit-rolebinding
+  namespace: development
+subjects:
+- kind: ServiceAccount
+  name: dev-restricted-user
+  namespace: development
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: dev-edit-role
+
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: dev-proxy-view-clusterrole
+rules:
+- apiGroups: [""]
+  resources: ["services/proxy"]
+  verbs: ["get"]
+- apiGroups: [""]
+  resources: ["namespaces"]
+  verbs: ["list"]
+- apiGroups: [""]
+  resources: ["namespaces"]
+  resourceNames: ["development", "default", "kube-system"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["services"]
+  verbs: ["proxy"]
+  
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: dev-restricted-clusterrolebinding
+subjects:
+- kind: ServiceAccount
+  name: dev-restricted-user
+  namespace: development
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: dev-proxy-view-clusterrole
