@@ -772,12 +772,10 @@ class AirQoDataUtils:
         devices_history = pd.DataFrame()
         for device in devices:
 
-            device = dict(device)
-
             try:
                 maintenance_logs = airqo_api.get_maintenance_logs(
                     tenant="airqo",
-                    device=device.get("name", None),
+                    device=dict(device).get("name", None),
                     activity_type="deployment",
                 )
 
@@ -809,17 +807,14 @@ class AirQoDataUtils:
                 if len(set(log_df["site_id"].tolist())) == 1:
                     continue
 
-                log_df["device_id"] = device.get("name", None)
                 log_df["device_number"] = device.get("device_number", None)
 
                 devices_history = devices_history.append(
                     log_df[
                         [
-                            "device",
                             "start_date_time",
                             "end_date_time",
                             "site_id",
-                            "device_id",
                             "device_number",
                         ]
                     ],
@@ -830,7 +825,7 @@ class AirQoDataUtils:
                 print(ex)
                 traceback.print_exc()
 
-        return devices_history
+        return devices_history.dropna()
 
     @staticmethod
     def map_site_ids_to_historical_data(
@@ -839,6 +834,7 @@ class AirQoDataUtils:
         if deployment_logs.empty or data.empty:
             return data
 
+        data = data.copy()
         data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
         deployment_logs["start_date_time"] = deployment_logs["start_date_time"].apply(
             pd.to_datetime
@@ -847,33 +843,31 @@ class AirQoDataUtils:
             pd.to_datetime
         )
 
-        airqo_api = AirQoApi()
-        devices = airqo_api.get_devices(tenant="airqo")
+        for _, device_log in deployment_logs.iterrows():
 
-        mapped_data = []
-
-        for _, data_row in data.iterrows():
-            device = list(filter(lambda x: x["name"] == data_row["device_id"], devices))
-
-            if not device:
-                continue
-            device = dict(device[0])
-            site_id = device.get("site").get("_id")
-            date_time = data_row["timestamp"]
-            device_logs = deployment_logs[
-                deployment_logs["device_id"] == device.get("name")
+            device_data = data.loc[
+                (data["timestamp"] >= device_log["start_date_time"])
+                & (data["timestamp"] <= device_log["end_date_time"])
+                & (data["device_number"] == device_log["device_number"])
             ]
+            if device_data.empty:
+                continue
 
-            if not device_logs.empty:
-                for _, log in device_logs.iterrows():
-                    if log["start_date_time"] <= date_time <= log["end_date_time"]:
-                        site_id = log["site_id"]
+            non_device_data = pd.merge(
+                left=data,
+                right=device_data,
+                on=["device_number", "timestamp"],
+                how="outer",
+                indicator=True,
+            )
+            non_device_data = non_device_data.loc[
+                non_device_data["_merge"] == "left_only"
+            ].drop("_merge", axis=1)
 
-            data_row["site_id"] = site_id
+            device_data["site_id"] = device_log["site_id"]
+            data = non_device_data.append(device_data, ignore_index=True)
 
-            mapped_data.append(data_row.to_dict())
-
-        return pd.DataFrame(mapped_data)
+        return data
 
     @staticmethod
     def process_airnow_data_for_api(data: pd.DataFrame) -> list:
