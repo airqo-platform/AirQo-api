@@ -2,7 +2,7 @@
     {
         "name": "tenant",
         "type": "STRING",
-        "mode": "REQUIRED"
+        "mode": "NULLABLE"
     },
     {
         "name": "timestamp",
@@ -104,26 +104,22 @@
     {
         "name": "precipitation",
         "type": "FLOAT",
-        "mode": "NULLABLE",
-        "description": "°C.\nExternal temperature"
+        "mode": "NULLABLE"
     },
     {
         "name": "wind_direction",
         "type": "FLOAT",
-        "mode": "NULLABLE",
-        "description": "%.\nRelative humidity"
+        "mode": "NULLABLE"
     },
     {
         "name": "radiation",
         "type": "FLOAT",
-        "mode": "NULLABLE",
-        "description": "°C.\nExternal temperature"
+        "mode": "NULLABLE"
     },
     {
         "name": "wind_gusts",
         "type": "FLOAT",
-        "mode": "NULLABLE",
-        "description": "%.\nRelative humidity"
+        "mode": "NULLABLE"
     },
     {
         "name": "pm2_5_calibrated_value",

@@ -25,8 +25,10 @@ class AirQoAppUtils:
     @staticmethod
     def extract_hourly_airqo_data(start_date_time, end_date_time) -> pd.DataFrame:
         cols = [
-            "pm2_5",
-            "pm10",
+            "pm2_5_raw_value",
+            "pm2_5_calibrated_value",
+            "pm10_raw_value",
+            "pm10_calibrated_value",
             "timestamp",
             "site_id",
         ]
@@ -43,13 +45,26 @@ class AirQoAppUtils:
             return pd.DataFrame([], columns=cols)
 
         measurements.rename(
-            columns={"timestamp": "time", "site_id": "siteId"}, inplace=True
+            columns={
+                "timestamp": "time",
+                "site_id": "siteId",
+                "pm2_5_calibrated_value": "pm2_5",
+                "pm10_calibrated_value": "pm10",
+            },
+            inplace=True,
         )
+        measurements["pm2_5"] = measurements["pm2_5"].fillna(
+            measurements["pm2_5_raw_value"]
+        )
+        measurements["pm10"] = measurements["pm10"].fillna(
+            measurements["pm10_raw_value"]
+        )
+
         measurements["time"] = measurements["time"].apply(pd.to_datetime)
         measurements["frequency"] = str(Frequency.HOURLY)
         measurements[["forecast", "empty"]] = False
 
-        return measurements
+        return measurements[insights_columns]
 
     @staticmethod
     def format_data_to_insights(

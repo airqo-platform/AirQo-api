@@ -7,7 +7,7 @@ from airqo_etl_utils.airflow_custom_utils import slack_dag_failure_notification
 
 @dag(
     "App-Forecast-Insights",
-    schedule_interval="30 * * * *",
+    schedule_interval="50 */2 * * *",
     on_failure_callback=slack_dag_failure_notification,
     start_date=datetime(2021, 1, 1),
     catchup=False,
@@ -78,7 +78,7 @@ def app_historical_daily_insights_etl():
 
 @dag(
     "App-Realtime-Daily-Insights",
-    schedule_interval="30 * * * *",
+    schedule_interval="50 */2 * * *",
     on_failure_callback=slack_dag_failure_notification,
     start_date=datetime(2021, 1, 1),
     catchup=False,

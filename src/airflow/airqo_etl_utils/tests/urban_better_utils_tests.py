@@ -3,7 +3,7 @@ import unittest
 
 import pandas as pd
 
-from urban_better_utils import UrbanBetterUtils
+from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
 
 
 class TestUrbanBetterUtils(unittest.TestCase):
