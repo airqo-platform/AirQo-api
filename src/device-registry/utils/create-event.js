@@ -63,22 +63,30 @@ const createEvent = {
       const end = endTime ? endTime : currentDate;
 
       let table = `${constants.DATAWAREHOUSE_AVERAGED_DATA}.hourly_device_measurements`;
-      let pm2_5 = "";
-      let pm10 = "";
+      let averaged_fields =
+        "site_id, name, device, device_number, timestamp, " +
+        "pm2_5_raw_value, pm2_5_calibrated_value, pm10_raw_value," +
+        "pm10_calibrated_value, no2_raw_value, no2_calibrated_value, pm1_raw_value," +
+        "pm1_calibrated_value, external_temperature, external_humidity, wind_speed,";
+      let raw_fields = "";
 
       if (frequency === "raw") {
         table = `${constants.DATAWAREHOUSE_RAW_DATA}.device_measurements`;
-        pm2_5 = "";
-        pm10 = "";
+        averaged_fields = "";
+        raw_fields =
+          "site_id, name, device_id, device_number, timestamp," +
+          "pm2_5, pm10, s1_pm2_5, s2_pm2_5, s1_pm10, s2_pm10, no2," +
+          "pm1, s1_pm1, s2_pm1, pressure, s1_pressure, s2_pressure, temperature," +
+          "humidity, voc, s1_voc, s2_voc, wind_speed, satellites, hdop," +
+          "device_temperature, device_humidity, battery,";
       }
 
-      const queryStatement = `SELECT site_id, name, device, device_number, \`${
+      const queryStatement = `SELECT ${averaged_fields} ${raw_fields}  \`${
         constants.DATAWAREHOUSE_METADATA
       }.sites\`.latitude AS latitude,
-        \`${
-          constants.DATAWAREHOUSE_METADATA
-        }.sites\`.longitude AS longitude, timestamp , pm2_5, pm10, pm2_5_raw_value, pm2_5_calibrated_value, pm10_raw_value, pm10_calibrated_value,
-        \`${constants.DATAWAREHOUSE_METADATA}.sites\`.tenant AS tenant 
+        \`${constants.DATAWAREHOUSE_METADATA}.sites\`.longitude AS longitude, 
+        \`${constants.DATAWAREHOUSE_METADATA}.sites\`.tenant AS tenant ,
+        \`${constants.DATAWAREHOUSE_METADATA}.sites\`.altitude AS altitude ,
         FROM \`${table}\` 
         JOIN \`${constants.DATAWAREHOUSE_METADATA}.sites\` 
         ON \`${
@@ -124,7 +132,7 @@ const createEvent = {
         };
       });
 
-      let data = sanitizedMeasurements;
+      let data = cleanDeep(sanitizedMeasurements);
 
       if (format && format === "csv") {
         try {
