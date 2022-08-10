@@ -48,7 +48,7 @@ class ScheduleDag:
                     "data_duration": "240H",
                 },
                 "airqo_historical_raw_data": {
-                    "name": "AirQo-Historical-Raw-Measurements",
+                    "name": "AirQo-Historical-Raw-Low-Cost-Measurements",
                     "data_duration": "240H",
                 },
                 # Weather Data

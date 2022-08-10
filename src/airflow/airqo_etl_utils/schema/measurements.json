@@ -2,37 +2,45 @@
   {
     "name": "tenant",
     "type": "STRING",
-    "mode": "REQUIRED"
+    "mode": "NULLABLE"
   },
   {
     "name": "timestamp",
     "type": "TIMESTAMP",
-    "mode": "REQUIRED"
+    "mode": "NULLABLE"
   },
   {
     "name": "site_id",
     "type": "STRING",
-    "mode": "REQUIRED"
+    "mode": "NULLABLE"
   },
   {
     "name": "device_number",
     "type": "INTEGER",
-    "mode": "REQUIRED"
+    "mode": "NULLABLE",
+    "description": "Unique number that identifies the device."
   },
   {
     "name": "device",
     "type": "STRING",
-    "mode": "NULLABLE"
+    "mode": "NULLABLE",
+    "description": "Deprecated"
+  },
+  {
+    "name": "device_id",
+    "type": "STRING",
+    "mode": "NULLABLE",
+    "description": "Unique string that identifies the device."
   },
   {
     "name": "latitude",
     "type": "FLOAT",
-    "mode": "REQUIRED"
+    "mode": "NULLABLE"
   },
   {
     "name": "longitude",
     "type": "FLOAT",
-    "mode": "REQUIRED"
+    "mode": "NULLABLE"
   },
   {
     "name": "pm2_5",

@@ -24,7 +24,7 @@ def historical_hourly_measurements_etl():
 
         start_date_time, end_date_time = get_date_time_values(**kwargs)
 
-        return AirQoDataUtils.extract_hourly_data(
+        return AirQoDataUtils.extract_aggregated_raw_data(
             start_date_time=start_date_time,
             end_date_time=end_date_time,
         )
