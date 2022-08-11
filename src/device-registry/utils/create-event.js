@@ -69,6 +69,7 @@ const createEvent = {
         "pm10_calibrated_value, no2_raw_value, no2_calibrated_value, pm1_raw_value," +
         "pm1_calibrated_value, external_temperature, external_humidity, wind_speed,";
       let raw_fields = "";
+      let mobile = false;
 
       if (frequency === "raw") {
         table = `${constants.DATAWAREHOUSE_RAW_DATA}.device_measurements`;
@@ -79,6 +80,18 @@ const createEvent = {
           "pm1, s1_pm1, s2_pm1, pressure, s1_pressure, s2_pressure, temperature," +
           "humidity, voc, s1_voc, s2_voc, wind_speed, satellites, hdop," +
           "device_temperature, device_humidity, battery,";
+        mobile = false;
+      }
+
+      if (tenant === "urban_better") {
+        table = `${constants.DATAWAREHOUSE_RAW_DATA}.mobile_device_measurements`;
+        mobile = true;
+        raw_fields =
+          "tenant, timestamp, device_number, device_id, latitude, longitude," +
+          "horizontal_accuracy, pm2_5_raw_value, pm1_raw_value, pm10_raw_value," +
+          "no2_raw_value, voc_raw_value, pm1_pi_value, pm2_5_pi_value, pm10_pi_value," +
+          "voc_pi_value, no2_pi_value, gps_device_timestamp, timestamp_abs_diff";
+        averaged_fields = "";
       }
 
       const queryStatement = `SELECT ${averaged_fields} ${raw_fields}  \`${
@@ -115,8 +128,25 @@ const createEvent = {
         skip ? skip : constants.DEFAULT_EVENTS_SKIP
       }`;
 
+      const queryStatementMobile = `SELECT ${averaged_fields} ${raw_fields}
+      FROM \`${table}\` 
+      WHERE timestamp 
+      >= "${start ? start : twoMonthsBack}" AND timestamp <= "${
+        end ? end : currentDate
+      }" 
+     ${tenant ? `AND tenant="${tenant}"` : ""}
+     `;
+
+      let bqQuery = "";
+
+      if (mobile === true) {
+        bqQuery = queryStatementMobile;
+      } else if (mobile === false) {
+        bqQuery = queryStatement;
+      }
+
       const options = {
-        query: queryStatement,
+        query: bqQuery,
         location: constants.BIG_QUERY_LOCATION,
       };
 
