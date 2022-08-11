@@ -160,7 +160,6 @@ const createEvent = {
       };
 
       const [job] = await bigquery.createQueryJob(options);
-      console.log(`Job ${job.id} started.`);
 
       const [rows] = await job.getQueryResults();
 
@@ -267,7 +266,6 @@ const createEvent = {
       };
 
       const [job] = await bigquery.createQueryJob(options);
-      console.log(`Job ${job.id} started.`);
 
       const [rows] = await job.getQueryResults();
 
@@ -1640,7 +1638,7 @@ const createEvent = {
           success: true,
         };
       } catch (e) {
-        console.log("the errors: ", e.message);
+        logElement("the errors: ", e.message);
         return {
           device: device,
           success: false,
@@ -1652,7 +1650,7 @@ const createEvent = {
       if (results.every((res) => res.success)) {
         return results;
       } else {
-        console.log("the results for no success", results);
+        logObject("the results for no success", results);
       }
     });
   },
@@ -1669,7 +1667,7 @@ const createEvent = {
           };
           return data;
         } catch (e) {
-          console.log("the errors: ", e.message);
+          logElement("the errors: ", e.message);
           return {
             success: false,
             message: "server side error",
@@ -1813,7 +1811,7 @@ const createEvent = {
             };
           })
           .catch(function(error) {
-            console.log(error);
+            logObject("error", error);
             return {
               message: `unable to clear the device data, device ${device} does not exist`,
               success: false,
