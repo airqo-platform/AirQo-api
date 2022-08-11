@@ -168,6 +168,10 @@ const createEvent = {
         return {
           ...item,
           timestamp: item.timestamp.value,
+          gps_device_timestamp:
+            item.gps_device_timestamp && item.gps_device_timestamp.value
+              ? item.gps_device_timestamp.value
+              : "",
         };
       });
 
