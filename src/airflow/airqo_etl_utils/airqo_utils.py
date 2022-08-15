@@ -853,16 +853,23 @@ class AirQoDataUtils:
             if device_data.empty:
                 continue
 
+            temp_device_data = device_data.copy()
+            for col in list(temp_device_data.columns):
+                temp_device_data.rename(columns={col: f"{col}_temp"}, inplace=True)
+
             non_device_data = pd.merge(
                 left=data,
-                right=device_data,
-                on=["device_number", "timestamp"],
+                right=temp_device_data,
+                left_on=["device_number", "timestamp"],
+                right_on=["device_number_temp", "timestamp_temp"],
                 how="outer",
                 indicator=True,
             )
             non_device_data = non_device_data.loc[
                 non_device_data["_merge"] == "left_only"
             ].drop("_merge", axis=1)
+
+            non_device_data = non_device_data[list(device_data.columns)]
 
             device_data["site_id"] = device_log["site_id"]
             data = non_device_data.append(device_data, ignore_index=True)
