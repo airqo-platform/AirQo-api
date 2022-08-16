@@ -123,7 +123,7 @@ class AirQuality(Enum):
 class Pollutant(Enum):
     PM2_5 = 1
     PM10 = 2
-    NO2 = 2
+    NO2 = 3
 
     def __str__(self) -> str:
         if self == self.PM2_5:

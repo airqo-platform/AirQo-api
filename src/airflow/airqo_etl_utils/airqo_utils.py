@@ -191,7 +191,7 @@ class AirQoDataUtils:
             dataframe=measurements, start_time=start_date_time, end_time=end_date_time
         )
 
-        return DataValidationUtils.get_valid_values(measurements)
+        return DataValidationUtils.remove_outliers(measurements)
 
     @staticmethod
     def extract_low_cost_sensors_data(
@@ -459,7 +459,7 @@ class AirQoDataUtils:
 
         bam_data["timestamp"] = bam_data["timestamp"].apply(pd.to_datetime)
 
-        return DataValidationUtils.get_valid_values(bam_data)
+        return DataValidationUtils.remove_outliers(bam_data)
 
     @staticmethod
     def aggregate_low_cost_sensors_data(data: pd.DataFrame) -> pd.DataFrame:

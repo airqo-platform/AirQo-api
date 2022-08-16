@@ -4,11 +4,61 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 
-from .constants import DataType
+from .constants import DataType, Pollutant, AirQuality
 from .date import date_to_str
 
 
 class Utils:
+    @staticmethod
+    def epa_pollutant_category(value: float, pollutant: Pollutant) -> str:
+
+        if not value:
+            return ""
+
+        if pollutant == Pollutant.PM10:
+            if value < 55:
+                return str(AirQuality.GOOD)
+            elif 55 <= value < 155:
+                return str(AirQuality.MODERATE)
+            elif 155 <= value < 255:
+                return str(AirQuality.UNHEALTHY_FSGs)
+            elif 255 <= value < 355:
+                return str(AirQuality.UNHEALTHY)
+            elif 355 <= value < 425:
+                return str(AirQuality.VERY_UNHEALTHY)
+            elif value >= 425:
+                return str(AirQuality.HAZARDOUS)
+
+        elif pollutant == Pollutant.PM2_5:
+            if value < 12.1:
+                return str(AirQuality.GOOD)
+            elif 12.1 <= value < 35.5:
+                return str(AirQuality.MODERATE)
+            elif 35.5 <= value < 55.5:
+                return str(AirQuality.UNHEALTHY_FSGs)
+            elif 55.5 <= value < 150.5:
+                return str(AirQuality.UNHEALTHY)
+            elif 150.5 <= value < 250.5:
+                return str(AirQuality.VERY_UNHEALTHY)
+            elif value >= 250.5:
+                return str(AirQuality.HAZARDOUS)
+
+        elif pollutant == Pollutant.NO2:
+            if value < 54:
+                return str(AirQuality.GOOD)
+            elif 54 <= value < 101:
+                return str(AirQuality.MODERATE)
+            elif 101 <= value < 361:
+                return str(AirQuality.UNHEALTHY_FSGs)
+            elif 361 <= value < 650:
+                return str(AirQuality.UNHEALTHY)
+            elif 650 <= value < 1250:
+                return str(AirQuality.VERY_UNHEALTHY)
+            elif value >= 1250:
+                return str(AirQuality.HAZARDOUS)
+
+        return ""
+
     @staticmethod
     def populate_missing_columns(data: pd.DataFrame, cols: list) -> pd.DataFrame:
         for col in cols:
@@ -97,19 +147,3 @@ class Utils:
             file_json = open(os.path.join(path, file_name))
 
         return json.load(file_json)
-
-    @staticmethod
-    def get_air_quality(pm2_5: float) -> str:
-        if pm2_5 <= 12.09:
-            return "Good"
-        elif 12.1 <= pm2_5 <= 35.49:
-            return "Moderate"
-        elif 35.5 <= pm2_5 <= 55.49:
-            return "Unhealthy For Sensitive Groups"
-        elif 55.5 <= pm2_5 <= 150.49:
-            return "Unhealthy"
-        elif 150.5 <= pm2_5 <= 250.49:
-            return "Very Unhealthy"
-        elif pm2_5 >= 250.5:
-            return "Hazardous"
-        return ""
