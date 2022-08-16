@@ -29,27 +29,14 @@ jobs:
       remove_preview__device_monitoring: ${{ steps.check_files.outputs.remove_preview__device_monitoring }} # device monitoring
       remove_preview__data_mgt: ${{ steps.check_files.outputs.remove_preview__data_mgt }} # data mgt
       remove_preview__analytics: ${{ steps.check_files.outputs.remove_preview__analytics }} # analytics
-      remove_preview__device_uptime: ${{ steps.check_files.outputs.remove_preview__device_uptime }} # device uptime
-      remove_preview__device_status: ${{ steps.check_files.outputs.remove_preview__device_status }} # device status
       remove_preview__locate: ${{ steps.check_files.outputs.remove_preview__locate }} # locate
       remove_preview__predict: ${{ steps.check_files.outputs.remove_preview__predict }} # predict
-      remove_preview__gp_model: ${{ steps.check_files.outputs.remove_preview__gp_model }} # gp_model
-      remove_preview__exceedances: ${{ steps.check_files.outputs.remove_preview__exceedances }} # exceedances
       remove_preview__datawarehouse: ${{ steps.check_files.outputs.remove_preview__datawarehouse }} # datawarehouse
       remove_preview__view: ${{ steps.check_files.outputs.remove_preview__view }} # view
       remove_preview__calibrate: ${{ steps.check_files.outputs.remove_preview__calibrate }} # calibrate
-      remove_preview__average_jobs: ${{ steps.check_files.outputs.remove_preview__average_jobs }} # average and calibration jobs
-      remove_preview__events_check: ${{ steps.check_files.outputs.remove_preview__events_check }} # event checks
       remove_preview__notifications: ${{ steps.check_files.outputs.remove_preview__notifications }} # notification
-      remove_preview__kafka_cluster_operator: ${{ steps.check_files.outputs.remove_preview__kafka_cluster_operator }} # kafka cluster operator
-      remove_preview__kafka_cluster: ${{ steps.check_files.outputs.remove_preview__kafka_cluster }} # kafka cluster
-      remove_preview__kafka_topics: ${{ steps.check_files.outputs.remove_preview__kafka_topics }} # kafka topics
-      remove_preview__airflow: ${{ steps.check_files.outputs.remove_preview__airflow }} # airflow
       remove_preview__network_uptime: ${{ steps.check_files.outputs.remove_preview__network_uptime }} # network_uptime
-      remove_preview__channel_data: ${{ steps.check_files.outputs.remove_preview__channel_data }} # channel data job
-      remove_preview__message_broker_topics: ${{ steps.check_files.outputs.remove_preview__message_broker_topics }} # message broker topics
-      remove_preview__fault_detection: ${{ steps.check_files.outputs.remove_preview__fault_detection }} # fault detection
-
+      
     runs-on: ubuntu-latest
     steps:
       - name: checkout code
@@ -72,26 +59,13 @@ jobs:
           echo "::set-output name=remove_preview__device_monitoring::false" 
           echo "::set-output name=remove_preview__data_mgt::false"
           echo "::set-output name=remove_preview__analytics::false"
-          echo "::set-output name=remove_preview__device_uptime::false"  
-          echo "::set-output name=remove_preview__device_status::false" 
           echo "::set-output name=remove_preview__locate::false"
           echo "::set-output name=remove_preview__predict::false"
-          echo "::set-output name=remove_preview__gp_model::false"
-          echo "::set-output name=remove_preview__exceedances::false"
           echo "::set-output name=remove_preview__datawarehouse::false"
           echo "::set-output name=remove_preview__view::false"
           echo "::set-output name=remove_preview__calibrate::false" 
-          echo "::set-output name=remove_preview__average_jobs::false"
-          echo "::set-output name=remove_preview__events_check::false"
           echo "::set-output name=remove_preview__notifications::false"
-          echo "::set-output name=remove_preview__kafka_cluster_operator::false"
-          echo "::set-output name=remove_preview__kafka_cluster::false"
-          echo "::set-output name=remove_preview__kafka_topics::false"
-          echo "::set-output name=remove_preview__airflow::false"
           echo "::set-output name=remove_preview__network_uptime::false"
-          echo "::set-output name=remove_preview__channel_data::false"
-          echo "::set-output name=remove_preview__message_broker_topics::false"
-          echo "::set-output name=remove_preview__fault_detection::false"
 
           while IFS= read -r file
           do
@@ -116,28 +90,12 @@ jobs:
               echo "::set-output name=remove_preview__analytics::true"
             fi
 
-            if [[ $file == src/device-uptime/* ]]; then
-              echo "::set-output name=remove_preview__device_uptime::true"
-            fi
-
-            if [[ $file == src/device-status/* ]]; then
-              echo "::set-output name=remove_preview__device_status::true"
-            fi
-
             if [[ $file == src/locate/* ]]; then
               echo "::set-output name=remove_preview__locate::true"
             fi
 
             if [[ $file == src/predict/* ]]; then
               echo "::set-output name=remove_preview__predict::true"
-            fi
-
-            if [[ $file == src/gp-model/* ]]; then
-              echo "::set-output name=remove_preview__gp_model::true"
-            fi
-
-            if [[ $file == src/exceedances/* ]]; then
-              echo "::set-output name=remove_preview__exceedances::true"
             fi
 
             if [[ $file == src/data-mgt/python/extract-external-data/* ]]; then
@@ -151,49 +109,13 @@ jobs:
             if [[ $file == src/calibrate/* ]]; then
               echo "::set-output name=remove_preview__calibrate::true"
             fi
-            
-            if [[ $file == src/data-mgt/python/cron-jobs/* ]]; then
-              echo "::set-output name=remove_preview__average_jobs::true"
-            fi
-
-            if [[ $file == src/data-mgt/python/events-monitor/* ]]; then
-              echo "::set-output name=remove_preview__events_check::true"
-            fi
 
             if [[ $file == src/notifications/* ]]; then
               echo "::set-output name=remove_preview__notifications::true"
             fi
 
-            if [[ $file == k8s/kafka-clusters/* ]]; then
-              echo "::set-output name=remove_preview__kafka_cluster::true"
-            fi
-
-            if [[ $file == k8s/kafka-operator/* ]]; then
-              echo "::set-output name=remove_preview__kafka_cluster_operator::true"
-            fi
-
-            if [[ $file == k8s/kafka-topics/* ]]; then
-              echo "::set-output name=remove_preview__kafka_topics::true"
-            fi
-
-            if [[ $file == src/airflow/* ]]; then
-              echo "::set-output name=remove_preview__airflow::true"
-            fi
-
             if [[ $file == src/network-uptime/* ]]; then
               echo "::set-output name=remove_preview__network_uptime::true"
-            fi
-            
-            if [[ $file == src/channel-data/* ]]; then
-              echo "::set-output name=remove_preview__channel_data::true"
-            fi
-
-            if [[ $file == src/fault-detection/* ]]; then
-              echo "::set-output name=remove_preview__fault_detection::true"
-            fi
-
-            if [[ $file == k8s/message-broker-topics/* ]]; then
-              echo "::set-output name=remove_preview__message_broker_topics::true"
             fi
 
           done < files.txt
