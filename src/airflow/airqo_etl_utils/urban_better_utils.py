@@ -4,7 +4,7 @@ import pandas as pd
 
 from .air_beam_api import AirBeamApi
 from .bigquery_api import BigQueryApi
-from .constants import Tenant
+from .constants import Tenant, Pollutant, AirQuality
 from .utils import Utils
 from .config import configuration
 from .date import str_to_date
@@ -118,6 +118,88 @@ class UrbanBetterUtils:
             )
 
         return measurements
+
+    @staticmethod
+    def format_air_beam_data_from_csv(data: pd.DataFrame) -> pd.DataFrame:
+        data = data.copy()
+        data.rename(
+            columns={
+                "Timestamp": "timestamp",
+                "Session_Name": "device_id",
+                "Latitude": "latitude",
+                "Longitude": "longitude",
+                "AirBeam3-F": "temperature",
+                "AirBeam3-PM1": "pm1_raw_value",
+                "AirBeam3-PM10": "pm10_raw_value",
+                "AirBeam3-PM2.5": "pm2_5_raw_value",
+                "AirBeam3-RH": "humidity",
+            },
+            inplace=True,
+        )
+
+        data["temperature"] = data["temperature"].apply(lambda x: ((x - 32) * 5 / 9))
+        data["tenant"] = str(Tenant.URBAN_BETTER)
+
+        return UrbanBetterUtils.add_air_quality(data)
+
+    @staticmethod
+    def get_air_quality(pollutant: Pollutant, value: float) -> str:
+
+        if not value:
+            return ""
+
+        if pollutant == Pollutant.NO2:
+            if value <= 53.0:
+                return str(AirQuality.GOOD)
+            elif 54.0 <= value <= 100.0:
+                return str(AirQuality.MODERATE)
+            elif value >= 101.0:
+                return str(AirQuality.UNHEALTHY)
+
+        elif pollutant == Pollutant.PM2_5:
+            if value <= 12.0:
+                return str(AirQuality.GOOD)
+            elif 12.1 <= value <= 35.4:
+                return str(AirQuality.MODERATE)
+            elif value >= 35.5:
+                return str(AirQuality.UNHEALTHY)
+
+        elif pollutant == Pollutant.PM10:
+            if value <= 54.0:
+                return str(AirQuality.GOOD)
+            elif 55.0 <= value <= 154.0:
+                return str(AirQuality.MODERATE)
+            elif value >= 155.0:
+                return str(AirQuality.UNHEALTHY)
+
+        else:
+            return ""
+
+    @staticmethod
+    def add_air_quality(data: pd.DataFrame) -> pd.DataFrame:
+
+        if "pm2_5_raw_value" in list(data.columns):
+            data["pm2_5_raw_value_aqi"] = data["pm2_5_raw_value"].apply(
+                lambda x: UrbanBetterUtils.get_air_quality(
+                    pollutant=Pollutant.PM2_5, value=x
+                )
+            )
+
+        if "pm10_raw_value" in list(data.columns):
+            data["pm10_raw_value_aqi"] = data["pm10_raw_value"].apply(
+                lambda x: UrbanBetterUtils.get_air_quality(
+                    pollutant=Pollutant.PM10, value=x
+                )
+            )
+
+        if "no2_raw_value" in list(data.columns):
+            data["no2_raw_value_aqi"] = data["no2_raw_value"].apply(
+                lambda x: UrbanBetterUtils.get_air_quality(
+                    pollutant=Pollutant.NO2, value=x
+                )
+            )
+
+        return data
 
     @staticmethod
     def extract_measurements_from_plume_labs(

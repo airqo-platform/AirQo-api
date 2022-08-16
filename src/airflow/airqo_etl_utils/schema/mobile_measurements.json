@@ -41,6 +41,11 @@
     "description": "μg/m3."
   },
   {
+    "name": "pm2_5_raw_value_aqi",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
     "name": "pm1_raw_value",
     "type": "FLOAT",
     "mode": "NULLABLE",
@@ -53,10 +58,20 @@
     "description": "μg/m3."
   },
   {
+    "name": "pm10_raw_value_aqi",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
     "name": "no2_raw_value",
     "type": "FLOAT",
     "mode": "NULLABLE",
     "description": "ppb."
+  },
+  {
+    "name": "no2_raw_value_aqi",
+    "type": "STRING",
+    "mode": "NULLABLE"
   },
   {
     "name": "voc_raw_value",
@@ -93,6 +108,16 @@
     "type": "FLOAT",
     "mode": "NULLABLE",
     "description": "ppb."
+  },
+  {
+    "name": "temperature",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "humidity",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
   },
   {
     "name": "gps_device_timestamp",
