@@ -1,0 +1,385 @@
+name: deploy-apis-to-staging
+
+on:
+  pull_request:
+    branches: 
+      - staging
+    types:
+      - closed
+
+jobs:
+  branch-name:
+    name: Format branch name string
+    runs-on: ubuntu-latest
+    outputs:
+      lowercase: ${{ steps.string.outputs.lowercase }} # lowercase version
+    steps:
+      - id: string
+        uses: ASzc/change-string-case-action@v2
+        with:
+          string: ${{ github.head_ref || github.ref_name }}
+
+  check:
+    # this job will only run if the PR has been merged
+    if: github.event.pull_request.merged == true
+    name: check changed microservice(s)
+    outputs:
+      remove_preview__auth_service: ${{ steps.check_files.outputs.remove_preview__auth_service }} # auth service
+      remove_preview__device_registry: ${{ steps.check_files.outputs.remove_preview__device_registry }} # device registry
+      remove_preview__device_monitoring: ${{ steps.check_files.outputs.remove_preview__device_monitoring }} # device monitoring
+      remove_preview__data_mgt: ${{ steps.check_files.outputs.remove_preview__data_mgt }} # data mgt
+      remove_preview__analytics: ${{ steps.check_files.outputs.remove_preview__analytics }} # analytics
+      remove_preview__locate: ${{ steps.check_files.outputs.remove_preview__locate }} # locate
+      remove_preview__predict: ${{ steps.check_files.outputs.remove_preview__predict }} # predict
+      remove_preview__datawarehouse: ${{ steps.check_files.outputs.remove_preview__datawarehouse }} # datawarehouse
+      remove_preview__view: ${{ steps.check_files.outputs.remove_preview__view }} # view
+      remove_preview__calibrate: ${{ steps.check_files.outputs.remove_preview__calibrate }} # calibrate
+      remove_preview__notifications: ${{ steps.check_files.outputs.remove_preview__notifications }} # notification
+      remove_preview__network_uptime: ${{ steps.check_files.outputs.remove_preview__network_uptime }} # network_uptime
+      
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 2
+
+        #### all microservices ######
+      - name: check modified microserivce
+        id: check_files
+        run: |
+          echo "=============== list modified files ==============="
+          git diff --name-only HEAD^ HEAD
+          
+          echo "========== check paths of modified files =========="
+          git diff --name-only HEAD^ HEAD > files.txt
+          
+          echo "::set-output name=remove_preview__auth_service::false"
+          echo "::set-output name=remove_preview__device_registry::false"  
+          echo "::set-output name=remove_preview__device_monitoring::false" 
+          echo "::set-output name=remove_preview__data_mgt::false"
+          echo "::set-output name=remove_preview__analytics::false"
+          echo "::set-output name=remove_preview__locate::false"
+          echo "::set-output name=remove_preview__predict::false"
+          echo "::set-output name=remove_preview__datawarehouse::false"
+          echo "::set-output name=remove_preview__view::false"
+          echo "::set-output name=remove_preview__calibrate::false" 
+          echo "::set-output name=remove_preview__notifications::false"
+          echo "::set-output name=remove_preview__network_uptime::false"
+
+          while IFS= read -r file
+          do
+            echo $file
+            if [[ $file == src/auth-service/* ]]; then
+              echo "::set-output name=remove_preview__auth_service::true"
+            fi
+
+            if [[ $file == src/device-registry/* ]]; then
+              echo "::set-output name=remove_preview__device_registry::true"
+            fi
+
+            if [[ $file == src/device-monitoring/* ]]; then
+              echo "::set-output name=remove_preview__device_monitoring::true"
+            fi
+
+            if [[ $file == src/data-mgt/node/* ]]; then
+              echo "::set-output name=remove_preview__data_mgt::true"
+            fi
+
+            if [[ $file == src/analytics/* ]]; then
+              echo "::set-output name=remove_preview__analytics::true"
+            fi
+
+            if [[ $file == src/locate/* ]]; then
+              echo "::set-output name=remove_preview__locate::true"
+            fi
+
+            if [[ $file == src/predict/* ]]; then
+              echo "::set-output name=remove_preview__predict::true"
+            fi
+
+            if [[ $file == src/data-mgt/python/extract-external-data/* ]]; then
+              echo "::set-output name=remove_preview__datawarehouse::true"
+            fi
+
+            if [[ $file == src/view/* ]]; then
+              echo "::set-output name=remove_preview__view::true"
+            fi
+            
+            if [[ $file == src/calibrate/* ]]; then
+              echo "::set-output name=remove_preview__calibrate::true"
+            fi
+
+            if [[ $file == src/notifications/* ]]; then
+              echo "::set-output name=remove_preview__notifications::true"
+            fi
+
+            if [[ $file == src/network-uptime/* ]]; then
+              echo "::set-output name=remove_preview__network_uptime::true"
+            fi
+
+          done < files.txt
+
+  ### auth service ###
+  auth-service:
+    name: remove-preview--auth-service
+    needs: [check, branch-name]
+    if: needs.check.outputs.remove_preview__auth_service == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          
+      - name: Setup Cloud SDK
+        uses: 'google-github-actions/setup-gcloud@v0'
+        
+      - name: Delete PR deploy preview
+        run: |-
+          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-auth-service-preview \
+            --region=${{ secrets.REGION }} \
+            --quiet
+
+  #### Device Registry ######
+  device-registry:
+    name: remove-preview--device-registry
+    needs: [check, branch-name]
+    if: needs.check.outputs.remove_preview__device_registry == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          
+      - name: Setup Cloud SDK
+        uses: 'google-github-actions/setup-gcloud@v0'
+        
+      - name: Delete PR deploy preview
+        run: |-
+          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-device-registry-preview \
+            --region=${{ secrets.REGION }} \
+            --quiet
+
+  ### device monitoring ###
+  device-monitoring:
+    name: remove-preview--device-monitoring
+    needs: [check, branch-name]
+    if: needs.check.outputs.remove_preview__device_monitoring == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          
+      - name: Setup Cloud SDK
+        uses: 'google-github-actions/setup-gcloud@v0'
+        
+      - name: Delete PR deploy preview
+        run: |-
+          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-device-monitoring-preview \
+            --region=${{ secrets.REGION }} \
+            --quiet
+
+  ### data-mgt ###
+  data-mgt:
+    name: remove-preview--data-mgt
+    needs: check
+    if: needs.check.outputs.remove_preview__data_mgt == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          
+      - name: Setup Cloud SDK
+        uses: 'google-github-actions/setup-gcloud@v0'
+        
+      - name: Delete PR deploy preview
+        run: |-
+          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-data-mgt-preview \
+            --region=${{ secrets.REGION }} \
+            --quiet
+
+  ### analytics ###
+  analytics:
+    name: remove-preview--analytics
+    needs: [check, branch-name]
+    if: needs.check.outputs.remove_preview__analytics == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          
+      - name: Setup Cloud SDK
+        uses: 'google-github-actions/setup-gcloud@v0'
+        
+      - name: Delete PR deploy preview
+        run: |-
+          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-analytics-preview \
+            --region=${{ secrets.REGION }} \
+            --quiet
+  
+  ### locate ###
+  locate:
+    name: remove-preview--locate
+    needs: [check, branch-name]
+    if: needs.check.outputs.remove_preview__locate == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          
+      - name: Setup Cloud SDK
+        uses: 'google-github-actions/setup-gcloud@v0'
+        
+      - name: Delete PR deploy preview
+        run: |-
+          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-locate \
+            --region=${{ secrets.REGION }} \
+            --quiet
+  
+  ### predict api and jobs ###
+  predict-service:
+    name: remove-preview--predict-service
+    needs: [check, branch-name]
+    if: needs.check.outputs.remove_preview__predict == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          
+      - name: Setup Cloud SDK
+        uses: 'google-github-actions/setup-gcloud@v0'
+        
+      - name: Delete PR deploy preview
+        run: |-
+          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-predict-service \
+            --region=${{ secrets.REGION }} \
+            --quiet
+
+  ### datawarehouse ###
+  datawarehouse:
+    name: remove-preview--datawarehouse
+    needs: [check, branch-name]
+    if: needs.check.outputs.remove_preview__datawarehouse == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          
+      - name: Setup Cloud SDK
+        uses: 'google-github-actions/setup-gcloud@v0'
+        
+      - name: Delete PR deploy preview
+        run: |-
+          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-datawarehouse \
+            --region=${{ secrets.REGION }} \
+            --quiet
+  
+  ### view  ###
+  view:
+    name: remove-preview--view
+    needs: [check, branch-name]
+    if: needs.check.outputs.remove_preview__view == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          
+      - name: Setup Cloud SDK
+        uses: 'google-github-actions/setup-gcloud@v0'
+        
+      - name: Delete PR deploy preview
+        run: |-
+          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-view \
+            --region=${{ secrets.REGION }} \
+            --quiet
+
+  #### Calibrate ######
+  calibrate:
+    name: remove-preview--calibrate
+    needs: [check, branch-name]
+    if: needs.check.outputs.remove_preview__calibrate == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          
+      - name: Setup Cloud SDK
+        uses: 'google-github-actions/setup-gcloud@v0'
+        
+      - name: Delete PR deploy preview
+        run: |-
+          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-calibrate \
+            --region=${{ secrets.REGION }} \
+            --quiet
+
+  #### notification ######
+  notification:
+    name: remove-preview--notification
+    needs: [check, branch-name]
+    if: needs.check.outputs.remove_preview__notifications == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          
+      - name: Setup Cloud SDK
+        uses: 'google-github-actions/setup-gcloud@v0'
+        
+      - name: Delete PR deploy preview
+        run: |-
+          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-notifications \
+            --region=${{ secrets.REGION }} \
+            --quiet
+
+  ### network uptime ###
+  network-uptime:
+    name: build-push-network-uptime
+    needs: [check, branch-name]
+    if: needs.check.outputs.remove_preview__network_uptime == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          
+      - name: Setup Cloud SDK
+        uses: 'google-github-actions/setup-gcloud@v0'
+        
+      - name: Delete PR deploy preview
+        run: |-
+          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-network_uptime \
+            --region=${{ secrets.REGION }} \
+            --quiet
