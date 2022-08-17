@@ -30,6 +30,7 @@ class EventsModel(BasePyMongoModel):
         frequency,
         pollutants,
         additional_columns=None,
+        output_format=None,
     ):
         if additional_columns is None:
             additional_columns = []
@@ -43,6 +44,9 @@ class EventsModel(BasePyMongoModel):
             f"{cls.BIGQUERY_SITES}.approximate_longitude  AS longitude",
         ]
         columns.extend(additional_columns)
+
+        if output_format is not None and output_format == "aqcsv":
+            columns.extend(["site_id"])
 
         for pollutant in pollutants:
             pollutant_mapping = POLLUTANT_BIGQUERY_MAPPER.get(pollutant, [])
