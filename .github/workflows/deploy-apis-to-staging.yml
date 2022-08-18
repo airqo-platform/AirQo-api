@@ -285,8 +285,8 @@ jobs:
         run: |
           gcloud secrets versions access latest --secret="sta-env-auth-service" > .env
           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env stage-auth-api-config | kubectl replace -f - -n staging
-          gcloud secrets versions access latest --secret="sta-key-auth-service-firebase-admin-sdk" > credential.json
-          kubectl create configmap --dry-run=client -o yaml --from-file=credential.json stage-auth-api-config-files | kubectl replace -f - -n staging
+          gcloud secrets versions access latest --secret="sta-key-auth-service-firebase-admin-sdk" > credentials.json
+          kubectl create configmap --dry-run=client -o yaml --from-file=credentials.json stage-auth-api-config-files | kubectl replace -f - -n staging
 
       - name: Deploy to K8S
         run: |
