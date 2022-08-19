@@ -860,7 +860,7 @@ jobs:
           cd src/gp-model/
           docker build --target=production --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-gp-model-job:latest .
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-gp-model-job:latest
-          
+
       - name: Login to GCP
         uses: google-github-actions/auth@v0
         with:
@@ -958,6 +958,20 @@ jobs:
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-datawarehouse-api:${{ needs.image-tag.outputs.build_id }}
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-datawarehouse-api:latest
 
+      - name: Login to GCP
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
+
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
+
+      - name: Update the corresponding k8s configmap(s)
+        run: |
+          cd src/exceedances/
+          gcloud secrets versions access latest --secret="prod-env-exceedances" > .env
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-exceedance-production | kubectl replace -f - -n production
+   
       - name: Deploy to K8S
         run: |
           kubectl apply -f k8s/data-warehouse/prod-data-warehouse-api.yaml
