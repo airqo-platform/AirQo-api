@@ -1,0 +1,11 @@
+Flask
+flask_cors
+python-dotenv
+earthengine-api
+geopy
+pandas
+python-dateutil
+requests
+marshmallow
+gunicorn
+osmnx==1.1.0
