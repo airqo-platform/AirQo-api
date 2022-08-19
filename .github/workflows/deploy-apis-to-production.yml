@@ -1351,6 +1351,21 @@ jobs:
           docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-network-uptime-api:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-network-uptime-api:latest
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-network-uptime-api:${{ needs.image-tag.outputs.build_id }}
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-network-uptime-api:latest
+          
+      - name: Login to GCP
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
+
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
+
+      - name: Update the corresponding k8s configmap(s)
+        run: |
+          cd src/network-uptime/
+          gcloud secrets versions access latest --secret="prod-env-network-uptime" > .env
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-network-uptime-production | kubectl replace -f - -n production
+   
       - name: Deploy to K8S
         run: |
           kubectl apply -f k8s/network-uptime/prod-airqo-network-uptime-api.yaml -n production
@@ -1385,6 +1400,7 @@ jobs:
           cd src/channel-data/
           docker build --target=production --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/prod-update-channel-data-job:latest .
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/prod-update-channel-data-job:latest
+
       - name: Deploy to K8S
         run: |
           kubectl apply -f k8s/channel-data/prod-airqo-update-channel-data-job.yaml -n production
