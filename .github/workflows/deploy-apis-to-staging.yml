@@ -1009,7 +1009,22 @@ jobs:
         run: |
           cd src/gp-model/
           docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-gp-model-job:latest .
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-gp-model-job:latest
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-gp-model-job:latest    
+      
+      - name: Login to GCP
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
+
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
+
+      - name: Update the corresponding k8s configmap(s)
+        run: |
+          cd src/gp-model/
+          gcloud secrets versions access latest --secret="sta-env-gp-model" > .env
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-gp-model-staging | kubectl replace -f - -n staging
+   
       - name: Deploy to K8S
         run: |
           kubectl apply -f k8s/gp-model/stage-airqo-gp-model-job.yaml
