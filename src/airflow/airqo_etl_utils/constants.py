@@ -103,7 +103,7 @@ class AirQuality(Enum):
     VERY_UNHEALTHY = 5
     HAZARDOUS = 6
 
-    def get_name(self):
+    def __str__(self) -> str:
         if self == self.GOOD:
             return "Good"
         elif self == self.MODERATE:
@@ -123,11 +123,14 @@ class AirQuality(Enum):
 class Pollutant(Enum):
     PM2_5 = 1
     PM10 = 2
+    NO2 = 3
 
-    def get_name(self):
+    def __str__(self) -> str:
         if self == self.PM2_5:
             return "pm2.5"
         elif self == self.PM10:
             return "pm10"
+        elif self == self.NO2:
+            return "no2"
         else:
             return ""

@@ -10,7 +10,7 @@ from airqo_etl_utils.calibration_utils import CalibrationUtils
 from airqo_etl_utils.arg_parse_validator import valid_datetime_format
 from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.commons import download_file_from_gcs
-from airqo_etl_utils.constants import JobAction, BamDataType, Frequency
+from airqo_etl_utils.constants import JobAction, BamDataType, Frequency, Tenant
 from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -572,6 +572,48 @@ def urban_better_data_from_air_beam():
     bigquery_data.to_csv("urban_better_air_beam_bigquery_data.csv", index=False)
 
 
+def urban_better_data_from_bigquery():
+    from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
+
+    bigquery_api = BigQueryApi()
+    data = bigquery_api.query_data(
+        start_date_time="2022-01-01T00:00:00Z",
+        end_date_time="2023-01-01T00:00:00Z",
+        table=bigquery_api.raw_mobile_measurements_table,
+        where_fields={"tenant": str(Tenant.URBAN_BETTER)},
+    )
+
+    data.to_csv("urban_better_big_query_data_backup.csv", index=False)
+
+    # data = pd.read_csv("urban_better_big_query_data_backup.csv")
+
+    data = UrbanBetterUtils.add_air_quality(data)
+    data.to_csv("urban_better_processed_data.csv", index=False)
+
+    bigquery_data = pd.DataFrame(UrbanBetterUtils.process_for_big_query(dataframe=data))
+    bigquery_data.to_csv("urban_better_bigquery_data.csv", index=False)
+
+
+def urban_better_data_from_air_beam_csv():
+    from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
+
+    for x in range(1, 19):
+        data = pd.read_csv(f"dataset_{x}.csv")
+
+        measurements = UrbanBetterUtils.format_air_beam_data_from_csv(
+            data=data,
+        )
+
+        measurements.to_csv(f"urban_better_air_beam_measurements_{x}.csv", index=False)
+
+        bigquery_data = pd.DataFrame(
+            UrbanBetterUtils.process_for_big_query(dataframe=measurements)
+        )
+        bigquery_data.to_csv(
+            f"urban_better_air_beam_bigquery_data_{x}.csv", index=False
+        )
+
+
 def airqo_mobile_device_measurements():
     from airqo_etl_utils.airqo_utils import AirQoDataUtils
     from airqo_etl_utils.weather_data_utils import WeatherDataUtils
@@ -748,7 +790,11 @@ if __name__ == "__main__":
     elif args.action == "urban_better_data_plume_labs":
         urban_better_data_from_plume_labs()
 
+    elif args.action == "urban_better_data_biq_query":
+        urban_better_data_from_bigquery()
+
     elif args.action == "urban_better_data_air_beam":
+        urban_better_data_from_air_beam_csv()
         urban_better_data_from_air_beam()
 
     elif args.action == "airqo_mobile_device_measurements":
