@@ -614,35 +614,59 @@ class AirQoDataUtils:
         if weather_data.empty:
             return airqo_data
 
-        airqo_data_cols = list(airqo_data.columns)
-        weather_data_cols = list(weather_data.columns)
-        intersecting_cols = list(set(airqo_data_cols) & set(weather_data_cols))
-        intersecting_cols.remove("timestamp")
-
-        for col in intersecting_cols:
-            airqo_data.rename(columns={col: f"device_reading_{col}_col"}, inplace=True)
-
         weather_data["timestamp"] = weather_data["timestamp"].apply(pd.to_datetime)
         airqo_data["timestamp"] = airqo_data["timestamp"].apply(pd.to_datetime)
 
         airqo_api = AirQoApi()
         sites = airqo_api.get_sites()
-        sites_df = pd.json_normalize(sites)
-        sites_df = sites_df[["_id", "nearest_tahmo_station.code"]]
-        sites_df.rename(
-            columns={"nearest_tahmo_station.code": "station_code", "_id": "site_id"},
+        sites = pd.json_normalize(sites)
+        sites = sites[["_id", "weather_stations.code", "weather_stations.distance"]]
+        sites.rename(
+            columns={
+                "weather_stations.code": "station_code",
+                "_id": "site_id",
+                "weather_stations.distance": "distance",
+            },
             inplace=True,
         )
 
-        airqo_data = pd.merge(
-            left=airqo_data, right=sites_df, on=["site_id"], how="left"
-        )
+        sites_weather_data = pd.DataFrame()
+        weather_data_cols = list(weather_data.columns)
+
+        for _, site_data in sites.groupby("site_id"):
+            site_id = site_data.loc[0]["site_id"]
+            stations = site_data["station_code"].to_list()
+            site_weather_data = weather_data[
+                weather_data["station_code"].isin(stations)
+            ]
+            site_weather_data = pd.merge(
+                left=site_weather_data, right=site_data, on=["station_code"], how="left"
+            )
+
+            for _, time_group in site_weather_data.groupby("timestamp"):
+                time_group.sort_values(ascending=True, by=["distance"], inplace=True)
+                time_group.fillna(method="bfill", inplace=True)
+                time_group.drop_duplicates(
+                    keep="first", subset=["timestamp"], inplace=True
+                )
+                time_group = time_group[weather_data_cols]
+                time_group["site_id"] = site_id
+                sites_weather_data.append(time_group, ignore_index=True)
+
+        airqo_data_cols = list(airqo_data.columns)
+        weather_data_cols = list(sites_weather_data.columns)
+        intersecting_cols = list(set(airqo_data_cols) & set(weather_data_cols))
+        intersecting_cols.remove("timestamp")
+        intersecting_cols.remove("site_id")
+
+        for col in intersecting_cols:
+            airqo_data.rename(columns={col: f"device_reading_{col}_col"}, inplace=True)
 
         measurements = pd.merge(
             left=airqo_data,
-            right=weather_data,
+            right=sites_weather_data,
             how="left",
-            on=["station_code", "timestamp"],
+            on=["site_id", "timestamp"],
         )
 
         for col in intersecting_cols:
@@ -650,8 +674,6 @@ class AirQoDataUtils:
                 measurements[f"device_reading_{col}_col"], inplace=True
             )
             del measurements[f"device_reading_{col}_col"]
-
-        del measurements["station_code"]
 
         return measurements
 
