@@ -643,6 +643,21 @@ jobs:
           cd src/device-uptime/
           docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-uptime-job:latest -f Dockerfile .
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-uptime-job:latest
+      
+      - name: Login to GCP
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
+
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
+
+      - name: Update the corresponding k8s configmap(s)
+        run: |
+          cd src/device-uptime/
+          gcloud secrets versions access latest --secret="prod-env-device-uptime" > .env
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-device-uptime-production | kubectl replace -f - -n production
+
       - name: Deploy to K8S
         run: |
           kubectl apply -f k8s/device-uptime/prod-airqo-device-uptime-job.yaml
