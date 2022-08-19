@@ -1,7 +1,6 @@
 # Metadata microservice
 
-Add the `.env` & `google_applications_credientils` files to this directory.
-Both can be obtained from `platformapi/keys/data-mgt/python/extract-external-data` folder on the shared drive.
+Add the `.env` & `google_application_credentials` files to this directory. 
 
 ## To run in a virtual environment
 
