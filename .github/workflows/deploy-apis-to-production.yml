@@ -551,7 +551,7 @@ jobs:
         run: |
           cd src/data-mgt/node/
           gcloud secrets versions access latest --secret="prod-env-data-mgt-nodejs" > .env
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env data-mgt-api-config | kubectl replace -f - -n staging
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env data-mgt-api-config | kubectl replace -f - -n production
     
       - name: Deploy to K8S
         run: |
@@ -590,6 +590,22 @@ jobs:
           docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-analytics-api:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-analytics-api:latest
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-analytics-api:${{ needs.image-tag.outputs.build_id }}
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-analytics-api:latest
+            
+      - name: Login to GCP
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
+
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
+
+      - name: Update the corresponding k8s configmap(s)
+        run: |
+          cd src/analytics/
+          gcloud secrets versions access latest --secret="prod-env-analytics" > .env
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-analytics-staging | kubectl replace -f - -n production
+          gcloud secrets versions access latest --secret="prod-key-analytics-service-account" > google_application_credentials.json
+          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json prod-analytics-config-files | kubectl replace -f - -n production
 
       - name: Deploy to K8S
         run: |
