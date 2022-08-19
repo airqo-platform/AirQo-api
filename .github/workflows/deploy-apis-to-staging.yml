@@ -1260,8 +1260,24 @@ jobs:
         uses: azure/k8s-set-context@v1
         with:
           method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}    
+      
+      - name: Login to GCP
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
 
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
+
+      - name: Update the corresponding k8s configmap(s)
+        run: |
+          cd src/calibrate/
+          gcloud secrets versions access latest --secret="sta-env-calibrate-api" > .env
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env stage-calibrate-api-config | kubectl replace -f - -n staging
+          gcloud secrets versions access latest --secret="sta-key-calibrate-service-account" > google_application_credentials.json
+          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json stage-calibrate-api-config-files | kubectl replace -f - -n staging
+   
       - name: Deploy to Main k8s cluster
         run: |
           kubectl apply -f k8s/calibrate/stage-calibrate-api.yaml -n staging
