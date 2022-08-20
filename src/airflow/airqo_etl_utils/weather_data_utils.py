@@ -146,7 +146,7 @@ class WeatherDataUtils:
 
         weather_data = Utils.populate_missing_columns(data=weather_data, cols=cols)
 
-        return DataValidationUtils.get_valid_values(weather_data)
+        return DataValidationUtils.remove_outliers(weather_data)
 
     @staticmethod
     def aggregate_data(data: pd.DataFrame) -> pd.DataFrame:
