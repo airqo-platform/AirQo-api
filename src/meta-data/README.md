@@ -1,6 +1,7 @@
 # Metadata microservice
 
-Add the `.env` & `google_application_credentials` files to this directory. 
+Prerequisites
+Add the `.env` & `google_application_credentials.json` files to this directory. Both files can be obtained from the DevOps engineer.
 
 ## To run in a virtual environment
 
@@ -11,14 +12,23 @@ pip install -r requirements.txt
 flask run
 ```
 
-## To build and run with docker desktop
+## To build and run with docker 
 
 ```bash
 docker build --target=development -t meta-data .
 docker run -p 4001:4001 meta-data
 ```
 
+## To build and run with docker compose
+
+```bash
+bash run-docker-compose.sh
+```
+
 ## Endpoints
 
 Checkout the API documentation for available endpoints.
-[extract-data-from-external-sources](https://docs.airqo.net/airqo-platform-api/-Mi1WIQAGi40qdPmLrM7/extract-data-from-external-sources)
+```http
+http://localhost:4001/api/v1/meta-data/apidocs/
+```
+

@@ -1,0 +1,14 @@
+version: "3.8"
+services:
+  meta-data-api:
+    restart: always
+    container_name:  meta-data-api
+    env_file:
+      - .env
+    volumes:
+      - .:/app-dir
+    build:
+      context: .
+      target: development
+    ports:
+      - "4001:4001"

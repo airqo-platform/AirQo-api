@@ -5,14 +5,8 @@ import gc
 import requests
 import numpy as np
 import pandas as pd
-from dotenv import load_dotenv
-import os
 
-load_dotenv()
-
-# Module Constants
-API_BASE_URL = os.getenv("TAHMO_API_BASE_URL")
-API_MAX_PERIOD = os.getenv("TAHMO_API_MAX_PERIOD")
+from config import Config
 
 
 class apiWrapper(object):
@@ -226,7 +220,7 @@ class apiWrapper(object):
     def __request(self, endpoint, params):
         print("API request: %s" % endpoint)
         apiRequest = requests.get(
-            "%s/%s" % (API_BASE_URL, endpoint),
+            "%s/%s" % (Config.TAHMO_API_BASE_URL, endpoint),
             params=params,
             auth=requests.auth.HTTPBasicAuth(self.apiKey, self.apiSecret),
         )
@@ -248,7 +242,7 @@ class apiWrapper(object):
         dates = pd.date_range(
             start=startDate.strftime("%Y%m%d"),
             end=endDate.strftime("%Y%m%d"),
-            freq=API_MAX_PERIOD,
+            freq=Config.TAHMO_API_MAX_PERIOD,
         )
 
         df = pd.DataFrame(

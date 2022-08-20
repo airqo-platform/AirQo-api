@@ -1,4 +1,3 @@
-import os
 import ee
 import osmnx as ox
 import pyproj
@@ -6,27 +5,13 @@ import requests
 from shapely.geometry import Point
 from shapely.ops import transform
 import json
-from dotenv import load_dotenv
 from geopy import distance
-from models import TAHMO
-
-load_dotenv()
-
-TAHMO_API_CREDENTIALS_USERNAME = os.getenv("TAHMO_API_CREDENTIALS_USERNAME")
-TAHMO_API_CREDENTIALS_PASSWORD = os.getenv("TAHMO_API_CREDENTIALS_PASSWORD")
-DEVICE_REGISTRY_BASE_URL = os.getenv("DEVICE_REGISTRY_BASE_URL")
-GOOGLE_APPLICATION_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
-GOOGLE_APPLICATION_CREDENTIALS_EMAIL = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_EMAIL")
-ELEVATION_BASE_URL = os.getenv("ELEVATION_BASE_URL")
-GOOGLE_MAP_API_KEY = os.getenv("GOOGLE_MAP_API_KEY")
-WEATHER_STATION_AIRQUALITY_SITE_DISTANCE_THRESHOLD = os.getenv(
-    "WEATHER_STATION_AIRQUALITY_SITE_DISTANCE_THRESHOLD"
-)
-CENTER_OF_KAMPALA_LATITUDE = os.getenv("CENTER_OF_KAMPALA_LATITUDE")
-CENTER_OF_KAMPALA_LONGITUDE = os.getenv("CENTER_OF_KAMPALA_LONGITUDE")
+from api.models import TAHMO
+from config import Config
 
 credentials = ee.ServiceAccountCredentials(
-    key_file=GOOGLE_APPLICATION_CREDENTIALS, email=GOOGLE_APPLICATION_CREDENTIALS_EMAIL
+    key_file=Config.GOOGLE_APPLICATION_CREDENTIALS,
+    email=Config.GOOGLE_APPLICATION_CREDENTIALS_EMAIL,
 )
 ee.Initialize(credentials)
 
@@ -81,7 +66,7 @@ class Extract:
         """
         Returns the altitude at the specified coordinates
         """
-        url = f"{ELEVATION_BASE_URL}?locations={lat},{lon}&key={GOOGLE_MAP_API_KEY}"
+        url = f"{Config.ELEVATION_BASE_URL}?locations={lat},{lon}&key={Config.GOOGLE_MAP_API_KEY}"
         response = requests.get(url).json()
         altitude = response["results"][0]["elevation"]
         return round(altitude, 2)
@@ -90,7 +75,9 @@ class Extract:
         self, latitude, longitude, threshold_distance=None
     ):
         if not threshold_distance:
-            threshold_distance = WEATHER_STATION_AIRQUALITY_SITE_DISTANCE_THRESHOLD
+            threshold_distance = (
+                Config.WEATHER_STATION_AIRQUALITY_SITE_DISTANCE_THRESHOLD
+            )
 
         all_stations = self.get_all_weather_station_account_has_access_on()
         stations_with_distances = []
@@ -111,12 +98,12 @@ class Extract:
                         **{"distance": distance_between_coordinates},
                     }
                 )
-        return stations_with_distances
+        return sorted(stations_with_distances, key=lambda x: float(x["distance"]))
 
     def get_all_weather_station_account_has_access_on(self):
         tahmo_api = TAHMO.apiWrapper()
         tahmo_api.setCredentials(
-            TAHMO_API_CREDENTIALS_USERNAME, TAHMO_API_CREDENTIALS_PASSWORD
+            Config.TAHMO_API_CREDENTIALS_USERNAME, Config.TAHMO_API_CREDENTIALS_PASSWORD
         )
         stations = tahmo_api.getStations()
         return stations
@@ -124,7 +111,7 @@ class Extract:
     def get_all_available_variables_and_units_tahmo_api(self):
         tahmo_api = TAHMO.apiWrapper()
         tahmo_api.setCredentials(
-            TAHMO_API_CREDENTIALS_USERNAME, TAHMO_API_CREDENTIALS_PASSWORD
+            Config.TAHMO_API_CREDENTIALS_USERNAME, Config.TAHMO_API_CREDENTIALS_PASSWORD
         )
         variables = tahmo_api.getVariables()
         print("Available variables in TAHMO API:")
@@ -141,7 +128,7 @@ class Extract:
     def get_station_measurements(self, station, startDate, endDate):
         tahmo_api = TAHMO.apiWrapper()
         tahmo_api.setCredentials(
-            TAHMO_API_CREDENTIALS_USERNAME, TAHMO_API_CREDENTIALS_PASSWORD
+            Config.TAHMO_API_CREDENTIALS_USERNAME, Config.TAHMO_API_CREDENTIALS_PASSWORD
         )
         df = tahmo_api.getMeasurements(station, startDate=startDate, endDate=endDate)
         df.index.name = "Timestamp"
@@ -152,10 +139,14 @@ class Extract:
 
     def get_devices(self, name="", tenant="airqo"):
         if name == "":
-            api_url = DEVICE_REGISTRY_BASE_URL + "devices?tenant=" + tenant
+            api_url = Config.DEVICE_REGISTRY_BASE_URL + "devices?tenant=" + tenant
         else:
             api_url = (
-                DEVICE_REGISTRY_BASE_URL + "devices?tenant=" + tenant + "&name=" + name
+                Config.DEVICE_REGISTRY_BASE_URL
+                + "devices?tenant="
+                + tenant
+                + "&name="
+                + name
             )
         try:
             results = requests.get(api_url, verify=False)
@@ -215,14 +206,14 @@ class Extract:
         return land_value
 
     def get_bearing_from_kampala(self, lat, lon):
-        KAMPALA_LAT = float(CENTER_OF_KAMPALA_LATITUDE)
-        KAMPALA_LONG = float(CENTER_OF_KAMPALA_LONGITUDE)
+        KAMPALA_LAT = float(Config.CENTER_OF_KAMPALA_LATITUDE)
+        KAMPALA_LONG = float(Config.CENTER_OF_KAMPALA_LONGITUDE)
         bearing = ox.bearing.calculate_bearing(KAMPALA_LAT, KAMPALA_LONG, lat, lon)
         return bearing
 
     def get_distance_from_kampala(self, lat, lon):
-        KAMPALA_LAT = float(CENTER_OF_KAMPALA_LATITUDE)
-        KAMPALA_LONG = float(CENTER_OF_KAMPALA_LONGITUDE)
+        KAMPALA_LAT = float(Config.CENTER_OF_KAMPALA_LATITUDE)
+        KAMPALA_LONG = float(Config.CENTER_OF_KAMPALA_LONGITUDE)
         kamapla_coordinates = (KAMPALA_LAT, KAMPALA_LONG)
         distance_of_specified_coordinates_from_kla = distance.distance(
             kamapla_coordinates, (lat, lon)

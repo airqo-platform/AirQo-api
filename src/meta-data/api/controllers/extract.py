@@ -1,7 +1,9 @@
-from routes import api
+from flasgger import swag_from
+
+from api.routes import api
 from flask import Blueprint, request, jsonify
-from models import extract as ext
-from helpers import validation
+from api.models import extract as ext
+from api.helpers import validation
 
 extract_bp = Blueprint("extract_bp", __name__)
 
@@ -84,6 +86,7 @@ def get_all_meta_data():
 
 
 @extract_bp.route(api.NEAREST_WEATHER_STATIONS, methods=["GET"])
+@swag_from("/api/docs/get-nearest-stations.yml")
 def get_nearest_weather_stations():
 
     distance = request.args.get("distance", None)
