@@ -1,5 +1,4 @@
 import os
-import traceback
 from datetime import datetime, timedelta
 
 import pandas as pd
@@ -159,49 +158,42 @@ class Transformation:
         updated_sites = []
 
         for site in sites:
-            site_dict = dict(site)
+            longitude = dict(site).get("longitude", None)
+            latitude = dict(site).get("latitude", None)
+            site_id = dict(site).get("_id", None)
 
-            if "latitude" in site_dict and "longitude" in site_dict:
-                longitude = site_dict.get("longitude")
-                latitude = site_dict.get("latitude")
+            if not longitude or not latitude or not site_id:
+                continue
 
-                try:
-                    nearest_station = dict(
-                        self.tahmo_api.get_closest_station(
-                            latitude=latitude, longitude=longitude
-                        )
-                    )
+            weather_stations = self.airqo_api.get_nearest_weather_stations(
+                latitude=latitude, longitude=longitude
+            )
+            if not weather_stations:
+                continue
 
-                    station_data = dict(
-                        {
-                            "id": nearest_station.get("id"),
-                            "code": nearest_station.get("code"),
-                            "latitude": dict(nearest_station.get("location")).get(
-                                "latitude"
-                            ),
-                            "longitude": dict(nearest_station.get("location")).get(
-                                "longitude"
-                            ),
-                            "timezone": dict(nearest_station.get("location")).get(
-                                "timezone"
-                            ),
-                        }
-                    )
+            nearest_stations = []
 
-                    update = dict(
-                        {
-                            "nearest_tahmo_station": station_data,
-                            "id": site_dict.get("_id"),
-                            "tenant": self.tenant,
-                        }
-                    )
+            for weather_station in weather_stations:
+                nearest_stations.append(
+                    {
+                        "code": weather_station.get("code", None),
+                        "name": weather_station.get("name", None),
+                        "country": weather_station.get("country", None),
+                        "latitude": weather_station.get("latitude", None),
+                        "longitude": weather_station.get("longitude", None),
+                        "timezone": weather_station.get("timezone", None),
+                    }
+                )
 
-                    updated_sites.append(update)
-                except:
-                    traceback.print_exc()
-                    pass
+            updated_sites.append(
+                {
+                    "weather_stations": nearest_stations,
+                    "id": site_id,
+                    "tenant": self.tenant,
+                }
+            )
 
-        self.__print(data=updated_sites)
+        self.airqo_api.update_sites(updated_sites=updated_sites)
 
     def get_missing_fields(self, missing_fields=""):
         sites = self.airqo_api.get_sites(self.tenant)
