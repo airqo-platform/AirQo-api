@@ -231,6 +231,11 @@ const siteSchema = new Schema(
           trim: true,
           default: null,
         },
+        distance: {
+          type: Number,
+          trim: true,
+          default: -1,
+        },
       },
     ],
     nearest_tahmo_station: {
