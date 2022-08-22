@@ -242,6 +242,7 @@ deviceSchema.methods = {
       site_id: this.site_id,
       height: this.height,
       category: this.category,
+      access_code: this.access_code,
     };
   },
 };
@@ -406,21 +407,20 @@ deviceSchema.statics = {
   },
   async modify({ filter = {}, update = {}, opts = {} } = {}) {
     try {
-      let options = { new: true, ...opts };
       let modifiedUpdate = update;
       delete modifiedUpdate.name;
       delete modifiedUpdate.device_number;
       delete modifiedUpdate._id;
       delete modifiedUpdate.generation_count;
       delete modifiedUpdate.generation_version;
+      let options = { new: true, projected: modifiedUpdate, ...opts };
 
       if (!isEmpty(modifiedUpdate.access_code)) {
-        const access_code = generator.generate({
+        const access_code = accessCodeGenerator.generate({
           length: 16,
-          numbers: true,
-          uppercase: true,
+          excludeSimilarCharacters: true,
         });
-        modifiedUpdate.access_code = access_code;
+        modifiedUpdate.access_code = access_code.toUpperCase();
       }
 
       let updatedDevice = await this.findOneAndUpdate(
