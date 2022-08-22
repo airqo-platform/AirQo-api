@@ -50,7 +50,41 @@ const createEvent = {
         skip,
         site,
         format,
+        access_code,
       } = query;
+
+      /**
+       * at this point, we need to get some details about the device
+       * whose measurements are being fetched.
+       */
+
+      const responseFromGetDeviceDetails = await createDeviceUtil.list(req);
+      let deviceDetails = {};
+
+      if (responseFromGetDeviceDetails.success === true) {
+        logObject("responseFromGetDeviceDetails", responseFromGetDeviceDetails);
+        if (
+          !isEmpty(responseFromGetDeviceDetails.data) &&
+          Array.isArray(responseFromGetDeviceDetails.data) &&
+          responseFromGetDeviceDetails.data.length === 1
+        ) {
+          deviceDetails = responseFromGetDeviceDetails.data[0];
+        } else {
+          logger.info(`unable to retrieve details for ONE device`);
+        }
+      } else if (responseFromGetDeviceDetails.success === false) {
+        logger.error(
+          `unable to retrieve device details --- ${responseFromGetDeviceDetails.error}`
+        );
+        logObject("responseFromGetDeviceDetails", responseFromGetDeviceDetails);
+      }
+
+      if (!isEmpty(deviceDetails) && deviceDetails.visibility === false) {
+        logObject("deviceDetails", deviceDetails);
+        if (deviceDetails.access_code !== access_code) {
+          return {};
+        }
+      }
 
       const currentDate = formatDate(new Date());
 
@@ -92,6 +126,18 @@ const createEvent = {
           "no2_raw_value, voc_raw_value, pm1_pi_value, pm2_5_pi_value, pm10_pi_value," +
           "voc_pi_value, no2_pi_value, gps_device_timestamp, timestamp_abs_diff";
         averaged_fields = "";
+      }
+
+      logObject("deviceDetails", deviceDetails);
+
+      if (!isEmpty(deviceDetails) && deviceDetails.category === "bam") {
+        logText("this is BAM");
+        table = `${constants.DATAWAREHOUSE_AVERAGED_DATA}.hourly_bam_device_measurements`;
+        raw_fields = "";
+        mobile = false;
+        averaged_fields =
+          "site_id, device_id, device_number, timestamp," +
+          "pm10, pm2_5, no2, pm1, latitude, longitude";
       }
 
       const queryStatement = `SELECT ${averaged_fields} ${raw_fields}  \`${
@@ -144,16 +190,53 @@ const createEvent = {
       ${airqloud_name ? `AND airqloud_name="${airqloud_name}"` : ""}
       ${device_lat_long ? `AND device_lat_long="${device_lat_long}"` : ""}
      ${tenant ? `AND tenant="${tenant}"` : ""}
+     ORDER BY timestamp
+     DESC LIMIT ${limit ? limit : constants.DEFAULT_EVENTS_LIMIT} OFFSET ${
+        skip ? skip : constants.DEFAULT_EVENTS_SKIP
+      }
      `;
+
+      const queryStatementReference = `SELECT ${averaged_fields} ${raw_fields}  \`
+      FROM \`${table}\` 
+      WHERE timestamp 
+     >= "${start ? start : twoMonthsBack}" AND timestamp <= "${
+        end ? end : currentDate
+      }" 
+    ${site ? `AND site_id="${site}"` : ""}
+    ${device ? `AND device="${device}"` : ""}
+    ${device_number ? `AND device_number=${device_number}` : ""}
+    ${device_name ? `AND device_name="${device_name}"` : ""}
+    ${device_id ? `AND device_id="${device_id}"` : ""}
+    ${site_id ? `AND site_id="${site_id}"` : ""}
+    ${airqloud_id ? `AND airqloud_id="${airqloud_id}"` : ""}
+    ${airqloud_name ? `AND airqloud_name="${airqloud_name}"` : ""}
+    ${device_lat_long ? `AND device_lat_long="${device_lat_long}"` : ""}
+    ${tenant ? `AND tenant="${tenant}"` : ""}
+    ORDER BY timestamp
+    DESC LIMIT ${limit ? limit : constants.DEFAULT_EVENTS_LIMIT} OFFSET ${
+        skip ? skip : constants.DEFAULT_EVENTS_SKIP
+      }`;
 
       let bqQuery = "";
 
       if (mobile === true) {
         bqQuery = queryStatementMobile;
-      } else if (mobile === false) {
+      } else if (
+        (!isEmpty(deviceDetails) &&
+          deviceDetails.category !== "bam" &&
+          mobile === false) ||
+        (isEmpty(deviceDetails) && mobile === false)
+      ) {
         bqQuery = queryStatement;
+      } else if (
+        !isEmpty(deviceDetails) &&
+        deviceDetails.category === "bam" &&
+        mobile === false
+      ) {
+        bqQuery = queryStatementReference;
       }
 
+      logObject("bqQuery", bqQuery);
       const options = {
         query: bqQuery,
         location: constants.BIG_QUERY_LOCATION,
@@ -192,6 +275,8 @@ const createEvent = {
         message: "successfully retrieved the measurements",
       };
     } catch (error) {
+      logger.error(`things are bad--- ${error}`);
+      logObject("error", error);
       return {
         success: false,
         message: "Internal Server Error",
