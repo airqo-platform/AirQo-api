@@ -74,12 +74,12 @@ const createEvent = {
 
       if (!isEmpty(deviceDetails) && deviceDetails.visibility === false) {
         if (isEmpty(access_code) || deviceDetails.access_code !== access_code) {
-          return {
-            success: false,
-            message: "not authorized",
-            status: httpStatus.UNAUTHORIZED,
-            errors: { message: "not authorized" },
-          };
+          // return {
+          //   success: false,
+          //   message: "not authorized",
+          //   status: httpStatus.UNAUTHORIZED,
+          //   errors: { message: "not authorized" },
+          // };
         }
       }
 
