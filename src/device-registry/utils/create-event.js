@@ -53,16 +53,10 @@ const createEvent = {
         access_code,
       } = query;
 
-      /**
-       * at this point, we need to get some details about the device
-       * whose measurements are being fetched.
-       */
-
       const responseFromGetDeviceDetails = await createDeviceUtil.list(req);
       let deviceDetails = {};
 
       if (responseFromGetDeviceDetails.success === true) {
-        logObject("responseFromGetDeviceDetails", responseFromGetDeviceDetails);
         if (
           !isEmpty(responseFromGetDeviceDetails.data) &&
           Array.isArray(responseFromGetDeviceDetails.data) &&
@@ -76,13 +70,16 @@ const createEvent = {
         logger.error(
           `unable to retrieve device details --- ${responseFromGetDeviceDetails.error}`
         );
-        logObject("responseFromGetDeviceDetails", responseFromGetDeviceDetails);
       }
 
       if (!isEmpty(deviceDetails) && deviceDetails.visibility === false) {
-        logObject("deviceDetails", deviceDetails);
-        if (deviceDetails.access_code !== access_code) {
-          return {};
+        if (isEmpty(access_code) || deviceDetails.access_code !== access_code) {
+          return {
+            success: false,
+            message: "not authorized",
+            status: httpStatus.UNAUTHORIZED,
+            errors: { message: "not authorized" },
+          };
         }
       }
 
@@ -128,10 +125,7 @@ const createEvent = {
         averaged_fields = "";
       }
 
-      logObject("deviceDetails", deviceDetails);
-
       if (!isEmpty(deviceDetails) && deviceDetails.category === "bam") {
-        logText("this is BAM");
         table = `${constants.DATAWAREHOUSE_AVERAGED_DATA}.hourly_bam_device_measurements`;
         raw_fields = "";
         mobile = false;
@@ -236,14 +230,12 @@ const createEvent = {
         bqQuery = queryStatementReference;
       }
 
-      logObject("bqQuery", bqQuery);
       const options = {
         query: bqQuery,
         location: constants.BIG_QUERY_LOCATION,
       };
 
       const [job] = await bigquery.createQueryJob(options);
-      console.log(`Job ${job.id} started.`);
 
       const [rows] = await job.getQueryResults();
 
@@ -266,7 +258,7 @@ const createEvent = {
           const csv = parser.parse(sanitizedMeasurements);
           data = csv;
         } catch (error) {
-          logObject("the json to csv conversion error", error);
+          logger.error(`things are bad--- ${error}`);
         }
       }
       return {
@@ -276,7 +268,6 @@ const createEvent = {
       };
     } catch (error) {
       logger.error(`things are bad--- ${error}`);
-      logObject("error", error);
       return {
         success: false,
         message: "Internal Server Error",
