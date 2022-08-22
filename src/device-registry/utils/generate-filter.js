@@ -565,7 +565,7 @@ const generateFilter = {
       }
 
       if (device_id) {
-        filter["_id"] = ObjectId(device_id);
+        filter["name"] = device_id;
       }
 
       if (chid) {
