@@ -199,6 +199,40 @@ const siteSchema = new Schema(
       type: String,
       trim: true,
     },
+    weather_stations: [
+      {
+        code: {
+          type: String,
+          trim: true,
+          default: null,
+        },
+        name: {
+          type: String,
+          trim: true,
+          default: null,
+        },
+        country: {
+          type: String,
+          trim: true,
+          default: null,
+        },
+        longitude: {
+          type: Number,
+          trim: true,
+          default: -1,
+        },
+        latitude: {
+          type: Number,
+          trim: true,
+          default: -1,
+        },
+        timezone: {
+          type: String,
+          trim: true,
+          default: null,
+        },
+      },
+    ],
     nearest_tahmo_station: {
       id: {
         type: Number,
@@ -442,6 +476,7 @@ siteSchema.statics = {
           nearest_tahmo_station: 1,
           devices: "$devices",
           airqlouds: "$airqlouds",
+          weather_stations: 1,
         })
         .project({
           "airqlouds.location": 0,

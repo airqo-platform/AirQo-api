@@ -1,16 +1,13 @@
-###########################################################
-# Start deployment of data-warehouse microservice - staging
-###########################################################
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: airqo-stage-datawarehouse-api
-  namespace: staging
+  name: airqo-meta-data-api
+  namespace: production
 spec:
   selector:
     matchLabels:
-      app: sta-datawarehouse-api
-  replicas: 2
+      app: meta-data-api
+  replicas: 3
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -20,21 +17,14 @@ spec:
   template:
     metadata:
       labels:
-        app: sta-datawarehouse-api
+        app: meta-data-api
     spec:
       containers:
-        - name: datawarehouse
-          image: us.gcr.io/airqo-250220/airqo-stage-datawarehouse-api:latest
+        - name: meta-data
+          image: us.gcr.io/airqo-250220/airqo-meta-data-api:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 4001
-          # readinessProbe:
-          #   httpGet:
-          #     path: /health
-          #     port: 4001
-          #   initialDelaySecond: 5
-          #   periodSeconds: 3
-          #   successThreshold: 1
           resources:
             requests:
               cpu: 100m
@@ -44,47 +34,45 @@ spec:
               memory: 700Mi
           envFrom:
             - configMapRef:
-                name: stage-datawarehouse-api-config
+                name: prod-meta-data-api-config
           volumeMounts:
           - name: config-volume
             mountPath: /etc/config
       volumes:
         - name: config-volume
           configMap:
-            name: stage-datawarehouse-api-config-files
+            name: prod-meta-data-api-config-files
 
 ---
 kind: Service
 apiVersion: v1
 metadata:
-  name: airqo-stage-datawarehouse-api-svc
-  namespace: staging
+  name: airqo-meta-data-api-svc
+  namespace: production
 spec:
   selector:
-    app: sta-datawarehouse-api
+    app: meta-data-api
   ports:
     - protocol: TCP
       port: 4001
       targetPort: 4001
-      nodePort: 31111
-  type: NodePort
 
 ---
 kind: HorizontalPodAutoscaler
 apiVersion: autoscaling/v2
 metadata:
-  name: airqo-stage-datawarehouse-api-hpa
+  name: airqo-meta-data-api-hpa
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: airqo-stage-datawarehouse-api
+    name: airqo-meta-data-api
   minReplicas: 1
-  maxReplicas: 2
+  maxReplicas: 3
   metrics:
   - type: Resource
     resource:
       name: cpu
       target:
         type: Utilization
-        averageUtilization: 80
+        averageUtilization: 70

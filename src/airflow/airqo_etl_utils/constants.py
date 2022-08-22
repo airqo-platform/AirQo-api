@@ -53,7 +53,7 @@ class BamDataType(Enum):
     OUTLIERS = 1
     MEASUREMENTS = 2
 
-    def get_api_query_str(self):
+    def __str__(self) -> str:
         if self == self.OUTLIERS:
             return "outliers"
         elif self == self.MEASUREMENTS:

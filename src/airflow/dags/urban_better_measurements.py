@@ -48,7 +48,7 @@ def historical_raw_measurements_etl__plume_labs():
         )
 
     @task()
-    def load_uncleaned_data(urban_better_data: pd.DataFrame):
+    def load_unclean_data(urban_better_data: pd.DataFrame):
 
         from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
         from airqo_etl_utils.bigquery_api import BigQueryApi
@@ -57,7 +57,7 @@ def historical_raw_measurements_etl__plume_labs():
         big_query_api = BigQueryApi()
         big_query_api.load_data(
             dataframe=data,
-            table=big_query_api.uncleaned_mobile_raw_measurements_table,
+            table=big_query_api.unclean_mobile_raw_measurements_table,
         )
 
     @task()
@@ -67,7 +67,7 @@ def historical_raw_measurements_etl__plume_labs():
         return UrbanBetterUtils.clean_raw_data(data)
 
     @task()
-    def load_cleaned_data(urban_better_data: pd.DataFrame):
+    def load_clean_data(urban_better_data: pd.DataFrame):
 
         from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
         from airqo_etl_utils.bigquery_api import BigQueryApi
@@ -76,7 +76,7 @@ def historical_raw_measurements_etl__plume_labs():
         big_query_api = BigQueryApi()
         big_query_api.load_data(
             dataframe=data,
-            table=big_query_api.cleaned_mobile_raw_measurements_table,
+            table=big_query_api.clean_mobile_raw_measurements_table,
         )
 
     measures = extract_measures()
@@ -84,9 +84,9 @@ def historical_raw_measurements_etl__plume_labs():
     merged_data = merge_datasets(
         devices_measures=measures, sensor_positions=device_sensor_positions
     )
-    load_uncleaned_data(merged_data)
+    load_unclean_data(merged_data)
     cleaned_data = clean_data(merged_data)
-    load_cleaned_data(cleaned_data)
+    load_clean_data(cleaned_data)
 
 
 @dag(
@@ -132,7 +132,7 @@ def realtime_measurements_etl__plume_labs():
         )
 
     @task()
-    def load_uncleaned_data(urban_better_data: pd.DataFrame):
+    def load_unclean_data(urban_better_data: pd.DataFrame):
         from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
@@ -140,7 +140,7 @@ def realtime_measurements_etl__plume_labs():
         big_query_api = BigQueryApi()
         big_query_api.load_data(
             dataframe=data,
-            table=big_query_api.uncleaned_mobile_raw_measurements_table,
+            table=big_query_api.unclean_mobile_raw_measurements_table,
         )
 
     @task()
@@ -150,7 +150,7 @@ def realtime_measurements_etl__plume_labs():
         return UrbanBetterUtils.clean_raw_data(data)
 
     @task()
-    def load_cleaned_data(urban_better_data: pd.DataFrame):
+    def load_clean_data(urban_better_data: pd.DataFrame):
         from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
@@ -158,7 +158,7 @@ def realtime_measurements_etl__plume_labs():
         big_query_api = BigQueryApi()
         big_query_api.load_data(
             dataframe=data,
-            table=big_query_api.cleaned_mobile_raw_measurements_table,
+            table=big_query_api.clean_mobile_raw_measurements_table,
         )
 
     devices_measures_data = extract_measures()
@@ -166,9 +166,9 @@ def realtime_measurements_etl__plume_labs():
     merged_data = merge_datasets(
         devices_measures=devices_measures_data, sensor_positions=sensor_positions_data
     )
-    load_uncleaned_data(merged_data)
+    load_unclean_data(merged_data)
     cleaned_data = clean_data(merged_data)
-    load_cleaned_data(cleaned_data)
+    load_clean_data(cleaned_data)
 
 
 @dag(
@@ -218,7 +218,7 @@ def historical_measurements_etl__air_beam():
         big_query_api = BigQueryApi()
         big_query_api.load_data(
             dataframe=restructured_data,
-            table=big_query_api.cleaned_mobile_raw_measurements_table,
+            table=big_query_api.clean_mobile_raw_measurements_table,
         )
 
     stream_ids = extract_stream_ids()
@@ -277,7 +277,7 @@ def realtime_measurements_etl__air_beam():
         big_query_api = BigQueryApi()
         big_query_api.load_data(
             dataframe=restructured_data,
-            table=big_query_api.cleaned_mobile_raw_measurements_table,
+            table=big_query_api.clean_mobile_raw_measurements_table,
         )
 
     stream_ids = extract_stream_ids()

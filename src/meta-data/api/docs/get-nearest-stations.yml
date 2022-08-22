@@ -1,0 +1,28 @@
+Example endpoint for fetching nearest weather stations
+---
+parameters:
+  - name: latitude
+    in: query
+    type: double
+    default: 0.3171432
+  - name: longitude
+    in: query
+    type: double
+    default: 32.5874389
+definitions:
+  NearestWeatherStations:
+    type: array
+    items:
+      $ref: '#/definitions/NearestWeatherStation'
+  NearestWeatherStation:
+    type: object
+    properties:
+      distance:
+       type: double
+responses:
+  200:
+    description: A list of the nearest weather stations
+    schema:
+      $ref: '#/definitions/NearestWeatherStations'
+    examples:
+      rgb: ['red', 'green', 'blue']
