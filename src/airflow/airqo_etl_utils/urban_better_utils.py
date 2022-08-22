@@ -357,7 +357,7 @@ class UrbanBetterUtils:
                 pd.to_datetime
             )
         columns = big_query_api.get_columns(
-            big_query_api.cleaned_mobile_raw_measurements_table
+            big_query_api.clean_mobile_raw_measurements_table
         )
 
         dataframe = Utils.populate_missing_columns(data=dataframe, cols=columns)

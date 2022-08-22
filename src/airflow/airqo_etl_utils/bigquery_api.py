@@ -15,11 +15,11 @@ class BigQueryApi:
         self.raw_measurements_table = configuration.BIGQUERY_RAW_EVENTS_TABLE
         self.bam_measurements_table = configuration.BIGQUERY_BAM_EVENTS_TABLE
         self.bam_outliers_table = configuration.BIGQUERY_BAM_OUTLIERS_TABLE
-        self.uncleaned_mobile_raw_measurements_table = (
-            configuration.BIGQUERY_UNCLEANED_RAW_MOBILE_EVENTS_TABLE
+        self.unclean_mobile_raw_measurements_table = (
+            configuration.BIGQUERY_UNCLEAN_RAW_MOBILE_EVENTS_TABLE
         )
-        self.cleaned_mobile_raw_measurements_table = (
-            configuration.BIGQUERY_CLEANED_RAW_MOBILE_EVENTS_TABLE
+        self.clean_mobile_raw_measurements_table = (
+            configuration.BIGQUERY_CLEAN_RAW_MOBILE_EVENTS_TABLE
         )
         self.airqo_mobile_measurements_table = (
             configuration.BIGQUERY_AIRQO_MOBILE_EVENTS_TABLE
@@ -102,8 +102,8 @@ class BigQueryApi:
         elif table == self.devices_table:
             schema_file = "devices.json"
         elif (
-            table == self.cleaned_mobile_raw_measurements_table
-            or table == self.uncleaned_mobile_raw_measurements_table
+            table == self.clean_mobile_raw_measurements_table
+            or table == self.unclean_mobile_raw_measurements_table
         ):
             schema_file = "mobile_measurements.json"
         elif table == self.airqo_mobile_measurements_table:
