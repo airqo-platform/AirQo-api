@@ -274,6 +274,18 @@ const createDevice = {
       };
     }
   },
+  updateAccessCode: async () => {
+    try {
+    } catch (error) {
+      logger.error(`update access code -- ${error.message}`);
+      return {
+        success: false,
+        message: "server error",
+        errors: { message: error.message },
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
   update: async (request) => {
     try {
       logger.info(`in the update util....`);
