@@ -90,67 +90,6 @@ class Transformation:
 
         self.airqo_api.update_sites(updated_site_names)
 
-    def map_devices_to_tahmo_station(self):
-
-        devices = self.airqo_api.get_devices(self.tenant)
-
-        updated_devices = []
-        summarized_updated_devices = []
-
-        for device in devices:
-            device_dict = dict(device)
-            if "latitude" in device_dict and "longitude" in device_dict:
-                latitude = device_dict.get("latitude")
-                longitude = device_dict.get("longitude")
-
-                closet_station = dict(
-                    self.tahmo_api.get_closest_station(
-                        latitude=latitude, longitude=longitude
-                    )
-                )
-
-                station_data = dict(
-                    {
-                        "id": closet_station.get("id"),
-                        "code": closet_station.get("code"),
-                        "latitude": dict(closet_station.get("location")).get(
-                            "latitude"
-                        ),
-                        "longitude": dict(closet_station.get("location")).get(
-                            "longitude"
-                        ),
-                        "timezone": dict(closet_station.get("location")).get(
-                            "timezone"
-                        ),
-                    }
-                )
-
-                device_dict["closet_tahmo_station"] = station_data
-
-                updated_devices.append(device_dict)
-                summarized_updated_devices.append(
-                    dict(
-                        {
-                            "_id": device_dict.get("_id"),
-                            "device_number": device_dict.get("device_number"),
-                            "name": device_dict.get("name"),
-                            "latitude": device_dict.get("latitude"),
-                            "longitude": device_dict.get("longitude"),
-                            "closest_tahmo_station": station_data,
-                        }
-                    )
-                )
-
-        if self.output_format.strip().lower() == "csv":
-            array_to_csv(data=summarized_updated_devices)
-
-        elif self.output_format.strip().lower() == "api":
-            print("Devices to be Updated", updated_devices, sep=" := ")
-            # TODO Implement logic in the AirQo API class to update devices
-
-        else:
-            array_to_json(data=summarized_updated_devices)
-
     def map_sites_to_tahmo_station(self):
 
         sites = self.airqo_api.get_sites(self.tenant)
@@ -178,10 +117,11 @@ class Transformation:
                     {
                         "code": weather_station.get("code", None),
                         "name": weather_station.get("name", None),
-                        "country": weather_station.get("country", None),
+                        "country": weather_station.get("countrycode", None),
                         "latitude": weather_station.get("latitude", None),
                         "longitude": weather_station.get("longitude", None),
                         "timezone": weather_station.get("timezone", None),
+                        "distance": weather_station.get("distance", None),
                     }
                 )
 
