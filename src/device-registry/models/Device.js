@@ -21,6 +21,8 @@ const minLength = [
 
 const noSpaces = /^\S*$/;
 
+const accessCodeGenerator = require("generate-password");
+
 const deviceSchema = new mongoose.Schema(
   {
     latitude: {
@@ -39,6 +41,9 @@ const deviceSchema = new mongoose.Schema(
       type: String,
     },
     readKey: {
+      type: String,
+    },
+    access_code: {
       type: String,
     },
     name_id: {
@@ -326,6 +331,7 @@ deviceSchema.statics = {
           isActive: 1,
           writeKey: 1,
           readKey: 1,
+          access_code: 1,
           pictures: 1,
           height: 1,
           mobility: 1,
@@ -407,6 +413,15 @@ deviceSchema.statics = {
       delete modifiedUpdate._id;
       delete modifiedUpdate.generation_count;
       delete modifiedUpdate.generation_version;
+
+      if (!isEmpty(modifiedUpdate.access_code)) {
+        const access_code = generator.generate({
+          length: 16,
+          numbers: true,
+          uppercase: true,
+        });
+        modifiedUpdate.access_code = access_code;
+      }
 
       let updatedDevice = await this.findOneAndUpdate(
         filter,
