@@ -8,6 +8,7 @@ from .airnow_api import AirNowApi
 from .airqo_api import AirQoApi
 from .bigquery_api import BigQueryApi
 from .commons import get_frequency
+from .constants import Tenant
 from .utils import Utils
 from .date import str_to_date, date_to_str
 
@@ -140,7 +141,7 @@ class AirnowDataUtils:
                         airnow_data.append(
                             {
                                 "timestamp": row["UTC"],
-                                "tenant": "usembassy",
+                                "tenant": str(Tenant.US_EMBASSY),
                                 "site_id": device["site"]["_id"],
                                 "device_id": device["_id"],
                                 "device_number": device["device_number"],

@@ -50,5 +50,6 @@ class TestAirQoDataUtils(unittest.TestCase):
         self.assertEqual(data.iloc[0]["device_number"], 2)
         self.assertEqual(date_to_str(data.iloc[0]["timestamp"]), "2022-01-01T10:00:00Z")
 
+
 if __name__ == "__main__":
     unittest.main()
