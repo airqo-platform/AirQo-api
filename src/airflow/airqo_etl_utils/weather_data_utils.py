@@ -51,11 +51,12 @@ class WeatherDataUtils:
         start_date_time, end_date_time, station_codes: list = None
     ) -> pd.DataFrame:
         airqo_api = AirQoApi()
-        sites = airqo_api.get_sites()
-        station_codes = station_codes if station_codes else []
-        for site in sites:
-            weather_stations = dict(site).get("weather_stations", [])
-            station_codes.extend(x["code"] for x in weather_stations)
+        if not station_codes:
+            sites = airqo_api.get_sites()
+            station_codes = []
+            for site in sites:
+                weather_stations = dict(site).get("weather_stations", [])
+                station_codes.extend(x.get("code", "") for x in weather_stations)
 
         station_codes = list(set(station_codes))
 
