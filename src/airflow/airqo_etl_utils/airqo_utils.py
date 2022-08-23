@@ -14,11 +14,12 @@ from .commons import (
     download_file_from_gcs,
     get_frequency,
 )
-from .utils import Utils
 from .config import configuration
 from .constants import DeviceCategory, BamDataType, Tenant, Frequency
 from .data_validator import DataValidationUtils
-from .date import date_to_str, date_to_str_hours
+from .date import date_to_str
+from .utils import Utils
+from .weather_data_utils import WeatherDataUtils
 
 
 class AirQoDataUtils:
@@ -204,24 +205,14 @@ class AirQoDataUtils:
 
         if meta_data:
             for value in meta_data:
-
-                latitude = dict(value).get("latitude", None)
-                longitude = dict(value).get("longitude", None)
-                start_date_time = dict(value).get(
-                    "start_date_time",
-                )
-                end_date_time = dict(value).get("end_date_time")
-                device_numbers = dict(value).get("device_numbers", [])
-
+                value = dict(value)
                 measurements = AirQoDataUtils.query_low_cost_sensors_data(
-                    start_date_time=start_date_time,
-                    end_date_time=end_date_time,
-                    device_numbers=device_numbers,
+                    start_date_time=value.get("start_date_time", None),
+                    end_date_time=value.get("end_date_time", None),
+                    device_numbers=[value.get("device_number", None)],
                 )
-                if latitude:
-                    measurements["latitude"] = latitude
-                if longitude:
-                    measurements["longitude"] = longitude
+                measurements["latitude"] = value.get("latitude", None)
+                measurements["longitude"] = value.get("longitude", None)
                 data = data.append(measurements, ignore_index=True)
         else:
             data = AirQoDataUtils.query_low_cost_sensors_data(
@@ -238,88 +229,53 @@ class AirQoDataUtils:
         return data
 
     @staticmethod
-    def aggregate_mobile_devices_data(data: pd.DataFrame) -> pd.DataFrame:
-        data = data.copy()
-        data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
-        data["timestamp"] = data["timestamp"].apply(date_to_str_hours)
-        data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
-
-        device_groups = data.groupby("device_number")
-        aggregated_data = pd.DataFrame()
-
-        for _, device_group in device_groups:
-            device_number = device_group.iloc[0]["device_number"]
-
-            timestamp_groups = device_group.groupby("timestamp")
-
-            for _, timestamp_group in timestamp_groups:
-                sampling_data = timestamp_group.copy()
-
-                latitude = sampling_data.iloc[0]["latitude"]
-                longitude = sampling_data.iloc[0]["longitude"]
-
-                averages = pd.DataFrame(
-                    sampling_data.resample("1H", on="timestamp").mean()
-                )
-                averages["timestamp"] = averages.index
-                averages.reset_index(drop=True, inplace=True)
-                averages["latitude"] = latitude
-                averages["longitude"] = longitude
-                averages["device_number"] = device_number
-                aggregated_data = aggregated_data.append(averages, ignore_index=True)
-
-        return aggregated_data
-
-    @staticmethod
     def extract_aggregated_mobile_devices_weather_data(
-        stations: pd.DataFrame, meta_data: list
+        data: pd.DataFrame,
     ) -> pd.DataFrame:
-        from weather_data_utils import WeatherDataUtils
 
-        meta_data_df = pd.DataFrame(meta_data)
-        meta_data_df = meta_data_df[
-            ["latitude", "longitude", "start_date_time", "end_date_time"]
-        ]
-        merged_df = pd.merge(
-            left=stations, right=meta_data_df, on=["latitude", "longitude"], how="left"
-        )
-        merged_df.dropna(inplace=True)
         weather_data = pd.DataFrame()
-        for _, row in merged_df.iterrows():
+        for _, station_data in data.groupby(
+            by=["station_code", "start_date_time", "end_date_time"]
+        ):
             raw_data = WeatherDataUtils.query_raw_data_from_tahmo(
-                start_date_time=row["start_date_time"],
-                end_date_time=row["end_date_time"],
-                station_codes=[row["station_code"]],
+                start_date_time=station_data.iloc[0]["start_date_time"],
+                end_date_time=station_data.iloc[0]["end_date_time"],
+                station_codes=[station_data.iloc[0]["station_code"]],
             )
             raw_data = WeatherDataUtils.transform_raw_data(raw_data)
             aggregated_data = WeatherDataUtils.aggregate_data(raw_data)
-            latitude = row["latitude"]
-            longitude = row["longitude"]
-            aggregated_data["latitude"] = latitude
-            aggregated_data["longitude"] = longitude
-
-            result = list(
-                filter(
-                    lambda entry: (
-                        entry["latitude"] == latitude
-                        and entry["longitude"] == longitude
-                    ),
-                    meta_data,
-                )
+            aggregated_data["timestamp"] = aggregated_data["timestamp"].apply(
+                pd.to_datetime
             )
 
-            for x in result:
-                devices = list(x["device_numbers"])
-                for device in devices:
-                    aggregated_data["device_number"] = device
-                    weather_data = weather_data.append(
-                        aggregated_data, ignore_index=True
-                    )
+            for _, row in station_data.iterrows():
+                device_weather_data = aggregated_data.copy()
+                device_weather_data["device_number"] = row["device_number"]
+                device_weather_data["distance"] = row["distance"]
+                weather_data = weather_data.append(
+                    device_weather_data, ignore_index=True
+                )
 
-        return weather_data
+        devices_weather_data = pd.DataFrame()
+        for _, device_weather_data in weather_data.groupby("device_number"):
+            for _, time_group in device_weather_data.groupby("timestamp"):
+                time_group.sort_values(ascending=True, by="distance", inplace=True)
+                time_group.fillna(method="bfill", inplace=True)
+                time_group.drop_duplicates(
+                    keep="first", subset=["timestamp"], inplace=True
+                )
+                time_group["device_number"] = device_weather_data.iloc[0][
+                    "device_number"
+                ]
+                del time_group["distance"]
+                devices_weather_data = devices_weather_data.append(
+                    time_group, ignore_index=True
+                )
+
+        return devices_weather_data
 
     @staticmethod
-    def merge_mobile_devices_data_and_weather_data(
+    def merge_aggregated_mobile_devices_data_and_weather_data(
         measurements: pd.DataFrame, weather_data: pd.DataFrame
     ) -> pd.DataFrame:
 
@@ -327,8 +283,6 @@ class AirQoDataUtils:
         weather_data_cols = list(weather_data.columns)
         intersecting_cols = list(set(airqo_data_cols) & set(weather_data_cols))
         intersecting_cols.remove("timestamp")
-        intersecting_cols.remove("latitude")
-        intersecting_cols.remove("longitude")
         intersecting_cols.remove("device_number")
 
         for col in intersecting_cols:
@@ -337,17 +291,11 @@ class AirQoDataUtils:
             )
 
         measurements["timestamp"] = measurements["timestamp"].apply(pd.to_datetime)
-        measurements[["longitude", "latitude"]] = measurements[
-            ["longitude", "latitude"]
-        ].apply(pd.to_numeric, errors="coerce")
         measurements["device_number"] = measurements["device_number"].apply(
             lambda x: pd.to_numeric(x, errors="coerce", downcast="integer")
         )
 
         weather_data["timestamp"] = weather_data["timestamp"].apply(pd.to_datetime)
-        weather_data[["longitude", "latitude"]] = weather_data[
-            ["longitude", "latitude"]
-        ].apply(pd.to_numeric, errors="coerce")
         weather_data["device_number"] = weather_data["device_number"].apply(
             lambda x: pd.to_numeric(x, errors="coerce", downcast="integer")
         )
@@ -355,7 +303,7 @@ class AirQoDataUtils:
         data = pd.merge(
             measurements,
             weather_data,
-            on=["device_number", "latitude", "longitude", "timestamp"],
+            on=["device_number", "timestamp"],
             how="left",
         )
 
@@ -370,7 +318,11 @@ class AirQoDataUtils:
 
         data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
         data["tenant"] = "airqo"
-        return data
+        big_query_api = BigQueryApi()
+        cols = big_query_api.get_columns(
+            table=big_query_api.airqo_mobile_measurements_table
+        )
+        return Utils.populate_missing_columns(data=data, cols=cols)
 
     @staticmethod
     def extract_bam_data(start_date_time: str, end_date_time: str) -> pd.DataFrame:
@@ -464,11 +416,10 @@ class AirQoDataUtils:
     @staticmethod
     def aggregate_low_cost_sensors_data(data: pd.DataFrame) -> pd.DataFrame:
 
-        device_groups = data.groupby("device_number")
         aggregated_data = pd.DataFrame()
         data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
 
-        for _, device_group in device_groups:
+        for _, device_group in data.groupby("device_number"):
             site_id = device_group.iloc[0]["site_id"]
             device_id = device_group.iloc[0]["device_id"]
             device_number = device_group.iloc[0]["device_number"]

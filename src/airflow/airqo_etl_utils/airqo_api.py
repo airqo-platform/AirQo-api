@@ -43,30 +43,32 @@ class AirQoApi:
             return response["device_activities"]
         return []
 
-    def calibrate_data(self, time: str, data: pd.DataFrame, cols: dict) -> list:
-        data.rename(
-            columns={
-                cols["device_number"]: "device_id",
-                cols["s1_pm2_5"]: "sensor1_pm2.5",
-                cols["s2_pm2_5"]: "sensor2_pm2.5",
-                cols["s1_pm10"]: "sensor1_pm10",
-                cols["s2_pm10"]: "sensor2_pm10",
-                cols["temperature"]: "temperature",
-                cols["humidity"]: "humidity",
-            },
-            inplace=True,
-        )
+    def calibrate_data(self, time: str, data: pd.DataFrame) -> list:
+        data = data.copy()
         data = data[
             [
-                "device_id",
-                "sensor1_pm2.5",
-                "sensor2_pm2.5",
-                "sensor1_pm10",
-                "sensor2_pm10",
+                "device_number",
+                "s1_pm2_5",
+                "s2_pm2_5",
+                "s1_pm10",
+                "s2_pm10",
                 "temperature",
                 "humidity",
             ]
         ]
+
+        data.rename(
+            columns={
+                "device_number": "device_id",
+                "s1_pm2_5": "sensor1_pm2.5",
+                "s2_pm2_5": "sensor2_pm2.5",
+                "s1_pm10": "sensor1_pm10",
+                "s2_pm10": "sensor2_pm10",
+                "temperature": "temperature",
+                "humidity": "humidity",
+            },
+            inplace=True,
+        )
 
         request_body = {"datetime": time, "raw_values": data.to_dict("records")}
 
@@ -243,6 +245,15 @@ class AirQoApi:
             endpoint="data/feeds/transform/recent", params={"channel": device_number}
         )
         return response
+
+    def get_nearest_weather_stations(self, latitude, longitude) -> list:
+        response = self.__request(
+            endpoint="meta-data/nearest-weather-stations",
+            params={"latitude": latitude, "longitude": longitude},
+            method="get",
+        )
+
+        return list(response["weather_stations"]) if response else []
 
     def get_sites(self, tenant=None) -> list:
         if tenant:
