@@ -851,6 +851,9 @@ const createDevice = {
       update["$addToSet"] = {};
       update["$addToSet"]["pictures"] = update.pictures;
       delete update.pictures;
+      if (isEmpty(update["$addToSet"]["pictures"])) {
+        delete update.$addToSet;
+      }
 
       let responseFromModifyDevice = await getModelByTenant(
         tenant,

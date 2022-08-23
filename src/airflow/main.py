@@ -6,11 +6,18 @@ from pathlib import Path
 import pandas as pd
 from dotenv import load_dotenv
 
+from airqo_etl_utils.airqo_api import AirQoApi
 from airqo_etl_utils.calibration_utils import CalibrationUtils
 from airqo_etl_utils.arg_parse_validator import valid_datetime_format
 from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.commons import download_file_from_gcs
-from airqo_etl_utils.constants import JobAction, BamDataType, Frequency
+from airqo_etl_utils.constants import (
+    JobAction,
+    BamDataType,
+    Frequency,
+    Tenant,
+    DeviceCategory,
+)
 from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -572,6 +579,48 @@ def urban_better_data_from_air_beam():
     bigquery_data.to_csv("urban_better_air_beam_bigquery_data.csv", index=False)
 
 
+def urban_better_data_from_bigquery():
+    from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
+
+    bigquery_api = BigQueryApi()
+    data = bigquery_api.query_data(
+        start_date_time="2022-01-01T00:00:00Z",
+        end_date_time="2023-01-01T00:00:00Z",
+        table=bigquery_api.raw_mobile_measurements_table,
+        where_fields={"tenant": str(Tenant.URBAN_BETTER)},
+    )
+
+    data.to_csv("urban_better_big_query_data_backup.csv", index=False)
+
+    # data = pd.read_csv("urban_better_big_query_data_backup.csv")
+
+    data = UrbanBetterUtils.add_air_quality(data)
+    data.to_csv("urban_better_processed_data.csv", index=False)
+
+    bigquery_data = pd.DataFrame(UrbanBetterUtils.process_for_big_query(dataframe=data))
+    bigquery_data.to_csv("urban_better_bigquery_data.csv", index=False)
+
+
+def urban_better_data_from_air_beam_csv():
+    from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
+
+    for x in range(1, 19):
+        data = pd.read_csv(f"dataset_{x}.csv")
+
+        measurements = UrbanBetterUtils.format_air_beam_data_from_csv(
+            data=data,
+        )
+
+        measurements.to_csv(f"urban_better_air_beam_measurements_{x}.csv", index=False)
+
+        bigquery_data = pd.DataFrame(
+            UrbanBetterUtils.process_for_big_query(dataframe=measurements)
+        )
+        bigquery_data.to_csv(
+            f"urban_better_air_beam_bigquery_data_{x}.csv", index=False
+        )
+
+
 def airqo_mobile_device_measurements():
     from airqo_etl_utils.airqo_utils import AirQoDataUtils
     from airqo_etl_utils.weather_data_utils import WeatherDataUtils
@@ -642,6 +691,81 @@ def airqo_mobile_device_measurements():
     bigquery_data.to_csv("bigquery_mobile_devices_data.csv", index=False)
 
 
+def airqo_historical_bam_data():
+
+    """
+        Processes AirQo reference monitors data from a csv file "airqo_historical_bam_data.csv"
+        into a format that is required for storage in BigQuery reference monitors data table.
+
+        The resultant file "airqo_bam_bigquery_data.csv" contains data that matches the format required by BigQuery
+        reference monitors data table and hence, ready for import.
+
+        The input csv file is assumed to have stored data for the reference monitors
+        1192542 and 1192541 as -24517  and -24516 respectively.
+    """
+
+    from airqo_etl_utils.airqo_utils import AirQoDataUtils
+    from airqo_etl_utils.data_validator import DataValidationUtils
+
+    airqo_api = AirQoApi()
+    devices = airqo_api.get_devices(
+        tenant=str(Tenant.AIRQO), category=DeviceCategory.BAM
+    )
+
+    data = pd.read_csv(
+        "airqo_historical_bam_data.csv",
+        usecols=[
+            "Time",
+            "ConcHR_ug_m3",
+            "channel_id",
+            "Status",
+            "latitude",
+            "longitude",
+        ],
+    )
+    data.rename(
+        columns={
+            "Time": "timestamp",
+            "ConcHR_ug_m3": "pm2_5",
+            "channel_id": "device_number",
+            "Status": "status",
+        },
+        inplace=True,
+    )
+    data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
+    data = DataValidationUtils.get_valid_values(data)
+    data = AirQoDataUtils.process_bam_data(
+        data=data, data_type=BamDataType.MEASUREMENTS
+    )
+
+    def update_device_details(device_number):
+        device_id = None
+        device = []
+        if device_number == -24517:
+            device_number = 1192542
+            device = list(
+                filter(lambda x: (x["device_number"] == device_number), devices)
+            )
+
+        if device_number == -24516:
+            device_number = 1192541
+            device = list(
+                filter(lambda x: (x["device_number"] == device_number), devices)
+            )
+
+        if device:
+            device_id = dict(device[0]).get("name", None)
+
+        return pd.Series({"device_number": device_number, "device_id": device_id})
+
+    data[["device_number", "device_id"]] = data["device_number"].apply(
+        lambda x: update_device_details(x)
+    )
+
+    bigquery_data = AirQoDataUtils.process_bam_data_for_bigquery(data)
+    bigquery_data.to_csv("airqo_bam_bigquery_data.csv", index=False)
+
+
 if __name__ == "__main__":
 
     from airqo_etl_utils.date import date_to_str_hours
@@ -695,6 +819,7 @@ if __name__ == "__main__":
             "airqo_mobile_device_measurements",
             "airqo_bam_data",
             "nasa_purple_air_data",
+            "airqo_historical_bam_data",
         ],
     )
 
@@ -739,6 +864,9 @@ if __name__ == "__main__":
     elif args.action == "airnow_bam_data":
         airnow_bam_data()
 
+    elif args.action == "airqo_historical_bam_data":
+        airqo_historical_bam_data()
+
     elif args.action == "airqo_bam_data":
         airqo_bam_data()
 
@@ -748,7 +876,11 @@ if __name__ == "__main__":
     elif args.action == "urban_better_data_plume_labs":
         urban_better_data_from_plume_labs()
 
+    elif args.action == "urban_better_data_biq_query":
+        urban_better_data_from_bigquery()
+
     elif args.action == "urban_better_data_air_beam":
+        urban_better_data_from_air_beam_csv()
         urban_better_data_from_air_beam()
 
     elif args.action == "airqo_mobile_device_measurements":

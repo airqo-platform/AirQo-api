@@ -13,6 +13,8 @@ class DataValidationUtils:
             return None
         elif name == "battery" and (value < 2.7 or value > 5):
             return None
+        elif name == "no2" and (value < 0 or value > 2049):
+            return None
         elif (name == "altitude" or name == "hdop") and value <= 0:
             return None
         elif name == "satellites" and (value <= 0 or value > 50):
@@ -29,14 +31,16 @@ class DataValidationUtils:
         return value
 
     @staticmethod
-    def get_valid_values(data: pd.DataFrame) -> pd.DataFrame:
+    def remove_outliers(data: pd.DataFrame) -> pd.DataFrame:
         float_columns = {
             "battery",
             "hdop",
             "altitude",
             "satellites",
             "pm2_5",
+            "pm2_5_pi",
             "pm10",
+            "pm10_pi",
             "s1_pm2_5",
             "s2_pm2_5",
             "s1_pm10",
@@ -44,6 +48,7 @@ class DataValidationUtils:
             "no2",
             "no2_raw_value",
             "pm1",
+            "pm1_pi",
             "pm1_raw_value",
             "external_temperature",
             "external_humidity",
@@ -72,6 +77,7 @@ class DataValidationUtils:
                 "pm2_5",
                 "s1_pm2_5",
                 "s2_pm2_5",
+                "pm2_5_pi",
                 "pm2_5_raw_value",
                 "pm2_5_calibrated_value",
             ]:
@@ -80,6 +86,7 @@ class DataValidationUtils:
                 "pm10",
                 "s1_pm10",
                 "s2_pm10",
+                "pm10_pi",
                 "pm10_raw_value",
                 "pm10_calibrated_value",
             ]:
@@ -90,7 +97,7 @@ class DataValidationUtils:
                 name = "temperature"
             elif name in ["no2", "no2_raw_value"]:
                 name = "no2"
-            elif name in ["pm1", "pm1_raw_value"]:
+            elif name in ["pm1", "pm1_raw_value", "pm1_pi"]:
                 name = "pm1"
 
             data[col] = data[col].apply(

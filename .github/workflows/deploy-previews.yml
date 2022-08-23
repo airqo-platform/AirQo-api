@@ -32,10 +32,6 @@ jobs:
       run_calibrate: ${{ steps.check_files.outputs.run_calibrate }} # calibrate
       run_notifications: ${{ steps.check_files.outputs.run_notifications }} # notification
       run_network_uptime: ${{ steps.check_files.outputs.run_network_uptime }} # network_uptime
-      # run_device_uptime: ${{ steps.check_files.outputs.run_device_uptime }} # device uptime
-      # run_device_status: ${{ steps.check_files.outputs.run_device_status }} # device status
-      # run_gp_model: ${{ steps.check_files.outputs.run_gp_model }} # gp_model
-      # run_exceedances: ${{ steps.check_files.outputs.run_exceedances }} # exceedances
 
     runs-on: ubuntu-latest
     steps:
@@ -65,11 +61,7 @@ jobs:
           echo "::set-output name=run_view::false"
           echo "::set-output name=run_calibrate::false" 
           echo "::set-output name=run_notifications::false"
-          echo "::set-output name=run_network_uptime::false"
-          # echo "::set-output name=run_gp_model::false"
-          # echo "::set-output name=run_exceedances::false"
-          # echo "::set-output name=run_device_uptime::false"  
-          # echo "::set-output name=run_device_status::false" 
+          echo "::set-output name=run_network_uptime::false" 
 
           while IFS= read -r file
           do
@@ -121,22 +113,6 @@ jobs:
             if [[ $file == src/network-uptime/* ]]; then
               echo "::set-output name=run_network_uptime::true"
             fi
-
-            # if [[ $file == src/device-uptime/* ]]; then
-            #   echo "::set-output name=run_device_uptime::true"
-            # fi
-
-            # if [[ $file == src/device-status/* ]]; then
-            #   echo "::set-output name=run_device_status::true"
-            # fi
-
-            # if [[ $file == src/gp-model/* ]]; then
-            #   echo "::set-output name=run_gp_model::true"
-            # fi
-
-            # if [[ $file == src/exceedances/* ]]; then
-            #   echo "::set-output name=run_exceedances::true"
-            # fi
 
           done < files.txt
 

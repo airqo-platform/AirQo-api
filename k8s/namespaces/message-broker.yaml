@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: message-broker
+
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: message-broker-quota
+  namespace: message-broker
+spec:
+  hard: {}
