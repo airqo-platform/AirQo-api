@@ -778,7 +778,7 @@ jobs:
   ### meta-data ###
   meta-data:
     name: build-push-deploy-meta-data
-    needs: [check, image-tag, branch-name]
+    needs: [check, image-tag]
     if: needs.check.outputs.run_meta_data == 'true'
     runs-on: ubuntu-latest
     steps:
