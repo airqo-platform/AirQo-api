@@ -190,7 +190,7 @@ const createEvent = {
       }
      `;
 
-      const queryStatementReference = `SELECT ${averaged_fields} ${raw_fields}  \`
+      const queryStatementReference = `SELECT ${averaged_fields} ${raw_fields}
       FROM \`${table}\` 
       WHERE timestamp 
      >= "${start ? start : twoMonthsBack}" AND timestamp <= "${
