@@ -15,24 +15,40 @@ from .tahmo_api import TahmoApi
 
 class WeatherDataUtils:
     @staticmethod
-    def get_nearest_tahmo_stations(coordinates_list: list) -> pd.DataFrame:
-        stations = []
-        tahmo_api = TahmoApi()
-        all_stations = tahmo_api.get_stations()
-        for coordinates in coordinates_list:
-            latitude = coordinates.get("latitude")
-            longitude = coordinates.get("longitude")
-            closest_station = tahmo_api.get_closest_station(
-                latitude=latitude, longitude=longitude, all_stations=all_stations
+    def extract_hourly_weather_data(start_date_time, end_date_time) -> pd.DataFrame:
+        bigquery_api = BigQueryApi()
+
+        cols = ["station_code", "timestamp", "temperature", "humidity"]
+        measurements = bigquery_api.query_data(
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            columns=cols,
+            table=bigquery_api.hourly_weather_table,
+        )
+        return pd.DataFrame([], columns=cols) if measurements.empty else measurements
+
+    @staticmethod
+    def get_weather_stations(meta_data: list) -> pd.DataFrame:
+        data = []
+        airqo_api = AirQoApi()
+
+        for record in meta_data:
+            weather_stations = airqo_api.get_nearest_weather_stations(
+                latitude=record.get("latitude"),
+                longitude=record.get("longitude"),
             )
-            stations.append(
-                {
-                    "station_code": closest_station.get("code"),
-                    "latitude": latitude,
-                    "longitude": longitude,
-                }
-            )
-        return pd.DataFrame(stations)
+            for station in weather_stations:
+                station = dict(station)
+                data.append(
+                    {
+                        **record,
+                        **{
+                            "station_code": station.get("code"),
+                            "distance": station.get("distance"),
+                        },
+                    }
+                )
+        return pd.DataFrame(data)
 
     @staticmethod
     def extract_raw_data_from_bigquery(start_date_time, end_date_time) -> pd.DataFrame:
