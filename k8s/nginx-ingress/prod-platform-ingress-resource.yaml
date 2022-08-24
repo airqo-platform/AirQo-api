@@ -243,18 +243,11 @@ spec:
                 name: airqo-incentives-api-svc
                 port: 
                   number: 3000
-          - path: /api/v1/datawarehouse
+          - path: /api/v1/meta-data
             pathType: Prefix
             backend:
               service:
-                name: airqo-datawarehouse-api-svc
-                port: 
-                  number: 4001
-          - path: /api/v2/datawarehouse
-            pathType: Prefix
-            backend:
-              service:
-                name: airqo-datawarehouse-api-svc
+                name: airqo-meta-data-api-svc
                 port: 
                   number: 4001
           - path: /api/v1/notifications

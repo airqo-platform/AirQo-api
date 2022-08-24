@@ -4,11 +4,12 @@ import pandas as pd
 
 from .air_beam_api import AirBeamApi
 from .bigquery_api import BigQueryApi
-from .constants import Tenant
-from .utils import Utils
 from .config import configuration
+from .constants import Tenant, Pollutant
+from .data_validator import DataValidationUtils
 from .date import str_to_date
 from .plume_labs_api import PlumeLabsApi
+from .utils import Utils
 
 
 class UrbanBetterUtils:
@@ -77,11 +78,11 @@ class UrbanBetterUtils:
                 stream_df["device_id"] = row["device_id"]
 
                 if pollutant == "pm2.5":
-                    stream_df.rename(columns={"value": "pm2_5_raw_value"}, inplace=True)
+                    stream_df.rename(columns={"value": "pm2_5"}, inplace=True)
                 if pollutant == "pm10":
-                    stream_df.rename(columns={"value": "pm10_raw_value"}, inplace=True)
+                    stream_df.rename(columns={"value": "pm10"}, inplace=True)
                 if pollutant == "pm1":
-                    stream_df.rename(columns={"value": "pm1_raw_value"}, inplace=True)
+                    stream_df.rename(columns={"value": "pm1"}, inplace=True)
                 if pollutant == "rh":
                     stream_df.rename(columns={"value": "humidity"}, inplace=True)
                 if pollutant == "f":
@@ -90,11 +91,11 @@ class UrbanBetterUtils:
                 measurements = measurements.append(stream_df, ignore_index=True)
 
         pm2_5_data = measurements[
-            ["pm2_5_raw_value", "time", "device_id", "latitude", "longitude"]
-        ].dropna(subset=["pm2_5_raw_value"])
+            ["pm2_5", "time", "device_id", "latitude", "longitude"]
+        ].dropna(subset=["pm2_5"])
         pm10_data = measurements[
-            ["pm10_raw_value", "time", "device_id", "latitude", "longitude"]
-        ].dropna(subset=["pm10_raw_value"])
+            ["pm10", "time", "device_id", "latitude", "longitude"]
+        ].dropna(subset=["pm10"])
 
         measurements = pd.merge(
             left=pm2_5_data,
@@ -120,7 +121,54 @@ class UrbanBetterUtils:
         return measurements
 
     @staticmethod
-    def extract_measurements_from_plume_labs(
+    def format_air_beam_data_from_csv(data: pd.DataFrame) -> pd.DataFrame:
+        data = data.copy()
+        data.rename(
+            columns={
+                "Timestamp": "timestamp",
+                "Session_Name": "device_id",
+                "Latitude": "latitude",
+                "Longitude": "longitude",
+                "AirBeam3-F": "temperature",
+                "AirBeam3-PM1": "pm1",
+                "AirBeam3-PM10": "pm10",
+                "AirBeam3-PM2.5": "pm2_5",
+                "AirBeam3-RH": "humidity",
+            },
+            inplace=True,
+        )
+
+        data["temperature"] = data["temperature"].apply(lambda x: ((x - 32) * 5 / 9))
+        data["tenant"] = str(Tenant.URBAN_BETTER)
+
+        return UrbanBetterUtils.clean_raw_data(data)
+
+    @staticmethod
+    def add_air_quality(data: pd.DataFrame) -> pd.DataFrame:
+
+        if "pm2_5" in list(data.columns):
+            data["pm2_5_category"] = data["pm2_5"].apply(
+                lambda x: Utils.epa_pollutant_category(
+                    pollutant=Pollutant.PM2_5, value=x
+                )
+            )
+
+        if "pm10" in list(data.columns):
+            data["pm10_category"] = data["pm10"].apply(
+                lambda x: Utils.epa_pollutant_category(
+                    pollutant=Pollutant.PM10, value=x
+                )
+            )
+
+        if "no2" in list(data.columns):
+            data["no2_category"] = data["no2"].apply(
+                lambda x: Utils.epa_pollutant_category(pollutant=Pollutant.NO2, value=x)
+            )
+
+        return data
+
+    @staticmethod
+    def extract_raw_data_from_plume_labs(
         start_date_time: str, end_date_time: str
     ) -> pd.DataFrame:
         plume_labs_api = PlumeLabsApi()
@@ -164,24 +212,27 @@ class UrbanBetterUtils:
 
         data.rename(
             columns={
-                "pollutants.no2.value": "no2_raw_value",
-                "pollutants.voc.value": "voc_raw_value",
-                "pollutants.pm25.value": "pm2_5_raw_value",
-                "pollutants.pm10.value": "pm10_raw_value",
-                "pollutants.pm1.value": "pm1_raw_value",
-                "pollutants.no2.pi": "no2_pi_value",
-                "pollutants.voc.pi": "voc_pi_value",
-                "pollutants.pm25.pi": "pm2_5_pi_value",
-                "pollutants.pm10.pi": "pm10_pi_value",
-                "pollutants.pm1.pi": "pm1_pi_value",
-                "date": "device_timestamp",
+                "pollutants.no2.value": "no2",
+                "pollutants.voc.value": "voc",
+                "pollutants.pm25.value": "pm2_5",
+                "pollutants.pm10.value": "pm10",
+                "pollutants.pm1.value": "pm1",
+                "pollutants.no2.pi": "no2_pi",
+                "pollutants.voc.pi": "voc_pi",
+                "pollutants.pm25.pi": "pm2_5_pi",
+                "pollutants.pm10.pi": "pm10_pi",
+                "pollutants.pm1.pi": "pm1_pi",
+                "date": "timestamp",
             },
             inplace=True,
         )
-        data["device_timestamp"] = data["device_timestamp"].apply(
-            datetime.datetime.fromtimestamp
-        )
+        data["timestamp"] = data["timestamp"].apply(datetime.datetime.fromtimestamp)
         return data
+
+    @staticmethod
+    def clean_raw_data(data: pd.DataFrame) -> pd.DataFrame:
+        cleaned_data = DataValidationUtils.remove_outliers(data)
+        return UrbanBetterUtils.add_air_quality(cleaned_data)
 
     @staticmethod
     def extract_sensor_positions_from_plume_labs(
@@ -217,12 +268,12 @@ class UrbanBetterUtils:
                 )
         data.rename(
             columns={
-                "date": "gps_timestamp",
+                "date": "gps_device_timestamp",
                 "device": "device_number",
             },
             inplace=True,
         )
-        data["gps_timestamp"] = data["gps_timestamp"].apply(
+        data["gps_device_timestamp"] = data["gps_device_timestamp"].apply(
             datetime.datetime.fromtimestamp
         )
         return data
@@ -248,12 +299,10 @@ class UrbanBetterUtils:
     def merge_measures_and_sensor_positions(
         measures: pd.DataFrame, sensor_positions: pd.DataFrame
     ) -> pd.DataFrame:
-        measures["device_timestamp"] = measures["device_timestamp"].apply(
-            pd.to_datetime
-        )
-        sensor_positions["gps_timestamp"] = sensor_positions["gps_timestamp"].apply(
-            pd.to_datetime
-        )
+        measures["timestamp"] = measures["timestamp"].apply(pd.to_datetime)
+        sensor_positions["gps_device_timestamp"] = sensor_positions[
+            "gps_device_timestamp"
+        ].apply(pd.to_datetime)
 
         organization_groups = measures.groupby("organization")
         urban_better_data = []
@@ -270,15 +319,17 @@ class UrbanBetterUtils:
                 ]
 
                 for _, value in organization_device_group.iterrows():
-                    device_timestamp = value["device_timestamp"]
+                    device_timestamp = value["timestamp"]
                     nearest_sensor_position = (
                         UrbanBetterUtils.get_nearest_gps_coordinates(
                             date_time=device_timestamp,
                             sensor_positions=device_positions,
-                            timestamp_col="gps_timestamp",
+                            timestamp_col="gps_device_timestamp",
                         )
                     )
-                    gps_timestamp = nearest_sensor_position.get("gps_timestamp", None)
+                    gps_timestamp = nearest_sensor_position.get(
+                        "gps_device_timestamp", None
+                    )
 
                     merged_data = {
                         **nearest_sensor_position,
@@ -299,26 +350,15 @@ class UrbanBetterUtils:
     @staticmethod
     def process_for_big_query(dataframe: pd.DataFrame) -> pd.DataFrame:
         big_query_api = BigQueryApi()
-        if "device_timestamp" in dataframe.columns:
-            dataframe.rename(
-                columns={
-                    "device_timestamp": "timestamp",
-                },
-                inplace=True,
-            )
-            dataframe["timestamp"] = dataframe["timestamp"].apply(pd.to_datetime)
 
-        if "gps_timestamp" in dataframe.columns:
-            dataframe.rename(
-                columns={
-                    "gps_timestamp": "gps_device_timestamp",
-                },
-                inplace=True,
-            )
+        dataframe["timestamp"] = dataframe["timestamp"].apply(pd.to_datetime)
+        if "gps_device_timestamp" in dataframe.columns:
             dataframe["gps_device_timestamp"] = dataframe["gps_device_timestamp"].apply(
                 pd.to_datetime
             )
-        columns = big_query_api.get_columns(big_query_api.raw_mobile_measurements_table)
+        columns = big_query_api.get_columns(
+            big_query_api.clean_mobile_raw_measurements_table
+        )
 
         dataframe = Utils.populate_missing_columns(data=dataframe, cols=columns)
 

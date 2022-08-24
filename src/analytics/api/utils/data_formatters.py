@@ -23,7 +23,7 @@ def format_to_aqcsv(data: list, pollutants: list, frequency: str) -> list:
             "timestamp": "datetime",
             "latitude": "lat",
             "longitude": "lon",
-            "site_id": "site",
+            "name": "site_name",
         },
         inplace=True,
     )
@@ -54,7 +54,8 @@ def format_to_aqcsv(data: list, pollutants: list, frequency: str) -> list:
                     "datetime",
                     "lat",
                     "lon",
-                    "site",
+                    "site_id",
+                    "site_name",
                     "duration",
                     "qc",
                     "parameter",

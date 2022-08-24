@@ -40,7 +40,7 @@ jobs:
       run_predict: ${{ steps.check_files.outputs.run_predict }} # predict
       run_gp_model: ${{ steps.check_files.outputs.run_gp_model }} # gp_model
       run_exceedances: ${{ steps.check_files.outputs.run_exceedances }} # exceedances
-      run_datawarehouse: ${{ steps.check_files.outputs.run_datawarehouse }} # datawarehouse
+      run_meta_data: ${{ steps.check_files.outputs.run_meta_data }} # meta data
       run_view: ${{ steps.check_files.outputs.run_view }} # view
       run_calibrate: ${{ steps.check_files.outputs.run_calibrate }} # calibrate
       run_average_jobs: ${{ steps.check_files.outputs.run_average_jobs }} # average and calibration jobs
@@ -82,7 +82,7 @@ jobs:
           echo "::set-output name=run_predict::false"
           echo "::set-output name=run_gp_model::false"
           echo "::set-output name=run_exceedances::false"
-          echo "::set-output name=run_datawarehouse::false"
+          echo "::set-output name=run_meta_data::false"
           echo "::set-output name=run_view::false"
           echo "::set-output name=run_calibrate::false"
           echo "::set-output name=run_average_jobs::false"
@@ -143,8 +143,12 @@ jobs:
               echo "::set-output name=run_exceedances::true"
             fi
 
-            if [[ $file == src/data-mgt/python/extract-external-data/* ]]; then
-              echo "::set-output name=run_datawarehouse::true"
+            if [[ $file == src/meta-data/* ]]; then
+              echo "::set-output name=run_meta_data::true"
+            fi
+
+            if [[ $file == k8s/meta-data/* ]]; then
+              echo "::set-output name=run_meta_data::true"
             fi
 
             if [[ $file == src/view/* ]]; then
@@ -200,7 +204,7 @@ jobs:
               echo "::set-output name=run_events_check::true"
               echo "::set-output name=run_calibrate::true"
               echo "::set-output name=run_average_jobs::true"
-              echo "::set-output name=run_datawarehouse::true"
+              echo "::set-output name=run_meta_data::true"
               echo "::set-output name=run_exceedances::true"
               echo "::set-output name=run_gp_model::true"
               echo "::set-output name=run_predict::true"
@@ -923,11 +927,11 @@ jobs:
           kubectl apply -f k8s/exceedance/prod-airqo-exceedance-job.yaml
           kubectl apply -f k8s/exceedance/prod-kcca-exceedance-job.yaml
 
-  ### datawarehouse ###
-  datawarehouse:
-    name: build-push-deploy-datawarehouse
-    needs: [check, image-tag]
-    if: needs.check.outputs.run_datawarehouse == 'true'
+  ### meta-data ###
+  meta-data:
+    name: build-push-deploy-meta-data
+    needs: [check, image-tag, branch-name]
+    if: needs.check.outputs.run_meta_data == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -988,10 +992,9 @@ jobs:
    
       - name: Deploy to K8S
         run: |
-          kubectl apply -f k8s/data-warehouse/prod-data-warehouse-api.yaml
-          kubectl set image deployment/airqo-datawarehouse-api datawarehouse=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-datawarehouse-api:${{ needs.image-tag.outputs.build_id }} -n production    
-          kubectl annotate deployment/airqo-datawarehouse-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-datawarehouse-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
-
+          kubectl apply -f k8s/meta-data/stage-meta-data-api.yaml
+          kubectl rollout restart deployment airqo-meta-data-api -n production
+  
   ### view ###
   view:
     name: build-push-deploy-view
