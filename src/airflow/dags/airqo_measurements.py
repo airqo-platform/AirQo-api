@@ -32,11 +32,11 @@ def historical_hourly_measurements_etl():
     @task()
     def extract_weather_data(**kwargs):
         from airqo_etl_utils.commons import get_date_time_values
-        from airqo_etl_utils.calibration_utils import CalibrationUtils
+        from airqo_etl_utils.weather_data_utils import WeatherDataUtils
 
         start_date_time, end_date_time = get_date_time_values(**kwargs)
 
-        return CalibrationUtils.extract_hourly_weather_data(
+        return WeatherDataUtils.extract_hourly_weather_data(
             start_date_time=start_date_time,
             end_date_time=end_date_time,
         )
@@ -55,7 +55,7 @@ def historical_hourly_measurements_etl():
 
         from airqo_etl_utils.calibration_utils import CalibrationUtils
 
-        return CalibrationUtils.calibrate_airqo_data(measurements=measurements)
+        return CalibrationUtils.calibrate_airqo_data(data=measurements)
 
     @task()
     def load(data: pd.DataFrame):
@@ -207,7 +207,7 @@ def airqo_realtime_measurements_etl():
     def calibrate(data: pd.DataFrame):
         from airqo_etl_utils.calibration_utils import CalibrationUtils
 
-        return CalibrationUtils.calibrate_airqo_data(measurements=data)
+        return CalibrationUtils.calibrate_airqo_data(data=data)
 
     @task()
     def send_hourly_measurements_to_api(airqo_data: pd.DataFrame):

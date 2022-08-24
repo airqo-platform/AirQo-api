@@ -19,6 +19,7 @@ from airqo_etl_utils.constants import (
     DeviceCategory,
 )
 from airqo_etl_utils.airqo_utils import AirQoDataUtils
+from airqo_etl_utils.weather_data_utils import WeatherDataUtils
 
 BASE_DIR = Path(__file__).resolve().parent
 dotenv_path = os.path.join(BASE_DIR, ".env")
@@ -119,7 +120,7 @@ def airqo_historical_hourly_data():
         path_or_buf="hourly_device_measurements.csv", index=False
     )
 
-    hourly_weather_data = CalibrationUtils.extract_hourly_weather_data(
+    hourly_weather_data = WeatherDataUtils.extract_hourly_weather_data(
         start_date_time=start_date_time,
         end_date_time=end_date_time,
     )
@@ -130,7 +131,7 @@ def airqo_historical_hourly_data():
     )
     merged_data.to_csv(path_or_buf="merged_data.csv", index=False)
 
-    calibrated_data = CalibrationUtils.calibrate_airqo_data(measurements=merged_data)
+    calibrated_data = CalibrationUtils.calibrate_airqo_data(data=merged_data)
     calibrated_data.to_csv(path_or_buf="calibrated_data.csv", index=False)
 
     bigquery_data = AirQoDataUtils.process_aggregated_data_for_bigquery(
@@ -202,7 +203,7 @@ def airqo_realtime_data():
     )
     merged_data.to_csv(path_or_buf="merged_data.csv", index=False)
 
-    calibrated_data = CalibrationUtils.calibrate_airqo_data(measurements=merged_data)
+    calibrated_data = CalibrationUtils.calibrate_airqo_data(data=merged_data)
     calibrated_data.to_csv(path_or_buf="calibrated_data.csv", index=False)
 
     bigquery_data = AirQoDataUtils.process_aggregated_data_for_bigquery(
@@ -352,7 +353,7 @@ def calibrate_historical_data():
     start_date_time = "2022-01-01T00:00:00Z"
     end_date_time = "2022-01-10T00:00:00Z"
 
-    hourly_weather_data = CalibrationUtils.extract_hourly_weather_data(
+    hourly_weather_data = WeatherDataUtils.extract_hourly_weather_data(
         start_date_time=start_date_time, end_date_time=end_date_time
     )
     hourly_weather_data.to_csv("historical_weather_data.csv", index=False)
@@ -369,7 +370,7 @@ def calibrate_historical_data():
     merged_data.to_csv("historical_merged_data.csv", index=False)
 
     calibrated_data = CalibrationUtils.calibrate_airqo_data(
-        measurements=merged_data,
+        data=merged_data,
     )
     calibrated_data.to_csv("historical_calibrated_data.csv", index=False)
 
@@ -534,7 +535,7 @@ def urban_better_data_from_plume_labs():
 
     start_date_time = "2022-07-11T00:00:00Z"
     end_date_time = "2022-07-12T00:00:00Z"
-    measurements = UrbanBetterUtils.extract_measurements_from_plume_labs(
+    measurements = UrbanBetterUtils.extract_raw_data_from_plume_labs(
         start_date_time=start_date_time, end_date_time=end_date_time
     )
     measurements.to_csv("urban_better_unprocessed_data.csv", index=False)
@@ -586,7 +587,7 @@ def urban_better_data_from_bigquery():
     data = bigquery_api.query_data(
         start_date_time="2022-01-01T00:00:00Z",
         end_date_time="2023-01-01T00:00:00Z",
-        table=bigquery_api.raw_mobile_measurements_table,
+        table=bigquery_api.uncleaned_mobile_raw_measurements_table,
         where_fields={"tenant": str(Tenant.URBAN_BETTER)},
     )
 
@@ -631,14 +632,28 @@ def airqo_mobile_device_measurements():
             "longitude": 32.57946554294726,
             "start_date_time": "2022-07-20T10:00:00Z",
             "end_date_time": "2022-07-20T18:00:00Z",
-            "device_numbers": [1575539, 1606118],
+            "device_number": 1575539,
+        },
+        {
+            "latitude": 0.2959788757479883,
+            "longitude": 32.57946554294726,
+            "start_date_time": "2022-07-20T10:00:00Z",
+            "end_date_time": "2022-07-20T18:00:00Z",
+            "device_number": 1606118,
         },
         {
             "latitude": 0.30112943343101545,
             "longitude": 32.587149313048286,
             "start_date_time": "2022-07-21T10:00:00Z",
             "end_date_time": "2022-07-21T18:00:00Z",
-            "device_numbers": [1351544, 1371829],
+            "device_number": 1351544,
+        },
+        {
+            "latitude": 0.30112943343101545,
+            "longitude": 32.587149313048286,
+            "start_date_time": "2022-07-21T10:00:00Z",
+            "end_date_time": "2022-07-21T18:00:00Z",
+            "device_number": 1371829,
         },
     ]
 
@@ -647,35 +662,33 @@ def airqo_mobile_device_measurements():
     )
     raw_data.to_csv("raw_device_measurements_data.csv", index=False)
 
-    aggregated_mobile_devices_data = AirQoDataUtils.aggregate_mobile_devices_data(
+    aggregated_mobile_devices_data = AirQoDataUtils.aggregate_low_cost_sensors_data(
         raw_data
     )
     aggregated_mobile_devices_data.to_csv(
         "aggregated_mobile_devices_data.csv", index=False
     )
 
-    weather_stations = WeatherDataUtils.get_nearest_tahmo_stations(
-        coordinates_list=input_meta_data
-    )
+    weather_stations = WeatherDataUtils.get_weather_stations(meta_data=input_meta_data)
     weather_stations.to_csv("weather_stations.csv", index=False)
 
     mobile_devices_weather_data = (
         AirQoDataUtils.extract_aggregated_mobile_devices_weather_data(
-            stations=weather_stations, meta_data=input_meta_data
+            data=weather_stations
         )
     )
     mobile_devices_weather_data.to_csv("mobile_devices_weather_data.csv", index=False)
 
     merged_mobile_devices_data = (
-        AirQoDataUtils.merge_mobile_devices_data_and_weather_data(
+        AirQoDataUtils.merge_aggregated_mobile_devices_data_and_weather_data(
             measurements=aggregated_mobile_devices_data,
             weather_data=mobile_devices_weather_data,
         )
     )
     merged_mobile_devices_data.to_csv("merged_mobile_devices_data.csv", index=False)
 
-    calibrated_mobile_devices_data = CalibrationUtils.calibrate_mobile_devices_data(
-        measurements=merged_mobile_devices_data
+    calibrated_mobile_devices_data = CalibrationUtils.calibrate_airqo_data(
+        data=merged_mobile_devices_data
     )
     calibrated_mobile_devices_data.to_csv(
         "calibrated_mobile_devices_data.csv", index=False
