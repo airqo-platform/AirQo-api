@@ -7,8 +7,7 @@ import pandas as pd
 from .airnow_api import AirNowApi
 from .airqo_api import AirQoApi
 from .bigquery_api import BigQueryApi
-from .commons import get_frequency
-from .constants import Tenant
+from .constants import Tenant, DataSource
 from .utils import Utils
 from .date import str_to_date, date_to_str
 
@@ -78,7 +77,8 @@ class AirnowDataUtils:
     @staticmethod
     def extract_bam_data(start_date_time: str, end_date_time: str) -> pd.DataFrame:
 
-        frequency = get_frequency(start_time=start_date_time, end_time=end_date_time)
+        frequency = Utils.query_time_interval(DataSource.AIRNOW)
+
         dates = pd.date_range(start_date_time, end_date_time, freq=frequency)
         last_date_time = dates.values[len(dates.values) - 1]
         data = pd.DataFrame()
