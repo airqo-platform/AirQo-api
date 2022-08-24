@@ -9,13 +9,9 @@ import requests
 
 from .airqo_api import AirQoApi
 from .bigquery_api import BigQueryApi
-from .commons import (
-    remove_invalid_dates,
-    download_file_from_gcs,
-    get_frequency,
-)
+from .commons import remove_invalid_dates, download_file_from_gcs
 from .config import configuration
-from .constants import DeviceCategory, BamDataType, Tenant, Frequency
+from .constants import DeviceCategory, BamDataType, Tenant, Frequency, DataSource
 from .data_validator import DataValidationUtils
 from .date import date_to_str
 from .utils import Utils
@@ -96,9 +92,10 @@ class AirQoDataUtils:
             "humidity": 9,
             "pressure": 10,
         }
-        frequency = get_frequency(start_time=start_date_time, end_time=end_date_time)
 
+        frequency = Utils.query_time_interval(DataSource.THINGSPEAK)
         dates = pd.date_range(start_date_time, end_date_time, freq=frequency)
+
         last_date_time = dates.values[len(dates.values) - 1]
         for device in airqo_devices:
             device_dict = dict(device)
@@ -188,11 +185,26 @@ class AirQoDataUtils:
                     traceback.print_exc()
                     continue
 
+        if measurements.empty:
+            return pd.DataFrame()
+
         measurements = remove_invalid_dates(
             dataframe=measurements, start_time=start_date_time, end_time=end_date_time
         )
 
         return DataValidationUtils.remove_outliers(measurements)
+
+    @staticmethod
+    def flatten_meta_data(meta_data: list) -> list:
+        data = []
+        for item in meta_data:
+            item = dict(item)
+            device_numbers = item.get("device_numbers", [])
+            if device_numbers:
+                item.pop("device_numbers")
+                for device_number in device_numbers:
+                    data.append({**item, **{"device_number": device_number}})
+        return data
 
     @staticmethod
     def extract_low_cost_sensors_data(
@@ -211,6 +223,8 @@ class AirQoDataUtils:
                     end_date_time=value.get("end_date_time", None),
                     device_numbers=[value.get("device_number", None)],
                 )
+                if measurements.empty:
+                    continue
                 measurements["latitude"] = value.get("latitude", None)
                 measurements["longitude"] = value.get("longitude", None)
                 data = data.append(measurements, ignore_index=True)
@@ -336,7 +350,7 @@ class AirQoDataUtils:
 
         bam_data = pd.DataFrame()
 
-        frequency = get_frequency(start_time=start_date_time, end_time=end_date_time)
+        frequency = Utils.query_time_interval(DataSource.THINGSPEAK)
 
         dates = pd.date_range(start_date_time, end_date_time, freq=frequency)
         last_date_time = dates.values[len(dates.values) - 1]

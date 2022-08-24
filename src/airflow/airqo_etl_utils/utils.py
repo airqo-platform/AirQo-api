@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 
-from .constants import DataType, Pollutant, AirQuality
+from .constants import DataType, Pollutant, AirQuality, DataSource
 from .date import date_to_str
 
 
@@ -147,3 +147,13 @@ class Utils:
             file_json = open(os.path.join(path, file_name))
 
         return json.load(file_json)
+
+    @staticmethod
+    def query_time_interval(data_source: DataSource) -> str:
+        if data_source == DataSource.THINGSPEAK:
+            return "12H"
+        if data_source == DataSource.AIRNOW:
+            return "12H"
+        if data_source == DataSource.TAHMO:
+            return "12H"
+        return "1H"
