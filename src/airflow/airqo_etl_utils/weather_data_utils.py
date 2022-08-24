@@ -5,7 +5,8 @@ import pandas as pd
 
 from .airqo_api import AirQoApi
 from .bigquery_api import BigQueryApi
-from .commons import get_frequency, remove_invalid_dates
+from .commons import remove_invalid_dates
+from .constants import DataSource
 from .utils import Utils
 from .data_validator import DataValidationUtils
 
@@ -79,7 +80,7 @@ class WeatherDataUtils:
         measurements = []
         tahmo_api = TahmoApi()
 
-        frequency = get_frequency(start_time=start_date_time, end_time=end_date_time)
+        frequency = Utils.query_time_interval(DataSource.TAHMO)
         dates = pd.date_range(start_date_time, end_date_time, freq=frequency)
         last_date_time = dates.values[len(dates.values) - 1]
 

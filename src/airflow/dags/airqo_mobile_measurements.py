@@ -16,23 +16,12 @@ from airqo_etl_utils.airflow_custom_utils import slack_dag_failure_notification
 def airqo_mobile_devices_measurements_etl():
     import pandas as pd
 
-    def flatten_meta_data(meta_data: list) -> list:
-        data = []
-        for item in meta_data:
-            item = dict(item)
-            device_numbers = item.get("device_numbers", [])
-            if device_numbers:
-                item.pop("device_numbers")
-                for device_number in device_numbers:
-                    data.append({**item, **{"device_number": device_number}})
-        return data
-
     @task()
     def extract_raw_data(**kwargs):
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
         dag_run = kwargs.get("dag_run")
-        meta_data = flatten_meta_data(dag_run.conf["meta_data"])
+        meta_data = AirQoDataUtils.flatten_meta_data(dag_run.conf["meta_data"])
 
         return AirQoDataUtils.extract_low_cost_sensors_data(
             start_date_time="", end_date_time="", meta_data=meta_data
@@ -47,9 +36,10 @@ def airqo_mobile_devices_measurements_etl():
     @task()
     def extract_weather_stations(**kwargs):
         from airqo_etl_utils.weather_data_utils import WeatherDataUtils
+        from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
         dag_run = kwargs.get("dag_run")
-        meta_data = flatten_meta_data(dag_run.conf["meta_data"])
+        meta_data = AirQoDataUtils.flatten_meta_data(dag_run.conf["meta_data"])
 
         return WeatherDataUtils.get_weather_stations(meta_data=meta_data)
 
