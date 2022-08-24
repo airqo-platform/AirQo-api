@@ -2,6 +2,7 @@ import json
 import os
 from datetime import datetime, timedelta
 
+import numpy as np
 import pandas as pd
 
 from .constants import DataType, Pollutant, AirQuality, DataSource
@@ -149,11 +150,38 @@ class Utils:
         return json.load(file_json)
 
     @staticmethod
-    def query_time_interval(data_source: DataSource) -> str:
+    def query_frequency(data_source: DataSource) -> str:
         if data_source == DataSource.THINGSPEAK:
             return "12H"
         if data_source == DataSource.AIRNOW:
             return "12H"
         if data_source == DataSource.TAHMO:
             return "12H"
+        if data_source == DataSource.AIRQO:
+            return "12H"
+        if data_source == DataSource.CLARITY:
+            return "6H"
+        if data_source == DataSource.PURPLE_AIR:
+            return "72H"
         return "1H"
+
+    @staticmethod
+    def query_dates_array(data_source: DataSource, start_date_time, end_date_time):
+        frequency = Utils.query_frequency(data_source)
+        dates = pd.date_range(start_date_time, end_date_time, freq=frequency)
+        freq = dates.freq
+
+        if dates.values.size == 1:
+            dates = dates.append(pd.Index([pd.to_datetime(end_date_time)]))
+
+        dates = [pd.to_datetime(str(date)) for date in dates.values]
+        return_dates = []
+
+        array_last_date_time = dates.pop()
+        for date in dates:
+            end = date + timedelta(hours=freq.n)
+            if end > array_last_date_time:
+                end = array_last_date_time
+            return_dates.append((date_to_str(date), date_to_str(end)))
+
+        return return_dates

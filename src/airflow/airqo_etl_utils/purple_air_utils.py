@@ -1,13 +1,9 @@
-from datetime import timedelta
-
-import numpy as np
 import pandas as pd
 
 from .bigquery_api import BigQueryApi
-from .utils import Utils
-from .constants import Tenant
-from .date import date_to_str
+from .constants import Tenant, DataSource
 from .purple_air_api import PurpleAirApi
+from .utils import Utils
 
 
 class PurpleDataUtils:
@@ -31,29 +27,20 @@ class PurpleDataUtils:
     @staticmethod
     def extract_data(start_date_time: str, end_date_time: str) -> pd.DataFrame:
 
-        dates = pd.date_range(start_date_time, end_date_time, freq="72H")
-        last_date_time = dates.values[len(dates.values) - 1]
         data = pd.DataFrame()
         bigquery_api = BigQueryApi()
         devices = bigquery_api.query_devices(tenant=Tenant.NASA)
 
+        dates = Utils.query_dates_array(
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            data_source=DataSource.TAHMO,
+        )
+
         for _, device in devices.iterrows():
             device_number = device["device_number"]
 
-            for date in dates:
-
-                start = date_to_str(date)
-                end_date = date + timedelta(hours=dates.freq.n)
-
-                if np.datetime64(end_date) > last_date_time:
-                    timestring = pd.to_datetime(str(last_date_time))
-                    end = date_to_str(timestring)
-                else:
-                    end = date_to_str(end_date)
-
-                if start == end:
-                    end = date_to_str(date, str_format="%Y-%m-%dT%H:59:59Z")
-
+            for start, end in dates:
                 query_data = PurpleDataUtils.query_data(
                     start_date_time=start,
                     end_date_time=end,

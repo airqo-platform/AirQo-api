@@ -36,6 +36,8 @@ class DataSource(Enum):
     PLUME_LABS = 3
     AIRNOW = 4
     TAHMO = 5
+    AIRQO = 6
+    PURPLE_AIR = 7
 
 
 class Tenant(Enum):
