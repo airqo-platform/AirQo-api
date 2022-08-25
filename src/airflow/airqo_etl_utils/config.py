@@ -97,5 +97,35 @@ class Config:
     PURPLE_AIR_BASE_URL = os.getenv("PURPLE_AIR_BASE_URL")
     PURPLE_AIR_API_KEY = os.getenv("PURPLE_AIR_API_KEY")
 
+    AIRQO_BAM_CONFIG = {
+        0: "timestamp",
+        1: "realtime_conc",
+        2: "hourly_conc",
+        3: "short_time_conc",
+        4: "air_flow",
+        5: "wind_speed",
+        6: "wind_direction",
+        7: "temperature",
+        8: "humidity",
+        9: "barometric_pressure",
+        10: "filter_temperature",
+        11: "filter_humidity",
+        12: "status",
+    }
+
+    AIRQO_LOW_COST_CONFIG = {
+        0: "latitude",
+        1: "longitude",
+        2: "altitude",
+        3: "wind_speed",
+        4: "satellites",
+        5: "hdop",
+        6: "device_temperature",
+        7: "device_humidity",
+        8: "temperature",
+        9: "humidity",
+        10: "pressure",
+    }
+
 
 configuration = Config()

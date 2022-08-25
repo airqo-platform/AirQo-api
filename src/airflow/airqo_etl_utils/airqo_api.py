@@ -160,7 +160,7 @@ class AirQoApi:
         if tenant:
             params = {"tenant": tenant}
             if category:
-                params["category"] = category.get_api_query_str()
+                params["category"] = str(category)
             response = self.__request("devices", params)
             if "devices" in response:
                 for device in response["devices"]:
@@ -170,7 +170,7 @@ class AirQoApi:
             for x in ["airqo", "kcca"]:
                 params = {"tenant": x}
                 if category:
-                    params["category"] = category.get_api_query_str()
+                    params["category"] = str(category)
                 response = self.__request("devices", params)
                 if "devices" in response:
                     for device in response["devices"]:
@@ -188,7 +188,7 @@ class AirQoApi:
                 read_key = device["readKey"]
                 body = {"encrypted_key": read_key}
                 response = self.__request("devices/decrypt", body=body, method="post")
-                decrypted_keys[str(device["device_number"])] = response["decrypted_key"]
+                decrypted_keys[device["device_number"]] = response["decrypted_key"]
             except Exception as ex:
                 print(ex)
 

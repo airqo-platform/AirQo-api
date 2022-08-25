@@ -19,10 +19,13 @@ def bam_historical_measurements_etl():
 
         from airqo_etl_utils.utils import Utils
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
+        from airqo_etl_utils.constants import DeviceCategory
 
         start_time, end_time = Utils.get_dag_date_time_config(**kwargs)
-        return AirQoDataUtils.extract_bam_data(
-            start_date_time=start_time, end_date_time=end_time
+        return AirQoDataUtils.extract_devices_data(
+            start_date_time=start_time,
+            end_date_time=end_time,
+            device_category=DeviceCategory.BAM,
         )
 
     @task()
@@ -59,11 +62,14 @@ def bam_realtime_measurements_etl():
     def extract_bam_data():
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
         from airqo_etl_utils.date import DateUtils
+        from airqo_etl_utils.constants import DeviceCategory
 
         start_date_time, end_date_time = DateUtils.get_realtime_date_time_values()
 
-        return AirQoDataUtils.extract_bam_data(
-            start_date_time=start_date_time, end_date_time=end_date_time
+        return AirQoDataUtils.extract_devices_data(
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            device_category=DeviceCategory.BAM,
         )
 
     @task()

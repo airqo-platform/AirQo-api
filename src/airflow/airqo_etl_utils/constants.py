@@ -5,13 +5,22 @@ class DeviceCategory(Enum):
     LOW_COST = 1
     BAM = 2
 
-    def get_api_query_str(self):
+    def __str__(self):
         if self == self.LOW_COST:
             return "lowcost"
         elif self == self.BAM:
             return "bam"
         else:
             return ""
+
+    @staticmethod
+    def from_str(string: str):
+        if string.lower() == "lowcost":
+            return DeviceCategory.LOW_COST
+        elif string.lower() == "bam":
+            return DeviceCategory.BAM
+        else:
+            return None
 
 
 class Frequency(Enum):
