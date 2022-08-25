@@ -1,10 +1,6 @@
 import os
 from pathlib import Path
-
-import urllib3
 from dotenv import load_dotenv
-
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 dotenv_path = os.path.join(BASE_DIR, ".env")
@@ -111,6 +107,10 @@ class Config:
         10: "filter_temperature",
         11: "filter_humidity",
         12: "status",
+    }
+
+    AIRQO_BAM_MAPPING = {
+        "short_time_conc": "pm2_5",
     }
 
     AIRQO_LOW_COST_CONFIG = {
