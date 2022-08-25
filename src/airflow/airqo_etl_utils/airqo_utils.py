@@ -1,7 +1,7 @@
 import json
 import pickle
 import traceback
-from datetime import timedelta, datetime
+from datetime import datetime
 
 import numpy as np
 import pandas as pd
@@ -93,10 +93,12 @@ class AirQoDataUtils:
             "pressure": 10,
         }
 
-        frequency = Utils.query_time_interval(DataSource.THINGSPEAK)
-        dates = pd.date_range(start_date_time, end_date_time, freq=frequency)
+        dates = Utils.query_dates_array(
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            data_source=DataSource.THINGSPEAK,
+        )
 
-        last_date_time = dates.values[len(dates.values) - 1]
         for device in airqo_devices:
             device_dict = dict(device)
 
@@ -110,19 +112,7 @@ class AirQoDataUtils:
 
             read_key = read_keys.get(str(channel_id), "")
 
-            for date in dates:
-
-                start = date_to_str(date)
-                end_date_time = date + timedelta(hours=dates.freq.n)
-
-                if np.datetime64(end_date_time) > last_date_time:
-                    timestring = pd.to_datetime(str(last_date_time))
-                    end = date_to_str(timestring)
-                else:
-                    end = date_to_str(end_date_time)
-
-                if start == end:
-                    end = date_to_str(date, str_format="%Y-%m-%dT%H:59:59Z")
+            for start, end in dates:
 
                 url = f"{thingspeak_base_url}{channel_id}/feeds.json?start={start}&end={end}&api_key={read_key}"
                 print(f"{url}")
@@ -350,10 +340,12 @@ class AirQoDataUtils:
 
         bam_data = pd.DataFrame()
 
-        frequency = Utils.query_time_interval(DataSource.THINGSPEAK)
+        dates = Utils.query_dates_array(
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            data_source=DataSource.THINGSPEAK,
+        )
 
-        dates = pd.date_range(start_date_time, end_date_time, freq=frequency)
-        last_date_time = dates.values[len(dates.values) - 1]
         for device in airqo_devices:
 
             device = dict(device)
@@ -364,19 +356,7 @@ class AirQoDataUtils:
                 print(f"{channel_id} does not have a read key")
                 continue
 
-            for date in dates:
-
-                start = date_to_str(date)
-                end_date_time = date + timedelta(hours=dates.freq.n)
-
-                if np.datetime64(end_date_time) > last_date_time:
-                    timestring = pd.to_datetime(str(last_date_time))
-                    end = date_to_str(timestring)
-                else:
-                    end = date_to_str(end_date_time)
-
-                if start == end:
-                    end = date_to_str(date, str_format="%Y-%m-%dT%H:59:59Z")
+            for start, end in dates:
 
                 try:
                     url = f"{thingspeak_base_url}{channel_id}/feeds.json?start={start}&end={end}&api_key={read_key}"

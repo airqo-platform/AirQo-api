@@ -197,11 +197,11 @@ class UrbanBetterUtils:
         )
         for organization_api_data in api_data:
             organization = organization_api_data["organization"]
-            organisation_data = organization_api_data["measures"]
-            for org_device_data in organisation_data:
-                device_number = org_device_data["device_number"]
-                device_id = org_device_data["device_id"]
-                device_data = pd.json_normalize(org_device_data["device_data"])
+
+            for device_measure in organization_api_data["measures"]:
+                device_number = device_measure["device_number"]
+                device_id = device_measure["device_id"]
+                device_data = pd.json_normalize(device_measure["device_data"])
                 device_data["device_number"] = device_number
                 device_data["device_id"] = device_id
                 device_data["organization"] = organization
@@ -256,8 +256,8 @@ class UrbanBetterUtils:
         )
         for organization_api_data in api_data:
             organization = organization_api_data["organization"]
-            positions = organization_api_data["positions"]
-            for device_data in positions:
+
+            for device_data in organization_api_data["positions"]:
                 device = device_data["device"]
                 device_positions = pd.DataFrame(device_data["device_positions"])
                 device_positions["device"] = device
@@ -282,13 +282,13 @@ class UrbanBetterUtils:
     def get_nearest_gps_coordinates(
         date_time: datetime.datetime,
         sensor_positions: pd.DataFrame,
-        timestamp_col="timestamp",
+        sensor_positions_timestamp_col="timestamp",
     ) -> dict:
         date_time = pd.to_datetime(date_time)
-        sensor_positions[timestamp_col] = sensor_positions[timestamp_col].apply(
-            pd.to_datetime
-        )
-        sensor_positions.index = sensor_positions[timestamp_col]
+        sensor_positions[sensor_positions_timestamp_col] = sensor_positions[
+            sensor_positions_timestamp_col
+        ].apply(pd.to_datetime)
+        sensor_positions.index = sensor_positions[sensor_positions_timestamp_col]
         sensor_positions.sort_index(inplace=True)
         index = sensor_positions.index[
             sensor_positions.index.get_loc(date_time, method="nearest")
@@ -307,24 +307,26 @@ class UrbanBetterUtils:
         organization_groups = measures.groupby("organization")
         urban_better_data = []
 
-        for _, organization_group in organization_groups:
-            organization = organization_group.iloc[0]["organization"]
-            organization_devices_group = organization_group.groupby("device_number")
+        for _, organization_data in organization_groups:
+            organization = organization_data.iloc[0]["organization"]
 
-            for _, organization_device_group in organization_devices_group:
-                device_number = organization_group.iloc[0]["device_number"]
+            for _, device_data in organization_data.groupby("device_number"):
+                device_number = device_data.iloc[0]["device_number"]
                 device_positions = sensor_positions.loc[
                     (sensor_positions["organization"] == organization)
                     & (sensor_positions["device_number"] == device_number)
                 ]
+                if device_positions.empty:
+                    urban_better_data.extend(device_data.to_dict("records"))
+                    continue
 
-                for _, value in organization_device_group.iterrows():
+                for _, value in device_data.iterrows():
                     device_timestamp = value["timestamp"]
                     nearest_sensor_position = (
                         UrbanBetterUtils.get_nearest_gps_coordinates(
                             date_time=device_timestamp,
                             sensor_positions=device_positions,
-                            timestamp_col="gps_device_timestamp",
+                            sensor_positions_timestamp_col="gps_device_timestamp",
                         )
                     )
                     gps_timestamp = nearest_sensor_position.get(
