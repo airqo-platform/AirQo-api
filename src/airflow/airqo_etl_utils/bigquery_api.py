@@ -14,7 +14,7 @@ class BigQueryApi:
         self.hourly_measurements_table = configuration.BIGQUERY_HOURLY_EVENTS_TABLE
         self.raw_measurements_table = configuration.BIGQUERY_RAW_EVENTS_TABLE
         self.bam_measurements_table = configuration.BIGQUERY_BAM_EVENTS_TABLE
-        self.bam_outliers_table = configuration.BIGQUERY_BAM_OUTLIERS_TABLE
+        self.raw_bam_measurements_table = configuration.BIGQUERY_RAW_BAM_DATA_TABLE
         self.unclean_mobile_raw_measurements_table = (
             configuration.BIGQUERY_UNCLEAN_RAW_MOBILE_EVENTS_TABLE
         )
@@ -108,8 +108,10 @@ class BigQueryApi:
             schema_file = "mobile_measurements.json"
         elif table == self.airqo_mobile_measurements_table:
             schema_file = "airqo_mobile_measurements.json"
-        elif table == self.bam_measurements_table or table == self.bam_outliers_table:
+        elif table == self.bam_measurements_table:
             schema_file = "bam_measurements.json"
+        elif table == self.raw_bam_measurements_table:
+            schema_file = "bam_raw_measurements.json"
         else:
             raise Exception("Invalid table")
 

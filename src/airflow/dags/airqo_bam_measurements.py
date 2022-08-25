@@ -1,5 +1,7 @@
 from datetime import datetime
+
 from airflow.decorators import dag, task
+
 from airqo_etl_utils.airflow_custom_utils import slack_dag_failure_notification
 
 
@@ -56,7 +58,6 @@ def bam_historical_measurements_etl():
 )
 def bam_realtime_measurements_etl():
     import pandas as pd
-    from airqo_etl_utils.constants import BamDataType
 
     @task()
     def extract_bam_data():
@@ -73,36 +74,39 @@ def bam_realtime_measurements_etl():
         )
 
     @task()
-    def transform_bam_data(bam_data: pd.DataFrame, data_type: BamDataType):
+    def save_raw_data(data: pd.DataFrame):
+        from airqo_etl_utils.bigquery_api import BigQueryApi
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
-        return AirQoDataUtils.process_bam_data(data=bam_data, data_type=data_type)
-
-    @task()
-    def load_outliers(bam_data: pd.DataFrame):
-        from airqo_etl_utils.bigquery_api import BigQueryApi
-
+        data = AirQoDataUtils.process_bam_data_for_bigquery(data=data)
         big_query_api = BigQueryApi()
         big_query_api.load_data(
-            dataframe=bam_data,
-            table=big_query_api.bam_outliers_table,
+            dataframe=data,
+            table=big_query_api.raw_bam_measurements_table,
         )
 
     @task()
-    def load_measurements(bam_data: pd.DataFrame):
+    def clean_bam_data(data: pd.DataFrame):
+        from airqo_etl_utils.airqo_utils import AirQoDataUtils
+
+        return AirQoDataUtils.clean_bam_data(data=data)
+
+    @task()
+    def save_clean_bam_data(data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
-        bam_data = AirQoDataUtils.process_bam_data_for_bigquery(data=bam_data)
+        data = AirQoDataUtils.process_bam_data_for_bigquery(data=data)
         big_query_api = BigQueryApi()
         big_query_api.load_data(
-            dataframe=bam_data,
+            dataframe=data,
             table=big_query_api.bam_measurements_table,
         )
 
-    data = extract_bam_data()
-    measurements = transform_bam_data(bam_data=data, data_type=BamDataType.MEASUREMENTS)
-    load_measurements(measurements)
+    raw_data = extract_bam_data()
+    save_raw_data(raw_data)
+    measurements = clean_bam_data(bam_data=raw_data)
+    save_clean_bam_data(measurements)
 
 
 realtime_measurements_etl_dag = bam_realtime_measurements_etl()

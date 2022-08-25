@@ -20,7 +20,7 @@ class DeviceCategory(Enum):
         elif string.lower() == "bam":
             return DeviceCategory.BAM
         else:
-            return None
+            return DeviceCategory.LOW_COST
 
 
 class Frequency(Enum):
@@ -64,19 +64,6 @@ class Tenant(Enum):
             return "airqo"
         elif self == self.US_EMBASSY:
             return "us_embassy"
-        else:
-            return ""
-
-
-class BamDataType(Enum):
-    OUTLIERS = 1
-    MEASUREMENTS = 2
-
-    def __str__(self) -> str:
-        if self == self.OUTLIERS:
-            return "outliers"
-        elif self == self.MEASUREMENTS:
-            return "measurements"
         else:
             return ""
 

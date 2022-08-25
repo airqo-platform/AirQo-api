@@ -9,7 +9,7 @@ from .airqo_api import AirQoApi
 from .bigquery_api import BigQueryApi
 from .commons import download_file_from_gcs
 from .config import configuration
-from .constants import DeviceCategory, BamDataType, Tenant, Frequency, DataSource
+from .constants import DeviceCategory, Tenant, Frequency, DataSource
 from .data_validator import DataValidationUtils
 from .date import date_to_str
 from .thingspeak_api import ThingspeakApi
@@ -212,22 +212,7 @@ class AirQoDataUtils:
 
         airqo_api = AirQoApi()
         thingspeak_api = ThingspeakApi()
-        devices = airqo_api.get_devices(tenant="airqo")
-        devices = [
-            {
-                **device,
-                **{
-                    "device_id": device.get("name", None),
-                    "site_id": device.get("site", {}).get("_id", None),
-                    "category": DeviceCategory.from_str(device.get("category", "")),
-                },
-            }
-            for device in devices
-        ]
-
-        devices = list(
-            filter(lambda device: device["category"] == device_category, devices)
-        )
+        devices = airqo_api.get_devices(tenant="airqo", category=device_category)
 
         if device_numbers:
             devices = list(
@@ -324,7 +309,7 @@ class AirQoDataUtils:
         return aggregated_data
 
     @staticmethod
-    def process_bam_data(data: pd.DataFrame, data_type: BamDataType) -> pd.DataFrame:
+    def clean_bam_data(data: pd.DataFrame) -> pd.DataFrame:
 
         data = DataValidationUtils.remove_outliers(data)
         data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
@@ -336,16 +321,12 @@ class AirQoDataUtils:
             lambda x: pd.to_numeric(x, errors="coerce", downcast="integer")
         )
         data["tenant"] = "airqo"
-
-        if data_type == BamDataType.OUTLIERS:
-            data = data.loc[data["status"] != 0]
-        else:
-            data = data.loc[data["status"] == 0]
+        data = data.loc[data["status"] == 0]
 
         return data
 
     @staticmethod
-    def process_low_cost_sensor_data(data: pd.DataFrame) -> pd.DataFrame:
+    def clean_low_cost_sensor_data(data: pd.DataFrame) -> pd.DataFrame:
 
         data = DataValidationUtils.remove_outliers(data)
         data["timestamp"] = data["timestamp"].apply(pd.to_datetime)

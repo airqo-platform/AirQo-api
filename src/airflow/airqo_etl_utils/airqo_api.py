@@ -155,7 +155,7 @@ class AirQoApi:
 
     def get_devices(self, tenant=None, category: DeviceCategory = None) -> list:
 
-        devices_with_tenant = []
+        devices = []
 
         if tenant:
             params = {"tenant": tenant}
@@ -165,7 +165,7 @@ class AirQoApi:
             if "devices" in response:
                 for device in response["devices"]:
                     device["tenant"] = tenant
-                    devices_with_tenant.append(device)
+                    devices.append(device)
         else:
             for x in ["airqo", "kcca"]:
                 params = {"tenant": x}
@@ -175,9 +175,24 @@ class AirQoApi:
                 if "devices" in response:
                     for device in response["devices"]:
                         device["tenant"] = x
-                        devices_with_tenant.append(device)
+                        devices.append(device)
 
-        return devices_with_tenant
+        devices = [
+            {
+                **device,
+                **{
+                    "device_id": device.get("name", None),
+                    "site_id": device.get("site", {}).get("_id", None),
+                    "category": DeviceCategory.from_str(device.get("category", "")),
+                },
+            }
+            for device in devices
+        ]
+
+        if category:
+            return list(filter(lambda y: y["category"] == category, devices))
+
+        return devices
 
     def get_read_keys(self, devices: list) -> dict:
 
