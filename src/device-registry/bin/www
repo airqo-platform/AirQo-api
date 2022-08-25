@@ -1,16 +1,16 @@
 #!/usr/bin/env node
 
-var app = require("../app");
+const app = require("../app");
 const constants = require("../config/constants");
 const middlewareConfig = require("../config/app.middleware");
-var debug = require('debug')('log4js-example');
-var cluster = require('express-cluster');
-var http = require("http");
-var isEmpty = require("is-empty");
-var log4js = require('log4js');
+const debug = require('debug')('log4js-example');
+const cluster = require('express-cluster');
+const http = require("http");
+const isEmpty = require("is-empty");
+const log4js = require('log4js');
 log4js.configure('./config/log4js.json');
-var log = log4js.getLogger("start-script");
-var server = http.createServer(app);
+const logger = log4js.getLogger("start-script");
+const server = http.createServer(app);
 
 /***
  *  make a log directory, just in case it isn't there.
@@ -40,12 +40,12 @@ try {
 
 cluster(function() {
     //Get port from environment and store in Express.
-    var port = normalizePort(constants.PORT);
+    const port = normalizePort(constants.PORT);
     app.set("port", port);
     //Create HTTP server.
     //Listen on provided port, on all network interfaces.
     server.listen(port, function() {
-        log.info('Express server listening on port ', server.address().port, " with pid ", process.pid);
+        logger.info('Express server listening on port ', server.address().port, " with pid ", process.pid);
     });
     server.on("error", onError);
     server.on("listening", onListening);
@@ -61,7 +61,7 @@ cluster(function() {
  */
 
 function normalizePort(val) {
-    var port = parseInt(val, 10);
+    const port = parseInt(val, 10);
 
     if (isNaN(port)) {
         // named pipe
@@ -85,7 +85,7 @@ function onError(error) {
         throw error;
     }
 
-    var bind = typeof port === "string" ? "Pipe " + port : "Port " + port;
+    const bind = typeof port === "string" ? "Pipe " + port : "Port " + port;
 
     // handle specific listen errors with friendly messages
     switch (error.code) {
@@ -116,7 +116,7 @@ if (isEmpty(process.env.NODE_ENV)) {
 function onListening() {
     console.log(`server is running on port: ${constants.PORT} ---
 Running on ${ENV}`);
-    var addr = server.address();
-    var bind = typeof addr === "string" ? "pipe " + addr : "port " + addr.port;
+    const addr = server.address();
+    const bind = typeof addr === "string" ? "pipe " + addr : "port " + addr.port;
     debug("Listening on " + bind);
 }
