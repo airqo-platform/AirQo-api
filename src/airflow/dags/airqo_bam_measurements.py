@@ -31,16 +31,18 @@ def bam_historical_measurements_etl():
         )
 
     @task()
-    def load(bam_data: pd.DataFrame):
+    def load(data: pd.DataFrame):
 
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
-
+        from airqo_etl_utils.constants import DataType
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
-        bam_data = AirQoDataUtils.process_bam_data_for_bigquery(data=bam_data)
+        data = AirQoDataUtils.format_data_for_bigquery(
+            data=data, data_type=DataType.CLEAN_BAM_DATA
+        )
         big_query_api = BigQueryApi()
         big_query_api.load_data(
-            dataframe=bam_data,
+            dataframe=data,
             table=big_query_api.bam_measurements_table,
         )
 
@@ -74,11 +76,14 @@ def bam_realtime_measurements_etl():
         )
 
     @task()
-    def save_raw_data(data: pd.DataFrame):
+    def save_unclean_data(data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
+        from airqo_etl_utils.constants import DataType
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
-        data = AirQoDataUtils.process_bam_data_for_bigquery(data=data)
+        data = AirQoDataUtils.format_data_for_bigquery(
+            data=data, data_type=DataType.UNCLEAN_BAM_DATA
+        )
         big_query_api = BigQueryApi()
         big_query_api.load_data(
             dataframe=data,
@@ -94,9 +99,12 @@ def bam_realtime_measurements_etl():
     @task()
     def save_clean_bam_data(data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
+        from airqo_etl_utils.constants import DataType
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
-        data = AirQoDataUtils.process_bam_data_for_bigquery(data=data)
+        data = AirQoDataUtils.format_data_for_bigquery(
+            data=data, data_type=DataType.CLEAN_BAM_DATA
+        )
         big_query_api = BigQueryApi()
         big_query_api.load_data(
             dataframe=data,
@@ -104,7 +112,7 @@ def bam_realtime_measurements_etl():
         )
 
     raw_data = extract_bam_data()
-    save_raw_data(raw_data)
+    save_unclean_data(raw_data)
     measurements = clean_bam_data(bam_data=raw_data)
     save_clean_bam_data(measurements)
 

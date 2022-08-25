@@ -81,7 +81,7 @@ class JobAction(Enum):
             return "WRITE_EMPTY"
 
 
-class DataType(Enum):
+class ColumnDataType(Enum):
     TIMESTAMP = 1
     FLOAT = 2
     TIMESTAMP_STR = 3
@@ -140,3 +140,11 @@ class Pollutant(Enum):
             return "no2"
         else:
             return ""
+
+
+class DataType(Enum):
+    UNCLEAN_BAM_DATA = 0
+    CLEAN_BAM_DATA = 1
+    UNCLEAN_LOW_COST_DATA = 2
+    CLEAN_LOW_COST_DATA = 3
+    AGGREGATED_LOW_COST_DATA = 3

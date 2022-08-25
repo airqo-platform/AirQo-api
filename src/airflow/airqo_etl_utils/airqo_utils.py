@@ -9,7 +9,7 @@ from .airqo_api import AirQoApi
 from .bigquery_api import BigQueryApi
 from .commons import download_file_from_gcs
 from .config import configuration
-from .constants import DeviceCategory, Tenant, Frequency, DataSource
+from .constants import DeviceCategory, Tenant, Frequency, DataSource, DataType
 from .data_validator import DataValidationUtils
 from .date import date_to_str
 from .thingspeak_api import ThingspeakApi
@@ -229,7 +229,7 @@ class AirQoDataUtils:
 
         read_keys = airqo_api.get_read_keys(devices=devices)
 
-        data = pd.DataFrame()
+        devices_data = pd.DataFrame()
         dates = Utils.query_dates_array(
             start_date_time=start_date_time,
             end_date_time=end_date_time,
@@ -274,14 +274,25 @@ class AirQoDataUtils:
                     meta_data = data.attrs.get("meta_data", {})
                     data["latitude"] = meta_data.get("latitude", None)
                     data["longitude"] = meta_data.get("longitude", None)
-                    data["status"] = data["status"].apply(
-                        lambda x: pd.to_numeric(x, errors="coerce", downcast="integer")
-                    )
                     data.attrs.pop("meta_data")
 
-                data = data.append(data[data_columns], ignore_index=True)
+                if device_category == DeviceCategory.LOW_COST:
+                    data.rename(
+                        columns={
+                            "field1": "s1_pm2_5",
+                            "field2": "s1_pm10",
+                            "field3": "s2_pm2_5",
+                            "field4": "s2_pm10",
+                            "field7": "battery",
+                            "created_at": "timestamp",
+                        },
+                    )
 
-        return data
+                devices_data = devices_data.append(
+                    data[data_columns], ignore_index=True
+                )
+
+        return devices_data
 
     @staticmethod
     def aggregate_low_cost_sensors_data(data: pd.DataFrame) -> pd.DataFrame:
@@ -312,16 +323,17 @@ class AirQoDataUtils:
     def clean_bam_data(data: pd.DataFrame) -> pd.DataFrame:
 
         data = DataValidationUtils.remove_outliers(data)
-        data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
+        data.loc[:, "timestamp"] = data["timestamp"].apply(pd.to_datetime)
         data.drop_duplicates(
             subset=["timestamp", "device_number"], keep="first", inplace=True
         )
 
-        data["status"] = data["status"].apply(
+        data.loc[:, "status"] = data["status"].apply(
             lambda x: pd.to_numeric(x, errors="coerce", downcast="integer")
         )
-        data["tenant"] = "airqo"
+        data.loc[:, "tenant"] = str(Tenant.AIRQO)
         data = data.loc[data["status"] == 0]
+        data.rename(columns=configuration.AIRQO_BAM_MAPPING, inplace=True)
 
         return data
 
@@ -329,7 +341,7 @@ class AirQoDataUtils:
     def clean_low_cost_sensor_data(data: pd.DataFrame) -> pd.DataFrame:
 
         data = DataValidationUtils.remove_outliers(data)
-        data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
+        data.loc[:, "timestamp"] = data["timestamp"].apply(pd.to_datetime)
         data.drop_duplicates(
             subset=["timestamp", "device_number"], keep="first", inplace=True
         )
@@ -342,10 +354,28 @@ class AirQoDataUtils:
         return data
 
     @staticmethod
-    def process_bam_data_for_bigquery(data: pd.DataFrame) -> pd.DataFrame:
-        data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
+    def format_data_for_bigquery(
+        data: pd.DataFrame, data_type: DataType
+    ) -> pd.DataFrame:
+        data.loc[:, "timestamp"] = data["timestamp"].apply(pd.to_datetime)
+        data.loc[:, "tenant"] = str(Tenant.AIRQO)
         big_query_api = BigQueryApi()
-        cols = big_query_api.get_columns(table=big_query_api.bam_measurements_table)
+        if data_type == DataType.UNCLEAN_BAM_DATA:
+            cols = big_query_api.get_columns(
+                table=big_query_api.raw_bam_measurements_table
+            )
+        elif data_type == DataType.CLEAN_BAM_DATA:
+            cols = big_query_api.get_columns(table=big_query_api.bam_measurements_table)
+        elif data_type == DataType.UNCLEAN_LOW_COST_DATA:
+            cols = big_query_api.get_columns(table=big_query_api.raw_measurements_table)
+        elif data_type == DataType.CLEAN_LOW_COST_DATA:
+            cols = big_query_api.get_columns(table=big_query_api.raw_measurements_table)
+        elif data_type == DataType.AGGREGATED_LOW_COST_DATA:
+            cols = big_query_api.get_columns(
+                table=big_query_api.hourly_measurements_table
+            )
+        else:
+            raise Exception("invalid data type")
         return Utils.populate_missing_columns(data=data, cols=cols)
 
     @staticmethod
