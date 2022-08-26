@@ -103,8 +103,7 @@ const createEvent = {
       let mobile = false;
 
       if (!isEmpty(deviceDetails) && deviceDetails.category === "bam") {
-        logElement("the hourly data....");
-        table = `${constants.DATAWAREHOUSE_AVERAGED_DATA}.hourly_device_measurements`;
+        table = `${constants.DATAWAREHOUSE_AVERAGED_DATA}.hourly_bam_device_measurements`;
         averaged_fields =
           "site_id, device_id, device_number, timestamp," +
           "pm10, pm2_5, no2, pm1, latitude, longitude";
