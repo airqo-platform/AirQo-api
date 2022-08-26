@@ -2979,9 +2979,10 @@ router.post(
         .isBoolean()
         .withMessage("is_device_primary should be Boolean"),
       body("*.site_id")
-        .exists()
+        .optional()
+        .notEmpty()
         .trim()
-        .withMessage("site_id is missing")
+        .withMessage("site_id should not be empty if provided")
         .bail()
         .isMongoId()
         .withMessage("site_id must be an object ID")

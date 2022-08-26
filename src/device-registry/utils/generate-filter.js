@@ -549,7 +549,7 @@ const generateFilter = {
       }
 
       if (channel) {
-        filter["device_number"] = channel;
+        filter["device_number"] = parseInt(channel);
       }
 
       if (category) {
@@ -557,7 +557,7 @@ const generateFilter = {
       }
 
       if (device_number) {
-        filter["device_number"] = device_number;
+        filter["device_number"] = parseInt(device_number);
       }
 
       if (id) {
@@ -569,7 +569,7 @@ const generateFilter = {
       }
 
       if (chid) {
-        filter["device_number"] = chid;
+        filter["device_number"] = parseInt(chid);
       }
 
       if (location) {

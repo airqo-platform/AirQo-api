@@ -30,6 +30,16 @@ class Frequency(Enum):
             return ""
 
 
+class DataSource(Enum):
+    THINGSPEAK = 1
+    CLARITY = 2
+    PLUME_LABS = 3
+    AIRNOW = 4
+    TAHMO = 5
+    AIRQO = 6
+    PURPLE_AIR = 7
+
+
 class Tenant(Enum):
     NASA = 1
     URBAN_BETTER = 2
