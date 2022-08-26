@@ -3,34 +3,25 @@ kind: ConfigMap
 data:
   proxy-body-size:  "200m"
   client-max-body-size: "200m"
-  location-snippets: "
+  location-snippets: "  
     auth_request /auth;
+    error_page 500 = @internal_server_error;
     error_page 404 = @page_not_found;
-    error_page 403 = @unauthorized;
-    error_page 401 = @access_denied;"
+    error_page 403 = @access_denied;
+    error_page 401 = @unauthorized;"
   server-snippets: "
-    location @page_not_found { return 404 'Page Not Found'; }
-    location @unauthorized { return 403 'Unauthorized'; }
-    location @access_denied { return 401 'Access denied'; }
+    location @internal_server_error { return 500 'Something went wrong'; }
+    location @page_not_found { return 404 'Page not found'; }
+    location @access_denied { return 403 'Access denied'; }
+    location @unauthorized { return 401 'Unauthorized'; }
+
+    location = / { auth_request off; return 202; }
+    location = /login { auth_request off; return 202; }
+    location ~ /api/v1/users/loginUser { auth_request off; return 202; }
+    location ~ /api/v1/users/forgotPassword { auth_request off; return 202; }
+    location ~ /api/v1/users/candidates/register { auth_request off; return 202; }
 
     location = /auth {
-      ## Routes that don't need authorisation.
-      if ($request_uri = '/') { return 200; }
-      if ($request_uri = '/login') { return 200; }
-      if ($request_uri ~ '(/api/v1/users/candidates/register)|(/api/v2/users/candidates/register)') { return 200; }
-      if ($request_uri ~ '(api/v1/users/loginUser)|(api/v2/users/loginUser)') { return 200; }
-      if ($request_uri ~ '(api/v1/users/forgotPassword)|(api/v2/users/forgotPassword)') { return 200; }
-
-      ## To remove authorisation from any of the routes below, simply uncomment the line.
-      # if ($request_uri ~ '(/api/v1/incentives)|(/api/v2/incentives)') { return 200; }
-      # if ($request_uri ~ '(/api/v1/predict)|(/api/v2/predict)') { return 200; }
-      # if ($request_uri ~ '(/api/v1/analytics)|(/api/v2/analytics)') { return 200; }
-      # if ($request_uri ~ '(/api/v1/map)|(/api/v2/map)') { return 200; }
-      # if ($request_uri ~ '(/api/v1/data)|(/api/v2/data)') { return 200; }
-      # if ($request_uri ~ '(/api/v1/devices)|(/api/v2/devices)') { return 200; }
-      # if ($request_uri ~ '(/api/v1/users)|(/api/v2/users)') { return 200; }
-      # if ($request_uri ~ '(/api/v1/monitor)|(/api/v2/monitor)') { return 200; }
-
       internal;
       proxy_method            POST;
       proxy_pass              http://airqo-stage-auth-api-svc.staging.svc.cluster.local:3000/api/v1/users/verify?tenant=airqo;
@@ -50,8 +41,6 @@ metadata:
   namespace: staging
   annotations:
     kubernetes.io/ingress.class: nginx
-    nginx.ingress.kubernetes.io/rewrite-target: /
-    nginx.ingress.kubernetes.io/use-regex: "true"
 spec:
   rules:    
     - host: staging-airqalibrate.airqo.net
