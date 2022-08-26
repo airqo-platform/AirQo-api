@@ -102,16 +102,36 @@ const createEvent = {
       let raw_fields = "";
       let mobile = false;
 
-      if (frequency === "raw") {
-        table = `${constants.DATAWAREHOUSE_RAW_DATA}.device_measurements`;
-        averaged_fields = "";
-        raw_fields =
-          "site_id, name, device_id, device_number, timestamp," +
-          "pm2_5, pm10, s1_pm2_5, s2_pm2_5, s1_pm10, s2_pm10, no2," +
-          "pm1, s1_pm1, s2_pm1, pressure, s1_pressure, s2_pressure, temperature," +
-          "humidity, voc, s1_voc, s2_voc, wind_speed, satellites, hdop," +
-          "device_temperature, device_humidity, battery,";
+      if (!isEmpty(deviceDetails) && deviceDetails.category === "bam") {
+        table = `${constants.DATAWAREHOUSE_AVERAGED_DATA}.hourly_bam_device_measurements`;
+        averaged_fields =
+          "site_id, device_id, device_number, timestamp," +
+          "pm10, pm2_5, no2, pm1, latitude, longitude";
+        raw_fields = "";
         mobile = false;
+      }
+
+      if (frequency === "raw") {
+        if (!isEmpty(deviceDetails) && deviceDetails.category === "bam") {
+          raw_fields =
+            "realtime_conc, hourly_conc," +
+            "short_time_conc , air_flow , wind_speed ," +
+            "wind_direction , temperature , humidity," +
+            "barometric_pressure , filter_temperature ," +
+            "filter_humidity, status ";
+          averaged_fields = "";
+          table = `${constants.DATAWAREHOUSE_RAW_DATA}.bam_device_measurements`;
+        } else {
+          table = `${constants.DATAWAREHOUSE_RAW_DATA}.device_measurements`;
+          averaged_fields = "";
+          raw_fields =
+            "site_id, name, device_id, device_number, timestamp," +
+            "pm2_5, pm10, s1_pm2_5, s2_pm2_5, s1_pm10, s2_pm10, no2," +
+            "pm1, s1_pm1, s2_pm1, pressure, s1_pressure, s2_pressure, temperature," +
+            "humidity, voc, s1_voc, s2_voc, wind_speed, satellites, hdop," +
+            "device_temperature, device_humidity, battery,";
+          mobile = false;
+        }
       }
 
       if (tenant === "urban_better") {
@@ -124,16 +144,6 @@ const createEvent = {
           "voc_pi_value, no2_pi_value, gps_device_timestamp, timestamp_abs_diff";
         averaged_fields = "";
       }
-
-      if (!isEmpty(deviceDetails) && deviceDetails.category === "bam") {
-        table = `${constants.DATAWAREHOUSE_AVERAGED_DATA}.hourly_bam_device_measurements`;
-        raw_fields = "";
-        mobile = false;
-        averaged_fields =
-          "site_id, device_id, device_number, timestamp," +
-          "pm10, pm2_5, no2, pm1, latitude, longitude";
-      }
-
       const queryStatement = `SELECT ${averaged_fields} ${raw_fields}  \`${
         constants.DATAWAREHOUSE_METADATA
       }.sites\`.latitude AS latitude,
@@ -229,7 +239,6 @@ const createEvent = {
       ) {
         bqQuery = queryStatementReference;
       }
-
       const options = {
         query: bqQuery,
         location: constants.BIG_QUERY_LOCATION,
