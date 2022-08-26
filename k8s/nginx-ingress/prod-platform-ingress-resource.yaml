@@ -13,24 +13,7 @@ data:
     location @unauthorized { return 403 'Unauthorized'; }
     location @access_denied { return 401 'Access denied'; }
 
-    location = /auth {
-      ## Routes that don't need authorisation.
-      if ($request_uri = '/') { return 200; }
-      if ($request_uri = '/login') { return 200; }
-      if ($request_uri ~ '(/api/v1/users/candidates/register)|(/api/v2/users/candidates/register)') { return 200; }
-      if ($request_uri ~ '(api/v1/users/loginUser)|(api/v2/users/loginUser)') { return 200; }
-      if ($request_uri ~ '(api/v1/users/forgotPassword)|(api/v2/users/forgotPassword)') { return 200; }
-
-      ## To remove authorisation from any of the routes below, simply uncomment the line.
-      # if ($request_uri ~ '(/api/v1/incentives)|(/api/v2/incentives)') { return 200; }
-      # if ($request_uri ~ '(/api/v1/predict)|(/api/v2/predict)') { return 200; }
-      # if ($request_uri ~ '(/api/v1/analytics)|(/api/v2/analytics)') { return 200; }
-      # if ($request_uri ~ '(/api/v1/map)|(/api/v2/map)') { return 200; }
-      # if ($request_uri ~ '(/api/v1/data)|(/api/v2/data)') { return 200; }
-      # if ($request_uri ~ '(/api/v1/devices)|(/api/v2/devices)') { return 200; }
-      # if ($request_uri ~ '(/api/v1/users)|(/api/v2/users)') { return 200; }
-      # if ($request_uri ~ '(/api/v1/monitor)|(/api/v2/monitor)') { return 200; }
-
+    location = /auth {   
       internal;
       proxy_method            POST;
       proxy_pass              http://airqo-auth-api-svc.production.svc.cluster.local:3000/api/v1/users/verify?tenant=airqo;
