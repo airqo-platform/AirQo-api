@@ -17,25 +17,45 @@ def bam_historical_measurements_etl():
     import pandas as pd
 
     @task()
-    def extract_raw_data(**kwargs):
-
-        from airqo_etl_utils.utils import Utils
+    def extract_bam_data(**kwargs):
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
+        from airqo_etl_utils.utils import Utils
         from airqo_etl_utils.constants import DeviceCategory
 
-        start_time, end_time = Utils.get_dag_date_time_config(**kwargs)
+        start_date_time, end_date_time = Utils.get_dag_date_time_config(**kwargs)
+
         return AirQoDataUtils.extract_devices_data(
-            start_date_time=start_time,
-            end_date_time=end_time,
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
             device_category=DeviceCategory.BAM,
         )
 
     @task()
-    def load(data: pd.DataFrame):
-
-        from airqo_etl_utils.airqo_utils import AirQoDataUtils
-        from airqo_etl_utils.constants import DataType
+    def save_unclean_data(data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
+        from airqo_etl_utils.constants import DataType
+        from airqo_etl_utils.airqo_utils import AirQoDataUtils
+
+        data = AirQoDataUtils.format_data_for_bigquery(
+            data=data, data_type=DataType.UNCLEAN_BAM_DATA
+        )
+        big_query_api = BigQueryApi()
+        big_query_api.load_data(
+            dataframe=data,
+            table=big_query_api.raw_bam_measurements_table,
+        )
+
+    @task()
+    def clean_bam_data(data: pd.DataFrame):
+        from airqo_etl_utils.airqo_utils import AirQoDataUtils
+
+        return AirQoDataUtils.clean_bam_data(data=data)
+
+    @task()
+    def save_clean_bam_data(data: pd.DataFrame):
+        from airqo_etl_utils.bigquery_api import BigQueryApi
+        from airqo_etl_utils.constants import DataType
+        from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
         data = AirQoDataUtils.format_data_for_bigquery(
             data=data, data_type=DataType.CLEAN_BAM_DATA
@@ -46,8 +66,10 @@ def bam_historical_measurements_etl():
             table=big_query_api.bam_measurements_table,
         )
 
-    extracted_airqo_data = extract_raw_data()
-    load(extracted_airqo_data)
+    unclean_data = extract_bam_data()
+    save_unclean_data(unclean_data)
+    measurements = clean_bam_data(unclean_data)
+    save_clean_bam_data(measurements)
 
 
 @dag(
@@ -111,9 +133,9 @@ def bam_realtime_measurements_etl():
             table=big_query_api.bam_measurements_table,
         )
 
-    raw_data = extract_bam_data()
-    save_unclean_data(raw_data)
-    measurements = clean_bam_data(bam_data=raw_data)
+    unclean_data = extract_bam_data()
+    save_unclean_data(unclean_data)
+    measurements = clean_bam_data(unclean_data)
     save_clean_bam_data(measurements)
 
 

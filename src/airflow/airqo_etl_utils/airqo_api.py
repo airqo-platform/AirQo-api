@@ -159,8 +159,6 @@ class AirQoApi:
 
         if tenant:
             params = {"tenant": tenant}
-            if category:
-                params["category"] = str(category)
             response = self.__request("devices", params)
             if "devices" in response:
                 for device in response["devices"]:
@@ -169,8 +167,6 @@ class AirQoApi:
         else:
             for x in ["airqo", "kcca"]:
                 params = {"tenant": x}
-                if category:
-                    params["category"] = str(category)
                 response = self.__request("devices", params)
                 if "devices" in response:
                     for device in response["devices"]:

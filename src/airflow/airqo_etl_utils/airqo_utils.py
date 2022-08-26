@@ -220,12 +220,29 @@ class AirQoDataUtils:
             )
 
         if device_category == DeviceCategory.BAM:
-            field_8_columns = [x for x in configuration.AIRQO_BAM_CONFIG.values()]
+            other_fields_cols = []
+            field_8_cols = [x for x in configuration.AIRQO_BAM_CONFIG.values()]
         else:
-            field_8_columns = [x for x in configuration.AIRQO_LOW_COST_CONFIG.values()]
+            field_8_cols = [x for x in configuration.AIRQO_LOW_COST_CONFIG.values()]
+            other_fields_cols = [
+                "s1_pm2_5",
+                "s1_pm10",
+                "s2_pm2_5",
+                "s2_pm10",
+                "battery",
+            ]
 
-        data_columns = ["device_number", "device_id", "latitude", "longitude"]
-        data_columns.extend(field_8_columns)
+        data_columns = [
+            "device_number",
+            "device_id",
+            "site_id",
+            "latitude",
+            "longitude",
+            "timestamp",
+        ]
+        data_columns.extend(field_8_cols)
+        data_columns.extend(other_fields_cols)
+        data_columns = list(set(data_columns))
 
         read_keys = airqo_api.get_read_keys(devices=devices)
 
@@ -260,7 +277,10 @@ class AirQoDataUtils:
                     )
                     continue
 
-                data[field_8_columns] = data["field8"].apply(
+                meta_data = data.attrs.get("meta_data", {})
+                data.attrs.pop("meta_data")
+
+                data[field_8_cols] = data["field8"].apply(
                     lambda x: AirQoDataUtils.flatten_field_8(
                         device_category=device_category, field_8=x
                     )
@@ -271,10 +291,8 @@ class AirQoDataUtils:
                 data["site_id"] = device.get("site_id")
 
                 if device_category == DeviceCategory.BAM:
-                    meta_data = data.attrs.get("meta_data", {})
                     data["latitude"] = meta_data.get("latitude", None)
                     data["longitude"] = meta_data.get("longitude", None)
-                    data.attrs.pop("meta_data")
 
                 if device_category == DeviceCategory.LOW_COST:
                     data.rename(
@@ -286,6 +304,7 @@ class AirQoDataUtils:
                             "field7": "battery",
                             "created_at": "timestamp",
                         },
+                        inplace=True,
                     )
 
                 devices_data = devices_data.append(

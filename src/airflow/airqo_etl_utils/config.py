@@ -110,7 +110,7 @@ class Config:
     }
 
     AIRQO_BAM_MAPPING = {
-        "short_time_conc": "pm2_5",
+        "hourly_conc": "pm2_5",
     }
 
     AIRQO_LOW_COST_CONFIG = {
