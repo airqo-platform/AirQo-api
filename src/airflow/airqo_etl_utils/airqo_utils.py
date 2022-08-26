@@ -310,7 +310,6 @@ class AirQoDataUtils:
                 devices_data = devices_data.append(
                     data[data_columns], ignore_index=True
                 )
-
         return devices_data
 
     @staticmethod

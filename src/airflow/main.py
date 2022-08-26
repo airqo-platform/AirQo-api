@@ -763,7 +763,6 @@ def airqo_historical_bam_data():
     bigquery_data.to_csv("airqo_unclean_bam_bigquery_data.csv", index=False)
 
     clean_data = AirQoDataUtils.clean_bam_data(data=unclean_data)
-
     bigquery_data = AirQoDataUtils.format_data_for_bigquery(
         data=clean_data, data_type=DataType.CLEAN_BAM_DATA
     )
