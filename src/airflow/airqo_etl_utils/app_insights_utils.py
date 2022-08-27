@@ -1,22 +1,21 @@
 import traceback
 from datetime import datetime, timedelta
 
-import numpy as np
 import pandas as pd
 
 from .airqo_api import AirQoApi
 from .bigquery_api import BigQueryApi
 from .commons import (
-    get_frequency,
     get_air_quality,
 )
 from .config import configuration
-from .constants import Frequency
+from .constants import Frequency, DataSource
 from .date import (
     date_to_str,
     predict_str_to_date,
 )
 from .message_broker import KafkaBrokerClient
+from .utils import Utils
 
 insights_columns = ["time", "pm2_5", "pm10", "siteId", "frequency", "forecast", "empty"]
 
@@ -193,24 +192,13 @@ class AirQoAppUtils:
         airqo_api = AirQoApi()
         insights = []
 
-        frequency = get_frequency(start_time=start_date_time, end_time=end_date_time)
-        dates = pd.date_range(start_date_time, end_date_time, freq=frequency)
-        last_date_time = dates.values[len(dates.values) - 1]
+        dates = Utils.query_dates_array(
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            data_source=DataSource.AIRQO,
+        )
 
-        for date in dates:
-
-            start = date_to_str(date)
-            end_date_time = date + timedelta(hours=dates.freq.n)
-
-            if np.datetime64(end_date_time) > last_date_time:
-                timestring = pd.to_datetime(str(last_date_time))
-                end = date_to_str(timestring)
-            else:
-                end = date_to_str(end_date_time)
-
-            if start == end:
-                end = date_to_str(date, str_format="%Y-%m-%dT%H:59:59Z")
-
+        for start, end in dates:
             try:
                 api_results = airqo_api.get_app_insights(
                     start_time=start,

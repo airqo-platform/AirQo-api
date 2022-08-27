@@ -1,16 +1,13 @@
 import traceback
-from datetime import timedelta
 
-import numpy as np
 import pandas as pd
 
 from .airnow_api import AirNowApi
 from .airqo_api import AirQoApi
 from .bigquery_api import BigQueryApi
-from .commons import get_frequency
-from .constants import Tenant
-from .utils import Utils
+from .constants import Tenant, DataSource
 from .date import str_to_date, date_to_str
+from .utils import Utils
 
 
 class AirnowDataUtils:
@@ -78,26 +75,16 @@ class AirnowDataUtils:
     @staticmethod
     def extract_bam_data(start_date_time: str, end_date_time: str) -> pd.DataFrame:
 
-        frequency = get_frequency(start_time=start_date_time, end_time=end_date_time)
-        dates = pd.date_range(start_date_time, end_date_time, freq=frequency)
-        last_date_time = dates.values[len(dates.values) - 1]
+        dates = Utils.query_dates_array(
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            data_source=DataSource.AIRNOW,
+        )
+
         data = pd.DataFrame()
         devices = pd.DataFrame(AirQoApi().get_devices(tenant="airqo"))
 
-        for date in dates:
-
-            start = date_to_str(date)
-            end_date = date + timedelta(hours=dates.freq.n)
-
-            if np.datetime64(end_date) > last_date_time:
-                timestring = pd.to_datetime(str(last_date_time))
-                end = date_to_str(timestring)
-            else:
-                end = date_to_str(end_date)
-
-            if start == end:
-                end = date_to_str(date, str_format="%Y-%m-%dT%H:59:59Z")
-
+        for start, end in dates:
             query_data = AirnowDataUtils.query_bam_data(
                 start_date_time=start, end_date_time=end, devices=devices
             )

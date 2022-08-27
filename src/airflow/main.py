@@ -707,14 +707,14 @@ def airqo_mobile_device_measurements():
 def airqo_historical_bam_data():
 
     """
-        Processes AirQo reference monitors data from a csv file "airqo_historical_bam_data.csv"
-        into a format that is required for storage in BigQuery reference monitors data table.
+    Processes AirQo reference monitors data from a csv file "airqo_historical_bam_data.csv"
+    into a format that is required for storage in BigQuery reference monitors data table.
 
-        The resultant file "airqo_bam_bigquery_data.csv" contains data that matches the format required by BigQuery
-        reference monitors data table and hence, ready for import.
+    The resultant file "airqo_bam_bigquery_data.csv" contains data that matches the format required by BigQuery
+    reference monitors data table and hence, ready for import.
 
-        The input csv file is assumed to have stored data for the reference monitors
-        1192542 and 1192541 as -24517  and -24516 respectively.
+    The input csv file is assumed to have stored data for the reference monitors
+    1192542 and 1192541 as -24517  and -24516 respectively.
     """
 
     from airqo_etl_utils.airqo_utils import AirQoDataUtils

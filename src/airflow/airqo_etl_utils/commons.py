@@ -7,7 +7,6 @@ from google.cloud import storage
 
 from .constants import AirQuality, Pollutant
 from .date import (
-    str_to_date,
     date_to_str,
 )
 
@@ -59,24 +58,6 @@ def download_file_from_gcs(bucket_name: str, source_file: str, destination_file:
         f"file: {destination_file} downloaded from bucket: {bucket_name} successfully"
     )
     return destination_file
-
-
-def get_frequency(start_time: str, end_time: str) -> str:
-    diff_days = round(
-        (str_to_date(end_time) - str_to_date(start_time)).total_seconds() / 86400
-    )
-
-    if diff_days >= 3:
-        frequency = "72H"
-    elif diff_days <= 1:
-        diff_hours = round(
-            (str_to_date(end_time) - str_to_date(start_time)).seconds / 3600
-        )
-        frequency = "1H" if diff_hours <= 0 else f"{diff_hours}H"
-    else:
-        frequency = f"{round(diff_days * 24)}H"
-
-    return frequency
 
 
 def remove_invalid_dates(

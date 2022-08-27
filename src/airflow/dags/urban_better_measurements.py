@@ -91,7 +91,7 @@ def historical_raw_measurements_etl__plume_labs():
 
 @dag(
     "Urban-Better-Plume-Labs-Realtime-Raw-Measurements",
-    schedule_interval="10 * * * *",
+    schedule_interval="0 2 * * *",
     on_failure_callback=slack_dag_failure_notification,
     start_date=datetime(2021, 1, 1),
     catchup=False,
@@ -103,7 +103,7 @@ def realtime_measurements_etl__plume_labs():
     from airqo_etl_utils.date import date_to_str_hours
     from datetime import datetime, timedelta
 
-    hour_of_day = datetime.utcnow() - timedelta(hours=1)
+    hour_of_day = datetime.utcnow() - timedelta(hours=25)
     start_time = date_to_str_hours(hour_of_day)
     end_time = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
 
