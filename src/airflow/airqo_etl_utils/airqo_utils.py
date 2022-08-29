@@ -210,6 +210,16 @@ class AirQoDataUtils:
         device_numbers: list = None,
     ) -> pd.DataFrame:
 
+        """
+        Returns a dataframe of AiQo sensors measurements.
+
+        :param start_date_time: start date time
+        :param end_date_time: end date time
+        :param device_category: BAM or low cost sensors
+        :param device_numbers: list of device numbers whose data you want to extract. Defaults to all AirQo devices
+        :return: a dataframe of measurements recorded between start date time and end date time
+        """
+
         airqo_api = AirQoApi()
         thingspeak_api = ThingspeakApi()
         devices = airqo_api.get_devices(tenant="airqo", category=device_category)
@@ -414,6 +424,15 @@ class AirQoDataUtils:
 
     @staticmethod
     def process_data_for_api(data: pd.DataFrame, frequency: Frequency) -> list:
+
+        """
+        Formats device measurements into a format required by the events endpoint.
+
+        :param data: device measurements
+        :param frequency: frequency of the measurements.
+        :return: a list of measurements
+        """
+
         restructured_data = []
 
         data["timestamp"] = data["timestamp"].apply(pd.to_datetime)

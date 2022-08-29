@@ -2,6 +2,11 @@ from enum import Enum
 
 
 class DeviceCategory(Enum):
+    """
+    LOW_COST -> Reference monitors
+    BAM -> Low cost senors
+    """
+
     LOW_COST = 1
     BAM = 2
 
@@ -24,6 +29,12 @@ class DeviceCategory(Enum):
 
 
 class Frequency(Enum):
+    """
+    LOW_COST -> Raw data returned from the devices
+    HOURLY -> Aggregated hourly data
+    DAILY -> Aggregated daily data
+    """
+
     RAW = 1
     HOURLY = 2
     DAILY = 3
