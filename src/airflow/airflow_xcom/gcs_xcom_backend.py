@@ -9,7 +9,6 @@ from pandas.errors import EmptyDataError
 
 
 class GCSXComBackend(BaseXCom):
-    PREFIX = "gs://"
     BUCKET_NAME = os.getenv("AIRFLOW_XCOM_BUCKET")
 
     @staticmethod

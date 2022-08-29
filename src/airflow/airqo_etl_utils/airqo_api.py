@@ -228,12 +228,22 @@ class AirQoApi:
                 for site in response.get("sites", [])
             ]
 
+        sites = [
+            {
+                **site,
+                **{
+                    "site_id": site.get("_id", None),
+                },
+            }
+            for site in sites
+        ]
+
         return sites
 
     def update_sites(self, updated_sites):
         for i in updated_sites:
             site = dict(i)
-            params = {"tenant": site.pop("tenant"), "id": site.pop("id")}
+            params = {"tenant": site.pop("tenant"), "id": site.pop("site_id")}
             response = self.__request("devices/sites", params, site, "put")
             print(response)
 

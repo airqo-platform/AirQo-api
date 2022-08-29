@@ -158,7 +158,7 @@ class MetaDataUtils:
         sites = airqo_api.get_sites(tenant=tenant)
         sites_data = [
             {
-                "id": site.get("id", None),
+                "site_id": site.get("site_id", None),
                 "tenant": site.get("tenant", None),
                 "latitude": site.get("latitude", None),
                 "longitude": site.get("longitude", None),
@@ -169,7 +169,7 @@ class MetaDataUtils:
         updated_sites = WeatherDataUtils.get_nearest_weather_stations(sites_data)
         updated_sites = [
             {
-                "id": site.get("id"),
+                "site_id": site.get("site_id"),
                 "tenant": site.get("tenant"),
                 "weather_stations": site.get("weather_stations"),
             }
