@@ -33,9 +33,8 @@ class ThingspeakApi:
                 data = pd.DataFrame(response["feeds"])
                 data.attrs["meta_data"] = response["channel"]
 
-            return data
-
         except Exception as ex:
             print(ex)
             traceback.print_exc()
-            return data
+
+        return data

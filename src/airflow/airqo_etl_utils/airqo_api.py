@@ -91,68 +91,6 @@ class AirQoApi:
             print(ex)
             return []
 
-    def get_calibrated_values(self, time: str, calibrate_body: list) -> list:
-        calibrated_data = []
-        base_url = (
-            self.CALIBRATION_BASE_URL
-            if self.CALIBRATION_BASE_URL
-            else self.AIRQO_BASE_URL
-        )
-        endpoint = "calibrate"
-        for i in range(
-            0, len(calibrate_body), int(configuration.CALIBRATE_REQUEST_BODY_SIZE)
-        ):
-            values = calibrate_body[
-                i : i + int(configuration.CALIBRATE_REQUEST_BODY_SIZE)
-            ]
-
-            request_body = dict()
-            request_body["datetime"] = time
-            request_body["raw_values"] = []
-
-            for value in values:
-                try:
-                    value_dict = dict(value)
-                    data = {
-                        "device_id": value_dict.get("device_id"),
-                        "sensor1_pm2.5": value_dict.get("s1_pm2_5"),
-                        "sensor2_pm2.5": value_dict.get("s2_pm2_5"),
-                        "sensor1_pm10": value_dict.get("s1_pm10"),
-                        "sensor2_pm10": value_dict.get("s2_pm10"),
-                        "temperature": value_dict.get("temperature"),
-                        "humidity": value_dict.get("humidity"),
-                    }
-
-                    if (
-                        data["sensor1_pm2.5"] > 0.0
-                        and data["sensor2_pm2.5"] > 0.0
-                        and data["sensor1_pm10"] > 0.0
-                        and data["sensor2_pm10"] > 0.0
-                        and data["temperature"] > 0.0
-                        and data["humidity"] > 0.0
-                    ):
-                        request_body["raw_values"].append(data)
-
-                except Exception as ex:
-                    traceback.print_exc()
-                    print(ex)
-
-            try:
-                response = self.__request(
-                    endpoint=endpoint,
-                    method="post",
-                    body=request_body,
-                    base_url=base_url,
-                )
-
-                if response is not None:
-                    calibrated_data.extend(response)
-            except Exception as ex:
-                traceback.print_exc()
-                print(ex)
-
-        return calibrated_data
-
     def get_devices(self, tenant=None, category: DeviceCategory = None) -> list:
 
         devices = []
@@ -190,7 +128,7 @@ class AirQoApi:
 
         return devices
 
-    def get_read_keys(self, devices: list) -> dict:
+    def get_thingspeak_read_keys(self, devices: list) -> dict:
 
         decrypted_keys = dict({})
 
@@ -250,12 +188,6 @@ class AirQoApi:
             return response["predictions"]
 
         return []
-
-    def get_airqo_device_current_measurements(self, device_number):
-        response = self.__request(
-            endpoint="data/feeds/transform/recent", params={"channel": device_number}
-        )
-        return response
 
     def get_nearest_weather_stations(self, latitude, longitude) -> list:
         response = self.__request(

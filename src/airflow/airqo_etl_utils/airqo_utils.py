@@ -254,7 +254,7 @@ class AirQoDataUtils:
         data_columns.extend(other_fields_cols)
         data_columns = list(set(data_columns))
 
-        read_keys = airqo_api.get_read_keys(devices=devices)
+        read_keys = airqo_api.get_thingspeak_read_keys(devices=devices)
 
         devices_data = pd.DataFrame()
         dates = Utils.query_dates_array(
@@ -287,8 +287,7 @@ class AirQoDataUtils:
                     )
                     continue
 
-                meta_data = data.attrs.get("meta_data", {})
-                data.attrs.pop("meta_data")
+                meta_data = data.attrs.pop("meta_data", {})
 
                 data[field_8_cols] = data["field8"].apply(
                     lambda x: AirQoDataUtils.flatten_field_8(
