@@ -1,0 +1,107 @@
+[
+  {
+    "name": "tenant",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "site_id",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "device_number",
+    "type": "INTEGER",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "device_id",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "timestamp",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "latitude",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "longitude",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "realtime_conc",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "μg/m3."
+  },
+  {
+    "name": "hourly_conc",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "μg/m3."
+  },
+  {
+    "name": "short_time_conc",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "μg/m3."
+  },
+    {
+    "name": "air_flow",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "Litres per minute. Amount of air flowing through"
+  },
+  {
+    "name": "wind_speed",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "m/s"
+  },
+    {
+    "name": "wind_direction",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+    {
+    "name": "temperature",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "degrees celsius. Ambient Temperature"
+  },
+  {
+    "name": "humidity",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "%. External Relative Humidity"
+  },
+    {
+    "name": "barometric_pressure",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "mmHg"
+  },
+      {
+    "name": "filter_temperature",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "degrees celsius. Filter Temperature"
+  },
+  {
+    "name": "filter_humidity",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "%. Filter Relative Humidity"
+  },
+    {
+    "name": "status",
+    "type": "INTEGER",
+    "mode": "NULLABLE"
+  }
+]

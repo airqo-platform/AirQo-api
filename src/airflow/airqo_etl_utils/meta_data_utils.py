@@ -1,7 +1,7 @@
 import pandas as pd
 
 from .airqo_api import AirQoApi
-from .constants import DataType
+from .constants import ColumnDataType
 from .utils import Utils
 
 
@@ -137,12 +137,12 @@ def extract_meta_data(component: str, tenant=None) -> pd.DataFrame:
 
     dataframe = Utils.format_dataframe_column_type(
         dataframe=dataframe,
-        data_type=DataType.FLOAT,
+        data_type=ColumnDataType.FLOAT,
         columns=numeric_columns,
     )
     dataframe = Utils.format_dataframe_column_type(
         dataframe=dataframe,
-        data_type=DataType.TIMESTAMP_STR,
+        data_type=ColumnDataType.TIMESTAMP_STR,
         columns=date_time_columns,
     )
     dataframe.rename(columns=rename_columns, inplace=True)

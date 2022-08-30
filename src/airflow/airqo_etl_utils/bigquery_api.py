@@ -4,7 +4,7 @@ import pandas as pd
 from google.cloud import bigquery
 
 from .config import configuration
-from .constants import JobAction, DataType, Tenant
+from .constants import JobAction, ColumnDataType, Tenant
 from .utils import Utils
 
 
@@ -14,7 +14,7 @@ class BigQueryApi:
         self.hourly_measurements_table = configuration.BIGQUERY_HOURLY_EVENTS_TABLE
         self.raw_measurements_table = configuration.BIGQUERY_RAW_EVENTS_TABLE
         self.bam_measurements_table = configuration.BIGQUERY_BAM_EVENTS_TABLE
-        self.bam_outliers_table = configuration.BIGQUERY_BAM_OUTLIERS_TABLE
+        self.raw_bam_measurements_table = configuration.BIGQUERY_RAW_BAM_DATA_TABLE
         self.unclean_mobile_raw_measurements_table = (
             configuration.BIGQUERY_UNCLEAN_RAW_MOBILE_EVENTS_TABLE
         )
@@ -59,7 +59,7 @@ class BigQueryApi:
         date_time_columns = (
             date_time_columns
             if date_time_columns
-            else self.get_columns(table=table, data_type=DataType.TIMESTAMP)
+            else self.get_columns(table=table, data_type=ColumnDataType.TIMESTAMP)
         )
         dataframe[date_time_columns] = dataframe[date_time_columns].apply(
             pd.to_datetime, errors="coerce"
@@ -69,7 +69,7 @@ class BigQueryApi:
         float_columns = (
             float_columns
             if float_columns
-            else self.get_columns(table=table, data_type=DataType.FLOAT)
+            else self.get_columns(table=table, data_type=ColumnDataType.FLOAT)
         )
         dataframe[float_columns] = dataframe[float_columns].apply(
             pd.to_numeric, errors="coerce"
@@ -79,7 +79,7 @@ class BigQueryApi:
         integer_columns = (
             integer_columns
             if integer_columns
-            else self.get_columns(table=table, data_type=DataType.INTEGER)
+            else self.get_columns(table=table, data_type=ColumnDataType.INTEGER)
         )
         dataframe[integer_columns] = dataframe[integer_columns].apply(
             lambda x: pd.to_numeric(x, errors="coerce", downcast="integer")
@@ -87,7 +87,9 @@ class BigQueryApi:
 
         return dataframe.drop_duplicates(keep="first")
 
-    def get_columns(self, table: str, data_type: DataType = DataType.NONE) -> list:
+    def get_columns(
+        self, table: str, data_type: ColumnDataType = ColumnDataType.NONE
+    ) -> list:
 
         if table == self.hourly_measurements_table:
             schema_file = "measurements.json"
@@ -108,15 +110,17 @@ class BigQueryApi:
             schema_file = "mobile_measurements.json"
         elif table == self.airqo_mobile_measurements_table:
             schema_file = "airqo_mobile_measurements.json"
-        elif table == self.bam_measurements_table or table == self.bam_outliers_table:
+        elif table == self.bam_measurements_table:
             schema_file = "bam_measurements.json"
+        elif table == self.raw_bam_measurements_table:
+            schema_file = "bam_raw_measurements.json"
         else:
             raise Exception("Invalid table")
 
         schema = Utils.load_schema(file_name=schema_file)
 
         columns = []
-        if data_type != DataType.NONE:
+        if data_type != ColumnDataType.NONE:
             for column in schema:
                 if column["type"] == data_type.to_string():
                     columns.append(column["name"])
