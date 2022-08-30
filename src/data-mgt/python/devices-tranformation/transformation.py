@@ -115,7 +115,7 @@ class Transformation:
                     {
                         "code": weather_station.get("code", None),
                         "name": weather_station.get("name", None),
-                        "country": weather_station.get("countrycode", None),
+                        "country": weather_station.get("country", None),
                         "latitude": weather_station.get("latitude", None),
                         "longitude": weather_station.get("longitude", None),
                         "timezone": weather_station.get("timezone", None),
