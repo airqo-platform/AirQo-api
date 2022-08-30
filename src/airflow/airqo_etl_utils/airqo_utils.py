@@ -1,24 +1,20 @@
-import json
 import pickle
 import traceback
-from datetime import timedelta, datetime
+from datetime import datetime
 
 import numpy as np
 import pandas as pd
-import requests
 
 from .airqo_api import AirQoApi
 from .bigquery_api import BigQueryApi
-from .commons import (
-    remove_invalid_dates,
-    download_file_from_gcs,
-    get_frequency,
-)
-from .utils import Utils
+from .commons import download_file_from_gcs
 from .config import configuration
-from .constants import DeviceCategory, BamDataType, Tenant, Frequency
+from .constants import DeviceCategory, Tenant, Frequency, DataSource, DataType
 from .data_validator import DataValidationUtils
-from .date import date_to_str, date_to_str_hours
+from .date import date_to_str
+from .thingspeak_api import ThingspeakApi
+from .utils import Utils
+from .weather_data_utils import WeatherDataUtils
 
 
 class AirQoDataUtils:
@@ -58,268 +54,106 @@ class AirQoDataUtils:
         return averaged_measurements
 
     @staticmethod
-    def get_field_8_value(x: str, position: int):
-
-        try:
-            values = x.split(",")
-            return values[position]
-        except Exception as exc:
-            print(exc)
-            return None
-
-    @staticmethod
-    def query_low_cost_sensors_data(
-        start_date_time: str, end_date_time: str, device_numbers: list = None
-    ) -> pd.DataFrame:
-        thingspeak_base_url = configuration.THINGSPEAK_CHANNEL_URL
-
-        airqo_api = AirQoApi()
-        airqo_devices = airqo_api.get_devices(tenant="airqo")
-        if device_numbers:
-            airqo_devices = list(
-                filter(
-                    lambda x: int(x["device_number"]) in device_numbers, airqo_devices
-                )
-            )
-        read_keys = airqo_api.get_read_keys(devices=airqo_devices)
-
-        measurements = pd.DataFrame()
-        field_8_mappings = {
-            "altitude": 2,
-            "wind_speed": 3,
-            "satellites": 4,
-            "hdop": 5,
-            "device_temperature": 6,
-            "device_humidity": 7,
-            "temperature": 8,
-            "humidity": 9,
-            "pressure": 10,
-        }
-        frequency = get_frequency(start_time=start_date_time, end_time=end_date_time)
-
-        dates = pd.date_range(start_date_time, end_date_time, freq=frequency)
-        last_date_time = dates.values[len(dates.values) - 1]
-        for device in airqo_devices:
-            device_dict = dict(device)
-
-            category = device_dict.get("category", None)
-            if category and category == "bam":
-                continue
-
-            channel_id = str(device_dict.get("device_number"))
-            if device_numbers and int(channel_id) not in device_numbers:
-                continue
-
-            read_key = read_keys.get(str(channel_id), "")
-
-            for date in dates:
-
-                start = date_to_str(date)
-                end_date_time = date + timedelta(hours=dates.freq.n)
-
-                if np.datetime64(end_date_time) > last_date_time:
-                    timestring = pd.to_datetime(str(last_date_time))
-                    end = date_to_str(timestring)
-                else:
-                    end = date_to_str(end_date_time)
-
-                if start == end:
-                    end = date_to_str(date, str_format="%Y-%m-%dT%H:59:59Z")
-
-                url = f"{thingspeak_base_url}{channel_id}/feeds.json?start={start}&end={end}&api_key={read_key}"
-                print(f"{url}")
-
-                try:
-                    data = json.loads(
-                        requests.get(url, timeout=100.0).content.decode("utf-8")
-                    )
-                    if (data == -1) or ("feeds" not in data):
-                        print(f"No data for {url}")
-                        continue
-
-                    feeds = pd.DataFrame(data["feeds"])
-                    channel = data["channel"]
-                    if feeds.empty:
-                        print(
-                            f"{channel_id} does not have data between {start} and {end}"
-                        )
-                        continue
-
-                    feeds = feeds[
-                        [
-                            "field1",
-                            "field2",
-                            "field3",
-                            "field4",
-                            "field7",
-                            "field8",
-                            "created_at",
-                        ]
-                    ]
-
-                    feeds.rename(
-                        columns={
-                            "field1": "s1_pm2_5",
-                            "field2": "s1_pm10",
-                            "field3": "s2_pm2_5",
-                            "field4": "s2_pm10",
-                            "field7": "battery",
-                            "created_at": "timestamp",
-                        },
-                        inplace=True,
-                    )
-
-                    for key, value in field_8_mappings.items():
-                        feeds[key] = feeds["field8"].apply(
-                            lambda x: AirQoDataUtils.get_field_8_value(x, value)
-                        )
-
-                    feeds["device_number"] = channel_id
-                    feeds["device_id"] = device_dict.get("name", None)
-                    feeds["site_id"] = device_dict.get("site", {}).get("_id", None)
-                    feeds["latitude"] = channel["latitude"]
-                    feeds["longitude"] = channel["longitude"]
-                    del feeds["field8"]
-                    measurements = measurements.append(feeds, ignore_index=True)
-
-                except Exception as ex:
-                    print(ex)
-                    traceback.print_exc()
-                    continue
-
-        measurements = remove_invalid_dates(
-            dataframe=measurements, start_time=start_date_time, end_time=end_date_time
+    def flatten_field_8(device_category: DeviceCategory, field_8: str = None):
+        values = field_8.split(",") if field_8 else ""
+        series = pd.Series(dtype=float)
+        mappings = (
+            configuration.AIRQO_BAM_CONFIG
+            if device_category == DeviceCategory.BAM
+            else configuration.AIRQO_LOW_COST_CONFIG
         )
 
-        return DataValidationUtils.remove_outliers(measurements)
+        for key, value in mappings.items():
+            try:
+                series[value] = values[key]
+            except Exception as ex:
+                print(ex)
+                series[value] = None
+
+        return series
 
     @staticmethod
-    def extract_low_cost_sensors_data(
-        start_date_time,
-        end_date_time,
-        device_numbers: list = None,
-        meta_data: list = None,
+    def flatten_meta_data(meta_data: list) -> list:
+        data = []
+        for item in meta_data:
+            item = dict(item)
+            device_numbers = item.get("device_numbers", [])
+            if device_numbers:
+                item.pop("device_numbers")
+                for device_number in device_numbers:
+                    data.append({**item, **{"device_number": device_number}})
+        return data
+
+    @staticmethod
+    def extract_mobile_low_cost_sensors_data(
+        meta_data: list,
     ) -> pd.DataFrame:
         data = pd.DataFrame()
 
-        if meta_data:
-            for value in meta_data:
-
-                latitude = dict(value).get("latitude", None)
-                longitude = dict(value).get("longitude", None)
-                start_date_time = dict(value).get(
-                    "start_date_time",
-                )
-                end_date_time = dict(value).get("end_date_time")
-                device_numbers = dict(value).get("device_numbers", [])
-
-                measurements = AirQoDataUtils.query_low_cost_sensors_data(
-                    start_date_time=start_date_time,
-                    end_date_time=end_date_time,
-                    device_numbers=device_numbers,
-                )
-                if latitude:
-                    measurements["latitude"] = latitude
-                if longitude:
-                    measurements["longitude"] = longitude
-                data = data.append(measurements, ignore_index=True)
-        else:
-            data = AirQoDataUtils.query_low_cost_sensors_data(
-                start_date_time=start_date_time,
-                end_date_time=end_date_time,
-                device_numbers=device_numbers,
+        for value in meta_data:
+            value = dict(value)
+            measurements = AirQoDataUtils.extract_devices_data(
+                start_date_time=value.get("start_date_time"),
+                end_date_time=value.get("end_date_time"),
+                device_numbers=[value.get("device_number")],
+                device_category=DeviceCategory.LOW_COST,
             )
-
-        data["pm2_5_raw_value"] = data[["s1_pm2_5", "s2_pm2_5"]].mean(axis=1)
-        data["pm2_5"] = data[["s1_pm2_5", "s2_pm2_5"]].mean(axis=1)
-        data["pm10_raw_value"] = data[["s1_pm10", "s2_pm10"]].mean(axis=1)
-        data["pm10"] = data[["s1_pm10", "s2_pm10"]].mean(axis=1)
+            if measurements.empty:
+                continue
+            measurements["latitude"] = value.get("latitude", None)
+            measurements["longitude"] = value.get("longitude", None)
+            data = data.append(measurements, ignore_index=True)
 
         return data
 
     @staticmethod
-    def aggregate_mobile_devices_data(data: pd.DataFrame) -> pd.DataFrame:
-        data = data.copy()
-        data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
-        data["timestamp"] = data["timestamp"].apply(date_to_str_hours)
-        data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
-
-        device_groups = data.groupby("device_number")
-        aggregated_data = pd.DataFrame()
-
-        for _, device_group in device_groups:
-            device_number = device_group.iloc[0]["device_number"]
-
-            timestamp_groups = device_group.groupby("timestamp")
-
-            for _, timestamp_group in timestamp_groups:
-                sampling_data = timestamp_group.copy()
-
-                latitude = sampling_data.iloc[0]["latitude"]
-                longitude = sampling_data.iloc[0]["longitude"]
-
-                averages = pd.DataFrame(
-                    sampling_data.resample("1H", on="timestamp").mean()
-                )
-                averages["timestamp"] = averages.index
-                averages.reset_index(drop=True, inplace=True)
-                averages["latitude"] = latitude
-                averages["longitude"] = longitude
-                averages["device_number"] = device_number
-                aggregated_data = aggregated_data.append(averages, ignore_index=True)
-
-        return aggregated_data
-
-    @staticmethod
     def extract_aggregated_mobile_devices_weather_data(
-        stations: pd.DataFrame, meta_data: list
+        data: pd.DataFrame,
     ) -> pd.DataFrame:
-        from weather_data_utils import WeatherDataUtils
 
-        meta_data_df = pd.DataFrame(meta_data)
-        meta_data_df = meta_data_df[
-            ["latitude", "longitude", "start_date_time", "end_date_time"]
-        ]
-        merged_df = pd.merge(
-            left=stations, right=meta_data_df, on=["latitude", "longitude"], how="left"
-        )
-        merged_df.dropna(inplace=True)
         weather_data = pd.DataFrame()
-        for _, row in merged_df.iterrows():
+        for _, station_data in data.groupby(
+            by=["station_code", "start_date_time", "end_date_time"]
+        ):
             raw_data = WeatherDataUtils.query_raw_data_from_tahmo(
-                start_date_time=row["start_date_time"],
-                end_date_time=row["end_date_time"],
-                station_codes=[row["station_code"]],
+                start_date_time=station_data.iloc[0]["start_date_time"],
+                end_date_time=station_data.iloc[0]["end_date_time"],
+                station_codes=[station_data.iloc[0]["station_code"]],
             )
             raw_data = WeatherDataUtils.transform_raw_data(raw_data)
             aggregated_data = WeatherDataUtils.aggregate_data(raw_data)
-            latitude = row["latitude"]
-            longitude = row["longitude"]
-            aggregated_data["latitude"] = latitude
-            aggregated_data["longitude"] = longitude
-
-            result = list(
-                filter(
-                    lambda entry: (
-                        entry["latitude"] == latitude
-                        and entry["longitude"] == longitude
-                    ),
-                    meta_data,
-                )
+            aggregated_data["timestamp"] = aggregated_data["timestamp"].apply(
+                pd.to_datetime
             )
 
-            for x in result:
-                devices = list(x["device_numbers"])
-                for device in devices:
-                    aggregated_data["device_number"] = device
-                    weather_data = weather_data.append(
-                        aggregated_data, ignore_index=True
-                    )
+            for _, row in station_data.iterrows():
+                device_weather_data = aggregated_data.copy()
+                device_weather_data["device_number"] = row["device_number"]
+                device_weather_data["distance"] = row["distance"]
+                weather_data = weather_data.append(
+                    device_weather_data, ignore_index=True
+                )
 
-        return weather_data
+        devices_weather_data = pd.DataFrame()
+        for _, device_weather_data in weather_data.groupby("device_number"):
+            for _, time_group in device_weather_data.groupby("timestamp"):
+                time_group.sort_values(ascending=True, by="distance", inplace=True)
+                time_group.fillna(method="bfill", inplace=True)
+                time_group.drop_duplicates(
+                    keep="first", subset=["timestamp"], inplace=True
+                )
+                time_group["device_number"] = device_weather_data.iloc[0][
+                    "device_number"
+                ]
+                del time_group["distance"]
+                devices_weather_data = devices_weather_data.append(
+                    time_group, ignore_index=True
+                )
+
+        return devices_weather_data
 
     @staticmethod
-    def merge_mobile_devices_data_and_weather_data(
+    def merge_aggregated_mobile_devices_data_and_weather_data(
         measurements: pd.DataFrame, weather_data: pd.DataFrame
     ) -> pd.DataFrame:
 
@@ -327,8 +161,6 @@ class AirQoDataUtils:
         weather_data_cols = list(weather_data.columns)
         intersecting_cols = list(set(airqo_data_cols) & set(weather_data_cols))
         intersecting_cols.remove("timestamp")
-        intersecting_cols.remove("latitude")
-        intersecting_cols.remove("longitude")
         intersecting_cols.remove("device_number")
 
         for col in intersecting_cols:
@@ -337,17 +169,11 @@ class AirQoDataUtils:
             )
 
         measurements["timestamp"] = measurements["timestamp"].apply(pd.to_datetime)
-        measurements[["longitude", "latitude"]] = measurements[
-            ["longitude", "latitude"]
-        ].apply(pd.to_numeric, errors="coerce")
         measurements["device_number"] = measurements["device_number"].apply(
             lambda x: pd.to_numeric(x, errors="coerce", downcast="integer")
         )
 
         weather_data["timestamp"] = weather_data["timestamp"].apply(pd.to_datetime)
-        weather_data[["longitude", "latitude"]] = weather_data[
-            ["longitude", "latitude"]
-        ].apply(pd.to_numeric, errors="coerce")
         weather_data["device_number"] = weather_data["device_number"].apply(
             lambda x: pd.to_numeric(x, errors="coerce", downcast="integer")
         )
@@ -355,7 +181,7 @@ class AirQoDataUtils:
         data = pd.merge(
             measurements,
             weather_data,
-            on=["device_number", "latitude", "longitude", "timestamp"],
+            on=["device_number", "timestamp"],
             how="left",
         )
 
@@ -370,105 +196,138 @@ class AirQoDataUtils:
 
         data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
         data["tenant"] = "airqo"
-        return data
+        big_query_api = BigQueryApi()
+        cols = big_query_api.get_columns(
+            table=big_query_api.airqo_mobile_measurements_table
+        )
+        return Utils.populate_missing_columns(data=data, cols=cols)
 
     @staticmethod
-    def extract_bam_data(start_date_time: str, end_date_time: str) -> pd.DataFrame:
-        thingspeak_base_url = configuration.THINGSPEAK_CHANNEL_URL
+    def extract_devices_data(
+        start_date_time: str,
+        end_date_time: str,
+        device_category: DeviceCategory,
+        device_numbers: list = None,
+    ) -> pd.DataFrame:
+
+        """
+        Returns a dataframe of AiQo sensors measurements.
+
+        :param start_date_time: start date time
+        :param end_date_time: end date time
+        :param device_category: BAM or low cost sensors
+        :param device_numbers: list of device numbers whose data you want to extract. Defaults to all AirQo devices
+        :return: a dataframe of measurements recorded between start date time and end date time
+        """
 
         airqo_api = AirQoApi()
-        airqo_devices = airqo_api.get_devices(
-            tenant="airqo", category=DeviceCategory.BAM
+        thingspeak_api = ThingspeakApi()
+        devices = airqo_api.get_devices(tenant="airqo", category=device_category)
+
+        if device_numbers:
+            devices = list(
+                filter(lambda x: int(x["device_number"]) in device_numbers, devices)
+            )
+
+        if device_category == DeviceCategory.BAM:
+            other_fields_cols = []
+            field_8_cols = [x for x in configuration.AIRQO_BAM_CONFIG.values()]
+        else:
+            field_8_cols = [x for x in configuration.AIRQO_LOW_COST_CONFIG.values()]
+            other_fields_cols = [
+                "s1_pm2_5",
+                "s1_pm10",
+                "s2_pm2_5",
+                "s2_pm10",
+                "battery",
+            ]
+
+        data_columns = [
+            "device_number",
+            "device_id",
+            "site_id",
+            "latitude",
+            "longitude",
+            "timestamp",
+        ]
+        data_columns.extend(field_8_cols)
+        data_columns.extend(other_fields_cols)
+        data_columns = list(set(data_columns))
+
+        read_keys = airqo_api.get_thingspeak_read_keys(devices=devices)
+
+        devices_data = pd.DataFrame()
+        dates = Utils.query_dates_array(
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            data_source=DataSource.THINGSPEAK,
         )
-        read_keys = airqo_api.get_read_keys(devices=airqo_devices)
 
-        bam_data = pd.DataFrame()
+        for device in devices:
 
-        frequency = get_frequency(start_time=start_date_time, end_time=end_date_time)
+            device_number = device.get("device_number", None)
+            read_key = read_keys.get(device_number, None)
 
-        dates = pd.date_range(start_date_time, end_date_time, freq=frequency)
-        last_date_time = dates.values[len(dates.values) - 1]
-        for device in airqo_devices:
-
-            device = dict(device)
-
-            channel_id = str(device.get("device_number"))
-            read_key = read_keys.get(str(channel_id), None)
-            if not read_key:
-                print(f"{channel_id} does not have a read key")
+            if read_key is None or device_number is None:
+                print(f"{device_number} does not have a read key")
                 continue
 
-            for date in dates:
+            for start, end in dates:
 
-                start = date_to_str(date)
-                end_date_time = date + timedelta(hours=dates.freq.n)
+                data = thingspeak_api.query_data(
+                    device_number=device_number,
+                    start_date_time=start,
+                    end_date_time=end,
+                    read_key=read_key,
+                )
 
-                if np.datetime64(end_date_time) > last_date_time:
-                    timestring = pd.to_datetime(str(last_date_time))
-                    end = date_to_str(timestring)
-                else:
-                    end = date_to_str(end_date_time)
-
-                if start == end:
-                    end = date_to_str(date, str_format="%Y-%m-%dT%H:59:59Z")
-
-                try:
-                    url = f"{thingspeak_base_url}{channel_id}/feeds.json?start={start}&end={end}&api_key={read_key}"
-                    print(f"{url}")
-
-                    data = json.loads(
-                        requests.get(url, timeout=100.0).content.decode("utf-8")
+                if data.empty:
+                    print(
+                        f"{device_number} does not have data between {start} and {end}"
                     )
-                    if (data == -1) or ("feeds" not in data):
-                        print(f"No data for {url}")
-                        continue
+                    continue
 
-                    feeds = pd.DataFrame(data["feeds"])
-                    channel = data["channel"]
-                    if feeds.empty:
-                        print(
-                            f"{channel_id} does not have data between {start} and {end}"
-                        )
-                        continue
+                meta_data = data.attrs.pop("meta_data", {})
 
-                    feeds = feeds[
-                        [
-                            "field1",
-                            "field3",
-                            "field6",
-                        ]
-                    ]
-                    feeds.rename(
+                data[field_8_cols] = data["field8"].apply(
+                    lambda x: AirQoDataUtils.flatten_field_8(
+                        device_category=device_category, field_8=x
+                    )
+                )
+
+                data["device_number"] = device_number
+                data["device_id"] = device.get("device_id")
+                data["site_id"] = device.get("site_id")
+
+                if device_category == DeviceCategory.BAM:
+                    data["latitude"] = meta_data.get("latitude", None)
+                    data["longitude"] = meta_data.get("longitude", None)
+
+                if device_category == DeviceCategory.LOW_COST:
+                    data.rename(
                         columns={
-                            "field1": "timestamp",
-                            "field3": "pm2_5",
-                            "field6": "status",
+                            "field1": "s1_pm2_5",
+                            "field2": "s1_pm10",
+                            "field3": "s2_pm2_5",
+                            "field4": "s2_pm10",
+                            "field7": "battery",
+                            "created_at": "timestamp",
                         },
                         inplace=True,
                     )
 
-                    feeds["device_number"] = channel_id
-                    feeds["device_id"] = device.get("name", None)
-                    feeds["latitude"] = channel["latitude"]
-                    feeds["longitude"] = channel["longitude"]
-
-                    bam_data = bam_data.append(feeds, ignore_index=True)
-                except Exception as ex:
-                    print(ex)
-                    traceback.print_exc()
-
-        bam_data["timestamp"] = bam_data["timestamp"].apply(pd.to_datetime)
-
-        return DataValidationUtils.remove_outliers(bam_data)
+                devices_data = devices_data.append(
+                    data[data_columns], ignore_index=True
+                )
+        return devices_data
 
     @staticmethod
     def aggregate_low_cost_sensors_data(data: pd.DataFrame) -> pd.DataFrame:
 
-        device_groups = data.groupby("device_number")
         aggregated_data = pd.DataFrame()
         data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
 
-        for _, device_group in device_groups:
+        for _, device_group in data.groupby("device_number"):
             site_id = device_group.iloc[0]["site_id"]
             device_id = device_group.iloc[0]["device_id"]
             device_number = device_group.iloc[0]["device_number"]
@@ -488,31 +347,62 @@ class AirQoDataUtils:
         return aggregated_data
 
     @staticmethod
-    def process_bam_data(data: pd.DataFrame, data_type: BamDataType) -> pd.DataFrame:
+    def clean_bam_data(data: pd.DataFrame) -> pd.DataFrame:
 
+        data = DataValidationUtils.remove_outliers(data)
+        data.loc[:, "timestamp"] = data["timestamp"].apply(pd.to_datetime)
         data.drop_duplicates(
             subset=["timestamp", "device_number"], keep="first", inplace=True
         )
 
-        data["status"] = data["status"].apply(
+        data.loc[:, "status"] = data["status"].apply(
             lambda x: pd.to_numeric(x, errors="coerce", downcast="integer")
         )
-
-        data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
-        data["tenant"] = "airqo"
-
-        if data_type == BamDataType.OUTLIERS:
-            data = data.loc[data["status"] != 0]
-        else:
-            data = data.loc[data["status"] == 0]
+        data.loc[:, "tenant"] = str(Tenant.AIRQO)
+        data = data.loc[data["status"] == 0]
+        data.rename(columns=configuration.AIRQO_BAM_MAPPING, inplace=True)
 
         return data
 
     @staticmethod
-    def process_bam_data_for_bigquery(data: pd.DataFrame) -> pd.DataFrame:
-        data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
+    def clean_low_cost_sensor_data(data: pd.DataFrame) -> pd.DataFrame:
+
+        data = DataValidationUtils.remove_outliers(data)
+        data.loc[:, "timestamp"] = data["timestamp"].apply(pd.to_datetime)
+        data.drop_duplicates(
+            subset=["timestamp", "device_number"], keep="first", inplace=True
+        )
+
+        data["pm2_5_raw_value"] = data[["s1_pm2_5", "s2_pm2_5"]].mean(axis=1)
+        data["pm2_5"] = data[["s1_pm2_5", "s2_pm2_5"]].mean(axis=1)
+        data["pm10_raw_value"] = data[["s1_pm10", "s2_pm10"]].mean(axis=1)
+        data["pm10"] = data[["s1_pm10", "s2_pm10"]].mean(axis=1)
+
+        return data
+
+    @staticmethod
+    def format_data_for_bigquery(
+        data: pd.DataFrame, data_type: DataType
+    ) -> pd.DataFrame:
+        data.loc[:, "timestamp"] = data["timestamp"].apply(pd.to_datetime)
+        data.loc[:, "tenant"] = str(Tenant.AIRQO)
         big_query_api = BigQueryApi()
-        cols = big_query_api.get_columns(table=big_query_api.bam_measurements_table)
+        if data_type == DataType.UNCLEAN_BAM_DATA:
+            cols = big_query_api.get_columns(
+                table=big_query_api.raw_bam_measurements_table
+            )
+        elif data_type == DataType.CLEAN_BAM_DATA:
+            cols = big_query_api.get_columns(table=big_query_api.bam_measurements_table)
+        elif data_type == DataType.UNCLEAN_LOW_COST_DATA:
+            cols = big_query_api.get_columns(table=big_query_api.raw_measurements_table)
+        elif data_type == DataType.CLEAN_LOW_COST_DATA:
+            cols = big_query_api.get_columns(table=big_query_api.raw_measurements_table)
+        elif data_type == DataType.AGGREGATED_LOW_COST_DATA:
+            cols = big_query_api.get_columns(
+                table=big_query_api.hourly_measurements_table
+            )
+        else:
+            raise Exception("invalid data type")
         return Utils.populate_missing_columns(data=data, cols=cols)
 
     @staticmethod
@@ -533,6 +423,15 @@ class AirQoDataUtils:
 
     @staticmethod
     def process_data_for_api(data: pd.DataFrame, frequency: Frequency) -> list:
+
+        """
+        Formats device measurements into a format required by the events endpoint.
+
+        :param data: device measurements
+        :param frequency: frequency of the measurements.
+        :return: a list of measurements
+        """
+
         restructured_data = []
 
         data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
@@ -614,35 +513,64 @@ class AirQoDataUtils:
         if weather_data.empty:
             return airqo_data
 
-        airqo_data_cols = list(airqo_data.columns)
-        weather_data_cols = list(weather_data.columns)
-        intersecting_cols = list(set(airqo_data_cols) & set(weather_data_cols))
-        intersecting_cols.remove("timestamp")
-
-        for col in intersecting_cols:
-            airqo_data.rename(columns={col: f"device_reading_{col}_col"}, inplace=True)
-
         weather_data["timestamp"] = weather_data["timestamp"].apply(pd.to_datetime)
         airqo_data["timestamp"] = airqo_data["timestamp"].apply(pd.to_datetime)
 
         airqo_api = AirQoApi()
-        sites = airqo_api.get_sites()
-        sites_df = pd.json_normalize(sites)
-        sites_df = sites_df[["_id", "nearest_tahmo_station.code"]]
-        sites_df.rename(
-            columns={"nearest_tahmo_station.code": "station_code", "_id": "site_id"},
-            inplace=True,
-        )
+        sites = []
 
-        airqo_data = pd.merge(
-            left=airqo_data, right=sites_df, on=["site_id"], how="left"
-        )
+        for site in airqo_api.get_sites(tenant="airqo"):
+            for station in site.get("weather_stations", []):
+                sites.append(
+                    {
+                        "site_id": site.get("_id"),
+                        "station_code": station.get("code", None),
+                        "distance": station.get("distance", None),
+                    }
+                )
+
+        sites = pd.DataFrame(sites)
+
+        sites_weather_data = pd.DataFrame()
+        weather_data_cols = list(weather_data.columns)
+
+        for _, site_data in sites.groupby("site_id"):
+            site_weather_data = weather_data[
+                weather_data["station_code"].isin(site_data["station_code"].to_list())
+            ]
+            if site_weather_data.empty:
+                continue
+
+            site_weather_data = pd.merge(
+                left=site_weather_data, right=site_data, on="station_code", how="left"
+            )
+
+            for _, time_group in site_weather_data.groupby("timestamp"):
+                time_group.sort_values(ascending=True, by="distance", inplace=True)
+                time_group.fillna(method="bfill", inplace=True)
+                time_group.drop_duplicates(
+                    keep="first", subset=["timestamp"], inplace=True
+                )
+                time_group = time_group[weather_data_cols]
+                time_group["site_id"] = site_data.iloc[0]["site_id"]
+                sites_weather_data = sites_weather_data.append(
+                    time_group, ignore_index=True
+                )
+
+        airqo_data_cols = list(airqo_data.columns)
+        weather_data_cols = list(sites_weather_data.columns)
+        intersecting_cols = list(set(airqo_data_cols) & set(weather_data_cols))
+        intersecting_cols.remove("timestamp")
+        intersecting_cols.remove("site_id")
+
+        for col in intersecting_cols:
+            airqo_data.rename(columns={col: f"device_reading_{col}_col"}, inplace=True)
 
         measurements = pd.merge(
             left=airqo_data,
-            right=weather_data,
+            right=sites_weather_data,
             how="left",
-            on=["station_code", "timestamp"],
+            on=["site_id", "timestamp"],
         )
 
         for col in intersecting_cols:
@@ -650,8 +578,6 @@ class AirQoDataUtils:
                 measurements[f"device_reading_{col}_col"], inplace=True
             )
             del measurements[f"device_reading_{col}_col"]
-
-        del measurements["station_code"]
 
         return measurements
 

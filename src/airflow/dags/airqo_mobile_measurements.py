@@ -21,43 +21,37 @@ def airqo_mobile_devices_measurements_etl():
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
         dag_run = kwargs.get("dag_run")
-        meta_data = dag_run.conf["meta_data"]
+        meta_data = AirQoDataUtils.flatten_meta_data(dag_run.conf["meta_data"])
 
-        return AirQoDataUtils.extract_low_cost_sensors_data(
-            start_date_time="", end_date_time="", meta_data=meta_data
-        )
+        return AirQoDataUtils.extract_mobile_low_cost_sensors_data(meta_data=meta_data)
 
     @task()
     def aggregate_raw_data(raw_data: pd.DataFrame):
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
-        return AirQoDataUtils.aggregate_mobile_devices_data(data=raw_data)
+        return AirQoDataUtils.aggregate_low_cost_sensors_data(data=raw_data)
 
     @task()
-    def get_weather_stations(**kwargs):
+    def extract_weather_stations(**kwargs):
         from airqo_etl_utils.weather_data_utils import WeatherDataUtils
-
-        dag_run = kwargs.get("dag_run")
-        meta_data = dag_run.conf["meta_data"]
-
-        return WeatherDataUtils.get_nearest_tahmo_stations(coordinates_list=meta_data)
-
-    @task()
-    def get_weather_data(stations: pd.DataFrame, **kwargs):
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
         dag_run = kwargs.get("dag_run")
-        meta_data = dag_run.conf["meta_data"]
+        meta_data = AirQoDataUtils.flatten_meta_data(dag_run.conf["meta_data"])
 
-        return AirQoDataUtils.extract_aggregated_mobile_devices_weather_data(
-            stations=stations, meta_data=meta_data
-        )
+        return WeatherDataUtils.get_weather_stations(meta_data=meta_data)
+
+    @task()
+    def aggregate_weather_data(data: pd.DataFrame):
+        from airqo_etl_utils.airqo_utils import AirQoDataUtils
+
+        return AirQoDataUtils.extract_aggregated_mobile_devices_weather_data(data=data)
 
     @task()
     def merge_data(aggregated_measurements: pd.DataFrame, weather_data: pd.DataFrame):
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
-        return AirQoDataUtils.merge_mobile_devices_data_and_weather_data(
+        return AirQoDataUtils.merge_aggregated_mobile_devices_data_and_weather_data(
             measurements=aggregated_measurements, weather_data=weather_data
         )
 
@@ -65,7 +59,7 @@ def airqo_mobile_devices_measurements_etl():
     def calibrate(data: pd.DataFrame):
         from airqo_etl_utils.calibration_utils import CalibrationUtils
 
-        return CalibrationUtils.calibrate_mobile_devices_data(measurements=data)
+        return CalibrationUtils.calibrate_airqo_data(data=data)
 
     @task()
     def load(data: pd.DataFrame):
@@ -81,12 +75,11 @@ def airqo_mobile_devices_measurements_etl():
 
     devices_raw_data = extract_raw_data()
     aggregated_data = aggregate_raw_data(devices_raw_data)
-
-    weather_stations = get_weather_stations()
-    weather_stations_data = get_weather_data(stations=weather_stations)
+    weather_stations = extract_weather_stations()
+    aggregated_weather_data = aggregate_weather_data(weather_stations)
 
     merged_data = merge_data(
-        aggregated_measurements=aggregated_data, weather_data=weather_stations_data
+        aggregated_measurements=aggregated_data, weather_data=aggregated_weather_data
     )
     calibrated_data = calibrate(merged_data)
     load(calibrated_data)

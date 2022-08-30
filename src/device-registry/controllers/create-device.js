@@ -267,6 +267,73 @@ const device = {
     }
   },
 
+  updateAccessCode: async (req, res) => {
+    try {
+      logger.info(`the device update access code operation starts....`);
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      const { tenant, device_number, id, name, device } = req.query;
+      const { body } = req;
+      let requestBody = {};
+      requestBody["query"] = {};
+      requestBody["query"]["tenant"] = tenant;
+      requestBody["query"]["device_number"] = device_number;
+      requestBody["query"]["id"] = id;
+      requestBody["query"]["name"] = name;
+      requestBody["query"]["device"] = device;
+      requestBody["body"] = {};
+      requestBody["body"]["access_code"] = "random";
+
+      let responseFromUpdateDeviceOnPlatform = await createDeviceUtil.updateOnPlatform(
+        requestBody
+      );
+
+      logger.info(
+        `responseFromUpdateDeviceOnPlatform ${JSON.stringify(
+          responseFromUpdateDeviceOnPlatform
+        )}`
+      );
+
+      if (responseFromUpdateDeviceOnPlatform.success === true) {
+        let status = responseFromUpdateDeviceOnPlatform.status
+          ? responseFromUpdateDeviceOnPlatform.status
+          : HTTPStatus.OK;
+        return res.status(status).json({
+          message: "access code successfully updated",
+          success: true,
+          updated_device: responseFromUpdateDeviceOnPlatform.data,
+        });
+      }
+
+      if (responseFromUpdateDeviceOnPlatform.success === false) {
+        let errors = responseFromUpdateDeviceOnPlatform.errors
+          ? responseFromUpdateDeviceOnPlatform.errors
+          : "";
+        let status = responseFromUpdateDeviceOnPlatform.status
+          ? responseFromUpdateDeviceOnPlatform.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          message: responseFromUpdateDeviceOnPlatform.message,
+          success: false,
+          errors,
+        });
+      }
+    } catch (error) {
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: error.message,
+      });
+    }
+  },
+
   update: async (req, res) => {
     try {
       logger.info(`the device update operation starts....`);

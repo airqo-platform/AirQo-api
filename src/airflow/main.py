@@ -13,12 +13,13 @@ from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.commons import download_file_from_gcs
 from airqo_etl_utils.constants import (
     JobAction,
-    BamDataType,
     Frequency,
     Tenant,
     DeviceCategory,
+    DataType,
 )
 from airqo_etl_utils.airqo_utils import AirQoDataUtils
+from airqo_etl_utils.weather_data_utils import WeatherDataUtils
 
 BASE_DIR = Path(__file__).resolve().parent
 dotenv_path = os.path.join(BASE_DIR, ".env")
@@ -119,7 +120,7 @@ def airqo_historical_hourly_data():
         path_or_buf="hourly_device_measurements.csv", index=False
     )
 
-    hourly_weather_data = CalibrationUtils.extract_hourly_weather_data(
+    hourly_weather_data = WeatherDataUtils.extract_hourly_weather_data(
         start_date_time=start_date_time,
         end_date_time=end_date_time,
     )
@@ -130,7 +131,7 @@ def airqo_historical_hourly_data():
     )
     merged_data.to_csv(path_or_buf="merged_data.csv", index=False)
 
-    calibrated_data = CalibrationUtils.calibrate_airqo_data(measurements=merged_data)
+    calibrated_data = CalibrationUtils.calibrate_airqo_data(data=merged_data)
     calibrated_data.to_csv(path_or_buf="calibrated_data.csv", index=False)
 
     bigquery_data = AirQoDataUtils.process_aggregated_data_for_bigquery(
@@ -143,8 +144,10 @@ def airqo_historical_raw_data():
     start_date_time = "2022-01-01T10:00:00Z"
     end_date_time = "2022-01-01T17:00:00Z"
 
-    low_cost_sensors_data = AirQoDataUtils.extract_low_cost_sensors_data(
-        start_date_time=start_date_time, end_date_time=end_date_time
+    low_cost_sensors_data = AirQoDataUtils.extract_devices_data(
+        start_date_time=start_date_time,
+        end_date_time=end_date_time,
+        device_category=DeviceCategory.LOW_COST,
     )
     low_cost_sensors_data.to_csv(path_or_buf="low_cost_sensors_data.csv", index=False)
 
@@ -172,8 +175,10 @@ def airqo_realtime_data():
     start_date_time = date_to_str_hours(hour)
     end_date_time = datetime.strftime(hour, "%Y-%m-%dT%H:59:59Z")
 
-    low_cost_sensors_data = AirQoDataUtils.extract_low_cost_sensors_data(
-        start_date_time=start_date_time, end_date_time=end_date_time
+    low_cost_sensors_data = AirQoDataUtils.extract_devices_data(
+        start_date_time=start_date_time,
+        end_date_time=end_date_time,
+        device_category=DeviceCategory.LOW_COST,
     )
 
     low_cost_sensors_data.to_csv(path_or_buf="low_cost_sensors_data.csv", index=False)
@@ -202,7 +207,7 @@ def airqo_realtime_data():
     )
     merged_data.to_csv(path_or_buf="merged_data.csv", index=False)
 
-    calibrated_data = CalibrationUtils.calibrate_airqo_data(measurements=merged_data)
+    calibrated_data = CalibrationUtils.calibrate_airqo_data(data=merged_data)
     calibrated_data.to_csv(path_or_buf="calibrated_data.csv", index=False)
 
     bigquery_data = AirQoDataUtils.process_aggregated_data_for_bigquery(
@@ -352,7 +357,7 @@ def calibrate_historical_data():
     start_date_time = "2022-01-01T00:00:00Z"
     end_date_time = "2022-01-10T00:00:00Z"
 
-    hourly_weather_data = CalibrationUtils.extract_hourly_weather_data(
+    hourly_weather_data = WeatherDataUtils.extract_hourly_weather_data(
         start_date_time=start_date_time, end_date_time=end_date_time
     )
     hourly_weather_data.to_csv("historical_weather_data.csv", index=False)
@@ -369,7 +374,7 @@ def calibrate_historical_data():
     merged_data.to_csv("historical_merged_data.csv", index=False)
 
     calibrated_data = CalibrationUtils.calibrate_airqo_data(
-        measurements=merged_data,
+        data=merged_data,
     )
     calibrated_data.to_csv("historical_calibrated_data.csv", index=False)
 
@@ -515,17 +520,19 @@ def nasa_purple_air_data():
 def airqo_bam_data():
     from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
-    extracted_bam_data = AirQoDataUtils.extract_bam_data(
-        start_date_time="2022-07-28T19:00:00Z", end_date_time="2022-07-28T19:59:59Z"
+    extracted_bam_data = AirQoDataUtils.extract_devices_data(
+        start_date_time="2022-07-28T19:00:00Z",
+        end_date_time="2022-07-28T19:59:59Z",
+        device_category=DeviceCategory.BAM,
     )
     extracted_bam_data.to_csv("airqo_bam_unprocessed_data.csv", index=False)
 
-    processed_bam_data = AirQoDataUtils.process_bam_data(
-        extracted_bam_data, data_type=BamDataType.MEASUREMENTS
-    )
+    processed_bam_data = AirQoDataUtils.clean_bam_data(extracted_bam_data)
     processed_bam_data.to_csv("airqo_bam_processed_data.csv", index=False)
 
-    bigquery_data = AirQoDataUtils.process_bam_data_for_bigquery(processed_bam_data)
+    bigquery_data = AirQoDataUtils.format_data_for_bigquery(
+        data=processed_bam_data, data_type=DataType.CLEAN_BAM_DATA
+    )
     bigquery_data.to_csv("airqo_bam_bigquery_data.csv", index=False)
 
 
@@ -534,7 +541,7 @@ def urban_better_data_from_plume_labs():
 
     start_date_time = "2022-07-11T00:00:00Z"
     end_date_time = "2022-07-12T00:00:00Z"
-    measurements = UrbanBetterUtils.extract_measurements_from_plume_labs(
+    measurements = UrbanBetterUtils.extract_raw_data_from_plume_labs(
         start_date_time=start_date_time, end_date_time=end_date_time
     )
     measurements.to_csv("urban_better_unprocessed_data.csv", index=False)
@@ -586,7 +593,7 @@ def urban_better_data_from_bigquery():
     data = bigquery_api.query_data(
         start_date_time="2022-01-01T00:00:00Z",
         end_date_time="2023-01-01T00:00:00Z",
-        table=bigquery_api.raw_mobile_measurements_table,
+        table=bigquery_api.clean_mobile_raw_measurements_table,
         where_fields={"tenant": str(Tenant.URBAN_BETTER)},
     )
 
@@ -631,51 +638,63 @@ def airqo_mobile_device_measurements():
             "longitude": 32.57946554294726,
             "start_date_time": "2022-07-20T10:00:00Z",
             "end_date_time": "2022-07-20T18:00:00Z",
-            "device_numbers": [1575539, 1606118],
+            "device_number": 1575539,
+        },
+        {
+            "latitude": 0.2959788757479883,
+            "longitude": 32.57946554294726,
+            "start_date_time": "2022-07-20T10:00:00Z",
+            "end_date_time": "2022-07-20T18:00:00Z",
+            "device_number": 1606118,
         },
         {
             "latitude": 0.30112943343101545,
             "longitude": 32.587149313048286,
             "start_date_time": "2022-07-21T10:00:00Z",
             "end_date_time": "2022-07-21T18:00:00Z",
-            "device_numbers": [1351544, 1371829],
+            "device_number": 1351544,
+        },
+        {
+            "latitude": 0.30112943343101545,
+            "longitude": 32.587149313048286,
+            "start_date_time": "2022-07-21T10:00:00Z",
+            "end_date_time": "2022-07-21T18:00:00Z",
+            "device_number": 1371829,
         },
     ]
 
-    raw_data = AirQoDataUtils.extract_low_cost_sensors_data(
-        start_date_time="", end_date_time="", meta_data=input_meta_data
+    raw_data = AirQoDataUtils.extract_mobile_low_cost_sensors_data(
+        meta_data=input_meta_data
     )
     raw_data.to_csv("raw_device_measurements_data.csv", index=False)
 
-    aggregated_mobile_devices_data = AirQoDataUtils.aggregate_mobile_devices_data(
+    aggregated_mobile_devices_data = AirQoDataUtils.aggregate_low_cost_sensors_data(
         raw_data
     )
     aggregated_mobile_devices_data.to_csv(
         "aggregated_mobile_devices_data.csv", index=False
     )
 
-    weather_stations = WeatherDataUtils.get_nearest_tahmo_stations(
-        coordinates_list=input_meta_data
-    )
+    weather_stations = WeatherDataUtils.get_weather_stations(meta_data=input_meta_data)
     weather_stations.to_csv("weather_stations.csv", index=False)
 
     mobile_devices_weather_data = (
         AirQoDataUtils.extract_aggregated_mobile_devices_weather_data(
-            stations=weather_stations, meta_data=input_meta_data
+            data=weather_stations
         )
     )
     mobile_devices_weather_data.to_csv("mobile_devices_weather_data.csv", index=False)
 
     merged_mobile_devices_data = (
-        AirQoDataUtils.merge_mobile_devices_data_and_weather_data(
+        AirQoDataUtils.merge_aggregated_mobile_devices_data_and_weather_data(
             measurements=aggregated_mobile_devices_data,
             weather_data=mobile_devices_weather_data,
         )
     )
     merged_mobile_devices_data.to_csv("merged_mobile_devices_data.csv", index=False)
 
-    calibrated_mobile_devices_data = CalibrationUtils.calibrate_mobile_devices_data(
-        measurements=merged_mobile_devices_data
+    calibrated_mobile_devices_data = CalibrationUtils.calibrate_airqo_data(
+        data=merged_mobile_devices_data
     )
     calibrated_mobile_devices_data.to_csv(
         "calibrated_mobile_devices_data.csv", index=False
@@ -694,48 +713,24 @@ def airqo_mobile_device_measurements():
 def airqo_historical_bam_data():
 
     """
-        Processes AirQo reference monitors data from a csv file "airqo_historical_bam_data.csv"
-        into a format that is required for storage in BigQuery reference monitors data table.
+    Processes AirQo reference monitors data from a csv file "airqo_historical_bam_data.csv"
+    into a format that is required for storage in BigQuery reference monitors data table.
 
-        The resultant file "airqo_bam_bigquery_data.csv" contains data that matches the format required by BigQuery
-        reference monitors data table and hence, ready for import.
+    The resultant file "airqo_bam_bigquery_data.csv" contains data that matches the format required by BigQuery
+    reference monitors data table and hence, ready for import.
 
-        The input csv file is assumed to have stored data for the reference monitors
-        1192542 and 1192541 as -24517  and -24516 respectively.
+    The input csv file is assumed to have stored data for the reference monitors
+    1192542 and 1192541 as -24517  and -24516 respectively.
     """
 
     from airqo_etl_utils.airqo_utils import AirQoDataUtils
-    from airqo_etl_utils.data_validator import DataValidationUtils
 
-    airqo_api = AirQoApi()
-    devices = airqo_api.get_devices(
+    devices = AirQoApi().get_devices(
         tenant=str(Tenant.AIRQO), category=DeviceCategory.BAM
     )
 
-    data = pd.read_csv(
+    unclean_data = pd.read_csv(
         "airqo_historical_bam_data.csv",
-        usecols=[
-            "Time",
-            "ConcHR_ug_m3",
-            "channel_id",
-            "Status",
-            "latitude",
-            "longitude",
-        ],
-    )
-    data.rename(
-        columns={
-            "Time": "timestamp",
-            "ConcHR_ug_m3": "pm2_5",
-            "channel_id": "device_number",
-            "Status": "status",
-        },
-        inplace=True,
-    )
-    data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
-    data = DataValidationUtils.get_valid_values(data)
-    data = AirQoDataUtils.process_bam_data(
-        data=data, data_type=BamDataType.MEASUREMENTS
     )
 
     def update_device_details(device_number):
@@ -758,12 +753,20 @@ def airqo_historical_bam_data():
 
         return pd.Series({"device_number": device_number, "device_id": device_id})
 
-    data[["device_number", "device_id"]] = data["device_number"].apply(
+    unclean_data[["device_number", "device_id"]] = unclean_data["device_number"].apply(
         lambda x: update_device_details(x)
     )
 
-    bigquery_data = AirQoDataUtils.process_bam_data_for_bigquery(data)
-    bigquery_data.to_csv("airqo_bam_bigquery_data.csv", index=False)
+    bigquery_data = AirQoDataUtils.format_data_for_bigquery(
+        data=unclean_data, data_type=DataType.UNCLEAN_BAM_DATA
+    )
+    bigquery_data.to_csv("airqo_unclean_bam_bigquery_data.csv", index=False)
+
+    clean_data = AirQoDataUtils.clean_bam_data(data=unclean_data)
+    bigquery_data = AirQoDataUtils.format_data_for_bigquery(
+        data=clean_data, data_type=DataType.CLEAN_BAM_DATA
+    )
+    bigquery_data.to_csv("airqo_clean_bam_bigquery_data.csv", index=False)
 
 
 if __name__ == "__main__":

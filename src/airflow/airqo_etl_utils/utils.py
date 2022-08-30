@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 
-from .constants import DataType, Pollutant, AirQuality
+from .constants import ColumnDataType, Pollutant, AirQuality, DataSource
 from .date import date_to_str
 
 
@@ -64,7 +64,7 @@ class Utils:
         for col in cols:
             if col not in list(data.columns):
                 print(f"{col} missing in dataset")
-                data[col] = None
+                data.loc[:, col] = None
 
         return data
 
@@ -106,22 +106,22 @@ class Utils:
     @staticmethod
     def format_dataframe_column_type(
         dataframe: pd.DataFrame,
-        data_type: DataType,
+        data_type: ColumnDataType,
         columns: list,
     ) -> pd.DataFrame:
         if not columns:
             return dataframe
-        if data_type == DataType.FLOAT:
+        if data_type == ColumnDataType.FLOAT:
             dataframe[columns] = dataframe[columns].apply(
                 pd.to_numeric, errors="coerce"
             )
 
-        if data_type == DataType.TIMESTAMP:
+        if data_type == ColumnDataType.TIMESTAMP:
             dataframe[columns] = dataframe[columns].apply(
                 pd.to_datetime, errors="coerce"
             )
 
-        if data_type == DataType.TIMESTAMP_STR:
+        if data_type == ColumnDataType.TIMESTAMP_STR:
             dataframe[columns] = dataframe[columns].apply(
                 pd.to_datetime, errors="coerce"
             )
@@ -147,3 +147,40 @@ class Utils:
             file_json = open(os.path.join(path, file_name))
 
         return json.load(file_json)
+
+    @staticmethod
+    def query_frequency(data_source: DataSource) -> str:
+        if data_source == DataSource.THINGSPEAK:
+            return "12H"
+        if data_source == DataSource.AIRNOW:
+            return "12H"
+        if data_source == DataSource.TAHMO:
+            return "12H"
+        if data_source == DataSource.AIRQO:
+            return "12H"
+        if data_source == DataSource.CLARITY:
+            return "6H"
+        if data_source == DataSource.PURPLE_AIR:
+            return "72H"
+        return "1H"
+
+    @staticmethod
+    def query_dates_array(data_source: DataSource, start_date_time, end_date_time):
+        frequency = Utils.query_frequency(data_source)
+        dates = pd.date_range(start_date_time, end_date_time, freq=frequency)
+        freq = dates.freq
+
+        if dates.values.size == 1:
+            dates = dates.append(pd.Index([pd.to_datetime(end_date_time)]))
+
+        dates = [pd.to_datetime(str(date)) for date in dates.values]
+        return_dates = []
+
+        array_last_date_time = dates.pop()
+        for date in dates:
+            end = date + timedelta(hours=freq.n)
+            if end > array_last_date_time:
+                end = array_last_date_time
+            return_dates.append((date_to_str(date), date_to_str(end)))
+
+        return return_dates
