@@ -7,9 +7,10 @@ import pandas as pd
 from dotenv import load_dotenv
 
 from airqo_etl_utils.airqo_api import AirQoApi
-from airqo_etl_utils.calibration_utils import CalibrationUtils
+from airqo_etl_utils.airqo_utils import AirQoDataUtils
 from airqo_etl_utils.arg_parse_validator import valid_datetime_format
 from airqo_etl_utils.bigquery_api import BigQueryApi
+from airqo_etl_utils.calibration_utils import CalibrationUtils
 from airqo_etl_utils.commons import download_file_from_gcs
 from airqo_etl_utils.constants import (
     JobAction,
@@ -18,7 +19,6 @@ from airqo_etl_utils.constants import (
     DeviceCategory,
     DataType,
 )
-from airqo_etl_utils.airqo_utils import AirQoDataUtils
 from airqo_etl_utils.weather_data_utils import WeatherDataUtils
 
 BASE_DIR = Path(__file__).resolve().parent

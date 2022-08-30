@@ -3,7 +3,6 @@ from datetime import datetime
 from airflow.decorators import dag, task
 
 from airqo_etl_utils.airflow_custom_utils import slack_dag_failure_notification
-from airqo_etl_utils.constants import Tenant
 
 
 @dag(
@@ -215,6 +214,7 @@ def insights_cleanup_etl():
     def create_empty_insights():
 
         from airqo_etl_utils.airqo_api import AirQoApi
+        from airqo_etl_utils.constants import Tenant
 
         import random
         from airqo_etl_utils.date import (
