@@ -5,7 +5,6 @@ import pandas as pd
 from google.cloud import bigquery
 
 from airqoApi import AirQoApi
-from tahmo import TahmoApi
 from utils import array_to_csv, array_to_json, is_valid_double, str_to_date
 
 
@@ -14,7 +13,6 @@ class Transformation:
         self.output_format = output_format
         self.tenant = os.getenv("TENANT")
         self.airqo_api = AirQoApi()
-        self.tahmo_api = TahmoApi()
 
     def approximate_site_coordinates(self, tenant):
 

@@ -9,6 +9,7 @@ class DeviceCategory(Enum):
 
     LOW_COST = 1
     BAM = 2
+    NONE = 20
 
     def __str__(self):
         if self == self.LOW_COST:
@@ -65,6 +66,8 @@ class Tenant(Enum):
     URBAN_BETTER = 2
     AIRQO = 3
     US_EMBASSY = 4
+    KCCA = 5
+    NONE = 20
 
     def __str__(self) -> str:
         if self == self.NASA:
@@ -73,6 +76,8 @@ class Tenant(Enum):
             return "urban_better"
         elif self == self.AIRQO:
             return "airqo"
+        elif self == self.KCCA:
+            return "kcca"
         elif self == self.US_EMBASSY:
             return "us_embassy"
         else:

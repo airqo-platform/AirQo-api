@@ -9,7 +9,7 @@ from .commons import (
     get_air_quality,
 )
 from .config import configuration
-from .constants import Frequency, DataSource
+from .constants import Frequency, DataSource, Tenant
 from .date import (
     date_to_str,
     predict_str_to_date,
@@ -129,7 +129,7 @@ class AirQoAppUtils:
     @staticmethod
     def extract_forecast_data() -> pd.DataFrame:
         airqo_api = AirQoApi()
-        devices = airqo_api.get_devices(tenant="airqo")
+        devices = airqo_api.get_devices(tenant=Tenant.AIRQO)
 
         forecast_measurements = pd.DataFrame(data=[], columns=insights_columns)
         time = int((datetime.utcnow() + timedelta(hours=1)).timestamp())

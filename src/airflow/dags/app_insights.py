@@ -3,6 +3,7 @@ from datetime import datetime
 from airflow.decorators import dag, task
 
 from airqo_etl_utils.airflow_custom_utils import slack_dag_failure_notification
+from airqo_etl_utils.constants import Tenant
 
 
 @dag(
@@ -222,7 +223,7 @@ def insights_cleanup_etl():
         )
 
         airqo_api = AirQoApi()
-        sites = airqo_api.get_sites(tenant="airqo")
+        sites = airqo_api.get_sites(tenant=Tenant.AIRQO)
         insights = []
 
         dates = pd.date_range(start_date_time, end_date_time, freq="1H")

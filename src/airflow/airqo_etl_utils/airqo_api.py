@@ -5,7 +5,7 @@ import requests
 import simplejson
 
 from .config import configuration
-from .constants import DeviceCategory
+from .constants import DeviceCategory, Tenant
 
 
 class AirQoApi:
@@ -91,25 +91,32 @@ class AirQoApi:
             print(ex)
             return []
 
-    def get_devices(self, tenant=None, category: DeviceCategory = None) -> list:
-
+    def get_devices(
+        self,
+        tenant: Tenant = Tenant.NONE,
+        category: DeviceCategory = DeviceCategory.NONE,
+    ) -> list:
         devices = []
+        if tenant == Tenant.NONE:
+            for tenant in Tenant:
+                if tenant == Tenant.NONE:
+                    continue
+                try:
+                    response = self.__request("devices", {"tenant": str(tenant)})
+                    tenant_devices = [
+                        {**device, **{"tenant": str(tenant)}}
+                        for device in response.get("devices", [])
+                    ]
+                    devices.extend(tenant_devices)
+                except Exception:
+                    continue
 
-        if tenant:
-            params = {"tenant": tenant}
-            response = self.__request("devices", params)
-            if "devices" in response:
-                for device in response["devices"]:
-                    device["tenant"] = tenant
-                    devices.append(device)
         else:
-            for x in ["airqo", "kcca"]:
-                params = {"tenant": x}
-                response = self.__request("devices", params)
-                if "devices" in response:
-                    for device in response["devices"]:
-                        device["tenant"] = x
-                        devices.append(device)
+            response = self.__request("devices", {"tenant": tenant})
+            devices = [
+                {**device, **{"tenant": str(tenant)}}
+                for device in response.get("devices", [])
+            ]
 
         devices = [
             {
@@ -123,8 +130,8 @@ class AirQoApi:
             for device in devices
         ]
 
-        if category:
-            return list(filter(lambda y: y["category"] == category, devices))
+        if category != DeviceCategory.NONE:
+            devices = list(filter(lambda y: y["category"] == category, devices))
 
         return devices
 
@@ -198,24 +205,37 @@ class AirQoApi:
 
         return list(response["weather_stations"]) if response else []
 
-    def get_sites(self, tenant=None) -> list:
-        if tenant:
-            response = self.__request("devices/sites", {"tenant": tenant})
-            if "sites" in response:
-                sites_with_tenant = []
-                for site in response["sites"]:
-                    site["tenant"] = tenant
-                    sites_with_tenant.append(site)
-                return sites_with_tenant
+    def get_sites(self, tenant: Tenant = Tenant.NONE) -> list:
+        sites = []
+        if tenant == Tenant.NONE:
+            for tenant in Tenant:
+                if tenant == Tenant.NONE:
+                    continue
+                try:
+                    response = self.__request("devices/sites", {"tenant": str(tenant)})
+                    tenant_sites = [
+                        {**site, **{"tenant": str(tenant)}}
+                        for site in response.get("sites", [])
+                    ]
+                    sites.extend(tenant_sites)
+                except Exception:
+                    continue
+
         else:
-            sites_with_tenant = []
-            for x in ["airqo", "kcca"]:
-                response = self.__request("devices/sites", {"tenant": x})
-                if "sites" in response:
-                    for site in response["sites"]:
-                        site["tenant"] = x
-                        sites_with_tenant.append(site)
-            return sites_with_tenant
+            response = self.__request("devices/sites", {"tenant": tenant})
+            sites = [
+                {**site, **{"tenant": str(tenant)}}
+                for site in response.get("sites", [])
+            ]
+
+        return sites
+
+    def update_sites(self, updated_sites):
+        for i in updated_sites:
+            site = dict(i)
+            params = {"tenant": site.pop("tenant"), "id": site.pop("id")}
+            response = self.__request("devices/sites", params, site, "put")
+            print(response)
 
     def __request(
         self, endpoint, params=None, body=None, method=None, version="v1", base_url=None
