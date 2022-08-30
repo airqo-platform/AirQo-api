@@ -1,17 +1,12 @@
-from datetime import timedelta
-
-import numpy as np
 import pandas as pd
 
 from .airqo_api import AirQoApi
 from .bigquery_api import BigQueryApi
 from .commons import remove_invalid_dates
 from .constants import DataSource
-from .utils import Utils
 from .data_validator import DataValidationUtils
-
-from .date import date_to_str
 from .tahmo_api import TahmoApi
+from .utils import Utils
 
 
 class WeatherDataUtils:
@@ -80,24 +75,13 @@ class WeatherDataUtils:
         measurements = []
         tahmo_api = TahmoApi()
 
-        frequency = Utils.query_time_interval(DataSource.TAHMO)
-        dates = pd.date_range(start_date_time, end_date_time, freq=frequency)
-        last_date_time = dates.values[len(dates.values) - 1]
+        dates = Utils.query_dates_array(
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            data_source=DataSource.TAHMO,
+        )
 
-        for date in dates:
-
-            start = date_to_str(date)
-            end = date + timedelta(hours=dates.freq.n)
-
-            if np.datetime64(end) > last_date_time:
-                timestring = pd.to_datetime(str(last_date_time))
-                end = date_to_str(timestring)
-            else:
-                end = date_to_str(end)
-
-            if start == end:
-                end = date_to_str(date, str_format="%Y-%m-%dT%H:59:59Z")
-
+        for start, end in dates:
             range_measurements = tahmo_api.get_measurements(start, end, station_codes)
             measurements.extend(range_measurements)
 

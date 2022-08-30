@@ -31,3 +31,6 @@ venv.bak/
 venv
 venv/
 meta_data/
+
+*.ipynb
+*.html

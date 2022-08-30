@@ -2,10 +2,15 @@ from enum import Enum
 
 
 class DeviceCategory(Enum):
+    """
+    LOW_COST -> Reference monitors
+    BAM -> Low cost senors
+    """
+
     LOW_COST = 1
     BAM = 2
 
-    def get_api_query_str(self):
+    def __str__(self):
         if self == self.LOW_COST:
             return "lowcost"
         elif self == self.BAM:
@@ -13,8 +18,23 @@ class DeviceCategory(Enum):
         else:
             return ""
 
+    @staticmethod
+    def from_str(string: str):
+        if string.lower() == "lowcost":
+            return DeviceCategory.LOW_COST
+        elif string.lower() == "bam":
+            return DeviceCategory.BAM
+        else:
+            return DeviceCategory.LOW_COST
+
 
 class Frequency(Enum):
+    """
+    LOW_COST -> Raw data returned from the devices
+    HOURLY -> Aggregated hourly data
+    DAILY -> Aggregated daily data
+    """
+
     RAW = 1
     HOURLY = 2
     DAILY = 3
@@ -36,6 +56,8 @@ class DataSource(Enum):
     PLUME_LABS = 3
     AIRNOW = 4
     TAHMO = 5
+    AIRQO = 6
+    PURPLE_AIR = 7
 
 
 class Tenant(Enum):
@@ -57,19 +79,6 @@ class Tenant(Enum):
             return ""
 
 
-class BamDataType(Enum):
-    OUTLIERS = 1
-    MEASUREMENTS = 2
-
-    def __str__(self) -> str:
-        if self == self.OUTLIERS:
-            return "outliers"
-        elif self == self.MEASUREMENTS:
-            return "measurements"
-        else:
-            return ""
-
-
 class JobAction(Enum):
     APPEND = 1
     OVERWRITE = 2
@@ -83,7 +92,7 @@ class JobAction(Enum):
             return "WRITE_EMPTY"
 
 
-class DataType(Enum):
+class ColumnDataType(Enum):
     TIMESTAMP = 1
     FLOAT = 2
     TIMESTAMP_STR = 3
@@ -142,3 +151,11 @@ class Pollutant(Enum):
             return "no2"
         else:
             return ""
+
+
+class DataType(Enum):
+    UNCLEAN_BAM_DATA = 0
+    CLEAN_BAM_DATA = 1
+    UNCLEAN_LOW_COST_DATA = 2
+    CLEAN_LOW_COST_DATA = 3
+    AGGREGATED_LOW_COST_DATA = 3
