@@ -94,8 +94,15 @@ class Extract:
             if float(distance_between_coordinates) <= float(threshold_distance):
                 stations_with_distances.append(
                     {
-                        **station,
-                        **{"distance": distance_between_coordinates},
+                        "distance": distance_between_coordinates,
+                        "code": station.get("code", ""),
+                        "country": station.get("countrycode", ""),
+                        "id": station.get("id", ""),
+                        "latitude": station.get("latitude", None),
+                        "longitude": station.get("longitude", None),
+                        "name": station.get("name", ""),
+                        "timezone": station.get("timezone", ""),
+                        "type": station.get("type", ""),
                     }
                 )
         return sorted(stations_with_distances, key=lambda x: float(x["distance"]))

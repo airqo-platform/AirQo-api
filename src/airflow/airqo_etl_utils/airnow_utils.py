@@ -82,7 +82,7 @@ class AirnowDataUtils:
         )
 
         data = pd.DataFrame()
-        devices = pd.DataFrame(AirQoApi().get_devices(tenant="airqo"))
+        devices = pd.DataFrame(AirQoApi().get_devices(tenant=Tenant.AIRQO))
 
         for start, end in dates:
             query_data = AirnowDataUtils.query_bam_data(
@@ -97,7 +97,7 @@ class AirnowDataUtils:
 
         device_groups = data.groupby("device_number")
         airnow_data = []
-        devices = AirQoApi().get_devices(tenant="airqo")
+        devices = AirQoApi().get_devices(tenant=Tenant.AIRQO)
 
         for _, device_group in device_groups:
 
