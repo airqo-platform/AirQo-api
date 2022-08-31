@@ -64,7 +64,7 @@ spec:
               # Average usage was 0.001 vCPU and 250Mi over the last 30 days
               memory: 250Mi
             limits:
-              cpu: 10m
+              cpu: 100m
               memory: 400Mi
       volumes:
         - name: config-volume
