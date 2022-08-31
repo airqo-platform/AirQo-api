@@ -18,6 +18,23 @@ spec:
       labels:
         app: airflow
     spec:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 10
+            preference:
+              matchExpressions:
+              - key: node-type
+                operator: In
+                values:
+                - compute
+          - weight: 1
+            preference:
+              matchExpressions:
+              - key: node-type
+                operator: In
+                values:
+                - high-memory  
       serviceAccountName: stage-airflow-sa
       initContainers:
         - name: airflow-xcom
