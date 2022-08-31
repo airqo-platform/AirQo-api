@@ -74,6 +74,7 @@ spec:
           resources:
             requests:
               # Average usage was 0.0005 vCPU and 200Mi over the last 30 days
+              cpu: 10m
               memory: 200Mi
             limits:
               cpu: 100m
