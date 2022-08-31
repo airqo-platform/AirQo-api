@@ -134,7 +134,7 @@ const createEvent = {
         if (format && format === "csv") {
           return res
             .status(status)
-            .type("text/csv")
+            .type("text/html")
             .send(responseFromListFromBigQuery.data);
         }
         return res.status(status).json({
