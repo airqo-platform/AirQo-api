@@ -7,9 +7,10 @@ import pandas as pd
 from dotenv import load_dotenv
 
 from airqo_etl_utils.airqo_api import AirQoApi
-from airqo_etl_utils.calibration_utils import CalibrationUtils
+from airqo_etl_utils.airqo_utils import AirQoDataUtils
 from airqo_etl_utils.arg_parse_validator import valid_datetime_format
 from airqo_etl_utils.bigquery_api import BigQueryApi
+from airqo_etl_utils.calibration_utils import CalibrationUtils
 from airqo_etl_utils.commons import download_file_from_gcs
 from airqo_etl_utils.constants import (
     JobAction,
@@ -18,7 +19,6 @@ from airqo_etl_utils.constants import (
     DeviceCategory,
     DataType,
 )
-from airqo_etl_utils.airqo_utils import AirQoDataUtils
 from airqo_etl_utils.weather_data_utils import WeatherDataUtils
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -326,10 +326,10 @@ def upload_to_gcs():
 
 
 def meta_data():
-    from airqo_etl_utils.meta_data_utils import extract_meta_data
+    from airqo_etl_utils.meta_data_utils import MetaDataUtils
     from airqo_etl_utils.bigquery_api import BigQueryApi
 
-    sites = extract_meta_data(component="sites")
+    sites = MetaDataUtils.extract_meta_data(component="sites")
     sites_df = pd.DataFrame(sites)
     sites_df.to_csv(path_or_buf="sites_data.csv", index=False)
 
@@ -339,7 +339,7 @@ def meta_data():
     )
     bigquery_data_df.to_csv(path_or_buf="bigquery_sites_data.csv", index=False)
 
-    devices = extract_meta_data(component="devices")
+    devices = MetaDataUtils.extract_meta_data(component="devices")
     devices_df = pd.DataFrame(devices)
     devices_df.to_csv(path_or_buf="devices_data.csv", index=False)
 
@@ -725,9 +725,7 @@ def airqo_historical_bam_data():
 
     from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
-    devices = AirQoApi().get_devices(
-        tenant=str(Tenant.AIRQO), category=DeviceCategory.BAM
-    )
+    devices = AirQoApi().get_devices(tenant=Tenant.AIRQO, category=DeviceCategory.BAM)
 
     unclean_data = pd.read_csv(
         "airqo_historical_bam_data.csv",

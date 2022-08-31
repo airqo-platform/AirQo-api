@@ -118,7 +118,8 @@ const createEvent = {
             "short_time_conc , air_flow , wind_speed ," +
             "wind_direction , temperature , humidity," +
             "barometric_pressure , filter_temperature ," +
-            "filter_humidity, status ";
+            "filter_humidity, status, timestamp, device_id," +
+            "device_number,site_id, latitude, longitude";
           averaged_fields = "";
           table = `${constants.DATAWAREHOUSE_RAW_DATA}.bam_device_measurements`;
         } else {
@@ -251,7 +252,7 @@ const createEvent = {
       const sanitizedMeasurements = rows.map((item) => {
         return {
           ...item,
-          timestamp: item.timestamp.value,
+          timestamp: item.timestamp ? item.timestamp.value : "",
           gps_device_timestamp:
             item.gps_device_timestamp && item.gps_device_timestamp.value
               ? item.gps_device_timestamp.value

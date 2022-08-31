@@ -222,7 +222,7 @@ class AirQoDataUtils:
 
         airqo_api = AirQoApi()
         thingspeak_api = ThingspeakApi()
-        devices = airqo_api.get_devices(tenant="airqo", category=device_category)
+        devices = airqo_api.get_devices(tenant=Tenant.AIRQO, category=device_category)
 
         if device_numbers:
             devices = list(
@@ -359,7 +359,7 @@ class AirQoDataUtils:
             lambda x: pd.to_numeric(x, errors="coerce", downcast="integer")
         )
         data.loc[:, "tenant"] = str(Tenant.AIRQO)
-        data = data.loc[data["status"] == 0]
+        data = data.copy().loc[data["status"] == 0]
         data.rename(columns=configuration.AIRQO_BAM_MAPPING, inplace=True)
 
         return data
@@ -437,7 +437,7 @@ class AirQoDataUtils:
         data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
         data["timestamp"] = data["timestamp"].apply(date_to_str)
         airqo_api = AirQoApi()
-        devices = airqo_api.get_devices(tenant="airqo")
+        devices = airqo_api.get_devices(tenant=Tenant.AIRQO)
 
         for _, row in data.iterrows():
             try:
@@ -519,7 +519,7 @@ class AirQoDataUtils:
         airqo_api = AirQoApi()
         sites = []
 
-        for site in airqo_api.get_sites(tenant="airqo"):
+        for site in airqo_api.get_sites(tenant=Tenant.AIRQO):
             for station in site.get("weather_stations", []):
                 sites.append(
                     {
@@ -694,7 +694,7 @@ class AirQoDataUtils:
     @staticmethod
     def extract_devices_deployment_logs() -> pd.DataFrame:
         airqo_api = AirQoApi()
-        devices = airqo_api.get_devices(tenant="airqo")
+        devices = airqo_api.get_devices(tenant=Tenant.AIRQO)
         devices_history = pd.DataFrame()
         for device in devices:
 

@@ -1,12 +1,10 @@
 import os
-import traceback
 from datetime import datetime, timedelta
 
 import pandas as pd
 from google.cloud import bigquery
 
 from airqoApi import AirQoApi
-from tahmo import TahmoApi
 from utils import array_to_csv, array_to_json, is_valid_double, str_to_date
 
 
@@ -15,7 +13,6 @@ class Transformation:
         self.output_format = output_format
         self.tenant = os.getenv("TENANT")
         self.airqo_api = AirQoApi()
-        self.tahmo_api = TahmoApi()
 
     def approximate_site_coordinates(self, tenant):
 
@@ -91,67 +88,6 @@ class Transformation:
 
         self.airqo_api.update_sites(updated_site_names)
 
-    def map_devices_to_tahmo_station(self):
-
-        devices = self.airqo_api.get_devices(self.tenant)
-
-        updated_devices = []
-        summarized_updated_devices = []
-
-        for device in devices:
-            device_dict = dict(device)
-            if "latitude" in device_dict and "longitude" in device_dict:
-                latitude = device_dict.get("latitude")
-                longitude = device_dict.get("longitude")
-
-                closet_station = dict(
-                    self.tahmo_api.get_closest_station(
-                        latitude=latitude, longitude=longitude
-                    )
-                )
-
-                station_data = dict(
-                    {
-                        "id": closet_station.get("id"),
-                        "code": closet_station.get("code"),
-                        "latitude": dict(closet_station.get("location")).get(
-                            "latitude"
-                        ),
-                        "longitude": dict(closet_station.get("location")).get(
-                            "longitude"
-                        ),
-                        "timezone": dict(closet_station.get("location")).get(
-                            "timezone"
-                        ),
-                    }
-                )
-
-                device_dict["closet_tahmo_station"] = station_data
-
-                updated_devices.append(device_dict)
-                summarized_updated_devices.append(
-                    dict(
-                        {
-                            "_id": device_dict.get("_id"),
-                            "device_number": device_dict.get("device_number"),
-                            "name": device_dict.get("name"),
-                            "latitude": device_dict.get("latitude"),
-                            "longitude": device_dict.get("longitude"),
-                            "closest_tahmo_station": station_data,
-                        }
-                    )
-                )
-
-        if self.output_format.strip().lower() == "csv":
-            array_to_csv(data=summarized_updated_devices)
-
-        elif self.output_format.strip().lower() == "api":
-            print("Devices to be Updated", updated_devices, sep=" := ")
-            # TODO Implement logic in the AirQo API class to update devices
-
-        else:
-            array_to_json(data=summarized_updated_devices)
-
     def map_sites_to_tahmo_station(self):
 
         sites = self.airqo_api.get_sites(self.tenant)
@@ -159,49 +95,43 @@ class Transformation:
         updated_sites = []
 
         for site in sites:
-            site_dict = dict(site)
+            longitude = dict(site).get("longitude", None)
+            latitude = dict(site).get("latitude", None)
+            site_id = dict(site).get("_id", None)
 
-            if "latitude" in site_dict and "longitude" in site_dict:
-                longitude = site_dict.get("longitude")
-                latitude = site_dict.get("latitude")
+            if not longitude or not latitude or not site_id:
+                continue
 
-                try:
-                    nearest_station = dict(
-                        self.tahmo_api.get_closest_station(
-                            latitude=latitude, longitude=longitude
-                        )
-                    )
+            weather_stations = self.airqo_api.get_nearest_weather_stations(
+                latitude=latitude, longitude=longitude
+            )
+            if not weather_stations:
+                continue
 
-                    station_data = dict(
-                        {
-                            "id": nearest_station.get("id"),
-                            "code": nearest_station.get("code"),
-                            "latitude": dict(nearest_station.get("location")).get(
-                                "latitude"
-                            ),
-                            "longitude": dict(nearest_station.get("location")).get(
-                                "longitude"
-                            ),
-                            "timezone": dict(nearest_station.get("location")).get(
-                                "timezone"
-                            ),
-                        }
-                    )
+            nearest_stations = []
 
-                    update = dict(
-                        {
-                            "nearest_tahmo_station": station_data,
-                            "id": site_dict.get("_id"),
-                            "tenant": self.tenant,
-                        }
-                    )
+            for weather_station in weather_stations:
+                nearest_stations.append(
+                    {
+                        "code": weather_station.get("code", None),
+                        "name": weather_station.get("name", None),
+                        "country": weather_station.get("country", None),
+                        "latitude": weather_station.get("latitude", None),
+                        "longitude": weather_station.get("longitude", None),
+                        "timezone": weather_station.get("timezone", None),
+                        "distance": weather_station.get("distance", None),
+                    }
+                )
 
-                    updated_sites.append(update)
-                except:
-                    traceback.print_exc()
-                    pass
+            updated_sites.append(
+                {
+                    "weather_stations": nearest_stations,
+                    "id": site_id,
+                    "tenant": self.tenant,
+                }
+            )
 
-        self.__print(data=updated_sites)
+        self.airqo_api.update_sites(updated_sites=updated_sites)
 
     def get_missing_fields(self, missing_fields=""):
         sites = self.airqo_api.get_sites(self.tenant)
