@@ -359,7 +359,7 @@ class AirQoDataUtils:
             lambda x: pd.to_numeric(x, errors="coerce", downcast="integer")
         )
         data.loc[:, "tenant"] = str(Tenant.AIRQO)
-        data = data.loc[data["status"] == 0]
+        data = data.copy().loc[data["status"] == 0]
         data.rename(columns=configuration.AIRQO_BAM_MAPPING, inplace=True)
 
         return data
