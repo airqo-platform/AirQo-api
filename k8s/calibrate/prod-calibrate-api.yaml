@@ -73,11 +73,11 @@ spec:
           #   successThreshold: 1
           resources:
             requests:
-              cpu: 100m
-              memory: 250Mi
+              # Average usage was 0.0005 vCPU and 1Gi over the last 30 days
+              memory: 950Mi
             limits:
-              cpu: 200m
-              memory: 700Mi
+              cpu: 100m
+              memory: 1500Mi
           env:
             - name: RF_REG_MODEL
               value: /usr/pickle-files/rf_reg_model.pkl
@@ -129,7 +129,7 @@ spec:
   metrics:
   - type: Resource
     resource:
-      name: cpu
+      name: memory
       target:
         type: Utilization
         averageUtilization: 70

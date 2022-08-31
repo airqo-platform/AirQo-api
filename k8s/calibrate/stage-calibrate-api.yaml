@@ -73,11 +73,11 @@ spec:
           #   successThreshold: 1
           resources:
             requests:
-              memory: 256Mi
-              cpu: "500m"
+              # Average usage was 0.0005 vCPU and 200Mi over the last 30 days
+              memory: 200Mi
             limits:
-              memory: 2Gi
-              cpu: "2000m"
+              cpu: 100m
+              memory: 400Mi
           env:
             - name: RF_REG_MODEL
               value: /usr/pickle-files/rf_reg_model.pkl
@@ -113,3 +113,23 @@ spec:
       targetPort: 4001
       nodePort: 31011
   type: NodePort
+
+---
+kind: HorizontalPodAutoscaler
+apiVersion: autoscaling/v2
+metadata:
+  name: airqo-stage-calibrate-api-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: airqo-stage-calibrate-api
+  minReplicas: 1
+  maxReplicas: 2
+  metrics:
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
