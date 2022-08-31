@@ -56,7 +56,14 @@ spec:
                 name: airflow-config
           command: ["airflow"]
           args: ["scheduler"]
-          resources: {}
+          resources:
+            requests:
+              # Average usage was 0.15 vCPU and 1.4Gi over the last 30 days
+              cpu: 150m
+              memory: 1400Mi
+            limits:
+              cpu: 250m
+              memory: 1800Mi
           volumeMounts:
           - name: config-volume
             mountPath: /etc/config
@@ -72,14 +79,7 @@ spec:
                 name: airflow-config
           command: ["airflow"]
           args: ["webserver"]
-          resources:
-            requests:
-              # Average usage was 0.15 vCPU and 1.4Gi over the last 30 days
-              cpu: 150m
-              memory: 1400Mi
-            limits:
-              cpu: 250m
-              memory: 1800Mi
+          resources: {}
           readinessProbe: 
             initialDelaySeconds: 120
             timeoutSeconds: 120

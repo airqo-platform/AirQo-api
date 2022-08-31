@@ -40,14 +40,7 @@ spec:
         - name: airflow-xcom
           image: us.gcr.io/airqo-250220/airqo-apache-airflow-xcom
           imagePullPolicy: Always
-          resources:
-            requests:
-              # Average usage was 0.5 vCPU and 3.5Gi over the last 30 days
-              cpu: 500m
-              memory: 3000Mi
-            limits:
-              cpu: 1500m
-              memory: 4500Mi
+          resources: {}
           envFrom:
             - configMapRef:
                 name: airflow-config
@@ -63,7 +56,14 @@ spec:
                 name: airflow-config
           command: ["airflow"]
           args: ["scheduler"]
-          resources: {}
+          resources:
+            requests:
+              # Average usage was 0.5 vCPU and 3.5Gi over the last 30 days
+              cpu: 500m
+              memory: 3000Mi
+            limits:
+              cpu: 1500m
+              memory: 4500Mi
           volumeMounts:
           - name: config-volume
             mountPath: /etc/config
