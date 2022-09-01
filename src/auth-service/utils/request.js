@@ -22,6 +22,8 @@ const CandidateModel = (tenant) => {
   return getModelByTenant(tenant, "candidate", CandidateSchema);
 };
 
+const cleanDeep = require("clean-deep");
+
 const request = {
   create: async (request, callback) => {
     try {
@@ -54,6 +56,25 @@ const request = {
       //     });
       //   }
       // });
+
+      let checkCandidateRequest = {};
+      checkCandidateRequest["filter"] = {};
+      checkCandidateRequest["tenant"] = tenant;
+      checkCandidateRequest["filter"] = request;
+
+      const checkRequest = cleanDeep(checkCandidateRequest);
+
+      const doesCandidateExist = await request.doesCandidateSearchExist(
+        checkRequest
+      );
+
+      if (doesCandidateExist.success === true) {
+        callback({
+          success: true,
+          message: "request already submitted!",
+          status: httpStatus.OK,
+        });
+      }
 
       const responseFromCreateCandidate = await CandidateModel(tenant).register(
         request
@@ -118,6 +139,45 @@ const request = {
         status: httpStatus.INTERNAL_SERVER_ERROR,
       });
     }
+  },
+
+  doesCandidateSearchExist: async (request) => {
+    try {
+      const { filter, tenant } = request;
+      let doesSearchExist = await getModelByTenant(
+        tenant,
+        "candidate",
+        CandidateSchema
+      ).exists(filter);
+      logElement(" doesSearchExist", doesSearchExist);
+      if (doesSearchExist) {
+        return {
+          success: true,
+          message: "search exists",
+          data: doesSearchExist,
+        };
+      } else {
+        return {
+          success: false,
+          message: "search does not exist",
+          data: doesSearchExist,
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      };
+    }
+  },
+  doesCandidateExist: async (request) => {
+    logText("checking candidate existence...");
+    const responseFromList = await createdCandidate.list(request);
+    if (responseFromList.success === true && responseFromList.data) {
+      return true;
+    }
+    return false;
   },
 
   list: async ({ tenant, filter, limit, skip }) => {
