@@ -22,6 +22,16 @@ spec:
       labels:
         app: sta-notification-api
     spec:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 10
+            preference:
+              matchExpressions:
+              - key: node-type
+                operator: In
+                values:
+                - general-purpose
       containers:
         - name: sta-notification-api
           image: us.gcr.io/airqo-250220/airqo-stage-notification-api:latest
