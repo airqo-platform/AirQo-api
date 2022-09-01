@@ -22,6 +22,16 @@ spec:
         metadata:
           creationTimestamp: null
         spec:
+          affinity:
+            nodeAffinity:
+              preferredDuringSchedulingIgnoredDuringExecution:
+              - weight: 10
+                preference:
+                  matchExpressions:
+                  - key: node-type
+                    operator: In
+                    values:
+                    - compute
           containers:
             - name: stage-device-uptime-job
               image: us.gcr.io/airqo-250220/airqo-stage-device-uptime-job:latest
