@@ -20,47 +20,15 @@ const decimalPlaces = require("decimal-places");
 const activityController = require("../controllers/create-activity");
 const cors = require("cors");
 
-// const whitelist = [
-//   "https://staging.airqo.net/",
-//   "https://airqo.net/",
-//   "https://airqo.africa/",
-//   "https://airqo.org/",
-//   "https://airqo.mak.ac.ug/",
-//   "https://airqo.io/",
-//   "https://staging-platform.airqo.net/",
-//   "https://platform.airqo.net/",
-// ];
-
-// const corsOptions = {
-//   origin: function(origin, callback) {
-//     if (whitelist.indexOf(Origin) !== -1) {
-//       callback(null, true);
-//     } else {
-//       callback(new Error("Not allowed by CORS"));
-//     }
-//   },
-// };
-
 const corsOptionsDelegate = function(req, callback) {
   let corsOptions;
   if (constants.DOMAIN_WHITELIST.indexOf(req.header("Origin")) !== -1) {
-    corsOptions = { origin: true }; // reflect (enable) the requested origin in the CORS response
+    corsOptions = { origin: true };
   } else {
-    corsOptions = { origin: false }; // disable CORS for this request
+    corsOptions = { origin: false };
   }
-  callback(null, corsOptions); // callback expects two parameters: error and options
+  callback(null, corsOptions);
 };
-
-// const headers = (req, res, next) => {
-//   res.header("Access-Control-Allow-Origin", "*");
-//   res.header(
-//     "Access-Control-Allow-Headers",
-//     "Origin, X-Requested-With, Content-Type, Accept, Authorization"
-//   );
-//   res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
-//   next();
-// };
-// router.use(headers);
 
 /******************* create device use-case ***************************/
 /*** decrypt read and write keys */

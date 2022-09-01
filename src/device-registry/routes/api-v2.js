@@ -20,14 +20,14 @@ const phoneUtil = require("google-libphonenumber").PhoneNumberUtil.getInstance()
 const decimalPlaces = require("decimal-places");
 const cors = require("cors");
 
-const corsOptions = {
-  origin: function(origin, callback) {
-    if (constants.DOMAIN_WHITELIST.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      callback(new Error("Not allowed by CORS"));
-    }
-  },
+const corsOptionsDelegate = function(req, callback) {
+  let corsOptions;
+  if (constants.DOMAIN_WHITELIST.indexOf(req.header("Origin")) !== -1) {
+    corsOptions = { origin: true };
+  } else {
+    corsOptions = { origin: false };
+  }
+  callback(null, corsOptions);
 };
 
 /******************* create device use-case ***************************/
@@ -3061,7 +3061,7 @@ router.post(
 );
 router.get(
   "/events",
-  cors(corsOptions),
+  cors(corsOptionsDelegate),
   oneOf([
     [
       query("tenant")
