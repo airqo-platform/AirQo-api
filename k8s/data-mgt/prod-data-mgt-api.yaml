@@ -29,6 +29,13 @@ spec:
                 operator: In
                 values:
                 - general-purpose
+          - weight: 1
+            preference:
+              matchExpressions:
+              - key: node-type
+                operator: In
+                values:
+                - high-memory
       containers:
         - name: airqo-data-mgt-api
           image: us.gcr.io/airqo-250220/airqo-data-mgt-api:latest

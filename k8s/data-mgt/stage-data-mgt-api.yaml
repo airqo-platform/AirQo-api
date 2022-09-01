@@ -28,7 +28,14 @@ spec:
               - key: node-type
                 operator: In
                 values:
-                - general-purpose 
+                - general-purpose
+          - weight: 1
+            preference:
+              matchExpressions:
+              - key: node-type
+                operator: In
+                values:
+                - high-memory
       containers:
         - name: airqo-stage-data-mgt-api
           image: us.gcr.io/airqo-250220/airqo-stage-data-mgt-api:latest
