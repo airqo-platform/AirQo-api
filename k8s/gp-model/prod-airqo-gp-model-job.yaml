@@ -1,10 +1,10 @@
 
-apiVersion: batch/v1beta1
+apiVersion: batch/v1
 kind: CronJob
 metadata:
   creationTimestamp: "2020-08-13T11:00:12Z"
   managedFields:
-    - apiVersion: batch/v1beta1
+    - apiVersion: batch/v1
       manager: kubectl
       operation: Update
       time: "2020-08-13T11:00:12Z"
