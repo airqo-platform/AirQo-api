@@ -19,6 +19,23 @@ spec:
       labels:
         app: meta-data-api
     spec:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 10
+            preference:
+              matchExpressions:
+              - key: node-type
+                operator: In
+                values:
+                - high-memory
+          - weight: 1
+            preference:
+              matchExpressions:
+              - key: node-type
+                operator: In
+                values:
+                - general-purpose
       containers:
         - name: meta-data
           image: us.gcr.io/airqo-250220/airqo-stage-meta-data-api:latest
