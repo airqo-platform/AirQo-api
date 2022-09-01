@@ -41,11 +41,12 @@ spec:
                 name: env-device-monitoring-staging
           resources:
             requests:
-              cpu: 100m
-              memory: 250Mi
+              # Average usage was 0.0001 vCPU and 35Mi over the last 30 days
+              cpu: 5m
+              memory: 40Mi
             limits:
-              cpu: 200m
-              memory: 700Mi
+              cpu: 50m
+              memory: 80Mi
 
 ---
 kind: Service
@@ -78,7 +79,7 @@ spec:
   metrics:
   - type: Resource
     resource:
-      name: cpu
+      name: memory
       target:
         type: Utilization
         averageUtilization: 80
