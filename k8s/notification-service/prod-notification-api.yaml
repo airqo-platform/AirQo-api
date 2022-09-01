@@ -46,7 +46,7 @@ spec:
             mountPath: /etc/config
           resources:
             requests:
-              # Average usage was 0.00001 vCPU and 14Mi over the last 7 days
+              # Average usage was 0.00001 vCPU and 14Mi over the last 30 days
               cpu: 5m
               memory: 15Mi
             limits:

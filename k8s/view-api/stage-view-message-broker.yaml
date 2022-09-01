@@ -27,11 +27,12 @@ spec:
           imagePullPolicy: Always
           resources:
             requests:
-              cpu: 100m
-              memory: 250Mi
+              # Average usage was 0.01 vCPU and 400Mi over the last 30 days
+              cpu: 10m
+              memory: 400Mi
             limits:
-              cpu: 200m
-              memory: 700Mi
+              cpu: 50m
+              memory: 600Mi
           envFrom:
             - configMapRef:
                 name: stage-view-message-broker-config
@@ -51,7 +52,7 @@ spec:
   metrics:
   - type: Resource
     resource:
-      name: cpu
+      name: memory
       target:
         type: Utilization
         averageUtilization: 80
