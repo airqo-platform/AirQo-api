@@ -33,20 +33,14 @@ spec:
           envFrom:
             - configMapRef:
                 name: env-network-uptime-production
-          # readinessProbe:
-          #   httpGet:
-          #     path: /health
-          #     port: 3000
-          #   initialDelaySecond: 5
-          #   periodSeconds: 3
-          #   successThreshold: 1
           resources:
             requests:
-              cpu: 100m
-              memory: 250Mi
+              # No available over the last 30 days, using estimates
+              cpu: 5m
+              memory: 10Mi
             limits:
-              cpu: 200m
-              memory: 700Mi
+              cpu: 100m
+              memory: 200Mi
 
 ---
 kind: Service
@@ -79,7 +73,7 @@ spec:
   metrics:
   - type: Resource
     resource:
-      name: cpu
+      name: memory
       target:
         type: Utilization
         averageUtilization: 70
