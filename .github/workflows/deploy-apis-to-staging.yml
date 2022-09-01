@@ -159,10 +159,6 @@ jobs:
               echo "::set-output name=run_meta_data::true"
             fi
 
-            if [[ $file == k8s/meta-data/* ]]; then
-              echo "::set-output name=run_meta_data::true"
-            fi
-
             if [[ $file == src/view/* ]]; then
               echo "::set-output name=run_view::true"
             fi
