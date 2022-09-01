@@ -32,6 +32,14 @@ spec:
           envFrom:
             - configMapRef:
                 name: env-device-registry-staging
+          resources:
+            requests:
+              # Average usage was 0.002 vCPU and 450Mi over the last 30 days
+              cpu: 5m
+              memory: 450Mi
+            limits:
+              cpu: 100m
+              memory: 550Mi
           volumeMounts:
           - name: config-volume
             mountPath: /etc/config

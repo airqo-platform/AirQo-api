@@ -32,6 +32,14 @@ spec:
           envFrom:
             - configMapRef:
                 name: env-device-registry-production
+          resources:
+            requests:
+              # Average usage was 0.005 vCPU and 600Mi over the last 30 days
+              cpu: 5m
+              memory: 600Mi
+            limits:
+              cpu: 100m
+              memory: 900Mi
           volumeMounts:
           - name: config-volume
             mountPath: /etc/config
