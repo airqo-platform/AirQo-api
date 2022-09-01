@@ -38,7 +38,14 @@ spec:
         name: airqo-redis-server
         ports:
         - containerPort: 6379
-        resources: {}
+        resources: 
+          requests:
+            # Average usage was 0.001 vCPU and 10Mi over the last 7 days
+            cpu: 5m
+            memory: 10Mi
+          limits:
+            cpu: 50m
+            memory: 50Mi
       restartPolicy: Always
       serviceAccountName: ""
       volumes: null
