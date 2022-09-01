@@ -22,6 +22,16 @@ spec:
         metadata:
           creationTimestamp: null
         spec:
+          affinity:
+            nodeAffinity:
+              preferredDuringSchedulingIgnoredDuringExecution:
+              - weight: 10
+                preference:
+                  matchExpressions:
+                  - key: node-type
+                    operator: In
+                    values:
+                    - compute
           containers:
             - name: airqo-prod-gpmodel
               image: us.gcr.io/airqo-250220/airqo-gp-model-job:latest
@@ -30,12 +40,9 @@ spec:
                 - configMapRef:
                     name: env-gp-model-production
               resources:
-                requests:
-                  cpu: 20m
-                  memory: 50Mi
                 limits:
-                  cpu: 2000m
-                  memory: 2Gi
+                  cpu: 1000m
+                  memory: 4000Mi
               terminationMessagePath: /dev/termination-log
               terminationMessagePolicy: File
           dnsPolicy: ClusterFirst
