@@ -13,7 +13,7 @@ const ObjectId = mongoose.Types.ObjectId;
 const numeral = require("numeral");
 const createSiteUtil = require("../utils/create-site");
 const createAirQloudUtil = require("../utils/create-location");
-const { logElement, logText } = require("../utils/log");
+const { logElement, logText, logObject } = require("../utils/log");
 const { isBoolean, isEmpty } = require("underscore");
 const phoneUtil = require("google-libphonenumber").PhoneNumberUtil.getInstance();
 const decimalPlaces = require("decimal-places");
@@ -27,16 +27,28 @@ const cors = require("cors");
 //   "https://airqo.org/",
 //   "https://airqo.mak.ac.ug/",
 //   "https://airqo.io/",
+//   "https://staging-platform.airqo.net/",
+//   "https://platform.airqo.net/",
 // ];
 
-const corsOptions = {
-  origin: function(origin, callback) {
-    if (constants.DOMAIN_WHITELIST.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      callback(new Error("Not allowed by CORS"));
-    }
-  },
+// const corsOptions = {
+//   origin: function(origin, callback) {
+//     if (whitelist.indexOf(Origin) !== -1) {
+//       callback(null, true);
+//     } else {
+//       callback(new Error("Not allowed by CORS"));
+//     }
+//   },
+// };
+
+const corsOptionsDelegate = function(req, callback) {
+  let corsOptions;
+  if (constants.DOMAIN_WHITELIST.indexOf(req.header("Origin")) !== -1) {
+    corsOptions = { origin: true }; // reflect (enable) the requested origin in the CORS response
+  } else {
+    corsOptions = { origin: false }; // disable CORS for this request
+  }
+  callback(null, corsOptions); // callback expects two parameters: error and options
 };
 
 // const headers = (req, res, next) => {
@@ -3151,7 +3163,7 @@ router.post(
 );
 router.get(
   "/events",
-  cors(corsOptions),
+  cors(corsOptionsDelegate),
   oneOf([
     query("tenant")
       .exists()
