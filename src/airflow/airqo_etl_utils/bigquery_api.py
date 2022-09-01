@@ -5,6 +5,7 @@ from google.cloud import bigquery
 
 from .config import configuration
 from .constants import JobAction, ColumnDataType, Tenant
+from .data_validator import DataValidationUtils
 from .utils import Utils
 
 
@@ -27,6 +28,7 @@ class BigQueryApi:
         self.hourly_weather_table = configuration.BIGQUERY_HOURLY_WEATHER_TABLE
         self.raw_weather_table = configuration.BIGQUERY_RAW_WEATHER_TABLE
         self.analytics_table = configuration.BIGQUERY_ANALYTICS_TABLE
+        self.consolidated_data_table = configuration.BIGQUERY_ANALYTICS_TABLE
         self.sites_table = configuration.BIGQUERY_SITES_TABLE
         self.devices_table = configuration.BIGQUERY_DEVICES_TABLE
         self.devices_data_table = configuration.BIGQUERY_DEVICES_DATA_TABLE
@@ -55,34 +57,32 @@ class BigQueryApi:
             if raise_column_exception:
                 raise Exception("Invalid columns")
 
-        # validating timestamp
         date_time_columns = (
             date_time_columns
             if date_time_columns
             else self.get_columns(table=table, data_type=ColumnDataType.TIMESTAMP)
         )
-        dataframe[date_time_columns] = dataframe[date_time_columns].apply(
-            pd.to_datetime, errors="coerce"
-        )
 
-        # validating floats
         float_columns = (
             float_columns
             if float_columns
             else self.get_columns(table=table, data_type=ColumnDataType.FLOAT)
         )
-        dataframe[float_columns] = dataframe[float_columns].apply(
-            pd.to_numeric, errors="coerce"
-        )
 
-        # validating integers
         integer_columns = (
             integer_columns
             if integer_columns
             else self.get_columns(table=table, data_type=ColumnDataType.INTEGER)
         )
-        dataframe[integer_columns] = dataframe[integer_columns].apply(
-            lambda x: pd.to_numeric(x, errors="coerce", downcast="integer")
+
+        col_data_types = {
+            "float": float_columns,
+            "integer": integer_columns,
+            "timestamp": date_time_columns,
+        }
+
+        dataframe = DataValidationUtils.format_data_types(
+            data=dataframe, col_data_types=col_data_types
         )
 
         return dataframe.drop_duplicates(keep="first")
@@ -97,7 +97,7 @@ class BigQueryApi:
             schema_file = "raw_measurements.json"
         elif table == self.hourly_weather_table or table == self.raw_weather_table:
             schema_file = "weather_data.json"
-        elif table == self.analytics_table:
+        elif table == self.analytics_table or table == self.consolidated_data_table:
             schema_file = "data_warehouse.json"
         elif table == self.sites_table:
             schema_file = "sites.json"
@@ -191,6 +191,9 @@ class BigQueryApi:
             WHERE timestamp >= '{start_date_time}' and timestamp <= '{end_date_time}' {where_clause}
         """
         dataframe = self.client.query(query=query).result().to_dataframe()
+
+        if dataframe.empty:
+            return pd.DataFrame()
 
         dataframe["timestamp"] = dataframe["timestamp"].apply(pd.to_datetime)
 

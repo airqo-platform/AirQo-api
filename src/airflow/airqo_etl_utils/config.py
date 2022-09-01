@@ -125,7 +125,7 @@ class Config:
         7: "device_humidity",
         8: "temperature",
         9: "humidity",
-        10: "pressure",
+        10: "vapor_pressure",
     }
 
 

@@ -17,8 +17,8 @@ class DateUtils:
         return start_date_time, end_date_time
 
     @staticmethod
-    def get_realtime_date_time_values():
-        hour_of_day = datetime.utcnow() - timedelta(hours=1)
+    def get_realtime_date_time_values(hours=1):
+        hour_of_day = datetime.utcnow() - timedelta(hours=hours)
         start_date_time = date_to_str_hours(hour_of_day)
         end_date_time = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
         return start_date_time, end_date_time
