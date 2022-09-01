@@ -23,6 +23,16 @@ spec:
       labels:
         app: prod-network-uptime
     spec:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 10
+            preference:
+              matchExpressions:
+              - key: node-type
+                operator: In
+                values:
+                - general-purpose
       containers:
         - name: prod-network-uptime
           image: us.gcr.io/airqo-250220/airqo-network-uptime-api:latest

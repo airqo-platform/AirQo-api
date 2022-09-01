@@ -22,6 +22,16 @@ spec:
       labels:
         app: sta-network-uptime
     spec:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 10
+            preference:
+              matchExpressions:
+              - key: node-type
+                operator: In
+                values:
+                - general-purpose
       containers:
         - name: sta-network-uptime
           image: us.gcr.io/airqo-250220/airqo-stage-network-uptime-api:latest
