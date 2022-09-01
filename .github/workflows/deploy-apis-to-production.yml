@@ -733,7 +733,7 @@ jobs:
 
       - name: Deploy to K8S
         run: |
-          kubectl apply -f k8s/kafka-operator/namespace.yaml
+          kubectl apply -f k8s/namespaces/message-broker.yaml
           bash k8s/kafka-operator/deployment-script.sh
 
   ### kafka cluster ###
