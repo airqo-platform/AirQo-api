@@ -156,13 +156,17 @@ class BigQueryApi:
         table: str,
         start_date_time: str,
         end_date_time: str,
-        tenant: str,
+        tenant: Tenant = Tenant.NONE,
     ) -> None:
 
         query = f"""
             DELETE FROM `{table}`
-            WHERE timestamp >= '{start_date_time}' and timestamp <= '{end_date_time}' and tenant = '{tenant}'
+            WHERE timestamp >= '{start_date_time}' and timestamp <= '{end_date_time}'
         """
+
+        if tenant != Tenant.NONE:
+            query = f" {query} and tenant = '{str(tenant)}' "
+
         self.client.query(query=query).result()
 
         self.load_data(dataframe=dataframe, table=table, job_action=JobAction.APPEND)
