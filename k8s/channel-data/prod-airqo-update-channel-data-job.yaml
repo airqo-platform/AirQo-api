@@ -38,8 +38,8 @@ spec:
               imagePullPolicy: Always
               resources:
                 limits:
-                  cpu: 1500m
-                  memory: 2000Mi
+                  cpu: 1000m
+                  memory: 4000Mi
               terminationMessagePath: /dev/termination-log
               terminationMessagePolicy: File
               envFrom:
