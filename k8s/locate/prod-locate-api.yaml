@@ -41,11 +41,12 @@ spec:
                 name: env-locate-production
           resources:
             requests:
-              cpu: 100m
-              memory: 250Mi
+              # Average usage was 0.001 vCPU and 300Mi over the last 30 days
+              cpu: 5m
+              memory: 300Mi
             limits:
-              cpu: 200m
-              memory: 700Mi
+              cpu: 50m
+              memory: 500Mi
 
 ---
 kind: Service
@@ -78,7 +79,7 @@ spec:
   metrics:
   - type: Resource
     resource:
-      name: cpu
+      name: memory
       target:
         type: Utilization
         averageUtilization: 70
