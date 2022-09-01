@@ -27,11 +27,12 @@ spec:
             - containerPort: 4001
           resources:
             requests:
-              cpu: 100m
+              # Average usage was 0.0003 vCPU and 250Mi over the last 7 days
+              cpu: 5m
               memory: 250Mi
             limits:
-              cpu: 200m
-              memory: 700Mi
+              cpu: 100m
+              memory: 500Mi
           envFrom:
             - configMapRef:
                 name: stage-meta-data-api-config
@@ -73,7 +74,7 @@ spec:
   metrics:
   - type: Resource
     resource:
-      name: cpu
+      name: memory
       target:
         type: Utilization
         averageUtilization: 80
