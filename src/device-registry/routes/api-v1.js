@@ -13,43 +13,22 @@ const ObjectId = mongoose.Types.ObjectId;
 const numeral = require("numeral");
 const createSiteUtil = require("../utils/create-site");
 const createAirQloudUtil = require("../utils/create-location");
-const { logElement, logText } = require("../utils/log");
+const { logElement, logText, logObject } = require("../utils/log");
 const { isBoolean, isEmpty } = require("underscore");
 const phoneUtil = require("google-libphonenumber").PhoneNumberUtil.getInstance();
 const decimalPlaces = require("decimal-places");
 const activityController = require("../controllers/create-activity");
 const cors = require("cors");
 
-const whitelist = [
-  "https://staging.airqo.net/",
-  "https://airqo.net/",
-  "https://airqo.africa/",
-  "https://airqo.org/",
-  "https://airqo.mak.ac.ug/",
-  "https://airqo.io/",
-];
-const corsOptions = {
-  origin: function(origin, callback) {
-    if (whitelist.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      callback(new Error("Not allowed by CORS"));
-    }
-  },
+const corsOptionsDelegate = function(req, callback) {
+  let corsOptions;
+  if (constants.DOMAIN_WHITELIST.indexOf(req.header("Origin")) !== -1) {
+    corsOptions = { origin: true };
+  } else {
+    corsOptions = { origin: false };
+  }
+  callback(null, corsOptions);
 };
-
-router.use(cors());
-
-// const headers = (req, res, next) => {
-//   res.header("Access-Control-Allow-Origin", "*");
-//   res.header(
-//     "Access-Control-Allow-Headers",
-//     "Origin, X-Requested-With, Content-Type, Accept, Authorization"
-//   );
-//   res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
-//   next();
-// };
-// router.use(headers);
 
 /******************* create device use-case ***************************/
 /*** decrypt read and write keys */
@@ -66,6 +45,7 @@ router.post(
 
 router.put(
   "/encrypt",
+  cors(),
   oneOf([
     query("tenant")
       .exists()
@@ -299,6 +279,7 @@ router.put(
 /** get number of devices */
 router.get(
   "/count",
+  cors(),
   oneOf([
     [
       query("tenant")
@@ -316,6 +297,7 @@ router.get(
 /***list devices */
 router.get(
   "/",
+  cors(),
   oneOf([
     [
       query("tenant")
@@ -382,6 +364,7 @@ router.get(
 /**** create device */
 router.post(
   "/",
+  cors(),
   oneOf([
     [
       query("tenant")
@@ -601,6 +584,7 @@ router.post(
 /***** delete device */
 router.delete(
   "/",
+  cors(),
   oneOf([
     query("tenant")
       .exists()
@@ -655,6 +639,7 @@ router.delete(
  */
 router.put(
   "/soft/access",
+  cors(),
   oneOf([
     query("tenant")
       .exists()
@@ -707,6 +692,7 @@ router.put(
 /*** update device */
 router.put(
   "/",
+  cors(),
   oneOf([
     query("tenant")
       .exists()
@@ -965,11 +951,13 @@ router.put(
 /** return nearest coordinates */
 router.get(
   "/by/nearest-coordinates",
+  cors(),
   deviceController.listAllByNearestCoordinates
 );
 /*soft create device*/
 router.post(
   "/soft",
+  cors(),
   oneOf([
     [
       query("tenant")
@@ -1049,6 +1037,7 @@ router.post(
 /*soft delete*/
 router.delete(
   "/soft",
+  cors(),
   oneOf([
     query("tenant")
       .exists()
@@ -1100,6 +1089,7 @@ router.delete(
 /*soft update device*/
 router.put(
   "/soft",
+  cors(),
   oneOf([
     query("tenant")
       .exists()
@@ -1342,6 +1332,7 @@ router.put(
 /** generate QR code.... */
 router.get(
   "/qrcode",
+  cors(),
   oneOf([
     query("tenant")
       .exists()
@@ -1405,6 +1396,7 @@ router.get(
 /******************* create-photo use-case ***************/
 router.delete(
   "/photos",
+  cors(),
   oneOf([
     [
       query("tenant")
@@ -1466,6 +1458,7 @@ router.delete(
 );
 router.post(
   "/photos",
+  cors(),
   oneOf([
     [
       query("tenant")
@@ -1522,6 +1515,7 @@ router.post(
 );
 router.put(
   "/photos",
+  cors(),
   oneOf([
     [
       query("tenant")
@@ -1618,6 +1612,7 @@ router.put(
 );
 router.get(
   "/photos",
+  cors(),
   oneOf([
     [
       query("tenant")
@@ -1682,6 +1677,7 @@ router.get(
 /*** platform */
 router.post(
   "/photos/soft",
+  cors(),
   oneOf([
     [
       query("tenant")
@@ -1785,6 +1781,7 @@ router.post(
 );
 router.put(
   "/photos/soft",
+  cors(),
   oneOf([
     [
       query("tenant")
@@ -1965,6 +1962,7 @@ router.put(
 );
 router.delete(
   "/photos/soft",
+  cors(),
   oneOf([
     [
       query("tenant")
@@ -1997,6 +1995,7 @@ router.delete(
 /*** metadata */
 router.post(
   "/photos/cloud",
+  cors(),
   oneOf([
     [
       body("resource_type")
@@ -2017,6 +2016,7 @@ router.post(
 );
 router.delete(
   "/photos/cloud",
+  cors(),
   oneOf([
     [
       body("image_urls")
@@ -2049,6 +2049,7 @@ router.put("/photos/cloud", photoController.updatePhotoOnCloudinary);
 /****************** create activities use-case *************************/
 router.post(
   "/activities/recall",
+  cors(),
   oneOf([
     [
       query("tenant")
@@ -2074,6 +2075,7 @@ router.post(
 );
 router.post(
   "/activities/deploy",
+  cors(),
   oneOf([
     [
       query("tenant")
@@ -2157,6 +2159,7 @@ router.post(
 
 router.post(
   "/activities/maintain",
+  cors(),
   oneOf([
     [
       query("tenant")
@@ -2204,13 +2207,14 @@ router.post(
   ]),
   activityController.maintain
 );
-router.get("/activities", activityController.list);
-router.put("/activities", activityController.update);
-router.delete("/activities", activityController.delete);
+router.get("/activities", cors(), activityController.list);
+router.put("/activities", cors(), activityController.update);
+router.delete("/activities", cors(), activityController.delete);
 
 /****************************** create sites usecase *************** */
 router.get(
   "/sites",
+  cors(),
   oneOf([
     query("tenant")
       .exists()
@@ -2224,9 +2228,10 @@ router.get(
   siteController.list
 );
 
-router.get("/sites/weather", siteController.listWeatherStations);
+router.get("/sites/weather", cors(), siteController.listWeatherStations);
 router.get(
   "/sites/weather/nearest",
+  cors(),
   oneOf([
     query("tenant")
       .exists()
@@ -2271,6 +2276,7 @@ router.get(
 
 router.get(
   "/sites/airqlouds/",
+  cors(),
   oneOf([
     query("tenant")
       .exists()
@@ -2314,6 +2320,7 @@ router.get(
 );
 router.post(
   "/sites",
+  cors(),
   oneOf([
     [
       query("tenant")
@@ -2399,6 +2406,7 @@ router.post(
 
 router.post(
   "/sites/metadata",
+  cors(),
   oneOf([
     [
       body("latitude")
@@ -2452,6 +2460,7 @@ router.post(
 
 router.put(
   "/sites",
+  cors(),
   oneOf([
     query("tenant")
       .exists()
@@ -2740,6 +2749,7 @@ router.put(
 );
 router.put(
   "/sites/refresh",
+  cors(),
   oneOf([
     query("tenant")
       .exists()
@@ -2784,6 +2794,7 @@ router.put(
 
 router.delete(
   "/sites",
+  cors(),
   query("tenant")
     .exists()
     .withMessage("tenant should be provided")
@@ -2813,6 +2824,7 @@ router.delete(
 );
 router.get(
   "/sites/nearest",
+  cors(),
   oneOf([
     query("tenant")
       .exists()
@@ -2887,6 +2899,7 @@ router.get(
 
 router.post(
   "/sites/approximate",
+  cors(),
   oneOf([
     [
       body("latitude")
@@ -2942,6 +2955,7 @@ router.post(
 /******************* create-event use-case *******************************/
 router.post(
   "/events",
+  cors(),
   oneOf([
     [
       query("tenant")
@@ -3036,6 +3050,7 @@ router.post(
 
 router.post(
   "/events/transform",
+  cors(),
   oneOf([
     body()
       .isArray()
@@ -3116,6 +3131,7 @@ router.post(
 );
 router.get(
   "/events",
+  cors(corsOptionsDelegate),
   oneOf([
     query("tenant")
       .exists()
@@ -3229,6 +3245,7 @@ router.get(
 );
 router.post(
   "/events/transmit/single",
+  cors(),
   oneOf([
     query("tenant")
       .exists()
@@ -3454,6 +3471,7 @@ router.post(
 
 router.post(
   "/events/transmit/bulk",
+  cors(),
   oneOf([
     query("tenant")
       .exists()
@@ -3685,6 +3703,7 @@ router.post(
 /*clear events*/
 router.delete(
   "/events",
+  cors(),
   oneOf([
     query("tenant")
       .exists()
@@ -3750,6 +3769,7 @@ router.delete(
 /************************** locations usecase  *******************/
 router.post(
   "/locations",
+  cors(),
   oneOf([
     [
       query("tenant")
@@ -3866,6 +3886,7 @@ router.post(
 
 router.get(
   "/locations",
+  cors(),
   oneOf([
     query("tenant")
       .exists()
@@ -3922,6 +3943,7 @@ router.get(
 
 router.put(
   "/locations",
+  cors(),
   oneOf([
     query("tenant")
       .exists()
@@ -4052,6 +4074,7 @@ router.put(
 
 router.delete(
   "/locations",
+  cors(),
   oneOf([
     query("tenant")
       .exists()
@@ -4083,6 +4106,7 @@ router.delete(
 /************************** airqlouds usecase  *******************/
 router.post(
   "/airqlouds",
+  cors(),
   oneOf([
     [
       query("tenant")
@@ -4221,6 +4245,7 @@ router.post(
 
 router.put(
   "/airqlouds/refresh",
+  cors(),
   oneOf([
     query("tenant")
       .exists()
@@ -4258,6 +4283,7 @@ router.put(
 
 router.get(
   "/airqlouds",
+  cors(),
   oneOf([
     query("tenant")
       .exists()
@@ -4314,6 +4340,7 @@ router.get(
 
 router.get(
   "/airqlouds/summary",
+  cors(),
   oneOf([
     query("tenant")
       .exists()
@@ -4370,6 +4397,7 @@ router.get(
 
 router.get(
   "/airqlouds/sites",
+  cors(),
   oneOf([
     query("tenant")
       .exists()
@@ -4434,6 +4462,7 @@ router.get(
 
 router.put(
   "/airqlouds",
+  cors(),
   oneOf([
     query("tenant")
       .exists()
@@ -4577,6 +4606,7 @@ router.put(
 
 router.delete(
   "/airqlouds",
+  cors(),
   oneOf([
     query("tenant")
       .exists()
@@ -4607,6 +4637,7 @@ router.delete(
 
 router.get(
   "/airqlouds/center",
+  cors(),
   oneOf([
     query("tenant")
       .exists()
