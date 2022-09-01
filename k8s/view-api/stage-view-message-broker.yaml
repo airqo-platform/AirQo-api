@@ -21,6 +21,23 @@ spec:
       annotations:
         sidecar.istio.io/inject: "false"
     spec:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 10
+            preference:
+              matchExpressions:
+              - key: node-type
+                operator: In
+                values:
+                - high-memory
+          - weight: 1
+            preference:
+              matchExpressions:
+              - key: node-type
+                operator: In
+                values:
+                - general-purpose
       containers:
         - name: view-message-broker
           image: us.gcr.io/airqo-250220/airqo-stage-view-message-broker:latest
