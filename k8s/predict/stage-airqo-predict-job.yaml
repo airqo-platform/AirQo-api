@@ -15,6 +15,16 @@ spec:
         spec:
           restartPolicy: OnFailure
           schedulerName: default-scheduler
+          affinity:
+            nodeAffinity:
+              preferredDuringSchedulingIgnoredDuringExecution:
+              - weight: 10
+                preference:
+                  matchExpressions:
+                  - key: node-type
+                    operator: In
+                    values:
+                    - compute
           containers:
           - name: stage-airqo-predict-job
             image: us.gcr.io/airqo-250220/stage-airqo-predict-job:latest
