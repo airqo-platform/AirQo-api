@@ -710,7 +710,7 @@ def airqo_mobile_device_measurements():
     bigquery_data.to_csv("bigquery_mobile_devices_data.csv", index=False)
 
 
-def airqo_historical_bam_data():
+def airqo_historical_csv_bam_data():
 
     """
     Processes AirQo reference monitors data from a csv file "airqo_historical_bam_data.csv"
@@ -767,6 +767,33 @@ def airqo_historical_bam_data():
     bigquery_data.to_csv("airqo_clean_bam_bigquery_data.csv", index=False)
 
 
+def airqo_historical_api_bam_data():
+    from airqo_etl_utils.airqo_utils import AirQoDataUtils
+
+    start_date_time = "2022-08-01T00:00:00Z"
+    end_date_time = "2022-09-01T00:00:00Z"
+
+    unclean_data = AirQoDataUtils.extract_devices_data(
+        start_date_time=start_date_time,
+        end_date_time=end_date_time,
+        device_category=DeviceCategory.BAM,
+    )
+    unclean_data.to_csv("unclean_airqo_bam_data.csv", index=False)
+
+    clean_bam_data = AirQoDataUtils.clean_bam_data(unclean_data)
+    clean_bam_data.to_csv("clean_airqo_bam_data.csv", index=False)
+
+    unclean_data = AirQoDataUtils.format_data_for_bigquery(
+        data=unclean_data, data_type=DataType.CLEAN_BAM_DATA
+    )
+    unclean_data.to_csv("bigquery_unclean_airqo_bam_data.csv", index=False)
+
+    clean_bam_data = AirQoDataUtils.format_data_for_bigquery(
+        data=clean_bam_data, data_type=DataType.CLEAN_BAM_DATA
+    )
+    clean_bam_data.to_csv("bigquery_clean_airqo_bam_data.csv", index=False)
+
+
 if __name__ == "__main__":
 
     from airqo_etl_utils.date import date_to_str_hours
@@ -821,6 +848,7 @@ if __name__ == "__main__":
             "airqo_bam_data",
             "nasa_purple_air_data",
             "airqo_historical_bam_data",
+            "airqo_historical_api_bam_data",
         ],
     )
 
@@ -865,8 +893,11 @@ if __name__ == "__main__":
     elif args.action == "airnow_bam_data":
         airnow_bam_data()
 
-    elif args.action == "airqo_historical_bam_data":
-        airqo_historical_bam_data()
+    elif args.action == "airqo_historical_csv_bam_data":
+        airqo_historical_csv_bam_data()
+
+    elif args.action == "airqo_historical_api_bam_data":
+        airqo_historical_api_bam_data()
 
     elif args.action == "airqo_bam_data":
         airqo_bam_data()

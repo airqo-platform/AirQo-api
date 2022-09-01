@@ -1,7 +1,32 @@
+import numpy as np
 import pandas as pd
 
 
 class DataValidationUtils:
+    @staticmethod
+    def format_data_types(data: pd.DataFrame, col_data_types: dict) -> pd.DataFrame:
+
+        # formatting floats
+        float_columns = col_data_types.get("float", [])
+        data[float_columns] = data[float_columns].apply(pd.to_numeric, errors="coerce")
+
+        # formatting integers
+        integer_columns = col_data_types.get("integer", [])
+
+        null_data = data[data[integer_columns].isnull().all(axis=1)]
+        not_null_data = data[data[integer_columns].notnull().all(axis=1)]
+        not_null_data[integer_columns] = not_null_data[integer_columns].apply(np.int64)
+
+        data = pd.concat([null_data, not_null_data], ignore_index=True)
+
+        # formatting timestamp
+        timestamp_columns = col_data_types.get("timestamp", [])
+        data[timestamp_columns] = data[timestamp_columns].apply(
+            pd.to_datetime, errors="coerce"
+        )
+
+        return data
+
     @staticmethod
     def get_valid_value(value, name):
 
@@ -50,26 +75,42 @@ class DataValidationUtils:
             "pm1",
             "pm1_pi",
             "pm1_raw_value",
+            "temperature",
             "external_temperature",
-            "external_humidity",
+            "filter_temperature",
+            "device_temperature",
             "latitude",
             "longitude",
             "humidity",
-            "temperature",
             "device_humidity",
-            "device_temperature",
+            "filter_humidity",
+            "external_humidity",
             "pressure",
+            "barometric_pressure",
             "wind_speed",
+            "wind_direction",
             "speed",
+            "realtime_conc",
+            "hourly_conc",
+            "short_time_conc",
+            "air_flow",
+        }
+
+        integer_columns = {
+            "status",
         }
 
         float_columns = list(float_columns & set(data.columns))
+        integer_columns = list(integer_columns & set(data.columns))
 
-        data[float_columns] = data[float_columns].apply(pd.to_numeric, errors="coerce")
-        if "timestamp" in data.columns:
-            data["timestamp"] = data["timestamp"].apply(
-                lambda x: pd.to_datetime(x, errors="coerce")
-            )
+        col_data_types = {
+            "float": float_columns,
+            "integer": integer_columns,
+            "timestamp": ["timestamp"],
+        }
+        data = DataValidationUtils.format_data_types(
+            data=data, col_data_types=col_data_types
+        )
 
         for col in float_columns:
             name = col

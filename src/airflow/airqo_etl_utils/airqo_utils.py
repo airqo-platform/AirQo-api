@@ -208,6 +208,7 @@ class AirQoDataUtils:
         end_date_time: str,
         device_category: DeviceCategory,
         device_numbers: list = None,
+        remove_outliers: bool = True,
     ) -> pd.DataFrame:
 
         """
@@ -217,6 +218,7 @@ class AirQoDataUtils:
         :param end_date_time: end date time
         :param device_category: BAM or low cost sensors
         :param device_numbers: list of device numbers whose data you want to extract. Defaults to all AirQo devices
+        :param remove_outliers: Removes outliers if set to true.
         :return: a dataframe of measurements recorded between start date time and end date time
         """
 
@@ -319,6 +321,9 @@ class AirQoDataUtils:
                 devices_data = devices_data.append(
                     data[data_columns], ignore_index=True
                 )
+        if remove_outliers:
+            devices_data = DataValidationUtils.remove_outliers(devices_data)
+
         return devices_data
 
     @staticmethod
@@ -350,14 +355,10 @@ class AirQoDataUtils:
     def clean_bam_data(data: pd.DataFrame) -> pd.DataFrame:
 
         data = DataValidationUtils.remove_outliers(data)
-        data.loc[:, "timestamp"] = data["timestamp"].apply(pd.to_datetime)
         data.drop_duplicates(
             subset=["timestamp", "device_number"], keep="first", inplace=True
         )
 
-        data.loc[:, "status"] = data["status"].apply(
-            lambda x: pd.to_numeric(x, errors="coerce", downcast="integer")
-        )
         data.loc[:, "tenant"] = str(Tenant.AIRQO)
         data = data.copy().loc[data["status"] == 0]
         data.rename(columns=configuration.AIRQO_BAM_MAPPING, inplace=True)
