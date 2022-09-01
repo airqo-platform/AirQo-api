@@ -44,11 +44,12 @@ spec:
             mountPath: /etc/config
           resources:
             requests:
-              cpu: 100m
-              memory: 250Mi
+              # Average usage was 0.0006 vCPU and 140Mi over the last 7 days
+              cpu: 5m
+              memory: 130Mi
             limits:
-              cpu: 200m
-              memory: 700Mi
+              cpu: 50m
+              memory: 200Mi
       volumes:
         - name: config-volume
           configMap:
@@ -69,7 +70,7 @@ spec:
   metrics:
   - type: Resource
     resource:
-      name: cpu
+      name: memory
       target:
         type: Utilization
         averageUtilization: 80
