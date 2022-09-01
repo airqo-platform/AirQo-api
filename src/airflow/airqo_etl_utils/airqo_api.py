@@ -5,7 +5,7 @@ import requests
 import simplejson
 
 from .config import configuration
-from .constants import DeviceCategory
+from .constants import DeviceCategory, Tenant
 
 
 class AirQoApi:
@@ -43,30 +43,32 @@ class AirQoApi:
             return response["device_activities"]
         return []
 
-    def calibrate_data(self, time: str, data: pd.DataFrame, cols: dict) -> list:
-        data.rename(
-            columns={
-                cols["device_number"]: "device_id",
-                cols["s1_pm2_5"]: "sensor1_pm2.5",
-                cols["s2_pm2_5"]: "sensor2_pm2.5",
-                cols["s1_pm10"]: "sensor1_pm10",
-                cols["s2_pm10"]: "sensor2_pm10",
-                cols["temperature"]: "temperature",
-                cols["humidity"]: "humidity",
-            },
-            inplace=True,
-        )
+    def calibrate_data(self, time: str, data: pd.DataFrame) -> list:
+        data = data.copy()
         data = data[
             [
-                "device_id",
-                "sensor1_pm2.5",
-                "sensor2_pm2.5",
-                "sensor1_pm10",
-                "sensor2_pm10",
+                "device_number",
+                "s1_pm2_5",
+                "s2_pm2_5",
+                "s1_pm10",
+                "s2_pm10",
                 "temperature",
                 "humidity",
             ]
         ]
+
+        data.rename(
+            columns={
+                "device_number": "device_id",
+                "s1_pm2_5": "sensor1_pm2.5",
+                "s2_pm2_5": "sensor2_pm2.5",
+                "s1_pm10": "sensor1_pm10",
+                "s2_pm10": "sensor2_pm10",
+                "temperature": "temperature",
+                "humidity": "humidity",
+            },
+            inplace=True,
+        )
 
         request_body = {"datetime": time, "raw_values": data.to_dict("records")}
 
@@ -89,95 +91,51 @@ class AirQoApi:
             print(ex)
             return []
 
-    def get_calibrated_values(self, time: str, calibrate_body: list) -> list:
-        calibrated_data = []
-        base_url = (
-            self.CALIBRATION_BASE_URL
-            if self.CALIBRATION_BASE_URL
-            else self.AIRQO_BASE_URL
-        )
-        endpoint = "calibrate"
-        for i in range(
-            0, len(calibrate_body), int(configuration.CALIBRATE_REQUEST_BODY_SIZE)
-        ):
-            values = calibrate_body[
-                i : i + int(configuration.CALIBRATE_REQUEST_BODY_SIZE)
+    def get_devices(
+        self,
+        tenant: Tenant = Tenant.NONE,
+        category: DeviceCategory = DeviceCategory.NONE,
+    ) -> list:
+        devices = []
+        if tenant == Tenant.NONE:
+            for tenant in Tenant:
+                if tenant == Tenant.NONE:
+                    continue
+                try:
+                    response = self.__request("devices", {"tenant": str(tenant)})
+                    tenant_devices = [
+                        {**device, **{"tenant": str(tenant)}}
+                        for device in response.get("devices", [])
+                    ]
+                    devices.extend(tenant_devices)
+                except Exception:
+                    continue
+
+        else:
+            response = self.__request("devices", {"tenant": tenant})
+            devices = [
+                {**device, **{"tenant": str(tenant)}}
+                for device in response.get("devices", [])
             ]
 
-            request_body = dict()
-            request_body["datetime"] = time
-            request_body["raw_values"] = []
+        devices = [
+            {
+                **device,
+                **{
+                    "device_id": device.get("name", None),
+                    "site_id": device.get("site", {}).get("_id", None),
+                    "category": DeviceCategory.from_str(device.get("category", "")),
+                },
+            }
+            for device in devices
+        ]
 
-            for value in values:
-                try:
-                    value_dict = dict(value)
-                    data = {
-                        "device_id": value_dict.get("device_id"),
-                        "sensor1_pm2.5": value_dict.get("s1_pm2_5"),
-                        "sensor2_pm2.5": value_dict.get("s2_pm2_5"),
-                        "sensor1_pm10": value_dict.get("s1_pm10"),
-                        "sensor2_pm10": value_dict.get("s2_pm10"),
-                        "temperature": value_dict.get("temperature"),
-                        "humidity": value_dict.get("humidity"),
-                    }
+        if category != DeviceCategory.NONE:
+            devices = list(filter(lambda y: y["category"] == category, devices))
 
-                    if (
-                        data["sensor1_pm2.5"] > 0.0
-                        and data["sensor2_pm2.5"] > 0.0
-                        and data["sensor1_pm10"] > 0.0
-                        and data["sensor2_pm10"] > 0.0
-                        and data["temperature"] > 0.0
-                        and data["humidity"] > 0.0
-                    ):
-                        request_body["raw_values"].append(data)
+        return devices
 
-                except Exception as ex:
-                    traceback.print_exc()
-                    print(ex)
-
-            try:
-                response = self.__request(
-                    endpoint=endpoint,
-                    method="post",
-                    body=request_body,
-                    base_url=base_url,
-                )
-
-                if response is not None:
-                    calibrated_data.extend(response)
-            except Exception as ex:
-                traceback.print_exc()
-                print(ex)
-
-        return calibrated_data
-
-    def get_devices(self, tenant=None, category: DeviceCategory = None) -> list:
-
-        devices_with_tenant = []
-
-        if tenant:
-            params = {"tenant": tenant}
-            if category:
-                params["category"] = category.get_api_query_str()
-            response = self.__request("devices", params)
-            if "devices" in response:
-                for device in response["devices"]:
-                    device["tenant"] = tenant
-                    devices_with_tenant.append(device)
-        else:
-            for x in ["airqo", "kcca"]:
-                params = {"tenant": x}
-                if category:
-                    params["category"] = category.get_api_query_str()
-                response = self.__request("devices", params)
-                if "devices" in response:
-                    for device in response["devices"]:
-                        device["tenant"] = x
-                        devices_with_tenant.append(device)
-
-        return devices_with_tenant
-
-    def get_read_keys(self, devices: list) -> dict:
+    def get_thingspeak_read_keys(self, devices: list) -> dict:
 
         decrypted_keys = dict({})
 
@@ -186,51 +144,11 @@ class AirQoApi:
                 read_key = device["readKey"]
                 body = {"encrypted_key": read_key}
                 response = self.__request("devices/decrypt", body=body, method="post")
-                decrypted_keys[str(device["device_number"])] = response["decrypted_key"]
+                decrypted_keys[device["device_number"]] = response["decrypted_key"]
             except Exception as ex:
                 print(ex)
 
         return decrypted_keys
-
-    def get_events(
-        self,
-        tenant,
-        start_time,
-        end_time,
-        frequency,
-        device=None,
-        meta_data=None,
-        recent=None,
-    ) -> list:
-        if recent:
-            params = {
-                "tenant": tenant,
-                "frequency": frequency,
-                "recent": "yes",
-                "external": "no",
-            }
-        else:
-            params = {
-                "tenant": tenant,
-                "startTime": start_time,
-                "endTime": end_time,
-                "frequency": frequency,
-                "recent": "no",
-                "external": "no",
-            }
-
-        if device:
-            params["device"] = device
-        if meta_data:
-            params["metadata"] = "site_id" if meta_data == "site" else "device_id"
-
-        endpoint = "devices/events"
-        response = self.__request(endpoint=endpoint, params=params, method="get")
-
-        if "measurements" in response:
-            return response["measurements"]
-
-        return []
 
     def get_app_insights(
         self,
@@ -278,30 +196,56 @@ class AirQoApi:
 
         return []
 
-    def get_airqo_device_current_measurements(self, device_number):
+    def get_nearest_weather_stations(self, latitude, longitude) -> list:
         response = self.__request(
-            endpoint="data/feeds/transform/recent", params={"channel": device_number}
+            endpoint="meta-data/nearest-weather-stations",
+            params={"latitude": latitude, "longitude": longitude},
+            method="get",
         )
-        return response
 
-    def get_sites(self, tenant=None) -> list:
-        if tenant:
-            response = self.__request("devices/sites", {"tenant": tenant})
-            if "sites" in response:
-                sites_with_tenant = []
-                for site in response["sites"]:
-                    site["tenant"] = tenant
-                    sites_with_tenant.append(site)
-                return sites_with_tenant
+        return list(response["weather_stations"]) if response else []
+
+    def get_sites(self, tenant: Tenant = Tenant.NONE) -> list:
+        sites = []
+        if tenant == Tenant.NONE:
+            for tenant in Tenant:
+                if tenant == Tenant.NONE:
+                    continue
+                try:
+                    response = self.__request("devices/sites", {"tenant": str(tenant)})
+                    tenant_sites = [
+                        {**site, **{"tenant": str(tenant)}}
+                        for site in response.get("sites", [])
+                    ]
+                    sites.extend(tenant_sites)
+                except Exception:
+                    continue
+
         else:
-            sites_with_tenant = []
-            for x in ["airqo", "kcca"]:
-                response = self.__request("devices/sites", {"tenant": x})
-                if "sites" in response:
-                    for site in response["sites"]:
-                        site["tenant"] = x
-                        sites_with_tenant.append(site)
-            return sites_with_tenant
+            response = self.__request("devices/sites", {"tenant": tenant})
+            sites = [
+                {**site, **{"tenant": str(tenant)}}
+                for site in response.get("sites", [])
+            ]
+
+        sites = [
+            {
+                **site,
+                **{
+                    "site_id": site.get("_id", None),
+                },
+            }
+            for site in sites
+        ]
+
+        return sites
+
+    def update_sites(self, updated_sites):
+        for i in updated_sites:
+            site = dict(i)
+            params = {"tenant": site.pop("tenant"), "id": site.pop("site_id")}
+            response = self.__request("devices/sites", params, site, "put")
+            print(response)
 
     def __request(
         self, endpoint, params=None, body=None, method=None, version="v1", base_url=None

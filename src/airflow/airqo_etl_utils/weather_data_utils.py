@@ -1,37 +1,69 @@
-from datetime import timedelta
-
-import numpy as np
 import pandas as pd
 
 from .airqo_api import AirQoApi
 from .bigquery_api import BigQueryApi
-from .commons import get_frequency, remove_invalid_dates, Utils
+from .commons import remove_invalid_dates
+from .constants import DataSource
 from .data_validator import DataValidationUtils
-
-from .date import date_to_str
 from .tahmo_api import TahmoApi
+from .utils import Utils
 
 
 class WeatherDataUtils:
     @staticmethod
-    def get_nearest_tahmo_stations(coordinates_list: list) -> pd.DataFrame:
-        stations = []
-        tahmo_api = TahmoApi()
-        all_stations = tahmo_api.get_stations()
-        for coordinates in coordinates_list:
-            latitude = coordinates.get("latitude")
-            longitude = coordinates.get("longitude")
-            closest_station = tahmo_api.get_closest_station(
-                latitude=latitude, longitude=longitude, all_stations=all_stations
+    def extract_hourly_weather_data(start_date_time, end_date_time) -> pd.DataFrame:
+        bigquery_api = BigQueryApi()
+
+        cols = ["station_code", "timestamp", "temperature", "humidity"]
+        measurements = bigquery_api.query_data(
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            columns=cols,
+            table=bigquery_api.hourly_weather_table,
+        )
+        return pd.DataFrame([], columns=cols) if measurements.empty else measurements
+
+    @staticmethod
+    def get_nearest_weather_stations(records: list) -> list:
+        data = []
+        airqo_api = AirQoApi()
+
+        for record in records:
+            weather_stations = airqo_api.get_nearest_weather_stations(
+                latitude=record.get("latitude"),
+                longitude=record.get("longitude"),
             )
-            stations.append(
+            data.append(
                 {
-                    "station_code": closest_station.get("code"),
-                    "latitude": latitude,
-                    "longitude": longitude,
+                    **record,
+                    **{"weather_stations": weather_stations},
                 }
             )
-        return pd.DataFrame(stations)
+
+        return data
+
+    @staticmethod
+    def get_weather_stations(meta_data: list) -> pd.DataFrame:
+        data = []
+        airqo_api = AirQoApi()
+
+        for record in meta_data:
+            weather_stations = airqo_api.get_nearest_weather_stations(
+                latitude=record.get("latitude"),
+                longitude=record.get("longitude"),
+            )
+            for station in weather_stations:
+                station = dict(station)
+                data.append(
+                    {
+                        **record,
+                        **{
+                            "station_code": station.get("code"),
+                            "distance": station.get("distance"),
+                        },
+                    }
+                )
+        return pd.DataFrame(data)
 
     @staticmethod
     def extract_raw_data_from_bigquery(start_date_time, end_date_time) -> pd.DataFrame:
@@ -50,46 +82,47 @@ class WeatherDataUtils:
         start_date_time, end_date_time, station_codes: list = None
     ) -> pd.DataFrame:
         airqo_api = AirQoApi()
-        sites = airqo_api.get_sites()
-        if station_codes is None:
+        if not station_codes:
+            sites = airqo_api.get_sites()
             station_codes = []
             for site in sites:
-                try:
-                    if "nearest_tahmo_station" in dict(site).keys():
-                        station_codes.append(site["nearest_tahmo_station"]["code"])
-                except Exception as ex:
-                    print(ex)
+                weather_stations = dict(site).get("weather_stations", [])
+                station_codes.extend(x.get("code", "") for x in weather_stations)
+
+        station_codes = list(set(station_codes))
 
         measurements = []
         tahmo_api = TahmoApi()
 
-        frequency = get_frequency(start_time=start_date_time, end_time=end_date_time)
-        dates = pd.date_range(start_date_time, end_date_time, freq=frequency)
-        last_date_time = dates.values[len(dates.values) - 1]
+        dates = Utils.query_dates_array(
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            data_source=DataSource.TAHMO,
+        )
 
-        for date in dates:
-
-            start = date_to_str(date)
-            new_end_date_time = date + timedelta(hours=dates.freq.n)
-
-            if np.datetime64(new_end_date_time) > last_date_time:
-                end = end_date_time
-            else:
-                end = date_to_str(new_end_date_time)
-
+        for start, end in dates:
             range_measurements = tahmo_api.get_measurements(start, end, station_codes)
             measurements.extend(range_measurements)
 
-        measurements_df = pd.DataFrame(data=measurements)
-
-        if measurements_df.empty:
-            return pd.DataFrame([], columns=["value", "variable", "time", "station"])
+        measurements = (
+            pd.DataFrame(data=measurements)
+            if measurements
+            else pd.DataFrame([], columns=["value", "variable", "time", "station"])
+        )
 
         return remove_invalid_dates(
-            dataframe=measurements_df,
+            dataframe=measurements,
             start_time=start_date_time,
             end_time=end_date_time,
         )
+
+    @staticmethod
+    def extract_hourly_data(start_date_time, end_date_time) -> pd.DataFrame:
+        raw_data = WeatherDataUtils.query_raw_data_from_tahmo(
+            start_date_time=start_date_time, end_date_time=end_date_time
+        )
+        cleaned_data = WeatherDataUtils.transform_raw_data(raw_data)
+        return WeatherDataUtils.aggregate_data(cleaned_data)
 
     @staticmethod
     def transform_raw_data(data: pd.DataFrame) -> pd.DataFrame:
@@ -134,49 +167,38 @@ class WeatherDataUtils:
 
         weather_data = Utils.populate_missing_columns(data=weather_data, cols=cols)
 
-        return DataValidationUtils.get_validate_values(weather_data)
+        return DataValidationUtils.remove_outliers(weather_data)
 
     @staticmethod
     def aggregate_data(data: pd.DataFrame) -> pd.DataFrame:
 
         data = data.dropna(subset=["timestamp"])
         data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
+        aggregated_data = pd.DataFrame()
 
         station_groups = data.groupby("station_code")
-        averaged_measurements = pd.DataFrame()
 
         for _, station_group in station_groups:
-            station_code = station_group.iloc[0]["station_code"]
-            data = station_group.sort_index(axis=0)
-            averages = pd.DataFrame(data.resample("1H", on="timestamp").mean())
+            station_group.index = station_group["timestamp"]
+            station_group = station_group.sort_index(axis=0)
+
+            averaging_data = station_group.copy()
+            del averaging_data["precipitation"]
+            averages = pd.DataFrame(averaging_data.resample("H").mean())
             averages["timestamp"] = averages.index
-            averages["station_code"] = station_code
-            averaged_measurements = averaged_measurements.append(
-                averages, ignore_index=True
-            )
+            averages.reset_index(drop=True, inplace=True)
 
-        return averaged_measurements
+            summing_data = station_group.copy()[["timestamp", "precipitation"]]
+            sums = pd.DataFrame(summing_data.resample("H").sum())
+            sums["timestamp"] = sums.index
+            sums.reset_index(drop=True, inplace=True)
 
-    @staticmethod
-    def __add_site_information(data: pd.DataFrame) -> pd.DataFrame:
-        airqo_api = AirQoApi()
-        sites_weather_data = pd.DataFrame()
+            merged_data = pd.merge(left=averages, right=sums, on="timestamp")
+            merged_data["station_code"] = station_group.iloc[0]["station_code"]
 
-        sites = airqo_api.get_sites()
-        for site in sites:
-            try:
-                site_weather_data = data.loc[
-                    data["station_code"] == site["nearest_tahmo_station"]["code"]
-                ]
-                site_weather_data["site_id"] = site["_id"]
-                site_weather_data["tenant"] = site["tenant"]
-                sites_weather_data = sites_weather_data.append(
-                    site_weather_data, ignore_index=True
-                )
-            except KeyError:
-                continue
+            aggregated_data = aggregated_data.append(merged_data, ignore_index=True)
 
-        return sites_weather_data
+        return aggregated_data
 
     @staticmethod
     def transform_for_bigquery(data: pd.DataFrame) -> pd.DataFrame:

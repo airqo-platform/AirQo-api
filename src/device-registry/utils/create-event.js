@@ -25,6 +25,8 @@ const {
   formatDate,
 } = require("./date");
 
+const { Parser } = require("json2csv");
+
 const httpStatus = require("http-status");
 
 const createEvent = {
@@ -34,15 +36,52 @@ const createEvent = {
       const {
         frequency,
         device,
+        device_name,
+        device_id,
+        device_lat_long,
+        site_id,
+        airqloud_id,
+        airqloud_name,
         device_number,
-        name,
         startTime,
         endTime,
         tenant,
         limit,
         skip,
         site,
+        format,
+        access_code,
       } = query;
+
+      const responseFromGetDeviceDetails = await createDeviceUtil.list(req);
+      let deviceDetails = {};
+
+      if (responseFromGetDeviceDetails.success === true) {
+        if (
+          !isEmpty(responseFromGetDeviceDetails.data) &&
+          Array.isArray(responseFromGetDeviceDetails.data) &&
+          responseFromGetDeviceDetails.data.length === 1
+        ) {
+          deviceDetails = responseFromGetDeviceDetails.data[0];
+        } else {
+          logger.info(`unable to retrieve details for ONE device`);
+        }
+      } else if (responseFromGetDeviceDetails.success === false) {
+        logger.error(
+          `unable to retrieve device details --- ${responseFromGetDeviceDetails.error}`
+        );
+      }
+
+      if (!isEmpty(deviceDetails) && deviceDetails.visibility === false) {
+        if (isEmpty(access_code) || deviceDetails.access_code !== access_code) {
+          // return {
+          //   success: false,
+          //   message: "not authorized",
+          //   status: httpStatus.UNAUTHORIZED,
+          //   errors: { message: "not authorized" },
+          // };
+        }
+      }
 
       const currentDate = formatDate(new Date());
 
@@ -55,22 +94,63 @@ const createEvent = {
       const end = endTime ? endTime : currentDate;
 
       let table = `${constants.DATAWAREHOUSE_AVERAGED_DATA}.hourly_device_measurements`;
-      let pm2_5 = "";
-      let pm10 = "";
+      let averaged_fields =
+        "site_id, name, device, device_number, timestamp, " +
+        "pm2_5_raw_value, pm2_5_calibrated_value, pm10_raw_value," +
+        "pm10_calibrated_value, no2_raw_value, no2_calibrated_value, pm1_raw_value," +
+        "pm1_calibrated_value, external_temperature, external_humidity, wind_speed,";
+      let raw_fields = "";
+      let mobile = false;
 
-      if (frequency === "raw") {
-        table = `${constants.DATAWAREHOUSE_RAW_DATA}.device_measurements`;
-        pm2_5 = "";
-        pm10 = "";
+      if (!isEmpty(deviceDetails) && deviceDetails.category === "bam") {
+        table = `${constants.DATAWAREHOUSE_AVERAGED_DATA}.hourly_bam_device_measurements`;
+        averaged_fields =
+          "site_id, device_id, device_number, timestamp," +
+          "pm10, pm2_5, no2, pm1, latitude, longitude";
+        raw_fields = "";
+        mobile = false;
       }
 
-      const queryStatement = `SELECT site_id, name, device, device_number, \`${
+      if (frequency === "raw") {
+        if (!isEmpty(deviceDetails) && deviceDetails.category === "bam") {
+          raw_fields =
+            "realtime_conc, hourly_conc," +
+            "short_time_conc , air_flow , wind_speed ," +
+            "wind_direction , temperature , humidity," +
+            "barometric_pressure , filter_temperature ," +
+            "filter_humidity, status, timestamp, device_id," +
+            "device_number,site_id, latitude, longitude";
+          averaged_fields = "";
+          table = `${constants.DATAWAREHOUSE_RAW_DATA}.bam_device_measurements`;
+        } else {
+          table = `${constants.DATAWAREHOUSE_RAW_DATA}.device_measurements`;
+          averaged_fields = "";
+          raw_fields =
+            "site_id, name, device_id, device_number, timestamp," +
+            "pm2_5, pm10, s1_pm2_5, s2_pm2_5, s1_pm10, s2_pm10, no2," +
+            "pm1, s1_pm1, s2_pm1, pressure, s1_pressure, s2_pressure, temperature," +
+            "humidity, voc, s1_voc, s2_voc, wind_speed, satellites, hdop," +
+            "device_temperature, device_humidity, battery,";
+          mobile = false;
+        }
+      }
+
+      if (tenant === "urban_better") {
+        table = `${constants.DATAWAREHOUSE_RAW_DATA}.mobile_device_measurements`;
+        mobile = true;
+        raw_fields =
+          "tenant, timestamp, device_number, device_id, latitude, longitude," +
+          "horizontal_accuracy, pm2_5_raw_value, pm1_raw_value, pm10_raw_value," +
+          "no2_raw_value, voc_raw_value, pm1_pi_value, pm2_5_pi_value, pm10_pi_value," +
+          "voc_pi_value, no2_pi_value, gps_device_timestamp, timestamp_abs_diff";
+        averaged_fields = "";
+      }
+      const queryStatement = `SELECT ${averaged_fields} ${raw_fields}  \`${
         constants.DATAWAREHOUSE_METADATA
       }.sites\`.latitude AS latitude,
-        \`${
-          constants.DATAWAREHOUSE_METADATA
-        }.sites\`.longitude AS longitude, timestamp , pm2_5, pm10, pm2_5_raw_value, pm2_5_calibrated_value, pm10_raw_value, pm10_calibrated_value,
-        \`${constants.DATAWAREHOUSE_METADATA}.sites\`.tenant AS tenant 
+        \`${constants.DATAWAREHOUSE_METADATA}.sites\`.longitude AS longitude, 
+        \`${constants.DATAWAREHOUSE_METADATA}.sites\`.tenant AS tenant ,
+        \`${constants.DATAWAREHOUSE_METADATA}.sites\`.altitude AS altitude ,
         FROM \`${table}\` 
         JOIN \`${constants.DATAWAREHOUSE_METADATA}.sites\` 
         ON \`${
@@ -83,37 +163,121 @@ const createEvent = {
       ${site ? `AND site_id="${site}"` : ""}
       ${device ? `AND device="${device}"` : ""}
       ${device_number ? `AND device_number=${device_number}` : ""}
+      ${device_name ? `AND device_name="${device_name}"` : ""}
+      ${device_id ? `AND device_id="${device_id}"` : ""}
+      ${site_id ? `AND site_id="${site_id}"` : ""}
+      ${airqloud_id ? `AND airqloud_id="${airqloud_id}"` : ""}
+      ${airqloud_name ? `AND airqloud_name="${airqloud_name}"` : ""}
+      ${device_lat_long ? `AND device_lat_long="${device_lat_long}"` : ""}
       ${
         tenant
           ? `AND \`${constants.DATAWAREHOUSE_METADATA}.sites\`.tenant="${tenant}"`
           : ""
       }
       ORDER BY timestamp
-      DESC LIMIT ${limit ? limit : constants.DEFAULT_EVENTS_LIMIT}`;
+      DESC LIMIT ${limit ? limit : constants.DEFAULT_EVENTS_LIMIT} OFFSET ${
+        skip ? skip : constants.DEFAULT_EVENTS_SKIP
+      }`;
 
+      const queryStatementMobile = `SELECT ${averaged_fields} ${raw_fields}
+      FROM \`${table}\` 
+      WHERE timestamp 
+      >= "${start ? start : twoMonthsBack}" AND timestamp <= "${
+        end ? end : currentDate
+      }" 
+      ${site ? `AND site_id="${site}"` : ""}
+      ${device ? `AND device="${device}"` : ""}
+      ${device_number ? `AND device_number=${device_number}` : ""}
+      ${device_name ? `AND device_name="${device_name}"` : ""}
+      ${device_id ? `AND device_id="${device_id}"` : ""}
+      ${site_id ? `AND site_id="${site_id}"` : ""}
+      ${airqloud_id ? `AND airqloud_id="${airqloud_id}"` : ""}
+      ${airqloud_name ? `AND airqloud_name="${airqloud_name}"` : ""}
+      ${device_lat_long ? `AND device_lat_long="${device_lat_long}"` : ""}
+     ${tenant ? `AND tenant="${tenant}"` : ""}
+     ORDER BY timestamp
+     DESC LIMIT ${limit ? limit : constants.DEFAULT_EVENTS_LIMIT} OFFSET ${
+        skip ? skip : constants.DEFAULT_EVENTS_SKIP
+      }
+     `;
+
+      const queryStatementReference = `SELECT ${averaged_fields} ${raw_fields}
+      FROM \`${table}\` 
+      WHERE timestamp 
+     >= "${start ? start : twoMonthsBack}" AND timestamp <= "${
+        end ? end : currentDate
+      }" 
+    ${site ? `AND site_id="${site}"` : ""}
+    ${device ? `AND device="${device}"` : ""}
+    ${device_number ? `AND device_number=${device_number}` : ""}
+    ${device_name ? `AND device_name="${device_name}"` : ""}
+    ${device_id ? `AND device_id="${device_id}"` : ""}
+    ${site_id ? `AND site_id="${site_id}"` : ""}
+    ${airqloud_id ? `AND airqloud_id="${airqloud_id}"` : ""}
+    ${airqloud_name ? `AND airqloud_name="${airqloud_name}"` : ""}
+    ${device_lat_long ? `AND device_lat_long="${device_lat_long}"` : ""}
+    ${tenant ? `AND tenant="${tenant}"` : ""}
+    ORDER BY timestamp
+    DESC LIMIT ${limit ? limit : constants.DEFAULT_EVENTS_LIMIT} OFFSET ${
+        skip ? skip : constants.DEFAULT_EVENTS_SKIP
+      }`;
+
+      let bqQuery = "";
+
+      if (mobile === true) {
+        bqQuery = queryStatementMobile;
+      } else if (
+        (!isEmpty(deviceDetails) &&
+          deviceDetails.category !== "bam" &&
+          mobile === false) ||
+        (isEmpty(deviceDetails) && mobile === false)
+      ) {
+        bqQuery = queryStatement;
+      } else if (
+        !isEmpty(deviceDetails) &&
+        deviceDetails.category === "bam" &&
+        mobile === false
+      ) {
+        bqQuery = queryStatementReference;
+      }
       const options = {
-        query: queryStatement,
+        query: bqQuery,
         location: constants.BIG_QUERY_LOCATION,
       };
 
       const [job] = await bigquery.createQueryJob(options);
-      console.log(`Job ${job.id} started.`);
 
       const [rows] = await job.getQueryResults();
 
       const sanitizedMeasurements = rows.map((item) => {
         return {
           ...item,
-          timestamp: item.timestamp,
+          timestamp: item.timestamp ? item.timestamp.value : "",
+          gps_device_timestamp:
+            item.gps_device_timestamp && item.gps_device_timestamp.value
+              ? item.gps_device_timestamp.value
+              : "",
         };
       });
 
+      let data = cleanDeep(sanitizedMeasurements);
+
+      if (format && format === "csv") {
+        try {
+          const parser = new Parser();
+          const csv = parser.parse(sanitizedMeasurements);
+          data = csv;
+        } catch (error) {
+          logger.error(`things are bad--- ${error}`);
+        }
+      }
       return {
         success: true,
-        data: sanitizedMeasurements,
+        data,
         message: "successfully retrieved the measurements",
       };
     } catch (error) {
+      logger.error(`things are bad--- ${error}`);
       return {
         success: false,
         message: "Internal Server Error",

@@ -17,16 +17,10 @@ def big_query_update_sites_etl():
     import pandas as pd
 
     @task()
-    def extract_sites(**kwargs) -> pd.DataFrame:
-        from airqo_etl_utils.commons import get_tenant
-        from airqo_etl_utils.meta_data_utils import extract_meta_data
+    def extract_sites() -> pd.DataFrame:
+        from airqo_etl_utils.meta_data_utils import MetaDataUtils
 
-        tenant = get_tenant(**kwargs)
-
-        sites_data = extract_meta_data(
-            component="sites",
-            tenant=tenant,
-        )
+        sites_data = MetaDataUtils.extract_meta_data(component="sites")
 
         return sites_data
 
@@ -58,16 +52,10 @@ def big_query_update_devices_etl():
     import pandas as pd
 
     @task()
-    def extract_devices(**kwargs):
-        from airqo_etl_utils.commons import get_tenant
-        from airqo_etl_utils.meta_data_utils import extract_meta_data
+    def extract_devices():
+        from airqo_etl_utils.meta_data_utils import MetaDataUtils
 
-        tenant = get_tenant(**kwargs)
-
-        devices_data = extract_meta_data(
-            component="devices",
-            tenant=tenant,
-        )
+        devices_data = MetaDataUtils.extract_meta_data(component="devices")
 
         return devices_data
 
@@ -87,5 +75,25 @@ def big_query_update_devices_etl():
     load(devices)
 
 
+@dag(
+    "Update-Sites-Meta-Data",
+    schedule_interval="@daily",
+    on_failure_callback=slack_dag_failure_notification,
+    start_date=datetime(2021, 1, 1),
+    catchup=False,
+    tags=["daily", "sites", "meta-data"],
+)
+def update_sites_meta_data_etl():
+    @task()
+    def update_nearest_weather_stations() -> None:
+        from airqo_etl_utils.meta_data_utils import MetaDataUtils
+        from airqo_etl_utils.constants import Tenant
+
+        MetaDataUtils.update_nearest_weather_stations(tenant=Tenant.NONE)
+
+    update_nearest_weather_stations()
+
+
 big_query_update_sites_etl_dag = big_query_update_sites_etl()
 big_query_update_devices_etl_dag = big_query_update_devices_etl()
+update_sites_meta_data_etl_dag = update_sites_meta_data_etl()

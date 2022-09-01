@@ -4,9 +4,8 @@ import pandas as pd
 from google.cloud import bigquery
 
 from .config import configuration
-from .constants import JobAction, DataType
-from .date import date_to_str
-from .utils import get_file_content
+from .constants import JobAction, ColumnDataType, Tenant
+from .utils import Utils
 
 
 class BigQueryApi:
@@ -15,9 +14,12 @@ class BigQueryApi:
         self.hourly_measurements_table = configuration.BIGQUERY_HOURLY_EVENTS_TABLE
         self.raw_measurements_table = configuration.BIGQUERY_RAW_EVENTS_TABLE
         self.bam_measurements_table = configuration.BIGQUERY_BAM_EVENTS_TABLE
-        self.bam_outliers_table = configuration.BIGQUERY_BAM_OUTLIERS_TABLE
-        self.raw_mobile_measurements_table = (
-            configuration.BIGQUERY_RAW_MOBILE_EVENTS_TABLE
+        self.raw_bam_measurements_table = configuration.BIGQUERY_RAW_BAM_DATA_TABLE
+        self.unclean_mobile_raw_measurements_table = (
+            configuration.BIGQUERY_UNCLEAN_RAW_MOBILE_EVENTS_TABLE
+        )
+        self.clean_mobile_raw_measurements_table = (
+            configuration.BIGQUERY_CLEAN_RAW_MOBILE_EVENTS_TABLE
         )
         self.airqo_mobile_measurements_table = (
             configuration.BIGQUERY_AIRQO_MOBILE_EVENTS_TABLE
@@ -27,9 +29,8 @@ class BigQueryApi:
         self.analytics_table = configuration.BIGQUERY_ANALYTICS_TABLE
         self.sites_table = configuration.BIGQUERY_SITES_TABLE
         self.devices_table = configuration.BIGQUERY_DEVICES_TABLE
-        self.calibrated_hourly_measurements_table = (
-            configuration.BIGQUERY_CALIBRATED_HOURLY_EVENTS_TABLE
-        )
+        self.devices_data_table = configuration.BIGQUERY_DEVICES_DATA_TABLE
+
         self.package_directory, _ = os.path.split(__file__)
 
     def validate_data(
@@ -58,7 +59,7 @@ class BigQueryApi:
         date_time_columns = (
             date_time_columns
             if date_time_columns
-            else self.get_columns(table=table, data_type=DataType.TIMESTAMP)
+            else self.get_columns(table=table, data_type=ColumnDataType.TIMESTAMP)
         )
         dataframe[date_time_columns] = dataframe[date_time_columns].apply(
             pd.to_datetime, errors="coerce"
@@ -68,7 +69,7 @@ class BigQueryApi:
         float_columns = (
             float_columns
             if float_columns
-            else self.get_columns(table=table, data_type=DataType.FLOAT)
+            else self.get_columns(table=table, data_type=ColumnDataType.FLOAT)
         )
         dataframe[float_columns] = dataframe[float_columns].apply(
             pd.to_numeric, errors="coerce"
@@ -78,44 +79,48 @@ class BigQueryApi:
         integer_columns = (
             integer_columns
             if integer_columns
-            else self.get_columns(table=table, data_type=DataType.INTEGER)
+            else self.get_columns(table=table, data_type=ColumnDataType.INTEGER)
         )
         dataframe[integer_columns] = dataframe[integer_columns].apply(
             lambda x: pd.to_numeric(x, errors="coerce", downcast="integer")
         )
 
-        return dataframe
+        return dataframe.drop_duplicates(keep="first")
 
-    def get_columns(self, table: str, data_type: DataType = DataType.NONE) -> list:
+    def get_columns(
+        self, table: str, data_type: ColumnDataType = ColumnDataType.NONE
+    ) -> list:
 
-        if (
-            table == self.hourly_measurements_table
-            or table == self.raw_measurements_table
-        ):
+        if table == self.hourly_measurements_table:
             schema_file = "measurements.json"
+        elif table == self.raw_measurements_table:
+            schema_file = "raw_measurements.json"
         elif table == self.hourly_weather_table or table == self.raw_weather_table:
             schema_file = "weather_data.json"
-        elif table == self.calibrated_hourly_measurements_table:
-            schema_file = "calibrated_measurements.json"
         elif table == self.analytics_table:
             schema_file = "data_warehouse.json"
         elif table == self.sites_table:
             schema_file = "sites.json"
         elif table == self.devices_table:
             schema_file = "devices.json"
-        elif table == self.raw_mobile_measurements_table:
+        elif (
+            table == self.clean_mobile_raw_measurements_table
+            or table == self.unclean_mobile_raw_measurements_table
+        ):
             schema_file = "mobile_measurements.json"
         elif table == self.airqo_mobile_measurements_table:
             schema_file = "airqo_mobile_measurements.json"
-        elif table == self.bam_measurements_table or table == self.bam_outliers_table:
+        elif table == self.bam_measurements_table:
             schema_file = "bam_measurements.json"
+        elif table == self.raw_bam_measurements_table:
+            schema_file = "bam_raw_measurements.json"
         else:
             raise Exception("Invalid table")
 
-        schema = get_file_content(file_name=schema_file)
+        schema = Utils.load_schema(file_name=schema_file)
 
         columns = []
-        if data_type != DataType.NONE:
+        if data_type != ColumnDataType.NONE:
             for column in schema:
                 if column["type"] == data_type.to_string():
                     columns.append(column["name"])
@@ -187,6 +192,13 @@ class BigQueryApi:
         """
         dataframe = self.client.query(query=query).result().to_dataframe()
 
-        dataframe["timestamp"] = dataframe["timestamp"].apply(date_to_str)
+        dataframe["timestamp"] = dataframe["timestamp"].apply(pd.to_datetime)
 
-        return dataframe
+        return dataframe.drop_duplicates(keep="first")
+
+    def query_devices(self, tenant: Tenant) -> pd.DataFrame:
+        query = f"""
+            SELECT * FROM `{self.devices_data_table}` WHERE tenant = '{tenant}'
+        """
+        dataframe = self.client.query(query=query).result().to_dataframe()
+        return dataframe.drop_duplicates(keep="first")

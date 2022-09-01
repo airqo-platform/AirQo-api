@@ -3,7 +3,7 @@ const fetch = require("node-fetch");
 const axios = require("axios").default;
 const redis = require("../config/redis");
 const isEmpty = require("is-empty");
-const { generateDateFormat } = require("../utils/date");
+const { generateDateFormat, isDate } = require("../utils/date");
 const constants = require("../config/constants");
 const transformUtil = require("../utils/transform");
 const { logObject, logElement, logText } = require("../utils/log");
@@ -329,7 +329,10 @@ const data = {
           const errors = result.errors
             ? result.errors
             : { message: "Internal Server Error" };
-          return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+          const status = result.status
+            ? result.status
+            : HTTPStatus.INTERNAL_SERVER_ERROR;
+          return res.status(status).json({
             message: result.message,
             errors,
             success: false,
@@ -493,8 +496,9 @@ const data = {
 
   generateDescriptiveLastEntry: async (req, res) => {
     try {
-      const { channel, device, start, end } = req.query;
-      if (channel) {
+      const { channel, device, device_number, start, end } = req.query;
+      let deviceCategory = "";
+      if (channel || device_number || device) {
         let api_key = "";
         let errors = [];
         await transformUtil.getAPIKey(channel, (result) => {
@@ -502,9 +506,14 @@ const data = {
             api_key = result.data;
           }
           if (result.success === false) {
-            res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+            const errors = result.errors ? result.errors : { message: "" };
+            const status = result.status
+              ? result.status
+              : HTTPStatus.INTERNAL_SERVER_ERROR;
+            res.status(status).json({
               message: result.message,
-              errors: result.errors,
+              errors,
+              success: result.success,
             });
           }
         });
@@ -522,7 +531,8 @@ const data = {
             request["api_key"] = api_key;
             request["start"] = start;
             request["end"] = end;
-            axios
+            logObject("oooh request", request);
+            return axios
               .get(
                 transformUtil.readDeviceMeasurementsFromThingspeak({ request })
               )
@@ -541,6 +551,7 @@ const data = {
                 let recentReadings = await readings.feeds.filter((item) => {
                   return item.entry_id === lastEntryId;
                 });
+
                 let responseData = recentReadings[0];
 
                 delete responseData.entry_id;
@@ -548,16 +559,42 @@ const data = {
                 let cleanedDeviceMeasurements =
                   transformUtil.clean(responseData);
 
+                const fieldOneValue = cleanedDeviceMeasurements.field1
+                  ? cleanedDeviceMeasurements.field1
+                  : null;
+
+                if (isEmpty(fieldOneValue)) {
+                  return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+                    success: false,
+                    message: "unable to categorise device",
+                    errors: {
+                      message:
+                        "please crosscheck device, it is not sending field1",
+                    },
+                  });
+                }
+
+                const isProvidedDateReal = isDate(fieldOneValue);
+
+                if (isProvidedDateReal) {
+                  cleanedDeviceMeasurements.field9 = "reference";
+                  deviceCategory = "reference";
+                } else {
+                  cleanedDeviceMeasurements.field9 = "lowcost";
+                  deviceCategory = "lowcost";
+                }
                 let transformedData = await transformUtil.transformMeasurement(
                   cleanedDeviceMeasurements
                 );
+
                 let transformedField = {};
                 let otherData = transformedData.other_data;
 
                 if (otherData) {
-                  transformedField = await transformUtil.trasformFieldValues(
-                    otherData
-                  );
+                  transformedField = await transformUtil.trasformFieldValues({
+                    otherData,
+                    deviceCategory,
+                  });
                   delete transformedData.other_data;
                 }
 
@@ -570,10 +607,6 @@ const data = {
 
                 let cleanedFinalTransformation = transformUtil.clean(newResp);
 
-                logObject(
-                  "cleanedTransformedMeasurement",
-                  cleanedFinalTransformation
-                );
                 redis.set(
                   cacheID,
                   JSON.stringify({
@@ -617,6 +650,7 @@ const data = {
         errorsUtil.errorResponse({ res, message, statusCode, error });
       }
     } catch (error) {
+      logText("we are goodooo...");
       let message = error.message;
       let statusCode = HTTPStatus.INTERNAL_SERVER_ERROR;
       errorsUtil.errorResponse({ res, message, statusCode, error });

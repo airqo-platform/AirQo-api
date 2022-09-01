@@ -1,3 +1,5 @@
+const { logText, logElement } = require("./log");
+
 const generateDateFormat = async (ISODate) => {
   date = new Date(ISODate);
   year = date.getFullYear();
@@ -67,6 +69,18 @@ const addMonthsToProvidedDate = (date, number) => {
     return `${year}-${modifiedMonth}-${day}`;
   } catch (e) {
     console.log("server side error: ", e.message);
+  }
+};
+
+const isDate = (date) => {
+  try {
+    return date.includes("-") || date.includes("/");
+  } catch (error) {
+    return {
+      success: false,
+      message: "Internal Server Error",
+      errors: { message: error.message },
+    };
   }
 };
 
@@ -149,4 +163,5 @@ module.exports = {
   isTimeEmpty,
   getDifferenceInMonths,
   addDays,
+  isDate,
 };

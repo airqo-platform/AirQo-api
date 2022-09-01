@@ -1,14 +1,13 @@
 import traceback
-from datetime import timedelta
 
-import numpy as np
 import pandas as pd
 
 from .airnow_api import AirNowApi
 from .airqo_api import AirQoApi
 from .bigquery_api import BigQueryApi
-from .commons import Utils, get_frequency
+from .constants import Tenant, DataSource
 from .date import str_to_date, date_to_str
+from .utils import Utils
 
 
 class AirnowDataUtils:
@@ -25,7 +24,9 @@ class AirnowDataUtils:
             raise Exception(f"Unknown parameter {parameter}")
 
     @staticmethod
-    def query_bam_data(start_date_time: str, end_date_time: str) -> pd.DataFrame:
+    def query_bam_data(
+        start_date_time: str, end_date_time: str, devices: pd.DataFrame
+    ) -> pd.DataFrame:
         airnow_api = AirNowApi()
         start_date_time = date_to_str(
             str_to_date(start_date_time), str_format="%Y-%m-%dT%H:%M"
@@ -34,7 +35,6 @@ class AirnowDataUtils:
             str_to_date(end_date_time), str_format="%Y-%m-%dT%H:%M"
         )
         countries_metadata = dict(airnow_api.get_countries_metadata())
-        devices = pd.DataFrame(AirQoApi().get_devices(tenant="airqo"))
         data = []
 
         for country in countries_metadata.keys():
@@ -75,27 +75,18 @@ class AirnowDataUtils:
     @staticmethod
     def extract_bam_data(start_date_time: str, end_date_time: str) -> pd.DataFrame:
 
-        frequency = get_frequency(start_time=start_date_time, end_time=end_date_time)
-        dates = pd.date_range(start_date_time, end_date_time, freq=frequency)
-        last_date_time = dates.values[len(dates.values) - 1]
+        dates = Utils.query_dates_array(
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            data_source=DataSource.AIRNOW,
+        )
+
         data = pd.DataFrame()
+        devices = pd.DataFrame(AirQoApi().get_devices(tenant=Tenant.AIRQO))
 
-        for date in dates:
-
-            start = date_to_str(date)
-            end_date = date + timedelta(hours=dates.freq.n)
-
-            if np.datetime64(end_date) > last_date_time:
-                timestring = pd.to_datetime(str(last_date_time))
-                end = date_to_str(timestring)
-            else:
-                end = date_to_str(end_date)
-
-            if start == end:
-                end = date_to_str(date, str_format="%Y-%m-%dT%H:59:59Z")
-
+        for start, end in dates:
             query_data = AirnowDataUtils.query_bam_data(
-                start_date_time=start, end_date_time=end
+                start_date_time=start, end_date_time=end, devices=devices
             )
             data = data.append(query_data, ignore_index=True)
 
@@ -106,7 +97,7 @@ class AirnowDataUtils:
 
         device_groups = data.groupby("device_number")
         airnow_data = []
-        devices = AirQoApi().get_devices(tenant="airqo")
+        devices = AirQoApi().get_devices(tenant=Tenant.AIRQO)
 
         for _, device_group in device_groups:
 
@@ -137,7 +128,7 @@ class AirnowDataUtils:
                         airnow_data.append(
                             {
                                 "timestamp": row["UTC"],
-                                "tenant": "usembassy",
+                                "tenant": str(Tenant.US_EMBASSY),
                                 "site_id": device["site"]["_id"],
                                 "device_id": device["_id"],
                                 "device_number": device["device_number"],
@@ -154,7 +145,6 @@ class AirnowDataUtils:
 
         airnow_data = pd.DataFrame(airnow_data)
         airnow_data["timestamp"] = airnow_data["timestamp"].apply(pd.to_datetime)
-        print(f"Airnow data => {len(airnow_data)}")
         return airnow_data
 
     @staticmethod

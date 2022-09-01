@@ -13,6 +13,7 @@ from .commons import (
     get_column_value,
 )
 from .config import configuration
+from .constants import Tenant
 from .date import (
     date_to_str,
     str_to_date,
@@ -78,7 +79,7 @@ def extract_kcca_measurements(
 
 def transform_kcca_measurements_for_api(data: pd.DataFrame) -> list:
     airqo_api = AirQoApi()
-    devices = airqo_api.get_devices(tenant="kcca")
+    devices = airqo_api.get_devices(tenant=Tenant.KCCA)
     device_gps = data.groupby("deviceCode")
     cleaned_measurements = []
     for _, group in device_gps:
@@ -223,7 +224,7 @@ def transform_kcca_data_for_message_broker(data: pd.DataFrame, frequency: str) -
     columns = list(data.columns)
 
     airqo_api = AirQoApi()
-    devices = airqo_api.get_devices(tenant="kcca")
+    devices = airqo_api.get_devices(tenant=Tenant.KCCA)
 
     for _, data_row in data.iterrows():
         device_name = data_row["deviceCode"]
@@ -311,7 +312,7 @@ def transform_kcca_data_for_bigquery(data: pd.DataFrame) -> pd.DataFrame:
     columns = list(data.columns)
 
     airqo_api = AirQoApi()
-    devices = airqo_api.get_devices(tenant="kcca")
+    devices = airqo_api.get_devices(tenant=Tenant.KCCA)
 
     for _, data_row in data.iterrows():
         device_name = data_row["deviceCode"]

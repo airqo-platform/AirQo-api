@@ -2,7 +2,7 @@
     {
         "name": "tenant",
         "type": "STRING",
-        "mode": "REQUIRED"
+        "mode": "NULLABLE"
     },
     {
         "name": "timestamp",
@@ -12,6 +12,11 @@
     {
         "name": "device_number",
         "type": "INTEGER",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "device_id",
+        "type": "STRING",
         "mode": "NULLABLE"
     },
     {
@@ -49,12 +54,6 @@
         "description": " μg/m3."
     },
     {
-        "name": "wind_speed",
-        "type": "FLOAT",
-        "mode": "NULLABLE",
-        "description": "m/s."
-    },
-    {
         "name": "altitude",
         "type": "FLOAT",
         "mode": "NULLABLE"
@@ -75,55 +74,14 @@
         "mode": "NULLABLE"
     },
     {
-        "name": "internalTemperature",
+        "name": "device_temperature",
         "type": "FLOAT",
         "mode": "NULLABLE"
     },
     {
-        "name": "internalHumidity",
+        "name": "device_humidity",
         "type": "FLOAT",
         "mode": "NULLABLE"
-    },
-    {
-        "name": "atmospheric_pressure",
-        "type": "FLOAT",
-        "mode": "NULLABLE"
-    },
-    {
-        "name": "temperature",
-        "type": "FLOAT",
-        "mode": "NULLABLE",
-        "description": "°C.\nExternal temperature"
-    },
-    {
-        "name": "humidity",
-        "type": "FLOAT",
-        "mode": "NULLABLE",
-        "description": "%.\nRelative humidity"
-    },
-    {
-        "name": "precipitation",
-        "type": "FLOAT",
-        "mode": "NULLABLE",
-        "description": "°C.\nExternal temperature"
-    },
-    {
-        "name": "wind_direction",
-        "type": "FLOAT",
-        "mode": "NULLABLE",
-        "description": "%.\nRelative humidity"
-    },
-    {
-        "name": "radiation",
-        "type": "FLOAT",
-        "mode": "NULLABLE",
-        "description": "°C.\nExternal temperature"
-    },
-    {
-        "name": "wind_gusts",
-        "type": "FLOAT",
-        "mode": "NULLABLE",
-        "description": "%.\nRelative humidity"
     },
     {
         "name": "pm2_5_calibrated_value",
@@ -148,5 +106,53 @@
         "type": "FLOAT",
         "mode": "NULLABLE",
         "description": " μg/m3."
-    }
+    },
+      {
+        "name": "temperature",
+        "type": "FLOAT",
+        "mode": "NULLABLE",
+        "description": "°C."
+      },
+      {
+        "name": "humidity",
+        "type": "FLOAT",
+        "mode": "NULLABLE",
+        "description": "%."
+      },
+      {
+        "name": "wind_speed",
+        "type": "FLOAT",
+        "mode": "NULLABLE",
+        "description": "m/s."
+      },
+      {
+        "name": "atmospheric_pressure",
+        "type": "FLOAT",
+        "mode": "NULLABLE",
+        "description": "kPa."
+      },
+      {
+        "name": "radiation",
+        "type": "FLOAT",
+        "mode": "NULLABLE",
+        "description": "W/m2."
+      },
+      {
+        "name": "wind_gusts",
+        "type": "FLOAT",
+        "mode": "NULLABLE",
+        "description": "m/s."
+      },
+      {
+        "name": "precipitation",
+        "type": "FLOAT",
+        "mode": "NULLABLE",
+        "description": "mm."
+      },
+      {
+        "name": "wind_direction",
+        "type": "FLOAT",
+        "mode": "NULLABLE",
+        "description": "degrees"
+      }
 ]

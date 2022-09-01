@@ -2,6 +2,7 @@ import pandas as pd
 
 from .airqo_api import AirQoApi
 from .bigquery_api import BigQueryApi
+from .constants import Tenant
 
 
 def query_hourly_measurements(start_date_time: str, end_date_time: str) -> pd.DataFrame:
@@ -44,7 +45,7 @@ def query_hourly_weather_data(start_date_time: str, end_date_time: str) -> pd.Da
     return hourly_weather_measurements
 
 
-def extract_sites_meta_data(tenant=None) -> pd.DataFrame:
+def extract_sites_meta_data(tenant: Tenant = Tenant.NONE) -> pd.DataFrame:
     airqo_api = AirQoApi()
     sites = airqo_api.get_sites(tenant=tenant)
     sites_df = pd.DataFrame(sites)

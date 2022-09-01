@@ -30,3 +30,7 @@ venv.bak/
 .env
 venv
 venv/
+meta_data/
+
+*.ipynb
+*.html

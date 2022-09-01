@@ -113,6 +113,8 @@ const createEvent = {
 
   listFromBigQuery: async (req, res) => {
     try {
+      const { query } = req;
+      const { format } = query;
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -126,20 +128,34 @@ const createEvent = {
         req
       );
       if (responseFromListFromBigQuery.success === true) {
-        return res.status(HTTPStatus.OK).json({
+        const status = responseFromListFromBigQuery.status
+          ? responseFromListFromBigQuery.status
+          : HTTPStatus.OK;
+        if (format && format === "csv") {
+          return res
+            .status(status)
+            .type("text/html")
+            .send(responseFromListFromBigQuery.data);
+        }
+        return res.status(status).json({
           success: true,
           measurements: responseFromListFromBigQuery.data,
           message: "successfully retrieved the measurements",
         });
       } else if (responseFromListFromBigQuery.success === false) {
-        return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        const status = responseFromListFromBigQuery.status
+          ? responseFromListFromBigQuery.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        const errors = responseFromListFromBigQuery.errors
+          ? responseFromListFromBigQuery.errors
+          : { message: "Internal Server Error" };
+        return res.status(status).json({
           success: false,
           message: responseFromListFromBigQuery.message,
-          errors: responseFromListFromBigQuery.errors,
+          errors,
         });
       }
     } catch (error) {
-      logObject("error", error);
       res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",

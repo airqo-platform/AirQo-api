@@ -11,7 +11,7 @@ from airqo_etl_utils.airflow_custom_utils import slack_dag_failure_notification
     on_failure_callback=slack_dag_failure_notification,
     start_date=datetime(2021, 1, 1),
     catchup=False,
-    tags=["airqo", "hourly", "data-warehouse"],
+    tags=["hourly", "data warehouse"],
 )
 def data_warehouse_etl():
     import pandas as pd

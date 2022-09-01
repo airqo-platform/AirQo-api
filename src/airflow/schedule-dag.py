@@ -48,7 +48,7 @@ class ScheduleDag:
                     "data_duration": "240H",
                 },
                 "airqo_historical_raw_data": {
-                    "name": "AirQo-Historical-Raw-Measurements",
+                    "name": "AirQo-Historical-Raw-Low-Cost-Measurements",
                     "data_duration": "240H",
                 },
                 # Weather Data
@@ -95,6 +95,11 @@ class ScheduleDag:
                 # AirNow Data
                 "airnow_historical_bam_data": {
                     "name": "Airnow-Historical-Bam-Data",
+                    "data_duration": "240H",
+                },
+                # Nasa Data
+                "nasa_historical_raw_data": {
+                    "name": "Nasa-Historical-Raw-Data",
                     "data_duration": "240H",
                 },
             }
