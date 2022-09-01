@@ -6,6 +6,7 @@ metadata:
 spec:
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 1
+  suspend: true
   schedule: "30 * * * *"
   jobTemplate:
     metadata:
