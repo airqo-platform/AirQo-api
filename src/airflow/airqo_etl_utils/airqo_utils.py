@@ -25,7 +25,7 @@ class AirQoDataUtils:
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             table=bigquery_api.raw_measurements_table,
-            where_fields={"tenant": "airqo"},
+            where_fields={"tenant": str(Tenant.AIRQO)},
         )
 
         if measurements.empty:
