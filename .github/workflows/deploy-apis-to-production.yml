@@ -26,7 +26,6 @@ jobs:
 
   check:
     if: github.event.pull_request.merged == true
-    #if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true
     name: check changed microservice(s)
     outputs:
       run_auth_service: ${{ steps.check_files.outputs.run_auth_service }} # auth service
@@ -52,6 +51,7 @@ jobs:
       run_airflow: ${{ steps.check_files.outputs.run_airflow }} # airflow
       run_network_uptime: ${{ steps.check_files.outputs.run_network_uptime }} # network_uptime
       run_channel_data: ${{ steps.check_files.outputs.run_channel_data }} # channel data job
+      run_kafka_connectors: ${{ steps.check_files.outputs.run_kafka_connectors }} # kafka connectors
       run_fault_detection: ${{ steps.check_files.outputs.run_fault_detection }} # fault detection
 
     runs-on: ubuntu-latest
@@ -84,7 +84,7 @@ jobs:
           echo "::set-output name=run_exceedances::false"
           echo "::set-output name=run_meta_data::false"
           echo "::set-output name=run_view::false"
-          echo "::set-output name=run_calibrate::false"
+          echo "::set-output name=run_calibrate::false" 
           echo "::set-output name=run_average_jobs::false"
           echo "::set-output name=run_events_check::false"
           echo "::set-output name=run_notifications::false"
@@ -94,12 +94,18 @@ jobs:
           echo "::set-output name=run_airflow::false"
           echo "::set-output name=run_network_uptime::false"
           echo "::set-output name=run_channel_data::false"
+          echo "::set-output name=run_kafka_connectors::false"
           echo "::set-output name=run_fault_detection::false"
 
           while IFS= read -r file
           do
             echo $file
+            
             if [[ $file == src/auth-service/* ]]; then
+              echo "::set-output name=run_auth_service::true"
+            fi
+            
+            if [[ $file == k8s/auth-service/* ]]; then
               echo "::set-output name=run_auth_service::true"
             fi
 
@@ -107,7 +113,15 @@ jobs:
               echo "::set-output name=run_device_registry::true"
             fi
 
+            if [[ $file == k8s/device-registry/* ]]; then
+              echo "::set-output name=run_device_registry::true"
+            fi
+
             if [[ $file == src/device-monitoring/* ]]; then
+              echo "::set-output name=run_device_monitoring::true"
+            fi
+
+            if [[ $file == k8s/device-monitor/* ]]; then
               echo "::set-output name=run_device_monitoring::true"
             fi
 
@@ -115,7 +129,15 @@ jobs:
               echo "::set-output name=run_data_mgt::true"
             fi
 
+            if [[ $file == k8s/data-mgt/* ]]; then
+              echo "::set-output name=run_data_mgt::true"
+            fi
+
             if [[ $file == src/analytics/* ]]; then
+              echo "::set-output name=run_analytics::true"
+            fi
+
+            if [[ $file == k8s/analytics/* ]]; then
               echo "::set-output name=run_analytics::true"
             fi
 
@@ -123,7 +145,15 @@ jobs:
               echo "::set-output name=run_device_uptime::true"
             fi
 
+            if [[ $file == k8s/device-uptime/* ]]; then
+              echo "::set-output name=run_device_uptime::true"
+            fi
+
             if [[ $file == src/device-status/* ]]; then
+              echo "::set-output name=run_device_status::true"
+            fi
+
+            if [[ $file == k8s/device-status/* ]]; then
               echo "::set-output name=run_device_status::true"
             fi
 
@@ -131,7 +161,15 @@ jobs:
               echo "::set-output name=run_locate::true"
             fi
 
+            if [[ $file == k8s/locate/* ]]; then
+              echo "::set-output name=run_locate::true"
+            fi
+
             if [[ $file == src/predict/* ]]; then
+              echo "::set-output name=run_predict::true"
+            fi
+
+            if [[ $file == k8s/predict/* ]]; then
               echo "::set-output name=run_predict::true"
             fi
 
@@ -139,7 +177,15 @@ jobs:
               echo "::set-output name=run_gp_model::true"
             fi
 
+            if [[ $file == k8s/gp-model/* ]]; then
+              echo "::set-output name=run_gp_model::true"
+            fi
+
             if [[ $file == src/exceedances/* ]]; then
+              echo "::set-output name=run_exceedances::true"
+            fi
+
+            if [[ $file == k8s/exceedance/* ]]; then
               echo "::set-output name=run_exceedances::true"
             fi
 
@@ -154,11 +200,19 @@ jobs:
             if [[ $file == src/view/* ]]; then
               echo "::set-output name=run_view::true"
             fi
+
+            if [[ $file == k8s/view-api/* ]]; then
+              echo "::set-output name=run_view::true"
+            fi
             
             if [[ $file == src/calibrate/* ]]; then
               echo "::set-output name=run_calibrate::true"
             fi
-
+            
+            if [[ $file == k8s/calibrate/* ]]; then
+              echo "::set-output name=run_calibrate::true"
+            fi
+            
             if [[ $file == src/data-mgt/python/cron-jobs/* ]]; then
               echo "::set-output name=run_average_jobs::true"
             fi
@@ -170,7 +224,11 @@ jobs:
             if [[ $file == src/notifications/* ]]; then
               echo "::set-output name=run_notifications::true"
             fi
-          
+
+            if [[ $file == k8s/notification-service/* ]]; then
+              echo "::set-output name=run_notifications::true"
+            fi
+
             if [[ $file == k8s/kafka-clusters/* ]]; then
               echo "::set-output name=run_kafka_cluster::true"
             fi
@@ -187,11 +245,23 @@ jobs:
               echo "::set-output name=run_airflow::true"
             fi
 
+            if [[ $file == k8s/airflow/* ]]; then
+              echo "::set-output name=run_airflow::true"
+            fi
+
             if [[ $file == src/network-uptime/* ]]; then
               echo "::set-output name=run_network_uptime::true"
             fi
 
+            if [[ $file == k8s/network-uptime/* ]]; then
+              echo "::set-output name=run_network_uptime::true"
+            fi
+            
             if [[ $file == src/channel-data/* ]]; then
+              echo "::set-output name=run_channel_data::true"
+            fi
+            
+            if [[ $file == k8s/channel-data/* ]]; then
               echo "::set-output name=run_channel_data::true"
             fi
 
@@ -199,28 +269,16 @@ jobs:
               echo "::set-output name=run_fault_detection::true"
             fi
 
-            if [[ $file == workflow-trigger ]]; then
-              echo "::set-output name=run_notifications::true"
-              echo "::set-output name=run_events_check::true"
-              echo "::set-output name=run_calibrate::true"
-              echo "::set-output name=run_average_jobs::true"
-              echo "::set-output name=run_meta_data::true"
-              echo "::set-output name=run_exceedances::true"
-              echo "::set-output name=run_gp_model::true"
-              echo "::set-output name=run_predict::true"
-              echo "::set-output name=run_locate::true"
-              echo "::set-output name=run_device_status::true"
-              echo "::set-output name=run_device_uptime::true"
-              echo "::set-output name=run_analytics::true"
-              echo "::set-output name=run_data_mgt::true"
-              echo "::set-output name=run_device_monitoring::true"
-              echo "::set-output name=run_device_registry::true"
-              echo "::set-output name=run_auth_service::true"
-              echo "::set-output name=run_airflow::true"
-              echo "::set-output name=run_network_uptime::true"
-              echo "::set-output name=run_channel_data::true"
+            if [[ $file == k8s/fault-detection/* ]]; then
               echo "::set-output name=run_fault_detection::true"
-              echo "::set-output name=run_view::true"
+            fi
+
+            if [[ $file == src/kafka-connectors/* ]]; then
+              echo "::set-output name=run_kafka_connectors::false"
+            fi
+
+            if [[ $file == k8s/kafka-connectors/* ]]; then
+              echo "::set-output name=run_kafka_connectors::false"
             fi
 
           done < files.txt
