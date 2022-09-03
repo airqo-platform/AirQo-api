@@ -15,13 +15,13 @@ data:
     location @access_denied { return 403 'Access denied'; }
     location @unauthorized { return 401 'Unauthorized'; }
 
-    location = / { auth_request off; return 202; }
-    location = /login { auth_request off; return 202; }
-    location ~ /api/v1/users/loginUser { auth_request off; return 202; }
-    location ~ /api/v1/users/forgotPassword { auth_request off; return 202; }
-    location ~ /api/v1/users/candidates/register { auth_request off; return 202; }
-
     location = /auth {
+      if ($request_uri = '/') { return 200; }
+      if ($request_uri = '/login') { return 200; }
+      if ($request_uri ~ '(/api/v1/users/loginUser)|(/api/v2/users/loginUser)') { return 200; }
+      if ($request_uri ~ '(/api/v1/users/forgotPassword)|(/api/v2/users/forgotPassword)') { return 200; }
+      if ($request_uri ~ '(/api/v1/users/candidates/register)|(/api/v2/users/candidates/register)') { return 200; }
+
       internal;
       proxy_method            POST;
       proxy_pass              http://airqo-stage-auth-api-svc.staging.svc.cluster.local:3000/api/v1/users/verify?tenant=airqo;
