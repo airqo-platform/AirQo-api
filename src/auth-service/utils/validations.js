@@ -246,68 +246,73 @@ const validation = {
    */
   checkEmailExistenceUsingKickbox: async (email, callback) => {
     try {
-      await kickbox.verify(email, async (err, response) => {
-        if (
-          response &&
-          response.body &&
-          response.body.result === "undeliverable"
-        ) {
-          callback({
-            success: false,
-            message: `undeliverable email, did you mean ${response.body.did_you_mean}?`,
-            errors: { message: response.body.reason },
-            status: httpStatus.BAD_REQUEST,
-          });
-        }
-
-        if (err) {
-          callback({
-            success: false,
-            message: "email verification error",
-            errors: { message: err },
-            status: httpStatus.INTERNAL_SERVER_ERROR,
-          });
-        }
-
-        if (
-          response &&
-          response.body &&
-          response.body.result === "deliverable"
-        ) {
-          callback({
-            success: true,
-            message: "deliverable",
-            status: httpStatus.OK,
-          });
-        }
-
-        if (response && response.body && response.body.result === "risky") {
-          callback({
-            success: false,
-            message: "risky email",
-            errors: { message: response.body.reason },
-            status: httpStatus.BAD_REQUEST,
-          });
-        }
-
-        if (response && response.body && response.body.result === "unknown") {
-          callback({
-            success: false,
-            message: "unknown email",
-            errors: { message: response.body.reason },
-            status: httpStatus.INTERNAL_SERVER_ERROR,
-          });
-        }
-
-        if (response && response.body && response.body.role === true) {
-          callback({
-            success: false,
-            message: "role email addresses are not accepted",
-            errors: { message: "role email addresses are not accepted" },
-            status: httpStatus.BAD_REQUEST,
-          });
-        }
+      callback({
+        success: true,
+        message: "deliverable",
+        status: httpStatus.OK,
       });
+      // await kickbox.verify(email, async (err, response) => {
+      //   if (
+      //     response &&
+      //     response.body &&
+      //     response.body.result === "undeliverable"
+      //   ) {
+      //     callback({
+      //       success: false,
+      //       message: `undeliverable email, did you mean ${response.body.did_you_mean}?`,
+      //       errors: { message: response.body.reason },
+      //       status: httpStatus.BAD_REQUEST,
+      //     });
+      //   }
+
+      //   if (err) {
+      //     callback({
+      //       success: false,
+      //       message: "email verification error",
+      //       errors: { message: err },
+      //       status: httpStatus.INTERNAL_SERVER_ERROR,
+      //     });
+      //   }
+
+      //   if (
+      //     response &&
+      //     response.body &&
+      //     response.body.result === "deliverable"
+      //   ) {
+      //     callback({
+      //       success: true,
+      //       message: "deliverable",
+      //       status: httpStatus.OK,
+      //     });
+      //   }
+
+      //   if (response && response.body && response.body.result === "risky") {
+      //     callback({
+      //       success: false,
+      //       message: "risky email",
+      //       errors: { message: response.body.reason },
+      //       status: httpStatus.BAD_REQUEST,
+      //     });
+      //   }
+
+      //   if (response && response.body && response.body.result === "unknown") {
+      //     callback({
+      //       success: false,
+      //       message: "unknown email",
+      //       errors: { message: response.body.reason },
+      //       status: httpStatus.INTERNAL_SERVER_ERROR,
+      //     });
+      //   }
+
+      //   if (response && response.body && response.body.role === true) {
+      //     callback({
+      //       success: false,
+      //       message: "role email addresses are not accepted",
+      //       errors: { message: "role email addresses are not accepted" },
+      //       status: httpStatus.BAD_REQUEST,
+      //     });
+      //   }
+      // });
     } catch (error) {
       callback({
         success: false,
