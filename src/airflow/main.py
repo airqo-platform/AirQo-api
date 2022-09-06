@@ -538,24 +538,30 @@ def airqo_bam_data():
 
 def urban_better_data_from_plume_labs():
     from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
+    from airqo_etl_utils.plume_labs_utils import PlumeLabsUtils
 
-    start_date_time = "2022-07-11T00:00:00Z"
-    end_date_time = "2022-07-12T00:00:00Z"
-    measurements = UrbanBetterUtils.extract_raw_data_from_plume_labs(
-        start_date_time=start_date_time, end_date_time=end_date_time
+    start_date_time = "2022-08-13T00:00:00Z"
+    end_date_time = "2022-08-13T23:59:59Z"
+
+    measures = PlumeLabsUtils.extract_sensor_measures(
+        start_date_time=start_date_time,
+        end_date_time=end_date_time,
+        tenant=Tenant.URBAN_BETTER,
     )
-    measurements.to_csv("urban_better_unprocessed_data.csv", index=False)
+    measures.to_csv("measures_data.csv", index=False)
 
-    sensor_positions = UrbanBetterUtils.extract_sensor_positions_from_plume_labs(
-        start_date_time=start_date_time, end_date_time=end_date_time
+    sensor_positions = PlumeLabsUtils.extract_sensor_positions(
+        start_date_time=start_date_time,
+        end_date_time=end_date_time,
+        tenant=Tenant.URBAN_BETTER,
     )
-    sensor_positions.to_csv("sensor_positions_unprocessed_data.csv", index=False)
+    sensor_positions.to_csv("sensor_positions_data.csv", index=False)
 
-    urban_better_data = UrbanBetterUtils.merge_measures_and_sensor_positions(
-        measures=measurements,
+    urban_better_data = PlumeLabsUtils.merge_sensor_measures_and_positions(
+        measures=measures,
         sensor_positions=sensor_positions,
     )
-    urban_better_data.to_csv("urban_better_processed_data.csv", index=False)
+    urban_better_data.to_csv("urban_better_unprocessed_data.csv", index=False)
 
     bigquery_data = pd.DataFrame(
         UrbanBetterUtils.process_for_big_query(dataframe=urban_better_data)

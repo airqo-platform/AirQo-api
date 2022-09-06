@@ -20,30 +20,44 @@ def historical_raw_measurements_etl__plume_labs():
     def extract_measures(**kwargs):
 
         from airqo_etl_utils.utils import Utils
-        from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
+        from airqo_etl_utils.plume_labs_utils import PlumeLabsUtils
+        from airqo_etl_utils.constants import Tenant
 
         start_date_time, end_date_time = Utils.get_dag_date_time_config(**kwargs)
-        return UrbanBetterUtils.extract_raw_data_from_plume_labs(
-            start_date_time=start_date_time, end_date_time=end_date_time
+        return PlumeLabsUtils.extract_sensor_measures(
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            tenant=Tenant.URBAN_BETTER,
         )
+
+    @task()
+    def load_measures(sensor_measures: pd.DataFrame):
+        raise NotImplementedError()
 
     @task()
     def extract_sensor_positions(**kwargs):
 
         from airqo_etl_utils.utils import Utils
-        from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
+        from airqo_etl_utils.plume_labs_utils import PlumeLabsUtils
+        from airqo_etl_utils.constants import Tenant
 
         start_date_time, end_date_time = Utils.get_dag_date_time_config(**kwargs)
-        return UrbanBetterUtils.extract_sensor_positions_from_plume_labs(
-            start_date_time=start_date_time, end_date_time=end_date_time
+        return PlumeLabsUtils.extract_sensor_positions(
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            tenant=Tenant.URBAN_BETTER,
         )
+
+    @task()
+    def load_sensor_positions(sensor_positions: pd.DataFrame):
+        raise NotImplementedError()
 
     @task()
     def merge_datasets(devices_measures: pd.DataFrame, sensor_positions: pd.DataFrame):
 
-        from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
+        from airqo_etl_utils.plume_labs_utils import PlumeLabsUtils
 
-        return UrbanBetterUtils.merge_measures_and_sensor_positions(
+        return PlumeLabsUtils.merge_sensor_measures_and_positions(
             measures=devices_measures, sensor_positions=sensor_positions
         )
 
@@ -61,10 +75,16 @@ def historical_raw_measurements_etl__plume_labs():
         )
 
     @task()
-    def clean_data(data: pd.DataFrame):
+    def add_air_quality_data(data: pd.DataFrame):
         from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
 
-        return UrbanBetterUtils.clean_raw_data(data)
+        return UrbanBetterUtils.add_air_quality(data)
+
+    @task()
+    def clean_data(data: pd.DataFrame):
+        from airqo_etl_utils.plume_labs_utils import PlumeLabsUtils
+
+        return PlumeLabsUtils.clean_data(data)
 
     @task()
     def load_clean_data(urban_better_data: pd.DataFrame):
@@ -80,13 +100,16 @@ def historical_raw_measurements_etl__plume_labs():
         )
 
     measures = extract_measures()
+    load_measures(measures)
     device_sensor_positions = extract_sensor_positions()
+    load_sensor_positions(device_sensor_positions)
     merged_data = merge_datasets(
         devices_measures=measures, sensor_positions=device_sensor_positions
     )
     load_unclean_data(merged_data)
     cleaned_data = clean_data(merged_data)
-    load_clean_data(cleaned_data)
+    air_quality_data = add_air_quality_data(cleaned_data)
+    load_clean_data(air_quality_data)
 
 
 @dag(
@@ -104,30 +127,47 @@ def realtime_measurements_etl__plume_labs():
     from datetime import datetime, timedelta
 
     hour_of_day = datetime.utcnow() - timedelta(hours=25)
-    start_time = date_to_str_hours(hour_of_day)
-    end_time = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
+    start_date_time = date_to_str_hours(hour_of_day)
+    end_date_time = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
 
     @task()
     def extract_measures():
-        from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
 
-        return UrbanBetterUtils.extract_raw_data_from_plume_labs(
-            start_date_time=start_time, end_date_time=end_time
+        from airqo_etl_utils.plume_labs_utils import PlumeLabsUtils
+        from airqo_etl_utils.constants import Tenant
+
+        return PlumeLabsUtils.extract_sensor_measures(
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            tenant=Tenant.URBAN_BETTER,
         )
+
+    @task()
+    def load_measures(sensor_measures: pd.DataFrame):
+        raise NotImplementedError()
 
     @task()
     def extract_sensor_positions():
-        from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
 
-        return UrbanBetterUtils.extract_sensor_positions_from_plume_labs(
-            start_date_time=start_time, end_date_time=end_time
+        from airqo_etl_utils.plume_labs_utils import PlumeLabsUtils
+        from airqo_etl_utils.constants import Tenant
+
+        return PlumeLabsUtils.extract_sensor_positions(
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            tenant=Tenant.URBAN_BETTER,
         )
 
     @task()
-    def merge_datasets(devices_measures: pd.DataFrame, sensor_positions: pd.DataFrame):
-        from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
+    def load_sensor_positions(sensor_positions: pd.DataFrame):
+        raise NotImplementedError()
 
-        return UrbanBetterUtils.merge_measures_and_sensor_positions(
+    @task()
+    def merge_datasets(devices_measures: pd.DataFrame, sensor_positions: pd.DataFrame):
+
+        from airqo_etl_utils.plume_labs_utils import PlumeLabsUtils
+
+        return PlumeLabsUtils.merge_sensor_measures_and_positions(
             measures=devices_measures, sensor_positions=sensor_positions
         )
 
@@ -144,10 +184,16 @@ def realtime_measurements_etl__plume_labs():
         )
 
     @task()
-    def clean_data(data: pd.DataFrame):
+    def add_air_quality_data(data: pd.DataFrame):
         from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
 
-        return UrbanBetterUtils.clean_raw_data(data)
+        return UrbanBetterUtils.add_air_quality(data)
+
+    @task()
+    def clean_data(data: pd.DataFrame):
+        from airqo_etl_utils.plume_labs_utils import PlumeLabsUtils
+
+        return PlumeLabsUtils.clean_data(data)
 
     @task()
     def load_clean_data(urban_better_data: pd.DataFrame):
@@ -162,13 +208,16 @@ def realtime_measurements_etl__plume_labs():
         )
 
     devices_measures_data = extract_measures()
+    load_measures(devices_measures_data)
     sensor_positions_data = extract_sensor_positions()
+    load_sensor_positions(sensor_positions_data)
     merged_data = merge_datasets(
         devices_measures=devices_measures_data, sensor_positions=sensor_positions_data
     )
     load_unclean_data(merged_data)
     cleaned_data = clean_data(merged_data)
-    load_clean_data(cleaned_data)
+    air_quality_data = add_air_quality_data(cleaned_data)
+    load_clean_data(air_quality_data)
 
 
 @dag(
@@ -203,12 +252,6 @@ def historical_measurements_etl__air_beam():
         )
 
     @task()
-    def transform(data: pd.DataFrame):
-        from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
-
-        return UrbanBetterUtils.clean_raw_data(data)
-
-    @task()
     def load(data: pd.DataFrame):
 
         from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
@@ -223,8 +266,7 @@ def historical_measurements_etl__air_beam():
 
     stream_ids = extract_stream_ids()
     measurements = extract_measurements(stream_ids)
-    transformed_data = transform(measurements)
-    load(transformed_data)
+    load(measurements)
 
 
 @dag(
@@ -262,12 +304,6 @@ def realtime_measurements_etl__air_beam():
         )
 
     @task()
-    def transform(data: pd.DataFrame):
-        from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
-
-        return UrbanBetterUtils.clean_raw_data(data)
-
-    @task()
     def load(data: pd.DataFrame):
 
         from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
@@ -282,8 +318,7 @@ def realtime_measurements_etl__air_beam():
 
     stream_ids = extract_stream_ids()
     measurements = extract_measurements(stream_ids)
-    transformed_data = transform(measurements)
-    load(transformed_data)
+    load(measurements)
 
 
 realtime_measurements_etl__plume_labs_dag = realtime_measurements_etl__plume_labs()
