@@ -77,11 +77,22 @@ const join = {
     }
   },
   verify: (req, res) => {
-    return res.status(HTTPStatus.OK).json({
-      success: true,
-      message: "this token is valid",
-      response: "valid token",
-    });
+    try {
+      return res.status(HTTPStatus.OK).json({
+        success: true,
+        message: "this token is valid",
+        response: "valid token",
+      });
+    } catch (error) {
+      console.log("error", error.message);
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: {
+          message: error.message,
+        },
+      });
+    }
   },
   forgot: async (req, res) => {
     logText("...........................................");
