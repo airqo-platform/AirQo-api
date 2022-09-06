@@ -10,9 +10,9 @@ data:
     error_page 403 = @access_denied;
     error_page 401 = @unauthorized;"
   server-snippets: "
-    location @internal_server_error { return 500 'Something went wrong'; }
-    location @page_not_found { return 404 'Page not found'; }
-    location @access_denied { return 403 'Access denied'; }
+    location @internal_server_error { return 500 'Something went wrong!'; }
+    location @page_not_found { return 404 'Page not found :('; }
+    location @access_denied { return 403 'Access denied :|'; }
     location @unauthorized { return 401 'Unauthorized'; }
 
     location = /auth {
