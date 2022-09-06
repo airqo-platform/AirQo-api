@@ -1,24 +1,16 @@
 const passport = require("passport");
 const LocalStrategy = require("passport-local");
+const LocalAPIKeyStrategy = require("passport-localapikey");
 const HTTPStatus = require("http-status");
 const Validator = require("validator");
 const UserSchema = require("../models/User");
 const constants = require("../config/constants");
 const { logElement, logText, logObject } = require("../utils/log");
 const { Strategy: JwtStrategy, ExtractJwt } = require("passport-jwt");
-const expressJwt = require("express-jwt");
-const privileges = require("../utils/privileges");
-const {
-  axiosError,
-  tryCatchErrors,
-  missingQueryParams,
-  callbackErrors,
-} = require("../utils/errors");
 const { getModelByTenant } = require("../utils/multitenancy");
 const UserModel = (tenant) => {
   return getModelByTenant(tenant, "user", UserSchema);
 };
-
 const { validationResult } = require("express-validator");
 const manipulateArraysUtil = require("../utils/manipulate-arrays");
 const { badRequest } = require("../utils/errors");
@@ -80,15 +72,15 @@ const jwtOpts = {
 const useLocalStrategy = (tenant, req, res, next) => {
   let localOptions = setLocalOptions(req);
   logObject("the localOptions", localOptions);
-  if (localOptions.success == true) {
+  if (localOptions.success === true) {
     logText("success state is true");
     let { usernameField } = localOptions.authenticationFields;
     logElement("the username field", usernameField);
-    if (usernameField == "email") {
+    if (usernameField === "email") {
       req.body.email = req.body.userName;
       logText("we are using email");
       return useEmailWithLocalStrategy(tenant, req, res, next);
-    } else if (usernameField == "userName") {
+    } else if (usernameField === "userName") {
       logText("we are using username");
       return useUsernameWithLocalStrategy(tenant, req, res, next);
     }
@@ -173,34 +165,36 @@ const useJWTStrategy = (tenant, req, res, next) =>
     }
   });
 
+const useLocalAPIKeyStrategy = (tenant, req, res, next) => {
+  new LocalAPIKeyStrategy(async (api_key, done) => {
+    try {
+      const apiKey = api_key;
+      const user = await UserModel(tenant.toLowerCase())
+        .findOne({ apiKey: apiKey })
+        .exec();
+      logObject("user", user);
+      if (err) {
+        return done(err);
+      }
+      if (!user) {
+        return done(null, false);
+      }
+      return done(null, user);
+    } catch (error) {
+      logObject("error", error);
+      logElement(
+        "error for the local API key strategy instantiation",
+        error.message
+      );
+      return done(error, false);
+    }
+  });
+};
+
+/***** setting strategies ***************************/
 const setLocalStrategy = (tenant, req, res, next) => {
   passport.use("user-local", useLocalStrategy(tenant, req, res, next));
 };
-
-const setJWTStrategy = (tenant, req, res, next) => {
-  passport.use("jwt", useJWTStrategy(tenant, req, res, next));
-};
-
-// passport.serializeUser((user, cb) => {
-//   if (privileges.isUser(user)) {
-//     cb(null, user._id);
-//   } else if (privileges.isCollab(user)) {
-//     cb(null, user._id);
-//   }
-// });
-
-// passport.deserializeUser((id, cb) => {
-//   if (privileges.isUser(id)) {
-//     User.findById(id)
-//       .then((user) => cb(null, user))
-//       .catch((err) => cb(err));
-//   } else if (privileges.isCollab(user)) {
-//     Collaborator.findById(id)
-//       .then((user) => cb(null, user))
-//       .catch((err) => cb(err));
-//   }
-// });
-
 function setLocalAuth(req, res, next) {
   try {
     const hasErrors = !validationResult(req).isEmpty();
@@ -219,11 +213,13 @@ function setLocalAuth(req, res, next) {
     setLocalStrategy(tenant, req, res, next);
     next();
   } catch (e) {
-    console.log("the error in setLocalAuth is: ", e.message);
     res.json({ success: false, message: e.message });
   }
 }
 
+const setJWTStrategy = (tenant, req, res, next) => {
+  passport.use("jwt", useJWTStrategy(tenant, req, res, next));
+};
 function setJWTAuth(req, res, next) {
   try {
     const hasErrors = !validationResult(req).isEmpty();
@@ -239,50 +235,56 @@ function setJWTAuth(req, res, next) {
     if (req.query.tenant) {
       tenant = req.query.tenant;
     }
-    logElement("the tenant for the job", tenant);
     setJWTStrategy(tenant, req, res, next);
     next();
   } catch (e) {
-    console.log("the error in setLocalAuth is: ", e.message);
     res
       .status(HTTPStatus.BAD_GATEWAY)
       .json({ success: false, message: e.message });
   }
 }
 
+const setLocalAPIKeyStrategy = (tenant, req, res, next) => {
+  passport.use("localapikey", useLocalAPIKeyStrategy(tenant, req, res, next));
+};
+function setLocalAPIKey(req, res, next) {
+  try {
+    const hasErrors = !validationResult(req).isEmpty();
+    if (hasErrors) {
+      let nestedErrors = validationResult(req).errors[0].nestedErrors;
+      return badRequest(
+        res,
+        "bad request errors",
+        manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+      );
+    }
+    let tenant = "airqo";
+    if (req.query.tenant) {
+      tenant = req.query.tenant;
+    }
+    setLocalAPIKeyStrategy(tenant, req, res, next);
+    next();
+  } catch (e) {
+    logObject("error", e);
+    res.json({ success: false, message: e.message });
+  }
+}
+
+/** authenticating requests **********************/
 const authLocal = passport.authenticate("user-local", {
   session: false,
   failureFlash: true,
 });
-
-const authColabLocal = passport.authenticate("colab-local", {
-  successFlash: "Welcome!",
-  failureFlash: "Invalid username or password.",
-});
-
 const authJWT = passport.authenticate("jwt", {
   session: false,
 });
-
-const isLoggedIn = function isLoggedIn(req, res, next) {
-  if (req.isAuthenticated()) {
-    return next();
-  } else {
-    return res.redirect("/setLocalAuth");
-  }
-};
-
-const requiresSignIn = expressJwt({
-  secret: process.env.JWT_SECRET,
-  userProperty: "auth",
-});
+const authAPIKey = passport.authenticate("localapikey", { session: false });
 
 module.exports = {
   setLocalAuth: setLocalAuth,
+  setJWTAuth: setJWTAuth,
+  setLocalAPIKey: setLocalAPIKey,
   authLocal: authLocal,
   authJWT: authJWT,
-  setJWTAuth: setJWTAuth,
-  authColabLocal: authColabLocal,
-  isLoggedIn: isLoggedIn,
-  requiresSignIn: requiresSignIn,
+  authAPIKey: authAPIKey,
 };
