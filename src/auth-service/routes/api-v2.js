@@ -8,10 +8,13 @@ const { check, oneOf, query, body, param } = require("express-validator");
 
 const {
   setJWTAuth,
-  authJWT,
   setLocalAuth,
+  setLocalAPIKey,
+  authJWT,
   authLocal,
+  authAPIKey,
 } = require("../services/auth");
+
 const privileges = require("../utils/privileges");
 
 const mongoose = require("mongoose");
@@ -52,7 +55,7 @@ router.post(
   joinController.login
 );
 
-router.post("/verify", setJWTAuth, authJWT, joinController.verify);
+router.post("/verify", setLocalAPIKey, authAPIKey, joinController.verify);
 router.get(
   "/",
   oneOf([
