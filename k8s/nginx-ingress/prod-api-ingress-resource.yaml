@@ -17,11 +17,12 @@ data:
 
     location = /auth { 
       if ($request_uri = '/') { return 200; }
+      if ($request_uri ~ '/docs') { return 200; }
       if ($request_uri = '/login') { return 200; }
       if ($request_uri ~ '(/api/v1/users/loginUser)|(/api/v2/users/loginUser)') { return 200; }
       if ($request_uri ~ '(/api/v1/users/forgotPassword)|(/api/v2/users/forgotPassword)') { return 200; }
       if ($request_uri ~ '(/api/v1/users/candidates/register)|(/api/v2/users/candidates/register)') { return 200; }
-      
+
       internal;
       proxy_method            POST;
       proxy_pass              http://airqo-auth-api-svc.production.svc.cluster.local:3000/api/v1/users/verify?tenant=airqo;
