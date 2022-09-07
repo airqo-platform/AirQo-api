@@ -66,6 +66,7 @@ const createLocation = {
         });
       }
     } catch (errors) {
+      logger.error(`internal server error -- ${errors.message}`);
       errors.tryCatchErrors(res, errors, "createLocation controller");
     }
   },
@@ -124,6 +125,7 @@ const createLocation = {
         });
       }
     } catch (errors) {
+      logger.error(`internal server error -- ${errors.message}`);
       errors.tryCatchErrors(res, errors, "createLocation controller");
     }
   },
@@ -183,6 +185,7 @@ const createLocation = {
         });
       }
     } catch (errors) {
+      logger.error(`internal server error -- ${errors.message}`);
       errors.tryCatchErrors(res, errors, "createLocation controller");
     }
   },
@@ -242,6 +245,7 @@ const createLocation = {
         });
       }
     } catch (errors) {
+      logger.error(`internal server error -- ${errors.message}`);
       errors.tryCatchErrors(res, errors, "create location controller");
     }
   },
@@ -300,6 +304,7 @@ const createLocation = {
         });
       }
     } catch (errors) {
+      logger.error(`internal server error -- ${errors.message}`);
       errors.tryCatchErrors(res, errors, "manageLocation controller");
     }
   },

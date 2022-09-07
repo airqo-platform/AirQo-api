@@ -107,7 +107,7 @@ const device = {
         }
       });
     } catch (error) {
-      logObject("error", error);
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -380,6 +380,7 @@ const device = {
         });
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -448,6 +449,7 @@ const device = {
         });
       }
     } catch (e) {
+      logger.error(`internal server error -- ${e.message}`);
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -523,6 +525,7 @@ const device = {
         });
       }
     } catch (e) {
+      logger.error(`internal server error -- ${e.message}`);
       res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -646,11 +649,11 @@ const device = {
 
         return res.status(HTTPStatus.OK).json(nearest_devices);
       } catch (e) {
-        logObject("error", e);
+        logger.error(`internal server error -- ${e.message}`);
         return res.status(HTTPStatus.BAD_REQUEST).json(e);
       }
     } catch (e) {
-      logObject("error", e);
+      logger.error(`internal server error -- ${e.message}`);
       errors.tryCatchErrors(res, e);
     }
   },
@@ -724,6 +727,7 @@ const device = {
         });
       }
     } catch (e) {
+      logger.error(`internal server error -- ${e.message}`);
       res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -890,9 +894,7 @@ const device = {
         var response = responses[0];
         return res.status(HTTPStatus.OK).json(response);
       })
-      .catch((err) => {
-        console.error(err);
-      });
+      .catch((err) => {});
   },
   createOnGCP: (req, res) => {
     const formattedParent = client.registryPath(
@@ -915,7 +917,6 @@ const device = {
         return res.status(HTTPStatus.OK).json(response);
       })
       .catch((err) => {
-        console.error(err);
         return res.status(HTTPStatus.BAD_REQUEST).json(err);
       });
   },
@@ -939,9 +940,7 @@ const device = {
     client
       .listDeviceModels({ parent: formattedParent }, options)
       .then(callback)
-      .catch((err) => {
-        console.error(err);
-      });
+      .catch((err) => {});
   },
 
   deleteOnGCP: (req, res) => {
@@ -962,7 +961,6 @@ const device = {
         return res.status(HTTPStatus.OK).json(result);
       })
       .catch((err) => {
-        console.error(err);
         return res.status(HTTPStatus.BAD_REQUEST).json(err);
       });
   },
@@ -996,7 +994,6 @@ const device = {
         return res.status(HTTPStatus.OK).json(response);
       })
       .catch((err) => {
-        console.error(err);
         return res.status(HTTPStatus.BAD_REQUEST).json(err);
       });
   },

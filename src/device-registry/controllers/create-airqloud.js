@@ -67,6 +67,7 @@ const createAirqloud = {
         });
       }
     } catch (errors) {
+      logger.error(`internal server error -- ${errors.message}`);
       errors.tryCatchErrors(res, errors, "createAirqloud controller");
     }
   },
@@ -136,6 +137,7 @@ const createAirqloud = {
         });
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -197,6 +199,7 @@ const createAirqloud = {
         });
       }
     } catch (errors) {
+      logger.error(`internal server error -- ${errors.message}`);
       errors.tryCatchErrors(res, errors, "createAirqloud controller");
     }
   },
@@ -236,7 +239,7 @@ const createAirqloud = {
         });
       }
     } catch (error) {
-      logObject("refresh controller", error);
+      logger.error(`internal server error -- ${error.message}`);
       res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -300,6 +303,7 @@ const createAirqloud = {
         });
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -365,6 +369,7 @@ const createAirqloud = {
         });
       }
     } catch (errors) {
+      logger.error(`internal server error -- ${errors.message}`);
       errors.tryCatchErrors(res, errors, "createAirqloud controller");
     }
   },
@@ -424,6 +429,7 @@ const createAirqloud = {
         });
       }
     } catch (errors) {
+      logger.error(`internal server error -- ${errors.message}`);
       res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -488,6 +494,7 @@ const createAirqloud = {
         });
       }
     } catch (errors) {
+      logger.error(`internal server error -- ${errors.message}`);
       res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -550,6 +557,7 @@ const createAirqloud = {
         });
       }
     } catch (errors) {
+      logger.error(`internal server error -- ${errors.message}`);
       errors.tryCatchErrors(res, errors, "manageAirQloud controller");
     }
   },
