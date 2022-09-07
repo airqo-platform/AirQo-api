@@ -23,11 +23,15 @@ const manageSite = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${errors.convertErrorArrayToObject(
-            nestedErrors
-          )}`
-        );
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -76,11 +80,15 @@ const manageSite = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${errors.convertErrorArrayToObject(
-            nestedErrors
-          )}`
-        );
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -128,11 +136,15 @@ const manageSite = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${errors.convertErrorArrayToObject(
-            nestedErrors
-          )}`
-        );
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -219,11 +231,15 @@ const manageSite = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${errors.convertErrorArrayToObject(
-            nestedErrors
-          )}`
-        );
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -281,11 +297,15 @@ const manageSite = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${errors.convertErrorArrayToObject(
-            nestedErrors
-          )}`
-        );
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -334,11 +354,15 @@ const manageSite = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${errors.convertErrorArrayToObject(
-            nestedErrors
-          )}`
-        );
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -347,14 +371,13 @@ const manageSite = {
       }
       const { tenant } = req.query;
       let filter = generateFilter.sites(req);
-      logObject("responseFromFilter", filter);
+
       let update = req.body;
       let responseFromUpdateSite = await createSiteUtil.update(
         tenant,
         filter,
         update
       );
-      logObject("responseFromUpdateSite", responseFromUpdateSite);
 
       if (responseFromUpdateSite.success === true) {
         return res.status(HTTPStatus.OK).json({
@@ -393,11 +416,15 @@ const manageSite = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${errors.convertErrorArrayToObject(
-            nestedErrors
-          )}`
-        );
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -449,11 +476,15 @@ const manageSite = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${errors.convertErrorArrayToObject(
-            nestedErrors
-          )}`
-        );
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -519,11 +550,15 @@ const manageSite = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${errors.convertErrorArrayToObject(
-            nestedErrors
-          )}`
-        );
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -576,11 +611,15 @@ const manageSite = {
     const hasErrors = !validationResult(req).isEmpty();
     if (hasErrors) {
       let nestedErrors = validationResult(req).errors[0].nestedErrors;
-      logger.error(
-        `input validation errors ${errors.convertErrorArrayToObject(
-          nestedErrors
-        )}`
-      );
+      try {
+        logger.error(
+          `input validation errors ${JSON.stringify(
+            errors.convertErrorArrayToObject(nestedErrors)
+          )}`
+        );
+      } catch (e) {
+        logger.error(`internal server error -- ${e.message}`);
+      }
       return errors.badRequest(
         res,
         "bad request errors",
@@ -630,6 +669,15 @@ const manageSite = {
     const hasErrors = !validationResult(req).isEmpty();
     if (hasErrors) {
       let nestedErrors = validationResult(req).errors[0].nestedErrors;
+      try {
+        logger.error(
+          `input validation errors ${JSON.stringify(
+            errors.convertErrorArrayToObject(nestedErrors)
+          )}`
+        );
+      } catch (e) {
+        logger.error(`internal server error -- ${e.message}`);
+      }
       return errors.badRequest(
         res,
         "bad request errors",
@@ -671,6 +719,15 @@ const manageSite = {
     const hasErrors = !validationResult(req).isEmpty();
     if (hasErrors) {
       let nestedErrors = validationResult(req).errors[0].nestedErrors;
+      try {
+        logger.error(
+          `input validation errors ${JSON.stringify(
+            errors.convertErrorArrayToObject(nestedErrors)
+          )}`
+        );
+      } catch (e) {
+        logger.error(`internal server error -- ${e.message}`);
+      }
       return errors.badRequest(
         res,
         "bad request errors",
@@ -752,8 +809,6 @@ const manageSite = {
         );
         let filter = { _id: id };
 
-        logObject("activity body", activityBody);
-
         const update = activityBody;
 
         const responseFromUpdateActivity = await getModelByTenant(
@@ -804,7 +859,6 @@ const manageSite = {
       }
 
       const filter = generateFilter.activities_v0(req);
-      logObject("activity filter", filter);
 
       const responseFromListSite = await getModelByTenant(
         tenant.toLowerCase(),
@@ -845,11 +899,15 @@ const manageSite = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${errors.convertErrorArrayToObject(
-            nestedErrors
-          )}`
-        );
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
