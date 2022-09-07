@@ -40,9 +40,7 @@ const manageSite = {
       return name.indexOf(" ") >= 0;
     } catch (e) {
       logger.error(
-        `create site util server error -- hasWhiteSpace -- ${{
-          message: e.message,
-        }}`
+        `create site util server error -- hasWhiteSpace -- ${e.message}`
       );
     }
   },
@@ -56,9 +54,7 @@ const manageSite = {
       return false;
     } catch (e) {
       logger.error(
-        `create site util server error -- check string length -- ${{
-          message: e.message,
-        }}`
+        `create site util server error -- check string length -- ${e.message}`
       );
     }
   },
@@ -282,9 +278,7 @@ const manageSite = {
       return false;
     } catch (e) {
       logger.error(
-        `create site util server error -- validate site name -- ${{
-          message: e.message,
-        }}`
+        `create site util server error -- validate site name -- ${e.message}`
       );
     }
   },
@@ -344,9 +338,7 @@ const manageSite = {
         };
       }
     } catch (e) {
-      logger.error(
-        `generateName util server error -- ${{ message: e.message }}`
-      );
+      logger.error(`generateName util server error -- ${e.message}`);
       return {
         success: false,
         errors: { message: { message: e.message } },
@@ -566,9 +558,7 @@ const manageSite = {
       let trimmedName = shortenedName.trim();
       return trimmedName.toLowerCase();
     } catch (error) {
-      logger.error(
-        `sanitiseName -- create site util -- ${{ message: error.message }}`
-      );
+      logger.error(`sanitiseName -- create site util -- ${error.message}`);
     }
   },
 
@@ -663,17 +653,21 @@ const manageSite = {
         let errors = responseFromGetAltitude.errors
           ? responseFromGetAltitude.errors
           : "";
-        logger.error(
-          `unable to retrieve the altitude for this site, ${responseFromGetAltitude.message} and ${errors}`
-        );
+        try {
+          logger.error(
+            `unable to retrieve the altitude for this site, ${
+              responseFromGetAltitude.message
+            } and ${JSON.stringify(errors)}`
+          );
+        } catch (error) {
+          logger.error(`internal server error ${error.message}`);
+        }
       }
 
       let responseFromGetRoadMetadata = await manageSite.getRoadMetadata(
         latitude,
         longitude
       );
-
-      logObject("responseFromGetRoadMetadata", responseFromGetRoadMetadata);
 
       if (responseFromGetRoadMetadata.success === true) {
         roadResponseData = responseFromGetRoadMetadata.data;
@@ -683,9 +677,15 @@ const manageSite = {
         let errors = responseFromGetRoadMetadata.errors
           ? responseFromGetRoadMetadata.errors
           : "";
-        logger.error(
-          `unable to retrieve the road metadata, ${responseFromGetRoadMetadata.message} and ${errors} `
-        );
+        try {
+          logger.error(
+            `unable to retrieve the road metadata, ${
+              responseFromGetRoadMetadata.message
+            } and ${JSON.stringify(errors)} `
+          );
+        } catch (error) {
+          logger.error(`internal server error -- ${error.message}`);
+        }
       }
 
       let responseFromReverseGeoCode = await manageSite.reverseGeoCode(

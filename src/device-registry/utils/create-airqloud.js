@@ -26,9 +26,7 @@ const createAirqloud = {
       const hasWhiteSpace = word.indexOf(" ") >= 0;
       return !hasWhiteSpace;
     } catch (e) {
-      logger.error(
-        `create AirQloud util server error -- hasNoWhiteSpace -- ${e.message}`
-      );
+      logger.error(`internal server error -- hasNoWhiteSpace -- ${e.message}`);
     }
   },
 

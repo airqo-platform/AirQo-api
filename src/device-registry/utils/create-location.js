@@ -22,9 +22,7 @@ const createLocation = {
       const hasWhiteSpace = word.indexOf(" ") >= 0;
       return !hasWhiteSpace;
     } catch (e) {
-      logger.error(
-        `create Location util server error -- hasNoWhiteSpace -- ${e.message}`
-      );
+      logger.error(`internal server error -- hasNoWhiteSpace -- ${e.message}`);
     }
   },
   create: async (request) => {
