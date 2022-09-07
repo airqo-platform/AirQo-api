@@ -26,9 +26,7 @@ const createAirqloud = {
       const hasWhiteSpace = word.indexOf(" ") >= 0;
       return !hasWhiteSpace;
     } catch (e) {
-      logger.error(
-        `create AirQloud util server error -- hasNoWhiteSpace -- ${e.message}`
-      );
+      logger.error(`internal server error -- hasNoWhiteSpace -- ${e.message}`);
     }
   },
 
@@ -84,6 +82,7 @@ const createAirqloud = {
         };
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -158,7 +157,7 @@ const createAirqloud = {
             ],
           });
         } catch (error) {
-          logObject("error on kafka", error);
+          logger.error(`internal server error -- ${error.message}`);
         }
 
         let status = responseFromRegisterAirQloud.status
@@ -187,6 +186,7 @@ const createAirqloud = {
         };
       }
     } catch (err) {
+      logger.error(`internal server error -- ${err.message}`);
       return {
         success: false,
         message: "unable to create airqloud",
@@ -241,7 +241,7 @@ const createAirqloud = {
         };
       }
     } catch (err) {
-      logElement("update AirQlouds util", err.message);
+      logger.error(`internal server error -- ${err.message}`);
       return {
         success: false,
         message: "unable to update airqloud",
@@ -292,7 +292,7 @@ const createAirqloud = {
         };
       }
     } catch (err) {
-      logElement("delete AirQloud util", err.message);
+      logger.error(`internal server error -- ${err.message}`);
       return {
         success: false,
         message: "unable to delete airqloud",
@@ -389,7 +389,7 @@ const createAirqloud = {
         };
       }
     } catch (error) {
-      logObject("refresh util", error);
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -443,6 +443,7 @@ const createAirqloud = {
         };
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -562,7 +563,7 @@ const createAirqloud = {
         };
       }
     } catch (error) {
-      logObject("findSites util", error);
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -618,7 +619,7 @@ const createAirqloud = {
         };
       }
     } catch (err) {
-      logElement("list AirQlouds util", err.message);
+      logger.error(`internal server error -- ${err.message}`);
       return {
         success: false,
         message: "unable to list airqloud",

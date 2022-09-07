@@ -446,6 +446,7 @@ const generateFilter = {
         message: "filter successfully generated",
       };
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "unable to generate the filter",
@@ -625,7 +626,9 @@ const generateFilter = {
         data: filter,
       };
     } catch (error) {
-      logger.error(`server error - generate device filter -- ${error.message}`);
+      logger.error(
+        `internal server error - generate device filter -- ${error.message}`
+      );
       return {
         success: false,
         message: "server error - generate device filter",
