@@ -594,6 +594,7 @@ def urban_better_data_from_air_beam():
 
 def urban_better_data_from_bigquery():
     from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
+    from airqo_etl_utils.data_validator import DataValidationUtils
 
     bigquery_api = BigQueryApi()
     data = bigquery_api.query_data(
@@ -610,7 +611,13 @@ def urban_better_data_from_bigquery():
     data = UrbanBetterUtils.add_air_quality(data)
     data.to_csv("urban_better_processed_data.csv", index=False)
 
-    bigquery_data = pd.DataFrame(UrbanBetterUtils.process_for_big_query(dataframe=data))
+    bigquery_data = pd.DataFrame(
+        DataValidationUtils.process_for_big_query(
+            dataframe=data,
+            tenant=Tenant.URBAN_BETTER,
+            table=BigQueryApi().clean_mobile_raw_measurements_table,
+        )
+    )
     bigquery_data.to_csv("urban_better_bigquery_data.csv", index=False)
 
 

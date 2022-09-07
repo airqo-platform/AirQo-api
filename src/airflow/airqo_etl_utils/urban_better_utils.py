@@ -1,7 +1,6 @@
 import pandas as pd
 
 from .air_beam_api import AirBeamApi
-from .bigquery_api import BigQueryApi
 from .config import configuration
 from .constants import Tenant, Pollutant
 from .date import str_to_date
@@ -162,20 +161,3 @@ class UrbanBetterUtils:
             )
 
         return data
-
-    @staticmethod
-    def process_for_big_query(dataframe: pd.DataFrame) -> pd.DataFrame:
-        big_query_api = BigQueryApi()
-
-        dataframe["timestamp"] = dataframe["timestamp"].apply(pd.to_datetime)
-        if "gps_device_timestamp" in dataframe.columns:
-            dataframe["gps_device_timestamp"] = dataframe["gps_device_timestamp"].apply(
-                pd.to_datetime
-            )
-        columns = big_query_api.get_columns(
-            big_query_api.clean_mobile_raw_measurements_table
-        )
-
-        dataframe = Utils.populate_missing_columns(data=dataframe, cols=columns)
-
-        return dataframe[columns]

@@ -16,6 +16,7 @@ class BigQueryApi:
         self.raw_measurements_table = configuration.BIGQUERY_RAW_EVENTS_TABLE
         self.bam_measurements_table = configuration.BIGQUERY_BAM_EVENTS_TABLE
         self.raw_bam_measurements_table = configuration.BIGQUERY_RAW_BAM_DATA_TABLE
+        self.sensor_positions_table = configuration.SENSOR_POSITIONS_TABLE
         self.unclean_mobile_raw_measurements_table = (
             configuration.BIGQUERY_UNCLEAN_RAW_MOBILE_EVENTS_TABLE
         )
@@ -101,6 +102,8 @@ class BigQueryApi:
             schema_file = "data_warehouse.json"
         elif table == self.sites_table:
             schema_file = "sites.json"
+        elif table == self.sensor_positions_table:
+            schema_file = "sensor_positions.json"
         elif table == self.devices_table:
             schema_file = "devices.json"
         elif (

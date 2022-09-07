@@ -1,6 +1,10 @@
 import numpy as np
 import pandas as pd
 
+from airqo_etl_utils.bigquery_api import BigQueryApi
+from airqo_etl_utils.constants import Tenant
+from airqo_etl_utils.utils import Utils
+
 
 class DataValidationUtils:
     @staticmethod
@@ -146,3 +150,13 @@ class DataValidationUtils:
             )
 
         return data
+
+    @staticmethod
+    def process_for_big_query(
+        dataframe: pd.DataFrame, table: str, tenant: Tenant
+    ) -> pd.DataFrame:
+        big_query_api = BigQueryApi()
+        columns = big_query_api.get_columns(table)
+        dataframe[:, "tenant"] = str(tenant)
+        dataframe = Utils.populate_missing_columns(data=dataframe, cols=columns)
+        return dataframe[columns]
