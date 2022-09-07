@@ -68,6 +68,7 @@ const createPhoto = {
         };
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -131,6 +132,7 @@ const createPhoto = {
         };
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -166,6 +168,7 @@ const createPhoto = {
         return responseFromListPhotos;
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         errors: { message: error.message },
@@ -266,7 +269,7 @@ const createPhoto = {
         };
       }
     } catch (e) {
-      logObject("the internal server error", e);
+      logger.error(`internal server error -- ${e.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -319,6 +322,7 @@ const createPhoto = {
         };
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -394,6 +398,7 @@ const createPhoto = {
         }
       );
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -432,6 +437,7 @@ const createPhoto = {
         };
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -538,7 +544,7 @@ const createPhoto = {
         };
       }
     } catch (error) {
-      logObject("Internal Server Error", error);
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -587,6 +593,7 @@ const createPhoto = {
         status: HTTPStatus.OK,
       };
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -613,6 +620,7 @@ const createPhoto = {
         message: "successfully removed the file extension",
       };
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -667,6 +675,7 @@ const createPhoto = {
         };
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -716,6 +725,7 @@ const createPhoto = {
         };
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -783,7 +793,7 @@ const createPhoto = {
             ],
           });
         } catch (error) {
-          logObject("error on kafka", error.message);
+          logger.error(`internal server error -- ${error.message}`);
         }
 
         let status = responseFromRegisterPhoto.status
@@ -811,6 +821,7 @@ const createPhoto = {
         };
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",

@@ -368,6 +368,7 @@ const createEvent = {
         message: "successfully retrieved the measurements",
       };
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -480,6 +481,7 @@ const createEvent = {
         }
       });
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       callback({
         success: false,
         errors: { message: error.message },
@@ -545,6 +547,7 @@ const createEvent = {
               errors.push(errMsg);
             }
           } catch (e) {
+            logger.error(`internal server error -- ${e.message}`);
             eventsRejected.push(event);
             let errMsg = {
               message:
@@ -587,6 +590,7 @@ const createEvent = {
         return responseFromTransformEvent;
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         errors: { message: error.message },
@@ -599,7 +603,7 @@ const createEvent = {
       const str = Object.values(inputObject).join(",");
       return str;
     } catch (error) {
-      logElement("the error for getting data string", error.message);
+      logger.error(`internal server error -- ${error.message}`);
     }
   },
 
@@ -698,6 +702,7 @@ const createEvent = {
         data: requestBody,
       };
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -801,6 +806,15 @@ const createEvent = {
           }
         })
         .catch(function(error) {
+          try {
+            logger.error(
+              `internal server error -- ${JSON.stringify(
+                error.response.data.error.details
+              )}`
+            );
+          } catch (error) {
+            logger.error(`internal server error -- ${error.message}`);
+          }
           return {
             success: false,
             message: "Internal Server Error",
@@ -910,6 +924,15 @@ const createEvent = {
           }
         })
         .catch(function(error) {
+          try {
+            logger.error(
+              `internal server error -- ${JSON.stringify(
+                error.response.data.error
+              )}`
+            );
+          } catch (error) {
+            logger.error(`internal server error -- ${error.message}`);
+          }
           return {
             success: false,
             message: "Internal Server Error",
@@ -985,6 +1008,7 @@ const createEvent = {
         message: "response stored in cache",
       });
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       callback({
         success: false,
         message: "Internal Server Error",
@@ -1019,6 +1043,7 @@ const createEvent = {
         }
       });
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         errors: { message: error.message },
@@ -1594,6 +1619,7 @@ const createEvent = {
       //   },
       // });
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -1700,7 +1726,6 @@ const createEvent = {
           errors.push(errMsg);
         }
       } catch (e) {
-        logObject("the detailed db conflict error", e);
         logger.error(`internal server serror -- ${e.message}`);
         eventsRejected.push(measurement);
         let errMsg = {
@@ -1750,7 +1775,7 @@ const createEvent = {
           success: true,
         };
       } catch (e) {
-        logElement("the errors: ", e.message);
+        logger.error(`internal server error -- ${e.message}`);
         return {
           device: device,
           success: false,
@@ -1779,7 +1804,7 @@ const createEvent = {
           };
           return data;
         } catch (e) {
-          logElement("the errors: ", e.message);
+          logger.error(`internal server error -- ${e.message}`);
           return {
             success: false,
             message: "server side error",
@@ -1801,6 +1826,7 @@ const createEvent = {
         }
       });
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "unable to transform measurement",
@@ -1837,7 +1863,7 @@ const createEvent = {
           return field;
       }
     } catch (e) {
-      logElement("Internal Server Error", e.message);
+      logger.error(`internal server error -- ${e.message}`);
     }
   },
   transformMeasurementFields: async (measurements) => {
@@ -1865,6 +1891,7 @@ const createEvent = {
         success: true,
       };
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -1923,7 +1950,7 @@ const createEvent = {
             };
           })
           .catch(function(error) {
-            logObject("error", error);
+            logger.error(`internal server error -- ${error.message}`);
             return {
               message: `unable to clear the device data, device ${device} does not exist`,
               success: false,

@@ -12,6 +12,8 @@ const { kafkaProducer } = require("../config/kafkajs");
 const generateFilter = require("./generate-filter");
 const constants = require("../config/constants");
 const distance = require("./distance");
+const log4js = require("log4js");
+const logger = log4js.getLogger("create-activity-util");
 
 const createActivity = {
   create: async (request) => {
@@ -66,6 +68,7 @@ const createActivity = {
         return responseFromMaintainDevice;
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -121,6 +124,7 @@ const createActivity = {
         };
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -173,6 +177,7 @@ const createActivity = {
         };
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -221,6 +226,7 @@ const createActivity = {
         };
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -325,7 +331,7 @@ const createActivity = {
                   ],
                 });
               } catch (error) {
-                logObject("error on kafka", error);
+                logger.error(`internal server error -- ${error.message}`);
               }
 
               return {
@@ -353,6 +359,7 @@ const createActivity = {
         return responseFromListSite;
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -412,7 +419,7 @@ const createActivity = {
 
             await kafkaProducer.disconnect();
           } catch (error) {
-            logObject("error on kafka", error);
+            logger.error(`internal server error -- ${error.message}`);
           }
 
           return {
@@ -427,6 +434,7 @@ const createActivity = {
         return responseFromRegisterActivity;
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -486,7 +494,7 @@ const createActivity = {
 
             await kafkaProducer.disconnect();
           } catch (error) {
-            logObject("error on kafka", error);
+            logger.error(`internal server error -- ${error.message}`);
           }
 
           return {
@@ -501,6 +509,7 @@ const createActivity = {
         return responseFromRegisterActivity;
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
