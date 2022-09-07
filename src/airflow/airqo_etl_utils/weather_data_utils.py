@@ -24,6 +24,25 @@ class WeatherDataUtils:
         return pd.DataFrame([], columns=cols) if measurements.empty else measurements
 
     @staticmethod
+    def get_nearest_weather_stations(records: list) -> list:
+        data = []
+        airqo_api = AirQoApi()
+
+        for record in records:
+            weather_stations = airqo_api.get_nearest_weather_stations(
+                latitude=record.get("latitude"),
+                longitude=record.get("longitude"),
+            )
+            data.append(
+                {
+                    **record,
+                    **{"weather_stations": weather_stations},
+                }
+            )
+
+        return data
+
+    @staticmethod
     def get_weather_stations(meta_data: list) -> pd.DataFrame:
         data = []
         airqo_api = AirQoApi()

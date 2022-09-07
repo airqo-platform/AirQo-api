@@ -1,10 +1,7 @@
 import os
 from pathlib import Path
 
-import urllib3
 from dotenv import load_dotenv
-
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 dotenv_path = os.path.join(BASE_DIR, ".env")
@@ -27,7 +24,7 @@ class Config:
     BIGQUERY_ANALYTICS_TABLE = os.getenv("BIGQUERY_ANALYTICS_TABLE")
 
     # Bam data
-    BIGQUERY_BAM_OUTLIERS_TABLE = os.getenv("BIGQUERY_BAM_OUTLIERS_TABLE")
+    BIGQUERY_RAW_BAM_DATA_TABLE = os.getenv("BIGQUERY_RAW_BAM_DATA_TABLE")
     BIGQUERY_BAM_EVENTS_TABLE = os.getenv("BIGQUERY_BAM_EVENTS_TABLE")
 
     # Raw data
@@ -96,6 +93,40 @@ class Config:
     # Purple Air
     PURPLE_AIR_BASE_URL = os.getenv("PURPLE_AIR_BASE_URL")
     PURPLE_AIR_API_KEY = os.getenv("PURPLE_AIR_API_KEY")
+
+    AIRQO_BAM_CONFIG = {
+        0: "timestamp",
+        1: "realtime_conc",
+        2: "hourly_conc",
+        3: "short_time_conc",
+        4: "air_flow",
+        5: "wind_speed",
+        6: "wind_direction",
+        7: "temperature",
+        8: "humidity",
+        9: "barometric_pressure",
+        10: "filter_temperature",
+        11: "filter_humidity",
+        12: "status",
+    }
+
+    AIRQO_BAM_MAPPING = {
+        "hourly_conc": "pm2_5",
+    }
+
+    AIRQO_LOW_COST_CONFIG = {
+        0: "latitude",
+        1: "longitude",
+        2: "altitude",
+        3: "wind_speed",
+        4: "satellites",
+        5: "hdop",
+        6: "device_temperature",
+        7: "device_humidity",
+        8: "temperature",
+        9: "humidity",
+        10: "vapor_pressure",
+    }
 
 
 configuration = Config()

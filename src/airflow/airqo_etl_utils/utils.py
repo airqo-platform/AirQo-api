@@ -2,10 +2,9 @@ import json
 import os
 from datetime import datetime, timedelta
 
-import numpy as np
 import pandas as pd
 
-from .constants import DataType, Pollutant, AirQuality, DataSource
+from .constants import ColumnDataType, Pollutant, AirQuality, DataSource
 from .date import date_to_str
 
 
@@ -65,7 +64,7 @@ class Utils:
         for col in cols:
             if col not in list(data.columns):
                 print(f"{col} missing in dataset")
-                data[col] = None
+                data.loc[:, col] = None
 
         return data
 
@@ -107,22 +106,22 @@ class Utils:
     @staticmethod
     def format_dataframe_column_type(
         dataframe: pd.DataFrame,
-        data_type: DataType,
+        data_type: ColumnDataType,
         columns: list,
     ) -> pd.DataFrame:
         if not columns:
             return dataframe
-        if data_type == DataType.FLOAT:
+        if data_type == ColumnDataType.FLOAT:
             dataframe[columns] = dataframe[columns].apply(
                 pd.to_numeric, errors="coerce"
             )
 
-        if data_type == DataType.TIMESTAMP:
+        if data_type == ColumnDataType.TIMESTAMP:
             dataframe[columns] = dataframe[columns].apply(
                 pd.to_datetime, errors="coerce"
             )
 
-        if data_type == DataType.TIMESTAMP_STR:
+        if data_type == ColumnDataType.TIMESTAMP_STR:
             dataframe[columns] = dataframe[columns].apply(
                 pd.to_datetime, errors="coerce"
             )

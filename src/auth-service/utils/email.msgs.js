@@ -48,8 +48,8 @@ module.exports = {
       `Your temporary password is: ${password}\n\n` +
       `You can always change your password in your account settings after login\n` +
       `Follow this link to access the dashboard right now: ${constants.LOGIN_PAGE}\n` +
-      "A guide to using the platform will be found under the Documentation section of the platform\n" +
-      `Demos for using our main features can be found on our Youtube channel here: ${constants.YOUTUBE_CHANNEL}\n\n\n\n` +
+      "A guide to using the platform will be found under the Documentation section of the platform\n\n\n\n" +
+      // `Demos for using our main features can be found on our Youtube channel here: ${constants.YOUTUBE_CHANNEL}\n\n\n\n` +
       "PLEASE DO NOT REPLY TO THIS EMAIL\n\n" +
       "For KCCA related questions, please contact:\n" +
       "Sadam Yiga: syiga@kcca.go.ug or Eleth Nakazzi: enakazzi@kcca.go.ug \n " +
@@ -66,8 +66,8 @@ module.exports = {
       `Follow this link to access the dashboard right now: ${constants.LOGIN_PAGE}\n\n` +
       `You can also use your platform credentials to access the AirQo API\n` +
       `The AirQo API reference can be found here: https://docs.airqo.net/airqo-rest-api-documentation/ \n\n` +
-      `By actively utilising the platform, you automatically agree to the AirQo terms and conditions: https://docs.airqo.net/airqo-terms-and-conditions/HxYx3ysdA6k0ng6YJkU3/ \n\n` +
-      `Demos for using our main features can be found on our Youtube channel here:  ${constants.YOUTUBE_CHANNEL}\n\n\n\n` +
+      `By actively utilising the platform, you automatically agree to the AirQo terms and conditions: https://docs.airqo.net/airqo-terms-and-conditions/HxYx3ysdA6k0ng6YJkU3/ \n\n\n\n` +
+      /// `Demos for using our main features can be found on our Youtube channel here:  ${constants.YOUTUBE_CHANNEL}\n\n\n\n` +
       "PLEASE DO NOT REPLY TO THIS EMAIL\n\n" +
       "If you experience any technical challenges or wish to offer suggestions, please contact us at support@airqo.net"
     );

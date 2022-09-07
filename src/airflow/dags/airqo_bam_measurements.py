@@ -1,5 +1,7 @@
 from datetime import datetime
+
 from airflow.decorators import dag, task
+
 from airqo_etl_utils.airflow_custom_utils import slack_dag_failure_notification
 
 
@@ -15,32 +17,59 @@ def bam_historical_measurements_etl():
     import pandas as pd
 
     @task()
-    def extract_raw_data(**kwargs):
-
-        from airqo_etl_utils.utils import Utils
+    def extract_bam_data(**kwargs):
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
+        from airqo_etl_utils.utils import Utils
+        from airqo_etl_utils.constants import DeviceCategory
 
-        start_time, end_time = Utils.get_dag_date_time_config(**kwargs)
-        return AirQoDataUtils.extract_bam_data(
-            start_date_time=start_time, end_date_time=end_time
+        start_date_time, end_date_time = Utils.get_dag_date_time_config(**kwargs)
+
+        return AirQoDataUtils.extract_devices_data(
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            device_category=DeviceCategory.BAM,
         )
 
     @task()
-    def load(bam_data: pd.DataFrame):
-
+    def save_unclean_data(data: pd.DataFrame):
+        from airqo_etl_utils.bigquery_api import BigQueryApi
+        from airqo_etl_utils.constants import DataType
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
-        from airqo_etl_utils.bigquery_api import BigQueryApi
-
-        bam_data = AirQoDataUtils.process_bam_data_for_bigquery(data=bam_data)
+        data = AirQoDataUtils.format_data_for_bigquery(
+            data=data, data_type=DataType.UNCLEAN_BAM_DATA
+        )
         big_query_api = BigQueryApi()
         big_query_api.load_data(
-            dataframe=bam_data,
+            dataframe=data,
+            table=big_query_api.raw_bam_measurements_table,
+        )
+
+    @task()
+    def clean_bam_data(data: pd.DataFrame):
+        from airqo_etl_utils.airqo_utils import AirQoDataUtils
+
+        return AirQoDataUtils.clean_bam_data(data=data)
+
+    @task()
+    def save_clean_bam_data(data: pd.DataFrame):
+        from airqo_etl_utils.bigquery_api import BigQueryApi
+        from airqo_etl_utils.constants import DataType
+        from airqo_etl_utils.airqo_utils import AirQoDataUtils
+
+        data = AirQoDataUtils.format_data_for_bigquery(
+            data=data, data_type=DataType.CLEAN_BAM_DATA
+        )
+        big_query_api = BigQueryApi()
+        big_query_api.load_data(
+            dataframe=data,
             table=big_query_api.bam_measurements_table,
         )
 
-    extracted_airqo_data = extract_raw_data()
-    load(extracted_airqo_data)
+    unclean_data = extract_bam_data()
+    save_unclean_data(unclean_data)
+    measurements = clean_bam_data(unclean_data)
+    save_clean_bam_data(measurements)
 
 
 @dag(
@@ -53,50 +82,61 @@ def bam_historical_measurements_etl():
 )
 def bam_realtime_measurements_etl():
     import pandas as pd
-    from airqo_etl_utils.constants import BamDataType
 
     @task()
     def extract_bam_data():
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
         from airqo_etl_utils.date import DateUtils
+        from airqo_etl_utils.constants import DeviceCategory
 
         start_date_time, end_date_time = DateUtils.get_realtime_date_time_values()
 
-        return AirQoDataUtils.extract_bam_data(
-            start_date_time=start_date_time, end_date_time=end_date_time
+        return AirQoDataUtils.extract_devices_data(
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            device_category=DeviceCategory.BAM,
         )
 
     @task()
-    def transform_bam_data(bam_data: pd.DataFrame, data_type: BamDataType):
+    def save_unclean_data(data: pd.DataFrame):
+        from airqo_etl_utils.bigquery_api import BigQueryApi
+        from airqo_etl_utils.constants import DataType
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
-        return AirQoDataUtils.process_bam_data(data=bam_data, data_type=data_type)
-
-    @task()
-    def load_outliers(bam_data: pd.DataFrame):
-        from airqo_etl_utils.bigquery_api import BigQueryApi
-
+        data = AirQoDataUtils.format_data_for_bigquery(
+            data=data, data_type=DataType.UNCLEAN_BAM_DATA
+        )
         big_query_api = BigQueryApi()
         big_query_api.load_data(
-            dataframe=bam_data,
-            table=big_query_api.bam_outliers_table,
+            dataframe=data,
+            table=big_query_api.raw_bam_measurements_table,
         )
 
     @task()
-    def load_measurements(bam_data: pd.DataFrame):
-        from airqo_etl_utils.bigquery_api import BigQueryApi
+    def clean_bam_data(data: pd.DataFrame):
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
-        bam_data = AirQoDataUtils.process_bam_data_for_bigquery(data=bam_data)
+        return AirQoDataUtils.clean_bam_data(data=data)
+
+    @task()
+    def save_clean_bam_data(data: pd.DataFrame):
+        from airqo_etl_utils.bigquery_api import BigQueryApi
+        from airqo_etl_utils.constants import DataType
+        from airqo_etl_utils.airqo_utils import AirQoDataUtils
+
+        data = AirQoDataUtils.format_data_for_bigquery(
+            data=data, data_type=DataType.CLEAN_BAM_DATA
+        )
         big_query_api = BigQueryApi()
         big_query_api.load_data(
-            dataframe=bam_data,
+            dataframe=data,
             table=big_query_api.bam_measurements_table,
         )
 
-    data = extract_bam_data()
-    measurements = transform_bam_data(bam_data=data, data_type=BamDataType.MEASUREMENTS)
-    load_measurements(measurements)
+    unclean_data = extract_bam_data()
+    save_unclean_data(unclean_data)
+    measurements = clean_bam_data(unclean_data)
+    save_clean_bam_data(measurements)
 
 
 realtime_measurements_etl_dag = bam_realtime_measurements_etl()

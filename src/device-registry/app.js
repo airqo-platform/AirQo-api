@@ -16,8 +16,8 @@ const { runKafkaConsumer, runKafkaProducer } = require("./config/kafkajs");
 
 mongodb;
 
-runKafkaProducer();
-runKafkaConsumer();
+// runKafkaProducer();
+// runKafkaConsumer();
 const cors = require("cors");
 const moesif = require("moesif-nodejs");
 const compression = require("compression");
@@ -31,26 +31,6 @@ const moesifMiddleware = moesif({
     return req.user ? req.user.id : undefined;
   },
 });
-
-const whitelist = [
-  "https://staging.airqo.net/",
-  "https://airqo.net/",
-  "https://airqo.africa/",
-  "https://airqo.org/",
-  "https://airqo.mak.ac.ug/",
-  "https://airqo.io/",
-];
-const corsOptions = {
-  origin: function(origin, callback) {
-    if (whitelist.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      callback(new Error("Not allowed by CORS"));
-    }
-  },
-};
-
-app.use(cors());
 
 app.use(moesifMiddleware);
 

@@ -5,10 +5,10 @@ from typing import Any
 import pandas as pd
 from airflow.models.xcom import BaseXCom
 from google.cloud import storage
+from pandas.errors import EmptyDataError, ParserError
 
 
 class GCSXComBackend(BaseXCom):
-    PREFIX = "gs://"
     BUCKET_NAME = os.getenv("AIRFLOW_XCOM_BUCKET")
 
     @staticmethod
@@ -67,10 +67,13 @@ class GCSXComBackend(BaseXCom):
                 source_file=result,
                 destination_file=filename,
             )
-            result = pd.read_csv(filename)
-            if result.empty:
-                result = pd.DataFrame([], columns=["None"])
-            result.reset_index(drop=True, inplace=True)
+            try:
+                result = pd.read_csv(filename)
+                result.reset_index(drop=True, inplace=True)
+            except EmptyDataError:
+                result = pd.DataFrame([])
+            except ParserError:
+                result = pd.read_csv(filename, lineterminator="\n")
 
         return result
 

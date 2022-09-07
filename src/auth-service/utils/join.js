@@ -135,26 +135,26 @@ const join = {
           const indexOfCode = indexBeforeCode + 1;
           let emailLinkCode = linkSegments[indexOfCode].substring(2);
 
-          await validationsUtil.checkEmailExistenceUsingKickbox(
-            email,
-            (value) => {
-              if (value.success == false) {
-                const errors = value.errors ? value.errors : "";
-                logObject("the validation checks results", {
-                  success: false,
-                  message: value.message,
-                  errors,
-                  status: value.status,
-                });
-                // callback({
-                //   success: false,
-                //   message: value.message,
-                //   errors,
-                //   status: value.status,
-                // });
-              }
-            }
-          );
+          // await validationsUtil.checkEmailExistenceUsingKickbox(
+          //   email,
+          //   (value) => {
+          //     if (value.success === false) {
+          //       const errors = value.errors ? value.errors : "";
+          //       logObject("the validation checks results", {
+          //         success: false,
+          //         message: value.message,
+          //         errors,
+          //         status: value.status,
+          //       });
+          //       callback({
+          //         success: false,
+          //         message: value.message,
+          //         errors,
+          //         status: value.status,
+          //       });
+          //     }
+          //   }
+          // );
 
           let responseFromSendEmail = {};
           let token = 100000;
