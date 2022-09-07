@@ -22,9 +22,7 @@ const createLocation = {
       const hasWhiteSpace = word.indexOf(" ") >= 0;
       return !hasWhiteSpace;
     } catch (e) {
-      logger.error(
-        `create Location util server error -- hasNoWhiteSpace -- ${e.message}`
-      );
+      logger.error(`internal server error -- hasNoWhiteSpace -- ${e.message}`);
     }
   },
   create: async (request) => {
@@ -57,7 +55,7 @@ const createLocation = {
             ],
           });
         } catch (error) {
-          logObject("error on kafka", error);
+          logger.error(`internal server error -- ${error.message}`);
         }
 
         return {
@@ -85,6 +83,7 @@ const createLocation = {
         };
       }
     } catch (err) {
+      logger.error(`internal server error -- ${err.message}`);
       return {
         success: false,
         message: "unable to create location",
@@ -139,7 +138,7 @@ const createLocation = {
         };
       }
     } catch (err) {
-      logElement("update Locations util", err.message);
+      logger.error(`internal server error -- ${err.message}`);
       return {
         success: false,
         message: "unable to update location",
@@ -190,7 +189,7 @@ const createLocation = {
         };
       }
     } catch (err) {
-      logElement("delete Location util", err.message);
+      logger.error(`internal server error -- ${err.message}`);
       return {
         success: false,
         message: "unable to delete location",
@@ -248,7 +247,7 @@ const createLocation = {
         };
       }
     } catch (err) {
-      logElement("list Locations util", err.message);
+      logger.error(`internal server error -- ${err.message}`);
       return {
         success: false,
         message: "unable to list location",

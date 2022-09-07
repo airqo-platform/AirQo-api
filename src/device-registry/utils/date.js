@@ -1,5 +1,7 @@
 const { logText, logObject, logElement } = require("./log");
 const isEmpty = require("is-empty");
+const log4js = require("log4js");
+const logger = log4js.getLogger("date-util");
 
 const generateDateFormat = (ISODate) => {
   try {
@@ -17,7 +19,7 @@ const generateDateFormat = (ISODate) => {
     }
     return `${year}-${month}-${day}-${hrs}`;
   } catch (e) {
-    console.log("server side error: ", e.message);
+    logger.error(`internal server error -- ${e.message}`);
   }
 };
 
@@ -62,7 +64,7 @@ const generateDateFormatWithoutHrs = (ISODate) => {
 
     return `${year}-${month}-${day}`;
   } catch (e) {
-    console.log("server side error: ", e.message);
+    logger.error(`internal server error -- ${e.message}`);
   }
 };
 
@@ -76,7 +78,7 @@ const addMonthsToProvidedDate = (date, number) => {
     let modifiedMonth = "0" + newMonth;
     return `${year}-${modifiedMonth}-${day}`;
   } catch (e) {
-    console.log("server side error: ", e.message);
+    logger.error(`internal server error -- ${e.message}`);
   }
 };
 
@@ -102,7 +104,7 @@ const addMonthsToProvideDateTime = (dateTime, number) => {
       return newDate;
     }
   } catch (e) {
-    console.log("server side error: ", e.message);
+    logger.error(`internal server error -- ${e.message}`);
   }
 };
 
@@ -116,7 +118,7 @@ const monthsInfront = (number) => {
     }
     return d;
   } catch (e) {
-    console.log("server side error: ", e.message);
+    logger.error(`internal server error -- ${e.message}`);
   }
 };
 
@@ -126,7 +128,7 @@ const addDays = (number) => {
     let target = d.setDate(d.getDate() + number);
     return d;
   } catch (e) {
-    console.log("server side error: ", e.message);
+    logger.error(`internal server error -- ${e.message}`);
   }
 };
 
@@ -136,7 +138,7 @@ const addMinutes = (number) => {
     let target = d.setMinutes(d.getMinutes() + number);
     return d;
   } catch (e) {
-    console.log("server side error: ", e.message);
+    logger.error(`internal server error -- ${e.message}`);
   }
 };
 
