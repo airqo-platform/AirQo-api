@@ -81,6 +81,11 @@ const createEvent = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        logger.error(
+          `input validation errors ${errors.convertErrorArrayToObject(
+            nestedErrors
+          )}`
+        );
         return errors.badRequest(
           res,
           "bad request errors",
@@ -118,6 +123,11 @@ const createEvent = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        logger.error(
+          `input validation errors ${errors.convertErrorArrayToObject(
+            nestedErrors
+          )}`
+        );
         return errors.badRequest(
           res,
           "bad request errors",
@@ -169,6 +179,11 @@ const createEvent = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        logger.error(
+          `input validation errors ${errors.convertErrorArrayToObject(
+            nestedErrors
+          )}`
+        );
         return errors.badRequest(
           res,
           "bad request errors",
@@ -250,6 +265,11 @@ const createEvent = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        logger.error(
+          `input validation errors ${errors.convertErrorArrayToObject(
+            nestedErrors
+          )}`
+        );
         return errors.badRequest(
           res,
           "bad request errors",
@@ -371,6 +391,11 @@ const createEvent = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        logger.error(
+          `input validation errors ${errors.convertErrorArrayToObject(
+            nestedErrors
+          )}`
+        );
         return errors.badRequest(
           res,
           "bad request errors",
@@ -415,6 +440,11 @@ const createEvent = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        logger.error(
+          `input validation errors ${errors.convertErrorArrayToObject(
+            nestedErrors
+          )}`
+        );
         return errors.badRequest(
           res,
           "bad request errors",
@@ -469,6 +499,11 @@ const createEvent = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        logger.error(
+          `input validation errors ${errors.convertErrorArrayToObject(
+            nestedErrors
+          )}`
+        );
         return errors.badRequest(
           res,
           "bad request errors",
@@ -522,6 +557,11 @@ const createEvent = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        logger.error(
+          `input validation errors ${errors.convertErrorArrayToObject(
+            nestedErrors
+          )}`
+        );
         return errors.badRequest(
           res,
           "bad request errors",
@@ -571,6 +611,11 @@ const createEvent = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        logger.error(
+          `input validation errors ${errors.convertErrorArrayToObject(
+            nestedErrors
+          )}`
+        );
         return errors.badRequest(res, "bad request errors", nestedErrors);
       }
       const { body } = req;
@@ -614,15 +659,17 @@ const createEvent = {
     }
   },
 
-  /***********************************************************
-   * api_v2 starts
-   */
   addEvents: async (req, res) => {
     try {
       logger.info(`adding values...`);
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        logger.error(
+          `input validation errors ${errors.convertErrorArrayToObject(
+            nestedErrors
+          )}`
+        );
         return errors.badRequest(
           res,
           "bad request errors",
@@ -682,6 +729,11 @@ const createEvent = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        logger.error(
+          `input validation errors ${errors.convertErrorArrayToObject(
+            nestedErrors
+          )}`
+        );
         return errors.badRequest(
           res,
           "bad request errors",
@@ -721,10 +773,6 @@ const createEvent = {
       });
     }
   },
-
-  /************************************************************
-   * api_v2 ends
-   */
 };
 
 module.exports = createEvent;
