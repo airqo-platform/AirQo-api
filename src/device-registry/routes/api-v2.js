@@ -3061,7 +3061,7 @@ router.post(
 );
 router.get(
   "/events",
-  cors(corsOptionsDelegate),
+  cors(),
   oneOf([
     [
       query("tenant")
