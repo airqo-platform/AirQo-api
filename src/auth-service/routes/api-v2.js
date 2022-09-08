@@ -55,7 +55,7 @@ router.post(
   joinController.login
 );
 
-router.post("/verify", setLocalAPIKey, authAPIKey, joinController.verify);
+router.post("/verify", setJWTAuth, authJWT, joinController.verify);
 router.get(
   "/",
   oneOf([
@@ -68,8 +68,8 @@ router.get(
       .isIn(["kcca", "airqo"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
-  setJWTAuth,
-  authJWT,
+  setLocalAPIKey,
+  authAPIKey,
   joinController.list
 );
 router.post(
