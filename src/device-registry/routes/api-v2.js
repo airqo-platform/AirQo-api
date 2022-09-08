@@ -3061,7 +3061,6 @@ router.post(
 );
 router.get(
   "/events",
-  cors(),
   oneOf([
     [
       query("tenant")
@@ -3926,7 +3925,6 @@ router.put(
 
 router.get(
   "/airqlouds",
-  cors(),
   oneOf([
     query("tenant")
       .exists()

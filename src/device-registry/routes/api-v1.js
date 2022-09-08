@@ -297,7 +297,6 @@ router.get(
 /***list devices */
 router.get(
   "/",
-  cors(),
   oneOf([
     [
       query("tenant")
@@ -2214,7 +2213,6 @@ router.delete("/activities", cors(), activityController.delete);
 /****************************** create sites usecase *************** */
 router.get(
   "/sites",
-  cors(),
   oneOf([
     query("tenant")
       .exists()
@@ -3131,7 +3129,6 @@ router.post(
 );
 router.get(
   "/events",
-  cors(),
   oneOf([
     query("tenant")
       .exists()
@@ -4283,7 +4280,6 @@ router.put(
 
 router.get(
   "/airqlouds",
-  cors(),
   oneOf([
     query("tenant")
       .exists()
