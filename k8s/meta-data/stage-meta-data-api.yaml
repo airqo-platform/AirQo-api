@@ -28,14 +28,7 @@ spec:
               - key: node-type
                 operator: In
                 values:
-                - high-memory
-          - weight: 1
-            preference:
-              matchExpressions:
-              - key: node-type
-                operator: In
-                values:
-                - general-purpose
+                - compute
       containers:
         - name: meta-data
           image: us.gcr.io/airqo-250220/airqo-stage-meta-data-api:latest
@@ -44,12 +37,12 @@ spec:
             - containerPort: 4001
           resources:
             requests:
-              # Average usage was 0.0003 vCPU and 250Mi over the last 7 days
-              cpu: 5m
+              # Average usage was 0.1 vCPU and 250Mi over the last 7 days
+              cpu: 100m
               memory: 250Mi
             limits:
-              cpu: 100m
-              memory: 500Mi
+              cpu: 300m
+              memory: 400Mi
           envFrom:
             - configMapRef:
                 name: stage-meta-data-api-config
