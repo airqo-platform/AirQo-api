@@ -31,14 +31,7 @@ spec:
               - key: node-type
                 operator: In
                 values:
-                - high-memory
-          - weight: 1
-            preference:
-              matchExpressions:
-              - key: node-type
-                operator: In
-                values:
-                - general-purpose
+                - compute
       initContainers:
         - name: train-catboost-model
           image: us.gcr.io/airqo-250220/stage-train-catboost-model:latest
@@ -75,11 +68,11 @@ spec:
               name: fault-detection
           resources:
             requests:
-              # Average usage was 0.0001 vCPU and 200Mi over the last 30 days
-              cpu: 5m
+              # Average usage was 0.1 vCPU and 200Mi over the last 30 days
+              cpu: 100m
               memory: 200Mi
             limits:
-              cpu: 50m
+              cpu: 500m
               memory: 300Mi
           env:
             - name: LSTM_MODEL
