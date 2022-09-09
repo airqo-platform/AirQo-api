@@ -8,7 +8,6 @@ var jsonify = require("./jsonify");
 const generateFilter = require("./generate-filter");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
-const validationsUtil = require("./validations");
 constants = require("../config/constants");
 const kickbox = require("kickbox")
   .client(`${constants.KICKBOX_API_KEY}`)
@@ -21,8 +20,6 @@ const UserModel = (tenant) => {
 const CandidateModel = (tenant) => {
   return getModelByTenant(tenant, "candidate", CandidateSchema);
 };
-
-const cleanDeep = require("clean-deep");
 
 const request = {
   create: async (req, callback) => {
