@@ -1,8 +1,4 @@
 const HTTPStatus = require("http-status");
-const msgs = require("../utils/email.msgs");
-const register = require("../utils/register");
-const { getModelByTenant } = require("../utils/multitenancy");
-const constants = require("../config/constants");
 const requestUtil = require("../utils/request");
 const generateFilter = require("../utils/generate-filter");
 const validations = require("../utils/validations");
@@ -11,10 +7,9 @@ const { validationResult } = require("express-validator");
 const manipulateArraysUtil = require("../utils/manipulate-arrays");
 const { badRequest } = require("../utils/errors");
 
-const { tryCatchErrors, missingQueryParams } = require("utils/errors");
-const { logText, logElement, logObject, logError } = require("../utils/log");
+const { missingQueryParams } = require("utils/errors");
+const { logObject } = require("../utils/log");
 const isEmpty = require("is-empty");
-const { request } = require("../app");
 
 const candidate = {
   create: async (req, res) => {
@@ -40,13 +35,6 @@ const candidate = {
         category,
       } = req.body;
 
-      const { errors, isValid } = validations.candidate(req.body);
-      if (!isValid) {
-        return res
-          .status(HTTPStatus.BAD_REQUEST)
-          .json({ success: false, errors, message: "validation error" });
-      }
-
       let request = {};
       request["tenant"] = tenant.toLowerCase();
       request["firstName"] = firstName;
@@ -66,9 +54,7 @@ const candidate = {
               message: value.message,
               candidate: value.data,
             });
-          }
-
-          if (value.success === false) {
+          } else if (value.success === false) {
             const errors = value.errors ? value.errors : "";
             return res.status(value.status).json({
               success: false,
@@ -77,7 +63,13 @@ const candidate = {
             });
           }
         })
-        .catch((error) => {});
+        .catch((error) => {
+          return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+            success: false,
+            message: "internal server error",
+            errors: { message: error },
+          });
+        });
     } catch (error) {
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,

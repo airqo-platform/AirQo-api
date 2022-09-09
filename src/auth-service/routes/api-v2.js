@@ -507,6 +507,45 @@ router.post(
       .isIn(["kcca", "airqo"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
+  oneOf([
+    [
+      body("email")
+        .exists()
+        .withMessage("the email should be provided")
+        .bail()
+        .isEmail()
+        .withMessage("this is not a valid email address")
+        .trim(),
+      body("firstName")
+        .exists()
+        .withMessage("the firstName should be provided")
+        .trim(),
+      body("lastName")
+        .exists()
+        .withMessage("the lastName should be provided")
+        .trim(),
+      body("category")
+        .exists()
+        .withMessage("the category should be provided")
+        .trim(),
+      body("website")
+        .exists()
+        .withMessage("the website should be provided")
+        .trim(),
+      body("description")
+        .exists()
+        .withMessage("the description should be provided")
+        .trim(),
+      body("long_organization")
+        .exists()
+        .withMessage("the long_organization should be provided")
+        .trim(),
+      body("jobTitle")
+        .exists()
+        .withMessage("the jobTitle should be provided")
+        .trim(),
+    ],
+  ]),
   requestController.create
 );
 router.get(

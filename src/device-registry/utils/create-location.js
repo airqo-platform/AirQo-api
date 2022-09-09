@@ -7,11 +7,13 @@ const HTTPStatus = require("http-status");
 const axiosInstance = () => {
   return axios.create();
 };
+const constants = require("../config/constants");
 const generateFilter = require("./generate-filter");
 const log4js = require("log4js");
-const logger = log4js.getLogger("create-location-util");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- create-location-util`
+);
 const { kafkaProducer } = require("../config/kafkajs");
-const constants = require("../config/constants");
 
 const createLocation = {
   initialIsCapital: (word) => {
