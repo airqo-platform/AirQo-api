@@ -139,7 +139,6 @@ const request = {
         }
       }
     } catch (e) {
-      logObject("error", e);
       callback({
         success: false,
         message: "Internal Server Error",
