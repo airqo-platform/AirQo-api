@@ -25,7 +25,7 @@ const CandidateModel = (tenant) => {
 const cleanDeep = require("clean-deep");
 
 const request = {
-  create: async (request, callback) => {
+  create: async (req, callback) => {
     try {
       let {
         firstName,
@@ -37,7 +37,7 @@ const request = {
         description,
         category,
         tenant,
-      } = request;
+      } = req;
 
       // await validationsUtil.checkEmailExistenceUsingKickbox(email, (value) => {
       //   if (value.success == false) {
@@ -57,81 +57,92 @@ const request = {
       //   }
       // });
 
-      let checkCandidateRequest = {};
-      checkCandidateRequest["filter"] = {};
-      checkCandidateRequest["tenant"] = tenant;
-      checkCandidateRequest["filter"] = request;
+      let filterRequestBody = {};
+      filterRequestBody["body"] = {};
+      filterRequestBody["query"] = {};
+      filterRequestBody["body"] = req;
+      filterRequestBody["query"]["category"] = category;
 
-      const checkRequest = cleanDeep(checkCandidateRequest);
+      const responseFromGenerateCandidateFilter =
+        generateFilter.candidates(filterRequestBody);
 
-      const doesCandidateExist = await request.doesCandidateSearchExist(
-        checkRequest
-      );
-
-      if (doesCandidateExist.success === true) {
+      if (responseFromGenerateCandidateFilter.success === false) {
         callback({
-          success: true,
-          message: "request already submitted!",
-          status: httpStatus.OK,
+          success: false,
+          message: "internal server error",
+          errors: { message: responseFromGenerateCandidateFilter.error },
         });
       }
 
-      const responseFromCreateCandidate = await CandidateModel(tenant).register(
-        request
-      );
+      let filter = responseFromGenerateCandidateFilter.data;
+      const responseFromListCandidates = await request.list({
+        tenant,
+        filter,
+      });
 
-      if (responseFromCreateCandidate.success === true) {
-        let createdCandidate = await responseFromCreateCandidate.data;
-        let responseFromSendEmail = await mailer.candidate(
-          firstName,
-          lastName,
-          email,
+      if (responseFromListCandidates.success === true) {
+        callback({
+          success: true,
+          message: "candidate already exists or successfully created",
+          status: httpStatus.OK,
+        });
+      } else if (responseFromListCandidates.success === false) {
+        const responseFromCreateCandidate = await CandidateModel(
           tenant
-        );
-        if (responseFromSendEmail.success === true) {
-          const status = responseFromSendEmail.status
-            ? responseFromSendEmail.status
-            : "";
-          callback({
-            success: true,
-            message: "candidate successfully created",
-            data: createdCandidate,
-            status,
-          });
-        }
+        ).register(req);
 
-        if (responseFromSendEmail.success === false) {
-          const errors = responseFromSendEmail.error
-            ? responseFromSendEmail.error
-            : "";
-          const status = responseFromSendEmail.status
-            ? responseFromSendEmail.status
-            : "";
+        if (responseFromCreateCandidate.success === true) {
+          let createdCandidate = await responseFromCreateCandidate.data;
+          let responseFromSendEmail = await mailer.candidate(
+            firstName,
+            lastName,
+            email,
+            tenant
+          );
+          if (responseFromSendEmail.success === true) {
+            const status = responseFromSendEmail.status
+              ? responseFromSendEmail.status
+              : "";
+            callback({
+              success: true,
+              message: "candidate already exists or successfully created",
+              data: createdCandidate,
+              status,
+            });
+          }
 
+          if (responseFromSendEmail.success === false) {
+            const errors = responseFromSendEmail.error
+              ? responseFromSendEmail.error
+              : "";
+            const status = responseFromSendEmail.status
+              ? responseFromSendEmail.status
+              : "";
+
+            callback({
+              success: false,
+              message: responseFromSendEmail.message,
+              errors,
+              status,
+            });
+          }
+        } else if (responseFromCreateCandidate.success === false) {
+          const errors = responseFromCreateCandidate.errors
+            ? responseFromCreateCandidate.errors
+            : "";
+          const status = responseFromCreateCandidate.status
+            ? responseFromCreateCandidate.status
+            : "";
           callback({
             success: false,
-            message: responseFromSendEmail.message,
+            message: responseFromCreateCandidate.message,
             errors,
             status,
           });
         }
       }
-
-      if (responseFromCreateCandidate.success === false) {
-        const errors = responseFromCreateCandidate.errors
-          ? responseFromCreateCandidate.errors
-          : "";
-        const status = responseFromCreateCandidate.status
-          ? responseFromCreateCandidate.status
-          : "";
-        callback({
-          success: false,
-          message: responseFromCreateCandidate.message,
-          errors,
-          status,
-        });
-      }
     } catch (e) {
+      logObject("error", e);
       callback({
         success: false,
         message: "Internal Server Error",
@@ -139,45 +150,6 @@ const request = {
         status: httpStatus.INTERNAL_SERVER_ERROR,
       });
     }
-  },
-
-  doesCandidateSearchExist: async (request) => {
-    try {
-      const { filter, tenant } = request;
-      let doesSearchExist = await getModelByTenant(
-        tenant,
-        "candidate",
-        CandidateSchema
-      ).exists(filter);
-      logElement(" doesSearchExist", doesSearchExist);
-      if (doesSearchExist) {
-        return {
-          success: true,
-          message: "search exists",
-          data: doesSearchExist,
-        };
-      } else {
-        return {
-          success: false,
-          message: "search does not exist",
-          data: doesSearchExist,
-        };
-      }
-    } catch (error) {
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      };
-    }
-  },
-  doesCandidateExist: async (request) => {
-    logText("checking candidate existence...");
-    const responseFromList = await createdCandidate.list(request);
-    if (responseFromList.success === true && responseFromList.data) {
-      return true;
-    }
-    return false;
   },
 
   list: async ({ tenant, filter, limit, skip }) => {
@@ -195,10 +167,6 @@ const request = {
         skip,
       });
 
-      logObject(
-        "responseFromListCandidate in the util",
-        responseFromListCandidate
-      );
       if (responseFromListCandidate.success == true) {
         return {
           success: true,
