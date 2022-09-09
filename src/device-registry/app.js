@@ -18,7 +18,6 @@ mongodb;
 
 // runKafkaProducer();
 // runKafkaConsumer();
-const cors = require("cors");
 const moesif = require("moesif-nodejs");
 const compression = require("compression");
 
