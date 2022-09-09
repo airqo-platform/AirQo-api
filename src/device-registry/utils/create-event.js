@@ -6,7 +6,9 @@ const generateFilter = require("./generate-filter");
 const errors = require("./errors");
 const isEmpty = require("is-empty");
 const log4js = require("log4js");
-const logger = log4js.getLogger("create-event-util");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- create-event-util`
+);
 const { transform } = require("node-json-transform");
 const Dot = require("dot-object");
 const cleanDeep = require("clean-deep");

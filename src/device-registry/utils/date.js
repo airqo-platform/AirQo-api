@@ -1,7 +1,8 @@
 const { logText, logObject, logElement } = require("./log");
 const isEmpty = require("is-empty");
+const constants = require("../config/constants");
 const log4js = require("log4js");
-const logger = log4js.getLogger("date-util");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- date-util`);
 
 const generateDateFormat = (ISODate) => {
   try {

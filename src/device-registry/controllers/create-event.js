@@ -1,7 +1,10 @@
 const HTTPStatus = require("http-status");
+const constants = require("../config/constants");
 const { logObject, logText, logElement } = require("../utils/log");
 const log4js = require("log4js");
-const logger = log4js.getLogger("create-event-controller");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- create-event-controller`
+);
 
 const errors = require("../utils/errors");
 
@@ -12,7 +15,7 @@ createDeviceUtil = require("../utils/create-device");
 
 const { Kafka } = require("kafkajs");
 const { SchemaRegistry } = require("@kafkajs/confluent-schema-registry");
-const constants = require("../config/constants");
+
 const SCHEMA_REGISTRY = constants.SCHEMA_REGISTRY;
 const BOOTSTRAP_SERVERS = constants.KAFKA_BOOTSTRAP_SERVERS;
 const RAW_MEASUREMENTS_TOPICS = constants.KAFKA_RAW_MEASUREMENTS_TOPICS;
