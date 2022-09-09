@@ -1,23 +1,23 @@
-var log4js = require("log4js");
-var express = require("express");
-var path = require("path");
-var logger = log4js.getLogger("app");
+const log4js = require("log4js");
+const express = require("express");
+const path = require("path");
+const logger = log4js.getLogger("app");
 
 const dotenv = require("dotenv");
-var bodyParser = require("body-parser");
+const bodyParser = require("body-parser");
 dotenv.config();
 require("app-module-path").addPath(__dirname);
-var cookieParser = require("cookie-parser");
-var apiV1 = require("./routes/api-v1");
-var apiV2 = require("./routes/api-v2");
+const cookieParser = require("cookie-parser");
+const apiV1 = require("./routes/api-v1");
+const apiV2 = require("./routes/api-v2");
 const constants = require("./config/constants");
 const { mongodb } = require("./config/database");
 const { runKafkaConsumer, runKafkaProducer } = require("./config/kafkajs");
 
 mongodb;
 
-runKafkaProducer();
-runKafkaConsumer();
+// runKafkaProducer();
+// runKafkaConsumer();
 const cors = require("cors");
 const moesif = require("moesif-nodejs");
 const compression = require("compression");
@@ -31,26 +31,6 @@ const moesifMiddleware = moesif({
     return req.user ? req.user.id : undefined;
   },
 });
-
-const whitelist = [
-  "https://staging.airqo.net/",
-  "https://airqo.net/",
-  "https://airqo.africa/",
-  "https://airqo.org/",
-  "https://airqo.mak.ac.ug/",
-  "https://airqo.io/",
-];
-const corsOptions = {
-  origin: function(origin, callback) {
-    if (whitelist.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      callback(new Error("Not allowed by CORS"));
-    }
-  },
-};
-
-app.use(cors());
 
 app.use(moesifMiddleware);
 

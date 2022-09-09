@@ -44,6 +44,7 @@ const createDevice = {
         };
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -82,6 +83,7 @@ const createDevice = {
         }
       });
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       callback({
         success: false,
         message: "Internal Server Error",
@@ -217,9 +219,15 @@ const createDevice = {
             let status = responseFromCreateDeviceOnPlatform.status
               ? responseFromCreateDeviceOnPlatform.status
               : "";
-            logger.error(
-              `creation operation failed -- successfully undid the successfull operations -- ${errors}`
-            );
+            try {
+              logger.error(
+                `creation operation failed -- successfully undid the successfull operations -- ${JSON.stringify(
+                  errors
+                )}`
+              );
+            } catch (error) {
+              logger.error(`internal server error ${error.message}`);
+            }
             return {
               success: false,
               message:
@@ -234,9 +242,15 @@ const createDevice = {
             let status = responseFromDeleteDeviceFromThingspeak.status
               ? responseFromDeleteDeviceFromThingspeak.status
               : "";
-            logger.error(
-              `creation operation failed -- also failed to undo the successfull operations --${errors}`
-            );
+            try {
+              logger.error(
+                `creation operation failed -- also failed to undo the successfull operations --${JSON.stringify(
+                  errors
+                )}`
+              );
+            } catch (error) {
+              logger.error(`internal server error ${error.message}`);
+            }
             return {
               success: false,
               message:
@@ -253,9 +267,15 @@ const createDevice = {
         let status = responseFromCreateOnThingspeak.status
           ? responseFromCreateOnThingspeak.status
           : "";
-        logger.error(
-          `unable to generate enrichment data for the device -- ${errors}`
-        );
+        try {
+          logger.error(
+            `unable to generate enrichment data for the device -- ${JSON.stringify(
+              errors
+            )}`
+          );
+        } catch (error) {
+          logger.error(`internal server error -- ${error.message}`);
+        }
 
         return {
           success: false,
@@ -354,7 +374,7 @@ const createDevice = {
         };
       }
     } catch (e) {
-      logger.error(`update -- ${e.message}`);
+      logger.error(`internal server error -- ${e.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -381,9 +401,15 @@ const createDevice = {
 
       if (responseFromFilter.success === false) {
         let errors = responseFromFilter.errors ? responseFromFilter.errors : "";
-        logger.error(
-          `responseFromFilter.error in create-device util--${responseFromFilter.errors}`
-        );
+        try {
+          logger.error(
+            `responseFromFilter.error in create-device util--${JSON.stringify(
+              responseFromFilter.errors
+            )}`
+          );
+        } catch (error) {
+          logger.error(`internal server error -- ${error.message}`);
+        }
         return {
           success: false,
           message: responseFromFilter.message,
@@ -423,7 +449,9 @@ const createDevice = {
         };
       }
     } catch (error) {
-      logger.error(`updateOnPlatform util -- ${error.message}`);
+      logger.error(
+        `internal server error -- updateOnPlatform util -- ${error.message}`
+      );
       return {
         success: false,
         message: "Internal Server Error",
@@ -529,7 +557,7 @@ const createDevice = {
         };
       }
     } catch (e) {
-      logger.error(`delete -- ${e.message}`);
+      logger.error(`internal server error -- ${e.message}`);
       return {
         success: false,
         message: "server error --delete -- create-device util",
@@ -553,7 +581,13 @@ const createDevice = {
       } else if (responseFromFilter.success === false) {
         let errors = responseFromFilter.errors ? responseFromFilter.errors : "";
         let status = responseFromFilter.status ? responseFromFilter.status : "";
-        logger.error(`the error from filter in list -- ${errors}`);
+        try {
+          logger.error(
+            `the error from filter in list -- ${JSON.stringify(errors)}`
+          );
+        } catch (error) {
+          logger.error(`internal server error -- ${error.message}`);
+        }
         return {
           success: false,
           message: responseFromFilter.message,
@@ -583,9 +617,15 @@ const createDevice = {
         let status = responseFromListDevice.status
           ? responseFromListDevice.status
           : "";
-        logger.error(
-          `responseFromListDevice was not a success -- ${responseFromListDevice.message} -- ${errors}`
-        );
+        try {
+          logger.error(
+            `responseFromListDevice was not a success -- ${
+              responseFromListDevice.message
+            } -- ${JSON.stringify(errors)}`
+          );
+        } catch (error) {
+          logger.error(`internal server error -- ${error.message}`);
+        }
         return {
           success: false,
           message: responseFromListDevice.message,
@@ -680,7 +720,7 @@ const createDevice = {
         };
       }
     } catch (error) {
-      logger.error("server error - createOnPlatform util");
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         errors: { message: error.message },
@@ -751,7 +791,7 @@ const createDevice = {
         data: newChannel,
       };
     } catch (error) {
-      logger.error(` createOnThingSpeak -- ${error.message}`);
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -803,7 +843,7 @@ const createDevice = {
         status: HTTPStatus.OK,
       };
     } catch (error) {
-      logger.error(`updateOnThingspeak util -- ${error.message}`);
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message:
@@ -838,9 +878,15 @@ const createDevice = {
 
       if (responseFromFilter.success === false) {
         let errors = responseFromFilter.errors ? responseFromFilter.errors : "";
-        logger.error(
-          `responseFromFilter.error in create-device util--${responseFromFilter.errors}`
-        );
+        try {
+          logger.error(
+            `responseFromFilter.error in create-device util--${JSON.stringify(
+              responseFromFilter.errors
+            )}`
+          );
+        } catch (error) {
+          logger.error(`internal server error -- ${error.message}`);
+        }
         return {
           success: false,
           message: responseFromFilter.message,
@@ -886,7 +932,7 @@ const createDevice = {
         };
       }
     } catch (error) {
-      logger.error(`updateOnPlatform util -- ${error.message}`);
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -938,7 +984,7 @@ const createDevice = {
         };
       }
     } catch (error) {
-      logger.error(`deleteOnThingspeak -- ${error.message}`);
+      logger.error(`internal server error -- ${error.message}`);
       errors.utillErrors.tryCatchErrors(
         error,
         "server error - updateOnPlatform util"
@@ -959,9 +1005,15 @@ const createDevice = {
       } else if (responseFromFilter.success === false) {
         let errors = responseFromFilter.errors ? responseFromFilter.errors : "";
         let status = responseFromFilter.status ? responseFromFilter.status : "";
-        logger.error(
-          `responseFromFilter.error in create-device util--${responseFromFilter.errors}`
-        );
+        try {
+          logger.error(
+            `responseFromFilter.error in create-device util--${JSON.stringify(
+              responseFromFilter.errors
+            )}`
+          );
+        } catch (error) {
+          logger.error(`internal server error -- ${error.message}`);
+        }
         return {
           success: false,
           message: responseFromFilter.message,
@@ -1001,7 +1053,7 @@ const createDevice = {
         };
       }
     } catch (error) {
-      logger.error(`updateOnPlatform util -- ${error.message}`);
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -1041,7 +1093,7 @@ const createDevice = {
         status: HTTPStatus.OK,
       };
     } catch (err) {
-      logObject("the err", err);
+      logger.error(`internal server error -- ${err.message}`);
       return {
         success: false,
         message: "unable to decrypt the key",
@@ -1071,7 +1123,7 @@ const createDevice = {
         };
       }
     } catch (error) {
-      logger.error(`transform -- ${error.message}`);
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "server error - trasform util",

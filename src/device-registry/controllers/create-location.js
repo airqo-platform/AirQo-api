@@ -16,6 +16,15 @@ const createLocation = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -57,6 +66,7 @@ const createLocation = {
         });
       }
     } catch (errors) {
+      logger.error(`internal server error -- ${errors.message}`);
       errors.tryCatchErrors(res, errors, "createLocation controller");
     }
   },
@@ -72,6 +82,15 @@ const createLocation = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -106,6 +125,7 @@ const createLocation = {
         });
       }
     } catch (errors) {
+      logger.error(`internal server error -- ${errors.message}`);
       errors.tryCatchErrors(res, errors, "createLocation controller");
     }
   },
@@ -119,6 +139,15 @@ const createLocation = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -156,6 +185,7 @@ const createLocation = {
         });
       }
     } catch (errors) {
+      logger.error(`internal server error -- ${errors.message}`);
       errors.tryCatchErrors(res, errors, "createLocation controller");
     }
   },
@@ -169,6 +199,15 @@ const createLocation = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -206,6 +245,7 @@ const createLocation = {
         });
       }
     } catch (errors) {
+      logger.error(`internal server error -- ${errors.message}`);
       errors.tryCatchErrors(res, errors, "create location controller");
     }
   },
@@ -220,6 +260,15 @@ const createLocation = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -255,6 +304,7 @@ const createLocation = {
         });
       }
     } catch (errors) {
+      logger.error(`internal server error -- ${errors.message}`);
       errors.tryCatchErrors(res, errors, "manageLocation controller");
     }
   },

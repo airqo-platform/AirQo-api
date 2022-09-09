@@ -55,6 +55,9 @@ const stageConfig = {
 };
 
 const defaultConfig = {
+  SLACK_TOKEN: process.env.SLACK_TOKEN,
+  SLACK_CHANNEL: process.env.SLACK_CHANNEL,
+  SLACK_USERNAME: process.env.SLACK_USERNAME,
   DATAWAREHOUSE_RAW_DATA: process.env.DATAWAREHOUSE_RAW_DATA,
   MOESIF_APPLICATION_ID: process.env.MOESIF_APPLICATION_ID,
   DOMAIN_WHITELIST: process.env.DOMAIN_WHITELIST.split(","),

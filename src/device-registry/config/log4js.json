@@ -24,8 +24,8 @@
         "alerts": {
             "type": "@log4js-node/slack",
             "token": "abc123def",
-            "channel_id": "notifs-service-monitoring",
-            "username": "device-registry"
+            "channel_id": "channel_id",
+            "username": "username"
         }
     },
     "categories": {
