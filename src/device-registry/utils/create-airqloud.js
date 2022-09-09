@@ -8,14 +8,16 @@ const HTTPStatus = require("http-status");
 const axiosInstance = () => {
   return axios.create();
 };
+const constants = require("../config/constants");
 const generateFilter = require("./generate-filter");
 const log4js = require("log4js");
-const logger = log4js.getLogger("create-airqloud-util");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- create-airqloud-util`
+);
 const createLocationUtil = require("./create-location");
 const geolib = require("geolib");
 const httpStatus = require("http-status");
 const { kafkaProducer } = require("../config/kafkajs");
-const constants = require("../config/constants");
 
 const createAirqloud = {
   initialIsCapital: (word) => {

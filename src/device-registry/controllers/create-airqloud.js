@@ -3,8 +3,11 @@ const { logObject, logElement, logText } = require("../utils/log");
 const { validationResult } = require("express-validator");
 const errors = require("../utils/errors");
 const createAirQloudUtil = require("../utils/create-airqloud");
+const constants = require("../config/constants");
 const log4js = require("log4js");
-const logger = log4js.getLogger("create-airqloud-controller");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- create-airqloud-controller`
+);
 const httpStatus = require("http-status");
 
 const createAirqloud = {

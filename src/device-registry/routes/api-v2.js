@@ -18,20 +18,13 @@ const { logElement, logText } = require("../utils/log");
 const { isBoolean, isEmpty } = require("underscore");
 const phoneUtil = require("google-libphonenumber").PhoneNumberUtil.getInstance();
 const decimalPlaces = require("decimal-places");
-const cors = require("cors");
-
-const corsOptionsDelegate = function(req, callback) {
-  let corsOptions;
-  if (constants.DOMAIN_WHITELIST.indexOf(req.header("Origin")) !== -1) {
-    corsOptions = { origin: true };
-  } else {
-    corsOptions = { origin: false };
-  }
-  callback(null, corsOptions);
-};
 
 const headers = (req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
+  const allowedOrigins = constants.DOMAIN_WHITELIST;
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+  }
   res.header(
     "Access-Control-Allow-Headers",
     "Origin, X-Requested-With, Content-Type, Accept, Authorization"
@@ -3140,7 +3133,6 @@ router.get(
 
 router.get(
   "/events/latest",
-  cors(),
   oneOf([
     [
       query("tenant")
@@ -3207,7 +3199,6 @@ router.get(
 
 router.post(
   "/events/transmit",
-  cors(),
   oneOf([
     [
       query("tenant")
@@ -3354,7 +3345,6 @@ router.post(
 /*clear events*/
 router.delete(
   "/events",
-  cors(),
   oneOf([
     query("tenant")
       .exists()
@@ -3417,12 +3407,11 @@ router.delete(
   eventController.deleteValuesOnPlatform
 );
 
-router.post("/events/consume", cors(), eventController.consume);
+router.post("/events/consume", eventController.consume);
 
 /************************** locations usecase  *******************/
 router.post(
   "/locations",
-  cors(),
   oneOf([
     [
       query("tenant")
@@ -3539,7 +3528,6 @@ router.post(
 
 router.get(
   "/locations",
-  cors(),
   oneOf([
     query("tenant")
       .exists()
@@ -3596,7 +3584,6 @@ router.get(
 
 router.put(
   "/locations",
-  cors(),
   oneOf([
     query("tenant")
       .exists()
@@ -3727,7 +3714,6 @@ router.put(
 
 router.delete(
   "/locations",
-  cors(),
   oneOf([
     query("tenant")
       .exists()
@@ -3759,7 +3745,6 @@ router.delete(
 /************************** airqlouds usecase  *******************/
 router.post(
   "/airqlouds",
-  cors(),
   oneOf([
     [
       query("tenant")
@@ -3898,7 +3883,6 @@ router.post(
 
 router.put(
   "/airqlouds/refresh",
-  cors(),
   oneOf([
     query("tenant")
       .exists()
@@ -3992,7 +3976,6 @@ router.get(
 
 router.get(
   "/airqlouds/sites",
-  cors(),
   oneOf([
     query("tenant")
       .exists()
@@ -4057,7 +4040,6 @@ router.get(
 
 router.put(
   "/airqlouds",
-  cors(),
   oneOf([
     query("tenant")
       .exists()
@@ -4201,7 +4183,6 @@ router.put(
 
 router.delete(
   "/airqlouds",
-  cors(),
   oneOf([
     query("tenant")
       .exists()
@@ -4232,7 +4213,6 @@ router.delete(
 
 router.get(
   "/airqlouds/center",
-  cors(),
   oneOf([
     query("tenant")
       .exists()

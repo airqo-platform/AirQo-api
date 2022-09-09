@@ -8,7 +8,9 @@ const cloudinary = require("../config/cloudinary");
 const { logObject, logElement, logText } = require("./log");
 const generateFilter = require("./generate-filter");
 const log4js = require("log4js");
-const logger = log4js.getLogger("create-photo-util");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- create-photo-util`
+);
 const { kafkaProducer } = require("../config/kafkajs");
 
 const createPhoto = {
