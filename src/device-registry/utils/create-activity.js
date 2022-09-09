@@ -13,7 +13,9 @@ const generateFilter = require("./generate-filter");
 const constants = require("../config/constants");
 const distance = require("./distance");
 const log4js = require("log4js");
-const logger = log4js.getLogger("create-activity-util");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- create-activity-util`
+);
 
 const createActivity = {
   create: async (request) => {

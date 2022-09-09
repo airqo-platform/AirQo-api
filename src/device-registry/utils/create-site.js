@@ -15,7 +15,7 @@ const axiosInstance = () => {
 const generateFilter = require("./generate-filter");
 const log4js = require("log4js");
 const HTTPStatus = require("http-status");
-const logger = log4js.getLogger("create-site-util");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- create-site-util`);
 const distanceUtil = require("./distance");
 
 const SiteModel = (tenant) => {

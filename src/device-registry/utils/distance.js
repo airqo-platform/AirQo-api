@@ -1,6 +1,7 @@
 const { logObject, logElement, logText } = require("./log");
+const constants = require("../config/constants");
 const log4js = require("log4js");
-const logger = log4js.getLogger("distance-util");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- distance-util`);
 
 const distance = {
   findNearestDevices: (devices, radius, latitude, longitude) => {

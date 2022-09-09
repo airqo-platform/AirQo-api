@@ -7,7 +7,7 @@ const constants = require("../config/constants");
 const cryptoJS = require("crypto-js");
 const isEmpty = require("is-empty");
 const log4js = require("log4js");
-const logger = log4js.getLogger("device-model");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- device-model`);
 const HTTPStatus = require("http-status");
 const maxLength = [
   15,
