@@ -3,8 +3,11 @@ const isEmpty = require("is-empty");
 const { logObject, logElement, logText } = require("../utils/log");
 const { validationResult } = require("express-validator");
 const { getModelByTenant } = require("../utils/multitenancy");
+const constants = require("../config/constants");
 const log4js = require("log4js");
-const logger = log4js.getLogger("create-activity-controller");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- create-activity-controller`
+);
 const createActivityUtil = require("../utils/create-activity");
 const errors = require("../utils/errors");
 

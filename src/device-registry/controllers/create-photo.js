@@ -1,8 +1,11 @@
 const HTTPStatus = require("http-status");
 const { logObject, logElement, logText } = require("../utils/log");
 const errors = require("../utils/errors");
+const constants = require("../config/constants");
 const log4js = require("log4js");
-const logger = log4js.getLogger("create-photo-controller");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- create-photo-controller`
+);
 const { validationResult } = require("express-validator");
 const createPhotoUtil = require("../utils/create-photo");
 

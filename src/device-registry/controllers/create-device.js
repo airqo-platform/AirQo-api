@@ -5,9 +5,12 @@ const { logObject, logElement, logText } = require("../utils/log");
 const createDeviceUtil = require("../utils/create-device");
 const distance = require("../utils/distance");
 const { validationResult } = require("express-validator");
+const constants = require("../config/constants");
 const errors = require("../utils/errors");
 const log4js = require("log4js");
-const logger = log4js.getLogger("create-device-controller");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- create-device-controller`
+);
 
 const device = {
   decryptKey: async (req, res) => {

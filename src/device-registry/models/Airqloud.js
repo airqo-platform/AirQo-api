@@ -4,8 +4,11 @@ const uniqueValidator = require("mongoose-unique-validator");
 const { logElement, logObject, logText } = require("../utils/log");
 const isEmpty = require("is-empty");
 const HTTPStatus = require("http-status");
+const constants = require("../config/constants");
 const log4js = require("log4js");
-const logger = log4js.getLogger("create-airqloud-model");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- create-airqloud-model`
+);
 
 const polygonSchema = new Schema(
   {

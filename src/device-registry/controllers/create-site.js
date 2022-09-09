@@ -3,18 +3,16 @@ const HTTPStatus = require("http-status");
 const isEmpty = require("is-empty");
 const { logObject, logElement, logText } = require("../utils/log");
 const { validationResult } = require("express-validator");
-
 const errors = require("../utils/errors");
-
 const generateFilter = require("../utils/generate-filter");
-
 const createSiteUtil = require("../utils/create-site");
-
 const { getModelByTenant } = require("../utils/multitenancy");
-
+const constants = require("../config/constants");
 const log4js = require("log4js");
 const httpStatus = require("http-status");
-const logger = log4js.getLogger("create-site-controller");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- create-site-controller`
+);
 
 const manageSite = {
   register: async (req, res) => {

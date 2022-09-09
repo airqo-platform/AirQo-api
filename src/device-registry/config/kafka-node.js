@@ -3,7 +3,7 @@ const { logObject, logElement, logText } = require("../utils/log");
 const constants = require("./constants");
 const { KAFKA_BOOTSTRAP_SERVERS } = constants;
 const log4js = require("log4js");
-const logger = log4js.getLogger("kafka-config");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- kafka-config`);
 
 logElement("Kafka Bootstrap Servers", KAFKA_BOOTSTRAP_SERVERS);
 
