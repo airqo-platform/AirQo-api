@@ -155,8 +155,10 @@ class Utils:
             return "12H"
         if data_source == DataSource.AIRNOW:
             return "12H"
+        if data_source == DataSource.BIGQUERY:
+            return "720H"
         if data_source == DataSource.TAHMO:
-            return "12H"
+            return "24H"
         if data_source == DataSource.AIRQO:
             return "12H"
         if data_source == DataSource.CLARITY:

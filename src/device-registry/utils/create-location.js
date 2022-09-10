@@ -7,11 +7,13 @@ const HTTPStatus = require("http-status");
 const axiosInstance = () => {
   return axios.create();
 };
+const constants = require("../config/constants");
 const generateFilter = require("./generate-filter");
 const log4js = require("log4js");
-const logger = log4js.getLogger("create-location-util");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- create-location-util`
+);
 const { kafkaProducer } = require("../config/kafkajs");
-const constants = require("../config/constants");
 
 const createLocation = {
   initialIsCapital: (word) => {
@@ -22,9 +24,7 @@ const createLocation = {
       const hasWhiteSpace = word.indexOf(" ") >= 0;
       return !hasWhiteSpace;
     } catch (e) {
-      logger.error(
-        `create Location util server error -- hasNoWhiteSpace -- ${e.message}`
-      );
+      logger.error(`internal server error -- hasNoWhiteSpace -- ${e.message}`);
     }
   },
   create: async (request) => {
@@ -57,7 +57,7 @@ const createLocation = {
             ],
           });
         } catch (error) {
-          logObject("error on kafka", error);
+          logger.error(`internal server error -- ${error.message}`);
         }
 
         return {
@@ -85,6 +85,7 @@ const createLocation = {
         };
       }
     } catch (err) {
+      logger.error(`internal server error -- ${err.message}`);
       return {
         success: false,
         message: "unable to create location",
@@ -139,7 +140,7 @@ const createLocation = {
         };
       }
     } catch (err) {
-      logElement("update Locations util", err.message);
+      logger.error(`internal server error -- ${err.message}`);
       return {
         success: false,
         message: "unable to update location",
@@ -190,7 +191,7 @@ const createLocation = {
         };
       }
     } catch (err) {
-      logElement("delete Location util", err.message);
+      logger.error(`internal server error -- ${err.message}`);
       return {
         success: false,
         message: "unable to delete location",
@@ -248,7 +249,7 @@ const createLocation = {
         };
       }
     } catch (err) {
-      logElement("list Locations util", err.message);
+      logger.error(`internal server error -- ${err.message}`);
       return {
         success: false,
         message: "unable to list location",

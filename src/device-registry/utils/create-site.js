@@ -15,7 +15,7 @@ const axiosInstance = () => {
 const generateFilter = require("./generate-filter");
 const log4js = require("log4js");
 const HTTPStatus = require("http-status");
-const logger = log4js.getLogger("create-site-util");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- create-site-util`);
 const distanceUtil = require("./distance");
 
 const SiteModel = (tenant) => {
@@ -40,9 +40,7 @@ const manageSite = {
       return name.indexOf(" ") >= 0;
     } catch (e) {
       logger.error(
-        `create site util server error -- hasWhiteSpace -- ${{
-          message: e.message,
-        }}`
+        `create site util server error -- hasWhiteSpace -- ${e.message}`
       );
     }
   },
@@ -56,9 +54,7 @@ const manageSite = {
       return false;
     } catch (e) {
       logger.error(
-        `create site util server error -- check string length -- ${{
-          message: e.message,
-        }}`
+        `internal server error -- check string length -- ${e.message}`
       );
     }
   },
@@ -143,6 +139,7 @@ const manageSite = {
         };
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -202,6 +199,7 @@ const manageSite = {
         };
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -253,6 +251,11 @@ const manageSite = {
           }
         })
         .catch((error) => {
+          try {
+            logger.error(`internal server error -- ${JSON.stringify(error)}`);
+          } catch (error) {
+            logger.error(`internal server error -- ${error.message}`);
+          }
           return {
             success: false,
             errors: { message: error },
@@ -261,6 +264,7 @@ const manageSite = {
           };
         });
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -282,9 +286,7 @@ const manageSite = {
       return false;
     } catch (e) {
       logger.error(
-        `create site util server error -- validate site name -- ${{
-          message: e.message,
-        }}`
+        `internal server error -- validate site name -- ${e.message}`
       );
     }
   },
@@ -344,9 +346,7 @@ const manageSite = {
         };
       }
     } catch (e) {
-      logger.error(
-        `generateName util server error -- ${{ message: e.message }}`
-      );
+      logger.error(`internal server error -- ${e.message}`);
       return {
         success: false,
         errors: { message: { message: e.message } },
@@ -472,7 +472,7 @@ const manageSite = {
             ],
           });
         } catch (error) {
-          logObject("error on kafka", error.message);
+          logger.error(`internal server error -- ${error.message}`);
         }
 
         let status = responseFromCreateSite.status
@@ -501,6 +501,7 @@ const manageSite = {
         };
       }
     } catch (e) {
+      logger.error(`internal server error -- ${e.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -549,7 +550,7 @@ const manageSite = {
         };
       }
     } catch (e) {
-      logElement("update Sites util", { message: e.message });
+      logger.error(`internal server error -- ${e.message}`);
       return {
         success: false,
         message: "create site util server error -- update",
@@ -566,9 +567,7 @@ const manageSite = {
       let trimmedName = shortenedName.trim();
       return trimmedName.toLowerCase();
     } catch (error) {
-      logger.error(
-        `sanitiseName -- create site util -- ${{ message: error.message }}`
-      );
+      logger.error(`internal server error -- sanitiseName-- ${error.message}`);
     }
   },
 
@@ -598,6 +597,13 @@ const manageSite = {
               }
             })
             .catch((error) => {
+              try {
+                logger.error(
+                  `internal server error -- ${JSON.stringify(error)}`
+                );
+              } catch (error) {
+                logger.error(`internal server error -- ${error.message}`);
+              }
               return {
                 success: false,
                 errors: { message: error },
@@ -627,6 +633,7 @@ const manageSite = {
         }
       });
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -663,17 +670,21 @@ const manageSite = {
         let errors = responseFromGetAltitude.errors
           ? responseFromGetAltitude.errors
           : "";
-        logger.error(
-          `unable to retrieve the altitude for this site, ${responseFromGetAltitude.message} and ${errors}`
-        );
+        try {
+          logger.error(
+            `unable to retrieve the altitude for this site, ${
+              responseFromGetAltitude.message
+            } and ${JSON.stringify(errors)}`
+          );
+        } catch (error) {
+          logger.error(`internal server error ${error.message}`);
+        }
       }
 
       let responseFromGetRoadMetadata = await manageSite.getRoadMetadata(
         latitude,
         longitude
       );
-
-      logObject("responseFromGetRoadMetadata", responseFromGetRoadMetadata);
 
       if (responseFromGetRoadMetadata.success === true) {
         roadResponseData = responseFromGetRoadMetadata.data;
@@ -683,9 +694,15 @@ const manageSite = {
         let errors = responseFromGetRoadMetadata.errors
           ? responseFromGetRoadMetadata.errors
           : "";
-        logger.error(
-          `unable to retrieve the road metadata, ${responseFromGetRoadMetadata.message} and ${errors} `
-        );
+        try {
+          logger.error(
+            `unable to retrieve the road metadata, ${
+              responseFromGetRoadMetadata.message
+            } and ${JSON.stringify(errors)} `
+          );
+        } catch (error) {
+          logger.error(`internal server error -- ${error.message}`);
+        }
       }
 
       let responseFromReverseGeoCode = await manageSite.reverseGeoCode(
@@ -733,6 +750,7 @@ const manageSite = {
         };
       }
     } catch (e) {
+      logger.error(`internal server error -- ${e.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -915,6 +933,7 @@ const manageSite = {
         };
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         errors: { message: error.message },
         message: "create site util -- server error -- refresh site data",
@@ -964,7 +983,7 @@ const manageSite = {
         };
       }
     } catch (e) {
-      logElement("delete Site util", { message: e.message });
+      logger.error(`internal server error -- ${e.message}`);
       return {
         success: false,
         message: "delete Site util server error",
@@ -997,6 +1016,7 @@ const manageSite = {
         return modifiedResponseFromListSite;
       }
     } catch (e) {
+      logger.error(`internal server error -- ${e.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -1057,6 +1077,7 @@ const manageSite = {
         data: retrievedAddress,
       };
     } catch (e) {
+      logger.error(`internal server error -- ${e.message}`);
       return {
         success: false,
         message: "unable to transform the address",
@@ -1110,6 +1131,11 @@ const manageSite = {
           }
         })
         .catch((error) => {
+          try {
+            logger.error(`internal server error -- ${JSON.stringify(error)}`);
+          } catch (error) {
+            logger.error(`internal server error -- ${error.message}`);
+          }
           return {
             success: false,
             errors: { message: error },
@@ -1117,6 +1143,7 @@ const manageSite = {
           };
         });
     } catch (e) {
+      logger.error(`internal server error -- ${e.message}`);
       return {
         success: false,
         message: "unable to get the address values",
@@ -1128,14 +1155,14 @@ const manageSite = {
   getDistance: (lat, long) => {
     try {
     } catch (e) {
-      logElement("server error", { message: e.message });
+      logger.error(`internal server error -- ${e.message}`);
     }
   },
 
   getLandform: (lat, long) => {
     try {
     } catch (e) {
-      logElement("server error", { message: e.message });
+      logger.error(`internal server error -- ${e.message}`);
     }
   },
 
@@ -1161,7 +1188,11 @@ const manageSite = {
           };
         })
         .catch((e) => {
-          logElement("get altitude server error", { message: e.message });
+          try {
+            logger.error(`internal server error -- ${JSON.stringify(e)}`);
+          } catch (error) {
+            logger.error(`internal server error -- ${error.message}`);
+          }
           return {
             success: false,
             message: "get altitude server error",
@@ -1170,7 +1201,7 @@ const manageSite = {
           };
         });
     } catch (e) {
-      logElement("server error", { message: e.message });
+      logger.error(`internal server error -- ${e.message}`);
       return {
         success: false,
         message: "get altitude server error",
@@ -1183,49 +1214,49 @@ const manageSite = {
   getTrafficFactor: (lat, long) => {
     try {
     } catch (e) {
-      logElement("server error", { message: e.message });
+      logger.error(`internal server error -- ${e.message}`);
     }
   },
 
   getGreenness: (lat, long) => {
     try {
     } catch (e) {
-      logElement("server error", { message: e.message });
+      logger.error(`internal server error -- ${e.message}`);
     }
   },
 
   getTerrain: (lat, long) => {
     try {
     } catch (e) {
-      logElement("server error", { message: e.message });
+      logger.error(`internal server error -- ${e.message}`);
     }
   },
 
   getAspect: (lat, long) => {
     try {
     } catch (e) {
-      logElement("server error", { message: e.message });
+      logger.error(`internal server error -- ${e.message}`);
     }
   },
 
   getRoadIntesity: (lat, long) => {
     try {
     } catch (e) {
-      logElement("server error", { message: e.message });
+      logger.error(`internal server error -- ${e.message}`);
     }
   },
 
   getRoadStatus: (lat, long) => {
     try {
     } catch (e) {
-      logElement("server error", { message: e.message });
+      logger.error(`internal server error -- ${e.message}`);
     }
   },
 
   getLandUse: (lat, long) => {
     try {
     } catch (e) {
-      logElement("server error", { message: e.message });
+      logger.error(`internal server error -- ${e.message}`);
     }
   },
 
@@ -1233,7 +1264,7 @@ const manageSite = {
     try {
       return `${lat}_${long}`;
     } catch (e) {
-      logElement("server error", { message: e.message });
+      logger.error(`internal server error -- ${e.message}`);
     }
   },
 
@@ -1287,6 +1318,7 @@ const manageSite = {
         };
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -1499,7 +1531,7 @@ const manageSite = {
         });
       }
     } catch (e) {
-      logElement("error", e);
+      logger.error(`internal server error -- ${e.message}`);
     }
   },
   isDeviceRecalled: async (name, tenant) => {
@@ -1532,7 +1564,7 @@ const manageSite = {
       logElement("isRecalled", isRecalled);
       return isRecalled;
     } catch (e) {
-      logText("error", e);
+      logger.error(`internal server error -- ${e.message}`);
     }
   },
   isDeviceDeployed: async (name, tenant) => {
@@ -1564,7 +1596,7 @@ const manageSite = {
       logElement("isDeployed", isDeployed);
       return isDeployed;
     } catch (e) {
-      logText("error", e);
+      logger.error(`internal server error -- ${e.message}`);
     }
   },
   queryFilterOptions: async (req, res) => {
@@ -1581,6 +1613,7 @@ const manageSite = {
       };
       return { filter };
     } catch (e) {
+      logger.error(`internal server error -- ${e.message}`);
       tryCatchErrors(res, e);
     }
   },
@@ -1609,6 +1642,7 @@ const manageSite = {
       };
       return { activityBody };
     } catch (e) {
+      logger.error(`internal server error -- ${e.message}`);
       tryCatchErrors(res, e);
     }
   },
@@ -1635,7 +1669,7 @@ const manageSite = {
         message: "successfully approximated the GPS coordinates",
       };
     } catch (error) {
-      logObject("error in util", error);
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",

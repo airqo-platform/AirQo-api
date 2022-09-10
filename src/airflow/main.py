@@ -66,45 +66,41 @@ def kcca_hourly_measurements(start_date_time: str, end_date_time: str):
 
 
 def data_warehouse(start_date_time: str, end_date_time: str):
-    from airqo_etl_utils.data_warehouse_utils import (
-        query_hourly_measurements,
-        query_hourly_weather_data,
-        extract_sites_meta_data,
-        merge_measurements_weather_sites,
-    )
-    from airqo_etl_utils.bigquery_api import BigQueryApi
+    from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
 
-    hourly_device_measurements = query_hourly_measurements(
-        start_date_time=start_date_time,
-        end_date_time=end_date_time,
+    hourly_low_cost_data = DataWarehouseUtils.extract_hourly_low_cost_data(
+        start_date_time=start_date_time, end_date_time=end_date_time
     )
-    pd.DataFrame(hourly_device_measurements).to_csv(
-        path_or_buf="hourly_device_measurements.csv", index=False
-    )
+    hourly_low_cost_data.to_csv(path_or_buf="hourly_low_cost_data.csv", index=False)
 
-    hourly_weather_measurements = query_hourly_weather_data(
-        start_date_time=start_date_time,
-        end_date_time=end_date_time,
+    hourly_bam_data = DataWarehouseUtils.extract_hourly_bam_data(
+        start_date_time=start_date_time, end_date_time=end_date_time
     )
-    pd.DataFrame(hourly_weather_measurements).to_csv(
-        path_or_buf="hourly_weather_measurements.csv", index=False
-    )
+    hourly_bam_data.to_csv(path_or_buf="hourly_bam_data.csv", index=False)
 
-    sites_meta_data = extract_sites_meta_data()
-    pd.DataFrame(sites_meta_data).to_csv(path_or_buf="sites_meta_data.csv", index=False)
-
-    data = merge_measurements_weather_sites(
-        measurements_data=hourly_device_measurements,
-        weather_data=hourly_weather_measurements,
-        sites=sites_meta_data,
+    hourly_weather_data = DataWarehouseUtils.extract_hourly_weather_data(
+        start_date_time=start_date_time, end_date_time=end_date_time
     )
+    hourly_weather_data.to_csv(path_or_buf="hourly_weather_data.csv", index=False)
 
-    data_df = pd.DataFrame(data)
-    bigquery_api = BigQueryApi()
-    data_df = bigquery_api.validate_data(
-        dataframe=data_df, table=bigquery_api.analytics_table
+    sites_data = DataWarehouseUtils.extract_sites_meta_data()
+    sites_data.to_csv(path_or_buf="sites_data.csv", index=False)
+
+    hourly_low_cost_data = pd.read_csv("hourly_low_cost_data.csv")
+    hourly_bam_data = pd.read_csv("hourly_bam_data.csv")
+    hourly_weather_data = pd.read_csv("hourly_weather_data.csv")
+    sites_data = pd.read_csv("sites_data.csv")
+
+    analytics_merged_data = DataWarehouseUtils.merge_bam_low_cost_and_weather_data(
+        bam_data=hourly_bam_data,
+        low_cost_data=hourly_low_cost_data,
+        weather_data=hourly_weather_data,
+        sites_data=sites_data,
     )
-    data_df.to_csv(path_or_buf="data_warehouse.csv", index=False)
+    analytics_merged_data.to_csv(path_or_buf="analytics_merged_data.csv", index=False)
+
+    data = DataWarehouseUtils.format_data_for_bigquery(data=analytics_merged_data)
+    data.to_csv(path_or_buf="analytics_data.csv", index=False)
 
 
 def airqo_historical_hourly_data():
@@ -811,9 +807,12 @@ if __name__ == "__main__":
 
     from airqo_etl_utils.date import date_to_str_hours
 
-    hour_of_day = datetime.utcnow() - timedelta(hours=1)
+    hour_of_day = datetime.utcnow() - timedelta(days=14)
     default_args_start = date_to_str_hours(hour_of_day)
     default_args_end = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
+
+    # default_args_start = "2022-01-01T10:00:00Z"
+    # default_args_end = "2022-01-01T17:00:00Z"
 
     parser = argparse.ArgumentParser(description="Test functions configuration")
     parser.add_argument(

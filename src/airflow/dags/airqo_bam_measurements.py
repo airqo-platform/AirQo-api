@@ -89,7 +89,7 @@ def bam_realtime_measurements_etl():
         from airqo_etl_utils.date import DateUtils
         from airqo_etl_utils.constants import DeviceCategory
 
-        start_date_time, end_date_time = DateUtils.get_realtime_date_time_values()
+        start_date_time, end_date_time = DateUtils.get_query_date_time_values()
 
         return AirQoDataUtils.extract_devices_data(
             start_date_time=start_date_time,
