@@ -120,6 +120,9 @@ class AirQoDataUtils:
                 end_date_time=station_data.iloc[0]["end_date_time"],
                 station_codes=[station_data.iloc[0]["station_code"]],
             )
+            if raw_data.empty:
+                continue
+
             raw_data = WeatherDataUtils.transform_raw_data(raw_data)
             aggregated_data = WeatherDataUtils.aggregate_data(raw_data)
             aggregated_data["timestamp"] = aggregated_data["timestamp"].apply(
@@ -521,14 +524,16 @@ class AirQoDataUtils:
         sites = []
 
         for site in airqo_api.get_sites(tenant=Tenant.AIRQO):
-            for station in site.get("weather_stations", []):
-                sites.append(
+            sites.extend(
+                [
                     {
                         "site_id": site.get("_id"),
                         "station_code": station.get("code", None),
                         "distance": station.get("distance", None),
                     }
-                )
+                    for station in site.get("weather_stations", [])
+                ]
+            )
 
         sites = pd.DataFrame(sites)
 
@@ -543,8 +548,11 @@ class AirQoDataUtils:
                 continue
 
             site_weather_data = pd.merge(
-                left=site_weather_data, right=site_data, on="station_code", how="left"
+                site_weather_data, site_data, on="station_code"
             )
+            # site_weather_data.dropna(
+            #     subset=["temperature", "humidity"], how="all", inplace=True
+            # )
 
             for _, time_group in site_weather_data.groupby("timestamp"):
                 time_group.sort_values(ascending=True, by="distance", inplace=True)
@@ -553,9 +561,10 @@ class AirQoDataUtils:
                     keep="first", subset=["timestamp"], inplace=True
                 )
                 time_group = time_group[weather_data_cols]
+
                 time_group.loc[:, "site_id"] = site_data.iloc[0]["site_id"]
-                sites_weather_data = sites_weather_data.append(
-                    time_group, ignore_index=True
+                sites_weather_data = pd.concat(
+                    [sites_weather_data, time_group], ignore_index=True
                 )
 
         airqo_data_cols = list(airqo_data.columns)

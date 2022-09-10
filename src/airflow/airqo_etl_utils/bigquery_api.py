@@ -4,8 +4,7 @@ import pandas as pd
 from google.cloud import bigquery
 
 from .config import configuration
-from .constants import JobAction, ColumnDataType, Tenant
-from .data_validator import DataValidationUtils
+from .constants import JobAction, ColumnDataType, Tenant, QueryType
 from .utils import Utils
 
 
@@ -82,6 +81,8 @@ class BigQueryApi:
             "timestamp": date_time_columns,
         }
 
+        from .data_validator import DataValidationUtils
+
         dataframe = DataValidationUtils.format_data_types(
             data=dataframe, col_data_types=col_data_types
         )
@@ -150,8 +151,61 @@ class BigQueryApi:
         job.result()
 
         destination_table = self.client.get_table(table)
-        print(f"Loaded {len(dataframe)} rows to {table}")
+        print(f"Loaded {dataframe.size} rows to {table}")
         print(f"Total rows after load :  {destination_table.num_rows}")
+
+    def compose_query(
+        self,
+        query_type: QueryType,
+        table: str,
+        start_date_time: str,
+        end_date_time: str,
+        tenant: Tenant,
+        where_fields: dict = None,
+        null_cols: list = None,
+        columns: list = None,
+    ) -> str:
+
+        null_cols = [] if null_cols is None else null_cols
+        where_fields = {} if where_fields is None else where_fields
+
+        columns = ", ".join(map(str, columns)) if columns else " * "
+        where_clause = (
+            f" timestamp >= '{start_date_time}' and timestamp <= '{end_date_time} "
+        )
+        if tenant != Tenant.NONE:
+            where_clause = f" {where_clause}' and tenant = '{str(tenant)}' "
+
+        valid_cols = self.get_columns(table=table)
+
+        for key, value in where_fields.items():
+            if key not in valid_cols:
+                raise Exception(
+                    f"Invalid table column. {key} is not among the columns for {table}"
+                )
+            where_clause = where_clause + f" and {key} = '{value}' "
+
+        for field in null_cols:
+            if field not in valid_cols:
+                raise Exception(
+                    f"Invalid table column. {field} is not among the columns for {table}"
+                )
+            where_clause = where_clause + f" and {field} is null "
+
+        if query_type == QueryType.DELETE:
+            query = f"""
+                DELETE FROM `{table}`
+                WHERE {where_clause}
+            """
+        elif query_type == QueryType.GET:
+            query = f"""
+                SELECT {columns} FROM `{table}`
+                WHERE {where_clause}
+            """
+        else:
+            raise Exception(f"Invalid Query Type {str(query_type)}")
+
+        return query
 
     def reload_data(
         self,
@@ -160,15 +214,19 @@ class BigQueryApi:
         start_date_time: str,
         end_date_time: str,
         tenant: Tenant = Tenant.NONE,
+        where_fields: dict = None,
+        null_cols: list = None,
     ) -> None:
 
-        query = f"""
-            DELETE FROM `{table}`
-            WHERE timestamp >= '{start_date_time}' and timestamp <= '{end_date_time}'
-        """
-
-        if tenant != Tenant.NONE:
-            query = f" {query} and tenant = '{str(tenant)}' "
+        query = self.compose_query(
+            QueryType.DELETE,
+            table=table,
+            tenant=tenant,
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            where_fields=where_fields,
+            null_cols=null_cols,
+        )
 
         self.client.query(query=query).result()
 
@@ -179,24 +237,23 @@ class BigQueryApi:
         start_date_time: str,
         end_date_time: str,
         table: str,
+        tenant: Tenant,
         columns: list = None,
-        where_fields=None,
+        where_fields: dict = None,
+        null_cols: list = None,
     ) -> pd.DataFrame:
 
-        if where_fields is None:
-            where_fields = {}
+        query = self.compose_query(
+            QueryType.DELETE,
+            table=table,
+            tenant=tenant,
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            where_fields=where_fields,
+            null_cols=null_cols,
+            columns=columns,
+        )
 
-        columns = ", ".join(map(str, columns)) if columns else " * "
-
-        where_clause = ""
-        for key in where_fields.keys():
-            where_clause = where_clause + f" and {key} = '{where_fields[key]}'"
-
-        query = f"""
-            SELECT {columns}
-            FROM `{table}`
-            WHERE timestamp >= '{start_date_time}' and timestamp <= '{end_date_time}' {where_clause}
-        """
         dataframe = self.client.query(query=query).result().to_dataframe()
 
         if dataframe.empty:
