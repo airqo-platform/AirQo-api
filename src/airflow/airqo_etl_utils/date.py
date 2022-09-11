@@ -1,27 +1,65 @@
 from datetime import datetime, timedelta
 
+import numpy as np
+
 
 class DateUtils:
+    day_start_date_time_format = "%Y-%m-%dT00:00:00Z"
+    day_end_date_time_format = "%Y-%m-%dT11:59:59Z"
+    hour_date_time_format = "%Y-%m-%dT%H:00:00Z"
+
     @staticmethod
-    def get_gad_date_time_values(interval_in_days: int = 1, **kwargs):
+    def date_to_str(date: datetime, str_format):
+        return datetime.strftime(date, str_format)
+
+    @staticmethod
+    def get_dag_date_time_values(days: int = np.NAN, hours: int = np.NAN, **kwargs):
         try:
             dag_run = kwargs.get("dag_run")
             start_date_time = dag_run.conf["start_date_time"]
             end_date_time = dag_run.conf["end_date_time"]
         except KeyError:
-            end_date = datetime.utcnow()
-            start_date = end_date - timedelta(days=interval_in_days)
-            start_date_time = datetime.strftime(start_date, "%Y-%m-%dT00:00:00Z")
-            end_date_time = datetime.strftime(end_date, "%Y-%m-%dT11:59:59Z")
+            if hours != np.NAN:
+                start_date_time = datetime.utcnow() - timedelta(hours=hours)
+                end_date_time = start_date_time + timedelta(hours=hours)
+                start_date_time = DateUtils.date_to_str(
+                    start_date_time, DateUtils.hour_date_time_format
+                )
+                end_date_time = DateUtils.date_to_str(
+                    end_date_time, DateUtils.hour_date_time_format
+                )
+            elif days != np.NAN:
+                start_date_time = datetime.utcnow() - timedelta(days=days)
+                end_date_time = start_date_time + timedelta(days=days)
+                start_date_time = DateUtils.date_to_str(
+                    start_date_time, DateUtils.day_start_date_time_format
+                )
+                end_date_time = DateUtils.date_to_str(
+                    end_date_time, DateUtils.day_end_date_time_format
+                )
+            else:
+                start_date_time = datetime.utcnow() - timedelta(days=1)
+                end_date_time = start_date_time + timedelta(days=1)
+                start_date_time = DateUtils.date_to_str(
+                    start_date_time, DateUtils.day_start_date_time_format
+                )
+                end_date_time = DateUtils.date_to_str(
+                    end_date_time, DateUtils.day_end_date_time_format
+                )
 
         return start_date_time, end_date_time
 
     @staticmethod
-    def get_realtime_date_time_values(hours=1):
-        hour_of_day = datetime.utcnow() - timedelta(hours=hours)
-        start_date_time = date_to_str_hours(hour_of_day)
-        end_date_time = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
-        return start_date_time, end_date_time
+    def get_query_date_time_values(hours=1, days=0):
+
+        start_date_time = datetime.utcnow() - timedelta(hours=hours)
+        end_date_time = start_date_time + timedelta(hours=hours)
+
+        if days != 0:
+            start_date_time = datetime.utcnow() - timedelta(days=days)
+            end_date_time = start_date_time + timedelta(days=days)
+
+        return date_to_str_hours(start_date_time), date_to_str_hours(end_date_time)
 
 
 def get_utc_offset_for_hour(subject_hour: int) -> int:
@@ -75,14 +113,6 @@ def str_to_str_hours(dateStr: str) -> str:
     """
     date = str_to_date(dateStr)
     return date_to_str_hours(date)
-
-
-def str_to_date_to_str(date_str: str) -> str:
-    """
-    Converts string to a string hours
-    """
-    date = str_to_date(date_str)
-    return date_to_str(date)
 
 
 def str_to_str_days(dateStr: str) -> str:

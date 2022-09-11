@@ -20,7 +20,7 @@ def airnow_bam_historical_data_etl():
     def extract_bam_data(**kwargs):
         from airqo_etl_utils.date import DateUtils
 
-        start_date_time, end_date_time = DateUtils.get_gad_date_time_values(**kwargs)
+        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(**kwargs)
         from airqo_etl_utils.airnow_utils import AirnowDataUtils
 
         return AirnowDataUtils.extract_bam_data(
@@ -64,7 +64,7 @@ def airnow_bam_realtime_data_etl():
         from airqo_etl_utils.airnow_utils import AirnowDataUtils
         from airqo_etl_utils.date import DateUtils
 
-        start_date_time, end_date_time = DateUtils.get_realtime_date_time_values()
+        start_date_time, end_date_time = DateUtils.get_query_date_time_values()
 
         return AirnowDataUtils.extract_bam_data(
             start_date_time=start_date_time, end_date_time=end_date_time

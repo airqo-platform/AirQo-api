@@ -25,7 +25,7 @@ class AirQoDataUtils:
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             table=bigquery_api.raw_measurements_table,
-            where_fields={"tenant": "airqo"},
+            where_fields={"tenant": str(Tenant.AIRQO)},
         )
 
         if measurements.empty:
@@ -553,7 +553,7 @@ class AirQoDataUtils:
                     keep="first", subset=["timestamp"], inplace=True
                 )
                 time_group = time_group[weather_data_cols]
-                time_group["site_id"] = site_data.iloc[0]["site_id"]
+                time_group.loc[:, "site_id"] = site_data.iloc[0]["site_id"]
                 sites_weather_data = sites_weather_data.append(
                     time_group, ignore_index=True
                 )

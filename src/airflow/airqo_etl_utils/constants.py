@@ -59,6 +59,7 @@ class DataSource(Enum):
     TAHMO = 5
     AIRQO = 6
     PURPLE_AIR = 7
+    BIGQUERY = 8
 
 
 class Tenant(Enum):
