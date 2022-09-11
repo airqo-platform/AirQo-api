@@ -147,16 +147,17 @@ class PlumeLabsUtils:
         gps_timestamp = device_positions["timestamp"]
         timestamp_abs_diff = abs((gps_timestamp - timestamp).total_seconds())
 
-        if timestamp_abs_diff > 3600:
-            return pd.Series(
-                {
-                    "latitude": None,
-                    "longitude": None,
-                    "horizontal_accuracy": None,
-                    "gps_device_timestamp": None,
-                    "timestamp_abs_diff": None,
-                }
-            )
+        # Temporarily disabled timestamp difference
+        # if timestamp_abs_diff > 3600:
+        #     return pd.Series(
+        #         {
+        #             "latitude": None,
+        #             "longitude": None,
+        #             "horizontal_accuracy": None,
+        #             "gps_device_timestamp": None,
+        #             "timestamp_abs_diff": None,
+        #         }
+        #     )
 
         return pd.Series(
             {
@@ -203,7 +204,7 @@ class PlumeLabsUtils:
                 )
             )
 
-            data = data.append(device_data, ignore_index=True)
+            data = pd.concat([data, device_data], ignore_index=True)
 
         data.loc[:, "tenant"] = str(Tenant.URBAN_BETTER)
         return data

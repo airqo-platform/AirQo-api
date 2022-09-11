@@ -75,23 +75,10 @@ def data_warehouse_etl():
         )
 
     @task()
-    def load(data: pd.DataFrame, **kwargs):
-        from airqo_etl_utils.bigquery_api import BigQueryApi
-        from airqo_etl_utils.commons import get_date_time_values
-        from airqo_etl_utils.constants import Tenant
+    def load(data: pd.DataFrame):
+        from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
 
-        start_date_time, end_date_time = get_date_time_values(
-            **kwargs, interval_in_days=7
-        )
-
-        big_query_api = BigQueryApi()
-        big_query_api.reload_data(
-            dataframe=data,
-            table=big_query_api.analytics_table,
-            start_date_time=start_date_time,
-            end_date_time=end_date_time,
-            tenant=Tenant.AIRQO,
-        )
+        DataWarehouseUtils.reload_data(data)
 
     hourly_low_cost_data = extract_hourly_low_cost_data()
     hourly_bam_data = extract_hourly_bam_data()

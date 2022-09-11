@@ -4,6 +4,8 @@ from .airqo_api import AirQoApi
 from .airqo_utils import AirQoDataUtils
 from .bigquery_api import BigQueryApi
 from .constants import Tenant
+from .data_validator import DataValidationUtils
+from .date import date_to_str
 from .weather_data_utils import WeatherDataUtils
 
 
@@ -126,6 +128,8 @@ class DataWarehouseUtils:
         airqo_data = AirQoDataUtils.merge_aggregated_weather_data(
             airqo_data=airqo_data, weather_data=weather_data
         )
+        airqo_data[:, "temperature"] = airqo_data["external_temperature"]
+        airqo_data[:, "humidity"] = airqo_data["external_humidity"]
 
         devices_data = pd.concat(
             [airqo_data, non_airqo_data, bam_data], ignore_index=True
@@ -138,3 +142,27 @@ class DataWarehouseUtils:
         )
 
         return devices_data
+
+    @staticmethod
+    def reload_data(data: pd.DataFrame):
+
+        data = DataValidationUtils.format_data_types(
+            data=data, timestamps=["timestamp"]
+        )
+        start_date_time = date_to_str(data["timestamp"].min())
+        end_date_time = date_to_str(data["timestamp"].max())
+        tenant = Tenant.ALL
+
+        big_query_api = BigQueryApi()
+
+        data = DataValidationUtils.process_for_big_query(
+            dataframe=data, table=big_query_api.analytics_table, tenant=tenant
+        )
+
+        big_query_api.reload_data(
+            dataframe=data,
+            table=big_query_api.analytics_table,
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            tenant=tenant,
+        )
