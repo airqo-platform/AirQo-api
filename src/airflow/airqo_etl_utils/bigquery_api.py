@@ -39,22 +39,29 @@ class BigQueryApi:
         self,
         dataframe: pd.DataFrame,
         table: str,
-        raise_column_exception=True,
+        raise_exception=True,
         date_time_columns=None,
         float_columns=None,
         integer_columns=None,
     ) -> pd.DataFrame:
-        columns = self.get_columns(table=table)
+        valid_cols = self.get_columns(table=table)
+        dataframe_cols = dataframe.columns.to_list()
 
-        if set(columns).issubset(set(list(dataframe.columns))):
-            dataframe = dataframe[columns]
+        if "external_temperature" in valid_cols and "temperature" in dataframe_cols:
+            dataframe.loc[:, "external_temperature"] = dataframe["temperature"]
+
+        if "external_humidity" in valid_cols and "humidity" in dataframe_cols:
+            dataframe.loc[:, "external_humidity"] = dataframe["humidity"]
+
+        if set(valid_cols).issubset(set(dataframe_cols)):
+            dataframe = dataframe[valid_cols]
         else:
-            print(f"Required columns {columns}")
-            print(f"Dataframe columns {list(dataframe.columns)}")
+            print(f"Required columns {valid_cols}")
+            print(f"Dataframe columns {dataframe_cols}")
             print(
-                f"Difference between required and received {list(set(columns) - set(dataframe.columns))}"
+                f"Difference between required and received {list(set(valid_cols) - set(dataframe_cols))}"
             )
-            if raise_column_exception:
+            if raise_exception:
                 raise Exception("Invalid columns")
 
         date_time_columns = (
@@ -75,16 +82,13 @@ class BigQueryApi:
             else self.get_columns(table=table, data_type=ColumnDataType.INTEGER)
         )
 
-        col_data_types = {
-            "float": float_columns,
-            "integer": integer_columns,
-            "timestamp": date_time_columns,
-        }
-
         from .data_validator import DataValidationUtils
 
         dataframe = DataValidationUtils.format_data_types(
-            data=dataframe, col_data_types=col_data_types
+            data=dataframe,
+            floats=float_columns,
+            integers=integer_columns,
+            timestamps=date_time_columns,
         )
 
         return dataframe.drop_duplicates(keep="first")
@@ -171,10 +175,10 @@ class BigQueryApi:
 
         columns = ", ".join(map(str, columns)) if columns else " * "
         where_clause = (
-            f" timestamp >= '{start_date_time}' and timestamp <= '{end_date_time} "
+            f" timestamp >= '{start_date_time}' and timestamp <= '{end_date_time}' "
         )
-        if tenant != Tenant.NONE:
-            where_clause = f" {where_clause}' and tenant = '{str(tenant)}' "
+        if tenant != Tenant.ALL:
+            where_clause = f" {where_clause} and tenant = '{str(tenant)}' "
 
         valid_cols = self.get_columns(table=table)
 
@@ -213,7 +217,7 @@ class BigQueryApi:
         table: str,
         start_date_time: str,
         end_date_time: str,
-        tenant: Tenant = Tenant.NONE,
+        tenant: Tenant = Tenant.ALL,
         where_fields: dict = None,
         null_cols: list = None,
     ) -> None:
@@ -230,7 +234,7 @@ class BigQueryApi:
 
         self.client.query(query=query).result()
 
-        self.load_data(dataframe=dataframe, table=table, job_action=JobAction.APPEND)
+        self.load_data(dataframe=dataframe, table=table)
 
     def query_data(
         self,
@@ -244,7 +248,7 @@ class BigQueryApi:
     ) -> pd.DataFrame:
 
         query = self.compose_query(
-            QueryType.DELETE,
+            QueryType.GET,
             table=table,
             tenant=tenant,
             start_date_time=start_date_time,

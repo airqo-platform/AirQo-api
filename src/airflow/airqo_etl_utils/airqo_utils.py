@@ -19,13 +19,27 @@ from .weather_data_utils import WeatherDataUtils
 
 class AirQoDataUtils:
     @staticmethod
+    def extract_uncalibrated_data(start_date_time, end_date_time) -> pd.DataFrame:
+        bigquery_api = BigQueryApi()
+
+        hourly_uncalibrated_data = bigquery_api.query_data(
+            table=bigquery_api.hourly_measurements_table,
+            null_cols=["pm2_5_calibrated_value"],
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            tenant=Tenant.AIRQO,
+        )
+
+        return DataValidationUtils.remove_outliers(hourly_uncalibrated_data)
+
+    @staticmethod
     def extract_aggregated_raw_data(start_date_time, end_date_time) -> pd.DataFrame:
         bigquery_api = BigQueryApi()
         measurements = bigquery_api.query_data(
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             table=bigquery_api.raw_measurements_table,
-            where_fields={"tenant": str(Tenant.AIRQO)},
+            tenant=Tenant.AIRQO,
         )
 
         if measurements.empty:
@@ -321,9 +335,10 @@ class AirQoDataUtils:
                         inplace=True,
                     )
 
-                devices_data = devices_data.append(
-                    data[data_columns], ignore_index=True
+                devices_data = pd.concat(
+                    [devices_data, data[data_columns]], ignore_index=True
                 )
+
         if remove_outliers:
             devices_data = DataValidationUtils.remove_outliers(devices_data)
 
@@ -517,8 +532,10 @@ class AirQoDataUtils:
         if weather_data.empty:
             return airqo_data
 
-        weather_data["timestamp"] = weather_data["timestamp"].apply(pd.to_datetime)
-        airqo_data["timestamp"] = airqo_data["timestamp"].apply(pd.to_datetime)
+        weather_data.loc[:, "timestamp"] = weather_data["timestamp"].apply(
+            pd.to_datetime
+        )
+        airqo_data.loc[:, "timestamp"] = airqo_data["timestamp"].apply(pd.to_datetime)
 
         airqo_api = AirQoApi()
         sites = []
@@ -550,9 +567,6 @@ class AirQoDataUtils:
             site_weather_data = pd.merge(
                 site_weather_data, site_data, on="station_code"
             )
-            # site_weather_data.dropna(
-            #     subset=["temperature", "humidity"], how="all", inplace=True
-            # )
 
             for _, time_group in site_weather_data.groupby("timestamp"):
                 time_group.sort_values(ascending=True, by="distance", inplace=True)

@@ -1,33 +1,32 @@
 import numpy as np
 import pandas as pd
 
-from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.constants import Tenant
 from airqo_etl_utils.utils import Utils
 
 
 class DataValidationUtils:
     @staticmethod
-    def format_data_types(data: pd.DataFrame, col_data_types: dict) -> pd.DataFrame:
+    def format_data_types(
+        data: pd.DataFrame,
+        floats: list = None,
+        integers: list = None,
+        timestamps: list = None,
+    ) -> pd.DataFrame:
 
-        # formatting floats
-        float_columns = col_data_types.get("float", [])
-        data[float_columns] = data[float_columns].apply(pd.to_numeric, errors="coerce")
+        floats = [] if floats is None else floats
+        integers = [] if integers is None else integers
+        timestamps = [] if timestamps is None else timestamps
+
+        data[floats] = data[floats].apply(pd.to_numeric, errors="coerce")
+        data[timestamps] = data[timestamps].apply(pd.to_datetime, errors="coerce")
 
         # formatting integers
-        integer_columns = col_data_types.get("integer", [])
-
-        null_data = data[data[integer_columns].isnull().all(axis=1)]
-        not_null_data = data[data[integer_columns].notnull().all(axis=1)]
-        not_null_data[integer_columns] = not_null_data[integer_columns].apply(np.int64)
-
+        null_data = data[data[integers].isnull().all(axis=1)]
+        not_null_data = data[data[integers].notnull().all(axis=1)]
+        if not not_null_data.empty:
+            not_null_data[integers] = not_null_data[integers].apply(np.int64)
         data = pd.concat([null_data, not_null_data], ignore_index=True)
-
-        # formatting timestamp
-        timestamp_columns = col_data_types.get("timestamp", [])
-        data[timestamp_columns] = data[timestamp_columns].apply(
-            pd.to_datetime, errors="coerce"
-        )
 
         return data
 
@@ -107,13 +106,11 @@ class DataValidationUtils:
         float_columns = list(float_columns & set(data.columns))
         integer_columns = list(integer_columns & set(data.columns))
 
-        col_data_types = {
-            "float": float_columns,
-            "integer": integer_columns,
-            "timestamp": ["timestamp"],
-        }
         data = DataValidationUtils.format_data_types(
-            data=data, col_data_types=col_data_types
+            data=data,
+            floats=float_columns,
+            integers=integer_columns,
+            timestamps=["timestamp"],
         )
 
         for col in float_columns:
@@ -155,8 +152,10 @@ class DataValidationUtils:
     def process_for_big_query(
         dataframe: pd.DataFrame, table: str, tenant: Tenant
     ) -> pd.DataFrame:
-        big_query_api = BigQueryApi()
-        columns = big_query_api.get_columns(table)
-        dataframe[:, "tenant"] = str(tenant)
+        from airqo_etl_utils.bigquery_api import BigQueryApi
+
+        columns = BigQueryApi().get_columns(table)
+        if tenant != Tenant.ALL:
+            dataframe.loc[:, "tenant"] = str(tenant)
         dataframe = Utils.populate_missing_columns(data=dataframe, cols=columns)
         return dataframe[columns]

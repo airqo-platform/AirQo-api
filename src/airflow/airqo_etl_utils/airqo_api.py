@@ -93,13 +93,13 @@ class AirQoApi:
 
     def get_devices(
         self,
-        tenant: Tenant = Tenant.NONE,
+        tenant: Tenant = Tenant.ALL,
         category: DeviceCategory = DeviceCategory.NONE,
     ) -> list:
         devices = []
-        if tenant == Tenant.NONE:
+        if tenant == Tenant.ALL:
             for tenant in Tenant:
-                if tenant == Tenant.NONE:
+                if tenant == Tenant.ALL:
                     continue
                 try:
                     response = self.__request("devices", {"tenant": str(tenant)})
@@ -205,11 +205,11 @@ class AirQoApi:
 
         return list(response["weather_stations"]) if response else []
 
-    def get_sites(self, tenant: Tenant = Tenant.NONE) -> list:
+    def get_sites(self, tenant: Tenant = Tenant.ALL) -> list:
         sites = []
-        if tenant == Tenant.NONE:
+        if tenant == Tenant.ALL:
             for tenant in Tenant:
-                if tenant == Tenant.NONE:
+                if tenant == Tenant.ALL:
                     continue
                 try:
                     response = self.__request("devices/sites", {"tenant": str(tenant)})

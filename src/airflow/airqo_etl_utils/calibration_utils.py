@@ -65,7 +65,9 @@ class CalibrationUtils:
 
             if not response:
                 print("\n\nFailed to calibrate\n\n")
-                calibrated_data = calibrated_data.append(time_group, ignore_index=True)
+                calibrated_data = pd.concat(
+                    [calibrated_data, time_group], ignore_index=True
+                )
                 continue
 
             response = pd.DataFrame(response)
@@ -79,6 +81,10 @@ class CalibrationUtils:
                 inplace=True,
             )
 
+            for col in ["pm2_5_calibrated_value", "pm10_calibrated_value"]:
+                if col in time_group.columns.to_list():
+                    del time_group[col]
+
             merged_data = pd.merge(
                 left=time_group,
                 right=response,
@@ -86,8 +92,10 @@ class CalibrationUtils:
                 on=["device_number"],
             )
 
-            calibrated_data = calibrated_data.append(merged_data, ignore_index=True)
+            calibrated_data = pd.concat(
+                [calibrated_data, merged_data], ignore_index=True
+            )
 
-        data = calibrated_data.append(uncalibrated_data, ignore_index=True)
+        data = pd.concat([calibrated_data, uncalibrated_data], ignore_index=True)
 
         return CalibrationUtils.format_calibrated_data(data)

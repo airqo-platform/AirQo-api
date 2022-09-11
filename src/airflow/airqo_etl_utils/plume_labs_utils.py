@@ -145,7 +145,18 @@ class PlumeLabsUtils:
         ]
         device_positions = device_positions.loc[index].to_dict()
         gps_timestamp = device_positions["timestamp"]
-        timestamp_abs_diff = (gps_timestamp - timestamp).total_seconds()
+        timestamp_abs_diff = abs((gps_timestamp - timestamp).total_seconds())
+
+        if timestamp_abs_diff > 3600:
+            return pd.Series(
+                {
+                    "latitude": None,
+                    "longitude": None,
+                    "horizontal_accuracy": None,
+                    "gps_device_timestamp": None,
+                    "timestamp_abs_diff": None,
+                }
+            )
 
         return pd.Series(
             {
@@ -153,7 +164,7 @@ class PlumeLabsUtils:
                 "longitude": device_positions["longitude"],
                 "horizontal_accuracy": device_positions["horizontal_accuracy"],
                 "gps_device_timestamp": gps_timestamp,
-                "timestamp_abs_diff": abs(timestamp_abs_diff),
+                "timestamp_abs_diff": timestamp_abs_diff,
             }
         )
 
@@ -198,5 +209,8 @@ class PlumeLabsUtils:
         return data
 
     @staticmethod
-    def clean_data(data: pd.DataFrame) -> pd.DataFrame:
-        return DataValidationUtils.remove_outliers(data)
+    def clean_data(data: pd.DataFrame, add_air_quality: bool = True) -> pd.DataFrame:
+        data = DataValidationUtils.remove_outliers(data.copy())
+        if add_air_quality:
+            data = PlumeLabsUtils.add_air_quality(data)
+        return data
