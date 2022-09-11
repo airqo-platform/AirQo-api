@@ -21,10 +21,11 @@ const decimalPlaces = require("decimal-places");
 
 const headers = (req, res, next) => {
   const allowedOrigins = constants.DOMAIN_WHITELIST;
-  const origin = req.headers.origin;
-  if (allowedOrigins.includes(origin)) {
-    res.setHeader("Access-Control-Allow-Origin", origin);
-  }
+  // const origin = req.headers.origin;
+  // if (allowedOrigins.includes(origin)) {
+  //   res.setHeader("Access-Control-Allow-Origin", origin);
+  // }
+  res.setHeader("Access-Control-Allow-Origin", allowedOrigins);
   res.header(
     "Access-Control-Allow-Headers",
     "Origin, X-Requested-With, Content-Type, Accept, Authorization"
