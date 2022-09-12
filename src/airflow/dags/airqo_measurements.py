@@ -89,7 +89,7 @@ def calibrate_measurements_etl():
     weather_data = extract_weather_data()
     merged_data = merge_data(
         device_measurements=uncalibrated_data,
-        weather_data=weather_data,
+        hourly_weather_data=weather_data,
     )
     calibrated_data = calibrate_data(merged_data)
     load(calibrated_data)

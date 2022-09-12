@@ -22,11 +22,12 @@ class DataValidationUtils:
         data[timestamps] = data[timestamps].apply(pd.to_datetime, errors="coerce")
 
         # formatting integers
-        null_data = data[data[integers].isnull().all(axis=1)]
-        not_null_data = data[data[integers].notnull().all(axis=1)]
-        if not not_null_data.empty:
-            not_null_data[integers] = not_null_data[integers].apply(np.int64)
-        data = pd.concat([null_data, not_null_data], ignore_index=True)
+        if integers:
+            null_data = data[data[integers].isnull().all(axis=1)]
+            not_null_data = data[data[integers].notnull().all(axis=1)]
+            if not not_null_data.empty:
+                not_null_data[integers] = not_null_data[integers].apply(np.int64)
+            data = pd.concat([null_data, not_null_data], ignore_index=True)
 
         return data
 
@@ -103,14 +104,19 @@ class DataValidationUtils:
             "status",
         }
 
+        timestamp_columns = {
+            "timestamp",
+        }
+
         float_columns = list(float_columns & set(data.columns))
         integer_columns = list(integer_columns & set(data.columns))
+        timestamp_columns = list(timestamp_columns & set(data.columns))
 
         data = DataValidationUtils.format_data_types(
             data=data,
             floats=float_columns,
             integers=integer_columns,
-            timestamps=["timestamp"],
+            timestamps=timestamp_columns,
         )
 
         for col in float_columns:

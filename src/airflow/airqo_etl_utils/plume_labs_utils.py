@@ -211,7 +211,7 @@ class PlumeLabsUtils:
 
     @staticmethod
     def clean_data(data: pd.DataFrame, add_air_quality: bool = True) -> pd.DataFrame:
-        data = DataValidationUtils.remove_outliers(data.copy())
+        data = DataValidationUtils.remove_outliers(data)
         if add_air_quality:
             data = PlumeLabsUtils.add_air_quality(data)
         return data

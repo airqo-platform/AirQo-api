@@ -99,8 +99,6 @@ class AirQoApi:
         devices = []
         if tenant == Tenant.ALL:
             for tenant in Tenant:
-                if tenant == Tenant.ALL:
-                    continue
                 try:
                     response = self.__request("devices", {"tenant": str(tenant)})
                     tenant_devices = [
@@ -112,7 +110,7 @@ class AirQoApi:
                     continue
 
         else:
-            response = self.__request("devices", {"tenant": tenant})
+            response = self.__request("devices", {"tenant": str(tenant)})
             devices = [
                 {**device, **{"tenant": str(tenant)}}
                 for device in response.get("devices", [])
@@ -209,8 +207,6 @@ class AirQoApi:
         sites = []
         if tenant == Tenant.ALL:
             for tenant in Tenant:
-                if tenant == Tenant.ALL:
-                    continue
                 try:
                     response = self.__request("devices/sites", {"tenant": str(tenant)})
                     tenant_sites = [
@@ -222,7 +218,7 @@ class AirQoApi:
                     continue
 
         else:
-            response = self.__request("devices/sites", {"tenant": tenant})
+            response = self.__request("devices/sites", {"tenant": str(tenant)})
             sites = [
                 {**site, **{"tenant": str(tenant)}}
                 for site in response.get("sites", [])

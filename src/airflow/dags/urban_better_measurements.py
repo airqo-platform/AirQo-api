@@ -71,6 +71,78 @@ def historical_raw_measurements_etl__plume_labs():
         )
         big_query_api.load_data(dataframe=data, table=table)
 
+    measures = extract_measures()
+    load_measures(measures)
+    device_sensor_positions = extract_sensor_positions()
+    load_sensor_positions(device_sensor_positions)
+
+
+@dag(
+    "Urban-Better-Plume-Labs-Historical-Processed-Measurements",
+    schedule_interval=None,
+    on_failure_callback=slack_dag_failure_notification,
+    start_date=datetime(2021, 1, 1),
+    catchup=False,
+    tags=["urban better", "processed", "historical", "plume labs"],
+)
+def historical_processed_measurements_etl__plume_labs():
+    import pandas as pd
+
+    @task()
+    def extract_measures(**kwargs):
+
+        from airqo_etl_utils.utils import Utils
+        from airqo_etl_utils.plume_labs_utils import PlumeLabsUtils
+        from airqo_etl_utils.constants import Tenant
+
+        start_date_time, end_date_time = Utils.get_dag_date_time_config(**kwargs)
+        return PlumeLabsUtils.extract_sensor_measures(
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            tenant=Tenant.URBAN_BETTER,
+        )
+
+    @task()
+    def load_measures(sensor_measures: pd.DataFrame):
+        from airqo_etl_utils.data_validator import DataValidationUtils
+        from airqo_etl_utils.bigquery_api import BigQueryApi
+        from airqo_etl_utils.constants import Tenant
+
+        big_query_api = BigQueryApi()
+        table = big_query_api.raw_measurements_table
+        data = DataValidationUtils.process_for_big_query(
+            dataframe=sensor_measures, table=table, tenant=Tenant.URBAN_BETTER
+        )
+
+        big_query_api.load_data(dataframe=data, table=table)
+
+    @task()
+    def extract_sensor_positions(**kwargs):
+
+        from airqo_etl_utils.utils import Utils
+        from airqo_etl_utils.plume_labs_utils import PlumeLabsUtils
+        from airqo_etl_utils.constants import Tenant
+
+        start_date_time, end_date_time = Utils.get_dag_date_time_config(**kwargs)
+        return PlumeLabsUtils.extract_sensor_positions(
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            tenant=Tenant.URBAN_BETTER,
+        )
+
+    @task()
+    def load_sensor_positions(sensor_positions: pd.DataFrame):
+        from airqo_etl_utils.data_validator import DataValidationUtils
+        from airqo_etl_utils.bigquery_api import BigQueryApi
+        from airqo_etl_utils.constants import Tenant
+
+        big_query_api = BigQueryApi()
+        table = big_query_api.sensor_positions_table
+        data = DataValidationUtils.process_for_big_query(
+            dataframe=sensor_positions, table=table, tenant=Tenant.URBAN_BETTER
+        )
+        big_query_api.load_data(dataframe=data, table=table)
+
     @task()
     def merge_datasets(devices_measures: pd.DataFrame, sensor_positions: pd.DataFrame):
 
@@ -369,4 +441,7 @@ realtime_measurements_etl__air_beam_dag = realtime_measurements_etl__air_beam()
 historical_measurements_etl__air_beam_dag = historical_measurements_etl__air_beam()
 historical_raw_measurements_etl__plume_labs_dag = (
     historical_raw_measurements_etl__plume_labs()
+)
+historical_processed_measurements_etl__plume_labs_dag = (
+    historical_processed_measurements_etl__plume_labs()
 )
