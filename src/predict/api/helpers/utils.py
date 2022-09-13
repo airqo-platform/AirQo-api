@@ -193,7 +193,9 @@ def get_gp_predictions(airqloud):
     #     return {'message':'unable to connect to database', 'success':False}, 400
 
     # db = client[DB_NAME]
-    query = {'airqloud':airqloud}
+    #query = {'airqloud':airqloud}
+    today = datetime.today()
+    query=  {"created_at": {"$gt": today - timedelta(2)}}
     projection = {'_id': 0, 
                     'latitude': 1, 
                     'longitude': 1, 
@@ -217,10 +219,8 @@ def get_gp_predictions_id(aq_id):
     #     return {'message':'unable to connect to database', 'success':False}, 400
 
     # db = client[DB_NAME]
-    #query = {'airqloud_id': aq_id}
-    today = datetime.today()
-    query=  {"created_at": {"$gt": today - timedelta(2)}}
-
+    query = {'airqloud_id': aq_id}
+   
     projection = {'_id': 0, 'latitude': 1, 'longitude': 1, 'predicted_value': 1, 'variance': 1, 'interval': 1, 'airqloud':1, 'created_at':1, 'airqloud_id':1}
     records = list(db.gp_predictions.find(query, projection))
     return records
