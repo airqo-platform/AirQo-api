@@ -1,3 +1,5 @@
+const AdminJS = require("adminjs");
+const adminRouter = require("./config/admin");
 require("app-module-path").addPath(__dirname);
 const express = require("express");
 const path = require("path");
@@ -13,6 +15,12 @@ mongodb;
 
 const app = express();
 
+const adminJs = new AdminJS({
+  databases: [],
+  rootPath: "/admin",
+});
+
+app.use(adminJs.options.rootPath, adminRouter);
 app.use(logger("dev"));
 app.use(bodyParser.json());
 app.use(express.json());
