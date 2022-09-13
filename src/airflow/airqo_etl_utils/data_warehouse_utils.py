@@ -128,8 +128,6 @@ class DataWarehouseUtils:
         airqo_data = AirQoDataUtils.merge_aggregated_weather_data(
             airqo_data=airqo_data, weather_data=weather_data
         )
-        airqo_data[:, "temperature"] = airqo_data["external_temperature"]
-        airqo_data[:, "humidity"] = airqo_data["external_humidity"]
 
         devices_data = pd.concat(
             [airqo_data, non_airqo_data, bam_data], ignore_index=True

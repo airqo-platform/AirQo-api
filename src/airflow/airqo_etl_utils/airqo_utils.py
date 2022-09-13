@@ -467,49 +467,51 @@ class AirQoDataUtils:
                         devices,
                     )
                 )[0]
+                data = {
+                    "device": device_details["name"],
+                    "device_id": device_details["_id"],
+                    "site_id": row["site_id"],
+                    "device_number": device_number,
+                    "tenant": str(Tenant.AIRQO),
+                    "location": {
+                        "latitude": {"value": row["latitude"]},
+                        "longitude": {"value": row["longitude"]},
+                    },
+                    "frequency": str(frequency),
+                    "time": row["timestamp"],
+                    "average_pm2_5": {
+                        "value": row["pm2_5"],
+                        "calibratedValue": row["pm2_5_calibrated_value"],
+                    },
+                    "average_pm10": {
+                        "value": row["pm10"],
+                        "calibratedValue": row["pm10_calibrated_value"],
+                    },
+                    "pm2_5": {
+                        "value": row["pm2_5"],
+                        "calibratedValue": row["pm2_5_calibrated_value"],
+                    },
+                    "pm10": {
+                        "value": row["pm10"],
+                        "calibratedValue": row["pm10_calibrated_value"],
+                    },
+                    "s1_pm2_5": {"value": row["s1_pm2_5"]},
+                    "s1_pm10": {"value": row["s1_pm10"]},
+                    "s2_pm2_5": {"value": row["s2_pm2_5"]},
+                    "s2_pm10": {"value": row["s2_pm10"]},
+                    "battery": {"value": row["battery"]},
+                    "altitude": {"value": row["altitude"]},
+                    "speed": {"value": row["wind_speed"]},
+                    "satellites": {"value": row["satellites"]},
+                    "hdop": {"value": row["hdop"]},
+                    "externalTemperature": {"value": row["temperature"]},
+                    "externalHumidity": {"value": row["humidity"]},
+                }
 
-                restructured_data.append(
-                    {
-                        "device": device_details["name"],
-                        "device_id": device_details["_id"],
-                        "site_id": row["site_id"],
-                        "device_number": device_number,
-                        "tenant": str(Tenant.AIRQO),
-                        "location": {
-                            "latitude": {"value": row["latitude"]},
-                            "longitude": {"value": row["longitude"]},
-                        },
-                        "frequency": str(frequency),
-                        "time": row["timestamp"],
-                        "average_pm2_5": {
-                            "value": row["pm2_5"],
-                            "calibratedValue": row["pm2_5_calibrated_value"],
-                        },
-                        "average_pm10": {
-                            "value": row["pm10"],
-                            "calibratedValue": row["pm10_calibrated_value"],
-                        },
-                        "pm2_5": {
-                            "value": row["pm2_5"],
-                            "calibratedValue": row["pm2_5_calibrated_value"],
-                        },
-                        "pm10": {
-                            "value": row["pm10"],
-                            "calibratedValue": row["pm10_calibrated_value"],
-                        },
-                        "s1_pm2_5": {"value": row["s1_pm2_5"]},
-                        "s1_pm10": {"value": row["s1_pm10"]},
-                        "s2_pm2_5": {"value": row["s2_pm2_5"]},
-                        "s2_pm10": {"value": row["s2_pm10"]},
-                        "battery": {"value": row["battery"]},
-                        "altitude": {"value": row["altitude"]},
-                        "speed": {"value": row["wind_speed"]},
-                        "satellites": {"value": row["satellites"]},
-                        "hdop": {"value": row["hdop"]},
-                        "externalTemperature": {"value": row["temperature"]},
-                        "externalHumidity": {"value": row["humidity"]},
-                    }
-                )
+                if data["site_id"] is None:
+                    data.pop("site_id")
+
+                restructured_data.append(data)
 
             except Exception as ex:
                 traceback.print_exc()

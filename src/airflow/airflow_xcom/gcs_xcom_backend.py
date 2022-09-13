@@ -75,6 +75,12 @@ class GCSXComBackend(BaseXCom):
             except ParserError:
                 result = pd.read_csv(filename, lineterminator="\n")
 
+            try:
+                os.remove(filename)
+            except Exception as ex:
+                print(ex)
+                pass
+
         return result
 
     def orm_deserialize_value(self) -> Any:
