@@ -4,7 +4,7 @@ const constants = require("../config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- date-util`);
 
-const generateDateFormat = (ISODate) => {
+function generateDateFormat(ISODate) {
   try {
     let date = new Date(ISODate);
     let year = date.getFullYear();
@@ -22,9 +22,9 @@ const generateDateFormat = (ISODate) => {
   } catch (e) {
     logger.error(`internal server error -- ${e.message}`);
   }
-};
+}
 
-const isTimeEmpty = (dateTime) => {
+function isTimeEmpty(dateTime) {
   let date = new Date(dateTime);
   let hrs = date.getUTCHours();
   let mins = date.getUTCMinutes();
@@ -43,13 +43,13 @@ const isTimeEmpty = (dateTime) => {
     return false;
   }
   return true;
-};
+}
 
-const formatDate = (dateTime) => {
+function formatDate(dateTime) {
   return new Date(dateTime).toISOString();
-};
+}
 
-const generateDateFormatWithoutHrs = (ISODate) => {
+function generateDateFormatWithoutHrs(ISODate) {
   try {
     let date = new Date(ISODate);
     let year = date.getFullYear();
@@ -67,9 +67,9 @@ const generateDateFormatWithoutHrs = (ISODate) => {
   } catch (e) {
     logger.error(`internal server error -- ${e.message}`);
   }
-};
+}
 
-const addMonthsToProvidedDate = (date, number) => {
+function addMonthsToProvidedDate(date, number) {
   try {
     logElement("the day I am receiving", date);
     let year = date.split("-")[0];
@@ -81,9 +81,9 @@ const addMonthsToProvidedDate = (date, number) => {
   } catch (e) {
     logger.error(`internal server error -- ${e.message}`);
   }
-};
+}
 
-const addMonthsToProvideDateTime = (dateTime, number) => {
+function addMonthsToProvideDateTime(dateTime, number) {
   try {
     if (isTimeEmpty(dateTime) == false) {
       logText("the time is not empty....");
@@ -107,9 +107,9 @@ const addMonthsToProvideDateTime = (dateTime, number) => {
   } catch (e) {
     logger.error(`internal server error -- ${e.message}`);
   }
-};
+}
 
-const monthsInfront = (number) => {
+function monthsInfront(number) {
   try {
     let d = new Date();
     let targetMonth = d.getMonth() + number;
@@ -121,9 +121,9 @@ const monthsInfront = (number) => {
   } catch (e) {
     logger.error(`internal server error -- ${e.message}`);
   }
-};
+}
 
-const addDays = (number) => {
+function addDays(number) {
   try {
     let d = new Date();
     let target = d.setDate(d.getDate() + number);
@@ -131,9 +131,9 @@ const addDays = (number) => {
   } catch (e) {
     logger.error(`internal server error -- ${e.message}`);
   }
-};
+}
 
-const addMinutes = (number) => {
+function addMinutes(number) {
   try {
     let d = new Date();
     let target = d.setMinutes(d.getMinutes() + number);
@@ -141,9 +141,9 @@ const addMinutes = (number) => {
   } catch (e) {
     logger.error(`internal server error -- ${e.message}`);
   }
-};
+}
 
-const getDifferenceInMonths = (d1, d2) => {
+function getDifferenceInMonths(d1, d2) {
   let months;
   let start = new Date(d1);
   let end = new Date(d2);
@@ -151,7 +151,7 @@ const getDifferenceInMonths = (d1, d2) => {
   months -= start.getMonth();
   months += end.getMonth();
   return months <= 0 ? 0 : months;
-};
+}
 
 function threeMonthsFromNow(date) {
   d = new Date(date);
