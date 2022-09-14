@@ -22,6 +22,23 @@ spec:
       labels:
         app: sta-device-monitor
     spec:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 10
+            preference:
+              matchExpressions:
+              - key: node-type
+                operator: In
+                values:
+                - general-purpose
+          - weight: 1
+            preference:
+              matchExpressions:
+              - key: node-type
+                operator: In
+                values:
+                - high-memory
       containers:
         - name: sta-dev-monitor
           image: us.gcr.io/airqo-250220/airqo-stage-device-monitor-api:latest
@@ -41,11 +58,12 @@ spec:
                 name: env-device-monitoring-staging
           resources:
             requests:
-              cpu: 100m
-              memory: 250Mi
+              # Average usage was 0.0001 vCPU and 35Mi over the last 30 days
+              cpu: 5m
+              memory: 40Mi
             limits:
-              cpu: 200m
-              memory: 700Mi
+              cpu: 50m
+              memory: 80Mi
 
 ---
 kind: Service
@@ -78,7 +96,7 @@ spec:
   metrics:
   - type: Resource
     resource:
-      name: cpu
+      name: memory
       target:
         type: Utilization
         averageUtilization: 80

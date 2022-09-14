@@ -1,4 +1,4 @@
-apiVersion: batch/v1beta1
+apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: stage-events-notifs-job
@@ -6,6 +6,7 @@ metadata:
 spec:
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 1
+  suspend: true
   schedule: "30 * * * *"
   jobTemplate:
     metadata:

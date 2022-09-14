@@ -29,6 +29,16 @@ spec:
       labels:
         io.kompose.service: airqo-redis-server
     spec:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 10
+            preference:
+              matchExpressions:
+              - key: node-type
+                operator: In
+                values:
+                - general-purpose
       containers:
       - env:
         - name: GET_HOSTS_FROM
@@ -38,7 +48,14 @@ spec:
         name: airqo-redis-server
         ports:
         - containerPort: 6379
-        resources: {}
+        resources: 
+          requests:
+            # Average usage was 0.001 vCPU and 10Mi over the last 30 days
+            cpu: 5m
+            memory: 10Mi
+          limits:
+            cpu: 50m
+            memory: 50Mi
       restartPolicy: Always
       serviceAccountName: ""
       volumes: null
@@ -65,3 +82,23 @@ spec:
     io.kompose.service: airqo-redis-server
 status:
   loadBalancer: {}
+
+---
+kind: HorizontalPodAutoscaler
+apiVersion: autoscaling/v2
+metadata:
+  name: airqo-redis-server-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: airqo-redis-server
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 70
