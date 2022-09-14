@@ -20,6 +20,8 @@ setup(
         "kafka-python",
         "numpy",
         "google-cloud-bigquery",
+        "google-cloud-bigquery[pandas]",
+        "google-cloud-storage",
         "firebase-admin",
         "geopy",
     ],

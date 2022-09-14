@@ -19,7 +19,6 @@ COPY --chown=airflow:root dags/* /opt/airflow/dags/
 
 FROM base-builder as db-setup
 USER root
-RUN apt-get update -y && apt-get install python3-pip -y && pip3 install apache-airflow[postgres]==${AIRFLOW_VERSION}
 COPY db-setup.sh /usr/local/bin/db-setup.sh
 RUN chmod 777 /usr/local/bin/db-setup.sh
 USER airflow

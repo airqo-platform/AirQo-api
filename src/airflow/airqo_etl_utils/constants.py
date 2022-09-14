@@ -62,13 +62,18 @@ class DataSource(Enum):
     BIGQUERY = 8
 
 
+class QueryType(Enum):
+    GET = 1
+    DELETE = 2
+
+
 class Tenant(Enum):
     NASA = 1
     URBAN_BETTER = 2
     AIRQO = 3
     US_EMBASSY = 4
     KCCA = 5
-    NONE = 20
+    ALL = 20
 
     def __str__(self) -> str:
         if self == self.NASA:

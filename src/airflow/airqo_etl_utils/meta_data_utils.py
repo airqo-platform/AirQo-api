@@ -8,7 +8,7 @@ from .weather_data_utils import WeatherDataUtils
 
 class MetaDataUtils:
     @staticmethod
-    def extract_meta_data(component: str, tenant: Tenant = Tenant.NONE) -> pd.DataFrame:
+    def extract_meta_data(component: str, tenant: Tenant = Tenant.ALL) -> pd.DataFrame:
         airqo_api = AirQoApi()
         if component == "sites":
             meta_data = airqo_api.get_sites(tenant=tenant)

@@ -3,6 +3,7 @@ import os
 from datetime import datetime, timedelta
 
 import pandas as pd
+from requests import Response
 
 from .constants import ColumnDataType, Pollutant, AirQuality, DataSource
 from .date import date_to_str
@@ -167,8 +168,21 @@ class Utils:
         return "1H"
 
     @staticmethod
-    def query_dates_array(data_source: DataSource, start_date_time, end_date_time):
-        frequency = Utils.query_frequency(data_source)
+    def handle_api_error(response: Response):
+        try:
+            print(response.request.url)
+            print(response.request.body)
+        except Exception as ex:
+            print(ex)
+        finally:
+            print(response.content)
+            print(f"API request failed with status code {response.status_code}")
+
+    @staticmethod
+    def query_dates_array(
+        data_source: DataSource, start_date_time, end_date_time, freq: str = None
+    ):
+        frequency = Utils.query_frequency(data_source) if freq is None else freq
         dates = pd.date_range(start_date_time, end_date_time, freq=frequency)
         freq = dates.freq
 
