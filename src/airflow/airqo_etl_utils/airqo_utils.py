@@ -508,7 +508,7 @@ class AirQoDataUtils:
                     "externalHumidity": {"value": row["humidity"]},
                 }
 
-                if data["site_id"] is None:
+                if data["site_id"] is None or data["site_id"] is np.nan:
                     data.pop("site_id")
 
                 restructured_data.append(data)
