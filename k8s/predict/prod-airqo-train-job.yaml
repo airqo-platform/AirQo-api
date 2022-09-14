@@ -15,6 +15,16 @@ spec:
         spec:
           restartPolicy: OnFailure
           schedulerName: default-scheduler
+          affinity:
+            nodeAffinity:
+              preferredDuringSchedulingIgnoredDuringExecution:
+              - weight: 10
+                preference:
+                  matchExpressions:
+                  - key: node-type
+                    operator: In
+                    values:
+                    - compute
           containers:
           - name: airqo-train-job
             image: us.gcr.io/airqo-250220/airqo-train-job:latest
@@ -26,12 +36,9 @@ spec:
               - name: config-volume
                 mountPath: /etc/config
             resources:
-              requests:
-                cpu: 200m
-                memory: 500Mi
               limits:
                 cpu: 2000m
-                memory: 2Gi
+                memory: 4000Mi
           volumes:
             - name: config-volume
               configMap:

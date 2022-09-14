@@ -22,6 +22,23 @@ spec:
       labels:
         app: sta-auth-api
     spec:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 10
+            preference:
+              matchExpressions:
+              - key: node-type
+                operator: In
+                values:
+                - high-memory  
+          - weight: 1
+            preference:
+              matchExpressions:
+              - key: node-type
+                operator: In
+                values:
+                - general-purpose
       containers:
         - name: sta-auth-api
           image: us.gcr.io/airqo-250220/airqo-stage-auth-api:latest
@@ -44,11 +61,12 @@ spec:
             mountPath: /etc/config
           resources:
             requests:
+              # Average usage was 0.002 vCPU and 190Mi over the last 30 days
+              cpu: 10m
+              memory: 180Mi
+            limits:
               cpu: 100m
               memory: 250Mi
-            limits:
-              cpu: 200m
-              memory: 700Mi
       volumes:
         - name: config-volume
           configMap:
@@ -85,7 +103,7 @@ spec:
   metrics:
   - type: Resource
     resource:
-      name: cpu
+      name: memory
       target:
         type: Utilization
         averageUtilization: 80

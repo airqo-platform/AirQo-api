@@ -18,6 +18,23 @@ spec:
       labels:
         app: airflow
     spec:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 10
+            preference:
+              matchExpressions:
+              - key: node-type
+                operator: In
+                values:
+                - compute
+          - weight: 1
+            preference:
+              matchExpressions:
+              - key: node-type
+                operator: In
+                values:
+                - high-memory  
       serviceAccountName: airflow-sa
       initContainers:
         - name: airflow-xcom
@@ -39,7 +56,14 @@ spec:
                 name: airflow-config
           command: ["airflow"]
           args: ["scheduler"]
-          resources: {}
+          resources:
+            requests:
+              # Average usage was 0.5 vCPU and 3.5Gi over the last 30 days
+              cpu: 500m
+              memory: 3000Mi
+            limits:
+              cpu: 1500m
+              memory: 4500Mi
           volumeMounts:
           - name: config-volume
             mountPath: /etc/config
@@ -74,6 +98,26 @@ spec:
         - name:  xcom-config-volume
           emptyDir: {}
       restartPolicy: Always
+
+---
+kind: HorizontalPodAutoscaler
+apiVersion: autoscaling/v2
+metadata:
+  name: airflow-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: airflow
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
 
 ---
 apiVersion: v1

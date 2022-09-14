@@ -22,6 +22,23 @@ spec:
       labels:
         app: calibrate
     spec:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 10
+            preference:
+              matchExpressions:
+              - key: node-type
+                operator: In
+                values:
+                - high-memory  
+          - weight: 1
+            preference:
+              matchExpressions:
+              - key: node-type
+                operator: In
+                values:
+                - general-purpose
       initContainers:
         - name: calibrate-pickle
           image: us.gcr.io/airqo-250220/airqo-calibrate-pickle-file:latest
@@ -56,11 +73,12 @@ spec:
           #   successThreshold: 1
           resources:
             requests:
-              cpu: 100m
-              memory: 250Mi
+              # Average usage was 0.0005 vCPU and 1Gi over the last 30 days
+              cpu: 10m
+              memory: 950Mi
             limits:
-              cpu: 200m
-              memory: 700Mi
+              cpu: 100m
+              memory: 1500Mi
           env:
             - name: RF_REG_MODEL
               value: /usr/pickle-files/rf_reg_model.pkl
@@ -112,7 +130,7 @@ spec:
   metrics:
   - type: Resource
     resource:
-      name: cpu
+      name: memory
       target:
         type: Utilization
         averageUtilization: 70

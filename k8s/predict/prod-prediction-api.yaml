@@ -22,6 +22,16 @@ spec:
       labels:
         app: prediction-api
     spec:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 10
+            preference:
+              matchExpressions:
+              - key: node-type
+                operator: In
+                values:
+                - general-purpose
       containers:
         - name: prediction-api
           image: us.gcr.io/airqo-250220/airqo-prediction-api:latest
@@ -44,11 +54,12 @@ spec:
             mountPath: /etc/config
           resources:
             requests:
-              cpu: 100m
-              memory: 250Mi
+              # Average usage was 0.0007 vCPU and 120Mi over the last 30 days
+              cpu: 5m
+              memory: 120Mi
             limits:
-              cpu: 200m
-              memory: 700Mi
+              cpu: 50m
+              memory: 200Mi
       volumes:
         - name: config-volume
           configMap:
@@ -69,7 +80,7 @@ spec:
   metrics:
   - type: Resource
     resource:
-      name: cpu
+      name: memory
       target:
         type: Utilization
         averageUtilization: 70
