@@ -13,7 +13,7 @@ const {
   authJWT,
   setLocalAuth,
   authLocal,
-} = require("../services/auth");
+} = require("../utils/passport");
 const privileges = require("../utils/privileges");
 
 const mongoose = require("mongoose");

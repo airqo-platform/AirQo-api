@@ -1,4 +1,4 @@
-const transporter = require("../services/mailer");
+const transporter = require("../utils/mailer");
 const HTTPStatus = require("http-status");
 
 const sendEmail = (req, res, mailOptions, message) => {

@@ -1,4 +1,4 @@
-const transporter = require("../services/mailer");
+const transporter = require("../utils/mailer");
 
 function register(mailOptions, body, entity) {
   try {

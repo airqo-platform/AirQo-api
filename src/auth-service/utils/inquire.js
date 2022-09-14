@@ -1,7 +1,7 @@
 const InquirySchema = require("../models/Inquiry");
 const { getModelByTenant } = require("../utils/multitenancy");
 const { logObject, logElement, logText } = require("../utils/log");
-const mailer = require("../services/mailer");
+const mailer = require("../utils/mailer");
 const httpStatus = require("http-status");
 const validationsUtil = require("./validations");
 constants = require("../config/constants");

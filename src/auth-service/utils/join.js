@@ -1,7 +1,7 @@
 const UserSchema = require("../models/User");
 const { getModelByTenant } = require("../utils/multitenancy");
 const { logObject, logElement, logText } = require("../utils/log");
-const mailer = require("../services/mailer");
+const mailer = require("../utils/mailer");
 const generatePassword = require("./generate-password");
 const bcrypt = require("bcrypt");
 const crypto = require("crypto");
