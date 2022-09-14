@@ -1,11 +1,14 @@
 import os
 from pathlib import Path
 
+import urllib3
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 dotenv_path = os.path.join(BASE_DIR, ".env")
 load_dotenv(dotenv_path)
+
+urllib3.disable_warnings()
 
 
 class Config:
@@ -37,6 +40,7 @@ class Config:
         "BIGQUERY_UNCLEAN_RAW_MOBILE_EVENTS_TABLE"
     )
     BIGQUERY_RAW_WEATHER_TABLE = os.getenv("BIGQUERY_RAW_WEATHER_TABLE")
+    SENSOR_POSITIONS_TABLE = os.getenv("SENSOR_POSITIONS_TABLE")
 
     # Meta data
     BIGQUERY_DEVICES_TABLE = os.getenv("BIGQUERY_DEVICES_TABLE")

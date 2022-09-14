@@ -22,6 +22,16 @@ spec:
       labels:
         app: prod-fault-detection
     spec:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 10
+            preference:
+              matchExpressions:
+              - key: node-type
+                operator: In
+                values:
+                - compute
       initContainers:
         - name: train-catboost-model
           image: us.gcr.io/airqo-250220/prod-train-catboost-model:latest
@@ -58,11 +68,12 @@ spec:
               name: fault-detection
           resources:
             requests:
+              # Average usage was 0.1 vCPU and 200Mi over the last 30 days
               cpu: 100m
-              memory: 250Mi
+              memory: 200Mi
             limits:
-              cpu: 200m
-              memory: 700Mi
+              cpu: 500m
+              memory: 300Mi
           env:
             - name: LSTM_MODEL
               value: /usr/models/lstm.h5
@@ -111,7 +122,7 @@ spec:
   metrics:
   - type: Resource
     resource:
-      name: cpu
+      name: memory
       target:
         type: Utilization
         averageUtilization: 70

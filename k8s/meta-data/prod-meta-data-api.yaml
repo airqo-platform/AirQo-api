@@ -19,6 +19,16 @@ spec:
       labels:
         app: meta-data-api
     spec:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 10
+            preference:
+              matchExpressions:
+              - key: node-type
+                operator: In
+                values:
+                - compute
       containers:
         - name: meta-data
           image: us.gcr.io/airqo-250220/airqo-meta-data-api:latest
@@ -27,11 +37,12 @@ spec:
             - containerPort: 4001
           resources:
             requests:
+              # Average usage was 0.1 vCPU and 250Mi over the last 7 days
               cpu: 100m
               memory: 250Mi
             limits:
-              cpu: 200m
-              memory: 700Mi
+              cpu: 300m
+              memory: 400Mi
           envFrom:
             - configMapRef:
                 name: prod-meta-data-api-config
@@ -72,7 +83,7 @@ spec:
   metrics:
   - type: Resource
     resource:
-      name: cpu
+      name: memory
       target:
         type: Utilization
         averageUtilization: 70

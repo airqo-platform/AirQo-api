@@ -22,6 +22,16 @@ spec:
       labels:
         app: sta-network-uptime
     spec:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 10
+            preference:
+              matchExpressions:
+              - key: node-type
+                operator: In
+                values:
+                - general-purpose
       containers:
         - name: sta-network-uptime
           image: us.gcr.io/airqo-250220/airqo-stage-network-uptime-api:latest
@@ -41,11 +51,12 @@ spec:
           #   successThreshold: 1
           resources:
             requests:
-              cpu: 100m
-              memory: 250Mi
+              # No available over the last 30 days, using estimates
+              cpu: 5m
+              memory: 10Mi
             limits:
-              cpu: 200m
-              memory: 700Mi
+              cpu: 100m
+              memory: 200Mi
 
 ---
 kind: Service
@@ -78,7 +89,7 @@ spec:
   metrics:
   - type: Resource
     resource:
-      name: cpu
+      name: memory
       target:
         type: Utilization
         averageUtilization: 80

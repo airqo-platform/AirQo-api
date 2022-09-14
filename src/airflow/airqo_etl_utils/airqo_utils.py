@@ -19,13 +19,27 @@ from .weather_data_utils import WeatherDataUtils
 
 class AirQoDataUtils:
     @staticmethod
+    def extract_uncalibrated_data(start_date_time, end_date_time) -> pd.DataFrame:
+        bigquery_api = BigQueryApi()
+
+        hourly_uncalibrated_data = bigquery_api.query_data(
+            table=bigquery_api.hourly_measurements_table,
+            null_cols=["pm2_5_calibrated_value"],
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            tenant=Tenant.AIRQO,
+        )
+
+        return DataValidationUtils.remove_outliers(hourly_uncalibrated_data)
+
+    @staticmethod
     def extract_aggregated_raw_data(start_date_time, end_date_time) -> pd.DataFrame:
         bigquery_api = BigQueryApi()
         measurements = bigquery_api.query_data(
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             table=bigquery_api.raw_measurements_table,
-            where_fields={"tenant": str(Tenant.AIRQO)},
+            tenant=Tenant.AIRQO,
         )
 
         if measurements.empty:
@@ -120,6 +134,9 @@ class AirQoDataUtils:
                 end_date_time=station_data.iloc[0]["end_date_time"],
                 station_codes=[station_data.iloc[0]["station_code"]],
             )
+            if raw_data.empty:
+                continue
+
             raw_data = WeatherDataUtils.transform_raw_data(raw_data)
             aggregated_data = WeatherDataUtils.aggregate_data(raw_data)
             aggregated_data["timestamp"] = aggregated_data["timestamp"].apply(
@@ -318,9 +335,10 @@ class AirQoDataUtils:
                         inplace=True,
                     )
 
-                devices_data = devices_data.append(
-                    data[data_columns], ignore_index=True
+                devices_data = pd.concat(
+                    [devices_data, data[data_columns]], ignore_index=True
                 )
+
         if remove_outliers:
             devices_data = DataValidationUtils.remove_outliers(devices_data)
 
@@ -449,49 +467,51 @@ class AirQoDataUtils:
                         devices,
                     )
                 )[0]
+                data = {
+                    "device": device_details["name"],
+                    "device_id": device_details["_id"],
+                    "site_id": row["site_id"],
+                    "device_number": device_number,
+                    "tenant": str(Tenant.AIRQO),
+                    "location": {
+                        "latitude": {"value": row["latitude"]},
+                        "longitude": {"value": row["longitude"]},
+                    },
+                    "frequency": str(frequency),
+                    "time": row["timestamp"],
+                    "average_pm2_5": {
+                        "value": row["pm2_5"],
+                        "calibratedValue": row["pm2_5_calibrated_value"],
+                    },
+                    "average_pm10": {
+                        "value": row["pm10"],
+                        "calibratedValue": row["pm10_calibrated_value"],
+                    },
+                    "pm2_5": {
+                        "value": row["pm2_5"],
+                        "calibratedValue": row["pm2_5_calibrated_value"],
+                    },
+                    "pm10": {
+                        "value": row["pm10"],
+                        "calibratedValue": row["pm10_calibrated_value"],
+                    },
+                    "s1_pm2_5": {"value": row["s1_pm2_5"]},
+                    "s1_pm10": {"value": row["s1_pm10"]},
+                    "s2_pm2_5": {"value": row["s2_pm2_5"]},
+                    "s2_pm10": {"value": row["s2_pm10"]},
+                    "battery": {"value": row["battery"]},
+                    "altitude": {"value": row["altitude"]},
+                    "speed": {"value": row["wind_speed"]},
+                    "satellites": {"value": row["satellites"]},
+                    "hdop": {"value": row["hdop"]},
+                    "externalTemperature": {"value": row["temperature"]},
+                    "externalHumidity": {"value": row["humidity"]},
+                }
 
-                restructured_data.append(
-                    {
-                        "device": device_details["name"],
-                        "device_id": device_details["_id"],
-                        "site_id": row["site_id"],
-                        "device_number": device_number,
-                        "tenant": str(Tenant.AIRQO),
-                        "location": {
-                            "latitude": {"value": row["latitude"]},
-                            "longitude": {"value": row["longitude"]},
-                        },
-                        "frequency": str(frequency),
-                        "time": row["timestamp"],
-                        "average_pm2_5": {
-                            "value": row["pm2_5"],
-                            "calibratedValue": row["pm2_5_calibrated_value"],
-                        },
-                        "average_pm10": {
-                            "value": row["pm10"],
-                            "calibratedValue": row["pm10_calibrated_value"],
-                        },
-                        "pm2_5": {
-                            "value": row["pm2_5"],
-                            "calibratedValue": row["pm2_5_calibrated_value"],
-                        },
-                        "pm10": {
-                            "value": row["pm10"],
-                            "calibratedValue": row["pm10_calibrated_value"],
-                        },
-                        "s1_pm2_5": {"value": row["s1_pm2_5"]},
-                        "s1_pm10": {"value": row["s1_pm10"]},
-                        "s2_pm2_5": {"value": row["s2_pm2_5"]},
-                        "s2_pm10": {"value": row["s2_pm10"]},
-                        "battery": {"value": row["battery"]},
-                        "altitude": {"value": row["altitude"]},
-                        "speed": {"value": row["wind_speed"]},
-                        "satellites": {"value": row["satellites"]},
-                        "hdop": {"value": row["hdop"]},
-                        "externalTemperature": {"value": row["temperature"]},
-                        "externalHumidity": {"value": row["humidity"]},
-                    }
-                )
+                if data["site_id"] is None or data["site_id"] is np.nan:
+                    data.pop("site_id")
+
+                restructured_data.append(data)
 
             except Exception as ex:
                 traceback.print_exc()
@@ -514,21 +534,25 @@ class AirQoDataUtils:
         if weather_data.empty:
             return airqo_data
 
-        weather_data["timestamp"] = weather_data["timestamp"].apply(pd.to_datetime)
-        airqo_data["timestamp"] = airqo_data["timestamp"].apply(pd.to_datetime)
+        weather_data.loc[:, "timestamp"] = weather_data["timestamp"].apply(
+            pd.to_datetime
+        )
+        airqo_data.loc[:, "timestamp"] = airqo_data["timestamp"].apply(pd.to_datetime)
 
         airqo_api = AirQoApi()
         sites = []
 
         for site in airqo_api.get_sites(tenant=Tenant.AIRQO):
-            for station in site.get("weather_stations", []):
-                sites.append(
+            sites.extend(
+                [
                     {
                         "site_id": site.get("_id"),
                         "station_code": station.get("code", None),
                         "distance": station.get("distance", None),
                     }
-                )
+                    for station in site.get("weather_stations", [])
+                ]
+            )
 
         sites = pd.DataFrame(sites)
 
@@ -543,7 +567,7 @@ class AirQoDataUtils:
                 continue
 
             site_weather_data = pd.merge(
-                left=site_weather_data, right=site_data, on="station_code", how="left"
+                site_weather_data, site_data, on="station_code"
             )
 
             for _, time_group in site_weather_data.groupby("timestamp"):
@@ -553,9 +577,10 @@ class AirQoDataUtils:
                     keep="first", subset=["timestamp"], inplace=True
                 )
                 time_group = time_group[weather_data_cols]
+
                 time_group.loc[:, "site_id"] = site_data.iloc[0]["site_id"]
-                sites_weather_data = sites_weather_data.append(
-                    time_group, ignore_index=True
+                sites_weather_data = pd.concat(
+                    [sites_weather_data, time_group], ignore_index=True
                 )
 
         airqo_data_cols = list(airqo_data.columns)

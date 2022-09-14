@@ -281,7 +281,7 @@ def insights_cleanup_etl():
     ):
 
         insights_data = pd.concat(
-            [empty_insights_data, available_insights_data]
+            [empty_insights_data, available_insights_data], ignore_index=True
         ).drop_duplicates(keep=False, subset=["siteId", "time", "frequency"])
 
         return insights_data

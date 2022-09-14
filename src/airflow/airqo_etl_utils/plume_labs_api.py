@@ -4,6 +4,8 @@ import json
 import requests
 
 from .config import configuration
+from .constants import Tenant
+from .utils import Utils
 
 
 class PlumeLabsApi:
@@ -11,29 +13,28 @@ class PlumeLabsApi:
         self.PLUME_LABS_BASE_URL = configuration.PLUME_LABS_BASE_URL
         self.PLUME_LABS_ORGANISATIONS_CRED = configuration.PLUME_LABS_ORGANISATIONS_CRED
 
-    def __get_organizations_credentials_metadata(self):
+    def __get_tenants_credentials(self):
         with open(self.PLUME_LABS_ORGANISATIONS_CRED) as file:
             credentials = json.load(file)
         return credentials
 
-    def __get_organizations_meta_data(self) -> list:
-        organizations_details = []
-        organizations = dict(self.__get_organizations_credentials_metadata())
-        for org in organizations.keys():
-            sensors = self.__request(
-                endpoint=f"/organizations/{org}/sensors/list",
-                params={
-                    "token": organizations.get(org),
-                },
-            )
-            organizations_details.append(
-                {
-                    "id": org,
-                    "token": organizations.get(org),
-                    "sensors": sensors["sensors"],
-                }
-            )
-        return organizations_details
+    def __get_tenant_meta_data(self, tenant: Tenant) -> dict:
+        tenant = str(tenant)
+        tenants = dict(self.__get_tenants_credentials())
+        tenant_credentials = tenants.get(tenant, {})
+        sensors = self.__request(
+            endpoint=f"/organizations/{tenant_credentials.get('id')}/sensors/list",
+            params={
+                "token": tenant_credentials.get("token"),
+            },
+        )
+
+        return {
+            "id": tenant_credentials.get("id"),
+            "token": tenant_credentials.get("token"),
+            "tenant": tenant,
+            "sensors": sensors["sensors"],
+        }
 
     def __query_sensor_measures(
         self,
@@ -41,7 +42,7 @@ class PlumeLabsApi:
         end_timestamp,
         device_number,
         token,
-        organization,
+        organization_id,
         offset=None,
     ) -> list:
         params = {
@@ -53,7 +54,7 @@ class PlumeLabsApi:
         if offset:
             params["offset"] = offset
         api_response = self.__request(
-            endpoint=f"/organizations/{organization}/sensors/measures",
+            endpoint=f"/organizations/{organization_id}/sensors/measures",
             params=params,
         )
 
@@ -66,7 +67,7 @@ class PlumeLabsApi:
                     end_timestamp=end_timestamp,
                     device_number=device_number,
                     token=token,
-                    organization=organization,
+                    organization_id=organization_id,
                     offset=api_response["offset"],
                 )
             )
@@ -78,7 +79,7 @@ class PlumeLabsApi:
         end_timestamp,
         sensor_id,
         token,
-        organization,
+        organization_id,
         offset=None,
     ) -> list:
         params = {
@@ -90,7 +91,7 @@ class PlumeLabsApi:
         if offset:
             params["offset"] = offset
         api_response = self.__request(
-            endpoint=f"/organizations/{organization}/sensors/positions",
+            endpoint=f"/organizations/{organization_id}/sensors/positions",
             params=params,
         )
 
@@ -103,7 +104,7 @@ class PlumeLabsApi:
                     end_timestamp=end_timestamp,
                     sensor_id=sensor_id,
                     token=token,
-                    organization=organization,
+                    organization_id=organization_id,
                     offset=api_response["offset"],
                 )
             )
@@ -113,76 +114,66 @@ class PlumeLabsApi:
         self,
         start_date_time: datetime.datetime,
         end_date_time: datetime.datetime,
+        tenant: Tenant,
     ) -> list:
-        organizations_meta_data = self.__get_organizations_meta_data()
-        organizations_data = []
-        for organization in organizations_meta_data:
-            sensors_positions = []
-            for sensor in organization["sensors"]:
-                sensor_id = sensor["id"]
-                sensor_positions = self.__query_sensor_positions(
-                    token=organization["token"],
-                    sensor_id=sensor_id,
-                    organization=organization["id"],
-                    start_timestamp=int(start_date_time.timestamp()),
-                    end_timestamp=int(end_date_time.timestamp()),
-                )
+        tenant_meta_data = self.__get_tenant_meta_data(tenant=tenant)
 
-                if sensor_positions:
-                    sensors_positions.append(
-                        {
-                            "device": sensor_id,
-                            "device_positions": sensor_positions,
-                        }
-                    )
+        token = tenant_meta_data.get("token")
+        organization_id = tenant_meta_data.get("id")
 
-            if sensors_positions:
-                organizations_data.append(
+        sensors_positions = []
+        for sensor in tenant_meta_data["sensors"]:
+            device_number = sensor["id"]
+            sensor_positions = self.__query_sensor_positions(
+                token=token,
+                sensor_id=device_number,
+                organization_id=organization_id,
+                start_timestamp=int(start_date_time.timestamp()),
+                end_timestamp=int(end_date_time.timestamp()),
+            )
+
+            if sensor_positions:
+                sensors_positions.append(
                     {
-                        "organization": organization["id"],
-                        "positions": sensors_positions,
+                        "device_number": device_number,
+                        "positions": sensor_positions,
                     }
                 )
 
-        return organizations_data
+        return sensors_positions
 
     def get_sensor_measures(
         self,
         start_date_time: datetime.datetime,
         end_date_time: datetime.datetime,
+        tenant: Tenant,
     ) -> list:
-        organizations_meta_data = self.__get_organizations_meta_data()
-        organizations_data = []
-        for organization in organizations_meta_data:
-            sensors_data = []
-            for sensor in organization["sensors"]:
-                device_number = sensor["id"]
-                sensor_data = self.__query_sensor_measures(
-                    token=organization["token"],
-                    device_number=device_number,
-                    organization=organization["id"],
-                    start_timestamp=int(start_date_time.timestamp()),
-                    end_timestamp=int(end_date_time.timestamp()),
-                )
+        tenant_meta_data = self.__get_tenant_meta_data(tenant=tenant)
 
-                if sensor_data:
-                    sensors_data.append(
-                        {
-                            "device_number": device_number,
-                            "device_id": sensor["device_id"],
-                            "device_data": sensor_data,
-                        }
-                    )
+        sensors_data = []
+        token = tenant_meta_data.get("token")
+        organization_id = tenant_meta_data.get("id")
 
-            if sensors_data:
-                organizations_data.append(
+        for sensor in tenant_meta_data["sensors"]:
+            device_number = sensor["id"]
+            sensor_data = self.__query_sensor_measures(
+                token=token,
+                device_number=device_number,
+                organization_id=organization_id,
+                start_timestamp=int(start_date_time.timestamp()),
+                end_timestamp=int(end_date_time.timestamp()),
+            )
+
+            if sensor_data:
+                sensors_data.append(
                     {
-                        "organization": organization["id"],
-                        "measures": sensors_data,
+                        "device_number": device_number,
+                        "device_id": sensor["device_id"],
+                        "data": sensor_data,
                     }
                 )
 
-        return organizations_data
+        return sensors_data
 
     def __request(self, endpoint, params):
 
@@ -197,16 +188,5 @@ class PlumeLabsApi:
         if api_request.status_code == 200:
             return api_request.json()
         else:
-            handle_api_error(api_request)
+            Utils.handle_api_error(api_request)
             return None
-
-
-def handle_api_error(api_request):
-    try:
-        print(api_request.request.url)
-        print(api_request.request.body)
-    except Exception as ex:
-        print(ex)
-    finally:
-        print(api_request.content)
-        print("API request failed with status code %s" % api_request.status_code)

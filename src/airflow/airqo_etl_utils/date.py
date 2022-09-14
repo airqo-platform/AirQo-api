@@ -1,7 +1,5 @@
 from datetime import datetime, timedelta
 
-import numpy as np
-
 
 class DateUtils:
     day_start_date_time_format = "%Y-%m-%dT00:00:00Z"
@@ -13,13 +11,13 @@ class DateUtils:
         return datetime.strftime(date, str_format)
 
     @staticmethod
-    def get_dag_date_time_values(days: int = np.NAN, hours: int = np.NAN, **kwargs):
+    def get_dag_date_time_values(days: int = None, hours: int = None, **kwargs):
         try:
             dag_run = kwargs.get("dag_run")
             start_date_time = dag_run.conf["start_date_time"]
             end_date_time = dag_run.conf["end_date_time"]
-        except KeyError:
-            if hours != np.NAN:
+        except Exception:
+            if hours is not None:
                 start_date_time = datetime.utcnow() - timedelta(hours=hours)
                 end_date_time = start_date_time + timedelta(hours=hours)
                 start_date_time = DateUtils.date_to_str(
@@ -28,7 +26,7 @@ class DateUtils:
                 end_date_time = DateUtils.date_to_str(
                     end_date_time, DateUtils.hour_date_time_format
                 )
-            elif days != np.NAN:
+            elif days is not None:
                 start_date_time = datetime.utcnow() - timedelta(days=days)
                 end_date_time = start_date_time + timedelta(days=days)
                 start_date_time = DateUtils.date_to_str(

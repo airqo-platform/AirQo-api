@@ -22,6 +22,23 @@ spec:
       labels:
         app: device-reg-api
     spec:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 10
+            preference:
+              matchExpressions:
+              - key: node-type
+                operator: In
+                values:
+                - high-memory
+          - weight: 1
+            preference:
+              matchExpressions:
+              - key: node-type
+                operator: In
+                values:
+                - general-purpose
       containers:
         - name: device-reg-api
           image: us.gcr.io/airqo-250220/airqo-device-registry-api:latest
@@ -32,6 +49,14 @@ spec:
           envFrom:
             - configMapRef:
                 name: env-device-registry-production
+          resources:
+            requests:
+              # Average usage was 0.005 vCPU and 600Mi over the last 30 days
+              cpu: 5m
+              memory: 600Mi
+            limits:
+              cpu: 100m
+              memory: 900Mi
           volumeMounts:
           - name: config-volume
             mountPath: /etc/config
@@ -55,3 +80,23 @@ spec:
       targetPort: 3000
       nodePort: 30002
   type: NodePort
+
+---
+kind: HorizontalPodAutoscaler
+apiVersion: autoscaling/v2
+metadata:
+  name: device-reg-api-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: device-reg-api
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 70

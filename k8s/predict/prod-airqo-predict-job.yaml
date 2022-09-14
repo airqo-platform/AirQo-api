@@ -1,4 +1,4 @@
-apiVersion: batch/v1beta1
+apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: airqo-predict-job
@@ -15,6 +15,16 @@ spec:
         spec:
           restartPolicy: OnFailure
           schedulerName: default-scheduler
+          affinity:
+            nodeAffinity:
+              preferredDuringSchedulingIgnoredDuringExecution:
+              - weight: 10
+                preference:
+                  matchExpressions:
+                  - key: node-type
+                    operator: In
+                    values:
+                    - compute
           containers:
           - name: airqo-predict-job
             image: us.gcr.io/airqo-250220/airqo-predict-job:latest
@@ -26,12 +36,9 @@ spec:
               - name: config-volume
                 mountPath: /etc/config
             resources:
-              requests:
-                cpu: 100m
-                memory: 500Mi
               limits:
-                cpu: 2000m
-                memory: 1Gi
+                cpu: 1000m
+                memory: 4000Mi
           volumes:
             - name: config-volume
               configMap:
