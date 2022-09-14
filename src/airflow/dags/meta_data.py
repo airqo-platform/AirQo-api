@@ -89,7 +89,7 @@ def update_sites_meta_data_etl():
         from airqo_etl_utils.meta_data_utils import MetaDataUtils
         from airqo_etl_utils.constants import Tenant
 
-        MetaDataUtils.update_nearest_weather_stations(tenant=Tenant.NONE)
+        MetaDataUtils.update_nearest_weather_stations(tenant=Tenant.ALL)
 
     update_nearest_weather_stations()
 

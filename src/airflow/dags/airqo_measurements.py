@@ -7,6 +7,95 @@ from airqo_etl_utils.constants import Frequency
 
 
 @dag(
+    "Calibrate-AirQo-Measurements",
+    schedule_interval=None,
+    on_failure_callback=slack_dag_failure_notification,
+    start_date=datetime(2021, 1, 1),
+    catchup=False,
+    tags=["airqo", "calibrate"],
+)
+def calibrate_measurements_etl():
+    import pandas as pd
+
+    @task()
+    def extract_uncalibrated_data(**kwargs):
+        from airqo_etl_utils.date import DateUtils
+        from airqo_etl_utils.airqo_utils import AirQoDataUtils
+
+        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(**kwargs)
+
+        return AirQoDataUtils.extract_uncalibrated_data(
+            start_date_time=start_date_time, end_date_time=end_date_time
+        )
+
+    @task()
+    def extract_weather_data(**kwargs):
+        from airqo_etl_utils.date import DateUtils
+        from airqo_etl_utils.weather_data_utils import WeatherDataUtils
+
+        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(**kwargs)
+
+        return WeatherDataUtils.extract_hourly_weather_data(
+            start_date_time=start_date_time, end_date_time=end_date_time
+        )
+
+    @task()
+    def merge_data(
+        device_measurements: pd.DataFrame, hourly_weather_data: pd.DataFrame
+    ):
+
+        from airqo_etl_utils.airqo_utils import AirQoDataUtils
+
+        return AirQoDataUtils.merge_aggregated_weather_data(
+            airqo_data=device_measurements,
+            weather_data=hourly_weather_data,
+        )
+
+    @task()
+    def calibrate_data(measurements: pd.DataFrame):
+
+        from airqo_etl_utils.calibration_utils import CalibrationUtils
+
+        return CalibrationUtils.calibrate_airqo_data(data=measurements)
+
+    @task()
+    def load(data: pd.DataFrame, **kwargs):
+
+        from airqo_etl_utils.bigquery_api import BigQueryApi
+        from airqo_etl_utils.data_validator import DataValidationUtils
+        from airqo_etl_utils.date import DateUtils
+        from airqo_etl_utils.constants import Tenant
+
+        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(**kwargs)
+
+        bigquery_api = BigQueryApi()
+
+        data = DataValidationUtils.process_for_big_query(
+            dataframe=data,
+            table=bigquery_api.hourly_measurements_table,
+            tenant=Tenant.AIRQO,
+        )
+
+        bigquery_api.reload_data(
+            tenant=Tenant.AIRQO,
+            table=bigquery_api.hourly_measurements_table,
+            null_cols=["pm2_5_calibrated_value"],
+            dataframe=data,
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+        )
+
+    uncalibrated_data = extract_uncalibrated_data()
+    weather_data = extract_weather_data()
+    merged_data = merge_data(
+        device_measurements=uncalibrated_data,
+        hourly_weather_data=weather_data,
+    )
+    calibrated_data = calibrate_data(merged_data)
+    load(calibrated_data)
+
+
+@dag(
     "AirQo-Historical-Hourly-Measurements",
     schedule_interval=None,
     on_failure_callback=slack_dag_failure_notification,
@@ -306,3 +395,4 @@ def airqo_realtime_measurements_etl():
 historical_hourly_measurements_etl_dag = historical_hourly_measurements_etl()
 airqo_realtime_measurements_etl_dag = airqo_realtime_measurements_etl()
 historical_raw_measurements_etl_dag = historical_raw_measurements_etl()
+calibrate_measurements_etl_dag = calibrate_measurements_etl()

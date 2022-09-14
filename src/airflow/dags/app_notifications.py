@@ -182,7 +182,7 @@ def evening_notifications():
     send_notifications(notifications)
 
 
-monday_morning_notifications_dag = monday_morning_notifications()
-friday_evening_notifications_dag = friday_evening_notifications()
-morning_notifications_dag = morning_notifications()
-evening_notifications_dag = evening_notifications()
+# monday_morning_notifications_dag = monday_morning_notifications()
+# friday_evening_notifications_dag = friday_evening_notifications()
+# morning_notifications_dag = morning_notifications()
+# evening_notifications_dag = evening_notifications()

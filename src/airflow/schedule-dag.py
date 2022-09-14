@@ -53,6 +53,12 @@ class ScheduleDag:
                     "data_source": DataSource.THINGSPEAK,
                     "dag_duration": 5,
                 },
+                "airqo_calibrated_data": {
+                    "name": "Calibrate-AirQo-Measurements",
+                    "data_source": DataSource.BIGQUERY,
+                    "dag_duration": 120,
+                    "dates_frequency": "120H",
+                },
                 # Weather Data
                 "historical_hourly_weather_data": {
                     "name": "Historical-Hourly-Weather-Measurements",
@@ -142,6 +148,7 @@ class ScheduleDag:
             start_date_time=self.start_date_time,
             end_date_time=self.end_date_time,
             data_source=dag["data_source"],
+            freq=dag.get("dates_frequency", None),
         )
         for start, end in dates:
             pay_load = {

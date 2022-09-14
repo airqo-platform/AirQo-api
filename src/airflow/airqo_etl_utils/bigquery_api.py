@@ -4,8 +4,7 @@ import pandas as pd
 from google.cloud import bigquery
 
 from .config import configuration
-from .constants import JobAction, ColumnDataType, Tenant
-from .data_validator import DataValidationUtils
+from .constants import JobAction, ColumnDataType, Tenant, QueryType
 from .utils import Utils
 
 
@@ -16,6 +15,7 @@ class BigQueryApi:
         self.raw_measurements_table = configuration.BIGQUERY_RAW_EVENTS_TABLE
         self.bam_measurements_table = configuration.BIGQUERY_BAM_EVENTS_TABLE
         self.raw_bam_measurements_table = configuration.BIGQUERY_RAW_BAM_DATA_TABLE
+        self.sensor_positions_table = configuration.SENSOR_POSITIONS_TABLE
         self.unclean_mobile_raw_measurements_table = (
             configuration.BIGQUERY_UNCLEAN_RAW_MOBILE_EVENTS_TABLE
         )
@@ -39,22 +39,29 @@ class BigQueryApi:
         self,
         dataframe: pd.DataFrame,
         table: str,
-        raise_column_exception=True,
+        raise_exception=True,
         date_time_columns=None,
         float_columns=None,
         integer_columns=None,
     ) -> pd.DataFrame:
-        columns = self.get_columns(table=table)
+        valid_cols = self.get_columns(table=table)
+        dataframe_cols = dataframe.columns.to_list()
 
-        if set(columns).issubset(set(list(dataframe.columns))):
-            dataframe = dataframe[columns]
+        if "external_temperature" in valid_cols and "temperature" in dataframe_cols:
+            dataframe.loc[:, "external_temperature"] = dataframe["temperature"]
+
+        if "external_humidity" in valid_cols and "humidity" in dataframe_cols:
+            dataframe.loc[:, "external_humidity"] = dataframe["humidity"]
+
+        if set(valid_cols).issubset(set(dataframe_cols)):
+            dataframe = dataframe[valid_cols]
         else:
-            print(f"Required columns {columns}")
-            print(f"Dataframe columns {list(dataframe.columns)}")
+            print(f"Required columns {valid_cols}")
+            print(f"Dataframe columns {dataframe_cols}")
             print(
-                f"Difference between required and received {list(set(columns) - set(dataframe.columns))}"
+                f"Difference between required and received {list(set(valid_cols) - set(dataframe_cols))}"
             )
-            if raise_column_exception:
+            if raise_exception:
                 raise Exception("Invalid columns")
 
         date_time_columns = (
@@ -75,14 +82,13 @@ class BigQueryApi:
             else self.get_columns(table=table, data_type=ColumnDataType.INTEGER)
         )
 
-        col_data_types = {
-            "float": float_columns,
-            "integer": integer_columns,
-            "timestamp": date_time_columns,
-        }
+        from .data_validator import DataValidationUtils
 
         dataframe = DataValidationUtils.format_data_types(
-            data=dataframe, col_data_types=col_data_types
+            data=dataframe,
+            floats=float_columns,
+            integers=integer_columns,
+            timestamps=date_time_columns,
         )
 
         return dataframe.drop_duplicates(keep="first")
@@ -101,6 +107,8 @@ class BigQueryApi:
             schema_file = "data_warehouse.json"
         elif table == self.sites_table:
             schema_file = "sites.json"
+        elif table == self.sensor_positions_table:
+            schema_file = "sensor_positions.json"
         elif table == self.devices_table:
             schema_file = "devices.json"
         elif (
@@ -147,8 +155,61 @@ class BigQueryApi:
         job.result()
 
         destination_table = self.client.get_table(table)
-        print(f"Loaded {len(dataframe)} rows to {table}")
+        print(f"Loaded {dataframe.size} rows to {table}")
         print(f"Total rows after load :  {destination_table.num_rows}")
+
+    def compose_query(
+        self,
+        query_type: QueryType,
+        table: str,
+        start_date_time: str,
+        end_date_time: str,
+        tenant: Tenant,
+        where_fields: dict = None,
+        null_cols: list = None,
+        columns: list = None,
+    ) -> str:
+
+        null_cols = [] if null_cols is None else null_cols
+        where_fields = {} if where_fields is None else where_fields
+
+        columns = ", ".join(map(str, columns)) if columns else " * "
+        where_clause = (
+            f" timestamp >= '{start_date_time}' and timestamp <= '{end_date_time}' "
+        )
+        if tenant != Tenant.ALL:
+            where_clause = f" {where_clause} and tenant = '{str(tenant)}' "
+
+        valid_cols = self.get_columns(table=table)
+
+        for key, value in where_fields.items():
+            if key not in valid_cols:
+                raise Exception(
+                    f"Invalid table column. {key} is not among the columns for {table}"
+                )
+            where_clause = where_clause + f" and {key} = '{value}' "
+
+        for field in null_cols:
+            if field not in valid_cols:
+                raise Exception(
+                    f"Invalid table column. {field} is not among the columns for {table}"
+                )
+            where_clause = where_clause + f" and {field} is null "
+
+        if query_type == QueryType.DELETE:
+            query = f"""
+                DELETE FROM `{table}`
+                WHERE {where_clause}
+            """
+        elif query_type == QueryType.GET:
+            query = f"""
+                SELECT {columns} FROM `{table}`
+                WHERE {where_clause}
+            """
+        else:
+            raise Exception(f"Invalid Query Type {str(query_type)}")
+
+        return query
 
     def reload_data(
         self,
@@ -156,44 +217,47 @@ class BigQueryApi:
         table: str,
         start_date_time: str,
         end_date_time: str,
-        tenant: Tenant = Tenant.NONE,
+        tenant: Tenant = Tenant.ALL,
+        where_fields: dict = None,
+        null_cols: list = None,
     ) -> None:
 
-        query = f"""
-            DELETE FROM `{table}`
-            WHERE timestamp >= '{start_date_time}' and timestamp <= '{end_date_time}'
-        """
-
-        if tenant != Tenant.NONE:
-            query = f" {query} and tenant = '{str(tenant)}' "
+        query = self.compose_query(
+            QueryType.DELETE,
+            table=table,
+            tenant=tenant,
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            where_fields=where_fields,
+            null_cols=null_cols,
+        )
 
         self.client.query(query=query).result()
 
-        self.load_data(dataframe=dataframe, table=table, job_action=JobAction.APPEND)
+        self.load_data(dataframe=dataframe, table=table)
 
     def query_data(
         self,
         start_date_time: str,
         end_date_time: str,
         table: str,
+        tenant: Tenant,
         columns: list = None,
-        where_fields=None,
+        where_fields: dict = None,
+        null_cols: list = None,
     ) -> pd.DataFrame:
 
-        if where_fields is None:
-            where_fields = {}
+        query = self.compose_query(
+            QueryType.GET,
+            table=table,
+            tenant=tenant,
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            where_fields=where_fields,
+            null_cols=null_cols,
+            columns=columns,
+        )
 
-        columns = ", ".join(map(str, columns)) if columns else " * "
-
-        where_clause = ""
-        for key in where_fields.keys():
-            where_clause = where_clause + f" and {key} = '{where_fields[key]}'"
-
-        query = f"""
-            SELECT {columns}
-            FROM `{table}`
-            WHERE timestamp >= '{start_date_time}' and timestamp <= '{end_date_time}' {where_clause}
-        """
         dataframe = self.client.query(query=query).result().to_dataframe()
 
         if dataframe.empty:
