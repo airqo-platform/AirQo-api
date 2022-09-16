@@ -86,6 +86,10 @@ spec:
       name: view-api
       port: 8080
       targetPort: 8080
+    - protocol: TCP
+      name: views-api
+      port: 8081
+      targetPort: 8081
 
 ---
 kind: HorizontalPodAutoscaler
