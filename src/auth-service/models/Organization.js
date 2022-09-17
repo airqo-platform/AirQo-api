@@ -50,6 +50,12 @@ const OrganizationSchema = new Schema(
       type: String,
       required: [true, "category is required"],
     },
+    users: [
+      {
+        type: ObjectId,
+        ref: "user",
+      },
+    ],
   },
   {
     timestamps: true,
@@ -77,6 +83,7 @@ OrganizationSchema.methods = {
       isActive: this.isActive,
       phoneNumber: this.phoneNumber,
       tenant: this.tenant,
+      users: this.users,
       name: this.name,
       acronym: this.acronym,
       createdAt: this.createdAt,
@@ -152,35 +159,66 @@ OrganizationSchema.statics = {
   },
   async list({ skip = 0, limit = 5, filter = {} } = {}) {
     try {
-      let organizations = await this.find(filter)
+      const response = await this.aggregate()
+        .match(filter)
+        .lookup({
+          from: "users",
+          localField: "_id",
+          foreignField: "organizations",
+          as: "users",
+        })
         .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .exec();
-      if (!isEmpty(organizations)) {
-        let data = organizations;
+        .project({
+          _id: 1,
+          email: 1,
+          website: 1,
+          category: 1,
+          status: 1,
+          isAlias: 1,
+          isActive: 1,
+          phoneNumber: 1,
+          tenant: 1,
+          name: 1,
+          acronym: 1,
+          createdAt: 1,
+          users: "$users",
+        })
+        .project({
+          "users.__v": 0,
+          "users.notifications": 0,
+          "users.emailConfirmed": 0,
+          "users.organizations": 0,
+          "users.locationCount": 0,
+          "users.organization": 0,
+          "users.long_organization": 0,
+          "users.privilege": 0,
+          "users.userName": 0,
+          "users.password": 0,
+          "users.duration": 0,
+          "users.createdAt": 0,
+          "users.updatedAt": 0,
+        })
+        .skip(skip ? skip : 0)
+        .limit(limit ? limit : 100)
+        .allowDiskUse(true);
+
+      if (!isEmpty(response)) {
+        let data = response;
         return {
           success: true,
+          message: "successfully retrieved the organizations",
           data,
-          message: "successfully listed the organizations",
           status: HTTPStatus.OK,
         };
-      }
-      if (isEmpty(organizations)) {
+      } else if (isEmpty(response)) {
         return {
           success: false,
-          message: "no organizations exist for this search",
-          data: [],
+          message: "organization/s do not exist, please crosscheck",
           status: HTTPStatus.NOT_FOUND,
-          errors: { message: "no organizations exist for this search" },
+          data: [],
+          errors: { message: "unable to retrieve organizations" },
         };
       }
-      return {
-        success: false,
-        message: "unable to retrieve organizations",
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: "unable to retrieve organizations" },
-      };
     } catch (err) {
       let response = {};
       let errors = {};
@@ -209,13 +247,22 @@ OrganizationSchema.statics = {
       };
     }
   },
+
   async modify({ filter = {}, update = {} } = {}) {
     try {
       let options = { new: true };
       let modifiedUpdate = update;
+      modifiedUpdate["$addToSet"] = {};
       if (modifiedUpdate.tenant) {
         delete modifiedUpdate.tenant;
       }
+
+      if (modifiedUpdate.users) {
+        modifiedUpdate["$addToSet"]["users"] = {};
+        modifiedUpdate["$addToSet"]["users"]["$each"] = modifiedUpdate.users;
+        delete modifiedUpdate["users"];
+      }
+
       let updatedOrganization = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,

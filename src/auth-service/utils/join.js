@@ -1,8 +1,8 @@
 const UserSchema = require("../models/User");
+const AccessTokenSchema = require("../models/AccessToken");
 const { getModelByTenant } = require("../utils/multitenancy");
 const { logObject, logElement, logText } = require("../utils/log");
 const mailer = require("../utils/mailer");
-const generatePassword = require("./generate-password");
 const bcrypt = require("bcrypt");
 const crypto = require("crypto");
 const isEmpty = require("is-empty");
@@ -10,10 +10,10 @@ const HTTPStatus = require("http-status");
 const { getAuth, sendSignInLinkToEmail } = require("firebase-admin/auth");
 const actionCodeSettings = require("../config/firebase-settings");
 const httpStatus = require("http-status");
-const validationsUtil = require("./validations");
 const constants = require("../config/constants");
 const mailchimp = require("../config/mailchimp");
 const md5 = require("md5");
+const accessCodeGenerator = require("generate-password");
 
 const UserModel = (tenant) => {
   try {
@@ -25,6 +25,16 @@ const UserModel = (tenant) => {
   }
 };
 
+const AccessTokenModel = (tenant) => {
+  try {
+    let tokens = mongoose.model("access_token");
+    return tokens;
+  } catch (error) {
+    let tokens = getModelByTenant(tenant, "access_token", AccessTokenSchema);
+    return tokens;
+  }
+};
+
 const join = {
   list: async (tenant, filter, limit, skip) => {
     try {
@@ -33,25 +43,30 @@ const join = {
         limit,
         skip,
       });
-      if (responseFromListUser.success == true) {
+      if (responseFromListUser.success === true) {
+        const status = responseFromListUser.status
+          ? responseFromListUser.status
+          : HTTPStatus.OK;
         return {
           success: true,
           message: responseFromListUser.message,
           data: responseFromListUser.data,
+          status,
         };
-      } else if ((responseFromListUser.success = false)) {
-        if (responseFromListUser.error) {
-          return {
-            success: false,
-            message: responseFromListUser.message,
-            error: responseFromListUser.error,
-          };
-        } else {
-          return {
-            success: false,
-            message: responseFromListUser.message,
-          };
-        }
+      } else if (responseFromListUser.success === false) {
+        const status = responseFromListUser.status
+          ? responseFromListUser.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        const errors = responseFromListUser.errors
+          ? responseFromListUser.errors
+          : { message: "Internal Server Error" };
+
+        return {
+          success: false,
+          message: responseFromListUser.message,
+          errors,
+          status,
+        };
       }
     } catch (e) {
       logElement("list users util", e.message);
@@ -272,28 +287,40 @@ const join = {
         long_organization,
         privilege,
       } = request;
-      let response = {};
-      logText("...........create user util...................");
-      let responseFromGeneratePassword = generatePassword(10);
-      logObject("responseFromGeneratePassword", responseFromGeneratePassword);
-      if (responseFromGeneratePassword.success === true) {
-        let password = responseFromGeneratePassword.data;
-        let requestBody = {
-          firstName,
-          lastName,
-          email,
-          organization,
-          long_organization,
-          privilege,
-          userName: email,
-          password,
-        };
 
-        let responseFromCreateUser = await UserModel(tenant).register(
-          requestBody
+      const password = accessCodeGenerator.generate(
+        constants.RANDOM_PASSWORD_CONFIGURATION(10)
+      );
+
+      let requestBody = {
+        firstName,
+        lastName,
+        email,
+        organization,
+        long_organization,
+        privilege,
+        userName: email,
+        password,
+      };
+
+      const responseFromCreateUser = await UserModel(tenant).register(
+        requestBody
+      );
+
+      if (responseFromCreateUser.success === true) {
+        const token = accessCodeGenerator
+          .generate(constants.RANDOM_PASSWORD_CONFIGURATION(16))
+          .toUpperCase();
+
+        let requestBodyForAccessToken = {};
+        requestBodyForAccessToken["token"] = token;
+        requestBodyForAccessToken["userId"] = responseFromCreateUser.data._id;
+
+        const resonseFromSaveToken = await AccessTokenModel(tenant).register(
+          requestBodyForAccessToken
         );
 
-        if (responseFromCreateUser.success === true) {
+        if (resonseFromSaveToken.success === true) {
           let createdUser = await responseFromCreateUser.data;
           logObject("created user in util", createdUser._doc);
           let responseFromSendEmail = await mailer.user(
@@ -311,9 +338,7 @@ const join = {
               message: "user successfully created",
               data: createdUser._doc,
             };
-          }
-
-          if (responseFromSendEmail.success === false) {
+          } else if (responseFromSendEmail.success === false) {
             let status = responseFromSendEmail.status
               ? responseFromSendEmail.status
               : "";
@@ -327,46 +352,36 @@ const join = {
               status,
             };
           }
-        }
-
-        if (responseFromCreateUser.success === false) {
-          let error = responseFromCreateUser.error
-            ? responseFromCreateUser.error
-            : "";
-          let status = responseFromCreateUser.status
-            ? responseFromCreateUser.status
-            : "";
-          logObject("the error from the model", error);
+        } else if (resonseFromSaveToken.success === false) {
+          let errors = resonseFromSaveToken.errors
+            ? resonseFromSaveToken.errors
+            : { message: "Internal Server Error" };
           return {
             success: false,
-            message: responseFromCreateUser.message,
-            error,
-            status,
+            message: resonseFromSaveToken.message,
+            status: HTTPStatus.INTERNAL_SERVER_ERROR,
+            errors,
           };
         }
-      }
-
-      if (responseFromGeneratePassword.success === false) {
-        let error = responseFromGeneratePassword.error
-          ? responseFromGeneratePassword.error
+      } else if (responseFromCreateUser.success === false) {
+        let error = responseFromCreateUser.error
+          ? responseFromCreateUser.error
           : "";
-        let status = responseFromGeneratePassword.status
-          ? responseFromGeneratePassword.status
+        let status = responseFromCreateUser.status
+          ? responseFromCreateUser.status
           : "";
-        logElement("error when password generation fails", error);
+        logObject("the error from the model", error);
         return {
           success: false,
-          message: responseFromGeneratePassword.message,
+          message: responseFromCreateUser.message,
           error,
           status,
         };
       }
     } catch (e) {
-      logElement("create users util", e.message);
-      logObject("create user util error", e);
       return {
         success: false,
-        message: "util server error",
+        message: "Internal Server Error",
         error: e.message,
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };

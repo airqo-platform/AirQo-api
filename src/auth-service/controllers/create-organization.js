@@ -138,9 +138,7 @@ const createOrganization = {
           updated_organization: responseFromUpdateOrganization.data,
           success: true,
         });
-      }
-
-      if (responseFromUpdateOrganization.success === false) {
+      } else if (responseFromUpdateOrganization.success === false) {
         let status = responseFromUpdateOrganization.status
           ? responseFromUpdateOrganization.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;

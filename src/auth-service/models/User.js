@@ -74,6 +74,12 @@ const UserSchema = new Schema(
     privilege: { type: String, required: [true, "the role is required!"] },
     isActive: { type: Boolean },
     duration: { type: Date, default: oneMonthFromNow },
+    organizations: [
+      {
+        type: ObjectId,
+        ref: "organization",
+      },
+    ],
     organization: {
       type: String,
       required: [true, "the organization is required!"],
@@ -183,47 +189,98 @@ UserSchema.statics = {
   },
   async list({ skip = 0, limit = 5, filter = {} } = {}) {
     try {
-      let users = await this.find(filter)
+      const response = await this.aggregate()
+        .match(filter)
+        .lookup({
+          from: "organizations",
+          localField: "_id",
+          foreignField: "users",
+          as: "organizations",
+        })
+        .lookup({
+          from: "access_tokens",
+          localField: "_id",
+          foreignField: "userId",
+          as: "access_token",
+        })
         .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .exec();
-      if (!isEmpty(users)) {
-        let data = users;
+        .project({
+          _id: 1,
+          locationCount: 1,
+          organization: 1,
+          long_organization: 1,
+          firstName: 1,
+          lastName: 1,
+          userName: 1,
+          email: 1,
+          privilege: 1,
+          profilePicture: 1,
+          phoneNumber: 1,
+          organizations: "$organizations",
+          access_token: { $arrayElemAt: ["$access_token", 0] },
+        })
+        .project({
+          "organizations.__v": 0,
+          "organizations.status": 0,
+          "organizations.isActive": 0,
+          "organizations.isAlias": 0,
+          "organizations.tenant": 0,
+          "organizations.acronym": 0,
+          "organizations.createdAt": 0,
+          "organizations.updatedAt": 0,
+          "organizations.users": 0,
+        })
+        .project({
+          "access_token.__v": 0,
+          "access_token._id": 0,
+          "access_token.userId": 0,
+          "access_token.createdAt": 0,
+          "access_token.updatedAt": 0,
+        })
+        .skip(skip ? skip : 0)
+        .limit(limit ? limit : 100)
+        .allowDiskUse(true);
+      if (!isEmpty(response)) {
+        let data = response;
         return {
           success: true,
+          message: "successfully retrieved the user details",
           data,
-          message: "successfully listed the users",
+          status: HTTPStatus.OK,
         };
-      }
-
-      if (isEmpty(data)) {
+      } else {
         return {
           success: true,
-          message: "no users exist",
-          data,
+          message: "user/s do not exist, please crosscheck",
+          status: HTTPStatus.NOT_FOUND,
+          data: [],
         };
       }
-      return {
-        success: false,
-        message: "unable to retrieve users",
-        data,
-      };
     } catch (error) {
       return {
         success: false,
-        message: "User model server error - list",
-        error: error.message,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
+
   async modify({ filter = {}, update = {} } = {}) {
     try {
       let options = { new: true };
       let modifiedUpdate = update;
+      modifiedUpdate["$addToSet"] = {};
       if (update.password) {
         modifiedUpdate.password = bcrypt.hashSync(update.password, saltRounds);
       }
+      if (modifiedUpdate.organizations) {
+        modifiedUpdate["$addToSet"]["organizations"] = {};
+        modifiedUpdate["$addToSet"]["organizations"]["$each"] =
+          modifiedUpdate.organizations;
+        delete modifiedUpdate["organizations"];
+      }
+
       let updatedUser = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,
@@ -263,11 +320,13 @@ UserSchema.statics = {
           success: true,
           message: "successfully removed the user",
           data,
+          status: HTTPStatus.OK,
         };
       } else {
         return {
           success: false,
           message: "user does not exist, please crosscheck",
+          status: HTTPStatus.NOT_FOUND,
         };
       }
     } catch (error) {
@@ -275,6 +334,7 @@ UserSchema.statics = {
         success: false,
         message: "User model server error - remove",
         error: error.message,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },

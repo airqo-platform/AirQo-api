@@ -21,7 +21,7 @@ const filter = {
         filter["privilege"] = privilege;
       }
       if (id) {
-        filter["_id"] = id;
+        filter["_id"] = ObjectId(id);
       }
       if (active) {
         if (active == "yes") {
@@ -91,7 +91,7 @@ const filter = {
         filter["status"] = status;
       }
       if (id) {
-        filter["_id"] = id;
+        filter["_id"] = ObjectId(id);
       }
       if (active) {
         if (active === "yes") {

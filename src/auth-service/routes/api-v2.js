@@ -146,6 +146,38 @@ router.put(
       .isIn(["kcca", "airqo"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
+  oneOf([
+    query("id")
+      .exists()
+      .withMessage(
+        "the user identifier is missing in request, consider using id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+  ]),
+  oneOf([
+    [
+      body("organizations")
+        .optional()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the organizations should be an array")
+        .bail()
+        .notEmpty()
+        .withMessage("the organizations should not be empty"),
+      body("organizations.*")
+        .optional()
+        .isMongoId()
+        .withMessage("each organizations should be a mongo/object ID"),
+    ],
+  ]),
   setJWTAuth,
   authJWT,
   joinController.update
@@ -764,6 +796,19 @@ router.put(
         .withMessage("the name should not be empty")
         .bail()
         .trim(),
+      body("users")
+        .optional()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the users should be an array")
+        .bail()
+        .notEmpty()
+        .withMessage("the users should not be empty"),
+      body("users.*")
+        .optional()
+        .isMongoId()
+        .withMessage("each use should be a mongo ID"),
     ],
   ]),
   setJWTAuth,

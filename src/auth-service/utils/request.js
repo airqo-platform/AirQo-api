@@ -3,7 +3,6 @@ const CandidateSchema = require("../models/Candidate");
 const { getModelByTenant } = require("../utils/multitenancy");
 const { logObject, logElement, logText } = require("../utils/log");
 const mailer = require("../utils/mailer");
-const generatePassword = require("./generate-password");
 var jsonify = require("./jsonify");
 const generateFilter = require("./generate-filter");
 const isEmpty = require("is-empty");
@@ -255,121 +254,104 @@ const request = {
         responseFromListCandidate.success === true &&
         !isEmpty(responseFromListCandidate.data)
       ) {
-        let responseFromGeneratePassword = generatePassword(10);
-        logObject("responseFromGeneratePassword", responseFromGeneratePassword);
-        if (responseFromGeneratePassword.success === true) {
-          let password = responseFromGeneratePassword.data;
+        const password = accessCodeGenerator.generate(
+          constants.RANDOM_PASSWORD_CONFIGURATION(10)
+        );
 
-          let requestBody = {
-            tenant,
+        let requestBody = {
+          tenant,
+          firstName,
+          lastName,
+          email,
+          organization,
+          long_organization,
+          jobTitle,
+          website,
+          password,
+          description,
+          category,
+          privilege: "user",
+          userName: email,
+        };
+        logObject("requestBody during confirmation", requestBody);
+
+        let responseFromCreateUser = await UserModel(tenant).register(
+          requestBody
+        );
+        logObject(
+          "responseFromCreateUser during confirmation",
+          responseFromCreateUser
+        );
+        let createdUser = await responseFromCreateUser.data;
+        let jsonifyCreatedUser = jsonify(createdUser);
+        logObject("jsonifyCreatedUser", jsonifyCreatedUser);
+
+        if (responseFromCreateUser.success === true) {
+          let responseFromSendEmail = await mailer.user(
             firstName,
             lastName,
             email,
-            organization,
-            long_organization,
-            jobTitle,
-            website,
             password,
-            description,
-            category,
-            privilege: "user",
-            userName: email,
-          };
-          logObject("requestBody during confirmation", requestBody);
-
-          let responseFromCreateUser = await UserModel(tenant).register(
-            requestBody
+            tenant,
+            "confirm"
           );
           logObject(
-            "responseFromCreateUser during confirmation",
-            responseFromCreateUser
+            "responseFromSendEmail during confirmation",
+            responseFromSendEmail
           );
-          let createdUser = await responseFromCreateUser.data;
-          let jsonifyCreatedUser = jsonify(createdUser);
-          logObject("jsonifyCreatedUser", jsonifyCreatedUser);
-
-          if (responseFromCreateUser.success === true) {
-            let responseFromSendEmail = await mailer.user(
-              firstName,
-              lastName,
-              email,
-              password,
+          if (responseFromSendEmail.success === true) {
+            let responseFromDeleteCandidate = await request.delete(
               tenant,
-              "confirm"
+              filter
             );
-            logObject(
-              "responseFromSendEmail during confirmation",
-              responseFromSendEmail
-            );
-            if (responseFromSendEmail.success === true) {
-              let responseFromDeleteCandidate = await request.delete(
-                tenant,
-                filter
-              );
-              if (responseFromDeleteCandidate.success === true) {
-                return {
-                  success: true,
-                  message: "candidate successfully confirmed",
-                  data: jsonifyCreatedUser,
-                };
-              } else if (responseFromDeleteCandidate.success === false) {
-                if (responseFromDeleteCandidate.error) {
-                  return {
-                    success: false,
-                    message: responseFromDeleteCandidate.message,
-                    data: responseFromDeleteCandidate.data,
-                    error: responseFromDeleteCandidate.error,
-                  };
-                } else {
-                  return {
-                    success: false,
-                    message: responseFromDeleteCandidate.message,
-                    data: responseFromDeleteCandidate.data,
-                  };
-                }
-              }
-            } else if (responseFromSendEmail.success === false) {
-              if (responseFromSendEmail.error) {
+            if (responseFromDeleteCandidate.success === true) {
+              return {
+                success: true,
+                message: "candidate successfully confirmed",
+                data: jsonifyCreatedUser,
+              };
+            } else if (responseFromDeleteCandidate.success === false) {
+              if (responseFromDeleteCandidate.error) {
                 return {
                   success: false,
-                  message: responseFromSendEmail.message,
-                  error: responseFromSendEmail.error,
+                  message: responseFromDeleteCandidate.message,
+                  data: responseFromDeleteCandidate.data,
+                  error: responseFromDeleteCandidate.error,
                 };
               } else {
                 return {
                   success: false,
-                  message: responseFromSendEmail.message,
+                  message: responseFromDeleteCandidate.message,
+                  data: responseFromDeleteCandidate.data,
                 };
               }
             }
-          }
-          if (responseFromCreateUser.success == false) {
-            if (responseFromCreateUser.error) {
+          } else if (responseFromSendEmail.success === false) {
+            if (responseFromSendEmail.error) {
               return {
                 success: false,
-                message: responseFromCreateUser.message,
-                error: responseFromCreateUser.error,
+                message: responseFromSendEmail.message,
+                error: responseFromSendEmail.error,
               };
             } else {
               return {
                 success: false,
-                message: responseFromCreateUser.message,
+                message: responseFromSendEmail.message,
               };
             }
           }
         }
-
-        if (responseFromGeneratePassword.success === false) {
-          if (responseFromGeneratePassword.error) {
+        if (responseFromCreateUser.success == false) {
+          if (responseFromCreateUser.error) {
             return {
               success: false,
-              message: responseFromGeneratePassword.message,
-              error: responseFromGeneratePassword.error,
+              message: responseFromCreateUser.message,
+              error: responseFromCreateUser.error,
             };
           } else {
             return {
               success: false,
-              message: responseFromGeneratePassword.message,
+              message: responseFromCreateUser.message,
             };
           }
         }

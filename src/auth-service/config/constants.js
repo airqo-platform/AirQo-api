@@ -41,6 +41,7 @@ const defaultConfig = {
       uppercase: true,
       lowercase: true,
       strict: true,
+      excludeSimilarCharacters: true,
     };
   },
   SALT_ROUNDS: 10,
