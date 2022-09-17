@@ -13,6 +13,8 @@ const {
   authJWT,
   setLocalAuth,
   authLocal,
+  authToken,
+  setAuthToken,
 } = require("../utils/passport");
 const privileges = require("../utils/privileges");
 
@@ -1063,8 +1065,8 @@ router.get(
       .isIn(["kcca", "airqo"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
-  setJWTAuth,
-  authJWT,
+  setAuthToken,
+  authToken,
   organizationController.list
 );
 

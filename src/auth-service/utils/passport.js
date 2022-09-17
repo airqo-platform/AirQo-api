@@ -3,13 +3,19 @@ const LocalStrategy = require("passport-local");
 const HTTPStatus = require("http-status");
 const Validator = require("validator");
 const UserSchema = require("../models/User");
+const AccessTokenSchema = require("../models/AccessToken");
 const constants = require("../config/constants");
 const { logElement, logText, logObject } = require("./log");
 const { Strategy: JwtStrategy, ExtractJwt } = require("passport-jwt");
+const AuthTokenStrategy = require("passport-auth-token");
 
 const { getModelByTenant } = require("./multitenancy");
 const UserModel = (tenant) => {
   return getModelByTenant(tenant, "user", UserSchema);
+};
+
+const AccessTokenModel = (tenant) => {
+  return getModelByTenant(tenant, "token", AccessTokenSchema);
 };
 
 const { validationResult } = require("express-validator");
@@ -119,7 +125,6 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
       }
     }
   );
-
 const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
   new LocalStrategy(
     authenticateWithUsernameOptions,
@@ -165,12 +170,55 @@ const useJWTStrategy = (tenant, req, res, next) =>
     }
   });
 
+const useAuthTokenStrategy = (tenant, req, res, next) =>
+  new AuthTokenStrategy(async function (token, done) {
+    await AccessTokenModel(tenant.toLowerCase()).findOne(
+      {
+        id: token,
+      },
+      function (error, accessToken) {
+        if (error) {
+          return done(error);
+        }
+
+        if (accessToken) {
+          if (!token.isValid(accessToken)) {
+            return done(null, false);
+          }
+
+          UserModel(tenant.toLowerCase()).findOne(
+            {
+              id: accessToken.userId,
+            },
+            function (error, user) {
+              if (error) {
+                return done(error);
+              }
+
+              if (!user) {
+                return done(null, false);
+              }
+
+              return done(null, user);
+            }
+          );
+        } else {
+          return done(null);
+        }
+      }
+    );
+  });
+
 const setLocalStrategy = (tenant, req, res, next) => {
   passport.use("user-local", useLocalStrategy(tenant, req, res, next));
 };
 
 const setJWTStrategy = (tenant, req, res, next) => {
   passport.use("jwt", useJWTStrategy(tenant, req, res, next));
+};
+
+const setAuthTokenStrategy = (tenant, req, res, next) => {
+  passport.use("authtoken", useAuthTokenStrategy(tenant, req, res, next));
 };
 
 function setLocalAuth(req, res, next) {
@@ -222,6 +270,32 @@ function setJWTAuth(req, res, next) {
   }
 }
 
+function setAuthToken(req, res, next) {
+  try {
+    const hasErrors = !validationResult(req).isEmpty();
+    if (hasErrors) {
+      let nestedErrors = validationResult(req).errors[0].nestedErrors;
+      logObject("nestedErrors", nestedErrors);
+      return badRequest(
+        res,
+        "bad request errors",
+        manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+      );
+    }
+    let tenant = "airqo";
+    if (req.query.tenant) {
+      tenant = req.query.tenant;
+    }
+    setAuthTokenStrategy(tenant, req, res, next);
+    next();
+  } catch (e) {
+    console.log("the error in setAuthToken is: ", e.message);
+    res
+      .status(HTTPStatus.INTERNAL_SERVER_ERROR)
+      .json({ success: false, message: e.message });
+  }
+}
+
 const authLocal = passport.authenticate("user-local", {
   session: false,
   failureFlash: true,
@@ -231,9 +305,16 @@ const authJWT = passport.authenticate("jwt", {
   session: false,
 });
 
+const authToken = passport.authenticate("authtoken", {
+  session: false,
+  optional: false,
+});
+
 module.exports = {
   setLocalAuth: setLocalAuth,
   setJWTAuth: setJWTAuth,
+  setAuthToken: setAuthToken,
   authLocal: authLocal,
   authJWT: authJWT,
+  authToken: authToken,
 };
