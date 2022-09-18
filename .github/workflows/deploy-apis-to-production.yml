@@ -1136,7 +1136,6 @@ jobs:
           cd src/view/
           gcloud secrets versions access latest --secret="sta-env-view-api" > api.env
           kubectl create configmap --dry-run=client -o yaml --from-env-file=api.env prod-view-api-config | kubectl replace -f - -n production
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=api.env prod-views-api-config | kubectl replace -f - -n production
           gcloud secrets versions access latest --secret="sta-env-view-message-broker" > message_broker.env
           kubectl create configmap --dry-run=client -o yaml --from-env-file=message_broker.env prod-view-message-broker-config | kubectl replace -f - -n production
    

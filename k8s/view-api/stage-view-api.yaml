@@ -71,37 +71,6 @@ spec:
             preStop:
               exec:
                 command: [ "sh", "-c", "sleep 10" ]
-        - name: views-api
-          image: us.gcr.io/airqo-250220/airqo-stage-view-api:latest
-          imagePullPolicy: Always
-          resources:
-            requests:
-              # Average usage was 0.002 vCPU and 420Mi over the last 30 days
-              cpu: 5m
-              memory: 420Mi
-            limits:
-              cpu: 50m
-              memory: 700Mi
-          ports:
-            - containerPort: 8081
-              name: views-api
-          envFrom:
-            - configMapRef:
-                name: stage-views-api-config
-          readinessProbe:
-            initialDelaySeconds: 120
-            httpGet:
-              port: 8081
-              path: api/v1/views/actuator/health/readiness
-          livenessProbe:
-            initialDelaySeconds: 120
-            httpGet:
-              port: 8081
-              path: api/v1/views/actuator/health/liveness
-          lifecycle:
-            preStop:
-              exec:
-                command: [ "sh", "-c", "sleep 10" ]
                 
 ---
 kind: Service
@@ -117,10 +86,6 @@ spec:
       name: view-api
       port: 8080
       targetPort: 8080
-    - protocol: TCP
-      name: views-api
-      port: 8081
-      targetPort: 8081
 
 ---
 kind: HorizontalPodAutoscaler
