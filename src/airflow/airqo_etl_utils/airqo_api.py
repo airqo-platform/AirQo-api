@@ -129,9 +129,9 @@ class AirQoApi:
             }
             for device in devices
         ]
-
-        if category != DeviceCategory.NONE:
-            devices = list(filter(lambda y: y["category"] == str(category), devices))
+        # Temporarily disabling category since endpoint does not return all devices
+        # if category != DeviceCategory.NONE:
+        #     devices = list(filter(lambda y: y["category"] == category, devices))
 
         return devices
 
