@@ -58,12 +58,14 @@ spec:
             - configMapRef:
                 name: prod-view-api-config
           readinessProbe:
-            initialDelaySeconds: 120
+            initialDelaySeconds: 60
+            periodSeconds: 10
             httpGet:
               port: 8080
               path: api/v1/view/actuator/health/readiness
           livenessProbe:
-            initialDelaySeconds: 120
+            initialDelaySeconds: 240
+            periodSeconds: 20
             httpGet:
               port: 8080
               path: api/v1/view/actuator/health/liveness
