@@ -1,5 +1,4 @@
 provider "google" {
-  credentials = file("${path.module}/../assets/airqo-terraform.json")
   project = "airqo-frontend"
 }
 
