@@ -98,11 +98,13 @@ class AirQoApi:
     ) -> list:
         devices = []
         if tenant == Tenant.ALL:
-            for tenant in Tenant:
+            for tenant_enum in Tenant:
+                if tenant_enum == Tenant.ALL:
+                    continue
                 try:
-                    response = self.__request("devices", {"tenant": str(tenant)})
+                    response = self.__request("devices", {"tenant": str(tenant_enum)})
                     tenant_devices = [
-                        {**device, **{"tenant": str(tenant)}}
+                        {**device, **{"tenant": str(tenant_enum)}}
                         for device in response.get("devices", [])
                     ]
                     devices.extend(tenant_devices)
@@ -206,11 +208,15 @@ class AirQoApi:
     def get_sites(self, tenant: Tenant = Tenant.ALL) -> list:
         sites = []
         if tenant == Tenant.ALL:
-            for tenant in Tenant:
+            for tenant_enum in Tenant:
+                if tenant_enum == Tenant.ALL:
+                    continue
                 try:
-                    response = self.__request("devices/sites", {"tenant": str(tenant)})
+                    response = self.__request(
+                        "devices/sites", {"tenant": str(tenant_enum)}
+                    )
                     tenant_sites = [
-                        {**site, **{"tenant": str(tenant)}}
+                        {**site, **{"tenant": str(tenant_enum)}}
                         for site in response.get("sites", [])
                     ]
                     sites.extend(tenant_sites)
