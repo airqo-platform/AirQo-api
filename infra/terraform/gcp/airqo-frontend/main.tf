@@ -29,14 +29,14 @@ module "resources-projects-airqo-frontend-ComputeFirewall" {
 
 
 module "resources-projects-airqo-frontend-StorageBucket-US" {
-  source = "./resources/StorageBucket/US"
+  source = "./resources/StorageBucket"
 }
 
 
 ## As of Sept/2022, the provider hashicorp/google does not support resource type
 ## "google_logging_log_sink" on line 1 of the file a-required.tf
-# module "resources-4127550141-4127550141-Project-LoggingLogSink" {
-#  source = "./resources/4127550141/4127550141/Project/LoggingLogSink"
+# module "resources-a-required" {
+#  source = "./resources/a-required.tf"
 # }
 
 

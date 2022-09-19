@@ -15,8 +15,6 @@ resource "google_storage_bucket" "staging_airqo_frontend_appspot_com" {
   location                 = "US"
   name                     = "staging.airqo-frontend.appspot.com"
   project                  = "airqo-frontend"
-  # Argument "public_access_prevention" not expected here.
-# public_access_prevention = "inherited"
   storage_class            = "STANDARD"
 }
 # terraform import google_storage_bucket.staging_airqo_frontend_appspot_com staging.airqo-frontend.appspot.com
