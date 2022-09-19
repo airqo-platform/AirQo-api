@@ -88,9 +88,11 @@ module "entire-tf-output-projects-airqo-250220-ComputeForwardingRule-global" {
 }
 
 
-module "entire-tf-output-702081712633-702081712633-Project-LoggingLogSink" {
-  source = "./entire-tf-output/702081712633/702081712633/Project/LoggingLogSink"
-}
+## As of Sept/2022, the provider hashicorp/google does not support resource type
+## "google_logging_log_sink" on line 1 of the file a-required.tf
+# module "entire-tf-output-702081712633-702081712633-Project-LoggingLogSink" {
+#  source = "./entire-tf-output/702081712633/702081712633/Project/LoggingLogSink"
+# }
 
 
 module "entire-tf-output-projects-airqo-250220-ComputeSubnetwork-asia-southeast1" {
