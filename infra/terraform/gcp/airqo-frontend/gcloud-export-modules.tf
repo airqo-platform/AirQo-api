@@ -18,11 +18,6 @@ module "entire-tf-output-projects-airqo-frontend-PubSubTopic" {
 }
 
 
-module "entire-tf-output-209212318541-Project" {
-  source = "./entire-tf-output/209212318541/Project"
-}
-
-
 module "entire-tf-output-projects-airqo-frontend-DNSManagedZone" {
   source = "./entire-tf-output/projects/airqo-frontend/DNSManagedZone"
 }
