@@ -15,7 +15,7 @@ const {
   authLocal,
   authToken,
   setAuthToken,
-} = require("../utils/passport");
+} = require("../middleware/passport");
 const privileges = require("../utils/privileges");
 
 const mongoose = require("mongoose");

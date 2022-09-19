@@ -11,7 +11,7 @@ const {
   authJWT,
   setLocalAuth,
   authLocal,
-} = require("../utils/passport");
+} = require("../middleware/passport");
 const privileges = require("../utils/privileges");
 
 const mongoose = require("mongoose");
