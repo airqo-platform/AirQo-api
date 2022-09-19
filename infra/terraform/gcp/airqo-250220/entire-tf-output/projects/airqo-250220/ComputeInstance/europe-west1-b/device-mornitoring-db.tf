@@ -19,10 +19,6 @@ resource "google_compute_instance" "device_mornitoring_db" {
 
   machine_type = "e2-custom-2-2304"
 
-  metadata = {
-    ssh-keys = "mikemwanje:ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBI4j2vBrsbPbScV3RzUsGj18GUgePxFjeKVkzEe+ke3H5ngVlecsYMIVYlbkXHuoXs8v5+4aNlwQzxk79GeY0Yg= google-ssh {\"userName\":\"mikemwanje@airqo.net\",\"expireOn\":\"2022-04-01T06:42:30+0000\"}"
-  }
-
   name = "device-mornitoring-db"
 
   network_interface {

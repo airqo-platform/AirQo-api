@@ -5,11 +5,6 @@ resource "google_bigquery_dataset" "dev_dataset" {
   }
 
   access {
-    role          = "OWNER"
-    user_by_email = "noah@airqo.net"
-  }
-
-  access {
     role          = "READER"
     special_group = "projectReaders"
   }

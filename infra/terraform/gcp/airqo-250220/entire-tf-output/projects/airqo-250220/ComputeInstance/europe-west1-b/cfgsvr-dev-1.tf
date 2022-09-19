@@ -19,10 +19,6 @@ resource "google_compute_instance" "cfgsvr_dev_1" {
 
   machine_type = "e2-medium"
 
-  metadata = {
-    ssh-keys = "mikemwanje:ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBF5aEhLJZfp1ulNn4YquW9YxzHkFajuDOq0kw6OXIxNtUm+J/0UWPCNPUEEOy7acQMwsQla/y/fiZhgGX7Zd+Lk= google-ssh {\"userName\":\"mikemwanje@airqo.net\",\"expireOn\":\"2022-09-12T13:56:51+0000\"}\nmikemwanje:ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCdj2BBYU1ssnSNh4Qbb9BC7TvEt918rqOHf5LLR/37dR3Gd2fHaalJ73KClwrMVizAFoLbwSrO/vqwjmFrq9XXxWI2zC3cicHddXnUHU17GFjcjvxw5AkVNmtRUL7FDIfm1MBGVM7i6ms0TLuBpwyX9m8Y4Dq83GYGm8BtT77Ol0UcauHIuQJZn9/dGAkiRP9J2GLKMXMujG0byCfzrPmNXFZauK3upHNeIUHkknT/vQs80zMr7wql4EzbbjFOt7D7fpyU85rqKEMl3r+W3qlAy1B8GYhcklh998sIRLQonhcsgUZmdZTc7FnlLpB7g5+wGx1YVIq5qVIlsXMXXI17 google-ssh {\"userName\":\"mikemwanje@airqo.net\",\"expireOn\":\"2022-09-12T13:57:07+0000\"}"
-  }
-
   name = "cfgsvr-dev-1"
 
   network_interface {

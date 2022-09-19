@@ -19,10 +19,6 @@ resource "google_compute_instance" "airqo_postgresql_db" {
 
   machine_type = "e2-small"
 
-  metadata = {
-    ssh-keys = "noah:ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBPwk1fdhOTjflGhb0gtu5TLj26Aq4wPx+pGkFvWyxCwBnE7WlmXkQAuXJZthOwifRrsDyoOv4SvjDkgfSi1eFFE= google-ssh {\"userName\":\"noah@airqo.net\",\"expireOn\":\"2022-09-02T12:07:23+0000\"}\nnoah:ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCHutjAKYiCJe9DlU7fAMPZtjMiJVjulkDTttuiu+8HOuHA69WKi3jaQfVoLQzs6BikTaex1W5JSd0OYF3PZpz7bLTCqyF9mX13rMTuqPklRLBx1t/s1X1Z4g6FV/7qmrBLb+KXb3YOYteEFleY/P4U0P2nWJ7fa2JSw3hWV/YB81xqbQZpoeBfVXBkJDjz3R3ZQCiV1EFR91YXyj3wv4a91YfJuF+Zu8Zjjb0olJcsecjLbcgJEkkBODjmBIgCKg0MdxlgVd9FtHPXcuemul/vXue2ogatdzqF0y3ood0mOmKX/XO7Loya1PPYJ+CWr3U/k1M5OuZ2mA4EwcVCTRSX google-ssh {\"userName\":\"noah@airqo.net\",\"expireOn\":\"2022-09-02T12:07:38+0000\"}"
-  }
-
   name = "airqo-postgresql-db"
 
   network_interface {

@@ -3,12 +3,7 @@ resource "google_bigquery_dataset" "thingspeak_testing" {
     role          = "OWNER"
     special_group = "projectOwners"
   }
-
-  access {
-    role          = "OWNER"
-    user_by_email = "bob@airqo.net"
-  }
-
+  
   access {
     role          = "READER"
     special_group = "projectReaders"

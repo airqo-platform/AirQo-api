@@ -19,10 +19,6 @@ resource "google_compute_instance" "temp_calibrate_service" {
 
   machine_type = "c2-standard-4"
 
-  metadata = {
-    ssh-keys = "noah:ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDCGCRMDn3GciJ6EG+uATxHo+FDpOVq9EOcmExdTtcOOb0utD0ayJk7m8cNY9jc2UHphXDAONweRKbhCbMhswQ31ho4im7Gq+373wUGTfsz1AWriupo52AubAAup1tjYeKQrIZ//4R6mw4yx8J98QRWKp2EZwHvw+9ke/3HwWlLEsfhFhLLdCrSG4Slv84djn0MXi40tlAHz8YKlNB88DrMAHwzfdjWnzqIemTcluwwDH2ts6E5LdCVlNLHoocYZudduKxFhcCBBtXR0DpzgKccXQzEN5fdxySPxrcdi9jjTtjYhVBrA3XYAC3kwqdVDClOQzTfA5TfVSGdgYIO5Zyufa9i95W+M+OlnuoiB1zUdOG5GppdUGXUAt9BNO6UY+s/lHKr1/pg26rppSXzwHnS7fEijIrPTpfxRISSsyxuBWjwEcmX7CV9FLjgrzhMd0tUPLHpuR4StbmYrwqfIZXrCN5nOomQPlx4dyacGU+rAWeu0XF0ZvBpxZiMwnTUhfU= noah@Noahs-MacBook.local"
-  }
-
   name = "temp-calibrate-service"
 
   network_interface {

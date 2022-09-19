@@ -17,7 +17,6 @@ resource "google_compute_instance" "mlflow_tracking_server" {
 
   metadata = {
     startup-script-url = "gs://airqo-mlflow-artifacts/scripts/start_mlflow_tracking.sh"
-    ssh-keys           = "daniel:ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBFtoThtOpgKW12Udul1RVg3RGb3p0Xpv9D3dKUNTZQMUQbxLQ25yL0heetkrnWEzkTI8aALfN+Oavj0pdfe2Nxk= google-ssh {\"userName\":\"daniel@airqo.net\",\"expireOn\":\"2022-05-25T02:54:16+0000\"}\ndaniel:ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCG7lsVaxwYAzv5iaf56kWro3q7XjaPQRih2b0poYUuKu2HIluNEfAOGeX8/Bi5+3dIlBcTJGyIwpWU45Z22vhDw73VClPGl/0wVzZ5WXwiyfUl9iKzPOYkbIRIrytQx3+mHXwsmNRqX/mqFoYhXD8hCn2omvsUT+UXMAEjG8FBxYe5XvNjRqc1lkbkygtaZp0rgbeHkNzuyOE/Ert2XSon55pjA0WZWHS3yP69VDS/yR/2Rw2Ktx0wCIfIYg7rrcErKYm3DUiaIyntFHLhJ4to5bFqXrLpzanUJ3jj84ukP4XjRlPCV/CpaMad4cWQXGtYAwIzuttBFCWo8ebphrX3 google-ssh {\"userName\":\"daniel@airqo.net\",\"expireOn\":\"2022-05-25T02:54:35+0000\"}"
   }
 
   name = "mlflow-tracking-server"

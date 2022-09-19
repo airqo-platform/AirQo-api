@@ -19,10 +19,6 @@ resource "google_compute_instance" "pipeline_k8s_worker_0" {
 
   machine_type = "n2-highmem-2"
 
-  metadata = {
-    ssh-keys = "noah:ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDCGCRMDn3GciJ6EG+uATxHo+FDpOVq9EOcmExdTtcOOb0utD0ayJk7m8cNY9jc2UHphXDAONweRKbhCbMhswQ31ho4im7Gq+373wUGTfsz1AWriupo52AubAAup1tjYeKQrIZ//4R6mw4yx8J98QRWKp2EZwHvw+9ke/3HwWlLEsfhFhLLdCrSG4Slv84djn0MXi40tlAHz8YKlNB88DrMAHwzfdjWnzqIemTcluwwDH2ts6E5LdCVlNLHoocYZudduKxFhcCBBtXR0DpzgKccXQzEN5fdxySPxrcdi9jjTtjYhVBrA3XYAC3kwqdVDClOQzTfA5TfVSGdgYIO5Zyufa9i95W+M+OlnuoiB1zUdOG5GppdUGXUAt9BNO6UY+s/lHKr1/pg26rppSXzwHnS7fEijIrPTpfxRISSsyxuBWjwEcmX7CV9FLjgrzhMd0tUPLHpuR4StbmYrwqfIZXrCN5nOomQPlx4dyacGU+rAWeu0XF0ZvBpxZiMwnTUhfU= noah@Noahs-MacBook.local\nnoah:ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBKZuHPO35LQ/UvmAY0h362h717/8YilFnw1asRNvxGihfgvbNcZZpqriLzm285WEHmrInzyKGF+M59RuaCIZ/yY= google-ssh {\"userName\":\"noah@airqo.net\",\"expireOn\":\"2022-08-03T07:35:31+0000\"}\nnoah:ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAHpAVKfqFgJN6e3QNtbgSaXvjKbuz9dl9ZISJ9aCrD5WT3dX3p4sGicgVzJYoOyITNm1gfuvCN5Vl6P0fhlK5G/IdcMyg8KUi9P/yDdVFfixZs6x6nsDtNdWcLeCpoKWMHOz4qknnUMwuBfrZJgv3TQlXmbZah7WJ/LM844gGbRSAcsEJdBrrv9Sw8aYpA3CCmmrT9ukUDR/LUm0ptkWwcODPrMdm/h0qXVKMm9+SQxbcRFPrjuefkzmhp16t43sJ/Hv+XEJoHqRxnnDhlhxzNTcNpNyH5p+KCrjXmW+iKJJqYiQ7TIwQotbFTiI15W/kVGHAdfc7nUv/6KtHVN1cGM= google-ssh {\"userName\":\"noah@airqo.net\",\"expireOn\":\"2022-08-03T07:35:47+0000\"}"
-  }
-
   name = "pipeline-k8s-worker-0"
 
   network_interface {

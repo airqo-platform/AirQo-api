@@ -16,10 +16,6 @@ resource "google_compute_instance" "airqo_k8s_controller" {
   can_ip_forward = true
   machine_type   = "custom-2-4096"
 
-  metadata = {
-    ssh-keys = "noah:ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBI+AsydW7ms9AI+QqJ0j2gjq0PzwwkOzriO4NCS2lfAw5b+XJA9EnEZk2yuiQLqYqEFnG1/UfAAWGh60+m8d96o= google-ssh {\"userName\":\"noah@airqo.net\",\"expireOn\":\"2022-08-03T08:54:23+0000\"}\nnoah:ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAGfgd5D5BhS6GsbLvEwBsO0t4yuTLJKsTudhS+dUCpFC9CNQ8b5+0dLbAhbKhM0EDkKEzACYdqkDiU+gW7YIT5ok5YTuIFbUjXpyq40yOhF3u1mRNcUQ5BBAwgxbeJYru4bbpl0MxiVfvph7fTwHXLVVlqGat93iWbXvCk3qqp4GrKvftnXlfnKUuRjPq7zjUXnHhacbvAzZejHhvBRYf6rHaFAJrORcXbvxhi7aDBSvnvr5UPybWeP6rouLhk1VKhvkEONB6Y75a8msL1uAtJEVyicA30y4WApM4/qs2giiKUzZ2c4b15xMYzASErm2rPF1u/Vtu9JnxaPo+Bfqp9M= google-ssh {\"userName\":\"noah@airqo.net\",\"expireOn\":\"2022-08-03T08:54:39+0000\"}"
-  }
-
   name = "airqo-k8s-controller"
 
   network_interface {

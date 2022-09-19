@@ -5,11 +5,6 @@ resource "google_bigquery_dataset" "bq_export" {
   }
 
   access {
-    role          = "OWNER"
-    user_by_email = "paul@airqo.net"
-  }
-
-  access {
     role          = "READER"
     special_group = "projectReaders"
   }

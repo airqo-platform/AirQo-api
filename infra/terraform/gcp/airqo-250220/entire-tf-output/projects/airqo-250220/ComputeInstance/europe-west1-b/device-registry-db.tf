@@ -19,10 +19,6 @@ resource "google_compute_instance" "device_registry_db" {
 
   machine_type = "e2-custom-4-19712"
 
-  metadata = {
-    ssh-keys = "mikemwanje:ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBIgRXu+wkJWFCLXCx5NeFEhmOOo1FnUakmMHswtFbuwYHcJzPhUzFekSm2kN+UshBy+cOxqkMWhqmvAljKcaJlg= google-ssh {\"userName\":\"mikemwanje@airqo.net\",\"expireOn\":\"2022-05-30T12:47:20+0000\"}\nmikemwanje:ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAHJ5af0+a+Y1rvmIkuO43E/6HCmSf6qpwV18qU2hKqLOGVYaUY7Ahoc7QXqtdht0q4S+dXfOFbNcuyne5Oi4hOtzgLoS7mMXLRl/ryI5c/eRt76BWg4axh96ZRhNPSaAXzQ1Oh6sBdkhw8ozL/HFkNy83CqCroj1v2VUldF/OC30bbk97m6yTaau8q2UrZeIF6WekaHOaxIF9s4pImjRpHF9KiE78vLnrGArYCP4dh2S5q356h0BeA7csi0j6QZOR799iZhE07Scy+ylu9OOyR66t0lV5NHNB67A+Gsj1FlfWziMZ928mcb2pjqNgtHtgSp0bzUA3AI+Ji1Nq3sdGqU= google-ssh {\"userName\":\"mikemwanje@airqo.net\",\"expireOn\":\"2022-05-30T12:47:36+0000\"}"
-  }
-
   name = "device-registry-db"
 
   network_interface {

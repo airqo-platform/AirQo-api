@@ -5,11 +5,6 @@ resource "google_bigquery_dataset" "airqodataset" {
   }
 
   access {
-    role          = "OWNER"
-    user_by_email = "martin@airqo.net"
-  }
-
-  access {
     role          = "READER"
     special_group = "projectReaders"
   }

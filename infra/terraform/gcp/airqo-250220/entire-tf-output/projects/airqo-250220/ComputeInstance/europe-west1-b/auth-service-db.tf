@@ -19,10 +19,6 @@ resource "google_compute_instance" "auth_service_db" {
 
   machine_type = "e2-small"
 
-  metadata = {
-    ssh-keys = "mikemwanje:ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBJ5R5SxeVk8uFkk5VGBGNi9ZzDMQLkqLG719uF97T6RJmrdVIL5CRVA0Wj91Cadgig0Lt1ouxejXjQiBlYbHOHU= google-ssh {\"userName\":\"mikemwanje@airqo.net\",\"expireOn\":\"2022-06-22T16:27:02+0000\"}\nmikemwanje:ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDZDJ+O9HBw+xFNkpiGpu2mugmp9DJnyILz7TkNimPxybH7FUEfis8OBXcKIlz/fEMsFKosV0uJP3pT296TS4zkhhkB4Qf9oundr2QGBKDkBn97ruP95wqAncOMur0LHzWVV94YmE1IwCdyHdER+1oHe9C/RjGl5XTGLJ/bZUE40oOGE+ZSsyLs63DNBZoiFbCGSjIqbP1JlKxm+gk71SHCP5qXI0P9QnfWkIRCf4P8+h2pg2Hat3zwf0180N9RffvUfF5wMS/067R6MVYACx7G+7wVkviomv5gjnqqC8JiAgvGJeBt0WiDiiRah7LNnUl//ppfNE6LLmOd643BGFit google-ssh {\"userName\":\"mikemwanje@airqo.net\",\"expireOn\":\"2022-06-22T16:27:18+0000\"}"
-  }
-
   name = "auth-service-db"
 
   network_interface {
