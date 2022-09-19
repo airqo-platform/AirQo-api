@@ -5,6 +5,7 @@ resource "google_bigquery_table" "clean_business_census_shape" {
     autodetect = true
 
     csv_options {
+      quote             = ""
       field_delimiter   = ","
       skip_leading_rows = 0
     }

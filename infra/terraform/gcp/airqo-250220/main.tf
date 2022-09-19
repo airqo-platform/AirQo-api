@@ -3,10 +3,11 @@ provider "google" {
   project = "airqo-250220"
 }
 
-
-module "resources-projects-airqo-250220-IAMCustomRole" {
-  source = "./resources/projects/airqo-250220/IAMCustomRole"
-}
+## As of Sept/2022, the provider hashicorp/google does not support
+## resource type "google_iam_custom_role"
+# module "resources-projects-airqo-250220-IAMCustomRole" {
+#  source = "./resources/projects/airqo-250220/IAMCustomRole"
+# }
 
 
 module "resources-projects-airqo-250220-ComputeURLMap-global" {

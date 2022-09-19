@@ -6,6 +6,7 @@ resource "google_bigquery_table" "mytable" {
     connection_id = "702081712633.eu.demo_lake"
 
     csv_options {
+      quote             = ""
       field_delimiter   = ","
       skip_leading_rows = 0
     }
