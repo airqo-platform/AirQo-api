@@ -47,12 +47,6 @@ class BigQueryApi:
         valid_cols = self.get_columns(table=table)
         dataframe_cols = dataframe.columns.to_list()
 
-        if "external_temperature" in valid_cols and "temperature" in dataframe_cols:
-            dataframe.loc[:, "external_temperature"] = dataframe["temperature"]
-
-        if "external_humidity" in valid_cols and "humidity" in dataframe_cols:
-            dataframe.loc[:, "external_humidity"] = dataframe["humidity"]
-
         if set(valid_cols).issubset(set(dataframe_cols)):
             dataframe = dataframe[valid_cols]
         else:
