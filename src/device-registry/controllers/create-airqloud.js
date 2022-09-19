@@ -210,6 +210,26 @@ const createAirqloud = {
     try {
       const { query, body } = req;
       const { id, admin_level, name, tenant } = query;
+
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+
       let request = {};
       request["query"] = {};
       request["query"]["id"] = id;
