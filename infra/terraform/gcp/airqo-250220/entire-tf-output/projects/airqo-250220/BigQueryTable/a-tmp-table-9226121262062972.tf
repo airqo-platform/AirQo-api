@@ -1,0 +1,6 @@
+resource "google_bigquery_table" "a___tmp___table_9226121262062972" {
+  dataset_id = "thingspeak"
+  project    = "airqo-250220"
+  table_id   = "___tmp___table_9226121262062972"
+}
+# terraform import google_bigquery_table.a___tmp___table_9226121262062972 projects/airqo-250220/datasets/thingspeak/tables/___tmp___table_9226121262062972
