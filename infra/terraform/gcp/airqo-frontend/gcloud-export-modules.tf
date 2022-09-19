@@ -33,9 +33,11 @@ module "entire-tf-output-projects-airqo-frontend-StorageBucket-US" {
 }
 
 
-module "entire-tf-output-4127550141-4127550141-Project-LoggingLogSink" {
-  source = "./entire-tf-output/4127550141/4127550141/Project/LoggingLogSink"
-}
+## As of Sept/2022, the provider hashicorp/google does not support resource type
+## "google_logging_log_sink" on line 1 of the file a-required.tf
+# module "entire-tf-output-4127550141-4127550141-Project-LoggingLogSink" {
+#  source = "./entire-tf-output/4127550141/4127550141/Project/LoggingLogSink"
+# }
 
 
 module "entire-tf-output-4127550141-Service" {
