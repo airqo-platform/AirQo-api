@@ -1,0 +1,163 @@
+import pandas as pd
+
+from .air_beam_api import AirBeamApi
+from .config import configuration
+from .constants import Tenant, Pollutant
+from .date import str_to_date
+from .utils import Utils
+
+
+class UrbanBetterUtils:
+    @staticmethod
+    def extract_stream_ids_from_air_beam(
+        start_date_time: str, end_date_time: str
+    ) -> pd.DataFrame:
+
+        start_date_time = str_to_date(start_date_time)
+        end_date_time = str_to_date(end_date_time)
+
+        air_beam_api = AirBeamApi()
+
+        usernames = configuration.AIR_BEAM_USERNAMES.split(",")
+        stream_ids = []
+        for username in usernames:
+            for pollutant in ["pm2.5", "pm10", "pm1", "rh", "f"]:
+
+                api_response = air_beam_api.get_stream_ids(
+                    start_date_time=start_date_time,
+                    end_date_time=end_date_time,
+                    username=username,
+                    pollutant=pollutant,
+                )
+                if not api_response:
+                    continue
+
+                sessions = dict(api_response).get("sessions", [])
+                for session in sessions:
+                    streams = dict(session).get("streams", {})
+                    for stream in streams.keys():
+                        stream_id = dict(streams.get(stream)).get("id", None)
+                        device_id = dict(streams.get(stream)).get(
+                            "sensor_package_name", None
+                        )
+                        if stream_id:
+                            stream_ids.append(
+                                {
+                                    "stream_id": stream_id,
+                                    "pollutant": pollutant,
+                                    "device_id": device_id,
+                                }
+                            )
+
+        return pd.DataFrame(stream_ids)
+
+    @staticmethod
+    def extract_measurements_from_air_beam(
+        start_date_time: str, end_date_time: str, stream_ids: pd.DataFrame
+    ) -> pd.DataFrame:
+        start_date_time = str_to_date(start_date_time)
+        end_date_time = str_to_date(end_date_time)
+        air_beam_api = AirBeamApi()
+        measurements = pd.DataFrame()
+        for _, row in stream_ids.iterrows():
+            stream_id = row["stream_id"]
+            api_response = air_beam_api.get_measurements(
+                start_date_time=start_date_time,
+                end_date_time=end_date_time,
+                stream_id=stream_id,
+            )
+
+            if api_response:
+                pollutant = row["pollutant"]
+                stream_df = pd.DataFrame(api_response)
+                stream_df["device_id"] = row["device_id"]
+
+                if pollutant == "pm2.5":
+                    stream_df.rename(columns={"value": "pm2_5"}, inplace=True)
+                if pollutant == "pm10":
+                    stream_df.rename(columns={"value": "pm10"}, inplace=True)
+                if pollutant == "pm1":
+                    stream_df.rename(columns={"value": "pm1"}, inplace=True)
+                if pollutant == "rh":
+                    stream_df.rename(columns={"value": "humidity"}, inplace=True)
+                if pollutant == "f":
+                    stream_df.rename(columns={"value": "temperature"}, inplace=True)
+
+                measurements = measurements.append(stream_df, ignore_index=True)
+
+        pm2_5_data = measurements[
+            ["pm2_5", "time", "device_id", "latitude", "longitude"]
+        ].dropna(subset=["pm2_5"])
+        pm10_data = measurements[
+            ["pm10", "time", "device_id", "latitude", "longitude"]
+        ].dropna(subset=["pm10"])
+
+        measurements = pd.merge(
+            left=pm2_5_data,
+            right=pm10_data,
+            on=["time", "device_id", "latitude", "longitude"],
+            how="outer",
+        )
+
+        measurements["tenant"] = str(Tenant.URBAN_BETTER)
+        measurements.rename(
+            columns={
+                "time": "timestamp",
+            },
+            inplace=True,
+        )
+
+        measurements["timestamp"] = pd.to_datetime(measurements["timestamp"], unit="ms")
+        if "temperature" in measurements.columns:
+            measurements["temperature"] = measurements["temperature"].apply(
+                lambda x: ((x - 32) * 5 / 9)
+            )
+
+        return measurements
+
+    @staticmethod
+    def format_air_beam_data_from_csv(data: pd.DataFrame) -> pd.DataFrame:
+        data = data.copy()
+        data.rename(
+            columns={
+                "Timestamp": "timestamp",
+                "Session_Name": "device_id",
+                "Latitude": "latitude",
+                "Longitude": "longitude",
+                "AirBeam3-F": "temperature",
+                "AirBeam3-PM1": "pm1",
+                "AirBeam3-PM10": "pm10",
+                "AirBeam3-PM2.5": "pm2_5",
+                "AirBeam3-RH": "humidity",
+            },
+            inplace=True,
+        )
+
+        data["temperature"] = data["temperature"].apply(lambda x: ((x - 32) * 5 / 9))
+        data["tenant"] = str(Tenant.URBAN_BETTER)
+
+        return data
+
+    @staticmethod
+    def add_air_quality(data: pd.DataFrame) -> pd.DataFrame:
+
+        if "pm2_5" in list(data.columns):
+            data["pm2_5_category"] = data["pm2_5"].apply(
+                lambda x: Utils.epa_pollutant_category(
+                    pollutant=Pollutant.PM2_5, value=x
+                )
+            )
+
+        if "pm10" in list(data.columns):
+            data["pm10_category"] = data["pm10"].apply(
+                lambda x: Utils.epa_pollutant_category(
+                    pollutant=Pollutant.PM10, value=x
+                )
+            )
+
+        if "no2" in list(data.columns):
+            data["no2_category"] = data["no2"].apply(
+                lambda x: Utils.epa_pollutant_category(pollutant=Pollutant.NO2, value=x)
+            )
+
+        return data

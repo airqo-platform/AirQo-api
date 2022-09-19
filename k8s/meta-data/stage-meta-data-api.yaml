@@ -1,0 +1,90 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airqo-stage-meta-data-api
+  namespace: staging
+spec:
+  selector:
+    matchLabels:
+      app: meta-data-api
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  minReadySeconds: 5
+  template:
+    metadata:
+      labels:
+        app: meta-data-api
+    spec:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 10
+            preference:
+              matchExpressions:
+              - key: node-type
+                operator: In
+                values:
+                - compute
+      containers:
+        - name: meta-data
+          image: us.gcr.io/airqo-250220/airqo-stage-meta-data-api:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 4001
+          resources:
+            requests:
+              # Average usage was 0.1 vCPU and 250Mi over the last 7 days
+              cpu: 100m
+              memory: 250Mi
+            limits:
+              cpu: 300m
+              memory: 400Mi
+          envFrom:
+            - configMapRef:
+                name: stage-meta-data-api-config
+          volumeMounts:
+          - name: config-volume
+            mountPath: /etc/config
+      volumes:
+      
+        - name: config-volume
+          configMap:
+            name: stage-meta-data-api-config-files
+
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: airqo-stage-meta-data-api-svc
+  namespace: staging
+spec:
+  selector:
+    app: meta-data-api
+  ports:
+    - protocol: TCP
+      port: 4001
+      targetPort: 4001
+
+---
+kind: HorizontalPodAutoscaler
+apiVersion: autoscaling/v2
+metadata:
+  name: airqo-stage-meta-data-api-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: airqo-stage-meta-data-api
+  minReplicas: 1
+  maxReplicas: 2
+  metrics:
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80

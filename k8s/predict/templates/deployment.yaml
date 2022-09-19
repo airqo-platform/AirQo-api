@@ -43,8 +43,7 @@ spec:
           #     port: http
           envFrom:
             - configMapRef:
-                name: {{ .Values.env.secret }}
-              
+                name: {{ .Values.env.secret }}              
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
       {{- with .Values.nodeSelector }}

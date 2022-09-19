@@ -1,4 +1,4 @@
-apiVersion: batch/v1beta1
+apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: stage-airqo-predict-job
@@ -15,9 +15,19 @@ spec:
         spec:
           restartPolicy: OnFailure
           schedulerName: default-scheduler
+          affinity:
+            nodeAffinity:
+              preferredDuringSchedulingIgnoredDuringExecution:
+              - weight: 10
+                preference:
+                  matchExpressions:
+                  - key: node-type
+                    operator: In
+                    values:
+                    - compute
           containers:
           - name: stage-airqo-predict-job
-            image: us.gcr.io/airqo-250220/airqo-stage-predict-job:latest
+            image: us.gcr.io/airqo-250220/stage-airqo-predict-job:latest
             imagePullPolicy: Always
             envFrom:
               - configMapRef:
@@ -25,6 +35,10 @@ spec:
             volumeMounts:
               - name: config-volume
                 mountPath: /etc/config
+            resources:
+              limits:
+                cpu: 1000m
+                memory: 4000Mi
           volumes:
             - name: config-volume
               configMap:

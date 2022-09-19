@@ -1,0 +1,95 @@
+###########################################################
+# Start deployment of network uptime api - Staging
+###########################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airqo-stage-network-uptime-api
+  namespace: staging
+spec:
+  selector:
+    matchLabels:
+      app: sta-network-uptime
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  minReadySeconds: 5
+  template:
+    metadata:
+      labels:
+        app: sta-network-uptime
+    spec:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 10
+            preference:
+              matchExpressions:
+              - key: node-type
+                operator: In
+                values:
+                - general-purpose
+      containers:
+        - name: sta-network-uptime
+          image: us.gcr.io/airqo-250220/airqo-stage-network-uptime-api:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8501
+              name: sta-net-uptime
+          envFrom:
+            - configMapRef:
+                name: env-network-uptime-staging
+          # readinessProbe:
+          #   httpGet:
+          #     path: /health
+          #     port: 3000
+          #   initialDelaySecond: 5
+          #   periodSeconds: 3
+          #   successThreshold: 1
+          resources:
+            requests:
+              # No available over the last 30 days, using estimates
+              cpu: 5m
+              memory: 10Mi
+            limits:
+              cpu: 100m
+              memory: 200Mi
+
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: airqo-stage-network-uptime-api-svc
+  namespace: staging
+spec:
+  selector:
+    app: sta-network-uptime
+  ports:
+    - protocol: TCP
+      port: 8501
+      targetPort: 8501
+      nodePort: 31012
+  type: NodePort
+
+---
+kind: HorizontalPodAutoscaler
+apiVersion: autoscaling/v2
+metadata:
+  name: airqo-stage-network-uptime-api-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: airqo-stage-network-uptime-api
+  minReplicas: 1
+  maxReplicas: 2
+  metrics:
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80

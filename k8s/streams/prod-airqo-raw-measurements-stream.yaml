@@ -28,13 +28,33 @@ spec:
         - name: prod-airqo-raw-measurements-stream
           image: us.gcr.io/airqo-250220/prod-raw-device-measurements-stream:latest
           imagePullPolicy: Always
-          resources: {}
-            # requests:
-            #   memory: 256Mi
-            #   cpu: "200m"
-            # limits:
-            #   memory: 700Mi
-            #   cpu: "1000m"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 250Mi
+            limits:
+              cpu: 200m
+              memory: 700Mi
           envFrom:
             - configMapRef:
                 name: prod-airqo-raw-measurements-stream-config
+
+---
+kind: HorizontalPodAutoscaler
+apiVersion: autoscaling/v2
+metadata:
+  name: prod-airqo-raw-measurements-stream-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: prod-airqo-raw-measurements-stream
+  minReplicas: 1
+  maxReplicas: 2
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 80

@@ -1,7 +1,8 @@
 from datetime import datetime
+
 from airflow.decorators import dag, task
 
-from airqo_etl_utils.commons import slack_dag_failure_notification
+from airqo_etl_utils.airflow_custom_utils import slack_dag_failure_notification
 
 
 @dag(
@@ -10,92 +11,82 @@ from airqo_etl_utils.commons import slack_dag_failure_notification
     on_failure_callback=slack_dag_failure_notification,
     start_date=datetime(2021, 1, 1),
     catchup=False,
-    tags=["airqo", "hourly", "data-warehouse"],
+    tags=["hourly", "data warehouse"],
 )
 def data_warehouse_etl():
-    @task(multiple_outputs=True)
-    def extract_hourly_measurements(**kwargs):
+    import pandas as pd
 
-        from airqo_etl_utils.data_warehouse_utils import (
-            query_hourly_measurements,
-        )
-        from airqo_etl_utils.commons import get_date_time_values, fill_nan
+    @task()
+    def extract_hourly_low_cost_data(**kwargs):
+        from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
+        from airqo_etl_utils.date import DateUtils
 
-        start_date_time, end_date_time = get_date_time_values(**kwargs)
-
-        hourly_device_measurements = query_hourly_measurements(
-            start_date_time=start_date_time,
-            end_date_time=end_date_time,
+        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
+            days=7, kwargs=kwargs
         )
 
-        return dict({"data": fill_nan(data=hourly_device_measurements)})
+        return DataWarehouseUtils.extract_hourly_low_cost_data(
+            start_date_time=start_date_time, end_date_time=end_date_time
+        )
 
-    @task(multiple_outputs=True)
+    @task()
+    def extract_hourly_bam_data(**kwargs):
+        from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
+        from airqo_etl_utils.date import DateUtils
+
+        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
+            days=7, kwargs=kwargs
+        )
+
+        return DataWarehouseUtils.extract_hourly_bam_data(
+            start_date_time=start_date_time, end_date_time=end_date_time
+        )
+
+    @task()
     def extract_hourly_weather_data(**kwargs):
+        from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
+        from airqo_etl_utils.date import DateUtils
 
-        from airqo_etl_utils.data_warehouse_utils import (
-            query_hourly_weather_data,
-        )
-        from airqo_etl_utils.commons import get_date_time_values, fill_nan
-
-        start_date_time, end_date_time = get_date_time_values(
-            **kwargs, interval_in_days=7
-        )
-        hourly_weather_measurements = query_hourly_weather_data(
-            start_date_time=start_date_time,
-            end_date_time=end_date_time,
+        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
+            days=7, kwargs=kwargs
         )
 
-        return dict({"data": fill_nan(data=hourly_weather_measurements)})
+        return DataWarehouseUtils.extract_hourly_weather_data(
+            start_date_time=start_date_time, end_date_time=end_date_time
+        )
 
     @task()
     def extract_sites_meta_data():
+        from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
 
-        from airqo_etl_utils.commons import fill_nan
-        from airqo_etl_utils.data_warehouse_utils import (
-            extract_sites_meta_data,
-        )
-
-        sites_data = extract_sites_meta_data()
-
-        return dict({"data": fill_nan(data=sites_data)})
-
-    @task(multiple_outputs=True)
-    def merge_data(measurements_data: dict, weather_data: dict, sites_data: dict):
-
-        from airqo_etl_utils.commons import un_fill_nan, fill_nan
-
-        from airqo_etl_utils.data_warehouse_utils import (
-            merge_measurements_weather_sites,
-        )
-
-        hourly_device_measurements = un_fill_nan(measurements_data.get("data"))
-        hourly_weather_measurements = un_fill_nan(weather_data.get("data"))
-        sites = un_fill_nan(sites_data.get("data"))
-        data = merge_measurements_weather_sites(
-            measurements_data=hourly_device_measurements,
-            weather_data=hourly_weather_measurements,
-            sites=sites,
-        )
-
-        return dict({"data": fill_nan(data=data)})
+        return DataWarehouseUtils.extract_sites_meta_data()
 
     @task()
-    def load(inputs: dict):
+    def merge_bam_low_cost_and_weather_data(
+        low_cost_data, bam_data, weather_data, sites_data
+    ):
+        from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
 
-        from airqo_etl_utils.bigquery_api import BigQueryApi
-        from airqo_etl_utils.commons import un_fill_nan
+        return DataWarehouseUtils.merge_bam_low_cost_and_weather_data(
+            bam_data=bam_data,
+            low_cost_data=low_cost_data,
+            weather_data=weather_data,
+            sites_data=sites_data,
+        )
 
-        data = un_fill_nan(inputs.get("data"))
+    @task()
+    def load(data: pd.DataFrame):
+        from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
 
-        big_query_api = BigQueryApi()
-        big_query_api.save_data(data=data, table=big_query_api.analytics_table)
+        DataWarehouseUtils.reload_data(data)
 
-    hourly_measurements = extract_hourly_measurements()
+    hourly_low_cost_data = extract_hourly_low_cost_data()
+    hourly_bam_data = extract_hourly_bam_data()
     hourly_weather_data = extract_hourly_weather_data()
     sites_meta_data = extract_sites_meta_data()
-    merged_data = merge_data(
-        measurements_data=hourly_measurements,
+    merged_data = merge_bam_low_cost_and_weather_data(
+        low_cost_data=hourly_low_cost_data,
+        bam_data=hourly_bam_data,
         weather_data=hourly_weather_data,
         sites_data=sites_meta_data,
     )

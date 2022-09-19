@@ -1,162 +1,164 @@
 [
-    {
-        "name": "tenant",
-        "type": "STRING",
-        "mode": "REQUIRED"
-    },
-    {
-        "name": "timestamp",
-        "type": "TIMESTAMP",
-        "mode": "REQUIRED"
-    },
-    {
-        "name": "time",
-        "type": "TIMESTAMP",
-        "mode": "NULLABLE",
-        "description": "This field is depreciated. Use timestamp"
-    },
-    {
-        "name": "site_id",
-        "type": "STRING",
-        "mode": "REQUIRED"
-    },
-    {
-        "name": "device_number",
-        "type": "INTEGER",
-        "mode": "REQUIRED"
-    },
-    {
-        "name": "device",
-        "type": "STRING",
-        "mode": "NULLABLE"
-    },
-    {
-        "name": "latitude",
-        "type": "FLOAT",
-        "mode": "REQUIRED"
-    },
-    {
-        "name": "longitude",
-        "type": "FLOAT",
-        "mode": "REQUIRED"
-    },
-    {
-        "name": "pm2_5",
-        "type": "FLOAT",
-        "mode": "NULLABLE",
-        "description": " μg/m3.\nEquals the calibrated pm 2.5 value if available else equals the raw value."
-    },
-    {
-        "name": "s1_pm2_5",
-        "type": "FLOAT",
-        "mode": "NULLABLE",
-        "description": " μg/m3.\npm 2.5 of sensor one"
-    },
-    {
-        "name": "s2_pm2_5",
-        "type": "FLOAT",
-        "mode": "NULLABLE",
-        "description": " μg/m3.\npm 2.5 of sensor two"
-    },
-    {
-        "name": "pm2_5_raw_value",
-        "type": "FLOAT",
-        "mode": "NULLABLE",
-        "description": " μg/m3.\nEquals the pm 2.5 average value of sensor one and sensor two"
-    },
-    {
-        "name": "pm2_5_calibrated_value",
-        "type": "FLOAT",
-        "mode": "NULLABLE",
-        "description": " μg/m3.\nEquals the calibrated pm 2.5 value."
-    },
-    {
-        "name": "pm10",
-        "type": "FLOAT",
-        "mode": "NULLABLE",
-        "description": " μg/m3.\nEquals the calibrated pm 10 value if available else equals the raw value."
-    },
-    {
-        "name": "s1_pm10",
-        "type": "FLOAT",
-        "mode": "NULLABLE",
-        "description": " μg/m3.\npm 10 of sensor one"
-    },
-    {
-        "name": "s2_pm10",
-        "type": "FLOAT",
-        "mode": "NULLABLE",
-        "description": " μg/m3.\npm 10 of sensor two"
-    },
-    {
-        "name": "pm10_raw_value",
-        "type": "FLOAT",
-        "mode": "NULLABLE",
-        "description": " μg/m3.\nEquals the pm 10 average value of sensor one and sensor two"
-    },
-    {
-        "name": "pm10_calibrated_value",
-        "type": "FLOAT",
-        "mode": "NULLABLE",
-        "description": " μg/m3.\nEquals the calibrated pm 10 value. "
-    },
-    {
-        "name": "no2",
-        "type": "FLOAT",
-        "mode": "NULLABLE",
-        "description": "ppb.\nNO2 Concentration"
-    },
-    {
-        "name": "no2_raw_value",
-        "type": "FLOAT",
-        "mode": "NULLABLE",
-        "description": "ppb.\nNO2 Concentration raw value"
-    },
-    {
-        "name": "no2_calibrated_value",
-        "type": "FLOAT",
-        "mode": "NULLABLE",
-        "description": "ppb.\nEquals the NO2 Concentration value if available else equals the raw value."
-    },
-    {
-        "name": "pm1",
-        "type": "FLOAT",
-        "mode": "NULLABLE",
-        "description": " μg/m3.\nEquals the calibrated pm 1 value if available else equals the raw value."
-    },
-    {
-        "name": "pm1_raw_value",
-        "type": "FLOAT",
-        "mode": "NULLABLE",
-        "description": " μg/m3.\npm 1 raw value. "
-    },
-    {
-        "name": "pm1_calibrated_value",
-        "type": "FLOAT",
-        "mode": "NULLABLE",
-        "description": " μg/m3.\npm 1 calibrated value. "
-    },
-    {
-        "name": "external_temperature",
-        "type": "FLOAT",
-        "mode": "NULLABLE",
-        "description": "°C.\nExternal temperature"
-    },
-    {
-        "name": "external_humidity",
-        "type": "FLOAT",
-        "mode": "NULLABLE",
-        "description": "%.\nRelative humidity"
-    },
-    {
-        "name": "wind_speed",
-        "type": "FLOAT",
-        "mode": "NULLABLE",
-        "description": "m/s."
-    },
-    {
-        "name": "altitude",
-        "type": "FLOAT",
-        "mode": "NULLABLE"
-    }
+  {
+    "name": "tenant",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "timestamp",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "site_id",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "device_number",
+    "type": "INTEGER",
+    "mode": "NULLABLE",
+    "description": "Unique number that identifies the device."
+  },
+  {
+    "name": "device",
+    "type": "STRING",
+    "mode": "NULLABLE",
+    "description": "Deprecated"
+  },
+  {
+    "name": "device_id",
+    "type": "STRING",
+    "mode": "NULLABLE",
+    "description": "Unique string that identifies the device."
+  },
+  {
+    "name": "latitude",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "longitude",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "pm2_5",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": " μg/m3.\nEquals the calibrated pm 2.5 value if available else equals the raw value."
+  },
+  {
+    "name": "s1_pm2_5",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": " μg/m3.\npm 2.5 of sensor one"
+  },
+  {
+    "name": "s2_pm2_5",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": " μg/m3.\npm 2.5 of sensor two"
+  },
+  {
+    "name": "pm2_5_raw_value",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": " μg/m3.\nEquals the pm 2.5 average value of sensor one and sensor two"
+  },
+  {
+    "name": "pm2_5_calibrated_value",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": " μg/m3.\nEquals the calibrated pm 2.5 value."
+  },
+  {
+    "name": "pm10",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": " μg/m3.\nEquals the calibrated pm 10 value if available else equals the raw value."
+  },
+  {
+    "name": "s1_pm10",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": " μg/m3.\npm 10 of sensor one"
+  },
+  {
+    "name": "s2_pm10",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": " μg/m3.\npm 10 of sensor two"
+  },
+  {
+    "name": "pm10_raw_value",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": " μg/m3.\nEquals the pm 10 average value of sensor one and sensor two"
+  },
+  {
+    "name": "pm10_calibrated_value",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": " μg/m3.\nEquals the calibrated pm 10 value. "
+  },
+  {
+    "name": "no2",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "ppb.\nNO2 Concentration"
+  },
+  {
+    "name": "no2_raw_value",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "ppb.\nNO2 Concentration raw value"
+  },
+  {
+    "name": "no2_calibrated_value",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "ppb.\nEquals the NO2 Concentration value if available else equals the raw value."
+  },
+  {
+    "name": "pm1",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": " μg/m3.\nEquals the calibrated pm 1 value if available else equals the raw value."
+  },
+  {
+    "name": "pm1_raw_value",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": " μg/m3.\npm 1 raw value. "
+  },
+  {
+    "name": "pm1_calibrated_value",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": " μg/m3.\npm 1 calibrated value. "
+  },
+  {
+    "name": "external_temperature",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "°C.\nExternal temperature"
+  },
+  {
+    "name": "external_humidity",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "%.\nRelative humidity"
+  },
+  {
+    "name": "wind_speed",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "m/s."
+  },
+  {
+    "name": "altitude",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  }
 ]

@@ -2,17 +2,17 @@
     {
         "name": "tenant",
         "type": "STRING",
-        "mode": "REQUIRED"
+        "mode": "NULLABLE"
     },
     {
         "name": "timestamp",
         "type": "TIMESTAMP",
-        "mode": "REQUIRED"
+        "mode": "NULLABLE"
     },
     {
         "name": "site_id",
         "type": "STRING",
-        "mode": "REQUIRED"
+        "mode": "NULLABLE"
     },
     {
         "name": "site_name",
@@ -27,12 +27,12 @@
     {
         "name": "site_latitude",
         "type": "FLOAT",
-        "mode": "REQUIRED"
+        "mode": "NULLABLE"
     },
     {
         "name": "site_longitude",
         "type": "FLOAT",
-        "mode": "REQUIRED"
+        "mode": "NULLABLE"
     },
     {
         "name": "site_altitude",
@@ -42,28 +42,47 @@
     {
         "name": "device_number",
         "type": "INTEGER",
-        "mode": "REQUIRED"
+        "mode": "NULLABLE"
     },
     {
-        "name": "device_name",
+        "name": "device_id",
         "type": "STRING",
         "mode": "NULLABLE"
     },
     {
         "name": "device_latitude",
         "type": "FLOAT",
-        "mode": "REQUIRED"
+        "mode": "NULLABLE"
     },
     {
         "name": "device_longitude",
         "type": "FLOAT",
-        "mode": "REQUIRED"
+        "mode": "NULLABLE"
     },
     {
+        "name": "device_battery",
+        "type": "FLOAT",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "device_altitude",
+        "type": "FLOAT",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "device_temperature",
+        "type": "FLOAT",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "device_humidity",
+        "type": "FLOAT",
+        "mode": "NULLABLE"
+    },
+     {
         "name": "pm2_5",
         "type": "FLOAT",
-        "mode": "NULLABLE",
-        "description": " μg/m3.\nEquals the calibrated pm 2.5 value if available else equals the raw value."
+        "mode": "NULLABLE"
     },
     {
         "name": "s1_pm2_5",
@@ -89,11 +108,10 @@
         "mode": "NULLABLE",
         "description": " μg/m3.\nEquals the calibrated pm 2.5 value."
     },
-    {
+         {
         "name": "pm10",
         "type": "FLOAT",
-        "mode": "NULLABLE",
-        "description": " μg/m3.\nEquals the calibrated pm 10 value if available else equals the raw value."
+        "mode": "NULLABLE"
     },
     {
         "name": "s1_pm10",
@@ -111,7 +129,7 @@
         "name": "pm10_raw_value",
         "type": "FLOAT",
         "mode": "NULLABLE",
-        "description": " μg/m3.\nEquals the pm 10 average value of sensor one and sensor two"
+        "description": " μg/m3.\nEquals the pm 10 average value of sensor one and sensor two."
     },
     {
         "name": "pm10_calibrated_value",
@@ -119,11 +137,10 @@
         "mode": "NULLABLE",
         "description": " μg/m3.\nEquals the calibrated pm 10 value. "
     },
-    {
+         {
         "name": "no2",
         "type": "FLOAT",
-        "mode": "NULLABLE",
-        "description": "ppb.\nNO2 Concentration"
+        "mode": "NULLABLE"
     },
     {
         "name": "no2_raw_value",
@@ -137,11 +154,10 @@
         "mode": "NULLABLE",
         "description": "ppb.\nEquals the NO2 Concentration value if available else equals the raw value."
     },
-    {
+             {
         "name": "pm1",
         "type": "FLOAT",
-        "mode": "NULLABLE",
-        "description": " μg/m3.\nEquals the calibrated pm 1 value if available else equals the raw value."
+        "mode": "NULLABLE"
     },
     {
         "name": "pm1_raw_value",
@@ -159,13 +175,13 @@
         "name": "temperature",
         "type": "FLOAT",
         "mode": "NULLABLE",
-        "description": "°C.\nExternal temperature"
+        "description": "°C."
     },
     {
         "name": "humidity",
         "type": "FLOAT",
         "mode": "NULLABLE",
-        "description": "%.\nRelative humidity"
+        "description": "%."
     },
     {
         "name": "wind_speed",
@@ -208,6 +224,16 @@
         "type": "FLOAT",
         "mode": "NULLABLE",
         "description": "degrees"
+    },
+    {
+        "name": "satellites",
+        "type": "FLOAT",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "hdop",
+        "type": "FLOAT",
+        "mode": "NULLABLE"
     },
     {
         "name": "site_bearing_to_kampala_center",

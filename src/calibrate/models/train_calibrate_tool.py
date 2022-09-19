@@ -16,11 +16,11 @@ class Train_calibrate_tool():
     """
         The class contains functionality for computing device calibrated values .
     """
-
+    # map_columns = {"datetime":"created_at"}
     def train_calibration_model(self, pollutant, map_columns, df):
        # Map columns from uploaded csv
         df.rename(columns=map_columns,inplace=True)
-        print("Columns", df.columns)
+        df = df.dropna()
         
         #Get average PM
         df['Average_PM2.5'] = df[['pm2_5', 's2_pm2_5']].mean(axis=1).round(2)
@@ -66,15 +66,15 @@ class Train_calibrate_tool():
         rgtool = train_calibrate_tool.Regression()
 
         calibrated_data_ext = df_copy[['Average_PM2.5','Average_PM10', 'datetime']]
-        if pollutant == "PM2.5":
+        if pollutant == "pm2_5":
             model_pm2_5_ext = rgtool.random_forest(combined_ext_data)
             calibrated_pm2_5 =  model_pm2_5_ext.predict(model_input)
-            calibrated_data_ext['calibrated_pm2_5'] = calibrated_pm2_5
+            calibrated_data_ext['calibrated_pm2_5'] = calibrated_pm2_5.round(2)
             return calibrated_data_ext
         else:
             model_pm10_ext = rgtool.lasso_reg(combined_ext_data)
             calibrated_pm10 =  model_pm10_ext.predict(model_input)
-            calibrated_data_ext['calibrated_pm10'] = calibrated_pm10
+            calibrated_data_ext['calibrated_pm10'] = calibrated_pm10.round(2)
             return calibrated_data_ext
                
 if __name__ == "__main__":

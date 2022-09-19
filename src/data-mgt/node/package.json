@@ -4,7 +4,7 @@
     "private": true,
     "main": "./bin/www",
     "scripts": {
-        "start": "nodemon ./bin/www",
+        "start": "node ./bin/www",
         "dev-mac": "NODE_ENV=development nodemon ./bin/www",
         "prod-mac": "NODE_ENV=production nodemon ./bin/www",
         "stage-mac": "NODE_ENV=staging nodemon ./bin/www",
@@ -16,11 +16,13 @@
     "dependencies": {
         "axios": "^0.19.2",
         "body-parser": "~1.18.2",
+        "clean-deep": "^3.4.0",
         "compression": "^1.7.4",
         "cookie-parser": "~1.4.3",
         "debug": "~2.6.9",
         "dotenv": "^8.2.0",
         "express": "^4.17.1",
+        "express-validator": "^6.13.0",
         "helmet": "^3.21.1",
         "http-status": "^1.4.0",
         "is-empty": "^1.2.0",

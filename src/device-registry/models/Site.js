@@ -55,9 +55,25 @@ const siteSchema = new Schema(
       type: Number,
       required: [true, "latitude is required!"],
     },
+    approximate_latitude: {
+      type: Number,
+      required: [true, "approximate_latitude is required!"],
+    },
     longitude: {
       type: Number,
       required: [true, "longitude is required!"],
+    },
+    approximate_longitude: {
+      type: Number,
+      required: [true, "approximate_longitude is required!"],
+    },
+    approximate_distance_in_km: {
+      type: Number,
+      required: [true, "approximate_distance_in_km is required!"],
+    },
+    bearing_in_radians: {
+      type: Number,
+      required: [true, "bearing_in_radians is required!"],
     },
     site_tags: { type: Array, default: [] },
     altitude: {
@@ -121,7 +137,7 @@ const siteSchema = new Schema(
       type: String,
     },
     aspect: {
-      type: String,
+      type: Number,
     },
     status: {
       type: String,
@@ -183,6 +199,45 @@ const siteSchema = new Schema(
       type: String,
       trim: true,
     },
+    weather_stations: [
+      {
+        code: {
+          type: String,
+          trim: true,
+          default: null,
+        },
+        name: {
+          type: String,
+          trim: true,
+          default: null,
+        },
+        country: {
+          type: String,
+          trim: true,
+          default: null,
+        },
+        longitude: {
+          type: Number,
+          trim: true,
+          default: -1,
+        },
+        latitude: {
+          type: Number,
+          trim: true,
+          default: -1,
+        },
+        timezone: {
+          type: String,
+          trim: true,
+          default: null,
+        },
+        distance: {
+          type: Number,
+          trim: true,
+          default: -1,
+        },
+      },
+    ],
     nearest_tahmo_station: {
       id: {
         type: Number,
@@ -266,7 +321,11 @@ siteSchema.methods = {
       formatted_name: this.formatted_name,
       lat_long: this.lat_long,
       latitude: this.latitude,
+      approximate_latitude: this.approximate_latitude,
       longitude: this.longitude,
+      approximate_longitude: this.approximate_longitude,
+      approximate_distance_in_km: this.approximate_distance_in_km,
+      bearing_in_radians: this.bearing_in_radians,
       airqlouds: this.airqlouds,
       createdAt: this.createdAt,
       description: this.description,
@@ -320,6 +379,14 @@ siteSchema.statics = {
         ...modifiedArgs,
       });
       let data = createdSite._doc;
+      delete data.geometry;
+      delete data.google_place_id;
+      delete data.updatedAt;
+      delete data.__v;
+      delete data.formatted_name;
+      delete data.airqlouds;
+      delete data.site_tags;
+      delete data.nearest_tahmo_station;
       if (!isEmpty(data)) {
         return {
           success: true,
@@ -377,6 +444,10 @@ siteSchema.statics = {
           name: 1,
           latitude: 1,
           longitude: 1,
+          approximate_latitude: 1,
+          approximate_longitude: 1,
+          approximate_distance_in_km: 1,
+          bearing_in_radians: 1,
           description: 1,
           site_tags: 1,
           search_name: 1,
@@ -406,15 +477,16 @@ siteSchema.statics = {
           distance_to_nearest_residential_road: 1,
           bearing_to_kampala_center: 1,
           distance_to_kampala_center: 1,
+          createdAt: 1,
           nearest_tahmo_station: 1,
           devices: "$devices",
           airqlouds: "$airqlouds",
+          weather_stations: 1,
         })
         .project({
           "airqlouds.location": 0,
           "airqlouds.airqloud_tags": 0,
           "airqlouds.long_name": 0,
-          "airqlouds.createdAt": 0,
           "airqlouds.updatedAt": 0,
           "airqlouds.sites": 0,
           "airqlouds.__v": 0,
@@ -431,7 +503,6 @@ siteSchema.statics = {
           "devices.tags": 0,
           "devices.description": 0,
           "devices.isUsedForCollocation": 0,
-          "devices.createdAt": 0,
           "devices.updatedAt": 0,
           "devices.locationName": 0,
           "devices.siteName": 0,
@@ -522,7 +593,6 @@ siteSchema.statics = {
       ).exec();
 
       if (!isEmpty(updatedSite)) {
-        logObject("updatedSite", updatedSite._doc);
         let data = updatedSite._doc;
 
         return {

@@ -1,346 +1,275 @@
 import traceback
 from datetime import datetime, timedelta
 
-import numpy as np
 import pandas as pd
 
-from airqo_etl_utils.airqo_api import AirQoApi
-from airqo_etl_utils.config import configuration
-from airqo_etl_utils.message_broker import KafkaBrokerClient
-from airqo_etl_utils.date import (
-    date_to_str_hours,
-    date_to_str_days,
+from .airqo_api import AirQoApi
+from .bigquery_api import BigQueryApi
+from .commons import (
+    get_air_quality,
+)
+from .config import configuration
+from .constants import Frequency, DataSource, Tenant
+from .date import (
     date_to_str,
     predict_str_to_date,
-    str_to_date,
 )
-from airqo_etl_utils.commons import (
-    get_airqo_api_frequency,
-    resample_data,
-    get_frequency,
-    get_column_value,
-)
+from .message_broker import KafkaBrokerClient
+from .utils import Utils
 
 insights_columns = ["time", "pm2_5", "pm10", "siteId", "frequency", "forecast", "empty"]
 
 
-def format_measurements_to_insights(data: list):
-    measurements_df = pd.json_normalize(data)
-    if "pm2_5.calibratedValue" not in measurements_df.columns:
-        measurements_df["pm2_5.calibratedValue"] = ["pm2_5.value"]
-    else:
-        measurements_df["pm2_5.calibratedValue"].fillna(
-            measurements_df["pm2_5.value"], inplace=True
-        )
-
-    if "pm10.calibratedValue" not in measurements_df.columns:
-        measurements_df["pm10.calibratedValue"] = measurements_df["pm10.value"]
-    else:
-        measurements_df["pm10.calibratedValue"].fillna(
-            measurements_df["pm10.value"], inplace=True
-        )
-
-    measurements_df = measurements_df[
-        [
-            "time",
-            "frequency",
+class AirQoAppUtils:
+    @staticmethod
+    def extract_hourly_airqo_data(start_date_time, end_date_time) -> pd.DataFrame:
+        cols = [
+            "pm2_5_raw_value",
+            "pm2_5_calibrated_value",
+            "pm10_raw_value",
+            "pm10_calibrated_value",
+            "timestamp",
             "site_id",
-            "pm2_5.calibratedValue",
-            "pm10.calibratedValue",
         ]
-    ]
-
-    measurements_df.columns = ["time", "frequency", "siteId", "pm2_5", "pm10"]
-    measurements_df = measurements_df.dropna()
-
-    measurements_df["frequency"] = measurements_df["frequency"].apply(
-        lambda x: str(x).upper()
-    )
-
-    hourly_measurements_df = measurements_df.loc[
-        measurements_df["frequency"] == "HOURLY"
-    ]
-    hourly_measurements_df["time"] = hourly_measurements_df["time"].apply(
-        lambda x: measurement_time_to_string(x, daily=False)
-    )
-
-    daily_measurements_df = measurements_df.loc[measurements_df["frequency"] == "DAILY"]
-    daily_measurements_df["time"] = daily_measurements_df["time"].apply(
-        lambda x: measurement_time_to_string(x, daily=True)
-    )
-
-    data = pd.concat([hourly_measurements_df, daily_measurements_df], ignore_index=True)
-    data["empty"] = False
-    data["forecast"] = False
-
-    return data.to_dict(orient="records")
-
-
-def format_airqo_data_to_insights(data: list):
-    restructured_data = []
-
-    data_df = pd.DataFrame(data)
-    columns = list(data_df.columns)
-
-    for _, data_row in data_df.iterrows():
-        device_data = dict(
-            {
-                "time": data_row["time"],
-                "siteId": data_row["site_id"],
-                "frequency": data_row["frequency"],
-                "pm2_5": get_column_value(
-                    column="pm2_5", columns=columns, series=data_row
-                ),
-                "pm10": get_column_value(
-                    column="pm10", columns=columns, series=data_row
-                ),
-                "empty": False,
-                "forecast": False,
-            }
+        bigquery_api = BigQueryApi()
+        measurements = bigquery_api.query_data(
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            columns=cols,
+            table=bigquery_api.hourly_measurements_table,
+            where_fields={"tenant": "airqo"},
         )
 
-        restructured_data.append(device_data)
+        if measurements.empty:
+            return pd.DataFrame([], columns=cols)
 
-    return create_insights_data(data=restructured_data)
+        measurements.rename(
+            columns={
+                "timestamp": "time",
+                "site_id": "siteId",
+                "pm2_5_calibrated_value": "pm2_5",
+                "pm10_calibrated_value": "pm10",
+            },
+            inplace=True,
+        )
+        measurements["pm2_5"] = measurements["pm2_5"].fillna(
+            measurements["pm2_5_raw_value"]
+        )
+        measurements["pm10"] = measurements["pm10"].fillna(
+            measurements["pm10_raw_value"]
+        )
 
+        measurements["time"] = measurements["time"].apply(pd.to_datetime)
+        measurements["frequency"] = str(Frequency.HOURLY)
+        measurements[["forecast", "empty"]] = False
 
-def save_insights_data(insights_data: list = None, action: str = "insert"):
-    if insights_data is None:
-        insights_data = []
+        return measurements[insights_columns]
 
-    print(f"saving {len(insights_data)} insights .... ")
+    @staticmethod
+    def format_data_to_insights(
+        data: pd.DataFrame, frequency: Frequency
+    ) -> pd.DataFrame:
 
-    data = {
-        "data": insights_data,
-        "action": action,
-    }
+        insights = data[["site_id", "timestamp", "pm2_5", "pm10"]]
+        insights.rename(
+            columns={"timestamp": "time", "site_id": "siteId"}, inplace=True
+        )
+        insights["frequency"] = frequency
+        insights[["empty", "forecast"]] = False
 
-    kafka = KafkaBrokerClient()
-    kafka.send_data(info=data, topic=configuration.INSIGHTS_MEASUREMENTS_TOPIC)
+        return AirQoAppUtils.create_insights(insights)
 
+    @staticmethod
+    def create_insights(data: pd.DataFrame) -> pd.DataFrame:
 
-def predict_time_to_string(time: str):
-    date_time = predict_str_to_date(time)
-    return date_to_str(date_time)
+        data = data.copy()
 
+        if data.empty:
+            return pd.DataFrame(columns=insights_columns)
 
-def measurement_time_to_string(time: str, daily=False):
-    date_time = str_to_date(time)
-    if daily:
-        return date_to_str_days(date_time)
-    else:
-        return date_to_str_hours(date_time)
+        data["time"] = data["time"].apply(pd.to_datetime)
+        data["time"] = data["time"].apply(date_to_str)
 
+        data["frequency"] = data["frequency"].apply(lambda x: str(x).upper())
+        data["forecast"] = data["forecast"].fillna(False)
+        data["empty"] = False
+        data["pm2_5"] = data["pm2_5"].apply(
+            lambda x: AirQoAppUtils.round_off_value(x, "pm2_5")
+        )
+        data["pm10"] = data["pm10"].apply(
+            lambda x: AirQoAppUtils.round_off_value(x, "pm10")
+        )
+        if sorted(list(data.columns)) != sorted(insights_columns):
+            print(f"Required columns {insights_columns}")
+            print(f"Dataframe columns {list(data.columns)}")
+            raise Exception("Invalid columns")
 
-def get_forecast_data(tenant: str) -> list:
-    airqo_api = AirQoApi()
-    devices = airqo_api.get_devices(tenant=tenant, all_devices=False)
+        return data.dropna()
 
-    forecast_measurements = pd.DataFrame(data=[], columns=insights_columns)
-    time = int((datetime.utcnow() + timedelta(hours=1)).timestamp())
+    @staticmethod
+    def save_insights(insights_data: pd.DataFrame = None, partition: int = 0):
+        insights_data = (
+            [] if insights_data.empty else insights_data.to_dict(orient="records")
+        )
 
-    for device in devices:
-        device_dict = dict(device)
-        device_number = device_dict.get("device_number", None)
-        site = device_dict.get("site", None)
-        if not site:
-            print(f"device {device_number} isn't attached to  a site.")
-            continue
-        site_id = site["_id"]
+        print(f"saving {len(insights_data)} insights .... ")
 
-        if device_number:
+        data = {
+            "data": insights_data,
+            "action": "",
+        }
 
-            forecast = airqo_api.get_forecast(channel_id=device_number, timestamp=time)
-            if forecast:
-                forecast_df = pd.DataFrame(forecast)
+        kafka = KafkaBrokerClient()
+        kafka.send_data(
+            info=data,
+            topic=configuration.INSIGHTS_MEASUREMENTS_TOPIC,
+            partition=partition,
+        )
 
-                forecast_cleaned_df = pd.DataFrame(columns=insights_columns)
-                forecast_cleaned_df["time"] = forecast_df["prediction_time"]
-                forecast_cleaned_df["pm2_5"] = forecast_df["prediction_value"]
-                forecast_cleaned_df["pm10"] = forecast_df["prediction_value"]
-                forecast_cleaned_df["siteId"] = site_id
-                forecast_cleaned_df["frequency"] = "hourly"
-                forecast_cleaned_df["forecast"] = True
-                forecast_cleaned_df["empty"] = False
+    @staticmethod
+    def extract_forecast_data() -> pd.DataFrame:
+        airqo_api = AirQoApi()
+        devices = airqo_api.get_devices(tenant=Tenant.AIRQO)
 
-                forecast_measurements = forecast_measurements.append(
-                    forecast_cleaned_df, ignore_index=True
+        forecast_measurements = pd.DataFrame(data=[], columns=insights_columns)
+        time = int((datetime.utcnow() + timedelta(hours=1)).timestamp())
+
+        for device in devices:
+            device_dict = dict(device)
+            device_number = device_dict.get("device_number", None)
+            site = device_dict.get("site", None)
+            if not site:
+                print(f"device {device_number} isn't attached to  a site.")
+                continue
+            site_id = site["_id"]
+
+            if device_number:
+
+                forecast = airqo_api.get_forecast(
+                    channel_id=device_number, timestamp=time
                 )
+                if forecast:
+                    forecast_df = pd.DataFrame(forecast)
 
-    forecast_measurements["time"] = forecast_measurements["time"].apply(
-        lambda x: predict_time_to_string(x)
-    )
-    forecast_measurements = forecast_measurements[
-        forecast_measurements["pm2_5"].notna()
-    ]
+                    forecast_df.rename(
+                        columns={
+                            "prediction_time": "time",
+                            "prediction_value": "pm2_5",
+                        },
+                        inplace=True,
+                    )
+                    forecast_df["pm10"] = forecast_df["pm2_5"]
+                    forecast_df["siteId"] = site_id
+                    forecast_df["frequency"] = "hourly"
+                    forecast_df["forecast"] = True
+                    forecast_df["empty"] = False
 
-    return forecast_measurements.to_dict(orient="records")
+                    forecast_df = forecast_df[insights_columns]
 
+                    forecast_measurements = forecast_measurements.append(
+                        forecast_df, ignore_index=True
+                    )
 
-def get_airqo_data(freq: str, start_time: str = None, end_time: str = None) -> list:
-    airqo_api = AirQoApi()
-    devices = airqo_api.get_devices(tenant="airqo", all_devices=False)
-    measurements = []
+        forecast_measurements["time"] = forecast_measurements["time"].apply(
+            lambda x: AirQoAppUtils.predict_time_to_string(x)
+        )
 
-    start = (
-        str_to_date(start_time) if start_time else datetime.utcnow() - timedelta(days=7)
-    )
-    end = str_to_date(end_time) if end_time else datetime.utcnow()
+        return forecast_measurements.dropna(subset=["pm2_5", "time"])
 
-    start_time = (
-        date_to_str_days(start) if freq == "daily" else date_to_str_hours(start)
-    )
-    end_time = date_to_str_days(end) if freq == "daily" else date_to_str_hours(end)
+    @staticmethod
+    def predict_time_to_string(time: str):
+        date_time = predict_str_to_date(time)
+        return date_to_str(date_time)
 
-    frequency = get_airqo_api_frequency(freq=freq)
-    dates = pd.date_range(start_time, end_time, freq=frequency)
-    last_date_time = dates.values[len(dates.values) - 1]
+    @staticmethod
+    def extract_insights(
+        freq: str,
+        start_date_time: str,
+        end_date_time: str,
+        forecast=False,
+        all_data=False,
+    ) -> pd.DataFrame:
+        airqo_api = AirQoApi()
+        insights = []
 
-    for device in devices:
+        dates = Utils.query_dates_array(
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            data_source=DataSource.AIRQO,
+        )
 
-        for date in dates:
-
-            start = date_to_str(date)
-            end_date_time = date + timedelta(hours=dates.freq.n)
-
-            if np.datetime64(end_date_time) > last_date_time:
-                end = end_time
-            else:
-                end = date_to_str(end_date_time)
-
+        for start, end in dates:
             try:
-                events = airqo_api.get_events(
-                    tenant="airqo",
+                api_results = airqo_api.get_app_insights(
                     start_time=start,
                     frequency=freq,
                     end_time=end,
-                    device=device["name"],
+                    forecast=forecast,
+                    all_data=all_data,
                 )
-                measurements.extend(events)
+                insights.extend(api_results)
 
             except Exception as ex:
                 print(ex)
                 traceback.print_exc()
 
-    insights = format_measurements_to_insights(data=measurements)
-    return insights
+        return pd.DataFrame(insights)
 
+    @staticmethod
+    def transform_old_forecast(
+        start_date_time: str, end_date_time: str
+    ) -> pd.DataFrame:
+        forecast_data = AirQoAppUtils.extract_insights(
+            freq="hourly",
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            forecast=True,
+        )
 
-def average_insights_data(data: list, frequency="daily") -> list:
-    data_df = pd.DataFrame(data)
+        insights = pd.DataFrame(data=forecast_data)
+        insights = insights[insights_columns]
+        insights["forecast"] = False
+        insights["empty"] = False
+        return insights
 
-    if data_df.empty:
-        return pd.DataFrame(data=[], columns=insights_columns).to_dict(orient="records")
+    @staticmethod
+    def average_insights(data: pd.DataFrame, frequency="daily") -> pd.DataFrame:
+        if data.empty:
+            return pd.DataFrame(data=[], columns=insights_columns)
 
-    site_groups = data_df.groupby("siteId")
-    sampled_data = []
+        site_groups = data.groupby("siteId")
+        sampled_data = pd.DataFrame()
+        resample_value = "24H" if frequency.lower() == "daily" else "1H"
 
-    for _, site_group in site_groups:
-        site_id = site_group.iloc[0]["siteId"]
-        insights = site_group[["time", "pm2_5", "pm10"]]
+        for _, site_group in site_groups:
+            site_id = site_group.iloc[0]["siteId"]
 
-        averages = resample_data(insights, frequency)
+            insights = site_group[["time", "pm2_5", "pm10"]]
+            insights["time"] = insights["time"].apply(pd.to_datetime)
+            averages = pd.DataFrame(insights.resample(resample_value, on="time").mean())
+            averages["time"] = averages.index
+            averages.reset_index(drop=True, inplace=True)
 
-        averages["frequency"] = frequency.upper()
-        averages["siteId"] = site_id
-        averages["forecast"] = False
-        averages["empty"] = False
+            averages["frequency"] = frequency.upper()
+            averages["siteId"] = site_id
+            averages["forecast"] = False
+            averages["empty"] = False
 
-        sampled_data.extend(averages.to_dict(orient="records"))
+            sampled_data = sampled_data.append(averages, ignore_index=True)
 
-    return sampled_data
+        return sampled_data
 
+    @staticmethod
+    def round_off_value(value, pollutant, decimals: int = 2):
+        new_value = round(value, decimals)
 
-def transform_old_forecast(start_date_time: str, end_date_time: str) -> list:
-    forecast_data = query_insights_data(
-        freq="hourly",
-        start_date_time=start_date_time,
-        end_date_time=end_date_time,
-        forecast=True,
-    )
+        if get_air_quality(value, pollutant) != get_air_quality(new_value, pollutant):
+            try:
+                new_value = f"{value}".split(".")
+                decimal_values = new_value[1][:decimals]
+                return float(f"{new_value[0]}.{decimal_values}")
+            except Exception as ex:
+                print(ex)
+            return value
 
-    forecast_data_df = pd.DataFrame(data=forecast_data, columns=insights_columns)
-    forecast_data_df["forecast"] = False
-    forecast_data_df["empty"] = False
-    return forecast_data_df.to_dict(orient="records")
-
-
-def query_insights_data(
-    freq: str, start_date_time: str, end_date_time: str, forecast=False, all_data=False
-) -> list:
-    airqo_api = AirQoApi()
-    insights = []
-
-    frequency = get_frequency(start_time=start_date_time, end_time=end_date_time)
-    dates = pd.date_range(start_date_time, end_date_time, freq=frequency)
-    last_date_time = dates.values[len(dates.values) - 1]
-
-    for date in dates:
-
-        start = date_to_str(date)
-        query_end_date_time = date + timedelta(hours=dates.freq.n)
-
-        if np.datetime64(query_end_date_time) > last_date_time:
-            end = end_date_time
-        else:
-            end = date_to_str(query_end_date_time)
-
-        try:
-            api_results = airqo_api.get_app_insights(
-                start_time=start,
-                frequency=freq,
-                end_time=end,
-                forecast=forecast,
-                all_data=all_data,
-            )
-            insights.extend(api_results)
-
-        except Exception as ex:
-            print(ex)
-            traceback.print_exc()
-
-    return insights
-
-
-def create_insights_data_from_bigquery(
-    start_date_time: str, end_date_time: str
-) -> list:
-    from airqo_etl_utils.bigquery_api import BigQueryApi
-
-    bigquery_api = BigQueryApi()
-
-    hourly_data = bigquery_api.get_hourly_data(
-        start_date_time=start_date_time,
-        end_date_time=end_date_time,
-        columns=["pm2_5", "pm10", "site_id", "timestamp"],
-        table=bigquery_api.hourly_measurements_table,
-    )
-    hourly_data["forecast"] = False
-    hourly_data["empty"] = False
-    hourly_data["frequency"] = "hourly"
-    hourly_data.rename(columns={"site_id": "siteId", "timestamp": "time"}, inplace=True)
-    return hourly_data.to_dict(orient="records")
-
-
-def create_insights_data(data: list) -> list:
-    print("creating insights .... ")
-
-    if not data:
-        return []
-
-    insights_data = pd.DataFrame(data, columns=insights_columns)
-
-    insights_data["frequency"] = insights_data["frequency"].apply(
-        lambda x: str(x).upper()
-    )
-    insights_data["forecast"] = insights_data["forecast"].fillna(False)
-    insights_data["empty"] = False
-
-    if sorted(list(insights_data.columns)) != sorted(insights_columns):
-        print(f"Required columns {insights_columns}")
-        print(f"Dataframe columns {list(insights_data.columns)}")
-        raise Exception("Invalid columns")
-
-    insights_data = insights_data.dropna()
-
-    return insights_data.to_dict(orient="records")
+        return new_value

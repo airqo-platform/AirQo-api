@@ -8,7 +8,7 @@ const cookieParser = require("cookie-parser");
 const bodyParser = require("body-parser");
 const apiV1 = require("./routes/api-v1");
 const apiV2 = require("./routes/api-v2");
-const { mongodb } = require("./config/dbConnection");
+const mongodb = require("./config/dbConnection");
 mongodb;
 
 const app = express();

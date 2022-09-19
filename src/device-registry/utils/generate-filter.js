@@ -9,8 +9,11 @@ const {
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const { logElement, logObject, logText } = require("./log");
+const constants = require("../config/constants");
 const log4js = require("log4js");
-const logger = log4js.getLogger("generate-filter-util");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- generate-filter-util`
+);
 
 const isLowerCase = (str) => {
   return str === str.toLowerCase();
@@ -446,6 +449,7 @@ const generateFilter = {
         message: "filter successfully generated",
       };
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "unable to generate the filter",
@@ -531,6 +535,7 @@ const generateFilter = {
         device_name,
         device_id,
         device_number,
+        category,
       } = req.query;
 
       if (name) {
@@ -548,11 +553,15 @@ const generateFilter = {
       }
 
       if (channel) {
-        filter["device_number"] = channel;
+        filter["device_number"] = parseInt(channel);
+      }
+
+      if (category) {
+        filter["category"] = category;
       }
 
       if (device_number) {
-        filter["device_number"] = device_number;
+        filter["device_number"] = parseInt(device_number);
       }
 
       if (id) {
@@ -560,11 +569,11 @@ const generateFilter = {
       }
 
       if (device_id) {
-        filter["_id"] = ObjectId(device_id);
+        filter["name"] = device_id;
       }
 
       if (chid) {
-        filter["device_number"] = chid;
+        filter["device_number"] = parseInt(chid);
       }
 
       if (location) {
@@ -620,7 +629,9 @@ const generateFilter = {
         data: filter,
       };
     } catch (error) {
-      logger.error(`server error - generate device filter -- ${error.message}`);
+      logger.error(
+        `internal server error - generate device filter -- ${error.message}`
+      );
       return {
         success: false,
         message: "server error - generate device filter",
@@ -641,6 +652,8 @@ const generateFilter = {
       county,
       parish,
       name,
+      _id,
+      google_place_id,
     } = req.query;
     let filter = {};
 
@@ -658,6 +671,14 @@ const generateFilter = {
 
     if (id) {
       filter["_id"] = ObjectId(id);
+    }
+
+    if (_id) {
+      filter["_id"] = ObjectId(_id);
+    }
+
+    if (google_place_id) {
+      filter["google_place_id"] = google_place_id;
     }
 
     if (generated_name) {
@@ -691,11 +712,15 @@ const generateFilter = {
     return filter;
   },
   airqlouds: (req) => {
-    let { id, name, admin_level } = req.query;
+    let { id, name, admin_level, summary } = req.query;
     let filter = {};
 
     if (name) {
       filter["name"] = name;
+    }
+
+    if (summary === "yes") {
+      filter["summary"] = summary;
     }
 
     if (id) {

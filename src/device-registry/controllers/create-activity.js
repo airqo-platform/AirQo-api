@@ -3,8 +3,11 @@ const isEmpty = require("is-empty");
 const { logObject, logElement, logText } = require("../utils/log");
 const { validationResult } = require("express-validator");
 const { getModelByTenant } = require("../utils/multitenancy");
+const constants = require("../config/constants");
 const log4js = require("log4js");
-const logger = log4js.getLogger("create-activity-util");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- create-activity-controller`
+);
 const createActivityUtil = require("../utils/create-activity");
 const errors = require("../utils/errors");
 
@@ -15,6 +18,15 @@ const activity = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -72,6 +84,7 @@ const activity = {
         });
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -132,6 +145,7 @@ const activity = {
         });
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -148,6 +162,8 @@ const activity = {
         mountType,
         powerType,
         isPrimaryInLocation,
+        tags,
+        description,
         site_id,
       } = body;
       const { tenant, deviceName } = query;
@@ -161,7 +177,8 @@ const activity = {
       request["body"]["powerType"] = powerType;
       request["body"]["isPrimaryInLocation"] = isPrimaryInLocation;
       request["body"]["site_id"] = site_id;
-
+      request["body"]["description"] = description;
+      request["body"]["tags"] = tags;
       request["query"]["tenant"] = tenant;
       request["query"]["deviceName"] = deviceName;
       request["query"]["type"] = "maintain";
@@ -192,6 +209,7 @@ const activity = {
         });
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -208,6 +226,15 @@ const activity = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -245,6 +272,7 @@ const activity = {
         });
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -262,6 +290,15 @@ const activity = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -294,6 +331,7 @@ const activity = {
         });
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -310,6 +348,15 @@ const activity = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -329,7 +376,7 @@ const activity = {
         res.status(status).json({
           success: true,
           message: responseFromListActivities.message,
-          activities: responseFromListActivities.data,
+          site_activities: responseFromListActivities.data,
         });
       } else if (responseFromListActivities.success === false) {
         let errors = responseFromListActivities.errors
@@ -345,6 +392,7 @@ const activity = {
         });
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",

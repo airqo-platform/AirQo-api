@@ -6,7 +6,9 @@ const generateFilter = require("./generate-filter");
 const errors = require("./errors");
 const isEmpty = require("is-empty");
 const log4js = require("log4js");
-const logger = log4js.getLogger("create-event-util");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- create-event-util`
+);
 const { transform } = require("node-json-transform");
 const Dot = require("dot-object");
 const cleanDeep = require("clean-deep");
@@ -17,12 +19,366 @@ const axios = require("axios");
 const { kafkaConsumer } = require("../config/kafkajs");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
+const { BigQuery } = require("@google-cloud/bigquery");
+const bigquery = new BigQuery();
+const {
+  generateDateFormatWithoutHrs,
+  addMonthsToProvideDateTime,
+  formatDate,
+} = require("./date");
 
-const { generateDateFormat, generateDateFormatWithoutHrs } = require("./date");
+const { Parser } = require("json2csv");
 
 const httpStatus = require("http-status");
 
 const createEvent = {
+  getMeasurementsFromBigQuery: async (req) => {
+    try {
+      const { query } = req;
+      const {
+        frequency,
+        device,
+        device_name,
+        device_id,
+        device_lat_long,
+        site_id,
+        airqloud_id,
+        airqloud_name,
+        device_number,
+        startTime,
+        endTime,
+        tenant,
+        limit,
+        skip,
+        site,
+        format,
+        access_code,
+      } = query;
+
+      const responseFromGetDeviceDetails = await createDeviceUtil.list(req);
+      let deviceDetails = {};
+
+      if (responseFromGetDeviceDetails.success === true) {
+        if (
+          !isEmpty(responseFromGetDeviceDetails.data) &&
+          Array.isArray(responseFromGetDeviceDetails.data) &&
+          responseFromGetDeviceDetails.data.length === 1
+        ) {
+          deviceDetails = responseFromGetDeviceDetails.data[0];
+        } else {
+          logger.info(`unable to retrieve details for ONE device`);
+        }
+      } else if (responseFromGetDeviceDetails.success === false) {
+        try {
+          logger.error(
+            `unable to retrieve device details --- ${JSON.stringify(
+              responseFromGetDeviceDetails.errors
+            )}`
+          );
+        } catch (error) {
+          logger.error(`internal server error -- ${error.message}`);
+        }
+      }
+
+      if (!isEmpty(deviceDetails) && deviceDetails.visibility === false) {
+        if (isEmpty(access_code) || deviceDetails.access_code !== access_code) {
+          // return {
+          //   success: false,
+          //   message: "not authorized",
+          //   status: httpStatus.UNAUTHORIZED,
+          //   errors: { message: "not authorized" },
+          // };
+        }
+      }
+
+      const currentDate = formatDate(new Date());
+
+      const twoMonthsBack = formatDate(
+        addMonthsToProvideDateTime(currentDate, -2)
+      );
+
+      const start = startTime ? startTime : twoMonthsBack;
+
+      const end = endTime ? endTime : currentDate;
+
+      let table = `${constants.DATAWAREHOUSE_AVERAGED_DATA}.hourly_device_measurements`;
+      let averaged_fields =
+        "site_id, name, device, device_number, timestamp, " +
+        "pm2_5_raw_value, pm2_5_calibrated_value, pm10_raw_value," +
+        "pm10_calibrated_value, no2_raw_value, no2_calibrated_value, pm1_raw_value," +
+        "pm1_calibrated_value, external_temperature, external_humidity, wind_speed,";
+      let raw_fields = "";
+      let mobile = false;
+
+      if (!isEmpty(deviceDetails) && deviceDetails.category === "bam") {
+        table = `${constants.DATAWAREHOUSE_AVERAGED_DATA}.hourly_bam_device_measurements`;
+        averaged_fields =
+          "site_id, device_id, device_number, timestamp," +
+          "pm10, pm2_5, no2, pm1, latitude, longitude";
+        raw_fields = "";
+        mobile = false;
+      }
+
+      if (frequency === "raw") {
+        if (!isEmpty(deviceDetails) && deviceDetails.category === "bam") {
+          raw_fields =
+            "realtime_conc, hourly_conc," +
+            "short_time_conc , air_flow , wind_speed ," +
+            "wind_direction , temperature , humidity," +
+            "barometric_pressure , filter_temperature ," +
+            "filter_humidity, status, timestamp, device_id," +
+            "device_number,site_id, latitude, longitude";
+          averaged_fields = "";
+          table = `${constants.DATAWAREHOUSE_RAW_DATA}.bam_device_measurements`;
+        } else {
+          table = `${constants.DATAWAREHOUSE_RAW_DATA}.device_measurements`;
+          averaged_fields = "";
+          raw_fields =
+            "site_id, name, device_id, device_number, timestamp," +
+            "pm2_5, pm10, s1_pm2_5, s2_pm2_5, s1_pm10, s2_pm10, no2," +
+            "pm1, s1_pm1, s2_pm1, pressure, s1_pressure, s2_pressure, temperature," +
+            "humidity, voc, s1_voc, s2_voc, wind_speed, satellites, hdop," +
+            "device_temperature, device_humidity, battery,";
+          mobile = false;
+        }
+      }
+
+      if (tenant === "urban_better") {
+        table = `${constants.DATAWAREHOUSE_RAW_DATA}.mobile_device_measurements`;
+        mobile = true;
+        raw_fields =
+          "tenant, timestamp, device_number, device_id, latitude, longitude," +
+          "horizontal_accuracy, pm2_5_raw_value, pm1_raw_value, pm10_raw_value," +
+          "no2_raw_value, voc_raw_value, pm1_pi_value, pm2_5_pi_value, pm10_pi_value," +
+          "voc_pi_value, no2_pi_value, gps_device_timestamp, timestamp_abs_diff";
+        averaged_fields = "";
+      }
+      const queryStatement = `SELECT ${averaged_fields} ${raw_fields}  \`${
+        constants.DATAWAREHOUSE_METADATA
+      }.sites\`.latitude AS latitude,
+        \`${constants.DATAWAREHOUSE_METADATA}.sites\`.longitude AS longitude, 
+        \`${constants.DATAWAREHOUSE_METADATA}.sites\`.tenant AS tenant ,
+        \`${constants.DATAWAREHOUSE_METADATA}.sites\`.altitude AS altitude ,
+        FROM \`${table}\` 
+        JOIN \`${constants.DATAWAREHOUSE_METADATA}.sites\` 
+        ON \`${
+          constants.DATAWAREHOUSE_METADATA
+        }.sites\`.id = \`${table}\`.site_id 
+        WHERE timestamp 
+       >= "${start ? start : twoMonthsBack}" AND timestamp <= "${
+        end ? end : currentDate
+      }" 
+      ${site ? `AND site_id="${site}"` : ""}
+      ${device ? `AND device="${device}"` : ""}
+      ${device_number ? `AND device_number=${device_number}` : ""}
+      ${device_name ? `AND device_name="${device_name}"` : ""}
+      ${device_id ? `AND device_id="${device_id}"` : ""}
+      ${site_id ? `AND site_id="${site_id}"` : ""}
+      ${airqloud_id ? `AND airqloud_id="${airqloud_id}"` : ""}
+      ${airqloud_name ? `AND airqloud_name="${airqloud_name}"` : ""}
+      ${device_lat_long ? `AND device_lat_long="${device_lat_long}"` : ""}
+      ${
+        tenant
+          ? `AND \`${constants.DATAWAREHOUSE_METADATA}.sites\`.tenant="${tenant}"`
+          : ""
+      }
+      ORDER BY timestamp
+      DESC LIMIT ${limit ? limit : constants.DEFAULT_EVENTS_LIMIT} OFFSET ${
+        skip ? skip : constants.DEFAULT_EVENTS_SKIP
+      }`;
+
+      const queryStatementMobile = `SELECT ${averaged_fields} ${raw_fields}
+      FROM \`${table}\` 
+      WHERE timestamp 
+      >= "${start ? start : twoMonthsBack}" AND timestamp <= "${
+        end ? end : currentDate
+      }" 
+      ${site ? `AND site_id="${site}"` : ""}
+      ${device ? `AND device="${device}"` : ""}
+      ${device_number ? `AND device_number=${device_number}` : ""}
+      ${device_name ? `AND device_name="${device_name}"` : ""}
+      ${device_id ? `AND device_id="${device_id}"` : ""}
+      ${site_id ? `AND site_id="${site_id}"` : ""}
+      ${airqloud_id ? `AND airqloud_id="${airqloud_id}"` : ""}
+      ${airqloud_name ? `AND airqloud_name="${airqloud_name}"` : ""}
+      ${device_lat_long ? `AND device_lat_long="${device_lat_long}"` : ""}
+     ${tenant ? `AND tenant="${tenant}"` : ""}
+     ORDER BY timestamp
+     DESC LIMIT ${limit ? limit : constants.DEFAULT_EVENTS_LIMIT} OFFSET ${
+        skip ? skip : constants.DEFAULT_EVENTS_SKIP
+      }
+     `;
+
+      const queryStatementReference = `SELECT ${averaged_fields} ${raw_fields}
+      FROM \`${table}\` 
+      WHERE timestamp 
+     >= "${start ? start : twoMonthsBack}" AND timestamp <= "${
+        end ? end : currentDate
+      }" 
+    ${site ? `AND site_id="${site}"` : ""}
+    ${device ? `AND device="${device}"` : ""}
+    ${device_number ? `AND device_number=${device_number}` : ""}
+    ${device_name ? `AND device_name="${device_name}"` : ""}
+    ${device_id ? `AND device_id="${device_id}"` : ""}
+    ${site_id ? `AND site_id="${site_id}"` : ""}
+    ${airqloud_id ? `AND airqloud_id="${airqloud_id}"` : ""}
+    ${airqloud_name ? `AND airqloud_name="${airqloud_name}"` : ""}
+    ${device_lat_long ? `AND device_lat_long="${device_lat_long}"` : ""}
+    ${tenant ? `AND tenant="${tenant}"` : ""}
+    ORDER BY timestamp
+    DESC LIMIT ${limit ? limit : constants.DEFAULT_EVENTS_LIMIT} OFFSET ${
+        skip ? skip : constants.DEFAULT_EVENTS_SKIP
+      }`;
+
+      let bqQuery = "";
+
+      if (mobile === true) {
+        bqQuery = queryStatementMobile;
+      } else if (
+        (!isEmpty(deviceDetails) &&
+          deviceDetails.category !== "bam" &&
+          mobile === false) ||
+        (isEmpty(deviceDetails) && mobile === false)
+      ) {
+        bqQuery = queryStatement;
+      } else if (
+        !isEmpty(deviceDetails) &&
+        deviceDetails.category === "bam" &&
+        mobile === false
+      ) {
+        bqQuery = queryStatementReference;
+      }
+      const options = {
+        query: bqQuery,
+        location: constants.BIG_QUERY_LOCATION,
+      };
+
+      const [job] = await bigquery.createQueryJob(options);
+
+      const [rows] = await job.getQueryResults();
+
+      const sanitizedMeasurements = rows.map((item) => {
+        return {
+          ...item,
+          timestamp: item.timestamp ? item.timestamp.value : "",
+          gps_device_timestamp:
+            item.gps_device_timestamp && item.gps_device_timestamp.value
+              ? item.gps_device_timestamp.value
+              : "",
+        };
+      });
+
+      let data = cleanDeep(sanitizedMeasurements);
+
+      if (format && format === "csv") {
+        try {
+          const parser = new Parser();
+          const csv = parser.parse(sanitizedMeasurements);
+          data = csv;
+        } catch (error) {
+          logger.error(`internal server error --- ${error.message}`);
+        }
+      }
+      return {
+        success: true,
+        data,
+        message: "successfully retrieved the measurements",
+      };
+    } catch (error) {
+      logger.error(`internal server error --- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      };
+    }
+  },
+
+  latestFromBigQuery: async (req) => {
+    try {
+      const { query } = req;
+      const {
+        frequency,
+        device,
+        name,
+        startTime,
+        endTime,
+        tenant,
+        limit,
+        skip,
+        site,
+      } = query;
+
+      const currentDate = generateDateFormatWithoutHrs(new Date());
+
+      const twoMonthsBack = generateDateFormatWithoutHrs(
+        addMonthsToProvideDateTime(currentDate, -2)
+      );
+
+      const start = generateDateFormatWithoutHrs(
+        startTime ? startTime : twoMonthsBack
+      );
+      const end = generateDateFormatWithoutHrs(endTime ? endTime : currentDate);
+
+      let table = `${constants.DATAWAREHOUSE_AVERAGED_DATA}.hourly_device_measurements`;
+      let pm2_5 = "";
+      let pm10 = "";
+
+      if (frequency === "raw") {
+        table = `${constants.DATAWAREHOUSE_RAW_DATA}.device_measurements`;
+        pm2_5 = "";
+        pm10 = "";
+      }
+
+      const queryStatement = `SELECT site_id, name, device, \`${
+        constants.DATAWAREHOUSE_METADATA
+      }.sites\`.latitude AS latitude,
+        \`${
+          constants.DATAWAREHOUSE_METADATA
+        }.sites\`.longitude AS longitude, timestamp, pm2_5, pm10, pm2_5_raw_value, pm2_5_calibrated_value, pm10_raw_value, pm10_calibrated_value,
+        \`${constants.DATAWAREHOUSE_METADATA}.sites\`.tenant AS tenant 
+        FROM \`${table}\` 
+        JOIN \`${constants.DATAWAREHOUSE_METADATA}.sites\` 
+        ON \`${
+          constants.DATAWAREHOUSE_METADATA
+        }.sites\`.id = \`${table}\`.site_id 
+        WHERE timestamp  
+       >= "${start ? start : twoMonthsBack}" AND timestamp <= "${
+        end ? end : currentDate
+      }" 
+      ${site ? `AND site_id="${site}"` : ""}
+      ${device ? `AND device="${device}"` : ""}
+      ${
+        tenant
+          ? `AND \`${constants.DATAWAREHOUSE_METADATA}.sites\`.tenant="${tenant}"`
+          : ""
+      }
+       LIMIT ${limit ? limit : constants.DEFAULT_EVENTS_LIMIT}`;
+
+      const options = {
+        query: queryStatement,
+        location: constants.BIG_QUERY_LOCATION,
+      };
+
+      const [job] = await bigquery.createQueryJob(options);
+
+      const [rows] = await job.getQueryResults();
+
+      return {
+        success: true,
+        data: rows,
+        message: "successfully retrieved the measurements",
+      };
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      };
+    }
+  },
+
   list: async (request, callback) => {
     try {
       const { query } = request;
@@ -127,6 +483,7 @@ const createEvent = {
         }
       });
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       callback({
         success: false,
         errors: { message: error.message },
@@ -134,6 +491,7 @@ const createEvent = {
       });
     }
   },
+
   create: async (request) => {
     try {
       const responseFromTransformEvent = await createEvent.transformManyEvents(
@@ -191,6 +549,7 @@ const createEvent = {
               errors.push(errMsg);
             }
           } catch (e) {
+            logger.error(`internal server error -- ${e.message}`);
             eventsRejected.push(event);
             let errMsg = {
               message:
@@ -233,6 +592,7 @@ const createEvent = {
         return responseFromTransformEvent;
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         errors: { message: error.message },
@@ -245,7 +605,7 @@ const createEvent = {
       const str = Object.values(inputObject).join(",");
       return str;
     } catch (error) {
-      logElement("the error for getting data string", error.message);
+      logger.error(`internal server error -- ${error.message}`);
     }
   },
 
@@ -272,7 +632,13 @@ const createEvent = {
         external_humidity,
         external_pressure,
         external_altitude,
-        type,
+        category,
+        rtc_adc,
+        rtc_v,
+        rtc,
+        stc_adc,
+        stc_v,
+        stc,
       } = req.body;
 
       let stringPositionsAndValues = {};
@@ -288,13 +654,13 @@ const createEvent = {
       stringPositionsAndValues[9] = external_humidity || null;
       stringPositionsAndValues[10] = external_pressure || null;
       stringPositionsAndValues[11] = external_altitude || null;
-      stringPositionsAndValues[12] = type || null;
+      stringPositionsAndValues[12] = category || null;
 
       const otherDataString = createEvent.generateOtherDataString(
         stringPositionsAndValues
       );
-
-      let requestBody = {
+      let requestBody = {};
+      const lowCostRequestBody = {
         api_key: api_key,
         created_at: time,
         field1: s1_pm2_5,
@@ -309,12 +675,36 @@ const createEvent = {
         longitude: longitude,
         status: status,
       };
+
+      const bamRequestBody = {
+        api_key: api_key,
+        created_at: time,
+        field1: rtc_adc,
+        field2: rtc_v,
+        field3: rtc,
+        field4: stc_adc,
+        field5: stc_v,
+        field6: stc,
+        field7: battery,
+        field8: otherDataString,
+        latitude: latitude,
+        longitude: longitude,
+        status: status,
+      };
+
+      if (category === "bam") {
+        requestBody = bamRequestBody;
+      } else if (category === "lowcost") {
+        requestBody = lowCostRequestBody;
+      }
+
       return {
         success: true,
         message: "successfully created ThingSpeak body",
         data: requestBody,
       };
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -322,76 +712,22 @@ const createEvent = {
       };
     }
   },
-  getTSField: (measurement, res) => {
-    try {
-      let requestBody = {
-        api_key: "api_key",
-        created_at: "created_at",
-        s1_pm2_5: "field1",
-        s1_pm10: "field2",
-        s2_pm2_5: "field3",
-        s2_pm10: "field4",
-        latitude: "field5",
-        longitude: "field6",
-        battery: "field7",
-        latitude: "latitude",
-        longitude: "longitude",
-        status: "field8",
-        altitude: "field8",
-        wind_speed: "field8",
-        satellites: "field8",
-        hdop: "field8",
-        internal_temperature: "field8",
-        internal_humidity: "field8",
-        external_temperature: "field8",
-        external_humidity: "field8",
-        external_pressure: "field8",
-        external_altitude: "field8",
-        type: "field8",
-      };
-
-      if (requestBody.hasOwnProperty(measurement)) {
-        return {
-          success: true,
-          data: requestBody[measurement],
-          status: HTTPStatus.OK,
-        };
-      } else {
-        return {
-          success: false,
-          message: `the provided quantity kind (${measurement}) does not exist for this organization`,
-          status: HTTPStatus.BAD_REQUEST,
-        };
-      }
-    } catch (error) {
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      };
-    }
-  },
   transmitMultipleSensorValues: async (request) => {
     try {
       let requestBody = {};
-      const responseFromCreateRequestBody = createEvent.createThingSpeakRequestBody(
-        request
-      );
-
-      if (responseFromCreateRequestBody.success === true) {
-        requestBody = responseFromCreateRequestBody.data;
-      } else {
-        return {
-          success: false,
-          message: responseFromCreateRequestBody.message,
-          status: responseFromCreateRequestBody.status,
-        };
-      }
       const responseFromListDevice = await createDeviceUtil.list(request);
       let deviceDetail = {};
       if (responseFromListDevice.success === true) {
         if (responseFromListDevice.data.length === 1) {
           deviceDetail = responseFromListDevice.data[0];
+          if (isEmpty(deviceDetail.category)) {
+            return {
+              success: false,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+              message:
+                "unable to categorise this device, please first update device details",
+            };
+          }
         } else {
           return {
             success: false,
@@ -414,6 +750,30 @@ const createEvent = {
           status,
         };
       }
+
+      let requestBodyForCreateThingsSpeakBody = request;
+      requestBodyForCreateThingsSpeakBody["body"]["category"] =
+        deviceDetail.category;
+
+      logObject(
+        "requestBodyForCreateThingsSpeakBody",
+        requestBodyForCreateThingsSpeakBody
+      );
+
+      const responseFromCreateRequestBody = createEvent.createThingSpeakRequestBody(
+        requestBodyForCreateThingsSpeakBody
+      );
+
+      if (responseFromCreateRequestBody.success === true) {
+        requestBody = responseFromCreateRequestBody.data;
+      } else {
+        return {
+          success: false,
+          message: responseFromCreateRequestBody.message,
+          status: responseFromCreateRequestBody.status,
+        };
+      }
+
       let api_key = deviceDetail.writeKey;
       const responseFromDecryptKey = await createDeviceUtil.decryptKey(api_key);
       if (responseFromDecryptKey.success === true) {
@@ -448,9 +808,18 @@ const createEvent = {
           }
         })
         .catch(function(error) {
+          try {
+            logger.error(
+              `internal server error -- ${JSON.stringify(
+                error.response.data.error.details
+              )}`
+            );
+          } catch (error) {
+            logger.error(`internal server error -- ${error.message}`);
+          }
           return {
             success: false,
-            message: "Server Error",
+            message: "Internal Server Error",
             errors: {
               message: error.response
                 ? error.response.data.error.details
@@ -462,7 +831,7 @@ const createEvent = {
           };
         });
     } catch (error) {
-      logger.error(`transmitMultipleSensorValues -- ${error.message}`);
+      logger.error(`internal server error -- ${error.message}`);
       return {
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -478,28 +847,33 @@ const createEvent = {
       const { name, chid, device_number, tenant } = request.query;
       const { body } = request;
 
-      let requestDeviceList = {};
-      requestDeviceList["query"] = {};
-      requestDeviceList["query"]["name"] = name;
-      requestDeviceList["query"]["tenant"] = tenant;
-      requestDeviceList["query"]["device_number"] = chid || device_number;
-
-      const responseFromListDevice = await createDeviceUtil.list(
-        requestDeviceList
-      );
+      const responseFromListDevice = await createDeviceUtil.list(request);
 
       let deviceDetail = {};
 
       if (responseFromListDevice.success === true) {
         if (responseFromListDevice.data.length === 1) {
           deviceDetail = responseFromListDevice.data[0];
+          if (isEmpty(deviceDetail.category)) {
+            return {
+              success: false,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+              message:
+                "unable to categorise this device, please first update device details",
+            };
+          }
+        } else {
+          return {
+            success: false,
+            status: httpStatus.NOT_FOUND,
+            message: "device not found for this organisation",
+          };
         }
       } else if (responseFromListDevice.success === false) {
         return responseFromListDevice;
       }
 
       const channel = deviceDetail.device_number;
-
       let api_key = deviceDetail.writeKey;
 
       const responseFromDecryptKey = await createDeviceUtil.decryptKey(api_key);
@@ -508,10 +882,17 @@ const createEvent = {
       } else if (responseFromDecryptKey.success === false) {
         return responseFromDecryptKey;
       }
+      let enrichedBody = [];
+
+      body.forEach((value) => {
+        value["category"] = deviceDetail.category;
+        enrichedBody.push(value);
+      });
 
       let responseFromTransformMeasurements = await createEvent.transformMeasurementFields(
-        body
+        enrichedBody
       );
+
       let transformedUpdates = {};
       if (responseFromTransformMeasurements.success === true) {
         transformedUpdates = responseFromTransformMeasurements.data;
@@ -545,12 +926,21 @@ const createEvent = {
           }
         })
         .catch(function(error) {
+          try {
+            logger.error(
+              `internal server error -- ${JSON.stringify(
+                error.response.data.error
+              )}`
+            );
+          } catch (error) {
+            logger.error(`internal server error -- ${error.message}`);
+          }
           return {
             success: false,
-            message: "Server Error",
+            message: "Internal Server Error",
             errors: {
               message: error.response
-                ? error.response.data.error.details
+                ? error.response.data.error
                 : "Unable to establish connection with external system",
             },
             status: error.response
@@ -559,7 +949,7 @@ const createEvent = {
           };
         });
     } catch (error) {
-      logger.error(`the error for bulk transmission -- ${error.message}`);
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -620,6 +1010,7 @@ const createEvent = {
         message: "response stored in cache",
       });
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       callback({
         success: false,
         message: "Internal Server Error",
@@ -654,6 +1045,7 @@ const createEvent = {
         }
       });
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         errors: { message: error.message },
@@ -703,7 +1095,7 @@ const createEvent = {
         };
       }
     } catch (error) {
-      logger.error(`transform -- ${error.message}`);
+      logger.error(`internal server error-- ${error.message}`);
       return {
         success: false,
         message: "server error - trasform util",
@@ -733,12 +1125,11 @@ const createEvent = {
       if (responseFromGetDeviceDetails.success === true) {
         if (responseFromGetDeviceDetails.data.length === 1) {
           let deviceDetails = responseFromGetDeviceDetails.data[0];
-          logObject("the device details baby", deviceDetails);
+
           enrichedEvent["is_test_data"] = !deviceDetails.isActive;
           enrichedEvent["is_device_primary"] =
             deviceDetails.isPrimaryInLocation;
 
-          logObject("enrichedEvent", enrichedEvent);
           return {
             success: true,
             message: "successfully enriched",
@@ -755,9 +1146,15 @@ const createEvent = {
         let errors = responseFromGetDeviceDetails.errors
           ? responseFromGetDeviceDetails.errors
           : { message: "" };
-        logger.error(
-          `responseFromGetDeviceDetails was not a success -- ${responseFromGetDeviceDetails.message} -- ${errors}`
-        );
+        try {
+          logger.error(
+            `responseFromGetDeviceDetails was not a success -- ${
+              responseFromGetDeviceDetails.message
+            } -- ${JSON.stringify(errors)}`
+          );
+        } catch (error) {
+          logger.error(`internal server error -- ${error.message}`);
+        }
         return {
           success: false,
           message: responseFromGetDeviceDetails.message,
@@ -765,7 +1162,9 @@ const createEvent = {
         };
       }
     } catch (error) {
-      logger.error(`server side error -- enrich one event -- ${error.message}`);
+      logger.error(
+        `internal server error -- enrich one event -- ${error.message}`
+      );
       return {
         success: false,
         message: "server error",
@@ -781,14 +1180,11 @@ const createEvent = {
         `the body received for transformation -- ${JSON.stringify(body)}`
       );
       let promises = body.map(async (event) => {
-        logObject("the event", event);
         let data = event;
         let map = constants.EVENT_MAPPINGS;
         let context = event;
         context["device_id"] = ObjectId(event.device_id);
         context["site_id"] = ObjectId(event.site_id);
-
-        logObject("context", context);
 
         let responseFromTransformEvent = await createEvent.transformOneEvent({
           data,
@@ -796,7 +1192,6 @@ const createEvent = {
           context,
         });
 
-        logObject("responseFromTransformEvent", responseFromTransformEvent);
         logger.info(
           `responseFromTransformEvent -- ${JSON.stringify(
             responseFromTransformEvent
@@ -815,9 +1210,15 @@ const createEvent = {
           let errors = responseFromTransformEvent.errors
             ? responseFromTransformEvent.errors
             : { message: "" };
-          logger.error(
-            `responseFromTransformEvent is not a success -- unable to transform -- ${errors}`
-          );
+          try {
+            logger.error(
+              `responseFromTransformEvent is not a success -- unable to transform -- ${JSON.stringify(
+                errors
+              )}`
+            );
+          } catch (error) {
+            logger.error(`internal server error -- ${error.message}`);
+          }
           return {
             success: false,
             errors,
@@ -833,28 +1234,28 @@ const createEvent = {
           for (const result of results) {
             transforms.push(result.data);
           }
-          return {
-            success: true,
-            data: transforms,
-            message: "successful transformations",
-          };
         } else if (results.every((res) => res.success === false)) {
           for (const result of results) {
             let error = result.errors ? result.errors : { message: "" };
             errors.push(error);
           }
-          logger.error(
-            `unsuccessful tranformEvents -- ${JSON.stringify(errors)}}`
-          );
-          return {
-            success: false,
-            errors,
-            message: "failed transformations",
-          };
+          try {
+            logger.error(
+              `unsuccessful tranformEvents -- ${JSON.stringify(errors)}}`
+            );
+          } catch (error) {
+            logger.error(`internal server error -- ${error.message}`);
+          }
         }
+        return {
+          success: true,
+          errors,
+          message: "transaction happened",
+          data: transforms,
+        };
       });
     } catch (error) {
-      logger.error(`transformEvents -- ${error.message}`);
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "server side error - transformEvents ",
@@ -871,7 +1272,7 @@ const createEvent = {
       let responseFromTransformEvents = await createEvent.transformManyEvents(
         request
       );
-      logObject("responseFromTransformEvents", responseFromTransformEvents);
+
       logger.info(
         `responseFromTransformEvents -- ${JSON.stringify(
           responseFromTransformEvents
@@ -894,8 +1295,6 @@ const createEvent = {
           transformedMeasurements
         );
 
-        logObject("responseFromInsertEvents", responseFromInsertEvents);
-
         if (responseFromInsertEvents.success) {
           return {
             success: true,
@@ -914,7 +1313,7 @@ const createEvent = {
         }
       }
     } catch (error) {
-      logger.error(`the server side error -- addEvents -- ${error.message}`);
+      logger.error(`internal server error -- addEvents -- ${error.message}`);
       return {
         success: false,
         message: "server side error",
@@ -932,9 +1331,8 @@ const createEvent = {
       let update = {};
       let modifiedFilter = {};
       let dot = new Dot(".");
-      logObject("the transformed events received", events);
+
       for (const event of events) {
-        logObject("the event in events", event);
         try {
           options = event.options;
           value = event;
@@ -950,16 +1348,11 @@ const createEvent = {
             value
           );
           logger.info(`the value -- ${JSON.stringify(value)}`);
-          logObject("the value", value);
 
           update["$push"] = { values: value };
           logger.info(`the update -- ${JSON.stringify(update)}`);
 
           logger.info(`the options -- ${JSON.stringify(options)}`);
-
-          logObject("update", update);
-          logObject("options", options);
-          logObject("modifiedFilter", modifiedFilter);
 
           const addedEvents = await Model(tenant).updateOne(
             modifiedFilter,
@@ -994,8 +1387,7 @@ const createEvent = {
             );
           }
         } catch (error) {
-          logger.error(`insertTransformedEvents -- ${error.message}`);
-          logObject;
+          logger.error(`internal server error -- ${error.message}`);
           dot.delete("nValues", filter);
           let errMsg = {
             msg: "duplicate event",
@@ -1023,7 +1415,7 @@ const createEvent = {
         };
       }
     } catch (error) {
-      logger.error(`insert measurements -- ${error.message}`);
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "server side error",
@@ -1092,7 +1484,6 @@ const createEvent = {
 
       let filter = {};
       let responseFromFilter = generateFilter.events_v2(request);
-      logObject("responseFromFilter", responseFromFilter);
 
       if (responseFromFilter.success == true) {
         filter = responseFromFilter.data;
@@ -1129,7 +1520,9 @@ const createEvent = {
         };
       }
     } catch (e) {
-      logger.error(`server error, clearEventsOnPlatform -- ${e.message}`);
+      logger.error(
+        `internal server error, clearEventsOnPlatform -- ${e.message}`
+      );
       errors.utillErrors.errors.tryCatchErrors(
         "clearEventsOnPlatform util",
         e.message
@@ -1228,7 +1621,7 @@ const createEvent = {
       //   },
       // });
     } catch (error) {
-      logObject("the error", error);
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -1251,7 +1644,7 @@ const createEvent = {
 
     if (!responseFromTransformMeasurements.success) {
       logger.error(
-        `unable to transform measurements -- ${responseFromTransformMeasurements.message}`
+        `internal server error -- unable to transform measurements -- ${responseFromTransformMeasurements.message}`
       );
     }
 
@@ -1335,11 +1728,11 @@ const createEvent = {
           errors.push(errMsg);
         }
       } catch (e) {
-        logObject("the detailed db conflict error", e);
-        logger.error(`internal server serror ${e.message}`);
+        logger.error(`internal server serror -- ${e.message}`);
         eventsRejected.push(measurement);
         let errMsg = {
-          msg: "there is a system conflict, most likely a duplicate record",
+          msg:
+            "there is a system conflict, most likely a cast error or duplicate record",
           more: e.message,
           record: {
             ...(measurement.device ? { device: measurement.device } : {}),
@@ -1384,7 +1777,7 @@ const createEvent = {
           success: true,
         };
       } catch (e) {
-        console.log("the errors: ", e.message);
+        logger.error(`internal server error -- ${e.message}`);
         return {
           device: device,
           success: false,
@@ -1396,7 +1789,7 @@ const createEvent = {
       if (results.every((res) => res.success)) {
         return results;
       } else {
-        console.log("the results for no success", results);
+        logObject("the results for no success", results);
       }
     });
   },
@@ -1413,7 +1806,7 @@ const createEvent = {
           };
           return data;
         } catch (e) {
-          console.log("the errors: ", e.message);
+          logger.error(`internal server error -- ${e.message}`);
           return {
             success: false,
             message: "server side error",
@@ -1435,6 +1828,7 @@ const createEvent = {
         }
       });
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "unable to transform measurement",
@@ -1471,7 +1865,7 @@ const createEvent = {
           return field;
       }
     } catch (e) {
-      logElement("Internal Server Error", e.message);
+      logger.error(`internal server error -- ${e.message}`);
     }
   },
   transformMeasurementFields: async (measurements) => {
@@ -1499,6 +1893,7 @@ const createEvent = {
         success: true,
       };
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -1557,7 +1952,7 @@ const createEvent = {
             };
           })
           .catch(function(error) {
-            console.log(error);
+            logger.error(`internal server error -- ${error.message}`);
             return {
               message: `unable to clear the device data, device ${device} does not exist`,
               success: false,

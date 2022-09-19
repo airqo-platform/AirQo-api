@@ -1,76 +1,66 @@
 [
-    {
-        "name": "tenant",
-        "type": "STRING",
-        "mode": "REQUIRED"
-    },
-    {
-        "name": "site_id",
-        "type": "STRING",
-        "mode": "REQUIRED"
-    },
-    {
-        "name": "station_code",
-        "type": "STRING",
-        "mode": "REQUIRED"
-    },
-    {
-        "name": "timestamp",
-        "type": "TIMESTAMP",
-        "mode": "REQUIRED"
-    },
-    {
-        "name": "temperature",
-        "type": "FLOAT",
-        "mode": "NULLABLE",
-        "description": "°C.\nExternal temperature"
-    },
-    {
-        "name": "humidity",
-        "type": "FLOAT",
-        "mode": "NULLABLE",
-        "description": "%.\nRelative humidity"
-    },
-    {
-        "name": "wind_speed",
-        "type": "FLOAT",
-        "mode": "NULLABLE",
-        "description": "m/s."
-    },
-    {
-        "name": "atmospheric_pressure",
-        "type": "FLOAT",
-        "mode": "NULLABLE",
-        "description": "kPa."
-    },
-    {
-        "name": "radiation",
-        "type": "FLOAT",
-        "mode": "NULLABLE",
-        "description": "W/m2."
-    },
-    {
-        "name": "vapor_pressure",
-        "type": "FLOAT",
-        "mode": "NULLABLE",
-        "description": "kPa."
-    },
-    {
-        "name": "wind_gusts",
-        "type": "FLOAT",
-        "mode": "NULLABLE",
-        "description": "m/s."
-    },
-    {
-        "name": "precipitation",
-        "type": "FLOAT",
-        "mode": "NULLABLE",
-        "description": "mm."
-    },
-    {
-        "name": "wind_direction",
-        "type": "FLOAT",
-        "mode": "NULLABLE",
-        "description": "degrees"
-    }
+  {
+    "name": "station_code",
+    "type": "STRING",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "timestamp",
+    "type": "TIMESTAMP",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "temperature",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "°C."
+  },
+  {
+    "name": "humidity",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "%."
+  },
+  {
+    "name": "wind_speed",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "m/s."
+  },
+  {
+    "name": "atmospheric_pressure",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "kPa."
+  },
+  {
+    "name": "radiation",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "W/m2."
+  },
+  {
+    "name": "vapor_pressure",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "kPa."
+  },
+  {
+    "name": "wind_gusts",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "m/s."
+  },
+  {
+    "name": "precipitation",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "mm."
+  },
+  {
+    "name": "wind_direction",
+    "type": "FLOAT",
+    "mode": "NULLABLE",
+    "description": "degrees"
+  }
 ]

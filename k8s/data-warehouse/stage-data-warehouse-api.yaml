@@ -37,11 +37,11 @@ spec:
           #   successThreshold: 1
           resources:
             requests:
-              memory: 256Mi
-              cpu: "500m"
+              cpu: 100m
+              memory: 250Mi
             limits:
-              memory: 1Gi
-              cpu: "2000m"
+              cpu: 200m
+              memory: 700Mi
           envFrom:
             - configMapRef:
                 name: stage-datawarehouse-api-config
@@ -70,45 +70,21 @@ spec:
   type: NodePort
 
 ---
-apiVersion: apps/v1
-kind: Deployment
+kind: HorizontalPodAutoscaler
+apiVersion: autoscaling/v2
 metadata:
-  name: airqo-stage-datawarehouse-msg-broker
-  namespace: staging
+  name: airqo-stage-datawarehouse-api-hpa
 spec:
-  selector:
-    matchLabels:
-      app: sta-datawarehouse-msg-broker
-  replicas: 2
-  strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 0
-  minReadySeconds: 5
-  template:
-    metadata:
-      labels:
-        app: sta-datawarehouse-msg-broker
-    spec:
-      containers:
-        - name: msg-broker
-          image: us.gcr.io/airqo-250220/airqo-stage-datawarehouse-msg-broker:latest
-          imagePullPolicy: Always
-          resources:
-            requests:
-              memory: 256Mi
-              cpu: "500m"
-            limits:
-              memory: 1Gi
-              cpu: "2000m"
-          envFrom:
-            - configMapRef:
-                name: stage-datawarehouse-api-config
-          volumeMounts:
-          - name: config-volume
-            mountPath: /etc/config
-      volumes:
-        - name: config-volume
-          configMap:
-            name: stage-datawarehouse-api-config-files
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: airqo-stage-datawarehouse-api
+  minReplicas: 1
+  maxReplicas: 2
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 80

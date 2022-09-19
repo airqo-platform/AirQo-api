@@ -11,6 +11,11 @@ const { addMonthsToProvideDateTime } = require("./date");
 const { kafkaProducer } = require("../config/kafkajs");
 const generateFilter = require("./generate-filter");
 const constants = require("../config/constants");
+const distance = require("./distance");
+const log4js = require("log4js");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- create-activity-util`
+);
 
 const createActivity = {
   create: async (request) => {
@@ -65,6 +70,7 @@ const createActivity = {
         return responseFromMaintainDevice;
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -120,6 +126,7 @@ const createActivity = {
         };
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -172,6 +179,7 @@ const createActivity = {
         };
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -220,6 +228,7 @@ const createActivity = {
         };
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -261,6 +270,18 @@ const createActivity = {
               3
             ),
           };
+
+          const responseFromCreateApproximateCoordinates = distance.createApproximateCoordinates(
+            { latitude, longitude }
+          );
+
+          const {
+            approximate_latitude,
+            approximate_longitude,
+            approximate_distance_in_km,
+            bearing_in_radians,
+          } = responseFromCreateApproximateCoordinates;
+
           let deviceBody = {};
           deviceBody["body"] = {};
           deviceBody["query"] = {};
@@ -272,8 +293,18 @@ const createActivity = {
             date && new Date(date),
             3
           );
-          deviceBody["body"]["latitude"] = latitude;
-          deviceBody["body"]["longitude"] = longitude;
+          deviceBody["body"]["latitude"] = approximate_latitude
+            ? approximate_latitude
+            : latitude;
+          deviceBody["body"]["longitude"] = approximate_longitude
+            ? approximate_longitude
+            : longitude;
+          deviceBody["body"][
+            "approximate_distance_in_km"
+          ] = approximate_distance_in_km ? approximate_distance_in_km : 0;
+          deviceBody["body"]["bearing_in_radians"] = bearing_in_radians
+            ? bearing_in_radians
+            : 0;
           deviceBody["body"]["site_id"] = site_id;
           deviceBody["body"]["isActive"] = true;
           deviceBody["query"]["name"] = deviceName;
@@ -302,7 +333,7 @@ const createActivity = {
                   ],
                 });
               } catch (error) {
-                logObject("error on kafka", error);
+                logger.error(`internal server error -- ${error.message}`);
               }
 
               return {
@@ -330,6 +361,7 @@ const createActivity = {
         return responseFromListSite;
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -389,7 +421,7 @@ const createActivity = {
 
             await kafkaProducer.disconnect();
           } catch (error) {
-            logObject("error on kafka", error);
+            logger.error(`internal server error -- ${error.message}`);
           }
 
           return {
@@ -404,6 +436,7 @@ const createActivity = {
         return responseFromRegisterActivity;
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -463,7 +496,7 @@ const createActivity = {
 
             await kafkaProducer.disconnect();
           } catch (error) {
-            logObject("error on kafka", error);
+            logger.error(`internal server error -- ${error.message}`);
           }
 
           return {
@@ -478,6 +511,7 @@ const createActivity = {
         return responseFromRegisterActivity;
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",

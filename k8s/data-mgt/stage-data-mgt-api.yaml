@@ -19,6 +19,23 @@ spec:
       labels:
         app: airqo-stage-data-mgt-api
     spec:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 10
+            preference:
+              matchExpressions:
+              - key: node-type
+                operator: In
+                values:
+                - general-purpose
+          - weight: 1
+            preference:
+              matchExpressions:
+              - key: node-type
+                operator: In
+                values:
+                - high-memory
       containers:
         - name: airqo-stage-data-mgt-api
           image: us.gcr.io/airqo-250220/airqo-stage-data-mgt-api:latest
@@ -35,7 +52,14 @@ spec:
           envFrom:
             - configMapRef:
                 name: data-mgt-api-config
-          resources: {}
+          resources:
+            requests:
+              # Average usage was 0.00009 vCPU and 70Mi over the last 30 days
+              cpu: 5m
+              memory: 70Mi
+            limits:
+              cpu: 50m
+              memory: 100Mi
       restartPolicy: Always
 
 ---
@@ -53,3 +77,23 @@ spec:
   selector:
     app: airqo-stage-data-mgt-api
   type: NodePort
+
+---
+kind: HorizontalPodAutoscaler
+apiVersion: autoscaling/v2
+metadata:
+  name: airqo-stage-data-mgt-api-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: airqo-stage-data-mgt-api
+  minReplicas: 1
+  maxReplicas: 2
+  metrics:
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80

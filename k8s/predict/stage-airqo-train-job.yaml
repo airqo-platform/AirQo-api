@@ -1,0 +1,45 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: stage-airqo-train-job
+  namespace: staging
+spec:
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  schedule: "0 5 * * 1"
+  jobTemplate:
+    metadata:
+      name: stage-airqo-train-job
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          schedulerName: default-scheduler
+          affinity:
+            nodeAffinity:
+              preferredDuringSchedulingIgnoredDuringExecution:
+              - weight: 10
+                preference:
+                  matchExpressions:
+                  - key: node-type
+                    operator: In
+                    values:
+                    - compute
+          containers:
+          - name: stage-airqo-train-job
+            image: us.gcr.io/airqo-250220/stage-airqo-train-job:latest
+            imagePullPolicy: Always
+            envFrom:
+              - configMapRef:
+                  name: env-train-job-staging
+            volumeMounts:
+              - name: config-volume
+                mountPath: /etc/config
+            resources:
+              limits:
+                cpu: 2000m
+                memory: 4000Mi
+          volumes:
+            - name: config-volume
+              configMap:
+                name: train-job-config-files

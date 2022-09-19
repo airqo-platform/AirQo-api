@@ -63,6 +63,39 @@ const validation = {
       isValid: isEmpty(errors),
     };
   },
+
+  inquire: (data) => {
+    let errors = {};
+    // Convert empty fields to an empty string so as to use validator functions
+    data.fullName = !isEmpty(data.fullName) ? data.fullName : "";
+    data.email = !isEmpty(data.email) ? data.email : "";
+    data.message = !isEmpty(data.message) ? data.message : "";
+
+    if (Validator.isEmpty(data.fullName)) {
+      errors.fullName = "fullName field is required";
+    }
+
+    if (Validator.isEmpty(data.category)) {
+      errors.category = "Category is required";
+    }
+
+    if (Validator.isEmpty(data.message)) {
+      errors.message = "Message is required";
+    }
+
+    // Email checks
+    if (Validator.isEmpty(data.email)) {
+      errors.email = "Email field is required";
+    } else if (!Validator.isEmail(data.email)) {
+      errors.email = "Email is invalid";
+    }
+
+    return {
+      errors,
+      isValid: isEmpty(errors),
+    };
+  },
+
   forgot: (email) => {
     let errors = {};
     // Convert empty fields to an empty string so we can use validator functions
@@ -213,60 +246,73 @@ const validation = {
    */
   checkEmailExistenceUsingKickbox: async (email, callback) => {
     try {
-      await kickbox.verify(email, async (err, response) => {
-        if (response.body.result === "undeliverable") {
-          callback({
-            success: false,
-            message: `undeliverable email, did you mean ${response.body.did_you_mean}?`,
-            errors: { message: response.body.reason },
-            status: httpStatus.BAD_REQUEST,
-          });
-        }
-
-        if (err) {
-          callback({
-            success: false,
-            message: "email verification error",
-            errors: { message: err },
-            status: httpStatus.INTERNAL_SERVER_ERROR,
-          });
-        }
-
-        if (response.body.result === "deliverable") {
-          callback({
-            success: true,
-            message: "deliverable",
-            status: httpStatus.OK,
-          });
-        }
-
-        if (response.body.result === "risky") {
-          callback({
-            success: false,
-            message: "risky email",
-            errors: { message: response.body.reason },
-            status: httpStatus.BAD_REQUEST,
-          });
-        }
-
-        if (response.body.result === "unknown") {
-          callback({
-            success: false,
-            message: "unknown email",
-            errors: { message: response.body.reason },
-            status: httpStatus.INTERNAL_SERVER_ERROR,
-          });
-        }
-
-        if (response.body.role === true) {
-          callback({
-            success: false,
-            message: "role email addresses are not accepted",
-            errors: { message: "role email addresses are not accepted" },
-            status: httpStatus.BAD_REQUEST,
-          });
-        }
+      callback({
+        success: true,
+        message: "deliverable",
+        status: httpStatus.OK,
       });
+      // await kickbox.verify(email, async (err, response) => {
+      //   if (
+      //     response &&
+      //     response.body &&
+      //     response.body.result === "undeliverable"
+      //   ) {
+      //     callback({
+      //       success: false,
+      //       message: `undeliverable email, did you mean ${response.body.did_you_mean}?`,
+      //       errors: { message: response.body.reason },
+      //       status: httpStatus.BAD_REQUEST,
+      //     });
+      //   }
+
+      //   if (err) {
+      //     callback({
+      //       success: false,
+      //       message: "email verification error",
+      //       errors: { message: err },
+      //       status: httpStatus.INTERNAL_SERVER_ERROR,
+      //     });
+      //   }
+
+      //   if (
+      //     response &&
+      //     response.body &&
+      //     response.body.result === "deliverable"
+      //   ) {
+      //     callback({
+      //       success: true,
+      //       message: "deliverable",
+      //       status: httpStatus.OK,
+      //     });
+      //   }
+
+      //   if (response && response.body && response.body.result === "risky") {
+      //     callback({
+      //       success: false,
+      //       message: "risky email",
+      //       errors: { message: response.body.reason },
+      //       status: httpStatus.BAD_REQUEST,
+      //     });
+      //   }
+
+      //   if (response && response.body && response.body.result === "unknown") {
+      //     callback({
+      //       success: false,
+      //       message: "unknown email",
+      //       errors: { message: response.body.reason },
+      //       status: httpStatus.INTERNAL_SERVER_ERROR,
+      //     });
+      //   }
+
+      //   if (response && response.body && response.body.role === true) {
+      //     callback({
+      //       success: false,
+      //       message: "role email addresses are not accepted",
+      //       errors: { message: "role email addresses are not accepted" },
+      //       status: httpStatus.BAD_REQUEST,
+      //     });
+      //   }
+      // });
     } catch (error) {
       callback({
         success: false,

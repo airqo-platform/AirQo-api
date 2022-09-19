@@ -7,7 +7,7 @@ const constants = require("../config/constants");
 const cryptoJS = require("crypto-js");
 const isEmpty = require("is-empty");
 const log4js = require("log4js");
-const logger = log4js.getLogger("device-model");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- device-model`);
 const HTTPStatus = require("http-status");
 const maxLength = [
   15,
@@ -21,6 +21,8 @@ const minLength = [
 
 const noSpaces = /^\S*$/;
 
+const accessCodeGenerator = require("generate-password");
+
 const deviceSchema = new mongoose.Schema(
   {
     latitude: {
@@ -29,11 +31,27 @@ const deviceSchema = new mongoose.Schema(
     longitude: {
       type: Number,
     },
+    approximate_distance_in_km: {
+      type: Number,
+    },
+    bearing_in_radians: {
+      type: Number,
+    },
     writeKey: {
       type: String,
     },
     readKey: {
       type: String,
+    },
+    access_code: {
+      type: String,
+    },
+    name_id: {
+      type: String,
+      unique: true,
+      trim: true,
+      match: noSpaces,
+      lowercase: true,
     },
     name: {
       type: String,
@@ -136,6 +154,12 @@ const deviceSchema = new mongoose.Schema(
       trim: true,
       unique: true,
     },
+    category: {
+      type: String,
+      required: [true, "the category is required"],
+      default: "lowcost",
+      trim: true,
+    },
     isActive: {
       type: Boolean,
       default: false,
@@ -193,11 +217,14 @@ deviceSchema.methods = {
       long_name: this.long_name,
       latitude: this.latitude,
       longitude: this.longitude,
+      approximate_distance_in_km: this.approximate_distance_in_km,
+      bearing_in_radians: this.bearing_in_radians,
       createdAt: this.createdAt,
       ISP: this.ISP,
       phoneNumber: this.phoneNumber,
       visibility: this.visibility,
       description: this.description,
+      name_id: this.name_id,
       isPrimaryInLocation: this.isPrimaryInLocation,
       nextMaintenance: this.nextMaintenance,
       deployment_date: this.deployment_date,
@@ -214,6 +241,8 @@ deviceSchema.methods = {
       pictures: this.pictures,
       site_id: this.site_id,
       height: this.height,
+      category: this.category,
+      access_code: this.access_code,
     };
   },
 };
@@ -284,6 +313,8 @@ deviceSchema.statics = {
           long_name: 1,
           latitude: 1,
           longitude: 1,
+          approximate_distance_in_km: 1,
+          bearing_in_radians: 1,
           createdAt: 1,
           ISP: 1,
           phoneNumber: 1,
@@ -292,6 +323,7 @@ deviceSchema.statics = {
           isPrimaryInLocation: 1,
           nextMaintenance: 1,
           deployment_date: 1,
+          name_id: 1,
           recall_date: 1,
           maintenance_date: 1,
           device_number: 1,
@@ -300,10 +332,12 @@ deviceSchema.statics = {
           isActive: 1,
           writeKey: 1,
           readKey: 1,
+          access_code: 1,
           pictures: 1,
           height: 1,
           mobility: 1,
           status: 1,
+          category: 1,
           site: { $arrayElemAt: ["$site", 0] },
         })
         .project({
@@ -356,9 +390,10 @@ deviceSchema.statics = {
         };
       } else {
         return {
-          success: false,
-          message: "device does not exist, please crosscheck",
-          status: HTTPStatus.NOT_FOUND,
+          success: true,
+          message: "no device details exist for this search, please crosscheck",
+          status: HTTPStatus.OK,
+          data: [],
         };
       }
     } catch (error) {
@@ -372,13 +407,21 @@ deviceSchema.statics = {
   },
   async modify({ filter = {}, update = {}, opts = {} } = {}) {
     try {
-      let options = { new: true, ...opts };
       let modifiedUpdate = update;
       delete modifiedUpdate.name;
       delete modifiedUpdate.device_number;
       delete modifiedUpdate._id;
       delete modifiedUpdate.generation_count;
       delete modifiedUpdate.generation_version;
+      let options = { new: true, projected: modifiedUpdate, ...opts };
+
+      if (!isEmpty(modifiedUpdate.access_code)) {
+        const access_code = accessCodeGenerator.generate({
+          length: 16,
+          excludeSimilarCharacters: true,
+        });
+        modifiedUpdate.access_code = access_code.toUpperCase();
+      }
 
       let updatedDevice = await this.findOneAndUpdate(
         filter,
@@ -388,6 +431,8 @@ deviceSchema.statics = {
 
       if (!isEmpty(updatedDevice)) {
         let data = updatedDevice._doc;
+        delete data.__v;
+
         return {
           success: true,
           message: "successfully modified the device",
@@ -476,7 +521,13 @@ deviceSchema.statics = {
   async remove({ filter = {} } = {}) {
     try {
       let options = {
-        projection: { _id: 1, name: 1, device_number: 1, long_name: 1 },
+        projection: {
+          _id: 1,
+          name: 1,
+          device_number: 1,
+          long_name: 1,
+          category: 1,
+        },
       };
       let removedDevice = await this.findOneAndRemove(filter, options).exec();
 

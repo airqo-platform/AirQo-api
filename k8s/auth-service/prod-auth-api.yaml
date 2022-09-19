@@ -10,7 +10,7 @@ spec:
   selector:
     matchLabels:
       app: auth-api
-  replicas: 2
+  replicas: 3
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -22,6 +22,23 @@ spec:
       labels:
         app: auth-api
     spec:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 10
+            preference:
+              matchExpressions:
+              - key: node-type
+                operator: In
+                values:
+                - high-memory  
+          - weight: 1
+            preference:
+              matchExpressions:
+              - key: node-type
+                operator: In
+                values:
+                - general-purpose
       containers:
         - name: auth-api
           image: us.gcr.io/airqo-250220/airqo-auth-api:latest
@@ -42,7 +59,14 @@ spec:
           volumeMounts:
           - name: config-volume
             mountPath: /etc/config
-          resources: {}
+          resources:
+            requests:
+              # Average usage was 0.002 vCPU and 250Mi over the last 30 days
+              cpu: 10m
+              memory: 250Mi
+            limits:
+              cpu: 100m
+              memory: 350Mi
       volumes:
         - name: config-volume
           configMap:
@@ -63,3 +87,23 @@ spec:
       targetPort: 3000
       nodePort: 30000
   type: NodePort
+
+---
+kind: HorizontalPodAutoscaler
+apiVersion: autoscaling/v2
+metadata:
+  name: airqo-auth-api-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: airqo-auth-api
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 70

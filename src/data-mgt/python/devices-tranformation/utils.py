@@ -8,23 +8,23 @@ def str_to_date(str):
     Converts a string to datetime
     """
     try:
-        return datetime.strptime(str, '%Y-%m-%dT%H:%M:%S.%fZ')
+        return datetime.strptime(str, "%Y-%m-%dT%H:%M:%S.%fZ")
     except ValueError:
-        return datetime.strptime(str, '%Y-%m-%dT%H:%M:%SZ')
+        return datetime.strptime(str, "%Y-%m-%dT%H:%M:%SZ")
 
 
 def date_to_str(date):
     """
     Converts datetime to a string
     """
-    return datetime.strftime(date, '%Y-%m-%dT%H:%M:%S.%fZ')
+    return datetime.strftime(date, "%Y-%m-%dT%H:%M:%S.%fZ")
 
 
 def date_to_str_v2(date):
     """
     Converts datetime to a string
     """
-    return datetime.strftime(date, '%Y-%m-%d %H:%M')
+    return datetime.strftime(date, "%Y-%m-%d %H:%M")
 
 
 def is_valid_double(value):
@@ -45,11 +45,11 @@ def handle_api_error(api_request):
     except Exception as ex:
         print(ex)
     finally:
-        if json and 'error' in json and 'message' in json['error']:
-            print(json['error']['message'])
+        if json and "error" in json and "message" in json["error"]:
+            print(json["error"]["message"])
         else:
             print(api_request.content)
-            print('API request failed with status code %s' % api_request.status_code)
+            print("API request failed with status code %s" % api_request.status_code)
 
 
 def array_to_csv(data):

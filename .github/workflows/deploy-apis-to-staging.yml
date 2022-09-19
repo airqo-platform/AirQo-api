@@ -24,9 +24,19 @@ jobs:
             echo "::set-output name=build_id::stage-${sha}-${timestamp}"
             echo "::set-output name=datetime::${datetime}"
 
+  branch-name:
+    name: Format branch name string
+    runs-on: ubuntu-latest
+    outputs:
+      lowercase: ${{ steps.string.outputs.lowercase }} # lowercase version
+    steps:
+      - id: string
+        uses: ASzc/change-string-case-action@v2
+        with:
+          string: ${{ github.head_ref || github.ref_name }}
+
   check:
     if: github.event.pull_request.merged == true
-    #if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true
     name: check changed microservice(s)
     outputs:
       run_auth_service: ${{ steps.check_files.outputs.run_auth_service }} # auth service
@@ -40,14 +50,20 @@ jobs:
       run_predict: ${{ steps.check_files.outputs.run_predict }} # predict
       run_gp_model: ${{ steps.check_files.outputs.run_gp_model }} # gp_model
       run_exceedances: ${{ steps.check_files.outputs.run_exceedances }} # exceedances
-      run_datawarehouse: ${{ steps.check_files.outputs.run_datawarehouse }} # datawarehouse
+      run_meta_data: ${{ steps.check_files.outputs.run_meta_data }} # meta data
       run_view: ${{ steps.check_files.outputs.run_view }} # view
       run_calibrate: ${{ steps.check_files.outputs.run_calibrate }} # calibrate
       run_average_jobs: ${{ steps.check_files.outputs.run_average_jobs }} # average and calibration jobs
       run_events_check: ${{ steps.check_files.outputs.run_events_check }} # event checks
       run_notifications: ${{ steps.check_files.outputs.run_notifications }} # notification
+      run_kafka_cluster_operator: ${{ steps.check_files.outputs.run_kafka_cluster_operator }} # kafka cluster operator
+      run_kafka_cluster: ${{ steps.check_files.outputs.run_kafka_cluster }} # kafka cluster
+      run_kafka_topics: ${{ steps.check_files.outputs.run_kafka_topics }} # kafka topics
       run_airflow: ${{ steps.check_files.outputs.run_airflow }} # airflow
+      run_network_uptime: ${{ steps.check_files.outputs.run_network_uptime }} # network_uptime
       run_channel_data: ${{ steps.check_files.outputs.run_channel_data }} # channel data job
+      run_kafka_connectors: ${{ steps.check_files.outputs.run_kafka_connectors }} # kafka connectors
+      run_fault_detection: ${{ steps.check_files.outputs.run_fault_detection }} # fault detection
 
     runs-on: ubuntu-latest
     steps:
@@ -77,19 +93,30 @@ jobs:
           echo "::set-output name=run_predict::false"
           echo "::set-output name=run_gp_model::false"
           echo "::set-output name=run_exceedances::false"
-          echo "::set-output name=run_datawarehouse::false"
+          echo "::set-output name=run_meta_data::false"
           echo "::set-output name=run_view::false"
           echo "::set-output name=run_calibrate::false" 
           echo "::set-output name=run_average_jobs::false"
           echo "::set-output name=run_events_check::false"
           echo "::set-output name=run_notifications::false"
+          echo "::set-output name=run_kafka_cluster_operator::false"
+          echo "::set-output name=run_kafka_cluster::false"
+          echo "::set-output name=run_kafka_topics::false"
           echo "::set-output name=run_airflow::false"
+          echo "::set-output name=run_network_uptime::false"
           echo "::set-output name=run_channel_data::false"
+          echo "::set-output name=run_kafka_connectors::false"
+          echo "::set-output name=run_fault_detection::false"
 
           while IFS= read -r file
           do
             echo $file
+            
             if [[ $file == src/auth-service/* ]]; then
+              echo "::set-output name=run_auth_service::true"
+            fi
+            
+            if [[ $file == k8s/auth-service/* ]]; then
               echo "::set-output name=run_auth_service::true"
             fi
 
@@ -97,7 +124,15 @@ jobs:
               echo "::set-output name=run_device_registry::true"
             fi
 
+            if [[ $file == k8s/device-registry/* ]]; then
+              echo "::set-output name=run_device_registry::true"
+            fi
+
             if [[ $file == src/device-monitoring/* ]]; then
+              echo "::set-output name=run_device_monitoring::true"
+            fi
+
+            if [[ $file == k8s/device-monitor/* ]]; then
               echo "::set-output name=run_device_monitoring::true"
             fi
 
@@ -105,7 +140,15 @@ jobs:
               echo "::set-output name=run_data_mgt::true"
             fi
 
+            if [[ $file == k8s/data-mgt/* ]]; then
+              echo "::set-output name=run_data_mgt::true"
+            fi
+
             if [[ $file == src/analytics/* ]]; then
+              echo "::set-output name=run_analytics::true"
+            fi
+
+            if [[ $file == k8s/analytics/* ]]; then
               echo "::set-output name=run_analytics::true"
             fi
 
@@ -113,7 +156,15 @@ jobs:
               echo "::set-output name=run_device_uptime::true"
             fi
 
+            if [[ $file == k8s/device-uptime/* ]]; then
+              echo "::set-output name=run_device_uptime::true"
+            fi
+
             if [[ $file == src/device-status/* ]]; then
+              echo "::set-output name=run_device_status::true"
+            fi
+
+            if [[ $file == k8s/device-status/* ]]; then
               echo "::set-output name=run_device_status::true"
             fi
 
@@ -121,11 +172,15 @@ jobs:
               echo "::set-output name=run_locate::true"
             fi
 
+            if [[ $file == k8s/locate/* ]]; then
+              echo "::set-output name=run_locate::true"
+            fi
+
             if [[ $file == src/predict/* ]]; then
               echo "::set-output name=run_predict::true"
             fi
 
-            if [[ $file == src/predict-job/* ]]; then
+            if [[ $file == k8s/predict/* ]]; then
               echo "::set-output name=run_predict::true"
             fi
 
@@ -133,19 +188,39 @@ jobs:
               echo "::set-output name=run_gp_model::true"
             fi
 
+            if [[ $file == k8s/gp-model/* ]]; then
+              echo "::set-output name=run_gp_model::true"
+            fi
+
             if [[ $file == src/exceedances/* ]]; then
               echo "::set-output name=run_exceedances::true"
             fi
 
-            if [[ $file == src/data-mgt/python/extract-external-data/* ]]; then
-              echo "::set-output name=run_datawarehouse::true"
+            if [[ $file == k8s/exceedance/* ]]; then
+              echo "::set-output name=run_exceedances::true"
+            fi
+
+            if [[ $file == src/meta-data/* ]]; then
+              echo "::set-output name=run_meta_data::true"
+            fi
+
+            if [[ $file == k8s/meta-data/* ]]; then
+              echo "::set-output name=run_meta_data::true"
             fi
 
             if [[ $file == src/view/* ]]; then
               echo "::set-output name=run_view::true"
             fi
+
+            if [[ $file == k8s/view-api/* ]]; then
+              echo "::set-output name=run_view::true"
+            fi
             
             if [[ $file == src/calibrate/* ]]; then
+              echo "::set-output name=run_calibrate::true"
+            fi
+            
+            if [[ $file == k8s/calibrate/* ]]; then
               echo "::set-output name=run_calibrate::true"
             fi
             
@@ -161,12 +236,60 @@ jobs:
               echo "::set-output name=run_notifications::true"
             fi
 
+            if [[ $file == k8s/notification-service/* ]]; then
+              echo "::set-output name=run_notifications::true"
+            fi
+
+            if [[ $file == k8s/kafka-clusters/* ]]; then
+              echo "::set-output name=run_kafka_cluster::true"
+            fi
+
+            if [[ $file == k8s/kafka-operator/* ]]; then
+              echo "::set-output name=run_kafka_cluster_operator::true"
+            fi
+
+            if [[ $file == k8s/kafka-topics/* ]]; then
+              echo "::set-output name=run_kafka_topics::true"
+            fi
+
             if [[ $file == src/airflow/* ]]; then
               echo "::set-output name=run_airflow::true"
             fi
 
+            if [[ $file == k8s/airflow/* ]]; then
+              echo "::set-output name=run_airflow::true"
+            fi
+
+            if [[ $file == src/network-uptime/* ]]; then
+              echo "::set-output name=run_network_uptime::true"
+            fi
+
+            if [[ $file == k8s/network-uptime/* ]]; then
+              echo "::set-output name=run_network_uptime::true"
+            fi
+            
             if [[ $file == src/channel-data/* ]]; then
               echo "::set-output name=run_channel_data::true"
+            fi
+            
+            if [[ $file == k8s/channel-data/* ]]; then
+              echo "::set-output name=run_channel_data::true"
+            fi
+
+            if [[ $file == src/fault-detection/* ]]; then
+              echo "::set-output name=run_fault_detection::true"
+            fi
+
+            if [[ $file == k8s/fault-detection/* ]]; then
+              echo "::set-output name=run_fault_detection::true"
+            fi
+
+            if [[ $file == src/kafka-connectors/* ]]; then
+              echo "::set-output name=run_kafka_connectors::false"
+            fi
+
+            if [[ $file == k8s/kafka-connectors/* ]]; then
+              echo "::set-output name=run_kafka_connectors::false"
             fi
 
             if [[ $file == workflow-trigger ]]; then
@@ -174,7 +297,7 @@ jobs:
               echo "::set-output name=run_events_check::true"
               echo "::set-output name=run_calibrate::true"
               echo "::set-output name=run_average_jobs::true"
-              echo "::set-output name=run_datawarehouse::true"
+              echo "::set-output name=run_meta_data::true"
               echo "::set-output name=run_exceedances::true"
               echo "::set-output name=run_gp_model::true"
               echo "::set-output name=run_predict::true"
@@ -187,11 +310,14 @@ jobs:
               echo "::set-output name=run_device_registry::true"
               echo "::set-output name=run_auth_service::true"
               echo "::set-output name=run_airflow::true"
+              echo "::set-output name=run_network_uptime::true"
               echo "::set-output name=run_channel_data::true"
+              echo "::set-output name=run_fault_detection::true"
+              echo "::set-output name=run_view::true"
+              echo "::set-output name=run_kafka_connectors::false"
             fi
 
           done < files.txt
-
 
   ### auth service ###
   auth-service:
@@ -223,11 +349,143 @@ jobs:
           docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-auth-api:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-auth-api:latest
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-auth-api:${{ needs.image-tag.outputs.build_id }}
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-auth-api:latest
+      
+      - name: Login to GCP
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
+
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
+
+      - name: Update the corresponding k8s configmap(s)
+        run: |
+          cd src/auth-service/
+          gcloud secrets versions access latest --secret="sta-env-auth-service" > .env
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env stage-auth-api-config | kubectl replace -f - -n staging
+          gcloud secrets versions access latest --secret="sta-key-auth-service-firebase-admin-sdk" > firebase_admin_sdk.json
+          kubectl create configmap --dry-run=client -o yaml --from-file=firebase_admin_sdk.json stage-auth-api-config-files | kubectl replace -f - -n staging
+
       - name: Deploy to K8S
         run: |
           kubectl apply -f k8s/auth-service/stage-auth-api.yaml
           kubectl set image deployment/airqo-stage-auth-api sta-auth-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-auth-api:${{ needs.image-tag.outputs.build_id }} -n staging
           kubectl annotate deployment/airqo-stage-auth-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-auth-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
+
+  #### Kafka Connectors ######
+  kafka-connectors:
+    name: build-push-deploy-kafka-connectors
+    needs: [check, image-tag]
+    if: needs.check.outputs.run_kafka_connectors == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Login to GCR
+        uses: docker/login-action@v1
+        with:
+          registry: ${{ secrets.REGISTRY_URL }}
+          username: _json_key
+          password: ${{ secrets.GCR_CONFIG }}
+
+      - name: Build and push measurements source connectors
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          context: src/kafka-connectors/measurements-source-connector
+          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-measurements-connect:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-measurements-connect:latest
+
+      - name: Login to k8s cluster
+        uses: azure/k8s-set-context@v1
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+
+      - name: Deploy to k8s cluster
+        run: |
+          export MEASUREMENTS_CONNECT_IMAGE=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-measurements-connect:${{ needs.image-tag.outputs.build_id }}
+          export STAGE_KAFKA_CLUSTER=${{ secrets.STAGE_KAFKA_CLUSTER }}
+          cat k8s/kafka-connectors/measurements-connect.yaml | sed "s/{{MEASUREMENTS_CONNECT_IMAGE}}/$MEASUREMENTS_CONNECT_IMAGE/g" | sed "s/{{KAFKA_CLUSTER}}/$STAGE_KAFKA_CLUSTER/g" | kubectl apply -n message-broker -f-
+          kubectl apply -f k8s/kafka-connectors/purple-air-connector.yaml -n message-broker
+
+  #### Fault Detection ######
+  fault-detection:
+    name: build-push-deploy-fault-detection
+    needs: [check, image-tag]
+    if: needs.check.outputs.run_fault_detection == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+      
+      - name: Login to GCR
+        uses: docker/login-action@v1
+        with:
+          registry: ${{ secrets.REGISTRY_URL }}
+          username: _json_key
+          password: ${{ secrets.GCR_CONFIG }}
+      
+      - name: Build and push train catboost model
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          context: src/fault-detection
+          target: train-catboost-model
+          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-train-catboost-model:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-train-catboost-model:latest
+      
+      - name: Build and push train lstm model
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          context: src/fault-detection
+          target: train-lstm-model
+          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-train-lstm-model:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-train-lstm-model:latest
+      
+      - name: Build and push fault detection API
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          context: src/fault-detection
+          target: staging
+          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-fault-detection-api:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-fault-detection-api:latest
+      
+      - name: Login to k8s cluster
+        uses: azure/k8s-set-context@v1
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+     
+      - name: Login to GCP
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
+
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
+
+      - name: Update the corresponding k8s configmap(s)
+        run: |
+          cd src/fault-detection/
+          gcloud secrets versions access latest --secret="sta-env-fault-detection" > .env
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env stage-fault-detection-api-config | kubectl replace -f - -n staging
+
+      - name: Deploy to k8s cluster
+        run: |
+          kubectl apply -f k8s/fault-detection/stage-fault-detection-api.yaml
+          kubectl rollout restart deployment stage-fault-detection-api -n staging
 
   ### airflow ###
   airflow:
@@ -238,27 +496,27 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v2
-      -
-        name: Set up QEMU
+
+      - name: Set up QEMU
         uses: docker/setup-qemu-action@v1
-      -
-        name: Set up Docker Buildx
+
+      - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
-      - 
-        name: Login to GCR
+
+      - name: Login to GCR
         uses: docker/login-action@v1
         with:
           registry: ${{ secrets.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCR_CONFIG }}
-      - 
-        name: Login to K8S
+
+      - name: Login to K8S
         uses: azure/k8s-set-context@v1
         with:
           method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_PIPELINE_CONFIG }}
-      -
-        name: Build and push
+          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+
+      - name: Build and push app
         uses: docker/build-push-action@v2
         with:
           push: true
@@ -266,10 +524,18 @@ jobs:
           target: deployment
           tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-apache-airflow:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-apache-airflow:latest
 
+      - name: Build and push XCom
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          context: src/airflow
+          target: xcom-setup
+          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-apache-airflow-xcom:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-apache-airflow-xcom:latest
+
       # - name: Deploy to K8S
       #   uses: Azure/k8s-deploy@v1.4
       #   with:
-      #     namespace: "stage-airflow"
+      #     namespace: "pipeline"
       #     manifests: |
       #       k8s/airflow/stage-airflow-app.yaml
       #     images: "${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-apache-airflow:${{ needs.image-tag.outputs.build_id }}"
@@ -277,65 +543,164 @@ jobs:
       
       - name: Deploy to K8S
         run: |
-          kubectl apply -f k8s/airflow/stage-airflow-app.yaml -n stage-airflow
-          kubectl rollout restart deployment airflow  -n stage-airflow
+          kubectl apply -f k8s/airflow/stage-airflow-app.yaml
+          kubectl rollout restart deployment stage-airflow -n pipeline
 
-  ### predict api and job ###
+  ### predict api and jobs ###
   predict-service:
-    name: build-push-deploy-predict-api
-    needs: [check, image-tag]
+    name: build-push-deploy-predict-service
+    needs: [check, image-tag, branch-name]
     if: needs.check.outputs.run_predict == 'true'
     runs-on: ubuntu-latest
     steps:
-      - 
-        name: Checkout
+      - name: Checkout
         uses: actions/checkout@v2
-      -
-        name: Set up QEMU
+
+      - name: Set up QEMU
         uses: docker/setup-qemu-action@v1
-      -
-        name: Set up Docker Buildx
+
+      - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
-      - 
-        name: Login to GCR
+
+      - name: Login to GCR
         uses: docker/login-action@v1
         with:
           registry: ${{ secrets.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCR_CONFIG }}
-      - 
-        name: Login to K8S
+
+      - name: Login to K8S
         uses: azure/k8s-set-context@v1
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
-      -
-        name: Build and push API Docker Image
+
+      - name: Build and push API Docker Image
         uses: docker/build-push-action@v2
         with:
           push: true
-          context: src/predict
+          context: src/predict/api
           target: staging
           tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-prediction-api:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-prediction-api:latest
-      -
-        name: Build and push Job Docker Image
+
+      - name: Build and push predict Job Docker Image
         uses: docker/build-push-action@v2
         with:
           push: true
-          context: src/predict-job
+          context: src/predict/jobs/predict
           target: staging
-          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-predict-job:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-predict-job:latest
-      - 
-        name: Deploy to K8S
+          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-airqo-predict-job:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-airqo-predict-job:latest
+
+      - name: Build and push train Job Docker Image
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          context: src/predict/jobs/train
+          target: staging
+          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-airqo-train-job:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-airqo-train-job:latest
+ 
+      - name: Login to GCP
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
+
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
+
+      - name: Update the corresponding k8s configmap(s)
         run: |
-          kubectl apply -f k8s/predict/stage-prediction-api.yaml -n staging
+          cd src/predict/    
+          echo "=============== Downloading the required secrets from Secret Manager ==============="     
+          gcloud secrets versions access latest --secret="sta-env-predict" > api.env
+          gcloud secrets versions access latest --secret="sta-env-predict-job" > predict_job.env
+          gcloud secrets versions access latest --secret="sta-env-predict-train-job" > train_job.env
+          gcloud secrets versions access latest --secret="sta-key-predict-service-account" > google_application_credentials.json 
+          echo "=============== Updating the respective .env files ==============="
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=api.env env-predict-staging | kubectl replace -f - -n staging
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=predict_job.env env-predict-job-staging | kubectl replace -f - -n staging
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=train_job.env env-train-job-staging | kubectl replace -f - -n staging
+          echo "=============== Updating the respective credentials files ==============="
+          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json env-predict-staging-files | kubectl replace -f - -n staging
+          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json predict-job-config-files | kubectl replace -f - -n staging
+          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json train-job-config-files | kubectl replace -f - -n staging
+
+      - name: Deploy to K8S
+        run: |
+          kubectl apply -f k8s/predict/stage-prediction-api.yaml
           kubectl rollout restart deployment airqo-stage-prediction-api  -n staging
-          kubectl apply -f k8s/predict/stage-airqo-predict-job.yaml -n staging
+          kubectl apply -f k8s/predict/stage-airqo-predict-job.yaml
+          kubectl apply -f k8s/predict/stage-airqo-train-job.yaml
+
+  ### kafka cluster operator ###
+  kafka-cluster-operator:
+    name: build-push-deploy-kafka-cluster-operator
+    needs: [check]
+    if: needs.check.outputs.run_kafka_cluster_operator == 'true'
+    runs-on: ubuntu-latest
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Login to K8S
+        uses: azure/k8s-set-context@v1
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+
+      - name: Deploy to K8S
+        run: |
+          kubectl apply -f k8s/namespaces/message-broker.yaml
+          bash k8s/kafka-operator/deployment-script.sh
+
+  ### kafka cluster ###
+  kafka-cluster:
+    name: build-push-deploy-kafka-cluster
+    needs: [check]
+    if: ${{ (needs.check.outputs.run_kafka_cluster == 'true') || (needs.check.outputs.run_kafka_cluster_operator == 'true') }}
+    runs-on: ubuntu-latest
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Login to K8S
+        uses: azure/k8s-set-context@v1
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+
+      - name: Deploy to K8S
+        run: |
+          export KAFKA_BROKER_0=${{ secrets.STAGE_KAFKA_BROKER_0 }}
+          export KAFKA_BROKER_1=${{ secrets.STAGE_KAFKA_BROKER_1 }}
+          export KAFKA_BROKER_2=${{ secrets.STAGE_KAFKA_BROKER_2 }}
+          cat k8s/kafka-clusters/kafka-cluster.yaml | sed "s/{{KAFKA_BROKER_0}}/$STAGE_KAFKA_BROKER_0/g" | sed "s/{{KAFKA_BROKER_1}}/$STAGE_KAFKA_BROKER_1/g" | sed "s/{{KAFKA_BROKER_2}}/$STAGE_KAFKA_BROKER_2/g" | kubectl apply -n message-broker -f-
+
+  ### kafka topics ###
+  kafka-topics:
+    name: build-push-deploy-kafka-topics
+    needs: [check]
+    if: ${{ (needs.check.outputs.run_kafka_cluster == 'true') || (needs.check.outputs.run_kafka_topics == 'true') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Login to K8S
+        uses: azure/k8s-set-context@v1
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+
+      - name: Deploy to K8S
+        run: |
+          kubectl apply -f k8s/kafka-topics/kafka-topics.yaml -n message-broker
 
   #### Device Registry ######
   device-registry:
     name: build-push-deploy-device-registry
-    needs: [check, image-tag]
+    needs: [check, image-tag, branch-name]
     if: needs.check.outputs.run_device_registry == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -361,17 +726,34 @@ jobs:
           docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-registry-api:${{ needs.image-tag.outputs.build_id }} .
           docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-registry-api:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-registry-api:latest
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-registry-api:${{ needs.image-tag.outputs.build_id }}
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-registry-api:latest
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-registry-api:latest    
+      
+      - name: Login to GCP
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
+
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
+
+      - name: Update the corresponding k8s configmap(s)
+        run: |
+          cd src/device-registry/
+          gcloud secrets versions access latest --secret="sta-env-device-registry" > .env
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-device-registry-staging | kubectl replace -f - -n staging
+          gcloud secrets versions access latest --secret="sta-key-device-registry-service-account" > google_application_credentials.json
+          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json device-registry-config-files | kubectl replace -f - -n staging
+   
       - name: Deploy to K8S
         run: |
-          kubectl apply -f k8s/device-registry/stage-device-registry-api.yaml -n staging
+          kubectl apply -f k8s/device-registry/stage-device-registry-api.yaml
           kubectl set image deployment/airqo-stage-device-registry-api sta-dev-reg-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-registry-api:${{ needs.image-tag.outputs.build_id }} -n staging
           kubectl annotate deployment/airqo-stage-device-registry-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-registry-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
 
   ### device monitoring ###
   device-monitoring:
     name: build-push-deploy-device-monitoring
-    needs: [check, image-tag]
+    needs: [check, image-tag, branch-name]
     if: needs.check.outputs.run_device_monitoring == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -400,12 +782,27 @@ jobs:
           docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-monitor-api:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-monitor-api:latest
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-monitor-api:${{ needs.image-tag.outputs.build_id }}
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-monitor-api:latest
+            
+      - name: Login to GCP
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
+
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
+
+      - name: Update the corresponding k8s configmap(s)
+        run: |
+          cd src/device-monitoring/
+          gcloud secrets versions access latest --secret="sta-env-device-monitoring" > .env
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-device-monitoring-staging | kubectl replace -f - -n staging   
+
       - name: Deploy to K8S
         run: |
-          kubectl apply -f k8s/device-monitor/stage-device-monitor-api.yaml -n staging
+          kubectl apply -f k8s/device-monitor/stage-device-monitor-api.yaml
           kubectl set image deployment/airqo-stage-device-monitor-api sta-dev-monitor=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-monitor-api:${{ needs.image-tag.outputs.build_id }} -n staging
           kubectl annotate deployment/airqo-stage-device-monitor-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-monitor-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
-  
+
   ### data-mgt ###
   data-mgt:
     name: build-push-deploy-data-mgt
@@ -433,16 +830,31 @@ jobs:
         run: |
           cd src/data-mgt/node/
           docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-data-mgt-api:latest -f Dockerfile.stage .
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-data-mgt-api:latest
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-data-mgt-api:latest     
+            
+      - name: Login to GCP
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
+
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
+
+      - name: Update the corresponding k8s configmap(s)
+        run: |
+          cd src/data-mgt/node/
+          gcloud secrets versions access latest --secret="sta-env-data-mgt-nodejs" > .env
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env data-mgt-api-config | kubectl replace -f - -n staging
+
       - name: Deploy to K8S
         run: |
-          kubectl apply -f k8s/data-mgt/stage-data-mgt-api.yaml -n staging
+          kubectl apply -f k8s/data-mgt/stage-data-mgt-api.yaml
           kubectl rollout restart deployment/airqo-stage-data-mgt-api -n staging
-  
+
   ### analytics ###
   analytics:
     name: build-push-deploy-analytics
-    needs: [check, image-tag]
+    needs: [check, image-tag, branch-name]
     if: needs.check.outputs.run_analytics == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -471,10 +883,26 @@ jobs:
           docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-analytics-api:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-analytics-api:latest
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-analytics-api:${{ needs.image-tag.outputs.build_id }}
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-analytics-api:latest
+            
+      - name: Login to GCP
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
+
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
+
+      - name: Update the corresponding k8s configmap(s)
+        run: |
+          cd src/analytics/
+          gcloud secrets versions access latest --secret="sta-env-analytics" > .env
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-analytics-staging | kubectl replace -f - -n staging
+          gcloud secrets versions access latest --secret="sta-key-analytics-service-account" > google_application_credentials.json
+          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json stage-analytics-config-files | kubectl replace -f - -n staging
 
       - name: Deploy to K8S
         run: |
-          kubectl apply -f k8s/analytics/stage-analytics-api.yaml -n staging
+          kubectl apply -f k8s/analytics/stage-analytics-api.yaml
           kubectl set image deployment/airqo-stage-analytics-api sta-alytics-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-analytics-api:${{ needs.image-tag.outputs.build_id }} -n staging
           kubectl annotate deployment/airqo-stage-analytics-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-analytics-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
   
@@ -488,8 +916,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
       
-      ### run unit tests ###
-      
+      ### run unit tests ###  
+
       - name: Login to GCR
         uses: docker/login-action@v1
         with:
@@ -507,11 +935,26 @@ jobs:
         run: |
           cd src/device-uptime/
           docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-uptime-job:latest -f Dockerfile.stage .
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-uptime-job:latest
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-uptime-job:latest      
+            
+      - name: Login to GCP
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
+
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
+
+      - name: Update the corresponding k8s configmap(s)
+        run: |
+          cd src/device-uptime/
+          gcloud secrets versions access latest --secret="sta-env-device-uptime" > .env
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-device-uptime-staging | kubectl replace -f - -n staging
+      
       - name: Deploy to K8S
         run: |
           kubectl apply -f k8s/device-uptime/stage-airqo-device-uptime-job.yaml
-  
+
   ### device status ###
   device-status:
     name: build-push-deploy-device-status
@@ -542,6 +985,21 @@ jobs:
           cd src/device-status/
           docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-status-job:latest -f Dockerfile.stage .
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-status-job:latest
+            
+      - name: Login to GCP
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
+
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
+
+      - name: Update the corresponding k8s configmap(s)
+        run: |
+          cd src/device-status/
+          gcloud secrets versions access latest --secret="sta-env-device-status" > .env
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-device-status-staging | kubectl replace -f - -n staging
+      
       - name: Deploy to K8S
         run: |
           kubectl apply -f k8s/device-status/stage-airqo-device-status-job.yaml
@@ -549,7 +1007,7 @@ jobs:
   ### locate ###
   locate:
     name: build-push-deploy-locate
-    needs: [check, image-tag]
+    needs: [check, image-tag, branch-name]
     if: needs.check.outputs.run_locate == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -577,10 +1035,25 @@ jobs:
           docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-locate-api:${{ needs.image-tag.outputs.build_id }} .
           docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-locate-api:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-locate-api:latest
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-locate-api:${{ needs.image-tag.outputs.build_id }}
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-locate-api:latest
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-locate-api:latest    
+      
+      - name: Login to GCP
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
+
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
+
+      - name: Update the corresponding k8s configmap(s)
+        run: |
+          cd src/locate/
+          gcloud secrets versions access latest --secret="sta-env-locate" > .env
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-locate-staging | kubectl replace -f - -n staging
+   
       - name: Deploy to K8S
         run: |
-          kubectl apply -f k8s/locate/stage-locate-api.yaml -n staging
+          kubectl apply -f k8s/locate/stage-locate-api.yaml
           kubectl set image deployment/airqo-stage-locate-api sta-locate-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-locate-api:${{ needs.image-tag.outputs.build_id }} -n staging
           kubectl annotate deployment/airqo-stage-locate-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-locate-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
   
@@ -613,7 +1086,22 @@ jobs:
         run: |
           cd src/gp-model/
           docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-gp-model-job:latest .
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-gp-model-job:latest
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-gp-model-job:latest    
+      
+      - name: Login to GCP
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
+
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
+
+      - name: Update the corresponding k8s configmap(s)
+        run: |
+          cd src/gp-model/
+          gcloud secrets versions access latest --secret="sta-env-gp-model" > .env
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-gp-model-staging | kubectl replace -f - -n staging
+   
       - name: Deploy to K8S
         run: |
           kubectl apply -f k8s/gp-model/stage-airqo-gp-model-job.yaml
@@ -621,7 +1109,7 @@ jobs:
   ### exceddences ###
   exceedance:
     name: build-push-deploy-exceedances
-    needs: check
+    needs: [check, image-tag, branch-name]
     if: needs.check.outputs.run_exceedances == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -642,33 +1130,58 @@ jobs:
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+
+      - name: Build and push AirQo Docker image
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          context: src/exceedances
+          target: airqo-staging
+          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-airqo-exceedance-job:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-airqo-exceedance-job:latest
+
+      - name: Build and push KCCA Docker image
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          context: src/exceedances
+          target: kcca-staging
+          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-kcca-exceedance-job:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-kcca-exceedance-job:latest    
       
-      - name: Build and Push Docker Image
+      - name: Login to GCP
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
+
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
+
+      - name: Update the corresponding k8s configmap(s)
         run: |
           cd src/exceedances/
-          docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-airqo-exceedance-job:latest -f Dockerfile.stage.airqo .
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-airqo-exceedance-job:latest
-
-          docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-kcca-exceedance-job:latest -f Dockerfile.stage.kcca .
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-kcca-exceedance-job:latest
+          gcloud secrets versions access latest --secret="sta-env-exceedances" > .env
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-exceedance-staging | kubectl replace -f - -n staging
+   
       - name: Deploy to K8S
         run: |
-          cd k8s/exceedance/
-          kubectl apply -f stage-airqo-exceedance-job.yaml
-          kubectl apply -f stage-kcca-exceedance-job.yaml
-
-  ### datawarehouse ###
-  datawarehouse:
-    name: build-push-deploy-datawarehouse
-    needs: [check, image-tag]
-    if: needs.check.outputs.run_datawarehouse == 'true'
+          kubectl apply -f k8s/exceedance/stage-airqo-exceedance-job.yaml
+          kubectl apply -f k8s/exceedance/stage-kcca-exceedance-job.yaml
+  
+  ### meta-data ###
+  meta-data:
+    name: build-push-deploy-meta-data
+    needs: [check, image-tag, branch-name]
+    if: needs.check.outputs.run_meta_data == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v2
-      
-      ### run unit tests ###
-      
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
       - name: Login to GCR
         uses: docker/login-action@v1
         with:
@@ -689,138 +1202,172 @@ jobs:
           docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-datawarehouse-api:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-datawarehouse-api:latest
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-datawarehouse-api:${{ needs.image-tag.outputs.build_id }}
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-datawarehouse-api:latest
+      
+      - name: Login to GCP
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
 
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
+
+      - name: Update the corresponding k8s configmap(s)
+        run: |
+          cd src/data-mgt/python/extract-external-data/
+          gcloud secrets versions access latest --secret="sta-env-datawarehouse" > .env
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env stage-datawarehouse-api-config | kubectl replace -f - -n staging
+          gcloud secrets versions access latest --secret="sta-key-datawarehouse-service-account" > google_application_credentials.json
+          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json stage-datawarehouse-api-config-files | kubectl replace -f - -n staging
+   
       - name: Deploy to K8S
         run: |
-          kubectl apply -f k8s/data-warehouse/stage-data-warehouse-api.yaml
-          kubectl set image deployment/airqo-stage-datawarehouse-api datawarehouse=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-datawarehouse-api:${{ needs.image-tag.outputs.build_id }} -n staging
-          kubectl annotate deployment/airqo-stage-datawarehouse-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-datawarehouse-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
-  
+          kubectl apply -f k8s/meta-data/stage-meta-data-api.yaml
+          kubectl rollout restart deployment airqo-stage-meta-data-api -n staging
+
   ### view  ###
   view:
     name: build-push-deploy-view
-    needs: [check, image-tag]
+    needs: [check, image-tag, branch-name]
     if: needs.check.outputs.run_view == 'true'
     runs-on: ubuntu-latest
     steps:
-      - 
-        name: Checkout
+
+      - name: Checkout
         uses: actions/checkout@v2
-      -
-        name: Set up QEMU
+
+      - name: Set up QEMU
         uses: docker/setup-qemu-action@v1
-      -
-        name: Set up Docker Buildx
+
+      - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
-      - 
-        name: Login to GCR
+
+      - name: Login to GCR
         uses: docker/login-action@v1
         with:
           registry: ${{ secrets.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCR_CONFIG }}
-      - 
-        name: Login to K8S
+
+      - name: Login to K8S
         uses: azure/k8s-set-context@v1
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
-      -
-        name: Build and push API
+
+      - name: Build and push API
         uses: docker/build-push-action@v2
         with:
           push: true
           tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-view-api:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-view-api:latest
           target: api
           context: src/view
-      -
-        name: Build and push Message Broker
+
+      - name: Build and push Message Broker
         uses: docker/build-push-action@v2
         with:
           push: true
           tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-view-message-broker:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-view-message-broker:latest
           target: message-broker
-          context: src/view
+          context: src/view    
+      
+      - name: Login to GCP
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
 
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
+
+      - name: Update the corresponding k8s configmap(s)
+        run: |
+          cd src/view/
+          gcloud secrets versions access latest --secret="sta-env-view-api" > api.env
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=api.env stage-view-api-config | kubectl replace -f - -n staging
+          gcloud secrets versions access latest --secret="sta-env-view-message-broker" > message_broker.env
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=message_broker.env stage-view-message-broker-config | kubectl replace -f - -n staging
+   
       - name: Deploy API to K8S
         run: |
-          kubectl apply -f k8s/view-api/stage-view-api.yaml -n staging
+          kubectl apply -f k8s/view-api/stage-view-api.yaml
           kubectl rollout restart deployment airqo-stage-view-api  -n staging
 
       - name: Deploy Message Broker to K8S
         run: |
-          kubectl apply -f k8s/view-api/stage-view-message-broker.yaml -n staging
+          kubectl apply -f k8s/view-api/stage-view-message-broker.yaml
           kubectl rollout restart deployment airqo-stage-view-message-broker  -n staging
-
+  
   #### Calibrate ######
   calibrate:
     name: build-push-deploy-calibrate
-    needs: [check, image-tag]
+    needs: [check, image-tag, branch-name]
     if: needs.check.outputs.run_calibrate == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v2
-      -
-        name: Set up QEMU
+
+      - name: Set up QEMU
         uses: docker/setup-qemu-action@v1
-      -
-        name: Set up Docker Buildx
+
+      - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
-      - 
-        name: Login to GCR
+
+      - name: Login to GCR
         uses: docker/login-action@v1
         with:
           registry: ${{ secrets.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCR_CONFIG }}
-      -
-        name: Build and push calibrate API
+
+      - name: Build and push calibrate API
         uses: docker/build-push-action@v2
         with:
           push: true
           context: src/calibrate
           target: staging
           tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-calibrate-api:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-calibrate-api:latest
-      -
-        name: Build and push calibrate pickle file
+
+      - name: Build and push calibrate pickle file
         uses: docker/build-push-action@v2
         with:
           push: true
           context: src/calibrate
           target: pickle-file
           tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-calibrate-pickle-file:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-calibrate-pickle-file:latest
-      - 
-        name: Login to Main k8s cluster
-        uses: azure/k8s-set-context@v1
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
-      - 
-        name: Deploy to Main k8s cluster
-        run: |
-          kubectl apply -f k8s/calibrate/stage-calibrate-api.yaml -n staging
-          kubectl set image deployment/airqo-stage-calibrate-api calibrate-pickle=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-calibrate-pickle-file:${{ needs.image-tag.outputs.build_id }} -n staging
-          kubectl set image deployment/airqo-stage-calibrate-api sta-calibrate=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-calibrate-api:${{ needs.image-tag.outputs.build_id }} -n staging
-          kubectl annotate deployment/airqo-stage-calibrate-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-calibrate-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
-      -
-        name: Login to Pipeline k8s cluster
-        uses: azure/k8s-set-context@v1
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_PIPELINE_CONFIG }}
-      - 
-        name: Deploy to Pipeline k8s cluster
-        run: |
-          kubectl apply -f k8s/calibrate/stage-calibrate-api.yaml -n staging
-          kubectl set image deployment/airqo-stage-calibrate-api calibrate-pickle=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-calibrate-pickle-file:${{ needs.image-tag.outputs.build_id }} -n staging
-          kubectl set image deployment/airqo-stage-calibrate-api sta-calibrate=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-calibrate-api:${{ needs.image-tag.outputs.build_id }} -n staging
-          kubectl annotate deployment/airqo-stage-calibrate-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-calibrate-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
 
+      - name: Login to Main k8s cluster
+        uses: azure/k8s-set-context@v1
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}    
+      
+      - name: Login to GCP
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
+
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
+
+      - name: Update the corresponding k8s configmap(s)
+        run: |
+          cd src/calibrate/
+          gcloud secrets versions access latest --secret="sta-env-calibrate-api" > .env
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env stage-calibrate-api-config | kubectl replace -f - -n staging
+          gcloud secrets versions access latest --secret="sta-key-calibrate-service-account" > google_application_credentials.json
+          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json stage-calibrate-api-config-files | kubectl replace -f - -n staging
+   
+      - name: Deploy to Main k8s cluster
+        run: |
+          kubectl apply -f k8s/calibrate/stage-calibrate-api.yaml
+          kubectl set image deployment/airqo-stage-calibrate-api calibrate-pickle=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-calibrate-pickle-file:${{ needs.image-tag.outputs.build_id }} -n staging
+          kubectl set image deployment/airqo-stage-calibrate-api sta-calibrate=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-calibrate-api:${{ needs.image-tag.outputs.build_id }} -n staging
+          kubectl annotate deployment/airqo-stage-calibrate-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-calibrate-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
+  
   ### events check ###
   events-check:
     name: build-push-events-check
-    needs: [check, image-tag]
+    needs: [check, image-tag, branch-name]
     if: needs.check.outputs.run_events_check == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -846,15 +1393,30 @@ jobs:
         run: |
           cd src/data-mgt/python/events-monitor/
           docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-events-notifs-job:latest .
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-events-notifs-job:latest
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-events-notifs-job:latest    
+      
+      - name: Login to GCP
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
+
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
+
+      - name: Update the corresponding k8s configmap(s)
+        run: |
+          cd src/data-mgt/python/events-monitor/
+          gcloud secrets versions access latest --secret="sta-env-device-registry-events-monitor" > .env
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env stage-events-notifs-cronjob-config | kubectl replace -f - -n staging
+   
       - name: Deploy to K8S
         run: |
-          kubectl apply -f k8s/events-monitor/stage-events-notifs-cronjob.yaml -n staging
-
+          kubectl apply -f k8s/events-monitor/stage-events-notifs-cronjob.yaml
+  
   #### notification ######
   notification:
     name: build-push-deploy-notification
-    needs: [check, image-tag]
+    needs: [check, image-tag, branch-name]
     if: needs.check.outputs.run_notifications == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -882,23 +1444,91 @@ jobs:
           docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-notification-api:${{ needs.image-tag.outputs.build_id }} .
           docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-notification-api:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-notification-api:latest
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-notification-api:${{ needs.image-tag.outputs.build_id }}
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-notification-api:latest
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-notification-api:latest    
+      
+      - name: Login to GCP
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
+
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
+
+      - name: Update the corresponding k8s configmap(s)
+        run: |
+          cd src/notifications/
+          gcloud secrets versions access latest --secret="sta-env-notifications" > .env
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env stage-notification-api-config | kubectl replace -f - -n staging
+          gcloud secrets versions access latest --secret="sta-key-notifications-service-account" > google_application_credentials.json
+          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json stage-notification-api-config-files | kubectl replace -f - -n staging
+   
       - name: Deploy to K8S
         run: |
           kubectl apply -f k8s/notification-service/stage-notification-api.yaml
           kubectl set image deployment/airqo-stage-notification-api sta-notification-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-notification-api:${{ needs.image-tag.outputs.build_id }} -n staging
           kubectl annotate deployment/airqo-stage-notification-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-notification-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
 
+  ### network uptime ###
+  network-uptime:
+    name: build-push-network-uptime
+    needs: [check, image-tag, branch-name]
+    if: needs.check.outputs.run_network_uptime == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Login to GCR
+        uses: docker/login-action@v1
+        with:
+          registry: ${{ secrets.REGISTRY_URL }}
+          username: _json_key
+          password: ${{ secrets.GCR_CONFIG }}
+
+      - name: Login to K8S
+        uses: azure/k8s-set-context@v1
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+      
+      - name: Build and Push Docker Image
+        run: |
+          cd src/network-uptime/
+          docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-network-uptime-api:${{ needs.image-tag.outputs.build_id }} .
+          docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-network-uptime-api:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-network-uptime-api:latest
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-network-uptime-api:${{ needs.image-tag.outputs.build_id }}
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-network-uptime-api:latest    
+      
+      - name: Login to GCP
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
+
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
+
+      - name: Update the corresponding k8s configmap(s)
+        run: |
+          cd src/network-uptime/
+          gcloud secrets versions access latest --secret="sta-env-network-uptime" > .env
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-network-uptime-staging | kubectl replace -f - -n staging
+   
+      - name: Deploy to K8S
+        run: |
+          kubectl apply -f k8s/network-uptime/stage-airqo-network-uptime-api.yaml
+          kubectl set image deployment/airqo-stage-network-uptime-api sta-network-uptime=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-network-uptime-api:${{ needs.image-tag.outputs.build_id }} -n staging
+          kubectl annotate deployment/airqo-stage-network-uptime-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-network-uptime-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
+  
   #### Channel data ######
   channel-data:
     name: build-push-deploy-channel-data-job
-    needs: [check, image-tag]
+    needs: [check, image-tag, branch-name]
     if: needs.check.outputs.run_channel_data == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v2
-      
+
       - name: Login to GCR
         uses: docker/login-action@v1
         with:
@@ -916,7 +1546,24 @@ jobs:
         run: |
           cd src/channel-data/
           docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-update-channel-data-job:latest .
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-update-channel-data-job:latest
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-update-channel-data-job:latest    
+      
+      - name: Login to GCP
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
+
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
+
+      - name: Update the corresponding k8s configmap(s)
+        run: |
+          cd src/channel-data/
+          gcloud secrets versions access latest --secret="sta-env-channel-data" > .env
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-update-channel-data-staging | kubectl replace -f - -n staging
+          gcloud secrets versions access latest --secret="sta-key-channel-data-service-account" > google_application_credentials.json
+          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json env-update-channel-data-staging-files | kubectl replace -f - -n staging
+   
       - name: Deploy to K8S
         run: |
-          kubectl apply -f k8s/channel-data/stage-airqo-update-channel-data-job.yaml -n staging
+          kubectl apply -f k8s/channel-data/stage-airqo-update-channel-data-job.yaml
