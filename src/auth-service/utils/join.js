@@ -77,6 +77,38 @@ const join = {
       };
     }
   },
+  updateAccessToken: async () => {
+    try {
+      const responseFromUpdateToken = await AccessTokenModel(
+        tenant.toLowerCase()
+      ).modify({ filter, update });
+    } catch (error) {}
+  },
+
+  deleteAccessToken: async () => {
+    try {
+      const responseFromUpdateToken = await AccessTokenModel(
+        tenant.toLowerCase()
+      ).modify({ filter, update });
+    } catch (error) {}
+  },
+
+  verifyAccessToken: async () => {
+    try {
+      const responseFromUpdateToken = await AccessTokenModel(
+        tenant.toLowerCase()
+      ).modify({ filter, update });
+    } catch (error) {}
+  },
+
+  listAccessTokens: async () => {
+    try {
+      const responseFromUpdateToken = await AccessTokenModel(
+        tenant.toLowerCase()
+      ).modify({ filter, update });
+    } catch (error) {}
+  },
+
   update: async (tenant, filter, update) => {
     try {
       let responseFromModifyUser = await UserModel(tenant.toLowerCase()).modify(
@@ -85,7 +117,7 @@ const join = {
           update,
         }
       );
-      if (responseFromModifyUser.success == true) {
+      if (responseFromModifyUser.success === true) {
         let user = responseFromModifyUser.data;
         let responseFromSendEmail = await mailer.update(
           user.email,
@@ -93,13 +125,13 @@ const join = {
           user.lastName
         );
 
-        if (responseFromSendEmail.success == true) {
+        if (responseFromSendEmail.success === true) {
           return {
             success: true,
             message: responseFromModifyUser.message,
             data: responseFromModifyUser.data,
           };
-        } else if (responseFromSendEmail.success == false) {
+        } else if (responseFromSendEmail.success === false) {
           if (responseFromSendEmail.error) {
             return {
               success: false,
@@ -113,7 +145,7 @@ const join = {
             };
           }
         }
-      } else if (responseFromModifyUser.success == false) {
+      } else if (responseFromModifyUser.success === false) {
         if (responseFromModifyUser.error) {
           return {
             success: false,
@@ -469,9 +501,7 @@ const join = {
               success: true,
               message: "forgot email successfully sent",
             };
-          }
-
-          if (responseFromSendEmail.success === false) {
+          } else if (responseFromSendEmail.success === false) {
             if (responseFromSendEmail.error) {
               return {
                 success: false,
@@ -501,9 +531,7 @@ const join = {
             };
           }
         }
-      }
-
-      if (responseFromGenerateResetToken.success === false) {
+      } else if (responseFromGenerateResetToken.success === false) {
         if (responseFromGenerateResetToken.error) {
           return {
             success: false,
