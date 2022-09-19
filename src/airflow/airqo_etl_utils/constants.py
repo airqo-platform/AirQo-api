@@ -103,16 +103,19 @@ class ColumnDataType(Enum):
     TIMESTAMP = 1
     FLOAT = 2
     TIMESTAMP_STR = 3
-    INTEGER = 4
-    NONE = 5
+    STRING = 4
+    INTEGER = 5
+    NONE = 6
 
-    def to_string(self):
+    def __str__(self):
         if self == self.TIMESTAMP:
             return "TIMESTAMP"
         elif self == self.FLOAT:
             return "FLOAT"
         elif self == self.INTEGER:
             return "INTEGER"
+        elif self == self.STRING:
+            return "STRING"
         elif self == self.TIMESTAMP_STR:
             return "TIMESTAMP_STR"
         else:
