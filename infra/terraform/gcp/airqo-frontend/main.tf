@@ -4,32 +4,32 @@ provider "google" {
 
 
 module "resources-projects-airqo-frontend-IAMServiceAccount" {
-  source = "./resources/projects/airqo-frontend/IAMServiceAccount"
+  source = "./resources/IAMServiceAccount"
 }
 
 
-module "resources-projects-airqo-frontend-SQLInstance-us-central1" {
-  source = "./resources/projects/airqo-frontend/SQLInstance/us-central1"
+module "resources-projects-airqo-frontend-SQLInstance" {
+  source = "./resources/SQLInstance"
 }
 
 
 module "resources-projects-airqo-frontend-PubSubTopic" {
-  source = "./resources/projects/airqo-frontend/PubSubTopic"
+  source = "./resources/PubSubTopic"
 }
 
 
 module "resources-projects-airqo-frontend-DNSManagedZone" {
-  source = "./resources/projects/airqo-frontend/DNSManagedZone"
+  source = "./resources/DNSManagedZone"
 }
 
 
 module "resources-projects-airqo-frontend-ComputeFirewall" {
-  source = "./resources/projects/airqo-frontend/ComputeFirewall"
+  source = "./resources/ComputeFirewall"
 }
 
 
 module "resources-projects-airqo-frontend-StorageBucket-US" {
-  source = "./resources/projects/airqo-frontend/StorageBucket/US"
+  source = "./resources/StorageBucket/US"
 }
 
 
@@ -41,11 +41,11 @@ module "resources-projects-airqo-frontend-StorageBucket-US" {
 
 
 module "resources-4127550141-Service" {
-  source = "./resources/4127550141/Service"
+  source = "./resources/Service"
 }
 
 
-module "resources-projects-airqo-frontend-ComputeAddress-global" {
-  source = "./resources/projects/airqo-frontend/ComputeAddress/global"
+module "resources-projects-airqo-frontend-ComputeAddress" {
+  source = "./resources/ComputeAddress"
 }
 
