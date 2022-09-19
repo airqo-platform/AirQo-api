@@ -4,379 +4,314 @@ provider "google" {
 
 ## As of Sept/2022, the provider hashicorp/google does not support
 ## resource type "google_iam_custom_role"
-# module "resources-projects-airqo-250220-IAMCustomRole" {
-#  source = "./resources/projects/airqo-250220/IAMCustomRole"
+# module "resources-IAMCustomRole" {
+#  source = "./resources/IAMCustomRole"
 # }
 
 
-module "resources-projects-airqo-250220-ComputeURLMap-global" {
-  source = "./resources/projects/airqo-250220/ComputeURLMap/global"
+module "resources-ComputeURLMapl" {
+  source = "./resources/ComputeURLMap"
 }
 
 
-module "resources-projects-airqo-250220-ComputeSubnetwork-australia-southeast1" {
-  source = "./resources/projects/airqo-250220/ComputeSubnetwork/australia-southeast1"
+module "resources-ComputeSubnetwork-australia-southeast1" {
+  source = "./resources/ComputeSubnetwork/australia-southeast1"
 }
 
 
-module "resources-projects-airqo-250220-ComputeRouter-us-central1" {
-  source = "./resources/projects/airqo-250220/ComputeRouter/us-central1"
+module "resources-ComputeRouter" {
+  source = "./resources/ComputeRouter"
 }
 
 
-module "resources-projects-airqo-250220-ComputeSubnetwork-asia-south1" {
-  source = "./resources/projects/airqo-250220/ComputeSubnetwork/asia-south1"
+module "resources-ComputeSubnetwork-asia-south1" {
+  source = "./resources/ComputeSubnetwork/asia-south1"
 }
 
 
-module "resources-airqo-250220-BigQueryDataset-europe-west6" {
-  source = "./resources/airqo-250220/BigQueryDataset/europe-west6"
+module "resources-BigQueryDataset" {
+  source = "./resources/BigQueryDataset"
 }
 
 
-module "resources-projects-airqo-250220-ComputeAddress-europe-west1" {
-  source = "./resources/projects/airqo-250220/ComputeAddress/europe-west1"
+module "resources-ComputeAddress1" {
+  source = "./resources/ComputeAddress"
 }
 
 
-module "resources-projects-airqo-250220-ComputeAddress-us-central1" {
-  source = "./resources/projects/airqo-250220/ComputeAddress/us-central1"
+module "resources-ComputeAddress" {
+  source = "./resources/ComputeAddress"
 }
 
 
-module "resources-projects-airqo-250220-ComputeSubnetwork-us-east5" {
-  source = "./resources/projects/airqo-250220/ComputeSubnetwork/us-east5"
+module "resources-ComputeSubnetwork-us-east5" {
+  source = "./resources/ComputeSubnetwork/us-east5"
 }
 
 
-module "resources-projects-airqo-250220-ComputeSubnetwork-europe-west9" {
-  source = "./resources/projects/airqo-250220/ComputeSubnetwork/europe-west9"
+module "resources-ComputeSubnetwork-europe-west9" {
+  source = "./resources/ComputeSubnetwork/europe-west9"
 }
 
 
-module "resources-projects-airqo-250220-StorageBucket-EUROPE-WEST1" {
-  source = "./resources/projects/airqo-250220/StorageBucket/EUROPE-WEST1"
+module "resources-StorageBucket" {
+  source = "./resources/StorageBucket"
 }
 
 
-module "resources-projects-airqo-250220-ComputeForwardingRule-us-central1" {
-  source = "./resources/projects/airqo-250220/ComputeForwardingRule/us-central1"
+module "resources-ComputeForwardingRule" {
+  source = "./resources/ComputeForwardingRule"
 }
 
 
-module "resources-projects-airqo-250220-ComputeSubnetwork-europe-west4" {
-  source = "./resources/projects/airqo-250220/ComputeSubnetwork/europe-west4"
+module "resources-ComputeSubnetwork-europe-west4" {
+  source = "./resources/ComputeSubnetwork/europe-west4"
 }
 
 
-module "resources-airqo-250220-ComputeDisk-europe-west1-b" {
-  source = "./resources/airqo-250220/ComputeDisk/europe-west1-b"
+module "resources-ComputeDisk" {
+  source = "./resources/ComputeDisk"
 }
 
 
-module "resources-projects-airqo-250220-IAMServiceAccount" {
-  source = "./resources/projects/airqo-250220/IAMServiceAccount"
+module "resources-IAMServiceAccount" {
+  source = "./resources/IAMServiceAccount"
 }
 
 
-module "resources-projects-airqo-250220-KMSKeyRing-eur3" {
-  source = "./resources/projects/airqo-250220/KMSKeyRing/eur3"
-}
-
-
-module "resources-projects-airqo-250220-ComputeForwardingRule-global" {
-  source = "./resources/projects/airqo-250220/ComputeForwardingRule/global"
+module "resources-KMSKeyRing" {
+  source = "./resources/KMSKeyRing"
 }
 
 
 ## As of Sept/2022, the provider hashicorp/google does not support resource type
 ## "google_logging_log_sink" on line 1 of the file a-required.tf
-# module "resources-702081712633-702081712633-Project-LoggingLogSink" {
-#  source = "./resources/702081712633/702081712633/Project/LoggingLogSink"
+# module "resources-a-required" {
+#  source = "./resources/a-required.tf"
 # }
 
 
-module "resources-projects-airqo-250220-ComputeSubnetwork-asia-southeast1" {
-  source = "./resources/projects/airqo-250220/ComputeSubnetwork/asia-southeast1"
+module "resources-ComputeSubnetwork-asia-southeast1" {
+  source = "./resources/ComputeSubnetwork/asia-southeast1"
 }
 
 
-module "resources-projects-airqo-250220-ComputeSubnetwork-australia-southeast2" {
-  source = "./resources/projects/airqo-250220/ComputeSubnetwork/australia-southeast2"
+module "resources-ComputeSubnetwork-australia-southeast2" {
+  source = "./resources/ComputeSubnetwork/australia-southeast2"
 }
 
 
-module "resources-projects-airqo-250220-ComputeBackendBucket" {
-  source = "./resources/projects/airqo-250220/ComputeBackendBucket"
+module "resources-ComputeBackendBucket" {
+  source = "./resources/ComputeBackendBucket"
 }
 
 
-module "resources-projects-airqo-250220-ComputeSubnetwork-northamerica-northeast1" {
-  source = "./resources/projects/airqo-250220/ComputeSubnetwork/northamerica-northeast1"
+module "resources-ComputeSubnetwork-northamerica-northeast1" {
+  source = "./resources/ComputeSubnetwork/northamerica-northeast1"
 }
 
 
-module "resources-projects-airqo-250220-ComputeSubnetwork-asia-northeast3" {
-  source = "./resources/projects/airqo-250220/ComputeSubnetwork/asia-northeast3"
+module "resources-ComputeSubnetwork-asia-northeast3" {
+  source = "./resources/ComputeSubnetwork/asia-northeast3"
 }
 
 
-module "resources-projects-airqo-250220-ComputeSubnetwork-southamerica-east1" {
-  source = "./resources/projects/airqo-250220/ComputeSubnetwork/southamerica-east1"
+module "resources-ComputeSubnetwork-southamerica-east1" {
+  source = "./resources/ComputeSubnetwork/southamerica-east1"
 }
 
 
-module "resources-projects-airqo-250220-StorageBucket-EU" {
-  source = "./resources/projects/airqo-250220/StorageBucket/EU"
+module "resources-ComputeSubnetwork-asia-northeast1" {
+  source = "./resources/ComputeSubnetwork/asia-northeast1"
 }
 
 
-module "resources-projects-airqo-250220-ComputeSubnetwork-asia-northeast1" {
-  source = "./resources/projects/airqo-250220/ComputeSubnetwork/asia-northeast1"
+module "resources-ComputeSubnetwork-europe-west6" {
+  source = "./resources/ComputeSubnetwork/europe-west6"
 }
 
 
-module "resources-projects-airqo-250220-ComputeSubnetwork-europe-west6" {
-  source = "./resources/projects/airqo-250220/ComputeSubnetwork/europe-west6"
+module "resources-ComputeFirewall" {
+  source = "./resources/ComputeFirewall"
 }
 
 
-module "resources-projects-airqo-250220-ComputeFirewall" {
-  source = "./resources/projects/airqo-250220/ComputeFirewall"
-}
-
-
-module "resources-projects-airqo-250220-ComputeSubnetwork-asia-southeast2" {
-  source = "./resources/projects/airqo-250220/ComputeSubnetwork/asia-southeast2"
-}
-
-
-module "resources-airqo-250220-BigQueryDataset-US" {
-  source = "./resources/airqo-250220/BigQueryDataset/US"
+module "resources-ComputeSubnetwork-asia-southeast2" {
+  source = "./resources/ComputeSubnetwork/asia-southeast2"
 }
 
 
 module "resources-702081712633-Service" {
-  source = "./resources/702081712633/Service"
+  source = "./resources/Service"
 }
 
 
-module "resources-projects-airqo-250220-StorageBucket-EUROPE-WEST2" {
-  source = "./resources/projects/airqo-250220/StorageBucket/EUROPE-WEST2"
+module "resources-ComputeSubnetwork-us-west1" {
+  source = "./resources/ComputeSubnetwork/us-west1"
 }
 
 
-module "resources-projects-airqo-250220-StorageBucket-US-CENTRAL1" {
-  source = "./resources/projects/airqo-250220/StorageBucket/US-CENTRAL1"
+module "resources-SQLInstance" {
+  source = "./resources/SQLInstance"
 }
 
 
-module "resources-projects-airqo-250220-StorageBucket-US" {
-  source = "./resources/projects/airqo-250220/StorageBucket/US"
+module "resources-ComputeSubnetwork-us-south1" {
+  source = "./resources/ComputeSubnetwork/us-south1"
 }
 
 
-module "resources-projects-airqo-250220-ComputeSubnetwork-us-west1" {
-  source = "./resources/projects/airqo-250220/ComputeSubnetwork/us-west1"
+module "resources-ComputeSubnetwork-us-east1" {
+  source = "./resources/ComputeSubnetwork/us-east1"
 }
 
 
-module "resources-projects-airqo-250220-SQLInstance-us-central1" {
-  source = "./resources/projects/airqo-250220/SQLInstance/us-central1"
+module "resources-ComputeTargetPool" {
+  source = "./resources/ComputeTargetPool"
 }
 
 
-module "resources-projects-airqo-250220-ComputeSubnetwork-us-south1" {
-  source = "./resources/projects/airqo-250220/ComputeSubnetwork/us-south1"
+module "resources-ComputeSubnetwork-europe-central2" {
+  source = "./resources/ComputeSubnetwork/europe-central2"
 }
 
 
-module "resources-projects-airqo-250220-ComputeSubnetwork-us-east1" {
-  source = "./resources/projects/airqo-250220/ComputeSubnetwork/us-east1"
+module "resources-ComputeSubnetwork-us-west4" {
+  source = "./resources/ComputeSubnetwork/us-west4"
 }
 
 
-module "resources-projects-airqo-250220-ComputeTargetPool-us-central1" {
-  source = "./resources/projects/airqo-250220/ComputeTargetPool/us-central1"
+module "resources-SecretManagerSecret" {
+  source = "./resources/SecretManagerSecret"
 }
 
 
-module "resources-projects-airqo-250220-ComputeSubnetwork-europe-central2" {
-  source = "./resources/projects/airqo-250220/ComputeSubnetwork/europe-central2"
+module "resources-ComputeSubnetwork-us-west3" {
+  source = "./resources/ComputeSubnetwork/us-west3"
 }
 
 
-module "resources-projects-airqo-250220-ComputeSubnetwork-us-west4" {
-  source = "./resources/projects/airqo-250220/ComputeSubnetwork/us-west4"
+module "resources-ComputeSubnetwork-europe-north1" {
+  source = "./resources/ComputeSubnetwork/europe-north1"
 }
 
 
-module "resources-projects-702081712633-SecretManagerSecret" {
-  source = "./resources/projects/702081712633/SecretManagerSecret"
+module "resources-ComputeSubnetwork-europe-west3" {
+  source = "./resources/ComputeSubnetwork/europe-west3"
 }
 
 
-module "resources-airqo-250220-ComputeDisk-us-central1-a" {
-  source = "./resources/airqo-250220/ComputeDisk/us-central1-a"
+module "resources-ComputeRoute" {
+  source = "./resources/ComputeRoute"
 }
 
 
-module "resources-projects-airqo-250220-ComputeSubnetwork-us-west3" {
-  source = "./resources/projects/airqo-250220/ComputeSubnetwork/us-west3"
+module "resources-ComputeSubnetwork-europe-west2" {
+  source = "./resources/ComputeSubnetwork/europe-west2"
 }
 
 
-module "resources-projects-airqo-250220-ComputeSubnetwork-europe-north1" {
-  source = "./resources/projects/airqo-250220/ComputeSubnetwork/europe-north1"
+module "resources-ComputeSubnetwork-us-central1" {
+  source = "./resources/ComputeSubnetwork/us-central1"
 }
 
 
-module "resources-projects-airqo-250220-ComputeSubnetwork-europe-west3" {
-  source = "./resources/projects/airqo-250220/ComputeSubnetwork/europe-west3"
+module "resources-ComputeInstanceTemplate" {
+  source = "./resources/ComputeInstanceTemplate"
 }
 
 
-module "resources-projects-airqo-250220-ComputeRoute" {
-  source = "./resources/projects/airqo-250220/ComputeRoute"
+module "resources-ComputeSubnetwork-us-east4" {
+  source = "./resources/ComputeSubnetwork/us-east4"
 }
 
 
-module "resources-projects-airqo-250220-ComputeSubnetwork-europe-west2" {
-  source = "./resources/projects/airqo-250220/ComputeSubnetwork/europe-west2"
+module "resources-ComputeSubnetwork-southamerica-west1" {
+  source = "./resources/ComputeSubnetwork/southamerica-west1"
 }
 
 
-module "resources-airqo-250220-BigQueryDataset-EU" {
-  source = "./resources/airqo-250220/BigQueryDataset/EU"
+module "resources-PubSubSubscription" {
+  source = "./resources/PubSubSubscription"
 }
 
 
-module "resources-projects-airqo-250220-ComputeSubnetwork-us-central1" {
-  source = "./resources/projects/airqo-250220/ComputeSubnetwork/us-central1"
+module "resources-ComputeInstance" {
+  source = "./resources/ComputeInstance"
 }
 
 
-module "resources-projects-airqo-250220-ComputeInstanceTemplate-europe-west1" {
-  source = "./resources/projects/airqo-250220/ComputeInstanceTemplate/europe-west1"
+module "resources-ComputeSubnetwork-europe-west1" {
+  source = "./resources/ComputeSubnetwork/europe-west1"
 }
 
 
-module "resources-projects-airqo-250220-ComputeSubnetwork-us-east4" {
-  source = "./resources/projects/airqo-250220/ComputeSubnetwork/us-east4"
+module "resources-BigQueryTable" {
+  source = "./resources/BigQueryTable"
 }
 
 
-module "resources-airqo-250220-ComputeDisk-us-east1-b" {
-  source = "./resources/airqo-250220/ComputeDisk/us-east1-b"
+module "resources-ComputeSubnetwork-asia-northeast2" {
+  source = "./resources/ComputeSubnetwork/asia-northeast2"
 }
 
 
-module "resources-projects-airqo-250220-ComputeSubnetwork-southamerica-west1" {
-  source = "./resources/projects/airqo-250220/ComputeSubnetwork/southamerica-west1"
+module "resources-ComputeSubnetwork-europe-west8" {
+  source = "./resources/ComputeSubnetwork/europe-west8"
 }
 
 
-module "resources-projects-airqo-250220-KMSKeyRing-locations-eur3-keyRings-airqo-api-KMSCryptoKey" {
-  source = "./resources/projects/airqo-250220/KMSKeyRing/locations/eur3/keyRings/airqo-api/KMSCryptoKey"
+module "resources-ComputeSubnetwork-asia-east1" {
+  source = "./resources/ComputeSubnetwork/asia-east1"
 }
 
 
-module "resources-projects-airqo-250220-PubSubSubscription" {
-  source = "./resources/projects/airqo-250220/PubSubSubscription"
+module "resources-PubSubTopic" {
+  source = "./resources/PubSubTopic"
 }
 
 
-module "resources-projects-airqo-250220-ComputeInstance-us-central1-a" {
-  source = "./resources/projects/airqo-250220/ComputeInstance/us-central1-a"
+module "resources-ComputeSnapshot" {
+  source = "./resources/ComputeSnapshot"
 }
 
 
-module "resources-projects-airqo-250220-ComputeSubnetwork-europe-west1" {
-  source = "./resources/projects/airqo-250220/ComputeSubnetwork/europe-west1"
+module "resources-ComputeSubnetwork-northamerica-northeast2" {
+  source = "./resources/ComputeSubnetwork/northamerica-northeast2"
 }
 
 
-module "resources-projects-airqo-250220-BigQueryTable" {
-  source = "./resources/projects/airqo-250220/BigQueryTable"
+module "resources-ComputeSubnetwork-asia-south2" {
+  source = "./resources/ComputeSubnetwork/asia-south2"
 }
 
 
-module "resources-projects-airqo-250220-ComputeSubnetwork-asia-northeast2" {
-  source = "./resources/projects/airqo-250220/ComputeSubnetwork/asia-northeast2"
+module "resources-ComputeSubnetwork-us-west2" {
+  source = "./resources/ComputeSubnetwork/us-west2"
 }
 
 
-module "resources-projects-airqo-250220-ComputeSubnetwork-europe-west8" {
-  source = "./resources/projects/airqo-250220/ComputeSubnetwork/europe-west8"
+module "resources-ComputeTargetHTTPProxy" {
+  source = "./resources/ComputeTargetHTTPProxy"
 }
 
 
-module "resources-projects-airqo-250220-ComputeInstance-europe-west1-b" {
-  source = "./resources/projects/airqo-250220/ComputeInstance/europe-west1-b"
+module "resources-ComputeSubnetwork-asia-east2" {
+  source = "./resources/ComputeSubnetwork/asia-east2"
 }
 
 
-module "resources-projects-airqo-250220-ComputeSubnetwork-asia-east1" {
-  source = "./resources/projects/airqo-250220/ComputeSubnetwork/asia-east1"
+module "resources-ComputeNetwork" {
+  source = "./resources/ComputeNetwork"
 }
 
 
-module "resources-projects-airqo-250220-PubSubTopic" {
-  source = "./resources/projects/airqo-250220/PubSubTopic"
+module "resources-ComputeSubnetwork-europe-southwest1" {
+  source = "./resources/ComputeSubnetwork/europe-southwest1"
 }
 
 
-module "resources-projects-airqo-250220-ComputeSnapshot" {
-  source = "./resources/projects/airqo-250220/ComputeSnapshot"
-}
-
-
-module "resources-projects-airqo-250220-ComputeSubnetwork-northamerica-northeast2" {
-  source = "./resources/projects/airqo-250220/ComputeSubnetwork/northamerica-northeast2"
-}
-
-
-module "resources-projects-airqo-250220-ComputeAddress-europe-west2" {
-  source = "./resources/projects/airqo-250220/ComputeAddress/europe-west2"
-}
-
-
-module "resources-projects-airqo-250220-ComputeSubnetwork-asia-south2" {
-  source = "./resources/projects/airqo-250220/ComputeSubnetwork/asia-south2"
-}
-
-
-module "resources-projects-airqo-250220-ComputeSubnetwork-us-west2" {
-  source = "./resources/projects/airqo-250220/ComputeSubnetwork/us-west2"
-}
-
-
-module "resources-projects-airqo-250220-ComputeTargetHTTPProxy-global" {
-  source = "./resources/projects/airqo-250220/ComputeTargetHTTPProxy/global"
-}
-
-
-module "resources-projects-airqo-250220-ComputeSubnetwork-asia-east2" {
-  source = "./resources/projects/airqo-250220/ComputeSubnetwork/asia-east2"
-}
-
-
-module "resources-projects-airqo-250220-ComputeNetwork" {
-  source = "./resources/projects/airqo-250220/ComputeNetwork"
-}
-
-
-module "resources-projects-airqo-250220-ComputeSubnetwork-europe-southwest1" {
-  source = "./resources/projects/airqo-250220/ComputeSubnetwork/europe-southwest1"
-}
-
-
-module "resources-projects-airqo-250220-StorageBucket-NAM4" {
-  source = "./resources/projects/airqo-250220/StorageBucket/NAM4"
-}
-
-
-module "resources-projects-airqo-250220-ComputeHTTPHealthCheck" {
-  source = "./resources/projects/airqo-250220/ComputeHTTPHealthCheck"
+module "resources-ComputeHTTPHealthCheck" {
+  source = "./resources/ComputeHTTPHealthCheck"
 }
 
