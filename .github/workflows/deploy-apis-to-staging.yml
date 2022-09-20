@@ -1591,5 +1591,5 @@ jobs:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
 
-      - name: Deploy to K8S
+      - name: Apply ingress changes
         run: kubectl apply -f k8s/nginx-ingress/stage-platform-ingress-resource.yaml

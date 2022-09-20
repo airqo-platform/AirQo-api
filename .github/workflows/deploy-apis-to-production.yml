@@ -1529,7 +1529,7 @@ jobs:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
 
-      - name: Deploy to K8S
+      - name: Apply ingress changes
         run: |
           kubectl apply -f k8s/nginx-ingress/prod-api-ingress-resource.yaml
           kubectl apply -f k8s/nginx-ingress/prod-platform-ingress-resource.yaml
