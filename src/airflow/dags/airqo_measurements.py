@@ -377,9 +377,30 @@ def airqo_realtime_measurements_etl():
         big_query_api = BigQueryApi()
         big_query_api.load_data(data, table=big_query_api.raw_measurements_table)
 
+    @task()
+    def update_latest_data(data: pd.DataFrame):
+        from airqo_etl_utils.bigquery_api import BigQueryApi
+        from airqo_etl_utils.airqo_utils import AirQoDataUtils
+        from airqo_etl_utils.data_validator import DataValidationUtils
+        from airqo_etl_utils.constants import Tenant, DeviceCategory
+
+        bam_data = AirQoDataUtils.process_latest_data(
+            data=data, device_category=DeviceCategory.LOW_COST
+        )
+
+        big_query_api = BigQueryApi()
+        table = big_query_api.latest_measurements_table
+
+        data = DataValidationUtils.process_for_big_query(
+            dataframe=bam_data, table=table, tenant=Tenant.AIRQO
+        )
+
+        big_query_api.update_data(data, table=table)
+
     raw_data = extract_raw_data()
     clean_data = clean_data_raw_data(raw_data)
     averaged_airqo_data = aggregate(clean_data)
+    send_raw_measurements_to_bigquery(clean_data)
     extracted_weather_data = extract_hourly_weather_data()
     merged_data = merge_data(
         averaged_hourly_data=averaged_airqo_data, weather_data=extracted_weather_data
@@ -389,7 +410,7 @@ def airqo_realtime_measurements_etl():
     # send_hourly_measurements_to_message_broker(calibrated_data)
     send_hourly_measurements_to_bigquery(calibrated_data)
     update_app_insights(calibrated_data)
-    send_raw_measurements_to_bigquery(clean_data)
+    update_latest_data(calibrated_data)
 
 
 historical_hourly_measurements_etl_dag = historical_hourly_measurements_etl()

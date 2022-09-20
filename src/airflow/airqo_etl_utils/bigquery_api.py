@@ -5,6 +5,7 @@ from google.cloud import bigquery
 
 from .config import configuration
 from .constants import JobAction, ColumnDataType, Tenant, QueryType
+from .date import date_to_str
 from .utils import Utils
 
 
@@ -13,6 +14,7 @@ class BigQueryApi:
         self.client = bigquery.Client()
         self.hourly_measurements_table = configuration.BIGQUERY_HOURLY_EVENTS_TABLE
         self.raw_measurements_table = configuration.BIGQUERY_RAW_EVENTS_TABLE
+        self.latest_measurements_table = configuration.BIGQUERY_LATEST_EVENTS_TABLE
         self.bam_measurements_table = configuration.BIGQUERY_BAM_EVENTS_TABLE
         self.raw_bam_measurements_table = configuration.BIGQUERY_RAW_BAM_DATA_TABLE
         self.sensor_positions_table = configuration.SENSOR_POSITIONS_TABLE
@@ -95,6 +97,8 @@ class BigQueryApi:
             schema_file = "measurements.json"
         elif table == self.raw_measurements_table:
             schema_file = "raw_measurements.json"
+        elif table == self.latest_measurements_table:
+            schema_file = "latest_measurements.json"
         elif table == self.hourly_weather_table or table == self.raw_weather_table:
             schema_file = "weather_data.json"
         elif table == self.analytics_table or table == self.consolidated_data_table:
@@ -124,7 +128,7 @@ class BigQueryApi:
         columns = []
         if data_type != ColumnDataType.NONE:
             for column in schema:
-                if column["type"] == data_type.to_string():
+                if column["type"] == str(data_type):
                     columns.append(column["name"])
         else:
             columns = [column["name"] for column in schema]
@@ -151,6 +155,43 @@ class BigQueryApi:
         destination_table = self.client.get_table(table)
         print(f"Loaded {dataframe.size} rows to {table}")
         print(f"Total rows after load :  {destination_table.num_rows}")
+
+    def update_data(
+        self,
+        dataframe: pd.DataFrame,
+        table: str,
+    ) -> None:
+        dataframe.reset_index(drop=True, inplace=True)
+        dataframe = self.validate_data(dataframe=dataframe, table=table)
+        dataframe.drop_duplicates(subset=["device_number"], inplace=True, keep="first")
+
+        available_data = (
+            self.client.query(query=f"SELECT * FROM `{table}`").result().to_dataframe()
+        )
+
+        if available_data.empty:
+            up_to_date_data = dataframe
+        else:
+            available_data["timestamp"] = available_data["timestamp"].apply(
+                pd.to_datetime
+            )
+            available_data.drop_duplicates(
+                subset=["device_number"], inplace=True, keep="first"
+            )
+            data_not_for_updating = available_data.loc[
+                ~available_data["device_number"].isin(
+                    dataframe["device_number"].to_list()
+                )
+            ]
+            up_to_date_data = pd.concat(
+                [data_not_for_updating, dataframe], ignore_index=True
+            )
+
+        up_to_date_data["timestamp"] = up_to_date_data["timestamp"].apply(date_to_str)
+
+        self.load_data(
+            dataframe=up_to_date_data, table=table, job_action=JobAction.OVERWRITE
+        )
 
     def compose_query(
         self,
