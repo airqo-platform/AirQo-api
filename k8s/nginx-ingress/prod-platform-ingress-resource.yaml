@@ -121,6 +121,13 @@ spec:
                 name: airqo-platform-svc
                 port: 
                   number: 80
+          - path: /docs
+            pathType: Prefix
+            backend:
+              service:
+                name: airqo-docs-svc
+                port: 
+                  number: 3000
           - path: /api/v1/users
             pathType: Prefix
             backend:

@@ -48,6 +48,13 @@ spec:
                 name: airflow-svc
                 port: 
                   number: 8080
+          - path: /docs
+            pathType: Prefix
+            backend:
+              service:
+                name: airqo-stage-docs-svc
+                port: 
+                  number: 3000
           - path: /api/v1/users
             pathType: Prefix
             backend:
