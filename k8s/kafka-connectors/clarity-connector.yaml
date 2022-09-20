@@ -1,0 +1,20 @@
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaConnector
+metadata:
+  name: clarity-connector
+  namespace: message-broker
+  labels:
+    strimzi.io/cluster: measurements-connect
+spec:
+  class: clarity.clarityConnector
+  tasksMax: 2
+  config:
+    topic: ${configmaps:message-broker/clarity-connector-config:clarityTopicGroup}
+    pollInterval: ${configmaps:message-broker/clarity-connector-config:pollInterval}
+    clarityApiBaseUrl: ${configmaps:message-broker/clarity-connector-config:clarityApiBaseUrl}
+    batchSize: ${configmaps:message-broker/clarity-connector-config:batchSize}
+    clarityApiKey: ${configmaps:message-broker/clarity-connector-config:clarityApiKey}
+    key.converter: org.apache.kafka.connect.json.JsonConverter
+    key.converter.schemas.enable: false
+    value.converter: org.apache.kafka.connect.json.JsonConverter
+    value.converter.schemas.enable: false
