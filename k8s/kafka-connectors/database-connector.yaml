@@ -1,0 +1,27 @@
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaConnector
+metadata:
+  name: database-source-connector
+  namespace: message-broker
+  labels:
+    strimzi.io/cluster: measurements-connect
+spec:
+  # class: io.debezium.connector.mongodb.MongoDbConnector
+  class: com.mongodb.kafka.connect.MongoSourceConnector
+  tasksMax: 1
+  config:
+    # Ref: https://debezium.io/documentation/reference/connectors/mongodb.html#mongodb-connector-properties
+    name: database-source-connector
+    mongodb.hosts: ${configmaps:message-broker/database-source-connector-config:hosts}
+    mongodb.name: ${configmaps:message-broker/database-source-connector-config:name}
+    mongodb.user: ${configmaps:message-broker/database-source-connector-config:user}
+    mongodb.password: ${configmaps:message-broker/database-source-connector-config:password}
+    database.include.list: ${configmaps:message-broker/database-source-connector-config:include}
+    collection.include.list: ${configmaps:message-broker/database-source-connector-config:include}
+
+    # https://docs.mongodb.com/kafka-connector/current/kafka-source/
+    connection.uri: ${configmaps:message-broker/database-source-connector-config:connection}
+    database: ${configmaps:message-broker/database-source-connector-config:database}
+    collection: ${configmaps:message-broker/database-source-connector-config:collection}
+    topic.prefix: db
+    pipeline: [{"$match": {"operationType": "insert"}}]

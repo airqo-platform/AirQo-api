@@ -1,0 +1,21 @@
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaConnector
+metadata:
+  name: thingspeak-connector
+  namespace: message-broker
+  labels:
+    strimzi.io/cluster: measurements-connect
+spec:
+  class: thingspeak.thingspeakConnector
+  tasksMax: 2
+  config:
+    topic: ${configmaps:message-broker/thingspeak-connector-config:thingspeakTopicGroup}
+    airqoBaseUrl: ${configmaps:message-broker/thingspeak-connector-config:airqoBaseUrl}
+    pollInterval: ${configmaps:message-broker/thingspeak-connector-config:pollInterval}
+    batchSize: ${configmaps:message-broker/thingspeak-connector-config:batchSize}
+    minimumHours: ${configmaps:message-broker/thingspeak-connector-config:minimumHours}
+    devicesFetchInterval: ${configmaps:message-broker/thingspeak-connector-config:devicesFetchInterval}
+    key.converter: org.apache.kafka.connect.json.JsonConverter
+    key.converter.schemas.enable: false
+    value.converter: org.apache.kafka.connect.json.JsonConverter
+    value.converter.schemas.enable: false
