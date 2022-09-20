@@ -77,38 +77,6 @@ const join = {
       };
     }
   },
-  updateAccessToken: async () => {
-    try {
-      const responseFromUpdateToken = await AccessTokenModel(
-        tenant.toLowerCase()
-      ).modify({ filter, update });
-    } catch (error) {}
-  },
-
-  deleteAccessToken: async () => {
-    try {
-      const responseFromUpdateToken = await AccessTokenModel(
-        tenant.toLowerCase()
-      ).modify({ filter, update });
-    } catch (error) {}
-  },
-
-  verifyAccessToken: async () => {
-    try {
-      const responseFromUpdateToken = await AccessTokenModel(
-        tenant.toLowerCase()
-      ).modify({ filter, update });
-    } catch (error) {}
-  },
-
-  listAccessTokens: async () => {
-    try {
-      const responseFromUpdateToken = await AccessTokenModel(
-        tenant.toLowerCase()
-      ).modify({ filter, update });
-    } catch (error) {}
-  },
-
   update: async (tenant, filter, update) => {
     try {
       let responseFromModifyUser = await UserModel(tenant.toLowerCase()).modify(
@@ -745,7 +713,6 @@ const join = {
         filter,
       });
       logObject("responseFromListUser", responseFromListUser);
-      // logObject("the filter", filter);
       if (responseFromListUser.success == true) {
         if (isEmpty(responseFromListUser.data)) {
           return {
