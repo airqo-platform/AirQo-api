@@ -365,7 +365,7 @@ class AirQoDataUtils:
             averages["site_id"] = site_id
             averages["device_number"] = device_number
 
-            aggregated_data = aggregated_data.append(averages, ignore_index=True)
+            aggregated_data = pd.concat([aggregated_data, averages], ignore_index=True)
 
         return aggregated_data
 
@@ -854,8 +854,8 @@ class AirQoDataUtils:
                     "s2_pm10": {"value": data_row["s2_pm10"]},
                     "no2": {"value": data_row["no2"]},
                     "pm1": {"value": data_row["pm1"]},
-                    "external_temperature": {"value": data_row["external_temperature"]},
-                    "external_humidity": {"value": data_row["external_humidity"]},
+                    "externalTemperature": {"value": data_row["temperature"]},
+                    "externalHumidity": {"value": data_row["humidity"]},
                     "speed": {"value": data_row["wind_speed"]},
                 }
             )

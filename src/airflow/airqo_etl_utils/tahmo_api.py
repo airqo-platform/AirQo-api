@@ -40,8 +40,8 @@ class TahmoApi:
 
                     station_measurements = pd.DataFrame(data=values, columns=columns)
 
-                    measurements = measurements.append(
-                        station_measurements[columns], ignore_index=True
+                    measurements = pd.concat(
+                        [measurements, station_measurements[columns]], ignore_index=True
                     )
 
             except Exception as ex:
