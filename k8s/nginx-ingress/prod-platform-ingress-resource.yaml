@@ -111,6 +111,16 @@ spec:
                 name: airqo-calibrate-app-svc
                 port: 
                   number: 80
+    - host: docs.airqo.net
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: airqo-docs-svc
+                port: 
+                  number: 3000
     - host: platform.airqo.net
       http:
         paths:
