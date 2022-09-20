@@ -101,6 +101,7 @@ def airnow_bam_realtime_data_etl():
         from airqo_etl_utils.airnow_utils import AirnowDataUtils
         from airqo_etl_utils.data_validator import DataValidationUtils
         from airqo_etl_utils.constants import Tenant
+        from airqo_etl_utils.app_insights_utils import AirQoAppUtils
 
         bam_data = AirnowDataUtils.process_latest_bam_data(airnow_data)
 
@@ -113,10 +114,32 @@ def airnow_bam_realtime_data_etl():
 
         big_query_api.update_data(data, table=table)
 
+        AirQoAppUtils.update_firebase_air_quality_readings(data)
+
+    @task()
+    def update_firebase_latest_data(airnow_data: pd.DataFrame):
+        from airqo_etl_utils.bigquery_api import BigQueryApi
+        from airqo_etl_utils.airnow_utils import AirnowDataUtils
+        from airqo_etl_utils.data_validator import DataValidationUtils
+        from airqo_etl_utils.constants import Tenant
+        from airqo_etl_utils.app_insights_utils import AirQoAppUtils
+
+        bam_data = AirnowDataUtils.process_latest_bam_data(airnow_data)
+
+        big_query_api = BigQueryApi()
+        table = big_query_api.latest_measurements_table
+
+        data = DataValidationUtils.process_for_big_query(
+            dataframe=bam_data, table=table, tenant=Tenant.US_EMBASSY
+        )
+
+        AirQoAppUtils.update_firebase_air_quality_readings(data)
+
     extracted_bam_data = extract_bam_data()
     processed_bam_data = process_data(extracted_bam_data)
     send_to_bigquery(processed_bam_data)
     update_latest_data(processed_bam_data)
+    update_firebase_latest_data(processed_bam_data)
 
 
 airnow_bam_realtime_data_etl_dag = airnow_bam_realtime_data_etl()

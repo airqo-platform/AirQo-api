@@ -383,8 +383,9 @@ def airqo_realtime_measurements_etl():
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
         from airqo_etl_utils.data_validator import DataValidationUtils
         from airqo_etl_utils.constants import Tenant, DeviceCategory
+        from airqo_etl_utils.app_insights_utils import AirQoAppUtils
 
-        bam_data = AirQoDataUtils.process_latest_data(
+        data = AirQoDataUtils.process_latest_data(
             data=data, device_category=DeviceCategory.LOW_COST
         )
 
@@ -392,10 +393,31 @@ def airqo_realtime_measurements_etl():
         table = big_query_api.latest_measurements_table
 
         data = DataValidationUtils.process_for_big_query(
-            dataframe=bam_data, table=table, tenant=Tenant.AIRQO
+            dataframe=data, table=table, tenant=Tenant.AIRQO
         )
 
         big_query_api.update_data(data, table=table)
+        AirQoAppUtils.update_firebase_air_quality_readings(data)
+
+    @task()
+    def update_firebase_latest_data(data: pd.DataFrame):
+        from airqo_etl_utils.bigquery_api import BigQueryApi
+        from airqo_etl_utils.airqo_utils import AirQoDataUtils
+        from airqo_etl_utils.data_validator import DataValidationUtils
+        from airqo_etl_utils.constants import Tenant, DeviceCategory
+        from airqo_etl_utils.app_insights_utils import AirQoAppUtils
+
+        data = AirQoDataUtils.process_latest_data(
+            data=data, device_category=DeviceCategory.LOW_COST
+        )
+
+        big_query_api = BigQueryApi()
+        table = big_query_api.latest_measurements_table
+
+        data = DataValidationUtils.process_for_big_query(
+            dataframe=data, table=table, tenant=Tenant.AIRQO
+        )
+        AirQoAppUtils.update_firebase_air_quality_readings(data)
 
     raw_data = extract_raw_data()
     clean_data = clean_data_raw_data(raw_data)
@@ -411,6 +433,7 @@ def airqo_realtime_measurements_etl():
     send_hourly_measurements_to_bigquery(calibrated_data)
     update_app_insights(calibrated_data)
     update_latest_data(calibrated_data)
+    update_firebase_latest_data(calibrated_data)
 
 
 historical_hourly_measurements_etl_dag = historical_hourly_measurements_etl()

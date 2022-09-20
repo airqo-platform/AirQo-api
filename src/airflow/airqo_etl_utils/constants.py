@@ -146,6 +146,22 @@ class AirQuality(Enum):
         else:
             return ""
 
+    def abbr(self) -> str:
+        if self == self.GOOD:
+            return "GOOD"
+        elif self == self.MODERATE:
+            return "MODERATE"
+        if self == self.UNHEALTHY_FSGs:
+            return "UFSGS"
+        elif self == self.UNHEALTHY:
+            return "UNHEALTHY"
+        if self == self.VERY_UNHEALTHY:
+            return "VERY_UNHEALTHY"
+        elif self == self.HAZARDOUS:
+            return "HAZARDOUS"
+        else:
+            return ""
+
 
 class Pollutant(Enum):
     PM2_5 = 1
