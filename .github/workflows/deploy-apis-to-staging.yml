@@ -1576,7 +1576,7 @@ jobs:
           kubectl apply -f k8s/channel-data/stage-airqo-update-channel-data-job.yaml
 
   ### apply nginx ingress ###
-  platform:
+  nginx-ingress:
     name: apply-nginx-ingress
     needs: [check]
     if: needs.check.outputs.run_nginx_ingress == 'true'
