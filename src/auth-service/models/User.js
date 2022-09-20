@@ -201,7 +201,7 @@ UserSchema.statics = {
           from: "access_tokens",
           localField: "_id",
           foreignField: "userId",
-          as: "access_token",
+          as: "access_tokens",
         })
         .sort({ createdAt: -1 })
         .project({
@@ -217,7 +217,7 @@ UserSchema.statics = {
           profilePicture: 1,
           phoneNumber: 1,
           organizations: "$organizations",
-          access_token: { $arrayElemAt: ["$access_token", 0] },
+          access_tokens: "$access_tokens",
         })
         .project({
           "organizations.__v": 0,
@@ -231,11 +231,11 @@ UserSchema.statics = {
           "organizations.users": 0,
         })
         .project({
-          "access_token.__v": 0,
-          "access_token._id": 0,
-          "access_token.userId": 0,
-          "access_token.createdAt": 0,
-          "access_token.updatedAt": 0,
+          "access_tokens.__v": 0,
+          "access_tokens._id": 0,
+          "access_tokens.userId": 0,
+          "access_tokens.createdAt": 0,
+          "access_tokens.updatedAt": 0,
         })
         .skip(skip ? skip : 0)
         .limit(limit ? limit : 100)

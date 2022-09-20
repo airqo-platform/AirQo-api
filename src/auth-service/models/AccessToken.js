@@ -11,7 +11,7 @@ const HTTPStatus = require("http-status");
 
 const AccessTokenSchema = new mongoose.Schema(
   {
-    userId: { type: ObjectId },
+    userId: { type: ObjectId, ref: "user" },
     name: { type: String },
     token: { type: String, unique: true },
     last_used_at: { type: Date },
@@ -119,40 +119,53 @@ AccessTokenSchema.statics = {
 
   async list({ skip = 0, limit = 5, filter = {} } = {}) {
     try {
-      let tokens = await this.find(filter)
+      const response = await this.aggregate()
+        .match(filter)
+        .lookup({
+          from: "users",
+          localField: "userId",
+          foreignField: "_id",
+          as: "users",
+        })
         .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .exec();
-      if (!isEmpty(tokens)) {
-        let data = tokens;
+        .project({
+          _id: 1,
+          userId: 1,
+          name: 1,
+          token: 1,
+          last_used_at: 1,
+          last_ip_address: 1,
+          user: { $arrayElemAt: ["$users", 0] },
+        })
+        .skip(skip ? skip : 0)
+        .limit(limit ? limit : 100)
+        .allowDiskUse(true);
+      if (!isEmpty(response)) {
+        let data = response;
         return {
           success: true,
+          message: "successfully retrieved the token details",
           data,
-          message: "successfully listed the tokens",
+          status: HTTPStatus.OK,
         };
-      }
-
-      if (isEmpty(data)) {
+      } else {
         return {
           success: true,
-          message: "no tokens exist",
-          data,
+          message: "token/s do not exist, please crosscheck",
+          status: HTTPStatus.NOT_FOUND,
+          data: [],
         };
       }
-      return {
-        success: false,
-        message: "unable to retrieve tokens",
-        data,
-      };
     } catch (error) {
       return {
         success: false,
-        message: "Token model server error - list",
-        error: error.message,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
+
   async modify({ filter = {}, update = {} } = {}) {
     try {
       let options = { new: true };
