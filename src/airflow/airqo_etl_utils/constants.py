@@ -12,18 +12,14 @@ class DeviceCategory(Enum):
     NONE = 20
 
     def __str__(self):
-        if self == self.LOW_COST:
-            return "lowcost"
-        elif self == self.BAM:
+        if self == self.BAM:
             return "bam"
         else:
-            return ""
+            return "lowcost"
 
     @staticmethod
     def from_str(string: str):
-        if string.lower() == "lowcost":
-            return DeviceCategory.LOW_COST
-        elif string.lower() == "bam":
+        if string.lower() == str(DeviceCategory.BAM):
             return DeviceCategory.BAM
         else:
             return DeviceCategory.LOW_COST

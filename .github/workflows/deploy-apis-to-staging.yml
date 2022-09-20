@@ -484,8 +484,8 @@ jobs:
 
       - name: Deploy to k8s cluster
         run: |
-          kubectl apply -f k8s/fault-detection/stage-fault-detection-api.yaml -n staging
-          kubectl rollout restart deployment stage-fault-detection-api  -n staging
+          kubectl apply -f k8s/fault-detection/stage-fault-detection-api.yaml
+          kubectl rollout restart deployment stage-fault-detection-api -n staging
 
   ### airflow ###
   airflow:
@@ -626,10 +626,10 @@ jobs:
 
       - name: Deploy to K8S
         run: |
-          kubectl apply -f k8s/predict/stage-prediction-api.yaml -n staging
+          kubectl apply -f k8s/predict/stage-prediction-api.yaml
           kubectl rollout restart deployment airqo-stage-prediction-api  -n staging
-          kubectl apply -f k8s/predict/stage-airqo-predict-job.yaml -n staging
-          kubectl apply -f k8s/predict/stage-airqo-train-job.yaml -n staging
+          kubectl apply -f k8s/predict/stage-airqo-predict-job.yaml
+          kubectl apply -f k8s/predict/stage-airqo-train-job.yaml
 
   ### kafka cluster operator ###
   kafka-cluster-operator:
@@ -746,7 +746,7 @@ jobs:
    
       - name: Deploy to K8S
         run: |
-          kubectl apply -f k8s/device-registry/stage-device-registry-api.yaml -n staging
+          kubectl apply -f k8s/device-registry/stage-device-registry-api.yaml
           kubectl set image deployment/airqo-stage-device-registry-api sta-dev-reg-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-registry-api:${{ needs.image-tag.outputs.build_id }} -n staging
           kubectl annotate deployment/airqo-stage-device-registry-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-registry-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
 
@@ -799,7 +799,7 @@ jobs:
 
       - name: Deploy to K8S
         run: |
-          kubectl apply -f k8s/device-monitor/stage-device-monitor-api.yaml -n staging
+          kubectl apply -f k8s/device-monitor/stage-device-monitor-api.yaml
           kubectl set image deployment/airqo-stage-device-monitor-api sta-dev-monitor=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-monitor-api:${{ needs.image-tag.outputs.build_id }} -n staging
           kubectl annotate deployment/airqo-stage-device-monitor-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-monitor-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
 
@@ -848,7 +848,7 @@ jobs:
 
       - name: Deploy to K8S
         run: |
-          kubectl apply -f k8s/data-mgt/stage-data-mgt-api.yaml -n staging
+          kubectl apply -f k8s/data-mgt/stage-data-mgt-api.yaml
           kubectl rollout restart deployment/airqo-stage-data-mgt-api -n staging
 
   ### analytics ###
@@ -896,29 +896,13 @@ jobs:
         run: |
           cd src/analytics/
           gcloud secrets versions access latest --secret="sta-env-analytics" > .env
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-analytics-production | kubectl replace -f - -n staging
-          gcloud secrets versions access latest --secret="prod-key-analytics-service-account" > google_application_credentials.json
-          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json stage-analytics-config-files | kubectl replace -f - -n staging
-
-      - name: Login to GCP
-        uses: google-github-actions/auth@v0
-        with:
-          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
-
-      - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v0
-
-      - name: Update the corresponding k8s configmap(s)
-        run: |
-          cd src/analytics/
-          gcloud secrets versions access latest --secret="sta-env-analytics" > .env
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-analytics-production | kubectl replace -f - -n staging
-          gcloud secrets versions access latest --secret="prod-key-analytics-service-account" > google_application_credentials.json
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-analytics-staging | kubectl replace -f - -n staging
+          gcloud secrets versions access latest --secret="sta-key-analytics-service-account" > google_application_credentials.json
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json stage-analytics-config-files | kubectl replace -f - -n staging
 
       - name: Deploy to K8S
         run: |
-          kubectl apply -f k8s/analytics/stage-analytics-api.yaml -n staging
+          kubectl apply -f k8s/analytics/stage-analytics-api.yaml
           kubectl set image deployment/airqo-stage-analytics-api sta-alytics-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-analytics-api:${{ needs.image-tag.outputs.build_id }} -n staging
           kubectl annotate deployment/airqo-stage-analytics-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-analytics-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
   
@@ -1069,7 +1053,7 @@ jobs:
    
       - name: Deploy to K8S
         run: |
-          kubectl apply -f k8s/locate/stage-locate-api.yaml -n staging
+          kubectl apply -f k8s/locate/stage-locate-api.yaml
           kubectl set image deployment/airqo-stage-locate-api sta-locate-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-locate-api:${{ needs.image-tag.outputs.build_id }} -n staging
           kubectl annotate deployment/airqo-stage-locate-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-locate-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
   
@@ -1304,12 +1288,12 @@ jobs:
    
       - name: Deploy API to K8S
         run: |
-          kubectl apply -f k8s/view-api/stage-view-api.yaml -n staging
+          kubectl apply -f k8s/view-api/stage-view-api.yaml
           kubectl rollout restart deployment airqo-stage-view-api  -n staging
 
       - name: Deploy Message Broker to K8S
         run: |
-          kubectl apply -f k8s/view-api/stage-view-message-broker.yaml -n staging
+          kubectl apply -f k8s/view-api/stage-view-message-broker.yaml
           kubectl rollout restart deployment airqo-stage-view-message-broker  -n staging
   
   #### Calibrate ######
@@ -1375,20 +1359,7 @@ jobs:
    
       - name: Deploy to Main k8s cluster
         run: |
-          kubectl apply -f k8s/calibrate/stage-calibrate-api.yaml -n staging
-          kubectl set image deployment/airqo-stage-calibrate-api calibrate-pickle=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-calibrate-pickle-file:${{ needs.image-tag.outputs.build_id }} -n staging
-          kubectl set image deployment/airqo-stage-calibrate-api sta-calibrate=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-calibrate-api:${{ needs.image-tag.outputs.build_id }} -n staging
-          kubectl annotate deployment/airqo-stage-calibrate-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-calibrate-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
-
-      - name: Login to Pipeline k8s cluster
-        uses: azure/k8s-set-context@v1
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_PIPELINE_CONFIG }}
-
-      - name: Deploy to Pipeline k8s cluster
-        run: |
-          kubectl apply -f k8s/calibrate/stage-calibrate-api.yaml -n staging
+          kubectl apply -f k8s/calibrate/stage-calibrate-api.yaml
           kubectl set image deployment/airqo-stage-calibrate-api calibrate-pickle=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-calibrate-pickle-file:${{ needs.image-tag.outputs.build_id }} -n staging
           kubectl set image deployment/airqo-stage-calibrate-api sta-calibrate=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-calibrate-api:${{ needs.image-tag.outputs.build_id }} -n staging
           kubectl annotate deployment/airqo-stage-calibrate-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-calibrate-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
@@ -1440,7 +1411,7 @@ jobs:
    
       - name: Deploy to K8S
         run: |
-          kubectl apply -f k8s/events-monitor/stage-events-notifs-cronjob.yaml -n staging
+          kubectl apply -f k8s/events-monitor/stage-events-notifs-cronjob.yaml
   
   #### notification ######
   notification:
@@ -1544,7 +1515,7 @@ jobs:
    
       - name: Deploy to K8S
         run: |
-          kubectl apply -f k8s/network-uptime/stage-airqo-network-uptime-api.yaml -n staging
+          kubectl apply -f k8s/network-uptime/stage-airqo-network-uptime-api.yaml
           kubectl set image deployment/airqo-stage-network-uptime-api sta-network-uptime=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-network-uptime-api:${{ needs.image-tag.outputs.build_id }} -n staging
           kubectl annotate deployment/airqo-stage-network-uptime-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-network-uptime-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
   
@@ -1595,4 +1566,4 @@ jobs:
    
       - name: Deploy to K8S
         run: |
-          kubectl apply -f k8s/channel-data/stage-airqo-update-channel-data-job.yaml -n staging
+          kubectl apply -f k8s/channel-data/stage-airqo-update-channel-data-job.yaml

@@ -131,7 +131,7 @@ class AirQoApi:
         ]
 
         if category != DeviceCategory.NONE:
-            devices = list(filter(lambda y: y["category"] == str(category), devices))
+            devices = list(filter(lambda y: y["category"] == category, devices))
 
         return devices
 
