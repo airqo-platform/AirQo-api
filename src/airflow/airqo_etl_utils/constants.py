@@ -85,6 +85,33 @@ class Tenant(Enum):
         else:
             return ""
 
+    @staticmethod
+    def from_str(string: str):
+        if string.lower() == "nasa":
+            return Tenant.NASA
+        elif string.lower() == "urban_better":
+            return Tenant.URBAN_BETTER
+        elif string.lower() == "kcca":
+            return Tenant.KCCA
+        elif string.lower() == "us_embassy":
+            return Tenant.US_EMBASSY
+        else:
+            return Tenant.AIRQO
+
+    def name(self) -> str:
+        if self == self.NASA:
+            return "Nasa"
+        elif self == self.URBAN_BETTER:
+            return "Urban Better"
+        elif self == self.AIRQO:
+            return "AirQo"
+        elif self == self.KCCA:
+            return "KCCA"
+        elif self == self.US_EMBASSY:
+            return "US Embassy"
+        else:
+            return ""
+
 
 class JobAction(Enum):
     APPEND = 1
@@ -143,22 +170,6 @@ class AirQuality(Enum):
             return "Very Unhealthy"
         elif self == self.HAZARDOUS:
             return "Hazardous"
-        else:
-            return ""
-
-    def abbr(self) -> str:
-        if self == self.GOOD:
-            return "GOOD"
-        elif self == self.MODERATE:
-            return "MODERATE"
-        if self == self.UNHEALTHY_FSGs:
-            return "UFSGS"
-        elif self == self.UNHEALTHY:
-            return "UNHEALTHY"
-        if self == self.VERY_UNHEALTHY:
-            return "VERY_UNHEALTHY"
-        elif self == self.HAZARDOUS:
-            return "HAZARDOUS"
         else:
             return ""
 

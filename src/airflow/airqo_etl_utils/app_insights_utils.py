@@ -315,6 +315,7 @@ class AirQoAppUtils:
                 "site_location": "location",
                 "site_region": "region",
                 "site_country": "country",
+                "site_id": "referenceSite",
             },
             inplace=True,
         )
@@ -344,28 +345,31 @@ class AirQoAppUtils:
             columns={
                 "pm2_5_calibrated_value": "pm2_5",
                 "pm10_calibrated_value": "pm10",
+                "site_id": "referenceSite",
+                "tenant": "source",
             },
             inplace=True,
         )
 
-        data.dropna(inplace=True, subset=["pm2_5", "site_id", "timestamp"])
         data = DataValidationUtils.remove_outliers(data)
+        data.dropna(inplace=True, subset=["pm2_5", "referenceSite", "timestamp"])
 
-        data = data.merge(sites, on=["site_id"], how="left")
+        data = data.merge(sites, on=["referenceSite"], how="left")
         data = data[
             [
                 "pm2_5",
                 "pm10",
                 "calibrated",
                 "timestamp",
-                "site_id",
+                "referenceSite",
                 "name",
                 "location",
                 "region",
                 "country",
-                "tenant",
+                "source",
             ]
         ]
+        data.loc[:, "placeId"] = data["referenceSite"]
 
         data.loc[:, "timestamp"] = pd.to_datetime(data["timestamp"])
 
@@ -377,12 +381,17 @@ class AirQoAppUtils:
             lambda pm2_5: AirQoAppUtils.round_off_value(pm2_5, Pollutant.PM2_5)
         )
 
-        data.loc[:, "air_quality"] = data["pm2_5"].apply(
+        data.loc[:, "airQuality"] = data["pm2_5"].apply(
             lambda pm2_5: get_air_quality(pm2_5, Pollutant.PM2_5)
         )
 
-        data.loc[:, "air_quality"] = data["air_quality"].apply(
-            lambda air_quality: air_quality.abbr()
+        data.loc[:, "source"] = data["source"].apply(
+            lambda source: Tenant.from_str(source)
+        )
+        data.loc[:, "source"] = data["source"].apply(lambda source: source.name())
+
+        data.loc[:, "airQuality"] = data["airQuality"].apply(
+            lambda air_quality: str(air_quality)
         )
 
         cred = credentials.Certificate(configuration.GOOGLE_APPLICATION_CREDENTIALS)
@@ -392,15 +401,13 @@ class AirQoAppUtils:
 
         data.sort_values(ascending=True, by="timestamp", inplace=True)
         data.drop_duplicates(
-            keep="first", inplace=True, subset=["site_id", "timestamp"]
+            keep="first", inplace=True, subset=["referenceSite", "timestamp"]
         )
 
         for _, row in data.iterrows():
             site_collection = db.collection(
                 configuration.FIREBASE_AIR_QUALITY_READINGS_COLLECTION
-            ).document(row["site_id"])
-            # print(site_collection)
-            # print(row.to_dict())
+            ).document(row["placeId"])
             batch.set(site_collection, row.to_dict())
 
         batch.commit()
