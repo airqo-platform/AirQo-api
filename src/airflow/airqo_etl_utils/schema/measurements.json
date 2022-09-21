@@ -21,12 +21,6 @@
     "description": "Unique number that identifies the device."
   },
   {
-    "name": "device",
-    "type": "STRING",
-    "mode": "NULLABLE",
-    "description": "Deprecated"
-  },
-  {
     "name": "device_id",
     "type": "STRING",
     "mode": "NULLABLE",
@@ -139,16 +133,39 @@
     "description": " μg/m3.\npm 1 calibrated value. "
   },
   {
-    "name": "external_temperature",
+    "name": "hdop",
     "type": "FLOAT",
-    "mode": "NULLABLE",
-    "description": "°C.\nExternal temperature"
+    "mode": "NULLABLE"
   },
   {
-    "name": "external_humidity",
+    "name": "device_temperature",
     "type": "FLOAT",
-    "mode": "NULLABLE",
-    "description": "%.\nRelative humidity"
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "device_humidity",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "temperature",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "humidity",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "vapor_pressure",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "satellites",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
   },
   {
     "name": "wind_speed",

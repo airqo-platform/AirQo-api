@@ -37,7 +37,7 @@ class AirQoAppUtils:
             end_date_time=end_date_time,
             columns=cols,
             table=bigquery_api.hourly_measurements_table,
-            where_fields={"tenant": "airqo"},
+            tenant=Tenant.AIRQO,
         )
 
         if measurements.empty:
@@ -74,7 +74,7 @@ class AirQoAppUtils:
         insights.rename(
             columns={"timestamp": "time", "site_id": "siteId"}, inplace=True
         )
-        insights["frequency"] = frequency
+        insights.loc[:, "frequency"] = frequency
         insights[["empty", "forecast"]] = False
 
         return AirQoAppUtils.create_insights(insights)

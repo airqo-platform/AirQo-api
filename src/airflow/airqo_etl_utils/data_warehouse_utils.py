@@ -133,13 +133,12 @@ class DataWarehouseUtils:
             [airqo_data, non_airqo_data, bam_data], ignore_index=True
         )
 
-        devices_data = devices_data.merge(
+        return pd.merge(
+            left=devices_data,
             right=sites_data,
             on=["site_id", "tenant"],
             how="left",
         )
-
-        return devices_data
 
     @staticmethod
     def reload_data(data: pd.DataFrame):

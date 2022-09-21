@@ -365,7 +365,7 @@ class AirQoDataUtils:
             averages["site_id"] = site_id
             averages["device_number"] = device_number
 
-            aggregated_data = aggregated_data.append(averages, ignore_index=True)
+            aggregated_data = pd.concat([aggregated_data, averages], ignore_index=True)
 
         return aggregated_data
 
@@ -439,6 +439,34 @@ class AirQoDataUtils:
         big_query_api = BigQueryApi()
         cols = big_query_api.get_columns(table=big_query_api.hourly_measurements_table)
         return Utils.populate_missing_columns(data=data, cols=cols)
+
+    @staticmethod
+    def process_latest_data(
+        data: pd.DataFrame, device_category: DeviceCategory
+    ) -> pd.DataFrame:
+
+        if device_category == DeviceCategory.BAM:
+            data["s1_pm2_5"] = data["pm2_5"]
+            data["pm2_5_raw_value"] = data["pm2_5"]
+            data["pm2_5_calibrated_value"] = data["pm2_5"]
+
+            data["s1_pm10"] = data["pm10"]
+            data["pm10_raw_value"] = data["pm10"]
+            data["pm10_calibrated_value"] = data["pm10"]
+
+            data["no2_raw_value"] = data["no2"]
+            data["no2_calibrated_value"] = data["no2"]
+
+        else:
+            data["pm2_5"] = data["pm2_5_calibrated_value"]
+            data["pm10"] = data["pm10_calibrated_value"]
+
+            data["pm2_5_raw_value"] = data[["s1_pm2_5", "s2_pm2_5"]].mean(axis=1)
+            data["pm10_raw_value"] = data[["s1_pm10", "s2_pm10"]].mean(axis=1)
+
+            data["pm2_5"] = data["pm2_5"].fillna(data["pm2_5_raw_value"])
+            data["pm10"] = data["pm10"].fillna(data["pm10_raw_value"])
+        return data
 
     @staticmethod
     def process_data_for_api(data: pd.DataFrame, frequency: Frequency) -> list:
@@ -854,8 +882,8 @@ class AirQoDataUtils:
                     "s2_pm10": {"value": data_row["s2_pm10"]},
                     "no2": {"value": data_row["no2"]},
                     "pm1": {"value": data_row["pm1"]},
-                    "external_temperature": {"value": data_row["external_temperature"]},
-                    "external_humidity": {"value": data_row["external_humidity"]},
+                    "externalTemperature": {"value": data_row["temperature"]},
+                    "externalHumidity": {"value": data_row["humidity"]},
                     "speed": {"value": data_row["wind_speed"]},
                 }
             )
