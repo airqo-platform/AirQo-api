@@ -193,6 +193,71 @@ const createLocation = {
     }
   },
 
+  listSummary: async (req, res) => {
+    try {
+      const { query } = req;
+      let request = {};
+      logText(".....................................");
+      logText("list all airqlouds by query params provided");
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      request["query"] = query;
+      request["query"]["summary"] = "yes";
+      let responseFromListLocations = await createLocationUtil.list(request);
+      logElement(
+        "has the response for listing locations been successful?",
+        responseFromListLocations.success
+      );
+      if (responseFromListLocations.success === true) {
+        let status = responseFromListLocations.status
+          ? responseFromListLocations.status
+          : HTTPStatus.OK;
+        res.status(status).json({
+          success: true,
+          message: responseFromListLocations.message,
+          airqlouds: responseFromListLocations.data,
+        });
+      }
+
+      if (responseFromListLocations.success === false) {
+        let errors = responseFromListLocations.errors
+          ? responseFromListLocations.errors
+          : { message: "" };
+        let status = responseFromListLocations.status
+          ? responseFromListLocations.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        res.status(status).json({
+          success: false,
+          message: responseFromListLocations.message,
+          errors,
+        });
+      }
+    } catch (errors) {
+      logger.error(`internal server error -- ${errors.message}`);
+      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: errors.message },
+      });
+    }
+  },
+
   list: async (req, res) => {
     try {
       const { query } = req;

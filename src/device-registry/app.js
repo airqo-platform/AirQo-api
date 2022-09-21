@@ -16,8 +16,8 @@ const { runKafkaConsumer, runKafkaProducer } = require("./config/kafkajs");
 
 mongodb;
 
-// runKafkaProducer();
-// runKafkaConsumer();
+runKafkaProducer();
+runKafkaConsumer();
 const moesif = require("moesif-nodejs");
 const compression = require("compression");
 
@@ -50,7 +50,7 @@ app.use(function(req, res, next) {
 });
 
 app.use(function(err, req, res, next) {
-  logger.error(`${err.message}`);
+  logger.error(`${constants.ENVIRONMENT} -- ${err.message}`);
   if (err.status === 404) {
     res.status(err.status).json({
       success: false,

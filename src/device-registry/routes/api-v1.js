@@ -48,6 +48,38 @@ router.post(
   deviceController.decryptKey
 );
 
+router.post(
+  "/decrypt/bulk",
+  oneOf([
+    body()
+      .isArray()
+      .withMessage("the request body should be an array"),
+  ]),
+  oneOf([
+    [
+      body("*.encrypted_key")
+        .exists()
+        .trim()
+        .withMessage("encrypted_key is missing")
+        .bail()
+        .notEmpty()
+        .withMessage(
+          "the encrypted_key should not be empty for all provided entries"
+        ),
+      body("*.device_number")
+        .exists()
+        .trim()
+        .withMessage("device_number is missing in one of the inputs")
+        .bail()
+        .isInt()
+        .withMessage(
+          "the device_number in some of the inputs should be an integer value"
+        ),
+    ],
+  ]),
+  deviceController.decryptManyKeys
+);
+
 router.put(
   "/encrypt",
   oneOf([
@@ -3902,6 +3934,62 @@ router.get(
     ],
   ]),
   locationController.list
+);
+
+router.get(
+  "/locations/summary",
+  oneOf([
+    query("tenant")
+      .exists()
+      .withMessage("tenant should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    [
+      query("id")
+        .optional()
+        .notEmpty()
+        .trim()
+        .isMongoId()
+        .withMessage("id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      query("name")
+        .optional()
+        .notEmpty()
+        .withMessage("name cannot be empty")
+        .trim(),
+      query("admin_level")
+        .optional()
+        .notEmpty()
+        .withMessage(
+          "admin_level is empty, should not be if provided in request"
+        )
+        .bail()
+        .toLowerCase()
+        .isIn([
+          "village",
+          "district",
+          "parish",
+          "division",
+          "county",
+          "subcounty",
+          "country",
+          "state",
+          "province",
+        ])
+        .withMessage(
+          "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district"
+        ),
+    ],
+  ]),
+  locationController.listSummary
 );
 
 router.put(

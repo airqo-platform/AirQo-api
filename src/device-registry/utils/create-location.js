@@ -66,9 +66,7 @@ const createLocation = {
           data: responseFromRegisterLocation.data,
           status,
         };
-      }
-
-      if (responseFromRegisterLocation.success === false) {
+      } else if (responseFromRegisterLocation.success === false) {
         let errors = responseFromRegisterLocation.errors
           ? responseFromRegisterLocation.errors
           : "";
@@ -121,9 +119,7 @@ const createLocation = {
           data: responseFromModifyLocation.data,
           status,
         };
-      }
-
-      if (responseFromModifyLocation.success === false) {
+      } else if (responseFromModifyLocation.success === false) {
         let errors = responseFromModifyLocation.errors
           ? responseFromModifyLocation.errors
           : "";
@@ -172,9 +168,7 @@ const createLocation = {
           data: responseFromRemoveLocation.data,
           status,
         };
-      }
-
-      if (responseFromRemoveLocation.success === false) {
+      } else if (responseFromRemoveLocation.success === false) {
         let errors = responseFromRemoveLocation.errors
           ? responseFromRemoveLocation.errors
           : "";
@@ -207,7 +201,6 @@ const createLocation = {
       const limit = 1000;
       const skip = parseInt(query.skip) || 0;
       let filter = generateFilter.locations(request);
-      logObject("location filter", filter);
 
       let responseFromListLocation = await getModelByTenant(
         tenant.toLowerCase(),
@@ -219,7 +212,6 @@ const createLocation = {
         skip,
       });
 
-      logObject("responseFromListLocation", responseFromListLocation);
       if (responseFromListLocation.success === false) {
         let errors = responseFromListLocation.errors
           ? responseFromListLocation.errors
@@ -234,9 +226,7 @@ const createLocation = {
           errors,
           status,
         };
-      }
-
-      if (responseFromListLocation.success === true) {
+      } else if (responseFromListLocation.success === true) {
         let status = responseFromListLocation.status
           ? responseFromListLocation.status
           : "";
