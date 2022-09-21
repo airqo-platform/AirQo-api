@@ -5,3 +5,16 @@ repos:
       - id: ggshield
         language_version: python3
         stages: [commit]
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v2.7.1
+    hooks:
+      - id: prettier
+  - repo: https://github.com/psf/black
+    rev: 22.8.0
+    hooks:
+      - id: black
+  - repo: https://github.com/macisamuele/language-formatters-pre-commit-hooks
+    rev: v2.4.0
+    hooks:
+      - id: pretty-format-java
+        args: [--autofix]

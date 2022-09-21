@@ -287,11 +287,11 @@ jobs:
             fi
 
             if [[ $file == src/kafka-connectors/* ]]; then
-              echo "::set-output name=run_kafka_connectors::false"
+              echo "::set-output name=run_kafka_connectors::true"
             fi
 
             if [[ $file == k8s/kafka-connectors/* ]]; then
-              echo "::set-output name=run_kafka_connectors::false"
+              echo "::set-output name=run_kafka_connectors::true"
             fi
 
             if [[ $file == k8s/nginx-ingress/* ]]; then
@@ -320,7 +320,7 @@ jobs:
               echo "::set-output name=run_channel_data::true"
               echo "::set-output name=run_fault_detection::true"
               echo "::set-output name=run_view::true"
-              echo "::set-output name=run_kafka_connectors::false"
+              echo "::set-output name=run_kafka_connectors::true"
               echo "::set-output name=run_nginx_ingress::true"
             fi
 
