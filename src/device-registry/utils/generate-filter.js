@@ -735,11 +735,15 @@ const generateFilter = {
   },
 
   locations: (req) => {
-    let { id, name, admin_level } = req.query;
+    let { id, name, admin_level, summary } = req.query;
     let filter = {};
 
     if (id) {
       filter["_id"] = ObjectId(id);
+    }
+
+    if (summary === "yes") {
+      filter["summary"] = summary;
     }
 
     if (name) {
