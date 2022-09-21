@@ -974,8 +974,7 @@ const createDevice = {
           errors: `${response.error}`,
           status: `${response.status}`,
         };
-      }
-      if (!isEmpty(response.data)) {
+      } else if (!isEmpty(response.data)) {
         logger.info(
           `successfully deleted the device on thingspeak -- ${response.data}`
         );
