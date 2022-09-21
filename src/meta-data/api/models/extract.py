@@ -59,7 +59,7 @@ class Extract:
         tags = {"amenity": True, "landuse": True}
         g = ox.graph_from_point((lat, lon), dist=10000, network_type="drive")
         gdf = ox.graph_to_gdfs(g, nodes=False, fill_edge_geometry=True)
-
+        del gdf["geometry"]  # removing geometry because it's not jSON serializable
         return gdf.to_dict("records")
 
     def get_altitude(self, lat, lon):
