@@ -14,6 +14,7 @@ const HTTPStatus = require("http-status");
 const AdminJS = require("adminjs");
 const AdminJSMongoose = require("@adminjs/mongoose");
 AdminJS.registerAdapter(AdminJSMongoose);
+const accessCodeGenerator = require("generate-password");
 
 function oneMonthFromNow() {
   var d = new Date();
@@ -362,6 +363,16 @@ UserSchema.methods = {
       constants.JWT_SECRET
     );
   },
+  newToken() {
+    const token = accessCodeGenerator.generate(
+      constants.RANDOM_PASSWORD_CONFIGURATION(10)
+    );
+    const hashedToken = bcrypt.hashSync(token, saltRounds);
+    return {
+      accessToken: hashedToken,
+      plainTextToken: `${token.id}|${plainTextToken}`,
+    };
+  },
   toAuthJSON() {
     return {
       _id: this._id,
@@ -391,6 +402,68 @@ UserSchema.methods = {
       updatedAt: this.updatedAt,
     };
   },
+};
+
+/***
+ * prototype functions need to be added here
+ */
+const User = {
+  prototype: {},
+};
+
+User.prototype.newToken = async function newToken(device_name = "Web FE") {
+  const plainTextToken = Random(40);
+
+  const token = await this.createToken({
+    name: device_name,
+    token: hash(plainTextToken),
+  });
+
+  return {
+    accessToken: token,
+    plainTextToken: `${token.id}|${plainTextToken}`,
+  };
+};
+
+User.prototype.hasRole = async function hasRole(role) {
+  if (!role || role === "undefined") {
+    return false;
+  }
+  const roles = await this.getRoles();
+  return !!roles.map(({ name }) => name).includes(role);
+};
+
+User.prototype.hasPermission = async function hasPermission(permission) {
+  if (!permission || permission === "undefined") {
+    return false;
+  }
+  const permissions = await this.getPermissions();
+  return !!permissions.map(({ name }) => name).includes(permission.name);
+};
+
+User.prototype.hasPermissionThroughRole =
+  async function hasPermissionThroughRole(permission) {
+    if (!permission || permission === "undefined") {
+      return false;
+    }
+    const roles = await this.getRoles();
+    // eslint-disable-next-line no-restricted-syntax
+    for await (const item of permission.roles) {
+      if (roles.filter((role) => role.name === item.name).length > 0) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+User.prototype.hasPermissionTo = async function hasPermissionTo(permission) {
+  if (!permission || permission === "undefined") {
+    return false;
+  }
+  return (
+    (await this.hasPermissionThroughRole(permission)) ||
+    this.hasPermission(permission)
+  );
 };
 
 module.exports = UserSchema;
