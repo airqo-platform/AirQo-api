@@ -3,10 +3,11 @@ import pandas as pd
 from .airqo_api import AirQoApi
 from .airqo_utils import AirQoDataUtils
 from .bigquery_api import BigQueryApi
-from .constants import Tenant
 from .data_validator import DataValidationUtils
 from .date import date_to_str
 from .weather_data_utils import WeatherDataUtils
+from .constants import Tenant, DeviceCategory
+from .utils import Utils
 
 
 class DataWarehouseUtils:
@@ -116,14 +117,17 @@ class DataWarehouseUtils:
         return DataWarehouseUtils.filter_valid_columns(sites)
 
     @staticmethod
-    def merge_bam_low_cost_and_weather_data(
+    def merge_datasets(
         weather_data: pd.DataFrame,
         bam_data: pd.DataFrame,
         low_cost_data: pd.DataFrame,
-        sites_data: pd.DataFrame,
+        sites_info: pd.DataFrame,
     ) -> pd.DataFrame:
+        low_cost_data[:, "device_category"] = str(DeviceCategory.LOW_COST)
+        bam_data[:, "device_category"] = str(DeviceCategory.BAM)
 
         airqo_data = low_cost_data.loc[low_cost_data["tenant"] == str(Tenant.AIRQO)]
+
         non_airqo_data = low_cost_data.loc[low_cost_data["tenant"] != str(Tenant.AIRQO)]
         airqo_data = AirQoDataUtils.merge_aggregated_weather_data(
             airqo_data=airqo_data, weather_data=weather_data
@@ -135,7 +139,7 @@ class DataWarehouseUtils:
 
         return pd.merge(
             left=devices_data,
-            right=sites_data,
+            right=sites_info,
             on=["site_id", "tenant"],
             how="left",
         )
@@ -163,3 +167,8 @@ class DataWarehouseUtils:
             end_date_time=end_date_time,
             tenant=tenant,
         )
+
+    def format_data_for_bigquery(data: pd.DataFrame) -> pd.DataFrame:
+        big_query_api = BigQueryApi()
+        cols = big_query_api.get_columns(table=big_query_api.consolidated_data_table)
+        return Utils.populate_missing_columns(data=data, cols=cols)

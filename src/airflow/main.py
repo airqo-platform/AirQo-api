@@ -6,6 +6,9 @@ from pathlib import Path
 import pandas as pd
 from dotenv import load_dotenv
 
+from airqo_etl_utils.date import date_to_str
+from airqo_etl_utils.utils import Utils
+from airqo_etl_utils.weather_data_utils import WeatherDataUtils
 from airqo_etl_utils.airqo_api import AirQoApi
 from airqo_etl_utils.airqo_utils import AirQoDataUtils
 from airqo_etl_utils.app_insights_utils import AirQoAppUtils
@@ -328,6 +331,44 @@ def kcca_hourly_measurements(start_date_time: str, end_date_time: str):
     bigquery_data_df.to_csv(path_or_buf="kcca_data_for_bigquery.csv", index=False)
 
 
+def data_warehouse(start_date_time: str, end_date_time: str):
+    from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
+
+    hourly_low_cost_data = DataWarehouseUtils.extract_hourly_low_cost_data(
+        start_date_time=start_date_time, end_date_time=end_date_time
+    )
+    hourly_low_cost_data.to_csv(path_or_buf="hourly_low_cost_data.csv", index=False)
+
+    hourly_bam_data = DataWarehouseUtils.extract_hourly_bam_data(
+        start_date_time=start_date_time, end_date_time=end_date_time
+    )
+    hourly_bam_data.to_csv(path_or_buf="hourly_bam_data.csv", index=False)
+
+    hourly_weather_data = DataWarehouseUtils.extract_hourly_weather_data(
+        start_date_time=start_date_time, end_date_time=end_date_time
+    )
+    hourly_weather_data.to_csv(path_or_buf="hourly_weather_data.csv", index=False)
+
+    sites_data = DataWarehouseUtils.extract_sites_info()
+    sites_data.to_csv(path_or_buf="sites_data.csv", index=False)
+
+    hourly_low_cost_data = pd.read_csv("hourly_low_cost_data.csv")
+    hourly_bam_data = pd.read_csv("hourly_bam_data.csv")
+    hourly_weather_data = pd.read_csv("hourly_weather_data.csv")
+    sites_data = pd.read_csv("sites_data.csv")
+
+    consolidated_data = DataWarehouseUtils.merge_datasets(
+        bam_data=hourly_bam_data,
+        low_cost_data=hourly_low_cost_data,
+        weather_data=hourly_weather_data,
+        sites_info=sites_data,
+    )
+    consolidated_data.to_csv(path_or_buf="consolidated_data.csv", index=False)
+
+    data = DataWarehouseUtils.format_data_for_bigquery(data=consolidated_data)
+    data.to_csv(path_or_buf="consolidated_data.csv", index=False)
+
+
 def airqo_historical_hourly_data():
 
     start_date_time = "2022-01-01T10:00:00Z"
@@ -450,27 +491,27 @@ def daily_insights(start_date_time: str, end_date_time: str):
     pd.DataFrame(insights_data).to_csv(path_or_buf="insights_data.csv", index=False)
 
 
-def weather_data():
-    from airqo_etl_utils.weather_data_utils import WeatherDataUtils
+@jit(target_backend="cuda")
+def weather_data(start_date_time, end_date_time, file):
 
-    start_date_time = "2022-01-01T10:00:00Z"
-    end_date_time = "2022-01-01T17:00:00Z"
+    # start_date_time = "2022-01-01T10:00:00Z"
+    # end_date_time = "2022-01-01T17:00:00Z"
 
     raw_weather_data = WeatherDataUtils.query_raw_data_from_tahmo(
         start_date_time=start_date_time, end_date_time=end_date_time
     )
-    raw_weather_data.to_csv(path_or_buf="raw_weather_data.csv", index=False)
+    # raw_weather_data.to_csv(path_or_buf="raw_weather_data.csv", index=False)
 
     cleaned_weather_data = WeatherDataUtils.transform_raw_data(data=raw_weather_data)
-    cleaned_weather_data.to_csv(path_or_buf="cleaned_weather_data.csv", index=False)
+    # cleaned_weather_data.to_csv(path_or_buf="cleaned_weather_data.csv", index=False)
 
     hourly_weather_data = WeatherDataUtils.aggregate_data(data=cleaned_weather_data)
-    hourly_weather_data.to_csv(path_or_buf="hourly_weather_data.csv", index=False)
+    hourly_weather_data.to_csv(path_or_buf=f"{file}.csv", index=False)
 
-    bigquery_weather_data = WeatherDataUtils.transform_for_bigquery(
-        data=hourly_weather_data
-    )
-    bigquery_weather_data.to_csv(path_or_buf="bigquery_weather_data.csv", index=False)
+    # bigquery_weather_data = WeatherDataUtils.transform_for_bigquery(
+    #     data=hourly_weather_data
+    # )
+    # bigquery_weather_data.to_csv(path_or_buf="bigquery_weather_data.csv", index=False)
 
 
 def meta_data():
@@ -552,6 +593,12 @@ def urban_better_data_from_plume_labs():
 
     start_date_time = "2022-08-13T00:00:00Z"
     end_date_time = "2022-08-13T23:59:59Z"
+    start_date_time = "2022-07-30T00:00:00Z"
+    end_date_time = "2022-07-31T00:00:00Z"
+    measurements = UrbanBetterUtils.extract_raw_data_from_plume_labs(
+        start_date_time=start_date_time, end_date_time=end_date_time
+    )
+    measurements.to_csv("urban_better_unprocessed_data.csv", index=False)
 
     measures = PlumeLabsUtils.extract_sensor_measures(
         start_date_time=start_date_time,
@@ -831,7 +878,189 @@ def airqo_historical_api_bam_data():
     clean_bam_data.to_csv("bigquery_clean_airqo_bam_data.csv", index=False)
 
 
+def download_weather_data():
+
+    bigquery_api = BigQueryApi()
+
+    for year in [2019, 2020, 2021]:
+        dates = Utils.year_months_query_array(year)
+        for start, end in dates:
+            data = bigquery_api.query_data(
+                start_date_time=start,
+                end_date_time=end,
+                table=bigquery_api.hourly_weather_table,
+            )
+            data.to_csv(
+                f"/Users/noah/data/historical_data/weather_data/aggregated/{start}-{end}.csv",
+                index=False,
+            )
+            print(f"{start}-{end} completed\n")
+
+
+def reload_calibrate_low_cost_data():
+    months = [
+        "jan",
+        "feb",
+        "mar",
+        "apr",
+        "may",
+        "june",
+        "july",
+        "aug",
+        "sept",
+        "oct",
+        "nov",
+        "dec",
+    ]
+    months = ["june", "july", "aug", "sept", "oct", "nov", "dec"]
+    bigquery_api = BigQueryApi()
+    for year in [2020]:
+        for month in months:
+            file = f"/Users/noah/data/historical_data/airqo_data/calibrated/{year}-{month}.csv"
+            data = pd.read_csv(file)
+
+            cols = data.columns.to_list()
+
+            cols.remove("device_number")
+            cols.remove("timestamp")
+            cols.remove("device_id")
+
+            data.dropna(subset=cols, inplace=True, how="all")
+            data.dropna(subset=["pm2_5_calibrated_value"], inplace=True)
+
+            if data.empty:
+                print(f"{year}-{month} empty\n")
+                continue
+
+            data.rename(
+                columns={
+                    "temperature": "external_temperature",
+                    "humidity": "external_humidity",
+                },
+                inplace=True,
+            )
+
+            data["tenant"] = str(Tenant.AIRQO)
+            data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
+
+            start_date_time = data["timestamp"].min()
+            end_date_time = data["timestamp"].max()
+
+            old_data = bigquery_api.query_data(
+                where_fields={"tenant": str(Tenant.AIRQO)},
+                start_date_time=date_to_str(start_date_time),
+                end_date_time=date_to_str(end_date_time),
+                table=bigquery_api.hourly_measurements_table,
+            )
+
+            if old_data.empty:
+                old_data = data
+
+            old_data["timestamp"] = old_data["timestamp"].apply(pd.to_datetime)
+
+            non_null_data = old_data.dropna(subset=["pm2_5_calibrated_value"])
+            null_data = pd.DataFrame(
+                old_data.loc[old_data["pm2_5_calibrated_value"].isnull()]
+            )
+
+            for col in old_data.columns.to_list():
+                null_data.rename(columns={col: f"{col}_old_data"}, inplace=True)
+
+            merged_data = pd.merge(
+                left=data,
+                right=null_data,
+                how="left",
+                indicator=True,
+                left_on=["timestamp", "device_number"],
+                right_on=["timestamp_old_data", "device_number_old_data"],
+            )
+            both_data = merged_data.loc[merged_data["_merge"] == "both"]
+            both_data = both_data[data.columns.to_list()]
+
+            right_data = merged_data.loc[merged_data["_merge"] == "right_only"]
+
+            left_data = merged_data.loc[merged_data["_merge"] == "left_only"]
+            right_data = right_data[null_data.columns.to_list()]
+            for col in old_data.columns.to_list():
+                right_data.rename(columns={f"{col}_old_data": col}, inplace=True)
+            right_data = right_data[old_data.columns.to_list()]
+
+            merged_data = both_data.append(right_data, ignore_index=True)
+            # merged_data = merged_data[old_data.columns.to_list()]
+
+            # merged_data.drop_duplicates(subset=["device_number", "timestamp"],
+            #                             keep="first", ignore_index=True,
+            #                             inplace=True)
+
+            merged_data = non_null_data.append(merged_data, ignore_index=True)
+            # merged_data.drop_duplicates(subset=["device_number", "timestamp"],
+            #                             keep="first", ignore_index=True,
+            #                             inplace=True)
+
+            merged_data = Utils.populate_missing_columns(
+                data=merged_data,
+                cols=bigquery_api.get_columns(
+                    table=bigquery_api.hourly_measurements_table
+                ),
+            )
+            merged_data["tenant"] = str(Tenant.AIRQO)
+
+            bigquery_api.reload_data(
+                dataframe=merged_data,
+                tenant=Tenant.AIRQO,
+                table=bigquery_api.hourly_measurements_table,
+            )
+
+            print(f"{year}-{month} completed\n")
+
+
+# def calibrate_low_cost_data():
+#     months = [
+#         "jan",
+#         "feb",
+#         "mar",
+#         "apr",
+#         "may",
+#         "june",
+#         "july",
+#     ]
+#     bigquery_api = BigQueryApi()
+#     for year in [2022]:
+#         for month in months:
+#             file = f"/Users/noah/data/historical_data/airqo_data/raw/{year}-{month}.csv"
+#             low_cost_sensors_data = pd.read_csv(file)
+#
+#             aggregated_data = AirQoDataUtils.aggregate_low_cost_sensors_data(low_cost_sensors_data)
+#             aggregated_data.to_csv(
+#                 f"/Users/noah/data/historical_data/airqo_data/aggregated/{year}-{month}.csv",
+#                 index=False,
+#             )
+#
+#             aggregated_data["timestamp"] = aggregated_data["timestamp"].apply(pd.to_datetime)
+#
+#             max_timestamp = aggregated_data["timestamp"].max()
+#             min_timestamp = aggregated_data["timestamp"].min()
+#
+#             hourly_weather_data = bigquery_api.query_data(
+#                 start_date_time=date_to_str(min_timestamp),
+#                 end_date_time=date_to_str(max_timestamp),
+#                 table=bigquery_api.hourly_weather_table,
+#             )
+#
+#             airqo_data = AirQoDataUtils.merge_aggregated_weather_data(
+#                 airqo_data=aggregated_data, weather_data=hourly_weather_data
+#             )
+#
+#             airqo_data = CalibrationUtils.calibrate_airqo_data(airqo_data)
+#             airqo_data.to_csv(
+#                 f"/Users/noah/data/historical_data/airqo_data/calibrated/{year}-{month}.csv",
+#                 index=False,
+#             )
+#             print(f"{year}-{month} completed\n")
+
+
 if __name__ == "__main__":
+    # reload_calibrate_low_cost_data()
 
     from airqo_etl_utils.date import date_to_str_hours
 
@@ -856,6 +1085,11 @@ if __name__ == "__main__":
         default=default_args_end,
         type=valid_datetime_format,
         help='end datetime in format "yyyy-MM-ddThh:mm:ssZ"',
+    )
+    parser.add_argument(
+        "--file",
+        required=True,
+        type=str.lower,
     )
     parser.add_argument(
         "--tenant",
@@ -905,7 +1139,7 @@ if __name__ == "__main__":
         airqo_historical_hourly_data()
 
     elif args.action == "weather_data":
-        weather_data()
+        weather_data(start_date_time=args.start, end_date_time=args.end, file=args.file)
 
     elif args.action == "data_warehouse":
         main_class.data_warehouse()

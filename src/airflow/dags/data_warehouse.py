@@ -6,14 +6,14 @@ from airqo_etl_utils.airflow_custom_utils import slack_dag_failure_notification
 
 
 @dag(
-    "Data-Warehouse-ETL",
+    "Consolidated-Data-ETL",
     schedule_interval="@weekly",
     on_failure_callback=slack_dag_failure_notification,
     start_date=datetime(2021, 1, 1),
     catchup=False,
-    tags=["hourly", "data warehouse"],
+    tags=["hourly", "consolidated data"],
 )
-def data_warehouse_etl():
+def consolidated_data_etl():
     import pandas as pd
 
     @task()
@@ -56,41 +56,48 @@ def data_warehouse_etl():
         )
 
     @task()
-    def extract_sites_meta_data():
+    def extract_sites_info():
         from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
 
-        return DataWarehouseUtils.extract_sites_meta_data()
+        return DataWarehouseUtils.extract_sites_info()
 
     @task()
-    def merge_bam_low_cost_and_weather_data(
-        low_cost_data, bam_data, weather_data, sites_data
-    ):
+    def merge_datasets(low_cost_data, bam_data, weather_data, sites_data):
         from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
 
-        return DataWarehouseUtils.merge_bam_low_cost_and_weather_data(
+        return DataWarehouseUtils.merge_datasets(
             bam_data=bam_data,
             low_cost_data=low_cost_data,
             weather_data=weather_data,
-            sites_data=sites_data,
+            sites_info=sites_data,
         )
 
     @task()
     def load(data: pd.DataFrame):
+
         from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
 
         DataWarehouseUtils.reload_data(data)
 
+        from airqo_etl_utils.bigquery_api import BigQueryApi
+
+        big_query_api = BigQueryApi()
+        big_query_api.load_data(
+            dataframe=data,
+            table=big_query_api.analytics_table,
+        )
+
     hourly_low_cost_data = extract_hourly_low_cost_data()
     hourly_bam_data = extract_hourly_bam_data()
     hourly_weather_data = extract_hourly_weather_data()
-    sites_meta_data = extract_sites_meta_data()
-    merged_data = merge_bam_low_cost_and_weather_data(
+    sites_info = extract_sites_info()
+    merged_data = merge_datasets(
         low_cost_data=hourly_low_cost_data,
         bam_data=hourly_bam_data,
         weather_data=hourly_weather_data,
-        sites_data=sites_meta_data,
+        sites_data=sites_info,
     )
     load(merged_data)
 
 
-data_warehouse_etl_dag = data_warehouse_etl()
+consolidated_data_etl_dag = consolidated_data_etl()

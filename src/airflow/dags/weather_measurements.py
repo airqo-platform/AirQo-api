@@ -16,9 +16,9 @@ def historical_raw_weather_measurements_etl():
     @task()
     def extract(**kwargs) -> pd.DataFrame:
         from airqo_etl_utils.weather_data_utils import WeatherDataUtils
-        from airqo_etl_utils.commons import get_date_time_values
+        from airqo_etl_utils.date import DateUtils
 
-        start_date_time, end_date_time = get_date_time_values(**kwargs)
+        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(**kwargs)
         return WeatherDataUtils.query_raw_data_from_tahmo(
             start_date_time=start_date_time, end_date_time=end_date_time
         )
@@ -30,7 +30,7 @@ def historical_raw_weather_measurements_etl():
         return WeatherDataUtils.transform_raw_data(data=data)
 
     @task()
-    def save_to_bigquery(data: pd.DataFrame):
+    def reload(data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
         from airqo_etl_utils.weather_data_utils import WeatherDataUtils
@@ -38,13 +38,13 @@ def historical_raw_weather_measurements_etl():
         bigquery_data = WeatherDataUtils.transform_for_bigquery(data=data)
 
         big_query_api = BigQueryApi()
-        big_query_api.load_data(
+        big_query_api.reload_data(
             dataframe=bigquery_data, table=big_query_api.raw_weather_table
         )
 
     extracted_raw_data = extract()
     transformed_data = transform(extracted_raw_data)
-    save_to_bigquery(transformed_data)
+    reload(transformed_data)
 
 
 @dag(
@@ -60,9 +60,9 @@ def historical_hourly_weather_measurements_etl():
     @task()
     def extract(**kwargs) -> pd.DataFrame:
         from airqo_etl_utils.weather_data_utils import WeatherDataUtils
-        from airqo_etl_utils.commons import get_date_time_values
+        from airqo_etl_utils.date import DateUtils
 
-        start_date_time, end_date_time = get_date_time_values(**kwargs)
+        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(**kwargs)
         return WeatherDataUtils.extract_raw_data_from_bigquery(
             start_date_time=start_date_time, end_date_time=end_date_time
         )
@@ -74,17 +74,17 @@ def historical_hourly_weather_measurements_etl():
         return WeatherDataUtils.aggregate_data(data=data)
 
     @task()
-    def save_to_bigquery(weather_data: pd.DataFrame):
+    def reload(weather_data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
         big_query_api = BigQueryApi()
-        big_query_api.load_data(
+        big_query_api.reload_data(
             dataframe=weather_data, table=big_query_api.hourly_weather_table
         )
 
     extracted_data = extract()
     averaged_data = average(extracted_data)
-    save_to_bigquery(averaged_data)
+    reload(averaged_data)
 
 
 @dag(

@@ -147,14 +147,14 @@ def historical_hourly_measurements_etl():
         return CalibrationUtils.calibrate_airqo_data(data=measurements)
 
     @task()
-    def load(data: pd.DataFrame):
+    def reload(data: pd.DataFrame):
 
         from airqo_etl_utils.bigquery_api import BigQueryApi
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
         data = AirQoDataUtils.process_aggregated_data_for_bigquery(data=data)
         big_query_api = BigQueryApi()
-        big_query_api.load_data(
+        big_query_api.reload_data(
             dataframe=data,
             table=big_query_api.hourly_measurements_table,
         )
@@ -166,7 +166,7 @@ def historical_hourly_measurements_etl():
         weather_data=extracted_weather_data,
     )
     calibrated_data = calibrate_data(merged_data)
-    load(calibrated_data)
+    reload(calibrated_data)
 
 
 @dag(
@@ -217,7 +217,7 @@ def historical_raw_measurements_etl():
         )
 
     @task()
-    def load(airqo_data: pd.DataFrame):
+    def reload(airqo_data: pd.DataFrame):
 
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
         from airqo_etl_utils.bigquery_api import BigQueryApi
@@ -225,7 +225,7 @@ def historical_raw_measurements_etl():
         data = AirQoDataUtils.process_raw_data_for_bigquery(data=airqo_data)
 
         big_query_api = BigQueryApi()
-        big_query_api.load_data(
+        big_query_api.reload_data(
             dataframe=data,
             table=big_query_api.raw_measurements_table,
         )
@@ -236,7 +236,7 @@ def historical_raw_measurements_etl():
     data_with_site_ids = map_site_ids(
         airqo_data=clean_data, deployment_logs=device_logs
     )
-    load(data_with_site_ids)
+    reload(data_with_site_ids)
 
 
 @dag(
