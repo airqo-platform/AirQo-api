@@ -3,11 +3,8 @@ import pandas as pd
 from .airqo_api import AirQoApi
 from .airqo_utils import AirQoDataUtils
 from .bigquery_api import BigQueryApi
-from .data_validator import DataValidationUtils
-from .date import date_to_str
-from .weather_data_utils import WeatherDataUtils
 from .constants import Tenant, DeviceCategory
-from .utils import Utils
+from .weather_data_utils import WeatherDataUtils
 
 
 class DataWarehouseUtils:
@@ -48,6 +45,28 @@ class DataWarehouseUtils:
         )
 
         return DataWarehouseUtils.filter_valid_columns(data)
+
+    @staticmethod
+    def extract_data(
+        start_date_time: str,
+        end_date_time: str,
+    ) -> pd.DataFrame:
+        biq_query_api = BigQueryApi()
+        return biq_query_api.query_data(
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            table=biq_query_api.consolidated_data_table,
+            tenant=Tenant.ALL,
+        )
+
+    @staticmethod
+    def remove_duplicates(data: pd.DataFrame) -> pd.DataFrame:
+        data["timestamp"] = pd.to_datetime(data["timestamp"])
+        return data.drop_duplicates(
+            subset=["tenant", "timestamp", "device_number", "device_id"],
+            inplace=True,
+            keep="first",
+        )
 
     @staticmethod
     def extract_hourly_low_cost_data(
@@ -143,32 +162,3 @@ class DataWarehouseUtils:
             on=["site_id", "tenant"],
             how="left",
         )
-
-    @staticmethod
-    def reload_data(data: pd.DataFrame):
-
-        data = DataValidationUtils.format_data_types(
-            data=data, timestamps=["timestamp"]
-        )
-        start_date_time = date_to_str(data["timestamp"].min())
-        end_date_time = date_to_str(data["timestamp"].max())
-        tenant = Tenant.ALL
-
-        big_query_api = BigQueryApi()
-
-        data = DataValidationUtils.process_for_big_query(
-            dataframe=data, table=big_query_api.analytics_table, tenant=tenant
-        )
-
-        big_query_api.reload_data(
-            dataframe=data,
-            table=big_query_api.analytics_table,
-            start_date_time=start_date_time,
-            end_date_time=end_date_time,
-            tenant=tenant,
-        )
-
-    def format_data_for_bigquery(data: pd.DataFrame) -> pd.DataFrame:
-        big_query_api = BigQueryApi()
-        cols = big_query_api.get_columns(table=big_query_api.consolidated_data_table)
-        return Utils.populate_missing_columns(data=data, cols=cols)

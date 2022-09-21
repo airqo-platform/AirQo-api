@@ -33,6 +33,54 @@ class AirQoDataUtils:
         return DataValidationUtils.remove_outliers(hourly_uncalibrated_data)
 
     @staticmethod
+    def extract_data_from_bigquery(
+        start_date_time, end_date_time, frequency: Frequency
+    ) -> pd.DataFrame:
+        bigquery_api = BigQueryApi()
+        if frequency == Frequency.RAW:
+            table = bigquery_api.raw_measurements_table
+        elif frequency == Frequency.HOURLY:
+            table = bigquery_api.hourly_measurements_table
+        else:
+            table = ""
+        raw_data = bigquery_api.query_data(
+            table=table,
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            tenant=Tenant.AIRQO,
+        )
+
+        return DataValidationUtils.remove_outliers(raw_data)
+
+    @staticmethod
+    def remove_duplicates(data: pd.DataFrame) -> pd.DataFrame:
+        cols = data.columns.to_list()
+        cols.remove("timestamp")
+        cols.remove("device_number")
+        data.dropna(subset=cols, how="all", inplace=True)
+        data["timestamp"] = pd.to_datetime(data["timestamp"])
+
+        data["duplicated"] = data.duplicated(
+            keep=False, subset=["device_number", "timestamp"]
+        )
+        duplicated_data = pd.DataFrame(data.copy().loc[data["duplicated"] is True])
+        not_duplicated_data = pd.DataFrame(data.copy().loc[data["duplicated"] is False])
+
+        for _, by_station in duplicated_data.groupby(by="station_code"):
+            for _, by_timestamp in by_station.groupby(by="timestamp"):
+                by_timestamp = by_timestamp.copy()
+                by_timestamp.fillna(inplace=True, method="ffill")
+                by_timestamp.fillna(inplace=True, method="bfill")
+                by_timestamp.drop_duplicates(
+                    subset=["device_number", "timestamp"], inplace=True, keep="first"
+                )
+                not_duplicated_data = pd.concat(
+                    [not_duplicated_data, by_timestamp], ignore_index=True
+                )
+
+        return not_duplicated_data
+
+    @staticmethod
     def extract_aggregated_raw_data(start_date_time, end_date_time) -> pd.DataFrame:
         bigquery_api = BigQueryApi()
         measurements = bigquery_api.query_data(
