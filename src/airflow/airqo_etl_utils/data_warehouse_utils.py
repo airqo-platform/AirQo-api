@@ -43,7 +43,7 @@ class DataWarehouseUtils:
             },
             inplace=True,
         )
-
+        data.loc[:, "device_category"] = str(DeviceCategory.BAM)
         return DataWarehouseUtils.filter_valid_columns(data)
 
     @staticmethod
@@ -95,7 +95,7 @@ class DataWarehouseUtils:
             },
             inplace=True,
         )
-
+        data.loc[:, "device_category"] = str(DeviceCategory.LOW_COST)
         return DataWarehouseUtils.filter_valid_columns(data)
 
     @staticmethod
