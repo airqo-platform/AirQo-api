@@ -250,12 +250,18 @@ class BigQueryApi:
         self,
         dataframe: pd.DataFrame,
         table: str,
-        start_date_time: str,
-        end_date_time: str,
         tenant: Tenant = Tenant.ALL,
+        start_date_time: str = None,
+        end_date_time: str = None,
         where_fields: dict = None,
         null_cols: list = None,
     ) -> None:
+
+        if start_date_time is None or end_date_time is None:
+            data = dataframe.copy()
+            data["timestamp"] = pd.to_datetime(data["timestamp"])
+            start_date_time = date_to_str(data["timestamp"].min())
+            end_date_time = date_to_str(data["timestamp"].max())
 
         query = self.compose_query(
             QueryType.DELETE,
