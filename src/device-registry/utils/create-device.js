@@ -1073,6 +1073,41 @@ const createDevice = {
     };
   },
 
+  decryptManyKeys: (encryptedKeys) => {
+    try {
+      let results = [];
+      function helper(helperInput) {
+        if (helperInput.length === 0) {
+          return;
+        }
+        const bytes = cryptoJS.AES.decrypt(
+          helperInput[0].encrypted_key,
+          constants.KEY_ENCRYPTION_KEY
+        );
+        const originalText = bytes.toString(cryptoJS.enc.Utf8);
+        helperInput[0].decrypted_key = originalText;
+        results.push(helperInput[0]);
+        helper(helperInput.slice(1));
+      }
+      helper(encryptedKeys);
+      return {
+        success: true,
+        message: "successfully decrypted the provided keys",
+        data: results,
+        status: HTTPStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`internal server error -- ${err.message}`);
+      logObject("error", error);
+      return {
+        success: false,
+        message: "unable to decrypt the key",
+        errors: { message: error.message },
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
   decryptKey: (encryptedKey) => {
     try {
       let bytes = cryptoJS.AES.decrypt(
@@ -1087,13 +1122,14 @@ const createDevice = {
           status: HTTPStatus.NOT_FOUND,
           message: "the provided encrypted key is not recognizable",
         };
+      } else {
+        return {
+          success: true,
+          message: "successfully decrypted the text",
+          data: originalText,
+          status: HTTPStatus.OK,
+        };
       }
-      return {
-        success: true,
-        message: "successfully decrypted the text",
-        data: originalText,
-        status: HTTPStatus.OK,
-      };
     } catch (err) {
       logger.error(`internal server error -- ${err.message}`);
       return {
