@@ -24,6 +24,17 @@ const AccessTokenModel = (tenant) => {
 };
 
 const controlAccess = {
+  /***hashing */
+  hash: (string) => {
+    try {
+      crypto.createHash("sha256").update(string).digest("base64");
+    } catch (error) {}
+  },
+  hash_compare: (first_item, second_item) => {
+    try {
+      Object.is(first_item, second_item);
+    } catch (error) {}
+  },
   /**access tokens */
   updateAccessToken: async () => {
     try {
