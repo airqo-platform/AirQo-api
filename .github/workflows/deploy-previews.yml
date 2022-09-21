@@ -4,7 +4,7 @@ on:
   pull_request:
     branches:
       - staging
-  
+
 jobs:
   branch-name:
     name: Format branch name string
@@ -27,7 +27,7 @@ jobs:
       run_analytics: ${{ steps.check_files.outputs.run_analytics }} # analytics
       run_locate: ${{ steps.check_files.outputs.run_locate }} # locate
       run_predict: ${{ steps.check_files.outputs.run_predict }} # predict
-      run_datawarehouse: ${{ steps.check_files.outputs.run_datawarehouse }} # datawarehouse
+      run_meta_data: ${{ steps.check_files.outputs.run_meta_data }} # metadata
       run_view: ${{ steps.check_files.outputs.run_view }} # view
       run_calibrate: ${{ steps.check_files.outputs.run_calibrate }} # calibrate
       run_notifications: ${{ steps.check_files.outputs.run_notifications }} # notification
@@ -46,10 +46,10 @@ jobs:
         run: |
           echo "=============== list modified files ==============="
           git diff --name-only HEAD^ HEAD
-          
+
           echo "========== check paths of modified files =========="
           git diff --name-only HEAD^ HEAD > files.txt
-          
+
           echo "::set-output name=run_auth_service::false"
           echo "::set-output name=run_device_registry::false"  
           echo "::set-output name=run_device_monitoring::false" 
@@ -57,7 +57,7 @@ jobs:
           echo "::set-output name=run_analytics::false"
           echo "::set-output name=run_locate::false"
           echo "::set-output name=run_predict::false"
-          echo "::set-output name=run_datawarehouse::false"
+          echo "::set-output name=run_meta_data::false"
           echo "::set-output name=run_view::false"
           echo "::set-output name=run_calibrate::false" 
           echo "::set-output name=run_notifications::false"
@@ -94,8 +94,8 @@ jobs:
               echo "::set-output name=run_predict::true"
             fi
 
-            if [[ $file == src/data-mgt/python/extract-external-data/* ]]; then
-              echo "::set-output name=run_datawarehouse::true"
+            if [[ $file == src/meta-data/* ]]; then
+              echo "::set-output name=run_meta_data::true"
             fi
 
             if [[ $file == src/view/* ]]; then
@@ -119,12 +119,12 @@ jobs:
   ### auth_service ###
   auth-service:
     name: build-push-deploy-auth-service
-    needs: [check,branch-name]
+    needs: [check, branch-name]
     if: needs.check.outputs.run_auth_service == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write    
+      id-token: write
     outputs:
       url: ${{ steps.preview-url.outputs.url }}
     steps:
@@ -136,7 +136,7 @@ jobs:
         uses: google-github-actions/auth@v0
         with:
           credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
-          
+
       - name: Setup Cloud SDK
         uses: google-github-actions/setup-gcloud@v0
 
@@ -153,7 +153,7 @@ jobs:
           cd src/auth-service/
           docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} ./
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }}
-      
+
       - name: Deploy to Cloud Run
         run: |-
           gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-auth-service-preview \
@@ -193,16 +193,16 @@ jobs:
               repo: context.repo.repo,
               body: 'Auth-service changes in this PR available for preview [here](${{ needs.auth-service.outputs.url }})'
             })
-  
+
   ### device registry ###
   device-registry:
     name: build-push-deploy-device-registry
-    needs: [check,branch-name]
+    needs: [check, branch-name]
     if: needs.check.outputs.run_device_registry == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write    
+      id-token: write
     outputs:
       url: ${{ steps.preview-url.outputs.url }}
     steps:
@@ -214,7 +214,7 @@ jobs:
         uses: google-github-actions/auth@v0
         with:
           credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
-          
+
       - name: Setup Cloud SDK
         uses: google-github-actions/setup-gcloud@v0
 
@@ -231,7 +231,7 @@ jobs:
           cd src/device-registry/
           docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/device-registry-pr-previews:${{ github.sha }} ./
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/device-registry-pr-previews:${{ github.sha }}
-      
+
       - name: Deploy to Cloud Run
         run: |-
           gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-device-registry-preview \
@@ -271,16 +271,16 @@ jobs:
               repo: context.repo.repo,
               body: 'Device registry changes in this PR available for preview [here](${{ needs.device-registry.outputs.url }})'
             })
- 
+
   ### device monitoring ###
   device-monitoring:
     name: build-push-deploy-device-monitoring
-    needs: [check,branch-name]
+    needs: [check, branch-name]
     if: needs.check.outputs.run_device_monitoring == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write    
+      id-token: write
     outputs:
       url: ${{ steps.preview-url.outputs.url }}
     steps:
@@ -292,7 +292,7 @@ jobs:
         uses: google-github-actions/auth@v0
         with:
           credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
-          
+
       - name: Setup Cloud SDK
         uses: google-github-actions/setup-gcloud@v0
 
@@ -309,7 +309,7 @@ jobs:
           cd src/device-monitoring/
           docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/device-monitoring-pr-previews:${{ github.sha }} ./
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/device-monitoring-pr-previews:${{ github.sha }}
-      
+
       - name: Deploy to Cloud Run
         run: |-
           gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-device-monitoring-preview \
@@ -353,12 +353,12 @@ jobs:
   ### run data mgt ###
   data-mgt:
     name: build-push-deploy-data-mgt
-    needs: [check,branch-name]
+    needs: [check, branch-name]
     if: needs.check.outputs.run_data_mgt == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write    
+      id-token: write
     outputs:
       url: ${{ steps.preview-url.outputs.url }}
     steps:
@@ -370,7 +370,7 @@ jobs:
         uses: google-github-actions/auth@v0
         with:
           credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
-          
+
       - name: Setup Cloud SDK
         uses: google-github-actions/setup-gcloud@v0
 
@@ -387,7 +387,7 @@ jobs:
           cd src/data-mgt/node/
           docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/data-mgt-pr-previews:${{ github.sha }} ./
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/data-mgt-pr-previews:${{ github.sha }}
-      
+
       - name: Deploy to Cloud Run
         run: |-
           gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-data-mgt-preview \
@@ -427,16 +427,16 @@ jobs:
               repo: context.repo.repo,
               body: 'Data management changes in this PR available for preview [here](${{ needs.data-mgt.outputs.url }})'
             })
-  
+
   ### analytics ###
   analytics:
     name: build-push-deploy-analytics
-    needs: [check,branch-name]
+    needs: [check, branch-name]
     if: needs.check.outputs.run_analytics == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write    
+      id-token: write
     outputs:
       url: ${{ steps.preview-url.outputs.url }}
     steps:
@@ -448,7 +448,7 @@ jobs:
         uses: google-github-actions/auth@v0
         with:
           credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
-          
+
       - name: Setup Cloud SDK
         uses: google-github-actions/setup-gcloud@v0
 
@@ -465,7 +465,7 @@ jobs:
           cd src/analytics/
           docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/analytics-pr-previews:${{ github.sha }} ./
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/analytics-pr-previews:${{ github.sha }}
-      
+
       - name: Deploy to Cloud Run
         run: |-
           gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-analytics-preview \
@@ -505,16 +505,16 @@ jobs:
               repo: context.repo.repo,
               body: 'Analytics changes in this PR available for preview [here](${{ needs.analytics.outputs.url }})'
             })
-  
+
   ### locate ###
   locate:
     name: build-push-deploy-locate
-    needs: [check,branch-name]
+    needs: [check, branch-name]
     if: needs.check.outputs.run_locate == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write    
+      id-token: write
     outputs:
       url: ${{ steps.preview-url.outputs.url }}
     steps:
@@ -526,7 +526,7 @@ jobs:
         uses: google-github-actions/auth@v0
         with:
           credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
-          
+
       - name: Setup Cloud SDK
         uses: google-github-actions/setup-gcloud@v0
 
@@ -543,7 +543,7 @@ jobs:
           cd src/locate/
           docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/locate-pr-previews:${{ github.sha }} ./
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/locate-pr-previews:${{ github.sha }}
-      
+
       - name: Deploy to Cloud Run
         run: |-
           gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-locate-preview \
@@ -583,16 +583,16 @@ jobs:
               repo: context.repo.repo,
               body: 'Locate API changes in this PR available for preview [here](${{ needs.locate.outputs.url }})'
             })
-  
+
   ### predict service ###
   predict-service:
     name: build-push-deploy-predict-service-preview
-    needs: [check,branch-name]
+    needs: [check, branch-name]
     if: needs.check.outputs.run_predict == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write    
+      id-token: write
     outputs:
       url: ${{ steps.preview-url.outputs.url }}
     steps:
@@ -604,7 +604,7 @@ jobs:
         uses: google-github-actions/auth@v0
         with:
           credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
-          
+
       - name: Setup Cloud SDK
         uses: google-github-actions/setup-gcloud@v0
 
@@ -621,7 +621,7 @@ jobs:
           cd src/predict/api/
           docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/predict-service-pr-previews:${{ github.sha }} ./
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/predict-service-pr-previews:${{ github.sha }}
-      
+
       - name: Deploy to Cloud Run
         run: |-
           gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-predict-service-preview \
@@ -661,16 +661,16 @@ jobs:
               repo: context.repo.repo,
               body: 'Predict service changes in this PR available for preview [here](${{ needs.predict-service.outputs.url }})'
             })
-  
-  ### datawarehouse ###
-  datawarehouse:
-    name: build-push-deploy-datawarehouse
-    needs: [check,branch-name]
-    if: needs.check.outputs.run_datawarehouse == 'true'
+
+  ### meta-data ###
+  meta-data:
+    name: build-push-deploy-meta-data
+    needs: [check, branch-name]
+    if: needs.check.outputs.run_meta_data == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write    
+      id-token: write
     outputs:
       url: ${{ steps.preview-url.outputs.url }}
     steps:
@@ -682,7 +682,7 @@ jobs:
         uses: google-github-actions/auth@v0
         with:
           credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
-          
+
       - name: Setup Cloud SDK
         uses: google-github-actions/setup-gcloud@v0
 
@@ -696,38 +696,38 @@ jobs:
 
       - name: Build and Push Container
         run: |
-          cd src/data-mgt/python/extract-external-data/
-          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/datawarehouse-pr-previews:${{ github.sha }} ./
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/datawarehouse-pr-previews:${{ github.sha }}
-      
+          cd src/meta-data/
+          docker build --target=deployment --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/meta-data-pr-previews:${{ github.sha }} .
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/meta-data-pr-previews:${{ github.sha }}
+
       - name: Deploy to Cloud Run
         run: |-
-          gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-datawarehouse-preview \
+          gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-meta-data-preview \
             --region=${{ secrets.REGION }} \
             --max-instances=10 \
             --timeout=60 \
             --concurrency=10 \
-            --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/datawarehouse-pr-previews:${{ github.sha }} \
+            --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/meta-data-pr-previews:${{ github.sha }} \
             --port=4001 \
             --cpu=1000m \
             --memory=256Mi \
-            --update-secrets=/etc/env/.env=sta-env-datawarehouse:latest,/etc/config/google_application_credentials.json=sta-key-datawarehouse-service-account:latest \
-            --command="/bin/sh","-c","cat /etc/env/.env >> /usr/src/app/.env; flask run --host=0.0.0.0" \
+            --update-secrets=/etc/env/.env=sta-env-meta-data:latest,/etc/config/google_application_credentials.json=sta-key-meta-data-service-account:latest \
+            --command="/bin/sh","-c","cat /etc/env/.env >> /app-dir/.env; gunicorn --bind=0.0.0.0:4001 app:app" \
             --allow-unauthenticated
 
       - name: Get preview service url
         id: preview-url
         run: |
-          read service_url < <(gcloud run services describe ${{ needs.branch-name.outputs.lowercase }}-datawarehouse-preview \
+          read service_url < <(gcloud run services describe ${{ needs.branch-name.outputs.lowercase }}-meta-data-preview \
             --format='value(status.url)' \
             --platform managed \
             --region ${{ secrets.REGION }})
           echo "::set-output name=url::${service_url}"
 
-  datawarehouse-pr-comment:
-    name: datawarehouse-preview-link-comment
-    if: needs.check.outputs.run_datawarehouse == 'true'
-    needs: [datawarehouse]
+  meta-data-pr-comment:
+    name: meta-data-preview-link-comment
+    if: needs.check.outputs.run_meta_data == 'true'
+    needs: [meta-data]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/github-script@v6
@@ -737,18 +737,18 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: 'Datawarehouse changes in this PR available for preview [here](${{ needs.datawarehouse.outputs.url }})'
+              body: 'Meta-data changes in this PR available for preview [here](${{ needs.meta-data.outputs.url }})'
             })
-  
+
   ### view ###
   view:
     name: build-push-deploy-view-api
-    needs: [check,branch-name]
+    needs: [check, branch-name]
     if: needs.check.outputs.run_view == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write    
+      id-token: write
     outputs:
       url: ${{ steps.preview-url.outputs.url }}
     steps:
@@ -760,7 +760,7 @@ jobs:
         uses: google-github-actions/auth@v0
         with:
           credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
-          
+
       - name: Setup Cloud SDK
         uses: google-github-actions/setup-gcloud@v0
 
@@ -777,7 +777,7 @@ jobs:
           cd src/view/
           docker build --target=api --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/view-pr-previews:${{ github.sha }} ./
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/view-pr-previews:${{ github.sha }}
-      
+
       - name: Deploy to Cloud Run
         run: |-
           gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-view-preview \
@@ -817,16 +817,16 @@ jobs:
               repo: context.repo.repo,
               body: 'View API changes in this PR available for preview [here](${{ needs.view.outputs.url }})'
             })
-  
+
   ### calibrate ###
   calibrate:
     name: build-push-deploy-calibrate
-    needs: [check,branch-name]
+    needs: [check, branch-name]
     if: needs.check.outputs.run_calibrate == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write    
+      id-token: write
     outputs:
       url: ${{ steps.preview-url.outputs.url }}
     steps:
@@ -838,7 +838,7 @@ jobs:
         uses: google-github-actions/auth@v0
         with:
           credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
-          
+
       - name: Setup Cloud SDK
         uses: google-github-actions/setup-gcloud@v0
 
@@ -855,7 +855,7 @@ jobs:
           cd src/calibrate/
           docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/calibrate-pr-previews:${{ github.sha }} ./
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/calibrate-pr-previews:${{ github.sha }}
-      
+
       - name: Deploy to Cloud Run
         run: |-
           gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-calibrate-preview \
@@ -895,16 +895,16 @@ jobs:
               repo: context.repo.repo,
               body: 'Calibrate changes in this PR available for preview [here](${{ needs.calibrate.outputs.url }})'
             })
-  
+
   ### notifications ###
   notifications:
     name: build-push-deploy-notifications
-    needs: [check,branch-name]
+    needs: [check, branch-name]
     if: needs.check.outputs.run_notifications == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write    
+      id-token: write
     outputs:
       url: ${{ steps.preview-url.outputs.url }}
     steps:
@@ -916,7 +916,7 @@ jobs:
         uses: google-github-actions/auth@v0
         with:
           credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
-          
+
       - name: Setup Cloud SDK
         uses: google-github-actions/setup-gcloud@v0
 
@@ -933,7 +933,7 @@ jobs:
           cd src/notifications/
           docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/notifications-pr-previews:${{ github.sha }} ./
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/notifications-pr-previews:${{ github.sha }}
-      
+
       - name: Deploy to Cloud Run
         run: |-
           gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-notifications-preview \
@@ -973,16 +973,16 @@ jobs:
               repo: context.repo.repo,
               body: 'Notifications changes in this PR available for preview [here](${{ needs.notifications.outputs.url }})'
             })
-  
+
   ### network_uptime ###
   network-uptime:
     name: build-push-deploy-network-uptime
-    needs: [check,branch-name]
+    needs: [check, branch-name]
     if: needs.check.outputs.run_network_uptime == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write    
+      id-token: write
     outputs:
       url: ${{ steps.preview-url.outputs.url }}
     steps:
@@ -994,7 +994,7 @@ jobs:
         uses: google-github-actions/auth@v0
         with:
           credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
-          
+
       - name: Setup Cloud SDK
         uses: google-github-actions/setup-gcloud@v0
 
@@ -1011,7 +1011,7 @@ jobs:
           cd src/network-uptime/
           docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/network-uptime-pr-previews:${{ github.sha }} .
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/network-uptimee-pr-previews:${{ github.sha }}
-      
+
       - name: Deploy to Cloud Run
         run: |-
           gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-network-uptime-preview \
