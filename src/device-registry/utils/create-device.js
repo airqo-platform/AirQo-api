@@ -1096,7 +1096,7 @@ const createDevice = {
         status: HTTPStatus.OK,
       };
     } catch (error) {
-      logger.error(`internal server error -- ${err.message}`);
+      logger.error(`internal server error -- ${error.message}`);
       logObject("error", error);
       return {
         success: false,
