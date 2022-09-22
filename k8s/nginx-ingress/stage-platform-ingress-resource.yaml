@@ -17,6 +17,8 @@ data:
     location @unauthorized { return 401 '{\"error\": \"Unauthorized\"}'; }
 
     location = /auth {
+      if ($request_method = 'OPTIONS') { return 204; }      
+      
       if ($request_uri = '/') { return 200; }
       if ($request_uri = '/login') { return 200; }
       if ($request_uri ~ '(/api/v1/users/loginUser)|(/api/v2/users/loginUser)') { return 200; }
