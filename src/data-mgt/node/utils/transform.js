@@ -342,5 +342,21 @@ const transform = {
       external ? external : "noExternal"
     }`;
   },
+  convertFromHectopascalsToKilopascals: (number) => {
+    try {
+      const convertedValue = number * 0.1;
+      return {
+        success: true,
+        message: "Successfully converted Hectopascals To Kilopascals",
+        data: convertedValue,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        errors: { message: error.message },
+        message: "Internal Server Error",
+      };
+    }
+  },
 };
 module.exports = transform;
