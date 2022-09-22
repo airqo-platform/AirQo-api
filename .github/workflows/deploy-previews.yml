@@ -711,7 +711,7 @@ jobs:
             --port=4001 \
             --cpu=1000m \
             --memory=256Mi \
-            --update-secrets=/etc/env/.env=sta-env-meta-data:latest,/etc/config/google_application_credentials.json=sta-key-meta-data-service-account:latest \
+            --update-secrets=/etc/env/.env=sta-env-metadata:latest,/etc/config/google_application_credentials.json=sta-key-metadata-service-account:latest \
             --command="/bin/sh","-c","cat /etc/env/.env >> /app-dir/.env; gunicorn --bind=0.0.0.0:4001 app:app" \
             --allow-unauthenticated
 

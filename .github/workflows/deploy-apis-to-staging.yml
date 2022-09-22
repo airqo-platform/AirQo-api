@@ -1212,9 +1212,9 @@ jobs:
       - name: Update the corresponding k8s configmap(s)
         run: |
           cd src/meta-data/
-          gcloud secrets versions access latest --secret="sta-env-meta-data" > .env
+          gcloud secrets versions access latest --secret="sta-env-metadata" > .env
           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env stage-meta-data-api-config | kubectl replace -f - -n staging
-          gcloud secrets versions access latest --secret="sta-key-meta-data-service-account" > google_application_credentials.json
+          gcloud secrets versions access latest --secret="sta-key-metadata-service-account" > google_application_credentials.json
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json stage-meta-data-api-config-files | kubectl replace -f - -n staging
 
       - name: Deploy to K8S
