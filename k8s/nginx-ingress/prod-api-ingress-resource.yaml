@@ -19,7 +19,12 @@ data:
     location = /auth {
       if ($request_method = 'OPTIONS') { return 204; }
       
-      if ($request_uri = '/') { return 200; }
+      if ($request_uri = '/') {
+        return 200 '{
+          \"messsage\": \"Welcome to the AirQo API.\", 
+          \"docs\": \"https://docs.airqo.net/api/\"
+        }';
+      }
       if ($request_uri ~ '/docs') { return 200; }
       if ($request_uri = '/login') { return 200; }
       if ($request_uri ~ '(/api/v1/users/loginUser)|(/api/v2/users/loginUser)') { return 200; }
