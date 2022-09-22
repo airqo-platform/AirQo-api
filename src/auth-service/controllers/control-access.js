@@ -131,6 +131,89 @@ const controlAccess = {
       });
     }
   },
+  listRoles: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      logObject("hasErrors", hasErrors);
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+    } catch (error) {
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
+  createRole: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      logObject("hasErrors", hasErrors);
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+    } catch (error) {
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
+  updateRole: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      logObject("hasErrors", hasErrors);
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+    } catch (error) {
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
+  deleteRole: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      logObject("hasErrors", hasErrors);
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+    } catch (error) {
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
 };
 
 module.exports = controlAccess;

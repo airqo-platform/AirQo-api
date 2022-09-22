@@ -5,8 +5,8 @@ const requestController = require("../controllers/request");
 const inquiryController = require("../controllers/inquire");
 const defaultsController = require("../controllers/defaults");
 const organizationController = require("../controllers/create-organization");
+const controlAccessController = require("../controllers/control-access");
 const { check, oneOf, query, body, param } = require("express-validator");
-const joinUtil = require("../utils/join");
 
 const {
   setJWTAuth,
@@ -16,7 +16,6 @@ const {
   authToken,
   setAuthToken,
 } = require("../middleware/passport");
-const privileges = require("../utils/privileges");
 
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
@@ -31,6 +30,24 @@ const headers = (req, res, next) => {
   next();
 };
 router.use(headers);
+
+/*************************** control access********************************** */
+router.get(
+  "/roles",
+  oneOf([
+    query("tenant")
+      .exists()
+      .withMessage("tenant should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  setJWTAuth,
+  authJWT,
+  controlAccessController.list
+);
 
 //************************* users ***************************************************
 router.post(
