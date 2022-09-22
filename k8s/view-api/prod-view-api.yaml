@@ -11,7 +11,7 @@ spec:
     matchLabels:
       app: view-api
   replicas: 2
-  minReadySeconds: 10
+  minReadySeconds: 90
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -22,17 +22,35 @@ spec:
       labels:
         app: view-api
     spec:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 10
+            preference:
+              matchExpressions:
+              - key: node-type
+                operator: In
+                values:
+                - high-memory
+          - weight: 1
+            preference:
+              matchExpressions:
+              - key: node-type
+                operator: In
+                values:
+                - general-purpose
       containers:
         - name: view-api
           image: us.gcr.io/airqo-250220/airqo-view-api:latest
           imagePullPolicy: Always
           resources:
             requests:
-              memory: 200Mi
-              cpu: "100m"
+              # Average usage was 0.01 vCPU and 1400Mi over the last 30 days
+              cpu: 10m
+              memory: 1400Mi
             limits:
-              memory: 700Mi
-              cpu: "1000m"
+              cpu: 100m
+              memory: 2500Mi
           ports:
             - containerPort: 8080
               name: view-api
@@ -40,49 +58,22 @@ spec:
             - configMapRef:
                 name: prod-view-api-config
           readinessProbe:
-            initialDelaySeconds: 30
+            initialDelaySeconds: 60
+            periodSeconds: 10
             httpGet:
               port: 8080
               path: api/v1/view/actuator/health/readiness
           livenessProbe:
-            initialDelaySeconds: 30
+            initialDelaySeconds: 240
+            periodSeconds: 20
             httpGet:
               port: 8080
               path: api/v1/view/actuator/health/liveness
           lifecycle:
             preStop:
               exec:
-                command: [ "sh", "-c", "sleep 10" ]
-        - name: views-api
-          image: us.gcr.io/airqo-250220/airqo-view-api:latest
-          imagePullPolicy: Always
-          resources:
-            requests:
-              cpu: 100m
-              memory: 250Mi
-            limits:
-              cpu: 200m
-              memory: 700Mi
-          ports:
-            - containerPort: 8081
-              name: views-api
-          envFrom:
-            - configMapRef:
-                name: prod-views-api-config
-          readinessProbe:
-            initialDelaySeconds: 30
-            httpGet:
-              port: 8081
-              path: api/v1/views/actuator/health/readiness
-          livenessProbe:
-            initialDelaySeconds: 30
-            httpGet:
-              port: 8081
-              path: api/v1/views/actuator/health/liveness
-          lifecycle:
-            preStop:
-              exec:
-                command: [ "sh", "-c", "sleep 10" ]
+                command: ["sh", "-c", "sleep 10"]
+
 ---
 kind: Service
 apiVersion: v1
@@ -97,10 +88,6 @@ spec:
       name: view-api
       port: 8080
       targetPort: 8080
-    - protocol: TCP
-      name: views-api
-      port: 8081
-      targetPort: 8081
 
 ---
 kind: HorizontalPodAutoscaler
@@ -113,11 +100,11 @@ spec:
     kind: Deployment
     name: airqo-view-api
   minReplicas: 1
-  maxReplicas: 2
+  maxReplicas: 3
   metrics:
   - type: Resource
     resource:
       name: cpu
       target:
         type: Utilization
-        averageUtilization: 80
+        averageUtilization: 70

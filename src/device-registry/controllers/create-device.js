@@ -5,49 +5,123 @@ const { logObject, logElement, logText } = require("../utils/log");
 const createDeviceUtil = require("../utils/create-device");
 const distance = require("../utils/distance");
 const { validationResult } = require("express-validator");
+const constants = require("../config/constants");
 const errors = require("../utils/errors");
 const log4js = require("log4js");
-const logger = log4js.getLogger("create-device-controller");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- create-device-controller`
+);
 
 const device = {
-  decryptKey: async (req, res) => {
-    const hasErrors = !validationResult(req).isEmpty();
-    if (hasErrors) {
-      let nestedErrors = validationResult(req).errors[0].nestedErrors;
-      return errors.badRequest(
-        res,
-        "bad request errors",
-        errors.convertErrorArrayToObject(nestedErrors)
-      );
-    }
+  decryptManyKeys: (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
 
-    let { encrypted_key } = req.body;
-    let responseFromDecryptKey = await createDeviceUtil.decryptKey(
-      encrypted_key
-    );
-    logObject("responseFromDecryptKey", responseFromDecryptKey);
-    if (responseFromDecryptKey.success === true) {
-      let status = responseFromDecryptKey.status
-        ? responseFromDecryptKey.status
-        : HTTPStatus.OK;
-      return res.status(status).json({
-        success: true,
-        message: responseFromDecryptKey.message,
-        decrypted_key: responseFromDecryptKey.data,
+      let arrayOfEncryptedKeys = req.body;
+      let responseFromDecryptManyKeys = createDeviceUtil.decryptManyKeys(
+        arrayOfEncryptedKeys
+      );
+
+      if (responseFromDecryptManyKeys.success === true) {
+        let status = responseFromDecryptManyKeys.status
+          ? responseFromDecryptManyKeys.status
+          : HTTPStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromDecryptManyKeys.message,
+          decrypted_keys: responseFromDecryptManyKeys.data,
+        });
+      } else if (responseFromDecryptManyKeys.success === false) {
+        let errors = responseFromDecryptManyKeys.errors
+          ? responseFromDecryptManyKeys.errors
+          : "";
+        let status = responseFromDecryptManyKeys.status
+          ? responseFromDecryptManyKeys.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromDecryptManyKeys.message,
+          errors,
+        });
+      }
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
       });
     }
+  },
+  decryptKey: (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
 
-    if (responseFromDecryptKey.success === false) {
-      let error = responseFromDecryptKey.error
-        ? responseFromDecryptKey.error
-        : "";
-      let status = responseFromDecryptKey.status
-        ? responseFromDecryptKey.status
-        : HTTPStatus.INTERNAL_SERVER_ERROR;
-      return res.status(status).json({
+      let { encrypted_key } = req.body;
+      let responseFromDecryptKey = createDeviceUtil.decryptKey(encrypted_key);
+
+      if (responseFromDecryptKey.success === true) {
+        let status = responseFromDecryptKey.status
+          ? responseFromDecryptKey.status
+          : HTTPStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromDecryptKey.message,
+          decrypted_key: responseFromDecryptKey.data,
+        });
+      } else if (responseFromDecryptKey.success === false) {
+        let errors = responseFromDecryptKey.errors
+          ? responseFromDecryptKey.errors
+          : "";
+        let status = responseFromDecryptKey.status
+          ? responseFromDecryptKey.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromDecryptKey.message,
+          errors,
+        });
+      }
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
-        message: responseFromDecryptKey.message,
-        error,
+        message: "Internal Server Error",
+        errors: { message: error.message },
       });
     }
   },
@@ -56,6 +130,15 @@ const device = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -89,7 +172,7 @@ const device = {
         }
       });
     } catch (error) {
-      logObject("error", error);
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -102,6 +185,15 @@ const device = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -152,6 +244,15 @@ const device = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -213,6 +314,15 @@ const device = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -273,6 +383,15 @@ const device = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -326,6 +445,7 @@ const device = {
         });
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -340,6 +460,15 @@ const device = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -385,6 +514,7 @@ const device = {
         });
       }
     } catch (e) {
+      logger.error(`internal server error -- ${e.message}`);
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -400,6 +530,15 @@ const device = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -451,6 +590,7 @@ const device = {
         });
       }
     } catch (e) {
+      logger.error(`internal server error -- ${e.message}`);
       res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -466,6 +606,15 @@ const device = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -565,11 +714,11 @@ const device = {
 
         return res.status(HTTPStatus.OK).json(nearest_devices);
       } catch (e) {
-        logObject("error", e);
+        logger.error(`internal server error -- ${e.message}`);
         return res.status(HTTPStatus.BAD_REQUEST).json(e);
       }
     } catch (e) {
-      logObject("error", e);
+      logger.error(`internal server error -- ${e.message}`);
       errors.tryCatchErrors(res, e);
     }
   },
@@ -581,6 +730,15 @@ const device = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -634,6 +792,7 @@ const device = {
         });
       }
     } catch (e) {
+      logger.error(`internal server error -- ${e.message}`);
       res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -648,6 +807,15 @@ const device = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -712,6 +880,15 @@ const device = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -782,9 +959,7 @@ const device = {
         var response = responses[0];
         return res.status(HTTPStatus.OK).json(response);
       })
-      .catch((err) => {
-        console.error(err);
-      });
+      .catch((err) => {});
   },
   createOnGCP: (req, res) => {
     const formattedParent = client.registryPath(
@@ -807,7 +982,6 @@ const device = {
         return res.status(HTTPStatus.OK).json(response);
       })
       .catch((err) => {
-        console.error(err);
         return res.status(HTTPStatus.BAD_REQUEST).json(err);
       });
   },
@@ -831,9 +1005,7 @@ const device = {
     client
       .listDeviceModels({ parent: formattedParent }, options)
       .then(callback)
-      .catch((err) => {
-        console.error(err);
-      });
+      .catch((err) => {});
   },
 
   deleteOnGCP: (req, res) => {
@@ -854,7 +1026,6 @@ const device = {
         return res.status(HTTPStatus.OK).json(result);
       })
       .catch((err) => {
-        console.error(err);
         return res.status(HTTPStatus.BAD_REQUEST).json(err);
       });
   },
@@ -888,7 +1059,6 @@ const device = {
         return res.status(HTTPStatus.OK).json(response);
       })
       .catch((err) => {
-        console.error(err);
         return res.status(HTTPStatus.BAD_REQUEST).json(err);
       });
   },

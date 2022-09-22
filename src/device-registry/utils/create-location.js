@@ -7,11 +7,13 @@ const HTTPStatus = require("http-status");
 const axiosInstance = () => {
   return axios.create();
 };
+const constants = require("../config/constants");
 const generateFilter = require("./generate-filter");
 const log4js = require("log4js");
-const logger = log4js.getLogger("create-location-util");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- create-location-util`
+);
 const { kafkaProducer } = require("../config/kafkajs");
-const constants = require("../config/constants");
 
 const createLocation = {
   initialIsCapital: (word) => {
@@ -22,9 +24,7 @@ const createLocation = {
       const hasWhiteSpace = word.indexOf(" ") >= 0;
       return !hasWhiteSpace;
     } catch (e) {
-      logger.error(
-        `create Location util server error -- hasNoWhiteSpace -- ${e.message}`
-      );
+      logger.error(`internal server error -- hasNoWhiteSpace -- ${e.message}`);
     }
   },
   create: async (request) => {
@@ -57,7 +57,7 @@ const createLocation = {
             ],
           });
         } catch (error) {
-          logObject("error on kafka", error);
+          logger.error(`internal server error -- ${error.message}`);
         }
 
         return {
@@ -66,9 +66,7 @@ const createLocation = {
           data: responseFromRegisterLocation.data,
           status,
         };
-      }
-
-      if (responseFromRegisterLocation.success === false) {
+      } else if (responseFromRegisterLocation.success === false) {
         let errors = responseFromRegisterLocation.errors
           ? responseFromRegisterLocation.errors
           : "";
@@ -85,6 +83,7 @@ const createLocation = {
         };
       }
     } catch (err) {
+      logger.error(`internal server error -- ${err.message}`);
       return {
         success: false,
         message: "unable to create location",
@@ -120,9 +119,7 @@ const createLocation = {
           data: responseFromModifyLocation.data,
           status,
         };
-      }
-
-      if (responseFromModifyLocation.success === false) {
+      } else if (responseFromModifyLocation.success === false) {
         let errors = responseFromModifyLocation.errors
           ? responseFromModifyLocation.errors
           : "";
@@ -139,7 +136,7 @@ const createLocation = {
         };
       }
     } catch (err) {
-      logElement("update Locations util", err.message);
+      logger.error(`internal server error -- ${err.message}`);
       return {
         success: false,
         message: "unable to update location",
@@ -171,9 +168,7 @@ const createLocation = {
           data: responseFromRemoveLocation.data,
           status,
         };
-      }
-
-      if (responseFromRemoveLocation.success === false) {
+      } else if (responseFromRemoveLocation.success === false) {
         let errors = responseFromRemoveLocation.errors
           ? responseFromRemoveLocation.errors
           : "";
@@ -190,7 +185,7 @@ const createLocation = {
         };
       }
     } catch (err) {
-      logElement("delete Location util", err.message);
+      logger.error(`internal server error -- ${err.message}`);
       return {
         success: false,
         message: "unable to delete location",
@@ -206,7 +201,6 @@ const createLocation = {
       const limit = 1000;
       const skip = parseInt(query.skip) || 0;
       let filter = generateFilter.locations(request);
-      logObject("location filter", filter);
 
       let responseFromListLocation = await getModelByTenant(
         tenant.toLowerCase(),
@@ -218,7 +212,6 @@ const createLocation = {
         skip,
       });
 
-      logObject("responseFromListLocation", responseFromListLocation);
       if (responseFromListLocation.success === false) {
         let errors = responseFromListLocation.errors
           ? responseFromListLocation.errors
@@ -233,9 +226,7 @@ const createLocation = {
           errors,
           status,
         };
-      }
-
-      if (responseFromListLocation.success === true) {
+      } else if (responseFromListLocation.success === true) {
         let status = responseFromListLocation.status
           ? responseFromListLocation.status
           : "";
@@ -248,7 +239,7 @@ const createLocation = {
         };
       }
     } catch (err) {
-      logElement("list Locations util", err.message);
+      logger.error(`internal server error -- ${err.message}`);
       return {
         success: false,
         message: "unable to list location",

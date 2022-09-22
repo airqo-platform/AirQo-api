@@ -8,7 +8,6 @@ var jsonify = require("./jsonify");
 const generateFilter = require("./generate-filter");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
-const validationsUtil = require("./validations");
 constants = require("../config/constants");
 const kickbox = require("kickbox")
   .client(`${constants.KICKBOX_API_KEY}`)
@@ -23,7 +22,7 @@ const CandidateModel = (tenant) => {
 };
 
 const request = {
-  create: async (request, callback) => {
+  create: async (req, callback) => {
     try {
       let {
         firstName,
@@ -35,80 +34,109 @@ const request = {
         description,
         category,
         tenant,
-      } = request;
+      } = req;
 
-      await validationsUtil.checkEmailExistenceUsingKickbox(email, (value) => {
-        if (value.success == false) {
-          const errors = value.errors ? value.errors : "";
-          logObject("the validation checks results", {
-            success: false,
-            message: value.message,
-            errors,
-            status: value.status,
-          });
-          // callback({
-          //   success: false,
-          //   message: value.message,
-          //   errors,
-          //   status: value.status,
-          // });
-        }
-      });
+      // await validationsUtil.checkEmailExistenceUsingKickbox(email, (value) => {
+      //   if (value.success == false) {
+      //     const errors = value.errors ? value.errors : "";
+      //     logObject("the validation checks results", {
+      //       success: false,
+      //       message: value.message,
+      //       errors,
+      //       status: value.status,
+      //     });
+      //     callback({
+      //       success: false,
+      //       message: value.message,
+      //       errors,
+      //       status: value.status,
+      //     });
+      //   }
+      // });
 
-      const responseFromCreateCandidate = await CandidateModel(tenant).register(
-        request
-      );
+      let filterRequestBody = {};
+      filterRequestBody["body"] = {};
+      filterRequestBody["query"] = {};
+      filterRequestBody["body"] = req;
+      filterRequestBody["query"]["category"] = category;
 
-      if (responseFromCreateCandidate.success === true) {
-        let createdCandidate = await responseFromCreateCandidate.data;
-        let responseFromSendEmail = await mailer.candidate(
-          firstName,
-          lastName,
-          email,
-          tenant
-        );
-        if (responseFromSendEmail.success === true) {
-          const status = responseFromSendEmail.status
-            ? responseFromSendEmail.status
-            : "";
-          callback({
-            success: true,
-            message: "candidate successfully created",
-            data: createdCandidate,
-            status,
-          });
-        }
+      const responseFromGenerateCandidateFilter =
+        generateFilter.candidates(filterRequestBody);
 
-        if (responseFromSendEmail.success === false) {
-          const errors = responseFromSendEmail.error
-            ? responseFromSendEmail.error
-            : "";
-          const status = responseFromSendEmail.status
-            ? responseFromSendEmail.status
-            : "";
-
-          callback({
-            success: false,
-            message: responseFromSendEmail.message,
-            errors,
-            status,
-          });
-        }
-      }
-
-      if (responseFromCreateCandidate.success === false) {
-        const errors = responseFromCreateCandidate.errors
-          ? responseFromCreateCandidate.errors
-          : "";
-        const status = responseFromCreateCandidate.status
-          ? responseFromCreateCandidate.status
-          : "";
+      if (responseFromGenerateCandidateFilter.success === false) {
         callback({
           success: false,
-          message: responseFromCreateCandidate.message,
-          errors,
-          status,
+          message: "internal server error",
+          errors: { message: responseFromGenerateCandidateFilter.error },
         });
+      }
+
+      let filter = responseFromGenerateCandidateFilter.data;
+      const responseFromListCandidates = await request.list({
+        tenant,
+        filter,
+      });
+
+      if (responseFromListCandidates.success === true) {
+        callback({
+          success: true,
+          message: "candidate already exists or successfully created",
+          status: httpStatus.OK,
+        });
+      } else if (responseFromListCandidates.success === false) {
+        const responseFromCreateCandidate = await CandidateModel(
+          tenant
+        ).register(req);
+
+        if (responseFromCreateCandidate.success === true) {
+          let createdCandidate = await responseFromCreateCandidate.data;
+          let responseFromSendEmail = await mailer.candidate(
+            firstName,
+            lastName,
+            email,
+            tenant
+          );
+          if (responseFromSendEmail.success === true) {
+            const status = responseFromSendEmail.status
+              ? responseFromSendEmail.status
+              : "";
+            callback({
+              success: true,
+              message: "candidate already exists or successfully created",
+              data: createdCandidate,
+              status,
+            });
+          }
+
+          if (responseFromSendEmail.success === false) {
+            const errors = responseFromSendEmail.error
+              ? responseFromSendEmail.error
+              : "";
+            const status = responseFromSendEmail.status
+              ? responseFromSendEmail.status
+              : "";
+
+            callback({
+              success: false,
+              message: responseFromSendEmail.message,
+              errors,
+              status,
+            });
+          }
+        } else if (responseFromCreateCandidate.success === false) {
+          const errors = responseFromCreateCandidate.errors
+            ? responseFromCreateCandidate.errors
+            : "";
+          const status = responseFromCreateCandidate.status
+            ? responseFromCreateCandidate.status
+            : "";
+          callback({
+            success: false,
+            message: responseFromCreateCandidate.message,
+            errors,
+            status,
+          });
+        }
       }
     } catch (e) {
       callback({
@@ -135,10 +163,6 @@ const request = {
         skip,
       });
 
-      logObject(
-        "responseFromListCandidate in the util",
-        responseFromListCandidate
-      );
       if (responseFromListCandidate.success == true) {
         return {
           success: true,

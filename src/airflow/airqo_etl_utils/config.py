@@ -4,11 +4,11 @@ from pathlib import Path
 import urllib3
 from dotenv import load_dotenv
 
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
 BASE_DIR = Path(__file__).resolve().parent.parent
 dotenv_path = os.path.join(BASE_DIR, ".env")
 load_dotenv(dotenv_path)
+
+urllib3.disable_warnings()
 
 
 class Config:
@@ -27,12 +27,13 @@ class Config:
     BIGQUERY_ANALYTICS_TABLE = os.getenv("BIGQUERY_ANALYTICS_TABLE")
 
     # Bam data
-    BIGQUERY_BAM_OUTLIERS_TABLE = os.getenv("BIGQUERY_BAM_OUTLIERS_TABLE")
+    BIGQUERY_RAW_BAM_DATA_TABLE = os.getenv("BIGQUERY_RAW_BAM_DATA_TABLE")
     BIGQUERY_BAM_EVENTS_TABLE = os.getenv("BIGQUERY_BAM_EVENTS_TABLE")
 
     # Raw data
     BIGQUERY_AIRQO_MOBILE_EVENTS_TABLE = os.getenv("BIGQUERY_AIRQO_MOBILE_EVENTS_TABLE")
     BIGQUERY_RAW_EVENTS_TABLE = os.getenv("BIGQUERY_RAW_EVENTS_TABLE")
+    BIGQUERY_LATEST_EVENTS_TABLE = os.getenv("BIGQUERY_LATEST_EVENTS_TABLE")
     BIGQUERY_CLEAN_RAW_MOBILE_EVENTS_TABLE = os.getenv(
         "BIGQUERY_CLEAN_RAW_MOBILE_EVENTS_TABLE"
     )
@@ -40,6 +41,7 @@ class Config:
         "BIGQUERY_UNCLEAN_RAW_MOBILE_EVENTS_TABLE"
     )
     BIGQUERY_RAW_WEATHER_TABLE = os.getenv("BIGQUERY_RAW_WEATHER_TABLE")
+    SENSOR_POSITIONS_TABLE = os.getenv("SENSOR_POSITIONS_TABLE")
 
     # Meta data
     BIGQUERY_DEVICES_TABLE = os.getenv("BIGQUERY_DEVICES_TABLE")
@@ -49,7 +51,6 @@ class Config:
     # AirQo
     POST_EVENTS_BODY_SIZE = os.getenv("POST_EVENTS_BODY_SIZE", 10)
     POST_WEATHER_BODY_SIZE = os.getenv("POST_EVENTS_BODY_SIZE", 10)
-    CALIBRATE_REQUEST_BODY_SIZE = os.getenv("CALIBRATE_REQUEST_BODY_SIZE", 40)
     AIRQO_BASE_URL = os.getenv("AIRQO_BASE_URL")
     CALIBRATION_BASE_URL = os.getenv("CALIBRATION_BASE_URL")
     AIRQO_BASE_URL_V2 = os.getenv("AIRQO_BASE_URL_V2")
@@ -96,6 +97,40 @@ class Config:
     # Purple Air
     PURPLE_AIR_BASE_URL = os.getenv("PURPLE_AIR_BASE_URL")
     PURPLE_AIR_API_KEY = os.getenv("PURPLE_AIR_API_KEY")
+
+    AIRQO_BAM_CONFIG = {
+        0: "timestamp",
+        1: "realtime_conc",
+        2: "hourly_conc",
+        3: "short_time_conc",
+        4: "air_flow",
+        5: "wind_speed",
+        6: "wind_direction",
+        7: "temperature",
+        8: "humidity",
+        9: "barometric_pressure",
+        10: "filter_temperature",
+        11: "filter_humidity",
+        12: "status",
+    }
+
+    AIRQO_BAM_MAPPING = {
+        "hourly_conc": "pm2_5",
+    }
+
+    AIRQO_LOW_COST_CONFIG = {
+        0: "latitude",
+        1: "longitude",
+        2: "altitude",
+        3: "wind_speed",
+        4: "satellites",
+        5: "hdop",
+        6: "device_temperature",
+        7: "device_humidity",
+        8: "temperature",
+        9: "humidity",
+        10: "vapor_pressure",
+    }
 
 
 configuration = Config()

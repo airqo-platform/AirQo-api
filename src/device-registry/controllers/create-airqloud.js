@@ -3,8 +3,11 @@ const { logObject, logElement, logText } = require("../utils/log");
 const { validationResult } = require("express-validator");
 const errors = require("../utils/errors");
 const createAirQloudUtil = require("../utils/create-airqloud");
+const constants = require("../config/constants");
 const log4js = require("log4js");
-const logger = log4js.getLogger("create-airqloud-controller");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- create-airqloud-controller`
+);
 const httpStatus = require("http-status");
 
 const createAirqloud = {
@@ -17,6 +20,15 @@ const createAirqloud = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -58,6 +70,7 @@ const createAirqloud = {
         });
       }
     } catch (errors) {
+      logger.error(`internal server error -- ${errors.message}`);
       errors.tryCatchErrors(res, errors, "createAirqloud controller");
     }
   },
@@ -71,6 +84,15 @@ const createAirqloud = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -118,6 +140,7 @@ const createAirqloud = {
         });
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -136,6 +159,15 @@ const createAirqloud = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -170,6 +202,7 @@ const createAirqloud = {
         });
       }
     } catch (errors) {
+      logger.error(`internal server error -- ${errors.message}`);
       errors.tryCatchErrors(res, errors, "createAirqloud controller");
     }
   },
@@ -177,6 +210,26 @@ const createAirqloud = {
     try {
       const { query, body } = req;
       const { id, admin_level, name, tenant } = query;
+
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+
       let request = {};
       request["query"] = {};
       request["query"]["id"] = id;
@@ -209,7 +262,7 @@ const createAirqloud = {
         });
       }
     } catch (error) {
-      logObject("refresh controller", error);
+      logger.error(`internal server error -- ${error.message}`);
       res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -223,6 +276,15 @@ const createAirqloud = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -264,6 +326,7 @@ const createAirqloud = {
         });
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -283,6 +346,15 @@ const createAirqloud = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -320,6 +392,7 @@ const createAirqloud = {
         });
       }
     } catch (errors) {
+      logger.error(`internal server error -- ${errors.message}`);
       errors.tryCatchErrors(res, errors, "createAirqloud controller");
     }
   },
@@ -333,6 +406,15 @@ const createAirqloud = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -370,6 +452,7 @@ const createAirqloud = {
         });
       }
     } catch (errors) {
+      logger.error(`internal server error -- ${errors.message}`);
       res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -387,6 +470,15 @@ const createAirqloud = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -425,6 +517,7 @@ const createAirqloud = {
         });
       }
     } catch (errors) {
+      logger.error(`internal server error -- ${errors.message}`);
       res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -443,6 +536,15 @@ const createAirqloud = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -478,6 +580,7 @@ const createAirqloud = {
         });
       }
     } catch (errors) {
+      logger.error(`internal server error -- ${errors.message}`);
       errors.tryCatchErrors(res, errors, "manageAirQloud controller");
     }
   },

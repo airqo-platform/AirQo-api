@@ -6,6 +6,7 @@ from .airnow_api import AirNowApi
 from .airqo_api import AirQoApi
 from .bigquery_api import BigQueryApi
 from .constants import Tenant, DataSource
+from .data_validator import DataValidationUtils
 from .date import str_to_date, date_to_str
 from .utils import Utils
 
@@ -82,7 +83,7 @@ class AirnowDataUtils:
         )
 
         data = pd.DataFrame()
-        devices = pd.DataFrame(AirQoApi().get_devices(tenant="airqo"))
+        devices = pd.DataFrame(AirQoApi().get_devices(tenant=Tenant.AIRQO))
 
         for start, end in dates:
             query_data = AirnowDataUtils.query_bam_data(
@@ -97,7 +98,7 @@ class AirnowDataUtils:
 
         device_groups = data.groupby("device_number")
         airnow_data = []
-        devices = AirQoApi().get_devices(tenant="airqo")
+        devices = AirQoApi().get_devices(tenant=Tenant.AIRQO)
 
         for _, device_group in device_groups:
 
@@ -145,7 +146,22 @@ class AirnowDataUtils:
 
         airnow_data = pd.DataFrame(airnow_data)
         airnow_data["timestamp"] = airnow_data["timestamp"].apply(pd.to_datetime)
-        return airnow_data
+        return DataValidationUtils.remove_outliers(airnow_data)
+
+    @staticmethod
+    def process_latest_bam_data(data: pd.DataFrame) -> pd.DataFrame:
+        data["s1_pm2_5"] = data["pm2_5"]
+        data["pm2_5_raw_value"] = data["pm2_5"]
+        data["pm2_5_calibrated_value"] = data["pm2_5"]
+
+        data["s1_pm10"] = data["pm10"]
+        data["pm10_raw_value"] = data["pm10"]
+        data["pm10_calibrated_value"] = data["pm10"]
+
+        data["no2_raw_value"] = data["no2"]
+        data["no2_calibrated_value"] = data["no2"]
+
+        return data
 
     @staticmethod
     def process_for_bigquery(data: pd.DataFrame) -> pd.DataFrame:

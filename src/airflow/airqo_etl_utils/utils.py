@@ -2,10 +2,10 @@ import json
 import os
 from datetime import datetime, timedelta
 
-import numpy as np
 import pandas as pd
+from requests import Response
 
-from .constants import DataType, Pollutant, AirQuality, DataSource
+from .constants import ColumnDataType, Pollutant, AirQuality, DataSource
 from .date import date_to_str
 
 
@@ -65,7 +65,7 @@ class Utils:
         for col in cols:
             if col not in list(data.columns):
                 print(f"{col} missing in dataset")
-                data[col] = None
+                data.loc[:, col] = None
 
         return data
 
@@ -107,22 +107,22 @@ class Utils:
     @staticmethod
     def format_dataframe_column_type(
         dataframe: pd.DataFrame,
-        data_type: DataType,
+        data_type: ColumnDataType,
         columns: list,
     ) -> pd.DataFrame:
         if not columns:
             return dataframe
-        if data_type == DataType.FLOAT:
+        if data_type == ColumnDataType.FLOAT:
             dataframe[columns] = dataframe[columns].apply(
                 pd.to_numeric, errors="coerce"
             )
 
-        if data_type == DataType.TIMESTAMP:
+        if data_type == ColumnDataType.TIMESTAMP:
             dataframe[columns] = dataframe[columns].apply(
                 pd.to_datetime, errors="coerce"
             )
 
-        if data_type == DataType.TIMESTAMP_STR:
+        if data_type == ColumnDataType.TIMESTAMP_STR:
             dataframe[columns] = dataframe[columns].apply(
                 pd.to_datetime, errors="coerce"
             )
@@ -155,8 +155,10 @@ class Utils:
             return "12H"
         if data_source == DataSource.AIRNOW:
             return "12H"
+        if data_source == DataSource.BIGQUERY:
+            return "720H"
         if data_source == DataSource.TAHMO:
-            return "12H"
+            return "24H"
         if data_source == DataSource.AIRQO:
             return "12H"
         if data_source == DataSource.CLARITY:
@@ -166,8 +168,21 @@ class Utils:
         return "1H"
 
     @staticmethod
-    def query_dates_array(data_source: DataSource, start_date_time, end_date_time):
-        frequency = Utils.query_frequency(data_source)
+    def handle_api_error(response: Response):
+        try:
+            print(response.request.url)
+            print(response.request.body)
+        except Exception as ex:
+            print(ex)
+        finally:
+            print(response.content)
+            print(f"API request failed with status code {response.status_code}")
+
+    @staticmethod
+    def query_dates_array(
+        data_source: DataSource, start_date_time, end_date_time, freq: str = None
+    ):
+        frequency = Utils.query_frequency(data_source) if freq is None else freq
         dates = pd.date_range(start_date_time, end_date_time, freq=frequency)
         freq = dates.freq
 

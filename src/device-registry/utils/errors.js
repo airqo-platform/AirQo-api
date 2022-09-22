@@ -1,15 +1,17 @@
 const HTTPStatus = require("http-status");
 
 const errors = {
-  convertErrorArrayToObject: (arrays) => {
-    const initialValue = {};
-    return arrays.reduce((obj, item) => {
-      let param = item.param;
-      return {
-        ...obj,
-        [param]: `${item.msg}`,
-      };
-    }, initialValue);
+  convertErrorArrayToObject: (array) => {
+    let result = {};
+    function helper(helperInput) {
+      if (helperInput.length === 0) {
+        return;
+      }
+      result[`${helperInput[0].value}`] = helperInput[0].msg;
+      helper(helperInput.slice(1));
+    }
+    helper(array);
+    return result;
   },
 
   axiosError: (error, req, res) => {

@@ -4,7 +4,8 @@ import pandas as pd
 from google.cloud import bigquery
 
 from .config import configuration
-from .constants import JobAction, DataType, Tenant
+from .constants import JobAction, ColumnDataType, Tenant, QueryType
+from .date import date_to_str
 from .utils import Utils
 
 
@@ -13,8 +14,10 @@ class BigQueryApi:
         self.client = bigquery.Client()
         self.hourly_measurements_table = configuration.BIGQUERY_HOURLY_EVENTS_TABLE
         self.raw_measurements_table = configuration.BIGQUERY_RAW_EVENTS_TABLE
+        self.latest_measurements_table = configuration.BIGQUERY_LATEST_EVENTS_TABLE
         self.bam_measurements_table = configuration.BIGQUERY_BAM_EVENTS_TABLE
-        self.bam_outliers_table = configuration.BIGQUERY_BAM_OUTLIERS_TABLE
+        self.raw_bam_measurements_table = configuration.BIGQUERY_RAW_BAM_DATA_TABLE
+        self.sensor_positions_table = configuration.SENSOR_POSITIONS_TABLE
         self.unclean_mobile_raw_measurements_table = (
             configuration.BIGQUERY_UNCLEAN_RAW_MOBILE_EVENTS_TABLE
         )
@@ -27,6 +30,7 @@ class BigQueryApi:
         self.hourly_weather_table = configuration.BIGQUERY_HOURLY_WEATHER_TABLE
         self.raw_weather_table = configuration.BIGQUERY_RAW_WEATHER_TABLE
         self.analytics_table = configuration.BIGQUERY_ANALYTICS_TABLE
+        self.consolidated_data_table = configuration.BIGQUERY_ANALYTICS_TABLE
         self.sites_table = configuration.BIGQUERY_SITES_TABLE
         self.devices_table = configuration.BIGQUERY_DEVICES_TABLE
         self.devices_data_table = configuration.BIGQUERY_DEVICES_DATA_TABLE
@@ -37,68 +41,72 @@ class BigQueryApi:
         self,
         dataframe: pd.DataFrame,
         table: str,
-        raise_column_exception=True,
+        raise_exception=True,
         date_time_columns=None,
         float_columns=None,
         integer_columns=None,
     ) -> pd.DataFrame:
-        columns = self.get_columns(table=table)
+        valid_cols = self.get_columns(table=table)
+        dataframe_cols = dataframe.columns.to_list()
 
-        if set(columns).issubset(set(list(dataframe.columns))):
-            dataframe = dataframe[columns]
+        if set(valid_cols).issubset(set(dataframe_cols)):
+            dataframe = dataframe[valid_cols]
         else:
-            print(f"Required columns {columns}")
-            print(f"Dataframe columns {list(dataframe.columns)}")
+            print(f"Required columns {valid_cols}")
+            print(f"Dataframe columns {dataframe_cols}")
             print(
-                f"Difference between required and received {list(set(columns) - set(dataframe.columns))}"
+                f"Difference between required and received {list(set(valid_cols) - set(dataframe_cols))}"
             )
-            if raise_column_exception:
+            if raise_exception:
                 raise Exception("Invalid columns")
 
-        # validating timestamp
         date_time_columns = (
             date_time_columns
             if date_time_columns
-            else self.get_columns(table=table, data_type=DataType.TIMESTAMP)
-        )
-        dataframe[date_time_columns] = dataframe[date_time_columns].apply(
-            pd.to_datetime, errors="coerce"
+            else self.get_columns(table=table, data_type=ColumnDataType.TIMESTAMP)
         )
 
-        # validating floats
         float_columns = (
             float_columns
             if float_columns
-            else self.get_columns(table=table, data_type=DataType.FLOAT)
-        )
-        dataframe[float_columns] = dataframe[float_columns].apply(
-            pd.to_numeric, errors="coerce"
+            else self.get_columns(table=table, data_type=ColumnDataType.FLOAT)
         )
 
-        # validating integers
         integer_columns = (
             integer_columns
             if integer_columns
-            else self.get_columns(table=table, data_type=DataType.INTEGER)
+            else self.get_columns(table=table, data_type=ColumnDataType.INTEGER)
         )
-        dataframe[integer_columns] = dataframe[integer_columns].apply(
-            lambda x: pd.to_numeric(x, errors="coerce", downcast="integer")
+
+        from .data_validator import DataValidationUtils
+
+        dataframe = DataValidationUtils.format_data_types(
+            data=dataframe,
+            floats=float_columns,
+            integers=integer_columns,
+            timestamps=date_time_columns,
         )
 
         return dataframe.drop_duplicates(keep="first")
 
-    def get_columns(self, table: str, data_type: DataType = DataType.NONE) -> list:
+    def get_columns(
+        self, table: str, data_type: ColumnDataType = ColumnDataType.NONE
+    ) -> list:
 
         if table == self.hourly_measurements_table:
             schema_file = "measurements.json"
         elif table == self.raw_measurements_table:
             schema_file = "raw_measurements.json"
+        elif table == self.latest_measurements_table:
+            schema_file = "latest_measurements.json"
         elif table == self.hourly_weather_table or table == self.raw_weather_table:
             schema_file = "weather_data.json"
-        elif table == self.analytics_table:
+        elif table == self.analytics_table or table == self.consolidated_data_table:
             schema_file = "data_warehouse.json"
         elif table == self.sites_table:
             schema_file = "sites.json"
+        elif table == self.sensor_positions_table:
+            schema_file = "sensor_positions.json"
         elif table == self.devices_table:
             schema_file = "devices.json"
         elif (
@@ -108,17 +116,19 @@ class BigQueryApi:
             schema_file = "mobile_measurements.json"
         elif table == self.airqo_mobile_measurements_table:
             schema_file = "airqo_mobile_measurements.json"
-        elif table == self.bam_measurements_table or table == self.bam_outliers_table:
+        elif table == self.bam_measurements_table:
             schema_file = "bam_measurements.json"
+        elif table == self.raw_bam_measurements_table:
+            schema_file = "bam_raw_measurements.json"
         else:
             raise Exception("Invalid table")
 
         schema = Utils.load_schema(file_name=schema_file)
 
         columns = []
-        if data_type != DataType.NONE:
+        if data_type != ColumnDataType.NONE:
             for column in schema:
-                if column["type"] == data_type.to_string():
+                if column["type"] == str(data_type):
                     columns.append(column["name"])
         else:
             columns = [column["name"] for column in schema]
@@ -143,8 +153,98 @@ class BigQueryApi:
         job.result()
 
         destination_table = self.client.get_table(table)
-        print(f"Loaded {len(dataframe)} rows to {table}")
+        print(f"Loaded {dataframe.size} rows to {table}")
         print(f"Total rows after load :  {destination_table.num_rows}")
+
+    def update_data(
+        self,
+        dataframe: pd.DataFrame,
+        table: str,
+    ) -> None:
+        dataframe.reset_index(drop=True, inplace=True)
+        dataframe = self.validate_data(dataframe=dataframe, table=table)
+        dataframe.drop_duplicates(subset=["device_number"], inplace=True, keep="first")
+
+        available_data = (
+            self.client.query(query=f"SELECT * FROM `{table}`").result().to_dataframe()
+        )
+
+        if available_data.empty:
+            up_to_date_data = dataframe
+        else:
+            available_data["timestamp"] = available_data["timestamp"].apply(
+                pd.to_datetime
+            )
+            available_data.drop_duplicates(
+                subset=["device_number"], inplace=True, keep="first"
+            )
+            data_not_for_updating = available_data.loc[
+                ~available_data["device_number"].isin(
+                    dataframe["device_number"].to_list()
+                )
+            ]
+            up_to_date_data = pd.concat(
+                [data_not_for_updating, dataframe], ignore_index=True
+            )
+
+        up_to_date_data["timestamp"] = up_to_date_data["timestamp"].apply(date_to_str)
+
+        self.load_data(
+            dataframe=up_to_date_data, table=table, job_action=JobAction.OVERWRITE
+        )
+
+    def compose_query(
+        self,
+        query_type: QueryType,
+        table: str,
+        start_date_time: str,
+        end_date_time: str,
+        tenant: Tenant,
+        where_fields: dict = None,
+        null_cols: list = None,
+        columns: list = None,
+    ) -> str:
+
+        null_cols = [] if null_cols is None else null_cols
+        where_fields = {} if where_fields is None else where_fields
+
+        columns = ", ".join(map(str, columns)) if columns else " * "
+        where_clause = (
+            f" timestamp >= '{start_date_time}' and timestamp <= '{end_date_time}' "
+        )
+        if tenant != Tenant.ALL:
+            where_clause = f" {where_clause} and tenant = '{str(tenant)}' "
+
+        valid_cols = self.get_columns(table=table)
+
+        for key, value in where_fields.items():
+            if key not in valid_cols:
+                raise Exception(
+                    f"Invalid table column. {key} is not among the columns for {table}"
+                )
+            where_clause = where_clause + f" and {key} = '{value}' "
+
+        for field in null_cols:
+            if field not in valid_cols:
+                raise Exception(
+                    f"Invalid table column. {field} is not among the columns for {table}"
+                )
+            where_clause = where_clause + f" and {field} is null "
+
+        if query_type == QueryType.DELETE:
+            query = f"""
+                DELETE FROM `{table}`
+                WHERE {where_clause}
+            """
+        elif query_type == QueryType.GET:
+            query = f"""
+                SELECT {columns} FROM `{table}`
+                WHERE {where_clause}
+            """
+        else:
+            raise Exception(f"Invalid Query Type {str(query_type)}")
+
+        return query
 
     def reload_data(
         self,
@@ -152,41 +252,51 @@ class BigQueryApi:
         table: str,
         start_date_time: str,
         end_date_time: str,
-        tenant: str,
+        tenant: Tenant = Tenant.ALL,
+        where_fields: dict = None,
+        null_cols: list = None,
     ) -> None:
 
-        query = f"""
-            DELETE FROM `{table}`
-            WHERE timestamp >= '{start_date_time}' and timestamp <= '{end_date_time}' and tenant = '{tenant}'
-        """
+        query = self.compose_query(
+            QueryType.DELETE,
+            table=table,
+            tenant=tenant,
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            where_fields=where_fields,
+            null_cols=null_cols,
+        )
+
         self.client.query(query=query).result()
 
-        self.load_data(dataframe=dataframe, table=table, job_action=JobAction.APPEND)
+        self.load_data(dataframe=dataframe, table=table)
 
     def query_data(
         self,
         start_date_time: str,
         end_date_time: str,
         table: str,
+        tenant: Tenant,
         columns: list = None,
-        where_fields=None,
+        where_fields: dict = None,
+        null_cols: list = None,
     ) -> pd.DataFrame:
 
-        if where_fields is None:
-            where_fields = {}
+        query = self.compose_query(
+            QueryType.GET,
+            table=table,
+            tenant=tenant,
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            where_fields=where_fields,
+            null_cols=null_cols,
+            columns=columns,
+        )
 
-        columns = ", ".join(map(str, columns)) if columns else " * "
-
-        where_clause = ""
-        for key in where_fields.keys():
-            where_clause = where_clause + f" and {key} = '{where_fields[key]}'"
-
-        query = f"""
-            SELECT {columns}
-            FROM `{table}`
-            WHERE timestamp >= '{start_date_time}' and timestamp <= '{end_date_time}' {where_clause}
-        """
         dataframe = self.client.query(query=query).result().to_dataframe()
+
+        if dataframe.empty:
+            return pd.DataFrame()
 
         dataframe["timestamp"] = dataframe["timestamp"].apply(pd.to_datetime)
 

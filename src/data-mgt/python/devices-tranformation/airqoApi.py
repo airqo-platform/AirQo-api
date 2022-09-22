@@ -21,6 +21,15 @@ class AirQoApi:
 
         return dict(response["approximate_coordinates"]) if response else None
 
+    def get_nearest_weather_stations(self, latitude, longitude) -> list:
+        response = self.__request(
+            endpoint="meta-data/nearest-weather-stations",
+            params={"latitude": latitude, "longitude": longitude},
+            method="get",
+        )
+
+        return list(response["weather_stations"]) if response else []
+
     def get_devices(self, tenant, active=True, all_devices=False):
         params = {"tenant": tenant, "active": "yes" if active else "no"}
         if all_devices:

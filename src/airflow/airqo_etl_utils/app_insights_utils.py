@@ -9,7 +9,7 @@ from .commons import (
     get_air_quality,
 )
 from .config import configuration
-from .constants import Frequency, DataSource
+from .constants import Frequency, DataSource, Tenant
 from .date import (
     date_to_str,
     predict_str_to_date,
@@ -37,7 +37,7 @@ class AirQoAppUtils:
             end_date_time=end_date_time,
             columns=cols,
             table=bigquery_api.hourly_measurements_table,
-            where_fields={"tenant": "airqo"},
+            tenant=Tenant.AIRQO,
         )
 
         if measurements.empty:
@@ -74,7 +74,7 @@ class AirQoAppUtils:
         insights.rename(
             columns={"timestamp": "time", "site_id": "siteId"}, inplace=True
         )
-        insights["frequency"] = frequency
+        insights.loc[:, "frequency"] = frequency
         insights[["empty", "forecast"]] = False
 
         return AirQoAppUtils.create_insights(insights)
@@ -129,7 +129,7 @@ class AirQoAppUtils:
     @staticmethod
     def extract_forecast_data() -> pd.DataFrame:
         airqo_api = AirQoApi()
-        devices = airqo_api.get_devices(tenant="airqo")
+        devices = airqo_api.get_devices(tenant=Tenant.AIRQO)
 
         forecast_measurements = pd.DataFrame(data=[], columns=insights_columns)
         time = int((datetime.utcnow() + timedelta(hours=1)).timestamp())

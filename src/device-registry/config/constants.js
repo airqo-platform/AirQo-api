@@ -17,7 +17,7 @@ const devConfig = {
   KAFKA_RAW_MEASUREMENTS_TOPICS: process.env.KAFKA_RAW_MEASUREMENTS_TOPICS_DEV,
   KAFKA_CLIENT_ID: process.env.KAFKA_CLIENT_ID_DEV,
   KAFKA_CLIENT_GROUP: process.env.KAFKA_CLIENT_GROUP_DEV,
-  ENV_ACRONYM: "dev",
+  ENVIRONMENT: "DEVELOPMENT ENVIRONMENT",
   DATAWAREHOUSE_METADATA: process.env.DATAWAREHOUSE_METADATA_DEV,
   DATAWAREHOUSE_AVERAGED_DATA: process.env.DATAWAREHOUSE_AVERAGED_DATA_DEV,
 };
@@ -32,7 +32,7 @@ const prodConfig = {
   KAFKA_RAW_MEASUREMENTS_TOPICS: process.env.KAFKA_RAW_MEASUREMENTS_TOPICS_PROD,
   KAFKA_CLIENT_ID: process.env.KAFKA_CLIENT_ID_PROD,
   KAFKA_CLIENT_GROUP: process.env.KAFKA_CLIENT_GROUP_PROD,
-  ENV_ACRONYM: "prod",
+  ENVIRONMENT: "PRODUCTION ENVIRONMENT",
   DATAWAREHOUSE_METADATA: process.env.DATAWAREHOUSE_METADATA_PROD,
   DATAWAREHOUSE_AVERAGED_DATA: process.env.DATAWAREHOUSE_AVERAGED_DATA_PROD,
 };
@@ -49,12 +49,15 @@ const stageConfig = {
     process.env.KAFKA_RAW_MEASUREMENTS_TOPICS_STAGE,
   KAFKA_CLIENT_ID: process.env.KAFKA_CLIENT_ID_STAGE,
   KAFKA_CLIENT_GROUP: process.env.KAFKA_CLIENT_GROUP_STAGE,
-  ENV_ACRONYM: "stage",
+  ENVIRONMENT: "STAGING ENVIRONMENT",
   DATAWAREHOUSE_METADATA: process.env.DATAWAREHOUSE_METADATA_STAGE,
   DATAWAREHOUSE_AVERAGED_DATA: process.env.DATAWAREHOUSE_AVERAGED_DATA_STAGE,
 };
 
 const defaultConfig = {
+  SLACK_TOKEN: process.env.SLACK_TOKEN,
+  SLACK_CHANNEL: process.env.SLACK_CHANNEL,
+  SLACK_USERNAME: process.env.SLACK_USERNAME,
   DATAWAREHOUSE_RAW_DATA: process.env.DATAWAREHOUSE_RAW_DATA,
   MOESIF_APPLICATION_ID: process.env.MOESIF_APPLICATION_ID,
   DOMAIN_WHITELIST: process.env.DOMAIN_WHITELIST.split(","),
@@ -78,8 +81,8 @@ const defaultConfig = {
     altitude: "altitude",
     greenness: "greenness",
     aspect: "aspect",
-    landform_270: "landform270",
-    landform_90: "landform90",
+    landform_270: "landform-270",
+    landform_90: "landform-90",
     bearing_to_kampala_center: "bearing",
     distance_to_kampala_center: "distance/kampala",
     distance_to_nearest_road: "distance/road",
@@ -88,6 +91,7 @@ const defaultConfig = {
     distance_to_nearest_primary_road: "distance/primary/road",
     distance_to_nearest_secondary_road: "distance/secondary/road",
     distance_to_nearest_unclassified_road: "distance/unclassified/road",
+    weather_stations: "nearest-weather-stations",
   },
   KEY_ENCRYPTION_KEY: process.env.KEY_ENCRYPTION_KEY,
   GET_ROAD_METADATA: ({ path, latitude, longitude } = {}) => {
@@ -96,9 +100,9 @@ const defaultConfig = {
     const endDate = generateDateFormatWithoutHrs(today);
     const startDate = generateDateFormatWithoutHrs(oneMonthAgo);
     if (path === "greenness") {
-      return `${process.env.PLATFORM_BASE_URL}/api/v1/datawarehouse/${path}?lat=${latitude}&lon=${longitude}&startDate=${startDate}&endDate=${endDate}`;
+      return `${process.env.PLATFORM_BASE_URL}/api/v1/meta-data/${path}?latitude=${latitude}&longitude=${longitude}&startDate=${startDate}&endDate=${endDate}`;
     }
-    return `${process.env.PLATFORM_BASE_URL}/api/v1/datawarehouse/${path}?lat=${latitude}&lon=${longitude}`;
+    return `${process.env.PLATFORM_BASE_URL}/api/v1/meta-data/${path}?latitude=${latitude}&longitude=${longitude}`;
   },
   GET_ADDRESS_URL: (lat, long) => {
     return `${process.env.MAPS_GOOGLEAPIS_BASE_URL}/maps/api/geocode/json?latlng=${lat},${long}&key=${process.env.GCP_KEY}`;

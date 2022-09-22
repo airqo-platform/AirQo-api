@@ -9,8 +9,11 @@ const {
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const { logElement, logObject, logText } = require("./log");
+const constants = require("../config/constants");
 const log4js = require("log4js");
-const logger = log4js.getLogger("generate-filter-util");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- generate-filter-util`
+);
 
 const isLowerCase = (str) => {
   return str === str.toLowerCase();
@@ -446,6 +449,7 @@ const generateFilter = {
         message: "filter successfully generated",
       };
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "unable to generate the filter",
@@ -625,7 +629,9 @@ const generateFilter = {
         data: filter,
       };
     } catch (error) {
-      logger.error(`server error - generate device filter -- ${error.message}`);
+      logger.error(
+        `internal server error - generate device filter -- ${error.message}`
+      );
       return {
         success: false,
         message: "server error - generate device filter",
@@ -729,11 +735,15 @@ const generateFilter = {
   },
 
   locations: (req) => {
-    let { id, name, admin_level } = req.query;
+    let { id, name, admin_level, summary } = req.query;
     let filter = {};
 
     if (id) {
       filter["_id"] = ObjectId(id);
+    }
+
+    if (summary === "yes") {
+      filter["summary"] = summary;
     }
 
     if (name) {

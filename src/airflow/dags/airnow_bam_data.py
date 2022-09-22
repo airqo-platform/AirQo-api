@@ -20,7 +20,7 @@ def airnow_bam_historical_data_etl():
     def extract_bam_data(**kwargs):
         from airqo_etl_utils.date import DateUtils
 
-        start_date_time, end_date_time = DateUtils.get_gad_date_time_values(**kwargs)
+        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(**kwargs)
         from airqo_etl_utils.airnow_utils import AirnowDataUtils
 
         return AirnowDataUtils.extract_bam_data(
@@ -64,7 +64,7 @@ def airnow_bam_realtime_data_etl():
         from airqo_etl_utils.airnow_utils import AirnowDataUtils
         from airqo_etl_utils.date import DateUtils
 
-        start_date_time, end_date_time = DateUtils.get_realtime_date_time_values()
+        start_date_time, end_date_time = DateUtils.get_query_date_time_values()
 
         return AirnowDataUtils.extract_bam_data(
             start_date_time=start_date_time, end_date_time=end_date_time
@@ -95,9 +95,28 @@ def airnow_bam_realtime_data_etl():
         airqo_api = AirQoApi()
         airqo_api.save_events(measurements=restructured_data, tenant="airqo")
 
+    @task()
+    def update_latest_data(airnow_data: pd.DataFrame):
+        from airqo_etl_utils.bigquery_api import BigQueryApi
+        from airqo_etl_utils.airnow_utils import AirnowDataUtils
+        from airqo_etl_utils.data_validator import DataValidationUtils
+        from airqo_etl_utils.constants import Tenant
+
+        bam_data = AirnowDataUtils.process_latest_bam_data(airnow_data)
+
+        big_query_api = BigQueryApi()
+        table = big_query_api.latest_measurements_table
+
+        data = DataValidationUtils.process_for_big_query(
+            dataframe=bam_data, table=table, tenant=Tenant.US_EMBASSY
+        )
+
+        big_query_api.update_data(data, table=table)
+
     extracted_bam_data = extract_bam_data()
     processed_bam_data = process_data(extracted_bam_data)
     send_to_bigquery(processed_bam_data)
+    update_latest_data(processed_bam_data)
 
 
 airnow_bam_realtime_data_etl_dag = airnow_bam_realtime_data_etl()

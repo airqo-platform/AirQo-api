@@ -5,13 +5,13 @@ import os
 from datetime import datetime, timedelta
 from pathlib import Path
 
-import numpy as np
-import pandas as pd
 import requests
 from dotenv import load_dotenv
 
 from airqo_etl_utils.arg_parse_validator import valid_datetime_format
+from airqo_etl_utils.constants import DataSource
 from airqo_etl_utils.date import date_to_str
+from airqo_etl_utils.utils import Utils
 
 BASE_DIR = Path(__file__).resolve().parent
 dotenv_path = os.path.join(BASE_DIR, ".env")
@@ -20,13 +20,13 @@ load_dotenv(dotenv_path)
 
 class ScheduleDag:
     def __init__(
-        self, start_date_time: str, end_date_time: str, logical_date_interval: int
+        self, start_date_time: str, end_date_time: str, dag_duration: int
     ) -> None:
         super().__init__()
         self.start_date_time = start_date_time
         self.end_date_time = end_date_time
-        self.logical_date_interval = logical_date_interval
-        self.authentication = self.get_authentication_string()
+        self.dag_duration = dag_duration
+        self.authentication = ScheduleDag.get_authentication_string()
         self.BASE_URL = os.getenv("AIRFLOW__WEBSERVER__BASE_URL")
 
     @staticmethod
@@ -45,70 +45,87 @@ class ScheduleDag:
                 # AirQo Data
                 "airqo_historical_hourly_data": {
                     "name": "AirQo-Historical-Hourly-Measurements",
-                    "data_duration": "240H",
+                    "data_source": DataSource.BIGQUERY,
+                    "dag_duration": 5,
                 },
                 "airqo_historical_raw_data": {
                     "name": "AirQo-Historical-Raw-Low-Cost-Measurements",
-                    "data_duration": "240H",
+                    "data_source": DataSource.THINGSPEAK,
+                    "dag_duration": 5,
+                },
+                "airqo_calibrated_data": {
+                    "name": "Calibrate-AirQo-Measurements",
+                    "data_source": DataSource.BIGQUERY,
+                    "dag_duration": 120,
+                    "dates_frequency": "120H",
                 },
                 # Weather Data
                 "historical_hourly_weather_data": {
                     "name": "Historical-Hourly-Weather-Measurements",
-                    "data_duration": "360H",
+                    "data_source": DataSource.BIGQUERY,
+                    "dag_duration": 5,
                 },
                 "historical_raw_weather_data": {
                     "name": "Historical-Raw-Weather-Measurements",
-                    "data_duration": "240H",
+                    "data_source": DataSource.TAHMO,
+                    "dag_duration": 1,
                 },
                 # KCCA Data
                 "kcca_historical_hourly_data": {
                     "name": "Kcca-Historical-Hourly-Measurements",
-                    "data_duration": "360H",
+                    "data_source": DataSource.BIGQUERY,
+                    "dag_duration": 5,
                 },
                 "kcca_historical_raw_data": {
                     "name": "Kcca-Historical-Raw-Measurements",
-                    "data_duration": "240H",
+                    "data_source": DataSource.CLARITY,
+                    "dag_duration": 5,
                 },
                 # Data warehouse
                 "data_warehouse": {
                     "name": "Data-Warehouse-ETL",
-                    "data_duration": "360H",
+                    "data_source": DataSource.BIGQUERY,
+                    "dag_duration": 5,
                 },
                 # Mobile App Data
                 "app_historical_daily_insights": {
                     "name": "App-Historical-Daily-Insights",
-                    "data_duration": "720H",
+                    "data_source": DataSource.AIRQO,
+                    "dag_duration": 5,
                 },
                 "app_historical_hourly_insights": {
                     "name": "App-Historical-Hourly-Insights",
-                    "data_duration": "360H",
+                    "data_source": DataSource.AIRQO,
+                    "dag_duration": 5,
                 },
                 # Mobile devices data
                 "historical_urban_better_plume_labs": {
                     "name": "Urban-Better-Plume-Labs-Historical-Raw-Measurements",
-                    "data_duration": "240H",
+                    "data_source": DataSource.PLUME_LABS,
+                    "dag_duration": 5,
                 },
                 "historical_urban_better_air_beam": {
                     "name": "Urban-Better-Air-Beam-Historical-Raw-Measurements",
-                    "data_duration": "240H",
                 },
                 # AirNow Data
                 "airnow_historical_bam_data": {
                     "name": "Airnow-Historical-Bam-Data",
-                    "data_duration": "240H",
+                    "data_source": DataSource.AIRNOW,
+                    "dag_duration": 5,
                 },
                 # Nasa Data
                 "nasa_historical_raw_data": {
                     "name": "Nasa-Historical-Raw-Data",
-                    "data_duration": "240H",
+                    "data_source": DataSource.PURPLE_AIR,
+                    "dag_duration": 5,
                 },
             }
         )
 
-    def post_dag(self, payload: dict, dag: str):
+    def post_dag(self, payload: dict, dag: str) -> bool:
 
         api_request = requests.post(
-            "%sapi/v1/dags/%s/dagRuns" % (self.BASE_URL, dag),
+            f"{self.BASE_URL}api/v1/dags/{dag}/dagRuns",
             data=json.dumps(payload),
             headers={
                 "Authorization": f"Basic {self.authentication}",
@@ -116,69 +133,71 @@ class ScheduleDag:
             },
         )
         print(f"\n{json.loads(api_request.content)}")
+        return api_request.status_code == 200
 
     def schedule(self, dag: str):
         dag = ScheduleDag.dags().get(dag)
-        dates = pd.date_range(
-            self.start_date_time, self.end_date_time, freq=dag["data_duration"]
+        dag_start_time = datetime.utcnow() + timedelta(minutes=1)
+        dag_duration = (
+            dag.get("dag_duration", None)
+            if self.dag_duration == -1
+            else self.dag_duration
         )
-        last_date_time = dates.values[len(dates.values) - 1]
-        logical_date = datetime.utcnow() + timedelta(hours=30)
-        for date in dates:
 
-            start = date_to_str(date)
-            query_end_date_time = date + timedelta(hours=dates.freq.n)
-
-            if np.datetime64(query_end_date_time) > last_date_time:
-                end = self.end_date_time
-            else:
-                end = date_to_str(query_end_date_time)
-
+        dates = Utils.query_dates_array(
+            start_date_time=self.start_date_time,
+            end_date_time=self.end_date_time,
+            data_source=dag["data_source"],
+            freq=dag.get("dates_frequency", None),
+        )
+        for start, end in dates:
             pay_load = {
                 "dag_run_id": f"{start}-{end}",
-                "logical_date": date_to_str(logical_date),
+                "logical_date": date_to_str(dag_start_time),
                 "conf": {"start_date_time": start, "end_date_time": end},
             }
-            self.post_dag(payload=pay_load, dag=dag["name"])
-            logical_date = logical_date + timedelta(minutes=self.logical_date_interval)
+            success = self.post_dag(payload=pay_load, dag=dag["name"])
+            if not success:
+                continue
+            dag_start_time = dag_start_time + timedelta(minutes=dag_duration)
 
 
 if __name__ == "__main__":
     hour_of_day = datetime.utcnow() - timedelta(hours=1)
     dags = ScheduleDag.dags().keys()
-    valid_dag_names = ", ".join([str(name) for name in dags])
+    dag_names = ", ".join([str(name) for name in dags])
     parser = argparse.ArgumentParser(description="DAG configuration")
     parser.add_argument(
         "--start",
         required=True,
         type=valid_datetime_format,
-        help='start datetime in format "yyyy-MM-ddThh:mm:ssZ"',
+        help="start datetime (yyyy-MM-ddThh:mm:ssZ)",
     )
     parser.add_argument(
         "--end",
         required=True,
         type=valid_datetime_format,
-        help='end datetime in format "yyyy-MM-ddThh:mm:ssZ"',
-    )
-    parser.add_argument(
-        "--logical_date_minutes_interval",
-        required=True,
-        type=int,
-        help="range interval in minutes",
+        help="end datetime (yyyy-MM-ddThh:mm:ssZ)",
     )
     parser.add_argument(
         "--dag",
         required=True,
         type=str,
-        help=f"DAG. Examples: {valid_dag_names}",
+        help=f"DAG. Examples: {dag_names}",
         choices=dags,
+    )
+    parser.add_argument(
+        "--dag_duration",
+        type=int,
+        default=-1,
+        help="dag duration in minutes",
     )
     args = parser.parse_args()
 
     schedule_dag = ScheduleDag(
         start_date_time=args.start,
         end_date_time=args.end,
-        logical_date_interval=args.logical_date_minutes_interval,
+        dag_duration=args.dag_duration,
     )
 
     schedule_dag.schedule(dag=args.dag)

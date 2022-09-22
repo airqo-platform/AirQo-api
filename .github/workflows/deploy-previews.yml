@@ -633,7 +633,7 @@ jobs:
             --port=5000 \
             --cpu=1000m \
             --memory=256Mi \
-            --update-secrets=/etc/env/.env=sta-env-predict:latest,/etc/config/google_application_credentials.json=sta-key-predict-service-account-2:latest \
+            --update-secrets=/etc/env/.env=sta-env-predict:latest,/etc/config/google_application_credentials.json=sta-key-predict-service-account:latest \
             --command="/bin/sh","-c","cat /etc/env/.env >> /app/.env; flask run --host=0.0.0.0" \
             --allow-unauthenticated
 
@@ -976,7 +976,7 @@ jobs:
   
   ### network_uptime ###
   network-uptime:
-    name: build-push-deploy-auth
+    name: build-push-deploy-network-uptime
     needs: [check,branch-name]
     if: needs.check.outputs.run_network_uptime == 'true'
     runs-on: ubuntu-latest
@@ -1009,7 +1009,7 @@ jobs:
       - name: Build and Push Container
         run: |
           cd src/network-uptime/
-          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/network-uptime-pr-previews:${{ github.sha }} ./
+          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/network-uptime-pr-previews:${{ github.sha }} .
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/network-uptimee-pr-previews:${{ github.sha }}
       
       - name: Deploy to Cloud Run

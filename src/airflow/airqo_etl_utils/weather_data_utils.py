@@ -2,8 +2,7 @@ import pandas as pd
 
 from .airqo_api import AirQoApi
 from .bigquery_api import BigQueryApi
-from .commons import remove_invalid_dates
-from .constants import DataSource
+from .constants import DataSource, Tenant
 from .data_validator import DataValidationUtils
 from .tahmo_api import TahmoApi
 from .utils import Utils
@@ -14,14 +13,33 @@ class WeatherDataUtils:
     def extract_hourly_weather_data(start_date_time, end_date_time) -> pd.DataFrame:
         bigquery_api = BigQueryApi()
 
-        cols = ["station_code", "timestamp", "temperature", "humidity"]
         measurements = bigquery_api.query_data(
             start_date_time=start_date_time,
             end_date_time=end_date_time,
-            columns=cols,
             table=bigquery_api.hourly_weather_table,
+            tenant=Tenant.ALL,
         )
-        return pd.DataFrame([], columns=cols) if measurements.empty else measurements
+        cols = bigquery_api.get_columns(table=bigquery_api.hourly_weather_table)
+        return pd.DataFrame([], cols) if measurements.empty else measurements
+
+    @staticmethod
+    def get_nearest_weather_stations(records: list) -> list:
+        data = []
+        airqo_api = AirQoApi()
+
+        for record in records:
+            weather_stations = airqo_api.get_nearest_weather_stations(
+                latitude=record.get("latitude"),
+                longitude=record.get("longitude"),
+            )
+            data.append(
+                {
+                    **record,
+                    **{"weather_stations": weather_stations},
+                }
+            )
+
+        return data
 
     @staticmethod
     def get_weather_stations(meta_data: list) -> pd.DataFrame:
@@ -54,6 +72,7 @@ class WeatherDataUtils:
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             table=bigquery_api.raw_weather_table,
+            tenant=Tenant.ALL,
         )
 
         return measurements
@@ -91,11 +110,7 @@ class WeatherDataUtils:
             else pd.DataFrame([], columns=["value", "variable", "time", "station"])
         )
 
-        return remove_invalid_dates(
-            dataframe=measurements,
-            start_time=start_date_time,
-            end_time=end_date_time,
-        )
+        return measurements
 
     @staticmethod
     def extract_hourly_data(start_date_time, end_date_time) -> pd.DataFrame:
@@ -177,7 +192,9 @@ class WeatherDataUtils:
             merged_data = pd.merge(left=averages, right=sums, on="timestamp")
             merged_data["station_code"] = station_group.iloc[0]["station_code"]
 
-            aggregated_data = aggregated_data.append(merged_data, ignore_index=True)
+            aggregated_data = pd.concat(
+                [aggregated_data, merged_data], ignore_index=True
+            )
 
         return aggregated_data
 

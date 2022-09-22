@@ -329,5 +329,5 @@ def historical_raw_measurements_etl():
 raw_measurements_etl_dag = raw_measurements_etl()
 historical_raw_measurements_etl_dag = historical_raw_measurements_etl()
 hourly_measurements_etl_dag = hourly_measurements_etl()
-daily_measurements_etl_dag = daily_measurements_etl()
+# daily_measurements_etl_dag = daily_measurements_etl()
 historical_hourly_measurements_etl_dag = historical_hourly_measurements_etl()

@@ -1,8 +1,11 @@
 const HTTPStatus = require("http-status");
 const { logObject, logElement, logText } = require("../utils/log");
 const errors = require("../utils/errors");
+const constants = require("../config/constants");
 const log4js = require("log4js");
-const logger = log4js.getLogger("create-photo-controller");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- create-photo-controller`
+);
 const { validationResult } = require("express-validator");
 const createPhotoUtil = require("../utils/create-photo");
 
@@ -54,6 +57,7 @@ const processImage = {
         });
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -107,6 +111,7 @@ const processImage = {
         });
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -119,6 +124,15 @@ const processImage = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -158,6 +172,7 @@ const processImage = {
         });
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -172,6 +187,15 @@ const processImage = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -210,6 +234,7 @@ const processImage = {
         });
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -224,6 +249,15 @@ const processImage = {
       logElement("hasErrors", hasErrors);
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -273,6 +307,7 @@ const processImage = {
         });
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -285,6 +320,15 @@ const processImage = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -329,6 +373,7 @@ const processImage = {
         });
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -341,6 +386,15 @@ const processImage = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -385,6 +439,7 @@ const processImage = {
         });
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -398,6 +453,15 @@ const processImage = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -437,6 +501,7 @@ const processImage = {
         });
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -492,6 +557,7 @@ const processImage = {
         });
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -550,7 +616,7 @@ const processImage = {
         });
       }
     } catch (error) {
-      logObject("error", error);
+      logger.error(`internal server error -- ${error.message}`);
       res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",

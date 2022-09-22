@@ -2,19 +2,36 @@ from enum import Enum
 
 
 class DeviceCategory(Enum):
+    """
+    LOW_COST -> Reference monitors
+    BAM -> Low cost senors
+    """
+
     LOW_COST = 1
     BAM = 2
+    NONE = 20
 
-    def get_api_query_str(self):
-        if self == self.LOW_COST:
-            return "lowcost"
-        elif self == self.BAM:
+    def __str__(self):
+        if self == self.BAM:
             return "bam"
         else:
-            return ""
+            return "lowcost"
+
+    @staticmethod
+    def from_str(string: str):
+        if string.lower() == str(DeviceCategory.BAM):
+            return DeviceCategory.BAM
+        else:
+            return DeviceCategory.LOW_COST
 
 
 class Frequency(Enum):
+    """
+    LOW_COST -> Raw data returned from the devices
+    HOURLY -> Aggregated hourly data
+    DAILY -> Aggregated daily data
+    """
+
     RAW = 1
     HOURLY = 2
     DAILY = 3
@@ -38,6 +55,12 @@ class DataSource(Enum):
     TAHMO = 5
     AIRQO = 6
     PURPLE_AIR = 7
+    BIGQUERY = 8
+
+
+class QueryType(Enum):
+    GET = 1
+    DELETE = 2
 
 
 class Tenant(Enum):
@@ -45,6 +68,8 @@ class Tenant(Enum):
     URBAN_BETTER = 2
     AIRQO = 3
     US_EMBASSY = 4
+    KCCA = 5
+    ALL = 20
 
     def __str__(self) -> str:
         if self == self.NASA:
@@ -53,21 +78,10 @@ class Tenant(Enum):
             return "urban_better"
         elif self == self.AIRQO:
             return "airqo"
+        elif self == self.KCCA:
+            return "kcca"
         elif self == self.US_EMBASSY:
             return "us_embassy"
-        else:
-            return ""
-
-
-class BamDataType(Enum):
-    OUTLIERS = 1
-    MEASUREMENTS = 2
-
-    def __str__(self) -> str:
-        if self == self.OUTLIERS:
-            return "outliers"
-        elif self == self.MEASUREMENTS:
-            return "measurements"
         else:
             return ""
 
@@ -85,20 +99,23 @@ class JobAction(Enum):
             return "WRITE_EMPTY"
 
 
-class DataType(Enum):
+class ColumnDataType(Enum):
     TIMESTAMP = 1
     FLOAT = 2
     TIMESTAMP_STR = 3
-    INTEGER = 4
-    NONE = 5
+    STRING = 4
+    INTEGER = 5
+    NONE = 6
 
-    def to_string(self):
+    def __str__(self):
         if self == self.TIMESTAMP:
             return "TIMESTAMP"
         elif self == self.FLOAT:
             return "FLOAT"
         elif self == self.INTEGER:
             return "INTEGER"
+        elif self == self.STRING:
+            return "STRING"
         elif self == self.TIMESTAMP_STR:
             return "TIMESTAMP_STR"
         else:
@@ -144,3 +161,11 @@ class Pollutant(Enum):
             return "no2"
         else:
             return ""
+
+
+class DataType(Enum):
+    UNCLEAN_BAM_DATA = 0
+    CLEAN_BAM_DATA = 1
+    UNCLEAN_LOW_COST_DATA = 2
+    CLEAN_LOW_COST_DATA = 3
+    AGGREGATED_LOW_COST_DATA = 3

@@ -64,6 +64,7 @@ jobs:
       run_channel_data: ${{ steps.check_files.outputs.run_channel_data }} # channel data job
       run_kafka_connectors: ${{ steps.check_files.outputs.run_kafka_connectors }} # kafka connectors
       run_fault_detection: ${{ steps.check_files.outputs.run_fault_detection }} # fault detection
+      run_nginx_ingress: ${{ steps.check_files.outputs.run_nginx_ingress }} # nginx ingress
 
     runs-on: ubuntu-latest
     steps:
@@ -107,11 +108,17 @@ jobs:
           echo "::set-output name=run_channel_data::false"
           echo "::set-output name=run_kafka_connectors::false"
           echo "::set-output name=run_fault_detection::false"
+          echo "::set-output name=run_nginx_ingress::false"
 
           while IFS= read -r file
           do
             echo $file
+            
             if [[ $file == src/auth-service/* ]]; then
+              echo "::set-output name=run_auth_service::true"
+            fi
+            
+            if [[ $file == k8s/auth-service/* ]]; then
               echo "::set-output name=run_auth_service::true"
             fi
 
@@ -119,7 +126,15 @@ jobs:
               echo "::set-output name=run_device_registry::true"
             fi
 
+            if [[ $file == k8s/device-registry/* ]]; then
+              echo "::set-output name=run_device_registry::true"
+            fi
+
             if [[ $file == src/device-monitoring/* ]]; then
+              echo "::set-output name=run_device_monitoring::true"
+            fi
+
+            if [[ $file == k8s/device-monitor/* ]]; then
               echo "::set-output name=run_device_monitoring::true"
             fi
 
@@ -127,7 +142,15 @@ jobs:
               echo "::set-output name=run_data_mgt::true"
             fi
 
+            if [[ $file == k8s/data-mgt/* ]]; then
+              echo "::set-output name=run_data_mgt::true"
+            fi
+
             if [[ $file == src/analytics/* ]]; then
+              echo "::set-output name=run_analytics::true"
+            fi
+
+            if [[ $file == k8s/analytics/* ]]; then
               echo "::set-output name=run_analytics::true"
             fi
 
@@ -135,7 +158,15 @@ jobs:
               echo "::set-output name=run_device_uptime::true"
             fi
 
+            if [[ $file == k8s/device-uptime/* ]]; then
+              echo "::set-output name=run_device_uptime::true"
+            fi
+
             if [[ $file == src/device-status/* ]]; then
+              echo "::set-output name=run_device_status::true"
+            fi
+
+            if [[ $file == k8s/device-status/* ]]; then
               echo "::set-output name=run_device_status::true"
             fi
 
@@ -143,7 +174,15 @@ jobs:
               echo "::set-output name=run_locate::true"
             fi
 
+            if [[ $file == k8s/locate/* ]]; then
+              echo "::set-output name=run_locate::true"
+            fi
+
             if [[ $file == src/predict/* ]]; then
+              echo "::set-output name=run_predict::true"
+            fi
+
+            if [[ $file == k8s/predict/* ]]; then
               echo "::set-output name=run_predict::true"
             fi
 
@@ -151,7 +190,15 @@ jobs:
               echo "::set-output name=run_gp_model::true"
             fi
 
+            if [[ $file == k8s/gp-model/* ]]; then
+              echo "::set-output name=run_gp_model::true"
+            fi
+
             if [[ $file == src/exceedances/* ]]; then
+              echo "::set-output name=run_exceedances::true"
+            fi
+
+            if [[ $file == k8s/exceedance/* ]]; then
               echo "::set-output name=run_exceedances::true"
             fi
 
@@ -166,8 +213,16 @@ jobs:
             if [[ $file == src/view/* ]]; then
               echo "::set-output name=run_view::true"
             fi
+
+            if [[ $file == k8s/view-api/* ]]; then
+              echo "::set-output name=run_view::true"
+            fi
             
             if [[ $file == src/calibrate/* ]]; then
+              echo "::set-output name=run_calibrate::true"
+            fi
+            
+            if [[ $file == k8s/calibrate/* ]]; then
               echo "::set-output name=run_calibrate::true"
             fi
             
@@ -180,6 +235,10 @@ jobs:
             fi
 
             if [[ $file == src/notifications/* ]]; then
+              echo "::set-output name=run_notifications::true"
+            fi
+
+            if [[ $file == k8s/notification-service/* ]]; then
               echo "::set-output name=run_notifications::true"
             fi
 
@@ -206,8 +265,16 @@ jobs:
             if [[ $file == src/network-uptime/* ]]; then
               echo "::set-output name=run_network_uptime::true"
             fi
+
+            if [[ $file == k8s/network-uptime/* ]]; then
+              echo "::set-output name=run_network_uptime::true"
+            fi
             
             if [[ $file == src/channel-data/* ]]; then
+              echo "::set-output name=run_channel_data::true"
+            fi
+            
+            if [[ $file == k8s/channel-data/* ]]; then
               echo "::set-output name=run_channel_data::true"
             fi
 
@@ -215,8 +282,20 @@ jobs:
               echo "::set-output name=run_fault_detection::true"
             fi
 
+            if [[ $file == k8s/fault-detection/* ]]; then
+              echo "::set-output name=run_fault_detection::true"
+            fi
+
             if [[ $file == src/kafka-connectors/* ]]; then
-              echo "::set-output name=run_kafka_connectors::false"
+              echo "::set-output name=run_kafka_connectors::true"
+            fi
+
+            if [[ $file == k8s/kafka-connectors/* ]]; then
+              echo "::set-output name=run_kafka_connectors::true"
+            fi
+
+            if [[ $file == k8s/nginx-ingress/* ]]; then
+              echo "::set-output name=run_nginx_ingress::true"
             fi
 
             if [[ $file == workflow-trigger ]]; then
@@ -241,7 +320,8 @@ jobs:
               echo "::set-output name=run_channel_data::true"
               echo "::set-output name=run_fault_detection::true"
               echo "::set-output name=run_view::true"
-              echo "::set-output name=run_kafka_connectors::false"
+              echo "::set-output name=run_kafka_connectors::true"
+              echo "::set-output name=run_nginx_ingress::true"
             fi
 
           done < files.txt
@@ -411,8 +491,8 @@ jobs:
 
       - name: Deploy to k8s cluster
         run: |
-          kubectl apply -f k8s/fault-detection/stage-fault-detection-api.yaml -n staging
-          kubectl rollout restart deployment stage-fault-detection-api  -n staging
+          kubectl apply -f k8s/fault-detection/stage-fault-detection-api.yaml
+          kubectl rollout restart deployment stage-fault-detection-api -n staging
 
   ### airflow ###
   airflow:
@@ -553,10 +633,10 @@ jobs:
 
       - name: Deploy to K8S
         run: |
-          kubectl apply -f k8s/predict/stage-prediction-api.yaml -n staging
+          kubectl apply -f k8s/predict/stage-prediction-api.yaml
           kubectl rollout restart deployment airqo-stage-prediction-api  -n staging
-          kubectl apply -f k8s/predict/stage-airqo-predict-job.yaml -n staging
-          kubectl apply -f k8s/predict/stage-airqo-train-job.yaml -n staging
+          kubectl apply -f k8s/predict/stage-airqo-predict-job.yaml
+          kubectl apply -f k8s/predict/stage-airqo-train-job.yaml
 
   ### kafka cluster operator ###
   kafka-cluster-operator:
@@ -577,7 +657,7 @@ jobs:
 
       - name: Deploy to K8S
         run: |
-          kubectl apply -f k8s/kafka-operator/namespace.yaml
+          kubectl apply -f k8s/namespaces/message-broker.yaml
           bash k8s/kafka-operator/deployment-script.sh
 
   ### kafka cluster ###
@@ -673,7 +753,7 @@ jobs:
    
       - name: Deploy to K8S
         run: |
-          kubectl apply -f k8s/device-registry/stage-device-registry-api.yaml -n staging
+          kubectl apply -f k8s/device-registry/stage-device-registry-api.yaml
           kubectl set image deployment/airqo-stage-device-registry-api sta-dev-reg-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-registry-api:${{ needs.image-tag.outputs.build_id }} -n staging
           kubectl annotate deployment/airqo-stage-device-registry-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-registry-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
 
@@ -726,7 +806,7 @@ jobs:
 
       - name: Deploy to K8S
         run: |
-          kubectl apply -f k8s/device-monitor/stage-device-monitor-api.yaml -n staging
+          kubectl apply -f k8s/device-monitor/stage-device-monitor-api.yaml
           kubectl set image deployment/airqo-stage-device-monitor-api sta-dev-monitor=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-monitor-api:${{ needs.image-tag.outputs.build_id }} -n staging
           kubectl annotate deployment/airqo-stage-device-monitor-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-monitor-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
 
@@ -775,7 +855,7 @@ jobs:
 
       - name: Deploy to K8S
         run: |
-          kubectl apply -f k8s/data-mgt/stage-data-mgt-api.yaml -n staging
+          kubectl apply -f k8s/data-mgt/stage-data-mgt-api.yaml
           kubectl rollout restart deployment/airqo-stage-data-mgt-api -n staging
 
   ### analytics ###
@@ -823,29 +903,13 @@ jobs:
         run: |
           cd src/analytics/
           gcloud secrets versions access latest --secret="sta-env-analytics" > .env
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-analytics-production | kubectl replace -f - -n staging
-          gcloud secrets versions access latest --secret="prod-key-analytics-service-account" > google_application_credentials.json
-          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json stage-analytics-config-files | kubectl replace -f - -n staging
-
-      - name: Login to GCP
-        uses: google-github-actions/auth@v0
-        with:
-          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
-
-      - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v0
-
-      - name: Update the corresponding k8s configmap(s)
-        run: |
-          cd src/analytics/
-          gcloud secrets versions access latest --secret="sta-env-analytics" > .env
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-analytics-production | kubectl replace -f - -n staging
-          gcloud secrets versions access latest --secret="prod-key-analytics-service-account" > google_application_credentials.json
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-analytics-staging | kubectl replace -f - -n staging
+          gcloud secrets versions access latest --secret="sta-key-analytics-service-account" > google_application_credentials.json
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json stage-analytics-config-files | kubectl replace -f - -n staging
 
       - name: Deploy to K8S
         run: |
-          kubectl apply -f k8s/analytics/stage-analytics-api.yaml -n staging
+          kubectl apply -f k8s/analytics/stage-analytics-api.yaml
           kubectl set image deployment/airqo-stage-analytics-api sta-alytics-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-analytics-api:${{ needs.image-tag.outputs.build_id }} -n staging
           kubectl annotate deployment/airqo-stage-analytics-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-analytics-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
   
@@ -996,7 +1060,7 @@ jobs:
    
       - name: Deploy to K8S
         run: |
-          kubectl apply -f k8s/locate/stage-locate-api.yaml -n staging
+          kubectl apply -f k8s/locate/stage-locate-api.yaml
           kubectl set image deployment/airqo-stage-locate-api sta-locate-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-locate-api:${{ needs.image-tag.outputs.build_id }} -n staging
           kubectl annotate deployment/airqo-stage-locate-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-locate-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
   
@@ -1226,18 +1290,17 @@ jobs:
           cd src/view/
           gcloud secrets versions access latest --secret="sta-env-view-api" > api.env
           kubectl create configmap --dry-run=client -o yaml --from-env-file=api.env stage-view-api-config | kubectl replace -f - -n staging
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=api.env stage-views-api-config | kubectl replace -f - -n staging
           gcloud secrets versions access latest --secret="sta-env-view-message-broker" > message_broker.env
           kubectl create configmap --dry-run=client -o yaml --from-env-file=message_broker.env stage-view-message-broker-config | kubectl replace -f - -n staging
    
       - name: Deploy API to K8S
         run: |
-          kubectl apply -f k8s/view-api/stage-view-api.yaml -n staging
+          kubectl apply -f k8s/view-api/stage-view-api.yaml
           kubectl rollout restart deployment airqo-stage-view-api  -n staging
 
       - name: Deploy Message Broker to K8S
         run: |
-          kubectl apply -f k8s/view-api/stage-view-message-broker.yaml -n staging
+          kubectl apply -f k8s/view-api/stage-view-message-broker.yaml
           kubectl rollout restart deployment airqo-stage-view-message-broker  -n staging
   
   #### Calibrate ######
@@ -1303,20 +1366,7 @@ jobs:
    
       - name: Deploy to Main k8s cluster
         run: |
-          kubectl apply -f k8s/calibrate/stage-calibrate-api.yaml -n staging
-          kubectl set image deployment/airqo-stage-calibrate-api calibrate-pickle=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-calibrate-pickle-file:${{ needs.image-tag.outputs.build_id }} -n staging
-          kubectl set image deployment/airqo-stage-calibrate-api sta-calibrate=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-calibrate-api:${{ needs.image-tag.outputs.build_id }} -n staging
-          kubectl annotate deployment/airqo-stage-calibrate-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-calibrate-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
-
-      - name: Login to Pipeline k8s cluster
-        uses: azure/k8s-set-context@v1
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_PIPELINE_CONFIG }}
-
-      - name: Deploy to Pipeline k8s cluster
-        run: |
-          kubectl apply -f k8s/calibrate/stage-calibrate-api.yaml -n staging
+          kubectl apply -f k8s/calibrate/stage-calibrate-api.yaml
           kubectl set image deployment/airqo-stage-calibrate-api calibrate-pickle=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-calibrate-pickle-file:${{ needs.image-tag.outputs.build_id }} -n staging
           kubectl set image deployment/airqo-stage-calibrate-api sta-calibrate=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-calibrate-api:${{ needs.image-tag.outputs.build_id }} -n staging
           kubectl annotate deployment/airqo-stage-calibrate-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-calibrate-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
@@ -1368,7 +1418,7 @@ jobs:
    
       - name: Deploy to K8S
         run: |
-          kubectl apply -f k8s/events-monitor/stage-events-notifs-cronjob.yaml -n staging
+          kubectl apply -f k8s/events-monitor/stage-events-notifs-cronjob.yaml
   
   #### notification ######
   notification:
@@ -1472,7 +1522,7 @@ jobs:
    
       - name: Deploy to K8S
         run: |
-          kubectl apply -f k8s/network-uptime/stage-airqo-network-uptime-api.yaml -n staging
+          kubectl apply -f k8s/network-uptime/stage-airqo-network-uptime-api.yaml
           kubectl set image deployment/airqo-stage-network-uptime-api sta-network-uptime=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-network-uptime-api:${{ needs.image-tag.outputs.build_id }} -n staging
           kubectl annotate deployment/airqo-stage-network-uptime-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-network-uptime-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
   
@@ -1523,4 +1573,23 @@ jobs:
    
       - name: Deploy to K8S
         run: |
-          kubectl apply -f k8s/channel-data/stage-airqo-update-channel-data-job.yaml -n staging
+          kubectl apply -f k8s/channel-data/stage-airqo-update-channel-data-job.yaml
+
+  ### apply nginx ingress ###
+  nginx-ingress:
+    name: apply-nginx-ingress
+    needs: [check]
+    if: needs.check.outputs.run_nginx_ingress == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Login to K8S
+        uses: azure/k8s-set-context@v1
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+
+      - name: Apply ingress changes
+        run: kubectl apply -f k8s/nginx-ingress/stage-platform-ingress-resource.yaml

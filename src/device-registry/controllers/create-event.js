@@ -1,7 +1,10 @@
 const HTTPStatus = require("http-status");
+const constants = require("../config/constants");
 const { logObject, logText, logElement } = require("../utils/log");
 const log4js = require("log4js");
-const logger = log4js.getLogger("create-event-controller");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- create-event-controller`
+);
 
 const errors = require("../utils/errors");
 
@@ -12,7 +15,7 @@ createDeviceUtil = require("../utils/create-device");
 
 const { Kafka } = require("kafkajs");
 const { SchemaRegistry } = require("@kafkajs/confluent-schema-registry");
-const constants = require("../config/constants");
+
 const SCHEMA_REGISTRY = constants.SCHEMA_REGISTRY;
 const BOOTSTRAP_SERVERS = constants.KAFKA_BOOTSTRAP_SERVERS;
 const RAW_MEASUREMENTS_TOPICS = constants.KAFKA_RAW_MEASUREMENTS_TOPICS;
@@ -46,7 +49,7 @@ const createEvent = {
           const measurements = decodedValue.measurements;
           // insertMeasurtements.addValuesArray(measurements);
         } catch (e) {
-          logObject("Kafka Raw Measurements consumer", e);
+          logger.error(`internal server error -- ${e.message}`);
         }
       },
     });
@@ -66,7 +69,7 @@ const createEvent = {
         });
       }
     } catch (error) {
-      logObject("error", error);
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -81,6 +84,15 @@ const createEvent = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -103,6 +115,7 @@ const createEvent = {
         });
       }
     } catch (e) {
+      logger.error(`internal server error -- ${e.message}`);
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "server side error , create events - controller",
@@ -118,6 +131,15 @@ const createEvent = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -156,6 +178,7 @@ const createEvent = {
         });
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -169,6 +192,15 @@ const createEvent = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -237,6 +269,7 @@ const createEvent = {
         }
       });
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -250,6 +283,15 @@ const createEvent = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -316,6 +358,7 @@ const createEvent = {
         }
       });
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -358,7 +401,7 @@ const createEvent = {
         });
       }
     } catch (error) {
-      logObject("the error", error);
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -371,6 +414,15 @@ const createEvent = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -404,6 +456,7 @@ const createEvent = {
         });
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -415,6 +468,15 @@ const createEvent = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -457,6 +519,7 @@ const createEvent = {
         });
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -469,6 +532,15 @@ const createEvent = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -510,6 +582,7 @@ const createEvent = {
         });
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -522,6 +595,15 @@ const createEvent = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -556,6 +638,7 @@ const createEvent = {
           .json({ message: responseFromTransmitValues.message, errors });
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -571,6 +654,15 @@ const createEvent = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(res, "bad request errors", nestedErrors);
       }
       const { body } = req;
@@ -605,7 +697,7 @@ const createEvent = {
         });
       }
     } catch (e) {
-      logger.error(`responseFromClearValuesOnPlatform -- ${e.message}`);
+      logger.error(`internal server error -- ${e.message}`);
       errors.tryCatchErrors(
         res,
         e.message,
@@ -614,15 +706,21 @@ const createEvent = {
     }
   },
 
-  /***********************************************************
-   * api_v2 starts
-   */
   addEvents: async (req, res) => {
     try {
       logger.info(`adding values...`);
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -682,6 +780,15 @@ const createEvent = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
         return errors.badRequest(
           res,
           "bad request errors",
@@ -713,7 +820,7 @@ const createEvent = {
         });
       }
     } catch (error) {
-      logger.error(`viewEvents -- ${error.message}`);
+      logger.error(`internal server error -- ${error.message}`);
       res.status(HTTPStatus.BAD_GATEWAY).json({
         success: false,
         message: "server error",
@@ -721,10 +828,6 @@ const createEvent = {
       });
     }
   },
-
-  /************************************************************
-   * api_v2 ends
-   */
 };
 
 module.exports = createEvent;

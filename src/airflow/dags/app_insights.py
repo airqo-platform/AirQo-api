@@ -214,6 +214,7 @@ def insights_cleanup_etl():
     def create_empty_insights():
 
         from airqo_etl_utils.airqo_api import AirQoApi
+        from airqo_etl_utils.constants import Tenant
 
         import random
         from airqo_etl_utils.date import (
@@ -222,7 +223,7 @@ def insights_cleanup_etl():
         )
 
         airqo_api = AirQoApi()
-        sites = airqo_api.get_sites(tenant="airqo")
+        sites = airqo_api.get_sites(tenant=Tenant.AIRQO)
         insights = []
 
         dates = pd.date_range(start_date_time, end_date_time, freq="1H")
@@ -280,7 +281,7 @@ def insights_cleanup_etl():
     ):
 
         insights_data = pd.concat(
-            [empty_insights_data, available_insights_data]
+            [empty_insights_data, available_insights_data], ignore_index=True
         ).drop_duplicates(keep=False, subset=["siteId", "time", "frequency"])
 
         return insights_data

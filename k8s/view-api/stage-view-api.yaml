@@ -22,16 +22,34 @@ spec:
       labels:
         app: view-api
     spec:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 90
+            preference:
+              matchExpressions:
+              - key: node-type
+                operator: In
+                values:
+                - high-memory
+          - weight: 1
+            preference:
+              matchExpressions:
+              - key: node-type
+                operator: In
+                values:
+                - general-purpose
       containers:
         - name: view-api
           image: us.gcr.io/airqo-250220/airqo-stage-view-api:latest
           imagePullPolicy: Always
           resources:
             requests:
-              cpu: 100m
-              memory: 250Mi
+              # Average usage was 0.002 vCPU and 420Mi over the last 30 days
+              cpu: 5m
+              memory: 420Mi
             limits:
-              cpu: 200m
+              cpu: 50m
               memory: 700Mi
           ports:
             - containerPort: 8080
@@ -40,45 +58,17 @@ spec:
             - configMapRef:
                 name: stage-view-api-config
           readinessProbe:
-            initialDelaySeconds: 30
+            initialDelaySeconds: 60
+            periodSeconds: 10
             httpGet:
               port: 8080
               path: api/v1/view/actuator/health/readiness
           livenessProbe:
-            initialDelaySeconds: 30
+            initialDelaySeconds: 240
+            periodSeconds: 20
             httpGet:
               port: 8080
               path: api/v1/view/actuator/health/liveness
-          lifecycle:
-            preStop:
-              exec:
-                command: [ "sh", "-c", "sleep 10" ]
-        - name: views-api
-          image: us.gcr.io/airqo-250220/airqo-stage-view-api:latest
-          imagePullPolicy: Always
-          resources:
-            requests:
-              cpu: 100m
-              memory: 250Mi
-            limits:
-              cpu: 200m
-              memory: 700Mi
-          ports:
-            - containerPort: 8081
-              name: views-api
-          envFrom:
-            - configMapRef:
-                name: stage-views-api-config
-          readinessProbe:
-            initialDelaySeconds: 30
-            httpGet:
-              port: 8081
-              path: api/v1/views/actuator/health/readiness
-          livenessProbe:
-            initialDelaySeconds: 30
-            httpGet:
-              port: 8081
-              path: api/v1/views/actuator/health/liveness
           lifecycle:
             preStop:
               exec:
@@ -98,10 +88,6 @@ spec:
       name: view-api
       port: 8080
       targetPort: 8080
-    - protocol: TCP
-      name: views-api
-      port: 8081
-      targetPort: 8081
 
 ---
 kind: HorizontalPodAutoscaler

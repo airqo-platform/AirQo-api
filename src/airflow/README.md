@@ -5,8 +5,8 @@ engineering pipelines.
 
 ## Environment Setup
 
-Add the `google_application_credentials.json` and `.env` files to this
-directory. [Folder containing files](https://drive.google.com/drive/folders/158doKXGSQM3oivbC8EWJS5LLmV6be0Te?usp=sharing)
+- Add the `.env` file to directory. This can obtained from secret manager (`airflow-env-file`)
+- Add the `google_application_credentials.json` (`airflow-google-application-credentials`), `airnow_countries_metadata.json` (`airflow-airnow-countries-metadata`) and `plume_labs_metadata.json` (`airflow-plume-labs-metadata`) files to the `meta-data` folder in this directory. Create the `meta-data folder` if it does not exist. 
 
 ## Running the utility functions
 

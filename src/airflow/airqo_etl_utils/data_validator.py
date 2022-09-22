@@ -1,7 +1,36 @@
+import numpy as np
 import pandas as pd
+
+from airqo_etl_utils.constants import Tenant
+from airqo_etl_utils.utils import Utils
 
 
 class DataValidationUtils:
+    @staticmethod
+    def format_data_types(
+        data: pd.DataFrame,
+        floats: list = None,
+        integers: list = None,
+        timestamps: list = None,
+    ) -> pd.DataFrame:
+
+        floats = [] if floats is None else floats
+        integers = [] if integers is None else integers
+        timestamps = [] if timestamps is None else timestamps
+
+        data[floats] = data[floats].apply(pd.to_numeric, errors="coerce")
+        data[timestamps] = data[timestamps].apply(pd.to_datetime, errors="coerce")
+
+        # formatting integers
+        if integers:
+            null_data = data[data[integers].isnull().all(axis=1)]
+            not_null_data = data[data[integers].notnull().all(axis=1)]
+            if not not_null_data.empty:
+                not_null_data[integers] = not_null_data[integers].apply(np.int64)
+            data = pd.concat([null_data, not_null_data], ignore_index=True)
+
+        return data
+
     @staticmethod
     def get_valid_value(value, name):
 
@@ -50,26 +79,43 @@ class DataValidationUtils:
             "pm1",
             "pm1_pi",
             "pm1_raw_value",
-            "external_temperature",
-            "external_humidity",
+            "temperature",
+            "filter_temperature",
+            "device_temperature",
             "latitude",
             "longitude",
             "humidity",
-            "temperature",
             "device_humidity",
-            "device_temperature",
+            "filter_humidity",
             "pressure",
+            "barometric_pressure",
             "wind_speed",
+            "wind_direction",
             "speed",
+            "realtime_conc",
+            "hourly_conc",
+            "short_time_conc",
+            "air_flow",
+        }
+
+        integer_columns = {
+            "status",
+        }
+
+        timestamp_columns = {
+            "timestamp",
         }
 
         float_columns = list(float_columns & set(data.columns))
+        integer_columns = list(integer_columns & set(data.columns))
+        timestamp_columns = list(timestamp_columns & set(data.columns))
 
-        data[float_columns] = data[float_columns].apply(pd.to_numeric, errors="coerce")
-        if "timestamp" in data.columns:
-            data["timestamp"] = data["timestamp"].apply(
-                lambda x: pd.to_datetime(x, errors="coerce")
-            )
+        data = DataValidationUtils.format_data_types(
+            data=data,
+            floats=float_columns,
+            integers=integer_columns,
+            timestamps=timestamp_columns,
+        )
 
         for col in float_columns:
             name = col
@@ -91,9 +137,9 @@ class DataValidationUtils:
                 "pm10_calibrated_value",
             ]:
                 name = "pm10"
-            elif name in ["device_humidity", "humidity", "external_humidity"]:
+            elif name in ["device_humidity", "humidity"]:
                 name = "humidity"
-            elif col in ["device_temperature", "temperature", "external_temperature"]:
+            elif col in ["device_temperature", "temperature"]:
                 name = "temperature"
             elif name in ["no2", "no2_raw_value"]:
                 name = "no2"
@@ -105,3 +151,15 @@ class DataValidationUtils:
             )
 
         return data
+
+    @staticmethod
+    def process_for_big_query(
+        dataframe: pd.DataFrame, table: str, tenant: Tenant
+    ) -> pd.DataFrame:
+        from airqo_etl_utils.bigquery_api import BigQueryApi
+
+        columns = BigQueryApi().get_columns(table)
+        if tenant != Tenant.ALL:
+            dataframe.loc[:, "tenant"] = str(tenant)
+        dataframe = Utils.populate_missing_columns(data=dataframe, cols=columns)
+        return dataframe[columns]

@@ -166,6 +166,37 @@ locationSchema.statics = {
   async list({ filter = {}, _limit = 1000, _skip = 0 } = {}) {
     try {
       logElement("the limit in the model", _limit);
+      const { summary } = filter;
+
+      let projectAll = {
+        _id: 1,
+        name: 1,
+        long_name: 1,
+        description: 1,
+        location_tags: 1,
+        location: 1,
+        admin_level: 1,
+        isCustom: 1,
+        metadata: 1,
+        sites: "$sites",
+      };
+
+      const projectSummary = {
+        _id: 1,
+        name: 1,
+        long_name: 1,
+        admin_level: 1,
+        description: 1,
+        metadata: 1,
+      };
+
+      let projection = projectAll;
+
+      if (!isEmpty(summary)) {
+        projection = projectSummary;
+        delete filter.summary;
+      }
+
       let data = await this.aggregate()
         .match(filter)
         .lookup({
@@ -175,18 +206,7 @@ locationSchema.statics = {
           as: "sites",
         })
         .sort({ createdAt: -1 })
-        .project({
-          _id: 1,
-          name: 1,
-          long_name: 1,
-          description: 1,
-          location_tags: 1,
-          location: 1,
-          admin_level: 1,
-          isCustom: 1,
-          metadata: 1,
-          sites: "$sites",
-        })
+        .project(projection)
         .skip(_skip)
         .limit(_limit)
         .allowDiskUse(true);

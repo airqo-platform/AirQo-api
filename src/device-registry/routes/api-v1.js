@@ -13,43 +13,27 @@ const ObjectId = mongoose.Types.ObjectId;
 const numeral = require("numeral");
 const createSiteUtil = require("../utils/create-site");
 const createAirQloudUtil = require("../utils/create-location");
-const { logElement, logText } = require("../utils/log");
+const { logElement, logText, logObject } = require("../utils/log");
 const { isBoolean, isEmpty } = require("underscore");
 const phoneUtil = require("google-libphonenumber").PhoneNumberUtil.getInstance();
 const decimalPlaces = require("decimal-places");
 const activityController = require("../controllers/create-activity");
-const cors = require("cors");
 
-const whitelist = [
-  "https://staging.airqo.net/",
-  "https://airqo.net/",
-  "https://airqo.africa/",
-  "https://airqo.org/",
-  "https://airqo.mak.ac.ug/",
-  "https://airqo.io/",
-];
-const corsOptions = {
-  origin: function(origin, callback) {
-    if (whitelist.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      callback(new Error("Not allowed by CORS"));
-    }
-  },
+const headers = (req, res, next) => {
+  // const allowedOrigins = constants.DOMAIN_WHITELIST;
+  // const origin = req.headers.origin;
+  // if (allowedOrigins.includes(origin)) {
+  //   res.setHeader("Access-Control-Allow-Origin", origin);
+  // }
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.header(
+    "Access-Control-Allow-Headers",
+    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
+  );
+  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
+  next();
 };
-
-router.use(cors());
-
-// const headers = (req, res, next) => {
-//   res.header("Access-Control-Allow-Origin", "*");
-//   res.header(
-//     "Access-Control-Allow-Headers",
-//     "Origin, X-Requested-With, Content-Type, Accept, Authorization"
-//   );
-//   res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
-//   next();
-// };
-// router.use(headers);
+router.use(headers);
 
 /******************* create device use-case ***************************/
 /*** decrypt read and write keys */
@@ -64,6 +48,38 @@ router.post(
   deviceController.decryptKey
 );
 
+router.post(
+  "/decrypt/bulk",
+  oneOf([
+    body()
+      .isArray()
+      .withMessage("the request body should be an array"),
+  ]),
+  oneOf([
+    [
+      body("*.encrypted_key")
+        .exists()
+        .trim()
+        .withMessage("encrypted_key is missing")
+        .bail()
+        .notEmpty()
+        .withMessage(
+          "the encrypted_key should not be empty for all provided entries"
+        ),
+      body("*.device_number")
+        .exists()
+        .trim()
+        .withMessage("device_number is missing in one of the inputs")
+        .bail()
+        .isInt()
+        .withMessage(
+          "the device_number in some of the inputs should be an integer value"
+        ),
+    ],
+  ]),
+  deviceController.decryptManyKeys
+);
+
 router.put(
   "/encrypt",
   oneOf([
@@ -73,7 +89,7 @@ router.put(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "us_embassy"])
+      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -307,7 +323,7 @@ router.get(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["kcca", "airqo", "urban_better", "us_embassy"])
+        .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -324,7 +340,7 @@ router.get(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["kcca", "airqo", "urban_better", "us_embassy"])
+        .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
         .withMessage("the tenant value is not among the expected ones"),
       query("device_number")
         .optional()
@@ -390,7 +406,7 @@ router.post(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["kcca", "airqo", "urban_better", "us_embassy"])
+        .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
         .withMessage("the tenant value is not among the expected ones"),
       body("device_number")
         .optional()
@@ -608,7 +624,7 @@ router.delete(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "us_embassy"])
+      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -662,7 +678,7 @@ router.put(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "us_embassy"])
+      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -714,7 +730,7 @@ router.put(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "us_embassy"])
+      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -787,9 +803,10 @@ router.put(
           "decommissioned",
           "assembly",
           "testing",
+          "not deployed",
         ])
         .withMessage(
-          "the status value is not among the expected ones which include: recalled, ready, deployed, undeployed, decommissioned, assembly, testing "
+          "the status value is not among the expected ones which include: recalled, ready, deployed, undeployed, decommissioned, assembly, testing, not deployed "
         ),
       body("powerType")
         .optional()
@@ -978,7 +995,7 @@ router.post(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["kcca", "airqo", "urban_better", "us_embassy"])
+        .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
         .withMessage("the tenant value is not among the expected ones"),
       body("visibility")
         .exists()
@@ -1056,7 +1073,7 @@ router.delete(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "us_embassy"])
+      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -1107,7 +1124,7 @@ router.put(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "us_embassy"])
+      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -1349,7 +1366,7 @@ router.get(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "us_embassy"])
+      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -1413,7 +1430,7 @@ router.delete(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["kcca", "airqo", "urban_better", "us_embassy"])
+        .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -1474,7 +1491,7 @@ router.post(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["kcca", "airqo", "urban_better", "us_embassy"])
+        .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -1530,7 +1547,7 @@ router.put(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["kcca", "airqo", "urban_better", "us_embassy"])
+        .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -1626,7 +1643,7 @@ router.get(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["kcca", "airqo", "urban_better", "us_embassy"])
+        .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -1690,7 +1707,7 @@ router.post(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["kcca", "airqo", "urban_better", "us_embassy"])
+        .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -1793,7 +1810,7 @@ router.put(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["kcca", "airqo", "urban_better", "us_embassy"])
+        .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -1973,7 +1990,7 @@ router.delete(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["kcca", "airqo", "urban_better", "us_embassy"])
+        .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -2057,7 +2074,7 @@ router.post(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["kcca", "airqo", "urban_better", "us_embassy"])
+        .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -2082,7 +2099,7 @@ router.post(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["kcca", "airqo", "urban_better", "us_embassy"])
+        .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -2165,7 +2182,7 @@ router.post(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["kcca", "airqo", "urban_better", "us_embassy"])
+        .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -2218,7 +2235,7 @@ router.get(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "us_embassy"])
+      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   siteController.list
@@ -2234,7 +2251,7 @@ router.get(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "us_embassy"])
+      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -2278,7 +2295,7 @@ router.get(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "us_embassy"])
+      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -2322,7 +2339,7 @@ router.post(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["kcca", "airqo", "urban_better", "us_embassy"])
+        .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
         .withMessage("the tenant value is not among the expected ones"),
       body("latitude")
         .exists()
@@ -2459,7 +2476,7 @@ router.put(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "us_embassy"])
+      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -2747,7 +2764,7 @@ router.put(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "us_embassy"])
+      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -2790,7 +2807,7 @@ router.delete(
     .bail()
     .trim()
     .toLowerCase()
-    .isIn(["kcca", "airqo", "urban_better", "us_embassy"])
+    .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
     .withMessage("the tenant value is not among the expected ones"),
   oneOf([
     query("id")
@@ -2820,7 +2837,7 @@ router.get(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "us_embassy"])
+      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -2950,7 +2967,7 @@ router.post(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["kcca", "airqo", "urban_better", "us_embassy"])
+        .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -3123,7 +3140,7 @@ router.get(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "us_embassy"])
+      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -3236,7 +3253,7 @@ router.post(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "us_embassy"])
+      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
       .withMessage(
         "the tenant query parameter value is not among the expected ones"
       ),
@@ -3461,7 +3478,7 @@ router.post(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "us_embassy"])
+      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
       .withMessage(
         "the tenant query parameter value is not among the expected ones"
       ),
@@ -3692,7 +3709,7 @@ router.delete(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "us_embassy"])
+      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -3758,7 +3775,7 @@ router.post(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["kcca", "airqo", "urban_better", "us_embassy"])
+        .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -3873,7 +3890,7 @@ router.get(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "us_embassy"])
+      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -3920,6 +3937,62 @@ router.get(
   locationController.list
 );
 
+router.get(
+  "/locations/summary",
+  oneOf([
+    query("tenant")
+      .exists()
+      .withMessage("tenant should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    [
+      query("id")
+        .optional()
+        .notEmpty()
+        .trim()
+        .isMongoId()
+        .withMessage("id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      query("name")
+        .optional()
+        .notEmpty()
+        .withMessage("name cannot be empty")
+        .trim(),
+      query("admin_level")
+        .optional()
+        .notEmpty()
+        .withMessage(
+          "admin_level is empty, should not be if provided in request"
+        )
+        .bail()
+        .toLowerCase()
+        .isIn([
+          "village",
+          "district",
+          "parish",
+          "division",
+          "county",
+          "subcounty",
+          "country",
+          "state",
+          "province",
+        ])
+        .withMessage(
+          "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district"
+        ),
+    ],
+  ]),
+  locationController.listSummary
+);
+
 router.put(
   "/locations",
   oneOf([
@@ -3929,7 +4002,7 @@ router.put(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "us_embassy"])
+      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -4059,7 +4132,7 @@ router.delete(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "us_embassy"])
+      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -4091,7 +4164,7 @@ router.post(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["kcca", "airqo", "urban_better", "us_embassy"])
+        .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -4228,7 +4301,7 @@ router.put(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "us_embassy"])
+      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -4265,7 +4338,7 @@ router.get(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "us_embassy"])
+      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -4321,7 +4394,7 @@ router.get(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "us_embassy"])
+      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -4377,7 +4450,7 @@ router.get(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "us_embassy"])
+      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -4441,7 +4514,7 @@ router.put(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "us_embassy"])
+      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -4584,7 +4657,7 @@ router.delete(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "us_embassy"])
+      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -4614,7 +4687,7 @@ router.get(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "us_embassy"])
+      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([

@@ -1,4 +1,7 @@
 const { logObject, logElement, logText } = require("./log");
+const constants = require("../config/constants");
+const log4js = require("log4js");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- distance-util`);
 
 const distance = {
   findNearestDevices: (devices, radius, latitude, longitude) => {
@@ -28,7 +31,7 @@ const distance = {
 
       return nearest_devices;
     } catch (error) {
-      logElement("error", error);
+      logger.error(`internal server error -- ${error.message}`);
     }
   },
 
@@ -82,10 +85,7 @@ const distance = {
       const c = 2 * Math.asin(Math.sqrt(haversine));
       return radius * c;
     } catch (error) {
-      logElement(
-        "the error for distanceBtnTwoPoints in the distance util",
-        error.message
-      );
+      logger.error(`internal server error -- ${error.message}`);
     }
   },
   degreesToRadians: (degrees) => {
@@ -93,10 +93,7 @@ const distance = {
       const pi = Math.PI;
       return degrees * (pi / 180);
     } catch (error) {
-      logElement(
-        "the error for degreesToRadians in the distance util",
-        error.message
-      );
+      logger.error(`internal server error -- ${error.message}`);
     }
   },
 
@@ -107,10 +104,7 @@ const distance = {
         return radians * (180 / pi);
       }
     } catch (error) {
-      logElement(
-        "the error for radiansToDegrees in the distance util",
-        error.message
-      );
+      logger.error(`internal server error -- ${error.message}`);
     }
   },
 
