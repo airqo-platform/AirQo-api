@@ -538,242 +538,146 @@ const data = {
             });
           }
         });
+        let ts = Date.now();
+        let day = await generateDateFormat(ts);
+        let cacheID = `descriptive_last_entry_${channel.trim()}_${day}`;
+        redis.get(cacheID, (err, result) => {
+          if (result) {
+            const resultJSON = JSON.parse(result);
+            return res.status(HTTPStatus.OK).json(resultJSON);
+          } else {
+            let request = {};
+            request["channel"] = channel;
+            request["api_key"] = api_key;
+            request["start"] = start;
+            request["end"] = end;
+            logObject("oooh request", request);
+            return axios
+              .get(
+                transformUtil.readDeviceMeasurementsFromThingspeak({ request }),
+                {
+                  headers: {
+                    Authorization: `JWT ${constants.JWT_TOKEN}`,
+                  },
+                }
+              )
+              .then(async (response) => {
+                const readings = response.data;
+                const { feeds } = readings;
+                let lastEntryId = readings.channel.last_entry_id;
 
-        let request = {};
-        request["channel"] = channel;
-        request["api_key"] = api_key;
-        request["start"] = start;
-        request["end"] = end;
-        logObject("oooh request", request);
-        return axios
-          .get(
-            transformUtil.readDeviceMeasurementsFromThingspeak({ request }),
-            {
-              headers: {
-                Authorization: `JWT ${constants.JWT_TOKEN}`,
-              },
-            }
-          )
-          .then(async (response) => {
-            const readings = response.data;
-            const { feeds } = readings;
-            let lastEntryId = readings.channel.last_entry_id;
+                if (isEmpty(lastEntryId) && isEmpty(feeds)) {
+                  return res.status(HTTPStatus.NOT_FOUND).json({
+                    success: true,
+                    message: "no recent measurements for this device",
+                  });
+                }
 
-            if (isEmpty(lastEntryId) && isEmpty(feeds)) {
-              return res.status(HTTPStatus.NOT_FOUND).json({
-                success: true,
-                message: "no recent measurements for this device",
+                let recentReadings = await readings.feeds.filter((item) => {
+                  return item.entry_id === lastEntryId;
+                });
+
+                let responseData = recentReadings[0];
+
+                delete responseData.entry_id;
+
+                let cleanedDeviceMeasurements =
+                  transformUtil.clean(responseData);
+
+                const fieldOneValue = cleanedDeviceMeasurements.field1
+                  ? cleanedDeviceMeasurements.field1
+                  : null;
+
+                if (isEmpty(fieldOneValue)) {
+                  return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+                    success: false,
+                    message: "unable to categorise device",
+                    errors: {
+                      message:
+                        "please crosscheck device, it is not sending field1",
+                    },
+                  });
+                }
+
+                const isProvidedDateReal = isDate(fieldOneValue);
+
+                if (isProvidedDateReal) {
+                  cleanedDeviceMeasurements.field9 = "reference";
+                  deviceCategory = "reference";
+                } else {
+                  cleanedDeviceMeasurements.field9 = "lowcost";
+                  deviceCategory = "lowcost";
+                }
+                let transformedData = await transformUtil.transformMeasurement(
+                  cleanedDeviceMeasurements
+                );
+
+                let transformedField = {};
+                let otherData = transformedData.other_data;
+
+                if (otherData) {
+                  transformedField = await transformUtil.trasformFieldValues({
+                    otherData,
+                    deviceCategory,
+                  });
+                  delete transformedData.other_data;
+                }
+
+                let newResp = {
+                  success: true,
+                  ...transformedData,
+                  ...transformedField,
+                  errors,
+                };
+
+                let cleanedFinalTransformation = transformUtil.clean(newResp);
+
+                const responseFromConvertFromHectopascalsToKilopascals =
+                  transformUtil.convertFromHectopascalsToKilopascals(
+                    cleanedFinalTransformation.ExternalPressure
+                  );
+
+                if (responseFromConvertFromHectopascalsToKilopascals.success) {
+                  cleanedFinalTransformation.ExternalPressure =
+                    responseFromConvertFromHectopascalsToKilopascals.data;
+                } else {
+                }
+
+                redis.set(
+                  cacheID,
+                  JSON.stringify({
+                    isCache: true,
+                    ...cleanedFinalTransformation,
+                  })
+                );
+
+                redis.expire(
+                  cacheID,
+                  constants.GET_DESCRPIPTIVE_LAST_ENTRY_CACHE_EXPIRATION
+                );
+
+                return res.status(HTTPStatus.OK).json({
+                  isCache: false,
+                  ...cleanedFinalTransformation,
+                });
+              })
+              .catch((err) => {
+                let error = {};
+                if (err.response) {
+                  error["response"] = err.response.data;
+                } else if (err.request) {
+                  error["request"] = err.request;
+                } else {
+                  error["config"] = err.config;
+                }
+                let message = err.response
+                  ? err.response.data
+                  : "Internal Server Error";
+                let statusCode = HTTPStatus.INTERNAL_SERVER_ERROR;
+                errorsUtil.errorResponse({ res, message, statusCode, error });
               });
-            }
-
-            let recentReadings = await readings.feeds.filter((item) => {
-              return item.entry_id === lastEntryId;
-            });
-
-            let responseData = recentReadings[0];
-
-            delete responseData.entry_id;
-
-            let cleanedDeviceMeasurements = transformUtil.clean(responseData);
-
-            const fieldOneValue = cleanedDeviceMeasurements.field1
-              ? cleanedDeviceMeasurements.field1
-              : null;
-
-            if (isEmpty(fieldOneValue)) {
-              return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-                success: false,
-                message: "unable to categorise device",
-                errors: {
-                  message: "please crosscheck device, it is not sending field1",
-                },
-              });
-            }
-
-            const isProvidedDateReal = isDate(fieldOneValue);
-
-            if (isProvidedDateReal) {
-              cleanedDeviceMeasurements.field9 = "reference";
-              deviceCategory = "reference";
-            } else {
-              cleanedDeviceMeasurements.field9 = "lowcost";
-              deviceCategory = "lowcost";
-            }
-            let transformedData = await transformUtil.transformMeasurement(
-              cleanedDeviceMeasurements
-            );
-
-            let transformedField = {};
-            let otherData = transformedData.other_data;
-
-            if (otherData) {
-              transformedField = await transformUtil.trasformFieldValues({
-                otherData,
-                deviceCategory,
-              });
-              delete transformedData.other_data;
-            }
-
-            let newResp = {
-              success: true,
-              ...transformedData,
-              ...transformedField,
-              errors,
-            };
-            let cleanedFinalTransformation = transformUtil.clean(newResp);
-
-            return res.status(HTTPStatus.OK).json({
-              isCache: false,
-              ...cleanedFinalTransformation,
-            });
-          })
-          .catch((err) => {
-            let error = {};
-            if (err.response) {
-              error["response"] = err.response.data;
-            } else if (err.request) {
-              error["request"] = err.request;
-            } else {
-              error["config"] = err.config;
-            }
-            let message = err.response
-              ? err.response.data
-              : "Internal Server Error";
-
-            let statusCode = HTTPStatus.INTERNAL_SERVER_ERROR;
-            errorsUtil.errorResponse({ res, message, statusCode, error });
-          });
-
-        // let ts = Date.now();
-        // let day = await generateDateFormat(ts);
-        // let cacheID = `descriptive_last_entry_${channel.trim()}_${day}`;
-        // redis.get(cacheID, (err, result) => {
-        //   if (result) {
-        //     const resultJSON = JSON.parse(result);
-        //     return res.status(HTTPStatus.OK).json(resultJSON);
-        //   } else {
-        //     let request = {};
-        //     request["channel"] = channel;
-        //     request["api_key"] = api_key;
-        //     request["start"] = start;
-        //     request["end"] = end;
-        //     logObject("oooh request", request);
-        //     return axios
-        //       .get(
-        //         transformUtil.readDeviceMeasurementsFromThingspeak({ request }),
-        // {
-        //   headers: {
-        //     Authorization: `JWT ${constants.JWT_TOKEN}`,
-        //   },
-        // }
-        //       )
-        //       .then(async (response) => {
-        //         const readings = response.data;
-        //         const { feeds } = readings;
-        //         let lastEntryId = readings.channel.last_entry_id;
-
-        //         if (isEmpty(lastEntryId) && isEmpty(feeds)) {
-        //           return res.status(HTTPStatus.NOT_FOUND).json({
-        //             success: true,
-        //             message: "no recent measurements for this device",
-        //           });
-        //         }
-
-        //         let recentReadings = await readings.feeds.filter((item) => {
-        //           return item.entry_id === lastEntryId;
-        //         });
-
-        //         let responseData = recentReadings[0];
-
-        //         delete responseData.entry_id;
-
-        //         let cleanedDeviceMeasurements =
-        //           transformUtil.clean(responseData);
-
-        //         const fieldOneValue = cleanedDeviceMeasurements.field1
-        //           ? cleanedDeviceMeasurements.field1
-        //           : null;
-
-        //         if (isEmpty(fieldOneValue)) {
-        //           return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        //             success: false,
-        //             message: "unable to categorise device",
-        //             errors: {
-        //               message:
-        //                 "please crosscheck device, it is not sending field1",
-        //             },
-        //           });
-        //         }
-
-        //         const isProvidedDateReal = isDate(fieldOneValue);
-
-        //         if (isProvidedDateReal) {
-        //           cleanedDeviceMeasurements.field9 = "reference";
-        //           deviceCategory = "reference";
-        //         } else {
-        //           cleanedDeviceMeasurements.field9 = "lowcost";
-        //           deviceCategory = "lowcost";
-        //         }
-        //         let transformedData = await transformUtil.transformMeasurement(
-        //           cleanedDeviceMeasurements
-        //         );
-
-        //         let transformedField = {};
-        //         let otherData = transformedData.other_data;
-
-        //         if (otherData) {
-        //           transformedField = await transformUtil.trasformFieldValues({
-        //             otherData,
-        //             deviceCategory,
-        //           });
-        //           delete transformedData.other_data;
-        //         }
-
-        //         let newResp = {
-        //           success: true,
-        //           ...transformedData,
-        //           ...transformedField,
-        //           errors,
-        //         };
-
-        //         let cleanedFinalTransformation = transformUtil.clean(newResp);
-
-        //         redis.set(
-        //           cacheID,
-        //           JSON.stringify({
-        //             isCache: true,
-        //             ...cleanedFinalTransformation,
-        //           })
-        //         );
-
-        //         redis.expire(
-        //           cacheID,
-        //           constants.GET_DESCRPIPTIVE_LAST_ENTRY_CACHE_EXPIRATION
-        //         );
-
-        //         return res.status(HTTPStatus.OK).json({
-        //           isCache: false,
-        //           ...cleanedFinalTransformation,
-        //         });
-        //       })
-        //       .catch((err) => {
-        //         let error = {};
-        //         if (err.response) {
-        //           error["response"] = err.response.data;
-        //         } else if (err.request) {
-        //           error["request"] = err.request;
-        //         } else {
-        //           error["config"] = err.config;
-        //         }
-        //         let message = err.response
-        //           ? err.response.data
-        //           : "Internal Server Error";
-
-        //         let statusCode = HTTPStatus.INTERNAL_SERVER_ERROR;
-        //         errorsUtil.errorResponse({ res, message, statusCode, error });
-        //       });
-        //   }
-        // });
+          }
+        });
       } else {
         let message = "missing some request parameters";
         let statusCode = HTTPStatus.BAD_REQUEST;
@@ -781,7 +685,6 @@ const data = {
         errorsUtil.errorResponse({ res, message, statusCode, error });
       }
     } catch (error) {
-      logText("we are goodooo...");
       let message = error.message;
       let statusCode = HTTPStatus.INTERNAL_SERVER_ERROR;
       errorsUtil.errorResponse({ res, message, statusCode, error });
