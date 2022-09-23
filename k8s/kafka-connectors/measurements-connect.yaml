@@ -6,7 +6,7 @@ metadata:
   annotations:
     strimzi.io/use-connector-resources: "true"
 spec:
-  version: 3.2.0
+  version: 3.2.1
   image: {{MEASUREMENTS_CONNECT_IMAGE}}
   replicas: 2
   bootstrapServers: {{KAFKA_CLUSTER}}

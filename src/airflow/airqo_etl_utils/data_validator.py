@@ -80,7 +80,6 @@ class DataValidationUtils:
             "pm1_pi",
             "pm1_raw_value",
             "temperature",
-            "external_temperature",
             "filter_temperature",
             "device_temperature",
             "latitude",
@@ -88,7 +87,6 @@ class DataValidationUtils:
             "humidity",
             "device_humidity",
             "filter_humidity",
-            "external_humidity",
             "pressure",
             "barometric_pressure",
             "wind_speed",
@@ -139,9 +137,9 @@ class DataValidationUtils:
                 "pm10_calibrated_value",
             ]:
                 name = "pm10"
-            elif name in ["device_humidity", "humidity", "external_humidity"]:
+            elif name in ["device_humidity", "humidity"]:
                 name = "humidity"
-            elif col in ["device_temperature", "temperature", "external_temperature"]:
+            elif col in ["device_temperature", "temperature"]:
                 name = "temperature"
             elif name in ["no2", "no2_raw_value"]:
                 name = "no2"
