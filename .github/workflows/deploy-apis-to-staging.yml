@@ -1590,6 +1590,6 @@ jobs:
 
       - name: Apply ingress changes
         run: |
-          kubectl apply -f k8s/nginx-ingress/stage-nginx-cm.yaml
           kubectl apply -f k8s/nginx-ingress/stage-api-ingress-resource.yaml
           kubectl apply -f k8s/nginx-ingress/stage-platform-ingress-resource.yaml
+          kubectl apply -f k8s/nginx-ingress/global-configs/stage-nginx-config.yaml
