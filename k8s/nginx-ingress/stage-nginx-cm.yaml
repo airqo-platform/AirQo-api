@@ -13,10 +13,11 @@ data:
     error_page 403 = @access_denied;
     error_page 401 = @unauthorized;"
   server-snippets: "
-    location @internal_server_error { return 500 '{\"error\": \"Something went wrong!\"}'; }
-    location @page_not_found { return 404 '{\"error\": \"Page not found :(\"}'; }
-    location @access_denied { return 403 '{\"error\": \"Access denied :|\"}'; }
-    location @unauthorized { return 401 '{\"error\": \"Unauthorized\"}'; }
+    add_header Content-Type 'application/json' always;
+    location @internal_server_error { return 500 '{\"success\":false, \"message\":\"Something went wrong!\", \"error\":\"Internal Server Error\"}'; }
+    location @page_not_found { return 404 '{\"success\":false, \"message\":\"Resource not found :(\", \"error\":\"Not Found\"}'; }
+    location @access_denied { return 403 '{\"success\":false, \"message\":\"Access denied :|\", \"error\":\"Insufficient Permissions\"}'; }
+    location @unauthorized { return 401 '{\"success\":false, \"message\":\"Invalid authentication\", \"error\":\"Unauthorized.\"}'; }
 
     location = /auth {
       if ($request_method = 'OPTIONS') { return 204; }      
