@@ -29,7 +29,11 @@ const data = {
           errorsUtil.errorResponse({ res, message, statusCode, error });
         } else {
           axios
-            .get(constants.GET_CHANNELS)
+            .get(constants.GET_CHANNELS, {
+              headers: {
+                Authorization: `JWT ${constants.JWT_TOKEN}`,
+              },
+            })
             .then((response) => {
               const responseJSON = response.data;
               redis.set(
@@ -86,7 +90,11 @@ const data = {
           } else {
             let channel = ch_id;
             axios
-              .get(constants.READ_DEVICE_FEEDS({ channel }))
+              .get(constants.READ_DEVICE_FEEDS({ channel }), {
+                headers: {
+                  Authorization: `JWT ${constants.JWT_TOKEN}`,
+                },
+              })
               .then(async (response) => {
                 let readings = response.data;
 
@@ -163,7 +171,11 @@ const data = {
             errorsUtil.errorResponse({ res, message, statusCode, error });
           } else {
             axios
-              .get(constants.GET_HOURLY_FEEDS(Number(channel)))
+              .get(constants.GET_HOURLY_FEEDS(Number(channel)), {
+                headers: {
+                  Authorization: `JWT ${constants.JWT_TOKEN}`,
+                },
+              })
               .then((response) => {
                 const responseJSON = response.data;
                 redis.set(
@@ -258,7 +270,12 @@ const data = {
                 .get(
                   transformUtil.readDeviceMeasurementsFromThingspeak({
                     request,
-                  })
+                  }),
+                  {
+                    headers: {
+                      Authorization: `JWT ${constants.JWT_TOKEN}`,
+                    },
+                  }
                 )
                 .then(async (response) => {
                   const readings = response.data;
@@ -392,7 +409,12 @@ const data = {
                 .get(
                   transformUtil.readDeviceMeasurementsFromThingspeak({
                     request,
-                  })
+                  }),
+                  {
+                    headers: {
+                      Authorization: `JWT ${constants.JWT_TOKEN}`,
+                    },
+                  }
                 )
                 .then(async (response) => {
                   let measurements = [];
@@ -504,8 +526,7 @@ const data = {
         await transformUtil.getAPIKey(channel, (result) => {
           if (result.success === true) {
             api_key = result.data;
-          }
-          if (result.success === false) {
+          } else if (result.success === false) {
             const errors = result.errors ? result.errors : { message: "" };
             const status = result.status
               ? result.status
@@ -517,7 +538,6 @@ const data = {
             });
           }
         });
-
         let ts = Date.now();
         let day = await generateDateFormat(ts);
         let cacheID = `descriptive_last_entry_${channel.trim()}_${day}`;
@@ -534,7 +554,12 @@ const data = {
             logObject("oooh request", request);
             return axios
               .get(
-                transformUtil.readDeviceMeasurementsFromThingspeak({ request })
+                transformUtil.readDeviceMeasurementsFromThingspeak({ request }),
+                {
+                  headers: {
+                    Authorization: `JWT ${constants.JWT_TOKEN}`,
+                  },
+                }
               )
               .then(async (response) => {
                 const readings = response.data;
@@ -607,6 +632,17 @@ const data = {
 
                 let cleanedFinalTransformation = transformUtil.clean(newResp);
 
+                const responseFromConvertFromHectopascalsToKilopascals =
+                  transformUtil.convertFromHectopascalsToKilopascals(
+                    cleanedFinalTransformation.ExternalPressure
+                  );
+
+                if (responseFromConvertFromHectopascalsToKilopascals.success) {
+                  cleanedFinalTransformation.ExternalPressure =
+                    responseFromConvertFromHectopascalsToKilopascals.data;
+                } else {
+                }
+
                 redis.set(
                   cacheID,
                   JSON.stringify({
@@ -637,7 +673,6 @@ const data = {
                 let message = err.response
                   ? err.response.data
                   : "Internal Server Error";
-
                 let statusCode = HTTPStatus.INTERNAL_SERVER_ERROR;
                 errorsUtil.errorResponse({ res, message, statusCode, error });
               });
@@ -650,7 +685,6 @@ const data = {
         errorsUtil.errorResponse({ res, message, statusCode, error });
       }
     } catch (error) {
-      logText("we are goodooo...");
       let message = error.message;
       let statusCode = HTTPStatus.INTERNAL_SERVER_ERROR;
       errorsUtil.errorResponse({ res, message, statusCode, error });
@@ -672,7 +706,11 @@ const data = {
           });
         } else {
           return axios
-            .get(constants.GET_CHANNEL_LAST_ENTRY_AGE(channel))
+            .get(constants.GET_CHANNEL_LAST_ENTRY_AGE(channel), {
+              headers: {
+                Authorization: `JWT ${constants.JWT_TOKEN}`,
+              },
+            })
             .then((response) => {
               const responseJSON = response.data;
               redis.set(
@@ -737,7 +775,11 @@ const data = {
              */
             let field = transformUtil.getFieldByLabel(sensor);
             return axios
-              .get(constants.GET_LAST_FIELD_ENTRY_AGE(channel, field))
+              .get(constants.GET_LAST_FIELD_ENTRY_AGE(channel, field), {
+                headers: {
+                  Authorization: `JWT ${constants.JWT_TOKEN}`,
+                },
+              })
               .then((response) => {
                 const responseJSON = response.data;
                 redis.set(
@@ -797,7 +839,11 @@ const data = {
           return res.status(200).json(resultJSON);
         } else {
           return axios
-            .get(constants.API_URL_CHANNELS)
+            .get(constants.API_URL_CHANNELS, {
+              headers: {
+                Authorization: `JWT ${constants.JWT_TOKEN}`,
+              },
+            })
             .then((response) => {
               const responseJSON = response.data;
               let count = Object.keys(responseJSON).length;
