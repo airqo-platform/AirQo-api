@@ -200,3 +200,35 @@ class Utils:
             return_dates.append((date_to_str(date), date_to_str(end)))
 
         return return_dates
+
+    @staticmethod
+    def year_months_query_array(year: int):
+        months = [
+            "01",
+            "02",
+            "03",
+            "04",
+            "05",
+            "06",
+            "07",
+            "08",
+            "09",
+            "10",
+            "11",
+            "12",
+        ]
+        last_month = months.pop()
+        dates = []
+        for month in months:
+            next_month = f"{int(month) + 1}"
+            if len(next_month) != 2:
+                next_month = f"0{next_month}"
+            dates.append(
+                (f"{year}-{month}-01T00:00:00Z", f"{year}-{next_month}-01T00:00:00Z")
+            )
+
+        dates.append(
+            (f"{year}-{last_month}-01T00:00:00Z", f"{int(year) + 1}-01-01T00:00:00Z")
+        )
+
+        return dates

@@ -199,6 +199,34 @@ class WeatherDataUtils:
         return aggregated_data
 
     @staticmethod
+    def remove_duplicates(data: pd.DataFrame) -> pd.DataFrame:
+        cols = data.columns.to_list()
+        cols.remove("timestamp")
+        cols.remove("station_code")
+        data.dropna(subset=cols, how="all", inplace=True)
+        data["timestamp"] = pd.to_datetime(data["timestamp"])
+
+        data["duplicated"] = data.duplicated(
+            keep=False, subset=["station_code", "timestamp"]
+        )
+        duplicated_data = pd.DataFrame(data.copy().loc[data["duplicated"] is True])
+        not_duplicated_data = pd.DataFrame(data.copy().loc[data["duplicated"] is False])
+
+        for _, by_station in duplicated_data.groupby(by="station_code"):
+            for _, by_timestamp in by_station.groupby(by="timestamp"):
+                by_timestamp = by_timestamp.copy()
+                by_timestamp.fillna(inplace=True, method="ffill")
+                by_timestamp.fillna(inplace=True, method="bfill")
+                by_timestamp.drop_duplicates(
+                    subset=["station_code", "timestamp"], inplace=True, keep="first"
+                )
+                not_duplicated_data = pd.concat(
+                    [not_duplicated_data, by_timestamp], ignore_index=True
+                )
+
+        return not_duplicated_data
+
+    @staticmethod
     def transform_for_bigquery(data: pd.DataFrame) -> pd.DataFrame:
         bigquery = BigQueryApi()
         cols = bigquery.get_columns(table=bigquery.hourly_weather_table)
