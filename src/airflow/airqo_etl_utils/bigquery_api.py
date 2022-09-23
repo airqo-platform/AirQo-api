@@ -153,7 +153,7 @@ class BigQueryApi:
         job.result()
 
         destination_table = self.client.get_table(table)
-        print(f"Loaded {dataframe.size} rows to {table}")
+        print(f"Loaded {len(dataframe)} rows to {table}")
         print(f"Total rows after load :  {destination_table.num_rows}")
 
     def update_data(

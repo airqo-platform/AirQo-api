@@ -635,28 +635,26 @@ class AirQoDataUtils:
         sites_weather_data = pd.DataFrame()
         weather_data_cols = list(weather_data.columns)
 
-        for _, site_data in sites.groupby("site_id"):
+        for _, by_site in sites.groupby("site_id"):
             site_weather_data = weather_data[
-                weather_data["station_code"].isin(site_data["station_code"].to_list())
+                weather_data["station_code"].isin(by_site["station_code"].to_list())
             ]
             if site_weather_data.empty:
                 continue
 
-            site_weather_data = pd.merge(
-                site_weather_data, site_data, on="station_code"
-            )
+            site_weather_data = pd.merge(site_weather_data, by_site, on="station_code")
 
-            for _, time_group in site_weather_data.groupby("timestamp"):
-                time_group.sort_values(ascending=True, by="distance", inplace=True)
-                time_group.fillna(method="bfill", inplace=True)
-                time_group.drop_duplicates(
+            for _, by_timestamp in site_weather_data.groupby("timestamp"):
+                by_timestamp.sort_values(ascending=True, by="distance", inplace=True)
+                by_timestamp.fillna(method="bfill", inplace=True)
+                by_timestamp.drop_duplicates(
                     keep="first", subset=["timestamp"], inplace=True
                 )
-                time_group = time_group[weather_data_cols]
+                by_timestamp = by_timestamp[weather_data_cols]
 
-                time_group.loc[:, "site_id"] = site_data.iloc[0]["site_id"]
+                by_timestamp.loc[:, "site_id"] = by_site.iloc[0]["site_id"]
                 sites_weather_data = pd.concat(
-                    [sites_weather_data, time_group], ignore_index=True
+                    [sites_weather_data, by_timestamp], ignore_index=True
                 )
 
         airqo_data_cols = list(airqo_data.columns)

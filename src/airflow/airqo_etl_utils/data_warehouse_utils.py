@@ -142,8 +142,8 @@ class DataWarehouseUtils:
         low_cost_data: pd.DataFrame,
         sites_info: pd.DataFrame,
     ) -> pd.DataFrame:
-        low_cost_data[:, "device_category"] = str(DeviceCategory.LOW_COST)
-        bam_data[:, "device_category"] = str(DeviceCategory.BAM)
+        low_cost_data.loc[:, "device_category"] = str(DeviceCategory.LOW_COST)
+        bam_data.loc[:, "device_category"] = str(DeviceCategory.BAM)
 
         airqo_data = low_cost_data.loc[low_cost_data["tenant"] == str(Tenant.AIRQO)]
 
