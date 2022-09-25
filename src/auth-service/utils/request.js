@@ -106,9 +106,7 @@ const request = {
               data: createdCandidate,
               status,
             });
-          }
-
-          if (responseFromSendEmail.success === false) {
+          } else if (responseFromSendEmail.success === false) {
             const errors = responseFromSendEmail.error
               ? responseFromSendEmail.error
               : "";
