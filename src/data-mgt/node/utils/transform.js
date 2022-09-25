@@ -73,7 +73,11 @@ const transform = {
     let url = constants.GET_DEVICES_URL({ tenant, channel });
     logElement("the url inside GET API KEY", url);
     return axios
-      .get(url)
+      .get(url, {
+        headers: {
+          Authorization: `JWT ${constants.JWT_TOKEN}`,
+        },
+      })
       .then(async (response) => {
         let responseJSON = response.data;
         if (responseJSON.success === true) {
@@ -92,9 +96,17 @@ const transform = {
             logElement("readKey", readKey);
             const url = constants.DECYPT_DEVICE_KEY_URL;
             return axios
-              .post(url, {
-                encrypted_key: readKey,
-              })
+              .post(
+                url,
+                {
+                  encrypted_key: readKey,
+                },
+                {
+                  headers: {
+                    Authorization: `JWT ${constants.JWT_TOKEN}`,
+                  },
+                }
+              )
               .then((response) => {
                 // logObject("thee response", response);
                 let decrypted_key = response.data.decrypted_key;
@@ -329,6 +341,22 @@ const transform = {
     }_${metadata ? metadata : "noMetadata"}_${
       external ? external : "noExternal"
     }`;
+  },
+  convertFromHectopascalsToKilopascals: (number) => {
+    try {
+      const convertedValue = number * 0.1;
+      return {
+        success: true,
+        message: "Successfully converted Hectopascals To Kilopascals",
+        data: convertedValue,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        errors: { message: error.message },
+        message: "Internal Server Error",
+      };
+    }
   },
 };
 module.exports = transform;
