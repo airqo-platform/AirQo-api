@@ -17,6 +17,8 @@ const mailer = {
 
       const mailOptions = {
         from: constants.EMAIL,
+        name: "AirQo Data Team",
+        address: constants.EMAIL,
         to: `${email}`,
         subject: "AirQo Platform JOIN request",
         text: msgs.joinRequest(firstName, lastName),
@@ -62,6 +64,8 @@ const mailer = {
 
       const mailOptionsForAirQo = {
         to: `${email}`,
+        name: "AirQo Data Team",
+        address: constants.EMAIL,
         subject: `Welcome to AirQo, for ${categoryNameWithFirstLetterCapital}`,
         html: msgTemplates.inquiryTemplate(fullName),
         bcc,
@@ -104,6 +108,8 @@ const mailer = {
       if (tenant.toLowerCase() == "kcca") {
         mailOptions = {
           from: constants.EMAIL,
+          name: "AirQo Data Team",
+          address: constants.EMAIL,
           to: `${email}`,
           subject: "Welcome to the AirQo KCCA Platform",
           text: `${msgs.welcome_kcca(firstName, lastName, password, email)}`,
@@ -146,6 +152,8 @@ const mailer = {
       const mailOptions = {
         from: constants.EMAIL,
         to: email,
+        name: "AirQo Data Team",
+        address: constants.EMAIL,
         subject: `Link To Reset Password`,
         text: msgs.recovery_email(token, tenant),
       };
@@ -177,6 +185,8 @@ const mailer = {
       const mailOptions = {
         from: constants.EMAIL,
         to: `${email}`,
+        name: "AirQo Data Team",
+        address: constants.EMAIL,
         subject: "Welcome to AirQo!",
         text: `${msgs.join_by_email(token)}`,
       };
@@ -212,6 +222,8 @@ const mailer = {
       const mailOptions = {
         from: constants.EMAIL,
         to: `${email}`,
+        name: "AirQo Data Team",
+        address: constants.EMAIL,
         subject: "Changes to your AirQo email",
         text: `${msgs.authenticate_email(token)}`,
       };
@@ -246,6 +258,8 @@ const mailer = {
       const mailOptions = {
         from: constants.EMAIL,
         to: `${email}`,
+        name: "AirQo Data Team",
+        address: constants.EMAIL,
         subject: "AirQo Platform account updated",
         text: `${msgs.user_updated(firstName, lastName)}`,
       };
