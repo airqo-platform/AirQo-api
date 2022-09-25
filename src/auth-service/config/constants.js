@@ -1,5 +1,5 @@
 const devConfig = {
-  MONGO_URI: process.env.LOCAL_DB,
+  MONGO_URI: process.env.MONGO_DEV_URI,
   DB_NAME: process.env.MONGO_DEV,
   PWD_RESET: `${process.env.PLATFORM_DEV_BASE_URL}/reset`,
   LOGIN_PAGE: `${process.env.PLATFORM_DEV_BASE_URL}/login`,
@@ -7,7 +7,7 @@ const devConfig = {
   PLATFORM_BASE_URL: process.env.PLATFORM_DEV_BASE_URL,
 };
 const prodConfig = {
-  MONGO_URI: process.env.MONGO_GCE_URI,
+  MONGO_URI: process.env.MONGO_PROD_URI,
   DB_NAME: process.env.MONGO_PROD,
   PWD_RESET: `${process.env.PLATFORM_PRODUCTION_BASE_URL}/reset`,
   LOGIN_PAGE: `${process.env.PLATFORM_PRODUCTION_BASE_URL}/login`,
@@ -16,7 +16,7 @@ const prodConfig = {
 };
 
 const stageConfig = {
-  MONGO_URI: process.env.MONGO_GCE_URI,
+  MONGO_URI: process.env.MONGO_STAGE_URI,
   DB_NAME: process.env.MONGO_STAGE,
   PWD_RESET: `${process.env.PLATFORM_STAGING_BASE_URL}/reset`,
   LOGIN_PAGE: `${process.env.PLATFORM_STAGING_BASE_URL}/login`,
