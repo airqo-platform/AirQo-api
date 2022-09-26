@@ -156,6 +156,16 @@ class BigQueryApi:
         print(f"Loaded {len(dataframe)} rows to {table}")
         print(f"Total rows after load :  {destination_table.num_rows}")
 
+    @staticmethod
+    def add_unique_id(dataframe: pd.DataFrame) -> pd.DataFrame:
+        dataframe["unique_id"] = dataframe.apply(
+            lambda row: str(
+                f"{row['tenant']}:{row['device_id']}:{row['device_number']}"
+            ).lower(),
+            axis=1,
+        )
+        return dataframe
+
     def update_data(
         self,
         dataframe: pd.DataFrame,
@@ -163,7 +173,8 @@ class BigQueryApi:
     ) -> None:
         dataframe.reset_index(drop=True, inplace=True)
         dataframe = self.validate_data(dataframe=dataframe, table=table)
-        dataframe.drop_duplicates(subset=["device_number"], inplace=True, keep="first")
+        dataframe = self.add_unique_id(dataframe=dataframe)
+        dataframe.drop_duplicates(subset=["unique_id"], inplace=True, keep="first")
 
         available_data = (
             self.client.query(query=f"SELECT * FROM `{table}`").result().to_dataframe()
@@ -175,19 +186,20 @@ class BigQueryApi:
             available_data["timestamp"] = available_data["timestamp"].apply(
                 pd.to_datetime
             )
+            available_data = self.add_unique_id(dataframe=available_data)
+
             available_data.drop_duplicates(
-                subset=["device_number"], inplace=True, keep="first"
+                subset=["unique_id"], inplace=True, keep="first"
             )
             data_not_for_updating = available_data.loc[
-                ~available_data["device_number"].isin(
-                    dataframe["device_number"].to_list()
-                )
+                ~available_data["unique_id"].isin(dataframe["unique_id"].to_list())
             ]
             up_to_date_data = pd.concat(
                 [data_not_for_updating, dataframe], ignore_index=True
             )
 
         up_to_date_data["timestamp"] = up_to_date_data["timestamp"].apply(date_to_str)
+        del up_to_date_data["unique_id"]
 
         self.load_data(
             dataframe=up_to_date_data, table=table, job_action=JobAction.OVERWRITE

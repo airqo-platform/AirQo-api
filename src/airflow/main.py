@@ -23,7 +23,9 @@ from airqo_etl_utils.constants import (
 )
 from airqo_etl_utils.data_validator import DataValidationUtils
 from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
-from airqo_etl_utils.date import date_to_str_hours
+from airqo_etl_utils.date import date_to_str
+from airqo_etl_utils.kcca_utils import KccaUtils
+from airqo_etl_utils.utils import Utils
 from airqo_etl_utils.weather_data_utils import WeatherDataUtils
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -212,16 +214,11 @@ class MainClass:
         sites_data = DataWarehouseUtils.extract_sites_meta_data()
         self.export_dataframe(file_name="sites_data", dataframe=sites_data)
 
-        hourly_low_cost_data = pd.read_csv("hourly_low_cost_data.csv")
-        hourly_bam_data = pd.read_csv("hourly_bam_data.csv")
-        hourly_weather_data = pd.read_csv("hourly_weather_data.csv")
-        sites_data = pd.read_csv("sites_data.csv")
-
-        analytics_data = DataWarehouseUtils.merge_bam_low_cost_and_weather_data(
+        analytics_data = DataWarehouseUtils.merge_datasets(
             bam_data=hourly_bam_data,
             low_cost_data=hourly_low_cost_data,
             weather_data=hourly_weather_data,
-            sites_data=sites_data,
+            sites_info=sites_data,
         )
         self.export_dataframe(file_name="analytics_data", dataframe=analytics_data)
 
@@ -292,43 +289,33 @@ class MainClass:
             dataframe=pd.DataFrame(message_broker_data), file_name="message_broker_data"
         )
 
+    def kcca_realtime_data(self):
 
-def kcca_hourly_measurements(start_date_time: str, end_date_time: str):
-    from airqo_etl_utils.kcca_utils import (
-        extract_kcca_measurements,
-        transform_kcca_measurements_for_api,
-        transform_kcca_data_for_message_broker,
-        transform_kcca_data_for_bigquery,
-    )
-    from airqo_etl_utils.bigquery_api import BigQueryApi
+        kcca_data = KccaUtils.extract_data(
+            start_date_time=self.start_date_time, end_date_time=self.end_date_time
+        )
+        self.export_dataframe(file_name="kcca_unstructured_data", dataframe=kcca_data)
 
-    kcca_unclean_data = extract_kcca_measurements(
-        start_time=start_date_time, end_time=end_date_time, freq="hourly"
-    )
-    pd.DataFrame(kcca_unclean_data).to_csv(
-        path_or_buf="kcca_unclean_data.csv", index=False
-    )
+        clean_data = KccaUtils.transform_data(data=kcca_data)
+        self.export_dataframe(file_name="kcca_clean_data", dataframe=clean_data)
 
-    # API
-    cleaned_data = transform_kcca_measurements_for_api(kcca_unclean_data)
-    pd.DataFrame(cleaned_data).to_csv(path_or_buf="kcca_cleaned_data.csv", index=False)
+        message_broker_data = KccaUtils.transform_data_for_message_broker(
+            data=clean_data
+        )
+        self.export_dataframe(
+            file_name="kcca_message_broker_data",
+            dataframe=pd.DataFrame(message_broker_data),
+        )
 
-    # Message Broker
-    message_broker_data = transform_kcca_data_for_message_broker(
-        kcca_unclean_data, frequency="hourly"
-    )
-    pd.DataFrame(message_broker_data).to_csv(
-        path_or_buf="kcca_message_broker_data.csv", index=False
-    )
+        api_data = KccaUtils.transform_data_for_api(data=clean_data)
+        print(api_data)
 
-    # Big Query
-    bigquery_data = transform_kcca_data_for_bigquery(data=kcca_unclean_data)
-    bigquery_data_df = pd.DataFrame(bigquery_data)
-    bigquery_api = BigQueryApi()
-    bigquery_data_df = bigquery_api.validate_data(
-        dataframe=bigquery_data_df, table=bigquery_api.hourly_measurements_table
-    )
-    bigquery_data_df.to_csv(path_or_buf="kcca_data_for_bigquery.csv", index=False)
+        big_query_data = DataValidationUtils.process_for_big_query(
+            dataframe=clean_data,
+            table=BigQueryApi().hourly_measurements_table,
+            tenant=Tenant.ALL,
+        )
+        self.export_dataframe(file_name="kcca_big_query_data", dataframe=big_query_data)
 
 
 def data_warehouse(start_date_time: str, end_date_time: str):

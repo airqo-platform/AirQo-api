@@ -163,3 +163,11 @@ class DataValidationUtils:
             dataframe.loc[:, "tenant"] = str(tenant)
         dataframe = Utils.populate_missing_columns(data=dataframe, cols=columns)
         return dataframe[columns]
+
+    @staticmethod
+    def convert_pressure_values(
+        dataframe: pd.DataFrame, col="vapor_pressure"
+    ) -> pd.DataFrame:
+        if col in dataframe.columns.to_list():
+            dataframe[col] = dataframe[col].apply(lambda x: x * 0.1)
+        return dataframe
