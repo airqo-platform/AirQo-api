@@ -235,8 +235,12 @@ def predictions_for_heatmap():
                 data = get_gp_predictions_id(aq_id)
             except:
                 return {'message': 'Please specify an airqloud', 'success': False}, 400
+        
+        print(request.args.get('airqloud'))
         if request.args.get('airqloud') == None:
             data = get_all_gp_predictions()
+            if not len(data)>0:
+                return {'message': 'No predictions available', 'success': False}, 400
         if len(data)>0:
             return {'success': True, 'data': data}, 200
         else:
