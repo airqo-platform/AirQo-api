@@ -322,12 +322,9 @@ def cleanup_airqo_measurements_etl():
 def airqo_realtime_measurements_etl():
     import pandas as pd
 
-    from airqo_etl_utils.date import date_to_str_hours
-    from datetime import datetime, timedelta
+    from airqo_etl_utils.date import DateUtils
 
-    hour_of_day = datetime.utcnow() - timedelta(hours=1)
-    start_date_time = date_to_str_hours(hour_of_day)
-    end_date_time = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
+    start_date_time, end_date_time = DateUtils.get_dag_date_time_values(hours=1)
 
     @task()
     def extract_raw_data():

@@ -140,6 +140,10 @@ class KccaUtils:
         return data
 
     @staticmethod
+    def process_latest_data(data: pd.DataFrame) -> pd.DataFrame:
+        return data
+
+    @staticmethod
     def transform_data_for_api(data: pd.DataFrame) -> list:
         measurements = []
         data["timestamp"] = pd.to_datetime(data["timestamp"])
