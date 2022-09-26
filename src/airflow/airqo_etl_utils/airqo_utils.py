@@ -388,6 +388,7 @@ class AirQoDataUtils:
                 )
 
         if remove_outliers:
+            devices_data = DataValidationUtils.convert_pressure_values(devices_data)
             devices_data = DataValidationUtils.remove_outliers(devices_data)
 
         return devices_data
