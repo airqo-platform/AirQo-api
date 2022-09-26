@@ -5,6 +5,7 @@ from google.cloud import bigquery
 
 from .config import configuration
 from .constants import JobAction, ColumnDataType, Tenant, QueryType
+from .date import date_to_str
 from .utils import Utils
 
 
@@ -13,6 +14,7 @@ class BigQueryApi:
         self.client = bigquery.Client()
         self.hourly_measurements_table = configuration.BIGQUERY_HOURLY_EVENTS_TABLE
         self.raw_measurements_table = configuration.BIGQUERY_RAW_EVENTS_TABLE
+        self.latest_measurements_table = configuration.BIGQUERY_LATEST_EVENTS_TABLE
         self.bam_measurements_table = configuration.BIGQUERY_BAM_EVENTS_TABLE
         self.raw_bam_measurements_table = configuration.BIGQUERY_RAW_BAM_DATA_TABLE
         self.sensor_positions_table = configuration.SENSOR_POSITIONS_TABLE
@@ -46,12 +48,6 @@ class BigQueryApi:
     ) -> pd.DataFrame:
         valid_cols = self.get_columns(table=table)
         dataframe_cols = dataframe.columns.to_list()
-
-        if "external_temperature" in valid_cols and "temperature" in dataframe_cols:
-            dataframe.loc[:, "external_temperature"] = dataframe["temperature"]
-
-        if "external_humidity" in valid_cols and "humidity" in dataframe_cols:
-            dataframe.loc[:, "external_humidity"] = dataframe["humidity"]
 
         if set(valid_cols).issubset(set(dataframe_cols)):
             dataframe = dataframe[valid_cols]
@@ -101,6 +97,8 @@ class BigQueryApi:
             schema_file = "measurements.json"
         elif table == self.raw_measurements_table:
             schema_file = "raw_measurements.json"
+        elif table == self.latest_measurements_table:
+            schema_file = "latest_measurements.json"
         elif table == self.hourly_weather_table or table == self.raw_weather_table:
             schema_file = "weather_data.json"
         elif table == self.analytics_table or table == self.consolidated_data_table:
@@ -130,7 +128,7 @@ class BigQueryApi:
         columns = []
         if data_type != ColumnDataType.NONE:
             for column in schema:
-                if column["type"] == data_type.to_string():
+                if column["type"] == str(data_type):
                     columns.append(column["name"])
         else:
             columns = [column["name"] for column in schema]
@@ -155,8 +153,45 @@ class BigQueryApi:
         job.result()
 
         destination_table = self.client.get_table(table)
-        print(f"Loaded {dataframe.size} rows to {table}")
+        print(f"Loaded {len(dataframe)} rows to {table}")
         print(f"Total rows after load :  {destination_table.num_rows}")
+
+    def update_data(
+        self,
+        dataframe: pd.DataFrame,
+        table: str,
+    ) -> None:
+        dataframe.reset_index(drop=True, inplace=True)
+        dataframe = self.validate_data(dataframe=dataframe, table=table)
+        dataframe.drop_duplicates(subset=["device_number"], inplace=True, keep="first")
+
+        available_data = (
+            self.client.query(query=f"SELECT * FROM `{table}`").result().to_dataframe()
+        )
+
+        if available_data.empty:
+            up_to_date_data = dataframe
+        else:
+            available_data["timestamp"] = available_data["timestamp"].apply(
+                pd.to_datetime
+            )
+            available_data.drop_duplicates(
+                subset=["device_number"], inplace=True, keep="first"
+            )
+            data_not_for_updating = available_data.loc[
+                ~available_data["device_number"].isin(
+                    dataframe["device_number"].to_list()
+                )
+            ]
+            up_to_date_data = pd.concat(
+                [data_not_for_updating, dataframe], ignore_index=True
+            )
+
+        up_to_date_data["timestamp"] = up_to_date_data["timestamp"].apply(date_to_str)
+
+        self.load_data(
+            dataframe=up_to_date_data, table=table, job_action=JobAction.OVERWRITE
+        )
 
     def compose_query(
         self,
@@ -215,12 +250,18 @@ class BigQueryApi:
         self,
         dataframe: pd.DataFrame,
         table: str,
-        start_date_time: str,
-        end_date_time: str,
         tenant: Tenant = Tenant.ALL,
+        start_date_time: str = None,
+        end_date_time: str = None,
         where_fields: dict = None,
         null_cols: list = None,
     ) -> None:
+
+        if start_date_time is None or end_date_time is None:
+            data = dataframe.copy()
+            data["timestamp"] = pd.to_datetime(data["timestamp"])
+            start_date_time = date_to_str(data["timestamp"].min())
+            end_date_time = date_to_str(data["timestamp"].max())
 
         query = self.compose_query(
             QueryType.DELETE,

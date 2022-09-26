@@ -1,4 +1,4 @@
-name: deploy-apis-to-staging
+name: remove-deploy-previews
 
 on:
   pull_request:

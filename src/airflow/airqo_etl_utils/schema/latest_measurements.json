@@ -15,31 +15,6 @@
         "mode": "NULLABLE"
     },
     {
-        "name": "site_name",
-        "type": "STRING",
-        "mode": "NULLABLE"
-    },
-    {
-        "name": "site_description",
-        "type": "STRING",
-        "mode": "NULLABLE"
-    },
-    {
-        "name": "site_latitude",
-        "type": "FLOAT",
-        "mode": "NULLABLE"
-    },
-    {
-        "name": "site_longitude",
-        "type": "FLOAT",
-        "mode": "NULLABLE"
-    },
-    {
-        "name": "site_altitude",
-        "type": "FLOAT",
-        "mode": "NULLABLE"
-    },
-    {
         "name": "device_number",
         "type": "INTEGER",
         "mode": "NULLABLE"
@@ -50,37 +25,12 @@
         "mode": "NULLABLE"
     },
     {
-        "name": "device_category",
-        "type": "STRING",
-        "mode": "NULLABLE"
-    },
-    {
-        "name": "device_latitude",
+        "name": "latitude",
         "type": "FLOAT",
         "mode": "NULLABLE"
     },
     {
-        "name": "device_longitude",
-        "type": "FLOAT",
-        "mode": "NULLABLE"
-    },
-    {
-        "name": "device_battery",
-        "type": "FLOAT",
-        "mode": "NULLABLE"
-    },
-    {
-        "name": "device_altitude",
-        "type": "FLOAT",
-        "mode": "NULLABLE"
-    },
-    {
-        "name": "device_temperature",
-        "type": "FLOAT",
-        "mode": "NULLABLE"
-    },
-    {
-        "name": "device_humidity",
+        "name": "longitude",
         "type": "FLOAT",
         "mode": "NULLABLE"
     },
@@ -140,9 +90,9 @@
         "name": "pm10_calibrated_value",
         "type": "FLOAT",
         "mode": "NULLABLE",
-        "description": " μg/m3.\nEquals the calibrated pm 10 value. "
+        "description": " μg/m3.\nEquals the calibrated pm 10 value."
     },
-         {
+    {
         "name": "no2",
         "type": "FLOAT",
         "mode": "NULLABLE"
@@ -168,13 +118,13 @@
         "name": "pm1_raw_value",
         "type": "FLOAT",
         "mode": "NULLABLE",
-        "description": " μg/m3.\npm 1 raw value. "
+        "description": " μg/m3.\npm 1 raw value."
     },
     {
         "name": "pm1_calibrated_value",
         "type": "FLOAT",
         "mode": "NULLABLE",
-        "description": " μg/m3.\npm 1 calibrated value. "
+        "description": " μg/m3.\npm 1 calibrated value."
     },
     {
         "name": "temperature",
@@ -238,96 +188,6 @@
     {
         "name": "hdop",
         "type": "FLOAT",
-        "mode": "NULLABLE"
-    },
-    {
-        "name": "site_bearing_to_kampala_center",
-        "type": "FLOAT",
-        "mode": "NULLABLE"
-    },
-    {
-        "name": "site_distance_to_kampala_center",
-        "type": "FLOAT",
-        "mode": "NULLABLE"
-    },
-    {
-        "name": "site_landform_90",
-        "type": "FLOAT",
-        "mode": "NULLABLE"
-    },
-    {
-        "name": "site_landform_270",
-        "type": "FLOAT",
-        "mode": "NULLABLE"
-    },
-    {
-        "name": "site_aspect",
-        "type": "FLOAT",
-        "mode": "NULLABLE"
-    },
-    {
-        "name": "site_distance_to_nearest_tertiary_road",
-        "type": "FLOAT",
-        "mode": "NULLABLE"
-    },
-    {
-        "name": "site_distance_to_nearest_primary_road",
-        "type": "FLOAT",
-        "mode": "NULLABLE"
-    },
-    {
-        "name": "site_distance_to_nearest_road",
-        "type": "FLOAT",
-        "mode": "NULLABLE"
-    },
-    {
-        "name": "site_distance_to_nearest_residential_road",
-        "type": "FLOAT",
-        "mode": "NULLABLE"
-    },
-    {
-        "name": "site_distance_to_nearest_secondary_road",
-        "type": "FLOAT",
-        "mode": "NULLABLE"
-    },
-    {
-        "name": "site_distance_to_nearest_unclassified_road",
-        "type": "FLOAT",
-        "mode": "NULLABLE"
-    },
-    {
-        "name": "country",
-        "type": "STRING",
-        "mode": "NULLABLE"
-    },
-    {
-        "name": "region",
-        "type": "STRING",
-        "mode": "NULLABLE"
-    },
-    {
-        "name": "district",
-        "type": "STRING",
-        "mode": "NULLABLE"
-    },
-    {
-        "name": "city",
-        "type": "STRING",
-        "mode": "NULLABLE"
-    },
-    {
-        "name": "county",
-        "type": "STRING",
-        "mode": "NULLABLE"
-    },
-    {
-        "name": "sub_county",
-        "type": "STRING",
-        "mode": "NULLABLE"
-    },
-    {
-        "name": "parish",
-        "type": "STRING",
         "mode": "NULLABLE"
     }
 ]
