@@ -1632,6 +1632,28 @@ const createEvent = {
       };
     }
   },
+  insertMeasurements: async(measurements)=>{
+    try {
+      const responseFromInsertMeasurements = await createEvent.insert(
+        "airqo",
+        measurements
+      );
+      logObject(
+        "responseFromInsertMeasurements",
+        responseFromInsertMeasurements
+      );
+      return responseFromInsertMeasurements;
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Unable to insert measurements",
+        errors: {
+          message: error.message,
+        },
+      };
+    }
+  },
   insert: async (tenant, measurements) => {
     let nAdded = 0;
     let eventsAdded = [];
