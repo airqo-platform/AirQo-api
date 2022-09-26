@@ -281,7 +281,7 @@ class AirQoAppUtils:
         return new_value
 
     @staticmethod
-    def update_firebase_air_quality_readings(data: pd.DataFrame):
+    def process_for_firebase(data: pd.DataFrame) -> pd.DataFrame:
 
         sites = AirQoApi().get_sites()
         sites = [
@@ -347,12 +347,13 @@ class AirQoAppUtils:
                 "pm10_calibrated_value": "pm10",
                 "site_id": "referenceSite",
                 "tenant": "source",
+                "timestamp": "dateTime",
             },
             inplace=True,
         )
 
         data = DataValidationUtils.remove_outliers(data)
-        data.dropna(inplace=True, subset=["pm2_5", "referenceSite", "timestamp"])
+        data.dropna(inplace=True, subset=["pm2_5", "referenceSite", "dateTime"])
 
         data = data.merge(sites, on=["referenceSite"], how="left")
         data = data[
@@ -360,7 +361,7 @@ class AirQoAppUtils:
                 "pm2_5",
                 "pm10",
                 "calibrated",
-                "timestamp",
+                "dateTime",
                 "referenceSite",
                 "name",
                 "location",
@@ -371,7 +372,7 @@ class AirQoAppUtils:
         ]
         data.loc[:, "placeId"] = data["referenceSite"]
 
-        data.loc[:, "timestamp"] = pd.to_datetime(data["timestamp"])
+        data.loc[:, "dateTime"] = pd.to_datetime(data["dateTime"])
 
         data.loc[:, "pm10"] = data["pm10"].apply(
             lambda pm10: AirQoAppUtils.round_off_value(pm10, Pollutant.PM10)
@@ -394,15 +395,20 @@ class AirQoAppUtils:
             lambda air_quality: str(air_quality)
         )
 
+        data.sort_values(ascending=True, by="dateTime", inplace=True)
+        data.drop_duplicates(
+            keep="first", inplace=True, subset=["referenceSite", "dateTime"]
+        )
+
+        return data
+
+    @staticmethod
+    def update_firebase_air_quality_readings(data: pd.DataFrame):
+
         cred = credentials.Certificate(configuration.GOOGLE_APPLICATION_CREDENTIALS)
         firebase_admin.initialize_app(cred)
         db = firestore.client()
         batch = db.batch()
-
-        data.sort_values(ascending=True, by="timestamp", inplace=True)
-        data.drop_duplicates(
-            keep="first", inplace=True, subset=["referenceSite", "timestamp"]
-        )
 
         for _, row in data.iterrows():
             site_collection = db.collection(

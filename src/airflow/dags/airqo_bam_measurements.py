@@ -135,50 +135,20 @@ def bam_realtime_measurements_etl():
 
     @task()
     def update_latest_data(data: pd.DataFrame):
-        from airqo_etl_utils.bigquery_api import BigQueryApi
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
-        from airqo_etl_utils.data_validator import DataValidationUtils
+        from airqo_etl_utils.big_query_utils import BigQueryUtils
         from airqo_etl_utils.constants import Tenant, DeviceCategory
 
-        bam_data = AirQoDataUtils.process_latest_data(
+        data = AirQoDataUtils.process_latest_data(
             data=data, device_category=DeviceCategory.BAM
         )
-
-        big_query_api = BigQueryApi()
-        table = big_query_api.latest_measurements_table
-
-        data = DataValidationUtils.process_for_big_query(
-            dataframe=bam_data, table=table, tenant=Tenant.AIRQO
-        )
-
-        big_query_api.update_data(data, table=table)
-
-    @task()
-    def update_firebase_latest_data(data: pd.DataFrame):
-        from airqo_etl_utils.bigquery_api import BigQueryApi
-        from airqo_etl_utils.airqo_utils import AirQoDataUtils
-        from airqo_etl_utils.data_validator import DataValidationUtils
-        from airqo_etl_utils.constants import Tenant, DeviceCategory
-        from airqo_etl_utils.app_insights_utils import AirQoAppUtils
-
-        bam_data = AirQoDataUtils.process_latest_data(
-            data=data, device_category=DeviceCategory.LOW_COST
-        )
-
-        big_query_api = BigQueryApi()
-        table = big_query_api.latest_measurements_table
-
-        data = DataValidationUtils.process_for_big_query(
-            dataframe=bam_data, table=table, tenant=Tenant.AIRQO
-        )
-        AirQoAppUtils.update_firebase_air_quality_readings(data)
+        BigQueryUtils.update_latest_measurements(data=data, tenant=Tenant.AIRQO)
 
     unclean_data = extract_bam_data()
     save_unclean_data(unclean_data)
     measurements = clean_bam_data(unclean_data)
     save_clean_bam_data(measurements)
     update_latest_data(measurements)
-    update_firebase_latest_data(measurements)
 
 
 realtime_measurements_etl_dag = bam_realtime_measurements_etl()
