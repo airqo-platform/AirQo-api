@@ -18,10 +18,14 @@ def hourly_measurements_etl():
 
     @task()
     def extract():
-        from airqo_etl_utils.date import DateUtils
         from airqo_etl_utils.kcca_utils import KccaUtils
+        from airqo_etl_utils.date import date_to_str_hours
+        from datetime import datetime, timedelta
 
-        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(hours=1)
+        hour_of_day = datetime.utcnow() - timedelta(hours=1)
+        start_date_time = date_to_str_hours(hour_of_day)
+        end_date_time = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
+
         return KccaUtils.extract_data(
             start_date_time=start_date_time, end_date_time=end_date_time
         )
