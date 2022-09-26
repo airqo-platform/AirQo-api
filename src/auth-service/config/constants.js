@@ -25,6 +25,7 @@ const stageConfig = {
 };
 
 const defaultConfig = {
+  EMAIL_NAME: "AirQo Data Team",
   PORT: process.env.PORT || 3000,
   CLIENT_ORIGIN: process.env.AIRQO_WEBSITE,
   BCRYPT_SALT_ROUNDS: 12,
