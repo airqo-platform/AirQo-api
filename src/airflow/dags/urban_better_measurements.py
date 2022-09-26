@@ -168,9 +168,9 @@ def historical_processed_measurements_etl__plume_labs():
 
     @task()
     def add_air_quality_data(data: pd.DataFrame):
-        from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
+        from airqo_etl_utils.air_quality_utils import AirQualityUtils
 
-        return UrbanBetterUtils.add_air_quality(data)
+        return AirQualityUtils.add_categorisation(data)
 
     @task()
     def clean_data(data: pd.DataFrame):
@@ -297,9 +297,9 @@ def realtime_measurements_etl__plume_labs():
 
     @task()
     def add_air_quality_data(data: pd.DataFrame):
-        from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
+        from airqo_etl_utils.air_quality_utils import AirQualityUtils
 
-        return UrbanBetterUtils.add_air_quality(data)
+        return AirQualityUtils.add_categorisation(data)
 
     @task()
     def clean_data(data: pd.DataFrame):

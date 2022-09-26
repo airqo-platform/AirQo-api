@@ -110,6 +110,7 @@ const deviceSchema = new mongoose.Schema(
     },
     status: {
       type: String,
+      default: "not deployed",
     },
     ISP: {
       type: String,

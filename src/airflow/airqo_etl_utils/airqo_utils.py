@@ -33,6 +33,54 @@ class AirQoDataUtils:
         return DataValidationUtils.remove_outliers(hourly_uncalibrated_data)
 
     @staticmethod
+    def extract_data_from_bigquery(
+        start_date_time, end_date_time, frequency: Frequency
+    ) -> pd.DataFrame:
+        bigquery_api = BigQueryApi()
+        if frequency == Frequency.RAW:
+            table = bigquery_api.raw_measurements_table
+        elif frequency == Frequency.HOURLY:
+            table = bigquery_api.hourly_measurements_table
+        else:
+            table = ""
+        raw_data = bigquery_api.query_data(
+            table=table,
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            tenant=Tenant.AIRQO,
+        )
+
+        return DataValidationUtils.remove_outliers(raw_data)
+
+    @staticmethod
+    def remove_duplicates(data: pd.DataFrame) -> pd.DataFrame:
+        cols = data.columns.to_list()
+        cols.remove("timestamp")
+        cols.remove("device_number")
+        data.dropna(subset=cols, how="all", inplace=True)
+        data["timestamp"] = pd.to_datetime(data["timestamp"])
+
+        data["duplicated"] = data.duplicated(
+            keep=False, subset=["device_number", "timestamp"]
+        )
+        duplicated_data = pd.DataFrame(data.copy().loc[data["duplicated"] is True])
+        not_duplicated_data = pd.DataFrame(data.copy().loc[data["duplicated"] is False])
+
+        for _, by_station in duplicated_data.groupby(by="station_code"):
+            for _, by_timestamp in by_station.groupby(by="timestamp"):
+                by_timestamp = by_timestamp.copy()
+                by_timestamp.fillna(inplace=True, method="ffill")
+                by_timestamp.fillna(inplace=True, method="bfill")
+                by_timestamp.drop_duplicates(
+                    subset=["device_number", "timestamp"], inplace=True, keep="first"
+                )
+                not_duplicated_data = pd.concat(
+                    [not_duplicated_data, by_timestamp], ignore_index=True
+                )
+
+        return not_duplicated_data
+
+    @staticmethod
     def extract_aggregated_raw_data(start_date_time, end_date_time) -> pd.DataFrame:
         bigquery_api = BigQueryApi()
         measurements = bigquery_api.query_data(
@@ -340,6 +388,7 @@ class AirQoDataUtils:
                 )
 
         if remove_outliers:
+            devices_data = DataValidationUtils.convert_pressure_values(devices_data)
             devices_data = DataValidationUtils.remove_outliers(devices_data)
 
         return devices_data
@@ -495,7 +544,7 @@ class AirQoDataUtils:
                         devices,
                     )
                 )[0]
-                data = {
+                row_data = {
                     "device": device_details["name"],
                     "device_id": device_details["_id"],
                     "site_id": row["site_id"],
@@ -536,10 +585,10 @@ class AirQoDataUtils:
                     "externalHumidity": {"value": row["humidity"]},
                 }
 
-                if data["site_id"] is None or data["site_id"] is np.nan:
-                    data.pop("site_id")
+                if row_data["site_id"] is None or row_data["site_id"] is np.nan:
+                    row_data.pop("site_id")
 
-                restructured_data.append(data)
+                restructured_data.append(row_data)
 
             except Exception as ex:
                 traceback.print_exc()
@@ -587,28 +636,26 @@ class AirQoDataUtils:
         sites_weather_data = pd.DataFrame()
         weather_data_cols = list(weather_data.columns)
 
-        for _, site_data in sites.groupby("site_id"):
+        for _, by_site in sites.groupby("site_id"):
             site_weather_data = weather_data[
-                weather_data["station_code"].isin(site_data["station_code"].to_list())
+                weather_data["station_code"].isin(by_site["station_code"].to_list())
             ]
             if site_weather_data.empty:
                 continue
 
-            site_weather_data = pd.merge(
-                site_weather_data, site_data, on="station_code"
-            )
+            site_weather_data = pd.merge(site_weather_data, by_site, on="station_code")
 
-            for _, time_group in site_weather_data.groupby("timestamp"):
-                time_group.sort_values(ascending=True, by="distance", inplace=True)
-                time_group.fillna(method="bfill", inplace=True)
-                time_group.drop_duplicates(
+            for _, by_timestamp in site_weather_data.groupby("timestamp"):
+                by_timestamp.sort_values(ascending=True, by="distance", inplace=True)
+                by_timestamp.fillna(method="bfill", inplace=True)
+                by_timestamp.drop_duplicates(
                     keep="first", subset=["timestamp"], inplace=True
                 )
-                time_group = time_group[weather_data_cols]
+                by_timestamp = by_timestamp[weather_data_cols]
 
-                time_group.loc[:, "site_id"] = site_data.iloc[0]["site_id"]
+                by_timestamp.loc[:, "site_id"] = by_site.iloc[0]["site_id"]
                 sites_weather_data = pd.concat(
-                    [sites_weather_data, time_group], ignore_index=True
+                    [sites_weather_data, by_timestamp], ignore_index=True
                 )
 
         airqo_data_cols = list(airqo_data.columns)

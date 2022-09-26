@@ -64,6 +64,7 @@ jobs:
       run_channel_data: ${{ steps.check_files.outputs.run_channel_data }} # channel data job
       run_kafka_connectors: ${{ steps.check_files.outputs.run_kafka_connectors }} # kafka connectors
       run_fault_detection: ${{ steps.check_files.outputs.run_fault_detection }} # fault detection
+      run_nginx_ingress: ${{ steps.check_files.outputs.run_nginx_ingress }} # nginx ingress
 
     runs-on: ubuntu-latest
     steps:
@@ -107,6 +108,7 @@ jobs:
           echo "::set-output name=run_channel_data::false"
           echo "::set-output name=run_kafka_connectors::false"
           echo "::set-output name=run_fault_detection::false"
+          echo "::set-output name=run_nginx_ingress::false"
 
           while IFS= read -r file
           do
@@ -292,6 +294,10 @@ jobs:
               echo "::set-output name=run_kafka_connectors::true"
             fi
 
+            if [[ $file == k8s/nginx-ingress/* ]]; then
+              echo "::set-output name=run_nginx_ingress::true"
+            fi
+
             if [[ $file == workflow-trigger ]]; then
               echo "::set-output name=run_notifications::true"
               echo "::set-output name=run_events_check::true"
@@ -315,6 +321,7 @@ jobs:
               echo "::set-output name=run_fault_detection::true"
               echo "::set-output name=run_view::true"
               echo "::set-output name=run_kafka_connectors::true"
+              echo "::set-output name=run_nginx_ingress::true"
             fi
 
           done < files.txt
@@ -1567,3 +1574,22 @@ jobs:
       - name: Deploy to K8S
         run: |
           kubectl apply -f k8s/channel-data/stage-airqo-update-channel-data-job.yaml
+
+  ### apply nginx ingress ###
+  nginx-ingress:
+    name: apply-nginx-ingress
+    needs: [check]
+    if: needs.check.outputs.run_nginx_ingress == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Login to K8S
+        uses: azure/k8s-set-context@v1
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+
+      - name: Apply ingress changes
+        run: kubectl apply -f k8s/nginx-ingress/stage-platform-ingress-resource.yaml

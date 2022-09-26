@@ -16,6 +16,7 @@ const devConfig = {
   DECYPT_DEVICE_KEY_URL: `${process.env.DEVICE_REGISTRY_BASE_URL_DEV}/decrypt`,
 };
 const stageConfig = {
+  JWT_TOKEN: process.env.JWT_TOKEN_STAGING,
   MONGO_URI: process.env.MONGO_GCE_URI,
   JWT_SECRET: process.env.JWT_SECRET,
   DB_NAME: process.env.MONGO_STAGE,
@@ -29,6 +30,7 @@ const stageConfig = {
   DECYPT_DEVICE_KEY_URL: `${process.env.DEVICE_REGISTRY_BASE_URL_STAGE}/decrypt`,
 };
 const prodConfig = {
+  JWT_TOKEN: process.env.JWT_TOKEN_PRODUCTION,
   MONGO_URI: process.env.MONGO_GCE_URI,
   JWT_SECRET: process.env.JWT_SECRET,
   DB_NAME: process.env.MONGO_PROD,
@@ -100,9 +102,9 @@ const defaultConfig = {
 
   BAM_FIELDS_AND_LABELS: {
     field1: "date",
-    field2: "realtime_concetration",
+    field2: "real_time_concetration",
     field3: "hourly_concetration",
-    field4: "shorttime_concetration",
+    field4: "short_time_concetration",
     field5: "litres_per_minute",
     field6: "device_status",
     field7: "battery_voltage",
@@ -112,7 +114,7 @@ const defaultConfig = {
 
   BAM_POSITIONS_AND_LABELS: {
     0: "timestamp",
-    1: "realtime_concentration",
+    1: "real_time_concentration",
     2: "hourly_concetration",
     3: "short_time_concetration",
     4: "air_flow",
