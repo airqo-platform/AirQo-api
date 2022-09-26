@@ -146,16 +146,28 @@ class KccaUtils:
     @staticmethod
     def transform_data_for_api(data: pd.DataFrame) -> list:
         measurements = []
-        data["timestamp"] = pd.to_datetime(data["timestamp"])
+        data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
+        data["timestamp"] = data["timestamp"].apply(date_to_str)
+        airqo_api = AirQoApi()
+        devices = airqo_api.get_devices(tenant=Tenant.KCCA)
 
         for _, row in data.iterrows():
+
+            device_id = row["device_id"]
+            device_details = list(
+                filter(
+                    lambda device: (device["device_id"] == device_id),
+                    devices,
+                )
+            )[0]
+
             row_data = {
                 "frequency": str(Frequency.HOURLY),
-                "time": date_to_str(row.get("timestamp", None)),
+                "time": row.get("timestamp", None),
                 "tenant": str(Tenant.KCCA),
                 "site_id": row.get("site_id", None),
-                "device_id": row.get("device_id", None),
-                "device": row.get("device_id", None),
+                "device_id": device_details.get("_id", None),
+                "device": device_details.get("name", None),
                 "location": dict(
                     {
                         "longitude": dict({"value": row.get("longitude", None)}),
