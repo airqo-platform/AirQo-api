@@ -2,38 +2,14 @@ import datetime
 
 import pandas as pd
 
-from .constants import Tenant, Pollutant
+from .air_quality_utils import AirQualityUtils
+from .constants import Tenant
 from .data_validator import DataValidationUtils
 from .date import str_to_date
 from .plume_labs_api import PlumeLabsApi
-from .utils import Utils
 
 
 class PlumeLabsUtils:
-    @staticmethod
-    def add_air_quality(data: pd.DataFrame) -> pd.DataFrame:
-
-        if "pm2_5" in list(data.columns):
-            data["pm2_5_category"] = data["pm2_5"].apply(
-                lambda x: Utils.epa_pollutant_category(
-                    pollutant=Pollutant.PM2_5, value=x
-                )
-            )
-
-        if "pm10" in list(data.columns):
-            data["pm10_category"] = data["pm10"].apply(
-                lambda x: Utils.epa_pollutant_category(
-                    pollutant=Pollutant.PM10, value=x
-                )
-            )
-
-        if "no2" in list(data.columns):
-            data["no2_category"] = data["no2"].apply(
-                lambda x: Utils.epa_pollutant_category(pollutant=Pollutant.NO2, value=x)
-            )
-
-        return data
-
     @staticmethod
     def extract_sensor_measures(
         start_date_time: str, end_date_time: str, tenant: Tenant
@@ -213,5 +189,5 @@ class PlumeLabsUtils:
     def clean_data(data: pd.DataFrame, add_air_quality: bool = True) -> pd.DataFrame:
         data = DataValidationUtils.remove_outliers(data)
         if add_air_quality:
-            data = PlumeLabsUtils.add_air_quality(data)
+            data = AirQualityUtils.add_categorisation(data)
         return data
