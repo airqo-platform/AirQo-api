@@ -286,39 +286,27 @@ class AirQoAppUtils:
         sites = AirQoApi().get_sites()
         sites = [
             {
-                "site_id": site.get("site_id", None),
-                "site_name": site.get("search_name", None),
-                "site_location": site.get("location_name", None),
-                "site_region": site.get("region", ""),
-                "site_country": site.get("country", ""),
+                "referenceSite": site.get("site_id", None),
+                "name": site.get("search_name", None),
+                "location": site.get("location_name", None),
+                "region": site.get("region", None),
+                "country": site.get("country", None),
+                "latitude": site.get("latitude", None),
+                "longitude": site.get("longitude", None),
                 "site_sec_name": site.get("name", None),
                 "site_sec_location": site.get("description", None),
-                "site_latitude": site.get("latitude", None),
-                "site_longitude": site.get("longitude", None),
             }
             for site in sites
         ]
 
         sites = pd.DataFrame(sites)
 
-        sites["site_name"] = sites["site_name"].fillna(sites["site_sec_name"])
-        sites["site_location"] = sites["site_location"].fillna(
-            sites["site_sec_location"]
-        )
+        sites["name"] = sites["name"].fillna(sites["site_sec_name"])
+        sites["location"] = sites["location"].fillna(sites["site_sec_location"])
 
         del sites["site_sec_name"]
         del sites["site_sec_location"]
         sites.dropna(inplace=True)
-        sites.rename(
-            columns={
-                "site_name": "name",
-                "site_location": "location",
-                "site_region": "region",
-                "site_country": "country",
-                "site_id": "referenceSite",
-            },
-            inplace=True,
-        )
 
         data = data[
             [
@@ -353,7 +341,9 @@ class AirQoAppUtils:
         )
 
         data = DataValidationUtils.remove_outliers(data)
-        data.dropna(inplace=True, subset=["pm2_5", "referenceSite", "dateTime"])
+        data.dropna(
+            inplace=True, subset=["pm2_5", "referenceSite", "dateTime", "source"]
+        )
 
         data = data.merge(sites, on=["referenceSite"], how="left")
         data = data[
@@ -365,6 +355,8 @@ class AirQoAppUtils:
                 "referenceSite",
                 "name",
                 "location",
+                "latitude",
+                "longitude",
                 "region",
                 "country",
                 "source",
