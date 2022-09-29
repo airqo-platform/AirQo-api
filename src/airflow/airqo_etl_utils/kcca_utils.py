@@ -1,433 +1,213 @@
 import traceback
-from datetime import timedelta
 
 import numpy as np
 import pandas as pd
 import requests
 
 from .airqo_api import AirQoApi
-from .commons import (
-    get_valid_column_value,
-    to_double,
-    get_site_and_device_id,
-    get_column_value,
-)
+from .bigquery_api import BigQueryApi
 from .config import configuration
-from .constants import Tenant
-from .date import (
-    date_to_str,
-    str_to_date,
-    frequency_time,
-)
+from .constants import Tenant, DataSource, Frequency, ColumnDataType
+from .data_validator import DataValidationUtils
+from .date import date_to_str
+from .utils import Utils
 
 
-def query_kcca_measurements(frequency: str, start_time: str, end_time: str):
-    api_url = f"{configuration.CLARITY_API_BASE_URL}measurements?startTime={start_time}&endTime={end_time}"
+class KccaUtils:
+    @staticmethod
+    def query_data_from_api(start_time: str, end_time: str):
+        api_url = f"{configuration.CLARITY_API_BASE_URL}measurements?startTime={start_time}&endTime={end_time}&outputFrequency=hour"
 
-    if frequency == "hourly":
-        api_url = f"{api_url}&outputFrequency=hour"
-    elif frequency == "daily":
-        api_url = f"{api_url}&outputFrequency=day"
-    else:
-        api_url = f"{api_url}&outputFrequency=minute"
-
-    headers = {"x-api-key": configuration.CLARITY_API_KEY, "Accept-Encoding": "gzip"}
-    try:
-        results = requests.get(api_url, headers=headers)
-        if results.status_code != 200:
-            print(f"{results.content}")
+        headers = {
+            "x-api-key": configuration.CLARITY_API_KEY,
+            "Accept-Encoding": "gzip",
+        }
+        try:
+            results = requests.get(api_url, headers=headers)
+            if results.status_code != 200:
+                print(f"{results.content}")
+                return []
+            return results.json()
+        except Exception as ex:
+            traceback.print_exc()
+            print(ex)
             return []
-        return results.json()
-    except Exception as ex:
-        traceback.print_exc()
-        print(ex)
-        return []
 
+    @staticmethod
+    def extract_data(start_date_time: str, end_date_time: str) -> pd.DataFrame:
 
-def extract_kcca_measurements(
-    start_time: str, end_time: str, freq: str
-) -> pd.DataFrame:
-    if freq.lower() == "hourly":
-        interval = "6H"
-    elif freq.lower() == "daily":
-        interval = "48H"
-    else:
-        interval = "1H"
+        measurements = []
+        dates = Utils.query_dates_array(
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            data_source=DataSource.CLARITY,
+        )
 
-    dates = pd.date_range(start_time, end_time, freq=interval)
-    measurements = []
-    last_date_time = dates.values[len(dates.values) - 1]
+        for start, end in dates:
+            range_measurements = KccaUtils.query_data_from_api(start, end)
+            measurements.extend(range_measurements)
 
-    for date in dates:
+        return pd.json_normalize(measurements)
 
-        start = date_to_str(date)
-        end_date_time = date + timedelta(hours=dates.freq.n)
-
-        if np.datetime64(end_date_time) > last_date_time:
-            end = end_time
-        else:
-            end = date_to_str(end_date_time)
-
-        print(start_time + " : " + end_time)
-
-        range_measurements = query_kcca_measurements(freq, start, end)
-        measurements.extend(range_measurements)
-
-    measurements_df = pd.json_normalize(measurements)
-    return measurements_df
-
-
-def transform_kcca_measurements_for_api(data: pd.DataFrame) -> list:
-    airqo_api = AirQoApi()
-    devices = airqo_api.get_devices(tenant=Tenant.KCCA)
-    device_gps = data.groupby("deviceCode")
-    cleaned_measurements = []
-    for _, group in device_gps:
-        device_name = group.iloc[0]["deviceCode"]
-
-        site_id, device_id = get_site_and_device_id(devices, device_name=device_name)
-
-        if not site_id and not device_id:
-            continue
-
-        transformed_data = []
-        columns = group.columns
-
-        for index, row in group.iterrows():
-
-            location = str(row["location.coordinates"])
-            location = location.replace("[", "").replace("]", "")
-            location_coordinates = location.split(",")
-
-            frequency = str(row.get("outputFrequency", "raw"))
-
-            if frequency.lower() == "hour":
-                frequency = "hourly"
-            elif frequency.lower() == "day":
-                frequency = "daily"
-            else:
-                frequency = "raw"
-
-            row_data = dict(
-                {
-                    "frequency": frequency,
-                    "time": frequency_time(
-                        dateStr=row.get("time"), frequency=frequency
-                    ),
-                    "tenant": "kcca",
-                    "site_id": site_id,
-                    "device_id": device_id,
-                    "device": row["deviceCode"],
-                    "location": dict(
-                        {
-                            "longitude": dict(
-                                {"value": to_double(location_coordinates[0])}
-                            ),
-                            "latitude": dict(
-                                {"value": to_double(location_coordinates[1])}
-                            ),
-                        }
-                    ),
-                    "pm2_5": {
-                        "value": get_valid_column_value(
-                            column_name="characteristics.pm2_5ConcMass.raw",
-                            series=row,
-                            columns_names=columns,
-                            data_name="pm2_5",
-                        ),
-                        "calibratedValue": get_valid_column_value(
-                            column_name="characteristics.pm2_5ConcMass.value",
-                            series=row,
-                            columns_names=columns,
-                            data_name="pm2_5",
-                        ),
-                    },
-                    "pm1": {
-                        "value": get_valid_column_value(
-                            column_name="characteristics.pm1ConcMass.raw",
-                            series=row,
-                            columns_names=columns,
-                            data_name=None,
-                        ),
-                        "calibratedValue": get_valid_column_value(
-                            column_name="characteristics.pm1ConcMass.value",
-                            series=row,
-                            columns_names=columns,
-                            data_name=None,
-                        ),
-                    },
-                    "pm10": {
-                        "value": get_valid_column_value(
-                            column_name="characteristics.pm10ConcMass.raw",
-                            series=row,
-                            columns_names=columns,
-                            data_name="pm10",
-                        ),
-                        "calibratedValue": get_valid_column_value(
-                            column_name="characteristics.pm10ConcMass.value",
-                            series=row,
-                            columns_names=columns,
-                            data_name="pm10",
-                        ),
-                    },
-                    "externalTemperature": {
-                        "value": get_valid_column_value(
-                            column_name="characteristics.temperature.value",
-                            series=row,
-                            columns_names=columns,
-                            data_name="externalTemperature",
-                        ),
-                    },
-                    "externalHumidity": {
-                        "value": get_valid_column_value(
-                            column_name="characteristics.relHumid.value",
-                            series=row,
-                            columns_names=columns,
-                            data_name="externalHumidity",
-                        ),
-                    },
-                    "no2": {
-                        "value": get_valid_column_value(
-                            column_name="characteristics.no2Conc.raw",
-                            series=row,
-                            columns_names=columns,
-                            data_name=None,
-                        ),
-                        "calibratedValue": get_valid_column_value(
-                            column_name="characteristics.no2Conc.value",
-                            series=row,
-                            columns_names=columns,
-                            data_name=None,
-                        ),
-                    },
-                    "speed": {
-                        "value": get_valid_column_value(
-                            column_name="characteristics.windSpeed.value",
-                            series=row,
-                            columns_names=columns,
-                            data_name=None,
-                        ),
-                    },
-                }
+    @staticmethod
+    def add_site_and_device_details(devices, device_id):
+        try:
+            result = dict(
+                list(
+                    filter(lambda device: (device["device_id"] == device_id), devices)
+                )[0]
             )
 
-            transformed_data.append(row_data)
+            return pd.Series(
+                {
+                    "site_id": result.get("site_id", None),
+                    "device_number": result.get("device_number", None),
+                }
+            )
+        except Exception as ex:
+            print(ex)
+            return pd.Series({"site_id": None, "device_number": None})
 
-        if transformed_data:
-            cleaned_measurements.extend(transformed_data)
-
-    return cleaned_measurements
-
-
-def transform_kcca_data_for_message_broker(data: pd.DataFrame, frequency: str) -> list:
-    restructured_data = []
-    columns = list(data.columns)
-
-    airqo_api = AirQoApi()
-    devices = airqo_api.get_devices(tenant=Tenant.KCCA)
-
-    for _, data_row in data.iterrows():
-        device_name = data_row["deviceCode"]
-        site_id, device_id = get_site_and_device_id(devices, device_name=device_name)
-        if not site_id and not device_id:
-            continue
-
-        location = str(data_row["location.coordinates"])
-        location = location.replace("[", "").replace("]", "")
-        location_coordinates = location.split(",")
-
-        device_data = dict(
-            {
-                "time": frequency_time(dateStr=data_row["time"], frequency=frequency),
-                "tenant": "kcca",
-                "site_id": site_id,
-                "device_id": device_id,
-                "device_number": 0,
-                "device": device_name,
-                "latitude": location_coordinates[1],
-                "longitude": location_coordinates[0],
-                "pm2_5": get_column_value(
-                    column="characteristics.pm2_5ConcMass.value",
-                    columns=columns,
-                    series=data_row,
-                ),
-                "pm10": get_column_value(
-                    column="characteristics.pm10ConcMass.value",
-                    columns=columns,
-                    series=data_row,
-                ),
-                "s1_pm2_5": get_column_value(
-                    column="characteristics.pm2_5ConcMass.raw",
-                    columns=columns,
-                    series=data_row,
-                ),
-                "s1_pm10": get_column_value(
-                    column="characteristics.pm10ConcMass.raw",
-                    columns=columns,
-                    series=data_row,
-                ),
-                "s2_pm2_5": None,
-                "s2_pm10": None,
-                "pm2_5_calibrated_value": get_column_value(
-                    column="characteristics.pm2_5ConcMass.calibratedValue",
-                    columns=columns,
-                    series=data_row,
-                ),
-                "pm10_calibrated_value": get_column_value(
-                    column="characteristics.pm10ConcMass.calibratedValue",
-                    columns=columns,
-                    series=data_row,
-                ),
-                "altitude": get_column_value(
-                    column="characteristics.altitude.value",
-                    columns=columns,
-                    series=data_row,
-                ),
-                "wind_speed": get_column_value(
-                    column="characteristics.windSpeed.value",
-                    columns=columns,
-                    series=data_row,
-                ),
-                "external_temperature": get_column_value(
-                    column="characteristics.temperature.value",
-                    columns=columns,
-                    series=data_row,
-                ),
-                "external_humidity": get_column_value(
-                    column="characteristics.relHumid.value",
-                    columns=columns,
-                    series=data_row,
-                ),
-            }
+    @staticmethod
+    def transform_data(data: pd.DataFrame) -> pd.DataFrame:
+        data.rename(
+            columns={
+                "time": "timestamp",
+                "deviceCode": "device_id",
+                "characteristics.pm2_5ConcMass.value": "pm2_5",
+                "characteristics.pm2_5ConcMass.raw": "pm2_5_raw_value",
+                "characteristics.pm2_5ConcMass.calibratedValue": "pm2_5_calibrated_value",
+                "characteristics.pm10ConcMass.value": "pm10",
+                "characteristics.pm10ConcMass.raw": "pm10_raw_value",
+                "characteristics.pm10ConcMass.calibratedValue": "pm10_calibrated_value",
+                "characteristics.pm1ConcMass.value": "pm1",
+                "characteristics.pm1ConcMass.raw": "pm1_raw_value",
+                "characteristics.pm1ConcMass.calibratedValue": "pm1_calibrated_value",
+                "characteristics.no2Conc.value": "no2",
+                "characteristics.no2Conc.raw": "no2_raw_value",
+                "characteristics.no2Conc.calibratedValue": "no2_calibrated_value",
+                "characteristics.windSpeed.value": "wind_speed",
+                "characteristics.temperature.value": "temperature",
+                "characteristics.relHumid.value": "humidity",
+                "characteristics.altitude.value": "altitude",
+            },
+            inplace=True,
         )
 
-        restructured_data.append(device_data)
-
-    return restructured_data
-
-
-def transform_kcca_data_for_bigquery(data: pd.DataFrame) -> pd.DataFrame:
-    restructured_data = []
-
-    columns = list(data.columns)
-
-    airqo_api = AirQoApi()
-    devices = airqo_api.get_devices(tenant=Tenant.KCCA)
-
-    for _, data_row in data.iterrows():
-        device_name = data_row["deviceCode"]
-        site_id, _ = get_site_and_device_id(devices, device_name=device_name)
-        if not site_id:
-            site_id = ""
-
-        location = str(data_row["location.coordinates"])
-        location = location.replace("[", "").replace("]", "")
-        location_coordinates = location.split(",")
-
-        device_data = dict(
-            {
-                "timestamp": str_to_date(data_row["time"]),
-                "tenant": "kcca",
-                "site_id": site_id,
-                "device_number": 0,
-                "device": device_name,
-                "latitude": location_coordinates[1],
-                "longitude": location_coordinates[0],
-                "pm2_5": get_column_value(
-                    column="characteristics.pm2_5ConcMass.value",
-                    columns=columns,
-                    series=data_row,
-                ),
-                "s1_pm2_5": get_column_value(
-                    column="s1_pm2_5", columns=columns, series=data_row
-                ),
-                "s2_pm2_5": get_column_value(
-                    column="s2_pm2_5", columns=columns, series=data_row
-                ),
-                "pm2_5_raw_value": get_column_value(
-                    column="characteristics.pm2_5ConcMass.raw",
-                    columns=columns,
-                    series=data_row,
-                ),
-                "pm2_5_calibrated_value": get_column_value(
-                    column="characteristics.pm2_5ConcMass.calibratedValue",
-                    columns=columns,
-                    series=data_row,
-                ),
-                "pm10": get_column_value(
-                    column="characteristics.pm10ConcMass.value",
-                    columns=columns,
-                    series=data_row,
-                ),
-                "s1_pm10": get_column_value(
-                    column="s1_pm10", columns=columns, series=data_row
-                ),
-                "s2_pm10": get_column_value(
-                    column="s2_pm10", columns=columns, series=data_row
-                ),
-                "pm10_raw_value": get_column_value(
-                    column="characteristics.pm10ConcMass.raw",
-                    columns=columns,
-                    series=data_row,
-                ),
-                "pm10_calibrated_value": get_column_value(
-                    column="characteristics.pm10ConcMass.calibratedValue",
-                    columns=columns,
-                    series=data_row,
-                ),
-                "no2": get_column_value(
-                    column="characteristics.no2Conc.value",
-                    columns=columns,
-                    series=data_row,
-                ),
-                "no2_raw_value": get_column_value(
-                    column="characteristics.no2Conc.raw",
-                    columns=columns,
-                    series=data_row,
-                ),
-                "no2_calibrated_value": get_column_value(
-                    column="characteristics.no2Conc.calibratedValue",
-                    columns=columns,
-                    series=data_row,
-                ),
-                "pm1": get_column_value(
-                    column="characteristics.pm1ConcMass.value",
-                    columns=columns,
-                    series=data_row,
-                ),
-                "pm1_raw_value": get_column_value(
-                    column="characteristics.pm1ConcMass.raw",
-                    columns=columns,
-                    series=data_row,
-                ),
-                "pm1_calibrated_value": get_column_value(
-                    column="characteristics.pm1ConcMass.calibratedValue",
-                    columns=columns,
-                    series=data_row,
-                ),
-                "altitude": get_column_value(
-                    column="characteristics.altitude.value",
-                    columns=columns,
-                    series=data_row,
-                ),
-                "wind_speed": get_column_value(
-                    column="characteristics.windSpeed.value",
-                    columns=columns,
-                    series=data_row,
-                ),
-                "external_temperature": get_column_value(
-                    column="characteristics.temperature.value",
-                    columns=columns,
-                    series=data_row,
-                ),
-                "external_humidity": get_column_value(
-                    column="characteristics.relHumid.value",
-                    columns=columns,
-                    series=data_row,
-                ),
-            }
+        data[["latitude", "longitude"]] = data["location.coordinates"].apply(
+            lambda coordinates: pd.Series(
+                {"latitude": coordinates[1], "longitude": coordinates[0]}
+            )
         )
 
-        restructured_data.append(device_data)
+        airqo_api = AirQoApi()
+        devices = airqo_api.get_devices(tenant=Tenant.KCCA)
+        data[["site_id", "device_number"]] = data["device_id"].apply(
+            lambda device_id: KccaUtils.add_site_and_device_details(
+                devices=devices, device_id=device_id
+            )
+        )
 
-    return pd.DataFrame(data=restructured_data)
+        big_query_api = BigQueryApi()
+        columns = big_query_api.get_columns(
+            table=big_query_api.hourly_measurements_table
+        )
+        columns = list(set(columns) & set(data.columns.to_list()))
+        data = data[columns]
+
+        floats = big_query_api.get_columns(
+            table=big_query_api.hourly_measurements_table,
+            data_type=ColumnDataType.FLOAT,
+        )
+        floats = list(set(columns) & set(floats))
+
+        timestamps = big_query_api.get_columns(
+            table=big_query_api.hourly_measurements_table,
+            data_type=ColumnDataType.TIMESTAMP,
+        )
+        timestamps = list(set(columns) & set(timestamps))
+
+        integers = big_query_api.get_columns(
+            table=big_query_api.hourly_measurements_table,
+            data_type=ColumnDataType.INTEGER,
+        )
+        integers = list(set(columns) & set(integers))
+
+        data = DataValidationUtils.format_data_types(
+            data=data, floats=floats, timestamps=timestamps, integers=integers
+        )
+
+        return data
+
+    @staticmethod
+    def process_latest_data(data: pd.DataFrame) -> pd.DataFrame:
+        return data
+
+    @staticmethod
+    def transform_data_for_api(data: pd.DataFrame) -> list:
+        measurements = []
+        data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
+        data["timestamp"] = data["timestamp"].apply(date_to_str)
+        airqo_api = AirQoApi()
+        devices = airqo_api.get_devices(tenant=Tenant.KCCA)
+
+        for _, row in data.iterrows():
+
+            device_id = row["device_id"]
+            device_details = list(
+                filter(
+                    lambda device: (device["device_id"] == device_id),
+                    devices,
+                )
+            )[0]
+
+            row_data = {
+                "frequency": str(Frequency.HOURLY),
+                "time": row.get("timestamp", None),
+                "tenant": str(Tenant.KCCA),
+                "site_id": row.get("site_id", None),
+                "device_id": device_details.get("_id", None),
+                "device": device_details.get("name", None),
+                "location": dict(
+                    {
+                        "longitude": dict({"value": row.get("longitude", None)}),
+                        "latitude": dict({"value": row.get("latitude", None)}),
+                    }
+                ),
+                "pm2_5": {
+                    "value": row.get("pm2_5", None),
+                    "calibratedValue": row.get("pm2_5_calibrated_value", None),
+                },
+                "pm1": {
+                    "value": row.get("pm1", None),
+                    "calibratedValue": row.get("pm1_calibrated_value", None),
+                },
+                "pm10": {
+                    "value": row.get("pm10", None),
+                    "calibratedValue": row.get("pm10_calibrated_value", None),
+                },
+                "no2": {
+                    "value": row.get("no2", None),
+                    "calibratedValue": row.get("no2_calibrated_value", None),
+                },
+                "externalTemperature": {
+                    "value": row.get("temperature", None),
+                },
+                "externalHumidity": {
+                    "value": row.get("humidity", None),
+                },
+                "speed": {
+                    "value": row.get("wind_speed", None),
+                },
+            }
+
+            if row_data["site_id"] is None or data["site_id"] is np.nan:
+                data.pop("site_id")
+
+            measurements.append(row_data)
+
+        return measurements
+
+    @staticmethod
+    def transform_data_for_message_broker(data: pd.DataFrame) -> list:
+        return data.to_dict("records")

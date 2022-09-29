@@ -388,6 +388,7 @@ class AirQoDataUtils:
                 )
 
         if remove_outliers:
+            devices_data = DataValidationUtils.convert_pressure_values(devices_data)
             devices_data = DataValidationUtils.remove_outliers(devices_data)
 
         return devices_data
@@ -543,7 +544,7 @@ class AirQoDataUtils:
                         devices,
                     )
                 )[0]
-                data = {
+                row_data = {
                     "device": device_details["name"],
                     "device_id": device_details["_id"],
                     "site_id": row["site_id"],
@@ -584,10 +585,10 @@ class AirQoDataUtils:
                     "externalHumidity": {"value": row["humidity"]},
                 }
 
-                if data["site_id"] is None or data["site_id"] is np.nan:
-                    data.pop("site_id")
+                if row_data["site_id"] is None or row_data["site_id"] is np.nan:
+                    row_data.pop("site_id")
 
-                restructured_data.append(data)
+                restructured_data.append(row_data)
 
             except Exception as ex:
                 traceback.print_exc()
