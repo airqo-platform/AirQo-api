@@ -9,6 +9,7 @@ on:
 
 jobs:
   branch-name:
+    if: github.event.pull_request.merged == true
     name: Format branch name string
     runs-on: ubuntu-latest
     outputs:

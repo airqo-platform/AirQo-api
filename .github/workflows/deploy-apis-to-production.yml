@@ -9,6 +9,7 @@ on:
 
 jobs:
   image-tag:
+    if: github.event.pull_request.merged == true
     name: create image tag
     runs-on: ubuntu-latest
     outputs:
