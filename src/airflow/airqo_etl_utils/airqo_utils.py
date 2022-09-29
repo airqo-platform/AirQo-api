@@ -388,7 +388,10 @@ class AirQoDataUtils:
                 )
 
         if remove_outliers:
-            devices_data = DataValidationUtils.convert_pressure_values(devices_data)
+            if "vapor_pressure" in devices_data.columns.to_list():
+                devices_data.loc[:, "vapor_pressure"] = devices_data[
+                    "vapor_pressure"
+                ].apply(DataValidationUtils.convert_pressure_values)
             devices_data = DataValidationUtils.remove_outliers(devices_data)
 
         return devices_data
