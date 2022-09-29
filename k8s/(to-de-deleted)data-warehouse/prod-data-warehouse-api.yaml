@@ -46,8 +46,8 @@ spec:
             - configMapRef:
                 name: prod-datawarehouse-api-config
           volumeMounts:
-          - name: config-volume
-            mountPath: /etc/config
+            - name: config-volume
+              mountPath: /etc/config
       volumes:
         - name: config-volume
           configMap:
@@ -82,10 +82,9 @@ spec:
   minReplicas: 1
   maxReplicas: 3
   metrics:
-  - type: Resource
-    resource:
-      name: cpu
-      target:
-        type: Utilization
-        averageUtilization: 70
-        
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70

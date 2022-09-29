@@ -38,7 +38,8 @@ class EventsModel(BasePyMongoModel):
         decimal_places = 2
 
         columns = [
-            "name",
+            f"{cls.BIGQUERY_EVENTS}.device_id AS device",
+            f"{cls.BIGQUERY_SITES}.name AS site",
             "FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', timestamp) AS datetime",
             f"{cls.BIGQUERY_SITES}.approximate_latitude AS latitude",
             f"{cls.BIGQUERY_SITES}.approximate_longitude  AS longitude",
@@ -71,7 +72,7 @@ class EventsModel(BasePyMongoModel):
         job_config.use_query_cache = True
 
         dataframe = bigquery.Client().query(QUERY, job_config).result().to_dataframe()
-        dataframe.sort_values(["name", "datetime"], ascending=True, inplace=True)
+        dataframe.sort_values(["site", "datetime", "device"], ascending=True, inplace=True)
 
         return dataframe.to_dict(orient="records")
 
