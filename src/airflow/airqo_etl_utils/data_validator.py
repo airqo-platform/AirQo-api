@@ -165,9 +165,8 @@ class DataValidationUtils:
         return dataframe[columns]
 
     @staticmethod
-    def convert_pressure_values(
-        dataframe: pd.DataFrame, col="vapor_pressure"
-    ) -> pd.DataFrame:
-        if col in dataframe.columns.to_list():
-            dataframe[col] = dataframe[col].apply(lambda x: x * 0.1)
-        return dataframe
+    def convert_pressure_values(value):
+        try:
+            return float(value) * 0.1
+        except Exception:
+            return value
