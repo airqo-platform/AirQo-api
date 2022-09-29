@@ -1124,7 +1124,7 @@ jobs:
 
       - name: Deploy to K8S
         run: |
-          kubectl apply -f k8s/meta-data/stage-meta-data-api.yaml
+          kubectl apply -f k8s/meta-data/prod-meta-data-api.yaml
           kubectl rollout restart deployment airqo-meta-data-api -n production
 
   ### view ###
