@@ -33,7 +33,7 @@ const generateFilter = {
     external,
     tenant
   ) => {
-    let oneMonthBack = (-1);
+    let oneMonthBack = monthsInfront(-1);
     let oneMonthInfront = monthsInfront(1);
     let today = monthsInfront(0);
     let oneWeekBack = addDays(-7);

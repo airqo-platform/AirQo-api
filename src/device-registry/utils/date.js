@@ -1,5 +1,12 @@
 const { logText, logObject, logElement } = require("./log");
 const isEmpty = require("is-empty");
+
+
+module.exports={
+  generateDateFormat,
+  monthsInfront,
+}
+
 const constants = require("../config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- date-util`);
