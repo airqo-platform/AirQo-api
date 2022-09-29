@@ -103,7 +103,7 @@ const createEvent = {
 
       let table = `${constants.DATAWAREHOUSE_AVERAGED_DATA}.hourly_device_measurements`;
       let averaged_fields =
-        "site_id, name, device, device_number, timestamp, " +
+        "site_id, name, device_id, device_number, timestamp, " +
         "pm2_5_raw_value, pm2_5_calibrated_value, pm10_raw_value," +
         "pm10_calibrated_value, no2_raw_value, no2_calibrated_value, pm1_raw_value," +
         "pm1_calibrated_value, external_temperature, external_humidity, wind_speed,";
