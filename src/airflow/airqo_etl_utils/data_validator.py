@@ -163,3 +163,10 @@ class DataValidationUtils:
             dataframe.loc[:, "tenant"] = str(tenant)
         dataframe = Utils.populate_missing_columns(data=dataframe, cols=columns)
         return dataframe[columns]
+
+    @staticmethod
+    def convert_pressure_values(value):
+        try:
+            return float(value) * 0.1
+        except Exception:
+            return value
