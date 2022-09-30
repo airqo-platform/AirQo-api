@@ -5,6 +5,7 @@ import pytz
 from google.cloud import bigquery
 
 from api.models.base.base_model import BasePyMongoModel
+from api.utils.data_formatters import to_integer, tenant_to_str
 from api.utils.dates import date_to_str
 from api.utils.pollutants.pm_25 import POLLUTANT_BIGQUERY_MAPPER
 from main import cache, CONFIGURATIONS
@@ -14,6 +15,7 @@ class EventsModel(BasePyMongoModel):
     BIGQUERY_SITES = CONFIGURATIONS.BIGQUERY_SITES
     BIGQUERY_EVENTS = CONFIGURATIONS.BIGQUERY_EVENTS
     BIGQUERY_MOBILE_EVENTS = CONFIGURATIONS.BIGQUERY_MOBILE_EVENTS
+    BIGQUERY_LATEST_EVENTS = CONFIGURATIONS.BIGQUERY_LATEST_EVENTS
 
     def __init__(self, tenant):
         self.limit_mapper = {"pm2_5": 500.5, "pm10": 604.5, "no2": 2049}
@@ -72,7 +74,41 @@ class EventsModel(BasePyMongoModel):
         job_config.use_query_cache = True
 
         dataframe = bigquery.Client().query(QUERY, job_config).result().to_dataframe()
-        dataframe.sort_values(["site", "datetime", "device"], ascending=True, inplace=True)
+        dataframe.sort_values(
+            ["site", "datetime", "device"], ascending=True, inplace=True
+        )
+
+        return dataframe.to_dict(orient="records")
+
+    @classmethod
+    @cache.memoize()
+    def bigquery_latest_measurements(cls, tenant):
+        decimal_places = 2
+        columns = (
+            "tenant, timestamp, site_id, device_id as device, device_number, "
+            f"ROUND(pm2_5_raw_value, {decimal_places}) as pm2_5_raw_value,"
+            f"ROUND(pm2_5_calibrated_value, {decimal_places}) as pm2_5_calibrated_value,"
+            f"ROUND(pm10_raw_value, {decimal_places}) as pm10_raw_value,"
+            f"ROUND(pm10_calibrated_value, {decimal_places}) as pm10_calibrated_value,"
+            f"ROUND(no2_raw_value, {decimal_places}) as no2_raw_value,"
+            f"ROUND(no2_calibrated_value, {decimal_places}) as no2_calibrated_value,"
+        )
+        if tenant:
+            query = (
+                f"SELECT {columns} "
+                f"FROM `{cls.BIGQUERY_LATEST_EVENTS}` "
+                f"WHERE `{cls.BIGQUERY_LATEST_EVENTS}`.tenant = '{tenant}' "
+            )
+        else:
+            query = f"SELECT {columns} " f"FROM {cls.BIGQUERY_LATEST_EVENTS} "
+
+        job_config = bigquery.QueryJobConfig()
+        job_config.use_query_cache = True
+
+        dataframe = bigquery.Client().query(query, job_config).result().to_dataframe()
+        dataframe.loc[:, "timestamp"] = dataframe["timestamp"].apply(date_to_str)
+        dataframe.loc[:, "device_number"] = dataframe["device_number"].apply(to_integer)
+        dataframe.loc[:, "tenant"] = dataframe["tenant"].apply(tenant_to_str)
 
         return dataframe.to_dict(orient="records")
 
