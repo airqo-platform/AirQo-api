@@ -1,7 +1,8 @@
 import numpy as np
 import pandas as pd
 
-from airqo_etl_utils.constants import Tenant
+from airqo_etl_utils.bigquery_api import BigQueryApi
+from airqo_etl_utils.constants import Tenant, ColumnDataType
 from airqo_etl_utils.utils import Utils
 
 
@@ -61,50 +62,16 @@ class DataValidationUtils:
 
     @staticmethod
     def remove_outliers(data: pd.DataFrame) -> pd.DataFrame:
-        float_columns = {
-            "battery",
-            "hdop",
-            "altitude",
-            "satellites",
-            "pm2_5",
-            "pm2_5_pi",
-            "pm10",
-            "pm10_pi",
-            "s1_pm2_5",
-            "s2_pm2_5",
-            "s1_pm10",
-            "s2_pm10",
-            "no2",
-            "no2_raw_value",
-            "pm1",
-            "pm1_pi",
-            "pm1_raw_value",
-            "temperature",
-            "filter_temperature",
-            "device_temperature",
-            "latitude",
-            "longitude",
-            "humidity",
-            "device_humidity",
-            "filter_humidity",
-            "pressure",
-            "barometric_pressure",
-            "wind_speed",
-            "wind_direction",
-            "speed",
-            "realtime_conc",
-            "hourly_conc",
-            "short_time_conc",
-            "air_flow",
-        }
-
-        integer_columns = {
-            "status",
-        }
-
-        timestamp_columns = {
-            "timestamp",
-        }
+        big_query_api = BigQueryApi()
+        float_columns = set(
+            big_query_api.get_columns(table="all", column_type=ColumnDataType.FLOAT)
+        )
+        integer_columns = set(
+            big_query_api.get_columns(table="all", column_type=ColumnDataType.INTEGER)
+        )
+        timestamp_columns = set(
+            big_query_api.get_columns(table="all", column_type=ColumnDataType.TIMESTAMP)
+        )
 
         float_columns = list(float_columns & set(data.columns))
         integer_columns = list(integer_columns & set(data.columns))
@@ -117,7 +84,12 @@ class DataValidationUtils:
             timestamps=timestamp_columns,
         )
 
-        for col in float_columns:
+        columns = []
+        columns.extend(float_columns)
+        columns.extend(integer_columns)
+        columns.extend(timestamp_columns)
+
+        for col in columns:
             name = col
             if name in [
                 "pm2_5",
@@ -141,12 +113,12 @@ class DataValidationUtils:
                 name = "humidity"
             elif col in ["device_temperature", "temperature"]:
                 name = "temperature"
-            elif name in ["no2", "no2_raw_value"]:
+            elif name in ["no2", "no2_raw_value", "no2_calibrated_value"]:
                 name = "no2"
             elif name in ["pm1", "pm1_raw_value", "pm1_pi"]:
                 name = "pm1"
 
-            data[col] = data[col].apply(
+            data.loc[:, col] = data[col].apply(
                 lambda x: DataValidationUtils.get_valid_value(x, name)
             )
 

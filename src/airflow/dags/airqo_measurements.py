@@ -452,13 +452,13 @@ def airqo_realtime_measurements_etl():
     @task()
     def update_latest_data(data: pd.DataFrame):
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
-        from airqo_etl_utils.big_query_utils import BigQueryUtils
+        from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
         from airqo_etl_utils.constants import Tenant, DeviceCategory
 
         data = AirQoDataUtils.process_latest_data(
             data=data, device_category=DeviceCategory.LOW_COST
         )
-        BigQueryUtils.update_latest_measurements(data=data, tenant=Tenant.AIRQO)
+        DataWarehouseUtils.update_latest_measurements(data=data, tenant=Tenant.AIRQO)
 
     raw_data = extract_raw_data()
     clean_data = clean_data_raw_data(raw_data)

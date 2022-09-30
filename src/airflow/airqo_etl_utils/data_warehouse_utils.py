@@ -2,8 +2,10 @@ import pandas as pd
 
 from .airqo_api import AirQoApi
 from .airqo_utils import AirQoDataUtils
+from .app_insights_utils import AirQoAppUtils
 from .bigquery_api import BigQueryApi
 from .constants import Tenant, DeviceCategory
+from .data_validator import DataValidationUtils
 from .weather_data_utils import WeatherDataUtils
 
 
@@ -134,6 +136,64 @@ class DataWarehouseUtils:
         )
 
         return DataWarehouseUtils.filter_valid_columns(sites)
+
+    @staticmethod
+    def update_latest_measurements(data: pd.DataFrame, tenant: Tenant):
+
+        sites_data = DataWarehouseUtils.extract_sites_meta_data(tenant=tenant)
+        devices_data = DataWarehouseUtils.extract_devices_meta_data(tenant=tenant)
+
+        if not sites_data.empty:
+
+            data = pd.merge(
+                left=data,
+                right=sites_data,
+                on=["site_id", "tenant"],
+                how="left",
+            )
+
+        if not devices_data.empty:
+            if tenant == Tenant.KCCA:
+                data = pd.merge(
+                    left=data,
+                    right=devices_data,
+                    on=["device_id", "tenant", "site_id"],
+                    how="left",
+                )
+            else:
+                data = pd.merge(
+                    left=data,
+                    right=devices_data,
+                    on=["device_number", "device_id", "tenant", "site_id"],
+                    how="left",
+                )
+        big_query_api = BigQueryApi()
+        table = big_query_api.latest_measurements_table
+
+        data = DataValidationUtils.process_for_big_query(
+            dataframe=data, table=table, tenant=tenant
+        )
+
+        # big_query_api.update_data(data, table=table)
+
+        data = AirQoAppUtils.process_for_firebase(data=data)
+        AirQoAppUtils.update_firebase_air_quality_readings(data)
+
+    @staticmethod
+    def extract_devices_meta_data(tenant: Tenant = Tenant.ALL) -> pd.DataFrame:
+        airqo_api = AirQoApi()
+        devices = airqo_api.get_devices(tenant=tenant)
+        devices = pd.DataFrame(devices)
+        devices.rename(
+            columns={
+                "latitude": "device_latitude",
+                "longitude": "device_longitude",
+                "category": "device_category",
+            },
+            inplace=True,
+        )
+
+        return DataWarehouseUtils.filter_valid_columns(devices)
 
     @staticmethod
     def merge_datasets(

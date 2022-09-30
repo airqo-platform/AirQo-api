@@ -104,11 +104,13 @@ def airnow_bam_realtime_data_etl():
     @task()
     def update_latest_data(data: pd.DataFrame):
         from airqo_etl_utils.airnow_utils import AirnowDataUtils
-        from airqo_etl_utils.big_query_utils import BigQueryUtils
+        from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
         from airqo_etl_utils.constants import Tenant
 
         data = AirnowDataUtils.process_latest_bam_data(data)
-        BigQueryUtils.update_latest_measurements(data=data, tenant=Tenant.US_EMBASSY)
+        DataWarehouseUtils.update_latest_measurements(
+            data=data, tenant=Tenant.US_EMBASSY
+        )
 
     extracted_bam_data = extract_bam_data()
     processed_bam_data = process_data(extracted_bam_data)

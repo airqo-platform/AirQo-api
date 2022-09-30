@@ -108,39 +108,11 @@ class KccaUtils:
             )
         )
 
-        big_query_api = BigQueryApi()
-        columns = big_query_api.get_columns(
-            table=big_query_api.hourly_measurements_table
-        )
-        columns = list(set(columns) & set(data.columns.to_list()))
-        data = data[columns]
-
-        floats = big_query_api.get_columns(
-            table=big_query_api.hourly_measurements_table,
-            data_type=ColumnDataType.FLOAT,
-        )
-        floats = list(set(columns) & set(floats))
-
-        timestamps = big_query_api.get_columns(
-            table=big_query_api.hourly_measurements_table,
-            data_type=ColumnDataType.TIMESTAMP,
-        )
-        timestamps = list(set(columns) & set(timestamps))
-
-        integers = big_query_api.get_columns(
-            table=big_query_api.hourly_measurements_table,
-            data_type=ColumnDataType.INTEGER,
-        )
-        integers = list(set(columns) & set(integers))
-
-        data = DataValidationUtils.format_data_types(
-            data=data, floats=floats, timestamps=timestamps, integers=integers
-        )
-
-        return data
+        return DataValidationUtils.remove_outliers(data)
 
     @staticmethod
     def process_latest_data(data: pd.DataFrame) -> pd.DataFrame:
+        data.loc[:, "tenant"] = str(Tenant.KCCA)
         return data
 
     @staticmethod

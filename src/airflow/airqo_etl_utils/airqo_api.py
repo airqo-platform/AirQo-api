@@ -154,7 +154,8 @@ class AirQoApi:
         decrypted_keys = response.get("decrypted_keys", [])
 
         return {
-            int(entry["device_number"]): entry["decrypted_key"] for entry in decrypted_keys
+            int(entry["device_number"]): entry["decrypted_key"]
+            for entry in decrypted_keys
         }
 
     def get_app_insights(

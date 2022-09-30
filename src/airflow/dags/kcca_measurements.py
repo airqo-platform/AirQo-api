@@ -84,12 +84,12 @@ def hourly_measurements_etl():
     @task()
     def update_latest_data(data: pd.DataFrame):
         from airqo_etl_utils.kcca_utils import KccaUtils
-        from airqo_etl_utils.big_query_utils import BigQueryUtils
+        from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
         from airqo_etl_utils.constants import Tenant
 
         data = KccaUtils.process_latest_data(data=data)
 
-        BigQueryUtils.update_latest_measurements(data=data, tenant=Tenant.KCCA)
+        DataWarehouseUtils.update_latest_measurements(data=data, tenant=Tenant.KCCA)
 
     extracted_data = extract()
     transformed_data = transform(extracted_data)

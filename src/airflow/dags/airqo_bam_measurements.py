@@ -136,13 +136,13 @@ def bam_realtime_measurements_etl():
     @task()
     def update_latest_data(data: pd.DataFrame):
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
-        from airqo_etl_utils.big_query_utils import BigQueryUtils
+        from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
         from airqo_etl_utils.constants import Tenant, DeviceCategory
 
         data = AirQoDataUtils.process_latest_data(
             data=data, device_category=DeviceCategory.BAM
         )
-        BigQueryUtils.update_latest_measurements(data=data, tenant=Tenant.AIRQO)
+        DataWarehouseUtils.update_latest_measurements(data=data, tenant=Tenant.AIRQO)
 
     unclean_data = extract_bam_data()
     save_unclean_data(unclean_data)

@@ -89,7 +89,7 @@ class AirnowDataUtils:
             query_data = AirnowDataUtils.query_bam_data(
                 start_date_time=start, end_date_time=end, devices=devices
             )
-            data = data.append(query_data, ignore_index=True)
+            data = pd.concat([data, query_data], ignore_index=True)
 
         return data
 
