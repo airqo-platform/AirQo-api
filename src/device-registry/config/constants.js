@@ -1,5 +1,9 @@
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
+const {
+  generateDateFormatWithoutHrs,
+  monthsInfront,
+} = require("../utils/date");
 
 
 
@@ -50,13 +54,6 @@ const stageConfig = {
   DATAWAREHOUSE_METADATA: process.env.DATAWAREHOUSE_METADATA_STAGE,
   DATAWAREHOUSE_AVERAGED_DATA: process.env.DATAWAREHOUSE_AVERAGED_DATA_STAGE,
 };
-
-module.exports = { ...defaultConfig, ...envConfig(process.env.NODE_ENV) };
-
-const {
-  generateDateFormatWithoutHrs,
-  monthsInfront,
-} = require("../utils/date");
 
 const defaultConfig = {
   SLACK_TOKEN: process.env.SLACK_TOKEN,
@@ -590,4 +587,4 @@ function envConfig(env) {
   }
 }
 
-
+module.exports = { ...defaultConfig, ...envConfig(process.env.NODE_ENV) };

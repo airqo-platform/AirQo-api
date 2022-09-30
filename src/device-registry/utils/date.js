@@ -3,7 +3,7 @@ const isEmpty = require("is-empty");
 
 
 module.exports={
-  generateDateFormat,
+  generateDateFormatWithoutHrs,
   monthsInfront,
 }
 
