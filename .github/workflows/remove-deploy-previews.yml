@@ -9,7 +9,6 @@ on:
 
 jobs:
   branch-name:
-    if: github.event.pull_request.merged == true
     name: Format branch name string
     runs-on: ubuntu-latest
     outputs:
@@ -21,8 +20,6 @@ jobs:
           string: ${{ github.head_ref || github.ref_name }}
 
   check:
-    # this job will only run if the PR has been merged
-    if: github.event.pull_request.merged == true
     name: check changed microservice(s)
     outputs:
       remove_preview__auth_service: ${{ steps.check_files.outputs.remove_preview__auth_service }} # auth service
