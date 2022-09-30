@@ -1,12 +1,4 @@
-const { logText, logObject, logElement } = require("./log");
-const isEmpty = require("is-empty");
-
-
-module.exports={
-  generateDateFormatWithoutHrs,
-  monthsInfront,
-}
-
+const { logText, logElement } = require("./log");
 const constants = require("../config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- date-util`);
@@ -69,7 +61,6 @@ function generateDateFormatWithoutHrs(ISODate) {
     if (month < 10) {
       month = "0" + month;
     }
-
     return `${year}-${month}-${day}`;
   } catch (e) {
     logger.error(`internal server error -- ${e.message}`);
@@ -171,14 +162,14 @@ function threeMonthsFromNow(date) {
 }
 
 module.exports = {
-  generateDateFormat,
-  threeMonthsFromNow,
-  generateDateFormatWithoutHrs,
-  addMonthsToProvideDateTime,
-  monthsInfront,
-  isTimeEmpty,
-  getDifferenceInMonths,
-  addDays,
-  addMinutes,
-  formatDate,
+  generateDateFormat: generateDateFormat,
+  threeMonthsFromNow: threeMonthsFromNow,
+  generateDateFormatWithoutHrs: generateDateFormatWithoutHrs,
+  addMonthsToProvideDateTime: addMonthsToProvideDateTime,
+  monthsInfront: monthsInfront,
+  isTimeEmpty: isTimeEmpty,
+  getDifferenceInMonths: getDifferenceInMonths,
+  addDays: addDays,
+  addMinutes: addMinutes,
+  formatDate: formatDate,
 };

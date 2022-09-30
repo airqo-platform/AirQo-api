@@ -1,11 +1,6 @@
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
-const {
-  generateDateFormatWithoutHrs,
-  monthsInfront,
-} = require("../utils/date");
-
-
+const { generateDateFormatWithoutHrs } = require("../utils/date");
 
 const devConfig = {
   MONGO_URI: `mongodb://localhost/`,
@@ -95,11 +90,13 @@ const defaultConfig = {
     weather_stations: "nearest-weather-stations",
   },
   KEY_ENCRYPTION_KEY: process.env.KEY_ENCRYPTION_KEY,
-  GET_ROAD_METADATA: ({ path, latitude, longitude } = {}) => {
-    const today = monthsInfront(0);
-    const oneMonthAgo = monthsInfront(-1);
-    const endDate = generateDateFormatWithoutHrs(today);
-    const startDate = generateDateFormatWithoutHrs(oneMonthAgo);
+  GET_ROAD_METADATA: ({
+    path,
+    latitude,
+    longitude,
+    endDate,
+    startDate,
+  } = {}) => {
     if (path === "greenness") {
       return `${process.env.PLATFORM_BASE_URL}/api/v1/meta-data/${path}?latitude=${latitude}&longitude=${longitude}&startDate=${startDate}&endDate=${endDate}`;
     }
