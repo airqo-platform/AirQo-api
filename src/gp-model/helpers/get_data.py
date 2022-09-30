@@ -140,15 +140,15 @@ def get_pm_data(name,
             print(e)
             break
     #restructuring and removing unwanted fields
-    modified_result = [{'time': x['time'],
-                     'latitude': lat,
-                     'longitude': lon,
-                     #'pm2_5': x['pm2_5']['value'],
-                     'pm2_5': x['average_pm2_5']['calibratedValue'],
-                     #'pm10': x['pm10']['value'],
-                    } for x in result]
+    modified_result = []
+    for x in result:
+        time = x['time']
+        try:
+            pm2_5 = x['average_pm2_5']['calibratedValue']
+        except:
+            pm2_5 = x['average_pm2_5']['value']
+        modified_result.append({'time': time, 'latitude': lat, 'longitude': lon, 'pm2_5': pm2_5})
     return pd.DataFrame(modified_result)
-
 
 if __name__=='__main__':
     #example: getting data for one device
