@@ -5,7 +5,7 @@ import pytz
 from google.cloud import bigquery
 
 from api.models.base.base_model import BasePyMongoModel
-from api.utils.data_formatters import to_integer, tenant_to_str
+from api.utils.data_formatters import to_integer, tenant_to_str, device_category_to_str
 from api.utils.dates import date_to_str
 from api.utils.pollutants.pm_25 import POLLUTANT_BIGQUERY_MAPPER
 from main import cache, CONFIGURATIONS
@@ -81,17 +81,18 @@ class EventsModel(BasePyMongoModel):
         return dataframe.to_dict(orient="records")
 
     @classmethod
-    @cache.memoize()
+    @cache.memoize(timeout=1800)
     def bigquery_latest_measurements(cls, tenant):
         decimal_places = 2
         columns = (
-            "tenant, timestamp, site_id, device_id as device, device_number, "
-            f"ROUND(pm2_5_raw_value, {decimal_places}) as pm2_5_raw_value,"
-            f"ROUND(pm2_5_calibrated_value, {decimal_places}) as pm2_5_calibrated_value,"
-            f"ROUND(pm10_raw_value, {decimal_places}) as pm10_raw_value,"
-            f"ROUND(pm10_calibrated_value, {decimal_places}) as pm10_calibrated_value,"
-            f"ROUND(no2_raw_value, {decimal_places}) as no2_raw_value,"
-            f"ROUND(no2_calibrated_value, {decimal_places}) as no2_calibrated_value,"
+            "tenant, timestamp, site_id, device_id as device_name, device_longitude as longitude, "
+            "device_number, device_category, site_name, device_latitude as latitude, "
+            f"ROUND(pm2_5_raw_value, {decimal_places}) as pm2_5_raw_value, "
+            f"ROUND(pm2_5_calibrated_value, {decimal_places}) as pm2_5_calibrated_value, "
+            f"ROUND(pm10_raw_value, {decimal_places}) as pm10_raw_value, "
+            f"ROUND(pm10_calibrated_value, {decimal_places}) as pm10_calibrated_value, "
+            f"ROUND(no2_raw_value, {decimal_places}) as no2_raw_value, "
+            f"ROUND(no2_calibrated_value, {decimal_places}) as no2_calibrated_value, "
         )
         if tenant:
             query = (
@@ -109,6 +110,12 @@ class EventsModel(BasePyMongoModel):
         dataframe.loc[:, "timestamp"] = dataframe["timestamp"].apply(date_to_str)
         dataframe.loc[:, "device_number"] = dataframe["device_number"].apply(to_integer)
         dataframe.loc[:, "tenant"] = dataframe["tenant"].apply(tenant_to_str)
+        dataframe.loc[:, "device_category"] = dataframe["device_category"].apply(
+            device_category_to_str
+        )
+        dataframe.loc[:, "device_name"] = dataframe["device_name"].apply(
+            lambda x: str(x).upper()
+        )
 
         return dataframe.to_dict(orient="records")
 

@@ -89,11 +89,27 @@ def tenant_to_str(tenant: str) -> str:
     try:
         if tenant.lower() == "airqo":
             return "AirQo"
-        if tenant.lower() == "kcca":
+        elif tenant.lower() == "kcca":
             return "KCCA"
-        if tenant.lower() == "us_embassy":
+        elif tenant.lower() == "us_embassy":
             return "US Embassy"
+        else:
+            pass
     except Exception as ex:
         pass
 
     return tenant
+
+
+def device_category_to_str(device_category: str) -> str:
+    try:
+        if device_category.lower() == "bam":
+            return "Reference Monitor"
+        elif device_category.lower() == "lowcost":
+            return "Low Cost Sensor"
+        else:
+            pass
+    except Exception as ex:
+        pass
+
+    return device_category
