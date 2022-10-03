@@ -188,7 +188,7 @@ def get_all_gp_predictions():
     '''
     
     today = datetime.today()
-    query=  {"created_at": {"$gt": today - timedelta(2)}}
+    query=  {"created_at": {"$gt": today - timedelta(minutes=60)}}
     projection = {'_id': 0, 
                     'latitude': 1, 
                     'longitude': 1, 
