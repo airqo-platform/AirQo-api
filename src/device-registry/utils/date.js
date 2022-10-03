@@ -1,6 +1,9 @@
 const { logText, logElement } = require("./log");
-const constants = require("../config/constants");
 const log4js = require("log4js");
+module.exports = {
+  generateDateFormatWithoutHrs: generateDateFormatWithoutHrs,
+}
+const constants = require("../config/constants");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- date-util`);
 
 function generateDateFormat(ISODate) {
