@@ -292,10 +292,6 @@ class AirQoAppUtils:
                 "timestamp",
                 "site_id",
                 "tenant",
-                "region",
-                "country",
-                "site_latitude",
-                "site_longitude",
             ]
         ]
         data.loc[:, "calibrated"] = np.where(
@@ -323,8 +319,6 @@ class AirQoAppUtils:
 
         data.rename(
             columns={
-                "site_latitude": "latitude",
-                "site_longitude": "longitude",
                 "pm2_5_calibrated_value": "pm2_5",
                 "pm10_calibrated_value": "pm10",
                 "site_id": "referenceSite",
@@ -341,10 +335,6 @@ class AirQoAppUtils:
                 "referenceSite",
                 "dateTime",
                 "source",
-                "region",
-                "country",
-                "latitude",
-                "longitude",
             ],
         )
 
@@ -354,6 +344,10 @@ class AirQoAppUtils:
                 "referenceSite": site.get("site_id", None),
                 "name": site.get("search_name", None),
                 "location": site.get("location_name", None),
+                "region": site.get("region", None),
+                "country": site.get("country", None),
+                "latitude": site.get("latitude", None),
+                "longitude": site.get("longitude", None),
                 "site_sec_name": site.get("name", None),
                 "site_sec_location": site.get("description", None),
             }
@@ -394,7 +388,6 @@ class AirQoAppUtils:
 
     @staticmethod
     def update_firebase_air_quality_readings(data: pd.DataFrame):
-
         cred = credentials.Certificate(configuration.GOOGLE_APPLICATION_CREDENTIALS)
         firebase_admin.initialize_app(cred)
         db = firestore.client()

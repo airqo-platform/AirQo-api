@@ -98,10 +98,9 @@ class BigQueryApi:
             schema_file = "raw_measurements.json"
         elif table == self.hourly_weather_table or table == self.raw_weather_table:
             schema_file = "weather_data.json"
-        elif (
-            table == self.consolidated_data_table
-            or table == self.latest_measurements_table
-        ):
+        elif table == self.latest_measurements_table:
+            schema_file = "latest_measurements.json"
+        elif table == self.consolidated_data_table:
             schema_file = "data_warehouse.json"
         elif table == self.sites_table:
             schema_file = "sites.json"

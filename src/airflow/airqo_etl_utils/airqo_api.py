@@ -113,15 +113,17 @@ class AirQoApi:
 
         else:
             response = self.__request("devices", {"tenant": str(tenant)})
-            devices = [
-                {**device, **{"tenant": str(tenant)}}
-                for device in response.get("devices", [])
-            ]
+            if response:
+                devices = [
+                    {**device, **{"tenant": str(tenant)}}
+                    for device in response.get("devices", [])
+                ]
 
         devices = [
             {
                 **device,
                 **{
+                    "device_number": device.get("device_number", None),
                     "device_id": device.get("name", None),
                     "site_id": device.get("site", {}).get("_id", None),
                     "category": DeviceCategory.from_str(device.get("category", "")),
@@ -233,10 +235,11 @@ class AirQoApi:
 
         else:
             response = self.__request("devices/sites", {"tenant": str(tenant)})
-            sites = [
-                {**site, **{"tenant": str(tenant)}}
-                for site in response.get("sites", [])
-            ]
+            if response:
+                sites = [
+                    {**site, **{"tenant": str(tenant)}}
+                    for site in response.get("sites", [])
+                ]
 
         sites = [
             {
