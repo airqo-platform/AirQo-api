@@ -34,14 +34,17 @@ def airnow_bam_historical_data_etl():
         return AirnowDataUtils.process_bam_data(data=airnow_data)
 
     @task()
-    def send_to_bigquery(airnow_data: pd.DataFrame):
+    def send_to_bigquery(data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
-        from airqo_etl_utils.airnow_utils import AirnowDataUtils
-
-        bam_data = AirnowDataUtils.process_for_bigquery(airnow_data)
+        from airqo_etl_utils.constants import Tenant
+        from airqo_etl_utils.data_validator import DataValidationUtils
 
         big_query_api = BigQueryApi()
-        big_query_api.load_data(bam_data, table=big_query_api.bam_measurements_table)
+        table = big_query_api.bam_measurements_table
+        data = DataValidationUtils.process_for_big_query(
+            dataframe=data, tenant=Tenant.US_EMBASSY, table=table
+        )
+        big_query_api.load_data(data, table=big_query_api.bam_measurements_table)
 
     extracted_bam_data = extract_bam_data()
     processed_bam_data = process_data(extracted_bam_data)
@@ -71,47 +74,43 @@ def airnow_bam_realtime_data_etl():
         )
 
     @task()
-    def process_data(airnow_data: pd.DataFrame):
+    def process_data(data: pd.DataFrame):
         from airqo_etl_utils.airnow_utils import AirnowDataUtils
 
-        return AirnowDataUtils.process_bam_data(data=airnow_data)
+        return AirnowDataUtils.process_bam_data(data=data)
 
     @task()
-    def send_to_bigquery(airnow_data: pd.DataFrame):
+    def send_to_bigquery(data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
-        from airqo_etl_utils.airnow_utils import AirnowDataUtils
-
-        bam_data = AirnowDataUtils.process_for_bigquery(airnow_data)
+        from airqo_etl_utils.constants import Tenant
+        from airqo_etl_utils.data_validator import DataValidationUtils
 
         big_query_api = BigQueryApi()
-        big_query_api.load_data(bam_data, table=big_query_api.bam_measurements_table)
+        table = big_query_api.bam_measurements_table
+        data = DataValidationUtils.process_for_big_query(
+            dataframe=data, tenant=Tenant.US_EMBASSY, table=table
+        )
+        big_query_api.load_data(data, table=table)
 
     @task()
-    def send_measurements_to_api(airnow_data: pd.DataFrame):
+    def send_measurements_to_api(data: pd.DataFrame):
         from airqo_etl_utils.airqo_api import AirQoApi
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
-        restructured_data = AirQoDataUtils.process_airnow_data_for_api(data=airnow_data)
+        restructured_data = AirQoDataUtils.process_airnow_data_for_api(data=data)
         airqo_api = AirQoApi()
         airqo_api.save_events(measurements=restructured_data, tenant="airqo")
 
     @task()
-    def update_latest_data(airnow_data: pd.DataFrame):
-        from airqo_etl_utils.bigquery_api import BigQueryApi
+    def update_latest_data(data: pd.DataFrame):
         from airqo_etl_utils.airnow_utils import AirnowDataUtils
-        from airqo_etl_utils.data_validator import DataValidationUtils
+        from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
         from airqo_etl_utils.constants import Tenant
 
-        bam_data = AirnowDataUtils.process_latest_bam_data(airnow_data)
-
-        big_query_api = BigQueryApi()
-        table = big_query_api.latest_measurements_table
-
-        data = DataValidationUtils.process_for_big_query(
-            dataframe=bam_data, table=table, tenant=Tenant.US_EMBASSY
+        data = AirnowDataUtils.process_latest_bam_data(data)
+        DataWarehouseUtils.update_latest_measurements(
+            data=data, tenant=Tenant.US_EMBASSY
         )
-
-        big_query_api.update_data(data, table=table)
 
     extracted_bam_data = extract_bam_data()
     processed_bam_data = process_data(extracted_bam_data)

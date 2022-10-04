@@ -1,7 +1,10 @@
 import traceback
 from datetime import datetime, timedelta
 
+import firebase_admin
+import numpy as np
 import pandas as pd
+from firebase_admin import credentials, firestore
 
 from .airqo_api import AirQoApi
 from .bigquery_api import BigQueryApi
@@ -9,7 +12,8 @@ from .commons import (
     get_air_quality,
 )
 from .config import configuration
-from .constants import Frequency, DataSource, Tenant
+from .constants import Frequency, DataSource, Tenant, Pollutant
+from .data_validator import DataValidationUtils
 from .date import (
     date_to_str,
     predict_str_to_date,
@@ -261,6 +265,8 @@ class AirQoAppUtils:
 
     @staticmethod
     def round_off_value(value, pollutant, decimals: int = 2):
+        if value is None:
+            return None
         new_value = round(value, decimals)
 
         if get_air_quality(value, pollutant) != get_air_quality(new_value, pollutant):
@@ -273,3 +279,124 @@ class AirQoAppUtils:
             return value
 
         return new_value
+
+    @staticmethod
+    def process_for_firebase(data: pd.DataFrame) -> pd.DataFrame:
+
+        data = data[
+            [
+                "pm2_5_raw_value",
+                "pm2_5_calibrated_value",
+                "pm10_raw_value",
+                "pm10_calibrated_value",
+                "timestamp",
+                "site_id",
+                "tenant",
+            ]
+        ]
+        data.loc[:, "calibrated"] = np.where(
+            data["pm2_5_calibrated_value"].isnull(), False, True
+        )
+        data.loc[:, "pm2_5_calibrated_value"] = data["pm2_5_calibrated_value"].fillna(
+            data["pm2_5_raw_value"]
+        )
+        data.loc[:, "pm2_5_calibrated_value"] = data["pm2_5_calibrated_value"].apply(
+            lambda pm2_5: AirQoAppUtils.round_off_value(pm2_5, Pollutant.PM2_5)
+        )
+        data.loc[:, "airQuality"] = data["pm2_5_calibrated_value"].apply(
+            lambda pm2_5: str(get_air_quality(pm2_5, Pollutant.PM2_5))
+        )
+
+        data.loc[:, "pm10_calibrated_value"] = data["pm10_calibrated_value"].fillna(
+            data["pm10_raw_value"]
+        )
+        data.loc[:, "pm10_calibrated_value"] = data["pm10_calibrated_value"].apply(
+            lambda pm10: AirQoAppUtils.round_off_value(pm10, Pollutant.PM10)
+        )
+        data.loc[:, "source"] = data["tenant"].apply(
+            lambda tenant: Tenant.from_str(tenant).name()
+        )
+
+        data.rename(
+            columns={
+                "pm2_5_calibrated_value": "pm2_5",
+                "pm10_calibrated_value": "pm10",
+                "site_id": "referenceSite",
+                "timestamp": "dateTime",
+            },
+            inplace=True,
+        )
+
+        data = DataValidationUtils.remove_outliers(data)
+        data.dropna(
+            inplace=True,
+            subset=[
+                "pm2_5",
+                "referenceSite",
+                "dateTime",
+                "source",
+            ],
+        )
+
+        sites = AirQoApi().get_sites()
+        sites = [
+            {
+                "referenceSite": site.get("site_id", None),
+                "name": site.get("search_name", None),
+                "location": site.get("location_name", None),
+                "region": site.get("region", None),
+                "country": site.get("country", None),
+                "latitude": site.get("latitude", None),
+                "longitude": site.get("longitude", None),
+                "site_sec_name": site.get("name", None),
+                "site_sec_location": site.get("description", None),
+            }
+            for site in sites
+        ]
+
+        sites = pd.DataFrame(sites)
+        sites["name"] = sites["name"].fillna(sites["site_sec_name"])
+        sites["location"] = sites["location"].fillna(sites["site_sec_location"])
+        sites.dropna(inplace=True, subset=["referenceSite", "name", "location"])
+
+        data = data.merge(sites, on=["referenceSite"], how="left")
+        data = data[
+            [
+                "pm2_5",
+                "pm10",
+                "calibrated",
+                "dateTime",
+                "referenceSite",
+                "name",
+                "location",
+                "latitude",
+                "longitude",
+                "region",
+                "country",
+                "source",
+            ]
+        ]
+        data.loc[:, "placeId"] = data["referenceSite"]
+        data.loc[:, "dateTime"] = pd.to_datetime(data["dateTime"])
+
+        data.sort_values(ascending=True, by="dateTime", inplace=True)
+        data.drop_duplicates(
+            keep="first", inplace=True, subset=["referenceSite", "dateTime"]
+        )
+
+        return data
+
+    @staticmethod
+    def update_firebase_air_quality_readings(data: pd.DataFrame):
+        cred = credentials.Certificate(configuration.GOOGLE_APPLICATION_CREDENTIALS)
+        firebase_admin.initialize_app(cred)
+        db = firestore.client()
+        batch = db.batch()
+
+        for _, row in data.iterrows():
+            site_collection = db.collection(
+                configuration.FIREBASE_AIR_QUALITY_READINGS_COLLECTION
+            ).document(row["placeId"])
+            batch.set(site_collection, row.to_dict())
+
+        batch.commit()

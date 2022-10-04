@@ -89,7 +89,7 @@ class AirnowDataUtils:
             query_data = AirnowDataUtils.query_bam_data(
                 start_date_time=start, end_date_time=end, devices=devices
             )
-            data = data.append(query_data, ignore_index=True)
+            data = pd.concat([data, query_data], ignore_index=True)
 
         return data
 
@@ -161,11 +161,6 @@ class AirnowDataUtils:
         data["no2_raw_value"] = data["no2"]
         data["no2_calibrated_value"] = data["no2"]
 
-        return data
+        data.loc[:, "tenant"] = str(Tenant.US_EMBASSY)
 
-    @staticmethod
-    def process_for_bigquery(data: pd.DataFrame) -> pd.DataFrame:
-        data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
-        big_query_api = BigQueryApi()
-        cols = big_query_api.get_columns(table=big_query_api.bam_measurements_table)
-        return Utils.populate_missing_columns(data=data, cols=cols)
+        return data
