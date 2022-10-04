@@ -78,13 +78,6 @@ def format_to_aqcsv(data: list, pollutants: list, frequency: str) -> list:
     return aqcsv_dataframe.to_dict("records")
 
 
-def to_integer(value):
-    try:
-        return int(value)
-    except Exception as ex:
-        return None
-
-
 def tenant_to_str(tenant: str) -> str:
     try:
         if tenant.lower() == "airqo":

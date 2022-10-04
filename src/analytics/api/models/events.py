@@ -5,7 +5,7 @@ import pytz
 from google.cloud import bigquery
 
 from api.models.base.base_model import BasePyMongoModel
-from api.utils.data_formatters import to_integer, tenant_to_str, device_category_to_str
+from api.utils.data_formatters import tenant_to_str, device_category_to_str
 from api.utils.dates import date_to_str
 from api.utils.pollutants.pm_25 import POLLUTANT_BIGQUERY_MAPPER
 from main import cache, CONFIGURATIONS
@@ -82,11 +82,12 @@ class EventsModel(BasePyMongoModel):
 
     @classmethod
     @cache.memoize(timeout=1800)
-    def bigquery_latest_measurements(cls, tenant):
+    def bigquery_latest_measurements(cls, tenant, not_null_values=None):
         decimal_places = 2
         columns = (
-            "tenant, timestamp, site_id, device_id as device_name, device_longitude as longitude, "
-            "device_number, device_category, site_name, device_latitude as latitude, "
+            "tenant, timestamp, device_id as device_name, device_longitude as longitude, "
+            "device_category, site_name, site_latitude, site_longitude, "
+            "device_latitude as latitude, "
             f"ROUND(pm2_5_raw_value, {decimal_places}) as pm2_5_raw_value, "
             f"ROUND(pm2_5_calibrated_value, {decimal_places}) as pm2_5_calibrated_value, "
             f"ROUND(pm10_raw_value, {decimal_places}) as pm10_raw_value, "
@@ -108,7 +109,6 @@ class EventsModel(BasePyMongoModel):
 
         dataframe = bigquery.Client().query(query, job_config).result().to_dataframe()
         dataframe.loc[:, "timestamp"] = dataframe["timestamp"].apply(date_to_str)
-        dataframe.loc[:, "device_number"] = dataframe["device_number"].apply(to_integer)
         dataframe.loc[:, "tenant"] = dataframe["tenant"].apply(tenant_to_str)
         dataframe.loc[:, "device_category"] = dataframe["device_category"].apply(
             device_category_to_str
@@ -116,6 +116,16 @@ class EventsModel(BasePyMongoModel):
         dataframe.loc[:, "device_name"] = dataframe["device_name"].apply(
             lambda x: str(x).upper()
         )
+        dataframe["latitude"] = dataframe["latitude"].fillna(dataframe["site_latitude"])
+        dataframe["longitude"] = dataframe["longitude"].fillna(
+            dataframe["site_longitude"]
+        )
+
+        del dataframe["site_latitude"]
+        del dataframe["site_longitude"]
+
+        if not_null_values:
+            dataframe.dropna(subset=not_null_values, inplace=True)
 
         return dataframe.to_dict(orient="records")
 
