@@ -126,14 +126,16 @@ class AirQoApi:
                     "device_number": device.get("device_number", None),
                     "device_id": device.get("name", None),
                     "site_id": device.get("site", {}).get("_id", None),
-                    "category": DeviceCategory.from_str(device.get("category", "")),
+                    "category": str(
+                        DeviceCategory.from_str(device.get("category", ""))
+                    ),
                 },
             }
             for device in devices
         ]
 
         if category != DeviceCategory.NONE:
-            devices = list(filter(lambda y: y["category"] == category, devices))
+            devices = list(filter(lambda y: y["category"] == str(category), devices))
 
         return devices
 

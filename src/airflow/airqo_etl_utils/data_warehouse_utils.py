@@ -140,14 +140,11 @@ class DataWarehouseUtils:
     @staticmethod
     def update_latest_measurements(data: pd.DataFrame, tenant: Tenant):
 
-        if tenant == Tenant.US_EMBASSY:
-            tenant = Tenant.AIRQO
-
-        sites_data = DataWarehouseUtils.extract_sites_meta_data(tenant=tenant)
+        sites_data = DataWarehouseUtils.extract_sites_meta_data(tenant=Tenant.ALL)
         sites_data = sites_data[
             ["site_latitude", "site_longitude", "site_name", "site_id"]
         ]
-        devices_data = DataWarehouseUtils.extract_devices_meta_data(tenant=tenant)
+        devices_data = DataWarehouseUtils.extract_devices_meta_data(tenant=Tenant.ALL)
         devices_data = devices_data[
             [
                 "device_number",
@@ -162,12 +159,18 @@ class DataWarehouseUtils:
         del data["longitude"]
 
         if not sites_data.empty:
-            data = pd.merge(
-                left=data,
-                right=sites_data,
-                on=["site_id"],
-                how="left",
-            )
+            data_with_site_ids = data.copy().loc[data["site_id"].notnull()]
+            data_without_site_ids = data.copy().loc[data["site_id"].isnull()]
+
+            if not data_with_site_ids.empty:
+                data = pd.merge(
+                    left=data_with_site_ids,
+                    right=sites_data,
+                    on=["site_id"],
+                    how="left",
+                )
+            if not data_without_site_ids.empty:
+                data = pd.concat([data, data_without_site_ids], ignore_index=True)
 
         if not devices_data.empty:
             data = pd.merge(
