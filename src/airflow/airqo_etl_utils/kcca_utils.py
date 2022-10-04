@@ -7,7 +7,7 @@ import requests
 from .airqo_api import AirQoApi
 from .bigquery_api import BigQueryApi
 from .config import configuration
-from .constants import Tenant, DataSource, Frequency
+from .constants import Tenant, DataSource, Frequency, DeviceCategory
 from .data_validator import DataValidationUtils
 from .date import date_to_str
 from .utils import Utils
@@ -121,6 +121,7 @@ class KccaUtils:
     @staticmethod
     def process_latest_data(data: pd.DataFrame) -> pd.DataFrame:
         data.loc[:, "tenant"] = str(Tenant.KCCA)
+        data.loc[:, "device_category"] = str(DeviceCategory.LOW_COST)
         return data
 
     @staticmethod

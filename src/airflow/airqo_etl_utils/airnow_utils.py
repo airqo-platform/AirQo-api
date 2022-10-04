@@ -5,7 +5,7 @@ import pandas as pd
 from .airnow_api import AirNowApi
 from .airqo_api import AirQoApi
 from .bigquery_api import BigQueryApi
-from .constants import Tenant, DataSource
+from .constants import Tenant, DataSource, DeviceCategory
 from .data_validator import DataValidationUtils
 from .date import str_to_date, date_to_str
 from .utils import Utils
@@ -162,5 +162,6 @@ class AirnowDataUtils:
         data["no2_calibrated_value"] = data["no2"]
 
         data.loc[:, "tenant"] = str(Tenant.US_EMBASSY)
+        data.loc[:, "device_category"] = str(DeviceCategory.BAM)
 
         return data
