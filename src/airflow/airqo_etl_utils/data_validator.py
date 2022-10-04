@@ -24,11 +24,10 @@ class DataValidationUtils:
 
         # formatting integers
         if integers:
-            null_data = data[data[integers].isnull().all(axis=1)]
-            not_null_data = data[data[integers].notnull().all(axis=1)]
-            if not not_null_data.empty:
-                not_null_data[integers] = not_null_data[integers].apply(np.int64)
-            data = pd.concat([null_data, not_null_data], ignore_index=True)
+            integers_data = data.copy()[integers]
+            integers_data.fillna(value=-1, inplace=True)
+            data.fillna(integers_data, inplace=True)
+            data[integers] = data[integers].apply(np.int64)
 
         return data
 

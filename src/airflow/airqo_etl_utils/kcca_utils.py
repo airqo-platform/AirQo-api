@@ -7,7 +7,7 @@ import requests
 from .airqo_api import AirQoApi
 from .bigquery_api import BigQueryApi
 from .config import configuration
-from .constants import Tenant, DataSource, Frequency, ColumnDataType
+from .constants import Tenant, DataSource, Frequency
 from .data_validator import DataValidationUtils
 from .date import date_to_str
 from .utils import Utils
@@ -107,6 +107,14 @@ class KccaUtils:
                 devices=devices, device_id=device_id
             )
         )
+
+        big_query_api = BigQueryApi()
+        required_cols = big_query_api.get_columns(
+            table=big_query_api.hourly_measurements_table
+        )
+
+        data = Utils.populate_missing_columns(data=data, cols=required_cols)
+        data = data[required_cols]
 
         return DataValidationUtils.remove_outliers(data)
 
