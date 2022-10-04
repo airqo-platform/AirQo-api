@@ -536,7 +536,10 @@ class AirQoDataUtils:
 
             data["pm2_5"] = data["pm2_5"].fillna(data["pm2_5_raw_value"])
             data["pm10"] = data["pm10"].fillna(data["pm10_raw_value"])
+
         data.loc[:, "tenant"] = str(Tenant.AIRQO)
+        data.loc[:, "device_category"] = str(device_category)
+
         return data
 
     @staticmethod
