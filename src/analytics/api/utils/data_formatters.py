@@ -91,7 +91,7 @@ def tenant_to_str(tenant: str) -> str:
     except Exception as ex:
         pass
 
-    return tenant
+    return ""
 
 
 def device_category_to_str(device_category: str) -> str:
@@ -105,4 +105,4 @@ def device_category_to_str(device_category: str) -> str:
     except Exception as ex:
         pass
 
-    return device_category
+    return ""
