@@ -128,10 +128,29 @@ class BigQueryApi:
             schema = Utils.load_schema(file_name=schema_file)
         else:
             schema = []
-            for file in os.listdir(f"{self.package_directory}/schema"):
-                if file.endswith(".json"):
-                    file_schema = Utils.load_schema(file_name=file)
-                    schema.extend(file_schema)
+            for file in [
+                "measurements",
+                "raw_measurements",
+                "weather_data",
+                "latest_measurements",
+                "data_warehouse",
+                "sites",
+                "sensor_positions",
+                "devices",
+                "mobile_measurements",
+                "airqo_mobile_measurements",
+                "bam_measurements",
+                "bam_raw_measurements",
+            ]:
+                file_schema = Utils.load_schema(file_name=f"{file}.json")
+                schema.extend(file_schema)
+
+            # with os.scandir(os.path.join("path", "schema")) as iterator:
+            #     for entry in iterator:
+            #         if entry.name.endswith(".json") and entry.is_file():
+            #
+            #             file_schema = Utils.load_schema(file_path=entry.path)
+            #             schema.extend(file_schema)
 
         columns = []
         if column_type != ColumnDataType.NONE:
