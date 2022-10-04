@@ -151,7 +151,6 @@ class DataWarehouseUtils:
                 "device_id",
                 "device_latitude",
                 "device_longitude",
-                "device_category",
             ]
         ]
 
