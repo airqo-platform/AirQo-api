@@ -6,3 +6,5 @@ from .dashboard import (
     MonitoringSiteResource,
 )
 
+from .map import MapDataResource
+

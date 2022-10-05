@@ -46,7 +46,7 @@ class ScheduleDag:
                 "airqo_historical_hourly_data": {
                     "name": "AirQo-Historical-Hourly-Measurements",
                     "data_source": DataSource.BIGQUERY,
-                    "dag_duration": 5,
+                    "dag_duration": 2,
                 },
                 "airqo_historical_raw_data": {
                     "name": "AirQo-Historical-Raw-Low-Cost-Measurements",
@@ -63,7 +63,7 @@ class ScheduleDag:
                 "historical_hourly_weather_data": {
                     "name": "Historical-Hourly-Weather-Measurements",
                     "data_source": DataSource.BIGQUERY,
-                    "dag_duration": 5,
+                    "dag_duration": 1,
                 },
                 "historical_raw_weather_data": {
                     "name": "Historical-Raw-Weather-Measurements",
@@ -74,16 +74,16 @@ class ScheduleDag:
                 "kcca_historical_hourly_data": {
                     "name": "Kcca-Historical-Hourly-Measurements",
                     "data_source": DataSource.BIGQUERY,
-                    "dag_duration": 5,
+                    "dag_duration": 2,
                 },
                 "kcca_historical_raw_data": {
                     "name": "Kcca-Historical-Raw-Measurements",
                     "data_source": DataSource.CLARITY,
                     "dag_duration": 5,
                 },
-                # Data warehouse
-                "data_warehouse": {
-                    "name": "Data-Warehouse-ETL",
+                # Consolidated Data
+                "consolidated_data": {
+                    "name": "Consolidated-Data-ETL",
                     "data_source": DataSource.BIGQUERY,
                     "dag_duration": 5,
                 },

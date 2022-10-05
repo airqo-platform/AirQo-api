@@ -9,6 +9,7 @@ on:
 
 jobs:
   image-tag:
+    if: github.event.pull_request.merged == true
     name: create image tag
     runs-on: ubuntu-latest
     outputs:
@@ -25,6 +26,7 @@ jobs:
           echo "::set-output name=datetime::${datetime}"
 
   branch-name:
+    if: github.event.pull_request.merged == true
     name: Format branch name string
     runs-on: ubuntu-latest
     outputs:
@@ -1202,11 +1204,11 @@ jobs:
 
       - name: Build and Push Docker Image
         run: |
-          cd src/data-mgt/python/extract-external-data/
-          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-datawarehouse-api:${{ needs.image-tag.outputs.build_id }} .
-          docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-datawarehouse-api:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-datawarehouse-api:latest
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-datawarehouse-api:${{ needs.image-tag.outputs.build_id }}
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-datawarehouse-api:latest
+          cd src/meta-data/
+          docker build --target=deployment --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-meta-data-api:${{ needs.image-tag.outputs.build_id }} .
+          docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-meta-data-api:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-meta-data-api:latest
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-meta-data-api:${{ needs.image-tag.outputs.build_id }}
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-meta-data-api:latest
 
       - name: Login to GCP
         uses: google-github-actions/auth@v0
@@ -1218,11 +1220,11 @@ jobs:
 
       - name: Update the corresponding k8s configmap(s)
         run: |
-          cd src/data-mgt/python/extract-external-data/
-          gcloud secrets versions access latest --secret="sta-env-datawarehouse" > .env
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env stage-datawarehouse-api-config | kubectl replace -f - -n staging
-          gcloud secrets versions access latest --secret="sta-key-datawarehouse-service-account" > google_application_credentials.json
-          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json stage-datawarehouse-api-config-files | kubectl replace -f - -n staging
+          cd src/meta-data/
+          gcloud secrets versions access latest --secret="sta-env-metadata" > .env
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env stage-meta-data-api-config | kubectl replace -f - -n staging
+          gcloud secrets versions access latest --secret="sta-key-metadata-service-account" > google_application_credentials.json
+          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json stage-meta-data-api-config-files | kubectl replace -f - -n staging
 
       - name: Deploy to K8S
         run: |

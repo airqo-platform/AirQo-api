@@ -4,6 +4,7 @@ import logging
 import os
 from flask_cors import CORS
 from dotenv import load_dotenv
+
 load_dotenv()
 
 # import blue prints

@@ -22,13 +22,13 @@ spec:
       affinity:
         nodeAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
-          - weight: 10
-            preference:
-              matchExpressions:
-              - key: node-type
-                operator: In
-                values:
-                - compute
+            - weight: 10
+              preference:
+                matchExpressions:
+                  - key: node-type
+                    operator: In
+                    values:
+                      - compute
       containers:
         - name: meta-data
           image: us.gcr.io/airqo-250220/airqo-meta-data-api:latest
@@ -41,14 +41,14 @@ spec:
               cpu: 100m
               memory: 250Mi
             limits:
-              cpu: 300m
-              memory: 400Mi
+              cpu: 400m
+              memory: 500Mi
           envFrom:
             - configMapRef:
                 name: prod-meta-data-api-config
           volumeMounts:
-          - name: config-volume
-            mountPath: /etc/config
+            - name: config-volume
+              mountPath: /etc/config
       volumes:
         - name: config-volume
           configMap:
@@ -81,9 +81,9 @@ spec:
   minReplicas: 1
   maxReplicas: 3
   metrics:
-  - type: Resource
-    resource:
-      name: memory
-      target:
-        type: Utilization
-        averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 70
