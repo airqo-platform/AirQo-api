@@ -17,7 +17,7 @@ class MapDataResource(Resource):
         tenant = request.args.get("tenant", None)
 
         data = EventsModel.bigquery_latest_measurements(
-            tenant=tenant, not_null_values=["latitude", "longitude"]
+            tenant=tenant, not_null_values=["latitude", "longitude", "timestamp"]
         )
 
         return (
