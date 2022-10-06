@@ -96,14 +96,7 @@ class EventsModel(BasePyMongoModel):
             f"ROUND(no2_raw_value, {decimal_places}) as no2_raw_value, "
             f"ROUND(no2_calibrated_value, {decimal_places}) as no2_calibrated_value, "
         )
-        if tenant:
-            query = (
-                f"SELECT {columns} "
-                f"FROM `{cls.BIGQUERY_LATEST_EVENTS}` "
-                f"WHERE `{cls.BIGQUERY_LATEST_EVENTS}`.tenant = '{tenant}' "
-            )
-        else:
-            query = f"SELECT {columns} " f"FROM {cls.BIGQUERY_LATEST_EVENTS} "
+        query = f"SELECT {columns} FROM {cls.BIGQUERY_LATEST_EVENTS} "
 
         job_config = bigquery.QueryJobConfig()
         job_config.use_query_cache = True
