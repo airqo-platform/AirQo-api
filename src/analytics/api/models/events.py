@@ -1,5 +1,6 @@
 from datetime import datetime
 
+import numpy as np
 import pandas as pd
 import pytz
 from google.cloud import bigquery
@@ -123,6 +124,8 @@ class EventsModel(BasePyMongoModel):
 
         del dataframe["site_latitude"]
         del dataframe["site_longitude"]
+
+        dataframe = dataframe.replace({np.nan: None})
 
         if not_null_values:
             dataframe.dropna(subset=not_null_values, inplace=True)
