@@ -281,19 +281,8 @@ class AirQoAppUtils:
         return new_value
 
     @staticmethod
-    def process_for_firebase(data: pd.DataFrame) -> pd.DataFrame:
+    def process_for_firebase(data: pd.DataFrame, tenant: Tenant) -> pd.DataFrame:
 
-        data = data[
-            [
-                "pm2_5_raw_value",
-                "pm2_5_calibrated_value",
-                "pm10_raw_value",
-                "pm10_calibrated_value",
-                "timestamp",
-                "site_id",
-                "tenant",
-            ]
-        ]
         data.loc[:, "calibrated"] = np.where(
             data["pm2_5_calibrated_value"].isnull(), False, True
         )
@@ -303,6 +292,7 @@ class AirQoAppUtils:
         data.loc[:, "pm2_5_calibrated_value"] = data["pm2_5_calibrated_value"].apply(
             lambda pm2_5: AirQoAppUtils.round_off_value(pm2_5, Pollutant.PM2_5)
         )
+        data["pm2_5"] = data["pm2_5_calibrated_value"]
         data.loc[:, "airQuality"] = data["pm2_5_calibrated_value"].apply(
             lambda pm2_5: str(get_air_quality(pm2_5, Pollutant.PM2_5))
         )
@@ -313,21 +303,22 @@ class AirQoAppUtils:
         data.loc[:, "pm10_calibrated_value"] = data["pm10_calibrated_value"].apply(
             lambda pm10: AirQoAppUtils.round_off_value(pm10, Pollutant.PM10)
         )
+        data["pm10"] = data["pm10_calibrated_value"]
+
         data.loc[:, "source"] = data["tenant"].apply(
-            lambda tenant: Tenant.from_str(tenant).name()
+            lambda x: Tenant.from_str(x).name()
         )
 
         data.rename(
             columns={
-                "pm2_5_calibrated_value": "pm2_5",
-                "pm10_calibrated_value": "pm10",
                 "site_id": "referenceSite",
                 "timestamp": "dateTime",
+                "site_latitude": "latitude",
+                "site_longitude": "longitude",
             },
             inplace=True,
         )
 
-        data = DataValidationUtils.remove_outliers(data)
         data.dropna(
             inplace=True,
             subset=[
@@ -338,28 +329,41 @@ class AirQoAppUtils:
             ],
         )
 
-        sites = AirQoApi().get_sites()
-        sites = [
-            {
-                "referenceSite": site.get("site_id", None),
-                "name": site.get("search_name", None),
-                "location": site.get("location_name", None),
-                "region": site.get("region", None),
-                "country": site.get("country", None),
-                "latitude": site.get("latitude", None),
-                "longitude": site.get("longitude", None),
-                "site_sec_name": site.get("name", None),
-                "site_sec_location": site.get("description", None),
-            }
-            for site in sites
-        ]
+        if tenant == Tenant.ALL:
+            pass
+        elif tenant in [Tenant.AIRQO, Tenant.KCCA]:
+            sites = AirQoApi().get_sites(tenant=tenant)
+            del data["latitude"]
+            del data["longitude"]
 
-        sites = pd.DataFrame(sites)
-        sites["name"] = sites["name"].fillna(sites["site_sec_name"])
-        sites["location"] = sites["location"].fillna(sites["site_sec_location"])
-        sites.dropna(inplace=True, subset=["referenceSite", "name", "location"])
+            sites = [
+                {
+                    "referenceSite": site.get("site_id", None),
+                    "name": site.get("search_name", None),
+                    "location": site.get("location_name", None),
+                    "region": site.get("region", None),
+                    "country": site.get("country", None),
+                    "latitude": site.get("latitude", None),
+                    "longitude": site.get("longitude", None),
+                    "site_sec_name": site.get("name", None),
+                    "site_sec_location": site.get("description", None),
+                }
+                for site in sites
+            ]
 
-        data = data.merge(sites, on=["referenceSite"], how="left")
+            sites = pd.DataFrame(sites)
+            sites["name"] = sites["name"].fillna(sites["site_sec_name"])
+            sites["location"] = sites["location"].fillna(sites["site_sec_location"])
+            sites.dropna(inplace=True, subset=["referenceSite", "name", "location"])
+
+            data = data.merge(sites, on=["referenceSite"], how="left")
+
+        elif tenant == Tenant.US_EMBASSY:
+            data["location"] = data["site_name"]
+            data["country"] = data["site_name"]
+            data["region"] = data["site_name"]
+            data["name"] = data["site_name"]
+
         data = data[
             [
                 "pm2_5",
@@ -376,6 +380,8 @@ class AirQoAppUtils:
                 "source",
             ]
         ]
+        data = DataValidationUtils.remove_outliers(data)
+
         data.loc[:, "placeId"] = data["referenceSite"]
         data.loc[:, "dateTime"] = pd.to_datetime(data["dateTime"])
 
