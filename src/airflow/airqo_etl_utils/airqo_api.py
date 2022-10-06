@@ -113,25 +113,29 @@ class AirQoApi:
 
         else:
             response = self.__request("devices", {"tenant": str(tenant)})
-            devices = [
-                {**device, **{"tenant": str(tenant)}}
-                for device in response.get("devices", [])
-            ]
+            if response:
+                devices = [
+                    {**device, **{"tenant": str(tenant)}}
+                    for device in response.get("devices", [])
+                ]
 
         devices = [
             {
                 **device,
                 **{
+                    "device_number": device.get("device_number", None),
                     "device_id": device.get("name", None),
                     "site_id": device.get("site", {}).get("_id", None),
-                    "category": DeviceCategory.from_str(device.get("category", "")),
+                    "category": str(
+                        DeviceCategory.from_str(device.get("category", ""))
+                    ),
                 },
             }
             for device in devices
         ]
 
         if category != DeviceCategory.NONE:
-            devices = list(filter(lambda y: y["category"] == category, devices))
+            devices = list(filter(lambda y: y["category"] == str(category), devices))
 
         return devices
 
@@ -154,7 +158,8 @@ class AirQoApi:
         decrypted_keys = response.get("decrypted_keys", [])
 
         return {
-            int(entry["device_number"]): entry["decrypted_key"] for entry in decrypted_keys
+            int(entry["device_number"]): entry["decrypted_key"]
+            for entry in decrypted_keys
         }
 
     def get_app_insights(
@@ -232,10 +237,11 @@ class AirQoApi:
 
         else:
             response = self.__request("devices/sites", {"tenant": str(tenant)})
-            sites = [
-                {**site, **{"tenant": str(tenant)}}
-                for site in response.get("sites", [])
-            ]
+            if response:
+                sites = [
+                    {**site, **{"tenant": str(tenant)}}
+                    for site in response.get("sites", [])
+                ]
 
         sites = [
             {

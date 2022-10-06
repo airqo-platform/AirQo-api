@@ -80,7 +80,7 @@ def consolidated_data_etl():
         big_query_api = BigQueryApi()
         big_query_api.load_data(
             dataframe=data,
-            table=big_query_api.analytics_table,
+            table=big_query_api.consolidated_data_table,
         )
 
     hourly_low_cost_data = extract_hourly_low_cost_data()

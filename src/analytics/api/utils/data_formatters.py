@@ -76,3 +76,33 @@ def format_to_aqcsv(data: list, pollutants: list, frequency: str) -> list:
             )
 
     return aqcsv_dataframe.to_dict("records")
+
+
+def tenant_to_str(tenant: str) -> str:
+    try:
+        if tenant.lower() == "airqo":
+            return "AirQo"
+        elif tenant.lower() == "kcca":
+            return "KCCA"
+        elif tenant.lower() == "us_embassy":
+            return "US Embassy"
+        else:
+            pass
+    except Exception as ex:
+        pass
+
+    return ""
+
+
+def device_category_to_str(device_category: str) -> str:
+    try:
+        if device_category.lower() == "bam":
+            return "Reference Monitor"
+        elif device_category.lower() == "lowcost":
+            return "Low Cost Sensor"
+        else:
+            pass
+    except Exception as ex:
+        pass
+
+    return ""
