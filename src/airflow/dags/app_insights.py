@@ -64,7 +64,7 @@ def app_latest_air_quality_etl():
             table=table,
             tenant=Tenant.ALL,
         )
-        data = AirQoAppUtils.process_for_firebase(data)
+        data = AirQoAppUtils.process_for_firebase(data, tenant=Tenant.ALL)
         AirQoAppUtils.update_firebase_air_quality_readings(data)
 
     refresh_air_quality_readings()
