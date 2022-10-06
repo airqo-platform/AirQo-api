@@ -1,5 +1,6 @@
 from datetime import datetime
 
+import numpy as np
 import pandas as pd
 import pytz
 from google.cloud import bigquery
@@ -124,19 +125,7 @@ class EventsModel(BasePyMongoModel):
         del dataframe["site_latitude"]
         del dataframe["site_longitude"]
 
-        dataframe["device_name"] = dataframe["device_name"].fillna("")
-        dataframe["tenant"] = dataframe["tenant"].fillna("")
-
-        dataframe["pm2_5_raw_value"] = dataframe["pm2_5_raw_value"].fillna(-1)
-        dataframe["pm2_5_calibrated_value"] = dataframe[
-            "pm2_5_calibrated_value"
-        ].fillna(-1)
-        dataframe["pm10_raw_value"] = dataframe["pm10_raw_value"].fillna(-1)
-        dataframe["pm10_calibrated_value"] = dataframe["pm10_calibrated_value"].fillna(
-            -1
-        )
-        dataframe["no2_raw_value"] = dataframe["no2_raw_value"].fillna(-1)
-        dataframe["no2_calibrated_value"] = dataframe["no2_calibrated_value"].fillna(-1)
+        dataframe = dataframe.replace({np.nan: None})
 
         if not_null_values:
             dataframe.dropna(subset=not_null_values, inplace=True)
