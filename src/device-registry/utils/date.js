@@ -1,7 +1,7 @@
 const { logText, logElement } = require("./log");
 const log4js = require("log4js");
 module.exports = {
-  generateDateFormatWithoutHrs: generateDateFormatWithoutHrs,
+  generateDateFormatWithoutHrs,
 }
 const constants = require("../config/constants");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- date-util`);
@@ -165,14 +165,14 @@ function threeMonthsFromNow(date) {
 }
 
 module.exports = {
-  generateDateFormat: generateDateFormat,
-  threeMonthsFromNow: threeMonthsFromNow,
-  generateDateFormatWithoutHrs: generateDateFormatWithoutHrs,
-  addMonthsToProvideDateTime: addMonthsToProvideDateTime,
-  monthsInfront: monthsInfront,
-  isTimeEmpty: isTimeEmpty,
-  getDifferenceInMonths: getDifferenceInMonths,
-  addDays: addDays,
-  addMinutes: addMinutes,
-  formatDate: formatDate,
+  generateDateFormat,
+  threeMonthsFromNow,
+  generateDateFormatWithoutHrs,
+  addMonthsToProvideDateTime,
+  monthsInfront,
+  isTimeEmpty,
+  getDifferenceInMonths,
+  addDays,
+  addMinutes,
+  formatDate,
 };
