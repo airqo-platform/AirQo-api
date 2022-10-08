@@ -1,5 +1,5 @@
 resource "google_project_service" "maps_backend_googleapis_com" {
-  project = "702081712633"
+  project = "${var.project-number}"
   service = "maps-backend.googleapis.com"
 }
-# terraform import google_project_service.maps_backend_googleapis_com 702081712633/maps-backend.googleapis.com
+# terraform import google_project_service.maps_backend_googleapis_com ${var.project-number}/maps-backend.googleapis.com

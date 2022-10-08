@@ -1,5 +1,5 @@
 resource "google_secret_manager_secret" "prod_env_calibrate_api" {
-  project = "702081712633"
+  project = "${var.project-number}"
 
   replication {
     automatic = true
@@ -7,4 +7,4 @@ resource "google_secret_manager_secret" "prod_env_calibrate_api" {
 
   secret_id = "prod-env-calibrate-api"
 }
-# terraform import google_secret_manager_secret.prod_env_calibrate_api projects/702081712633/secrets/prod-env-calibrate-api
+# terraform import google_secret_manager_secret.prod_env_calibrate_api projects/${var.project-number}/secrets/prod-env-calibrate-api

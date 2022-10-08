@@ -1,5 +1,5 @@
 resource "google_secret_manager_secret" "sta_backup_web" {
-  project = "702081712633"
+  project = "${var.project-number}"
 
   replication {
     automatic = true
@@ -7,4 +7,4 @@ resource "google_secret_manager_secret" "sta_backup_web" {
 
   secret_id = "sta-backup-web"
 }
-# terraform import google_secret_manager_secret.sta_backup_web projects/702081712633/secrets/sta-backup-web
+# terraform import google_secret_manager_secret.sta_backup_web projects/${var.project-number}/secrets/sta-backup-web

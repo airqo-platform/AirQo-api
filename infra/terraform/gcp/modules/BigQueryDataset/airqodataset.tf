@@ -16,7 +16,7 @@ resource "google_bigquery_dataset" "airqodataset" {
 
   access {
     role          = "WRITER"
-    user_by_email = "service-702081712633@gcp-sa-bigquerydatatransfer.iam.gserviceaccount.com"
+    user_by_email = "service-${var.project-number}@gcp-sa-bigquerydatatransfer.iam.gserviceaccount.com"
   }
 
   dataset_id                      = "airqodataset"
@@ -24,7 +24,7 @@ resource "google_bigquery_dataset" "airqodataset" {
   default_table_expiration_ms     = 5184000000
   delete_contents_on_destroy      = false
   description                     = "Naguru II"
-  location                        = "EU"
-  project                         = "${var.project-id}"
+  location                        = "${var.location}"
+  project                         = var.project-id
 }
-# terraform import google_bigquery_dataset.airqodataset projects/airqo-250220/datasets/airqodataset
+# terraform import google_bigquery_dataset.airqodataset projects/${var.project-id}/datasets/airqodataset

@@ -2,6 +2,12 @@ provider "google" {
   project = var.project-id
 }
 
+module "BigQueryDataset" {
+  source = "./modules/BigQueryDataset"
+
+  project-id = var.project-id
+}
+
 ## As of Sept/2022, the provider hashicorp/google does not support
 ## resource type "google_iam_custom_role"
 # module "IAMCustomRole" {
@@ -26,11 +32,6 @@ provider "google" {
 
 # module "ComputeSubnetwork-asia-south1" {
 #  source = "./modules/ComputeSubnetwork/asia-south1"
-# }
-
-
-# module "BigQueryDataset" {
-#  source = "./modules/BigQueryDataset"
 # }
 
 
@@ -84,13 +85,6 @@ module "StorageBucket" {
 # }
 
 
-## As of Sept/2022, the provider hashicorp/google does not support resource type
-## "google_logging_log_sink" on line 1 of the file a-required.tf
-# module "a-required" {
-#  source = "./modules/a-required.tf"
-# }
-
-
 # module "ComputeSubnetwork-asia-southeast1" {
 #  source = "./modules/ComputeSubnetwork/asia-southeast1"
 # }
@@ -141,7 +135,7 @@ module "StorageBucket" {
 # }
 
 
-# module "702081712633-Service" {
+# module "${var.project-number}-Service" {
 #  source = "./modules/Service"
 # }
 
@@ -315,3 +309,9 @@ module "SecretManagerSecret" {
 #  source = "./modules/ComputeHTTPHealthCheck"
 # }
 
+
+## As of Sept/2022, the provider hashicorp/google does not support resource type
+## "google_logging_log_sink" on line 1 of the file a-required.tf
+# module "a-required" {
+#  source = "./modules/a-required.tf"
+# }

@@ -14,7 +14,7 @@ resource "google_storage_bucket" "firestore_airqo_backup" {
 
   location                    = "US"
   name                        = "firestore_airqo_backup"
-  project                     = "${var.project-id}"
+  project                     = var.project-id
   # Argument "public_access_prevention" not expected here.
 # public_access_prevention    = "inherited"
   storage_class               = "NEARLINE"

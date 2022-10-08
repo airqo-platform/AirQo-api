@@ -1,5 +1,5 @@
 resource "google_secret_manager_secret" "k8s_pipeline_zip" {
-  project = "702081712633"
+  project = "${var.project-number}"
 
   replication {
     automatic = true
@@ -7,4 +7,4 @@ resource "google_secret_manager_secret" "k8s_pipeline_zip" {
 
   secret_id = "k8s-pipeline-zip"
 }
-# terraform import google_secret_manager_secret.k8s_pipeline_zip projects/702081712633/secrets/k8s-pipeline-zip
+# terraform import google_secret_manager_secret.k8s_pipeline_zip projects/${var.project-number}/secrets/k8s-pipeline-zip

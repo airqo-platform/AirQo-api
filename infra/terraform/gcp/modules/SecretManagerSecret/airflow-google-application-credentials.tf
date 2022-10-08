@@ -1,5 +1,5 @@
 resource "google_secret_manager_secret" "airflow_google_application_credentials" {
-  project = "702081712633"
+  project = "${var.project-number}"
 
   replication {
     automatic = true
@@ -7,4 +7,4 @@ resource "google_secret_manager_secret" "airflow_google_application_credentials"
 
   secret_id = "airflow-google-application-credentials"
 }
-# terraform import google_secret_manager_secret.airflow_google_application_credentials projects/702081712633/secrets/airflow-google-application-credentials
+# terraform import google_secret_manager_secret.airflow_google_application_credentials projects/${var.project-number}/secrets/airflow-google-application-credentials

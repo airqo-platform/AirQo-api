@@ -17,6 +17,6 @@ resource "google_bigquery_dataset" "channel" {
   dataset_id                 = "channel"
   delete_contents_on_destroy = false
   location                   = "europe-west6"
-  project                    = "${var.project-id}"
+  project                    = var.project-id
 }
-# terraform import google_bigquery_dataset.channel projects/airqo-250220/datasets/channel
+# terraform import google_bigquery_dataset.channel projects/${var.project-id}/datasets/channel

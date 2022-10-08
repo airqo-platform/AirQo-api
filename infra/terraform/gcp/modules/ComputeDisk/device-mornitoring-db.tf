@@ -1,10 +1,10 @@
 resource "google_compute_disk" "device_mornitoring_db" {
-  image                     = "https://www.googleapis.com/compute/beta/projects/ubuntu-os-cloud/global/images/ubuntu-1804-bionic-v20210514"
+  image                     = "ubuntu-1804-bionic-v20210514"
   name                      = "device-mornitoring-db"
   physical_block_size_bytes = 4096
-  project                   = "${var.project-id}"
-  size                      = 250
+  project                   = var.project-id
+  size      = var.disk_size["large"]
   type                      = "pd-balanced"
-  zone                      = "europe-west1-b"
+  zone                      = var.zone
 }
-# terraform import google_compute_disk.device_mornitoring_db projects/airqo-250220/zones/europe-west1-b/disks/device-mornitoring-db
+# terraform import google_compute_disk.device_mornitoring_db projects/${var.project-id}/zones/europe-west1-b/disks/device-mornitoring-db

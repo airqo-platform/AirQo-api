@@ -1,5 +1,5 @@
 resource "google_secret_manager_secret" "airflow_env_file" {
-  project = "702081712633"
+  project = "${var.project-number}"
 
   replication {
     automatic = true
@@ -7,4 +7,4 @@ resource "google_secret_manager_secret" "airflow_env_file" {
 
   secret_id = "airflow-env-file"
 }
-# terraform import google_secret_manager_secret.airflow_env_file projects/702081712633/secrets/airflow-env-file
+# terraform import google_secret_manager_secret.airflow_env_file projects/${var.project-number}/secrets/airflow-env-file

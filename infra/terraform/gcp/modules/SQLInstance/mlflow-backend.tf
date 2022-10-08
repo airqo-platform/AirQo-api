@@ -1,7 +1,7 @@
 resource "google_sql_database_instance" "mlflow_backend" {
   database_version = "MYSQL_5_7"
   name             = "mlflow-backend"
-  project          = "${var.project-id}"
+  project          = var.project-id
   region           = "us-central1"
 
   settings {
@@ -35,4 +35,4 @@ resource "google_sql_database_instance" "mlflow_backend" {
     tier         = "db-f1-micro"
   }
 }
-# terraform import google_sql_database_instance.mlflow_backend projects/airqo-250220/instances/mlflow-backend
+# terraform import google_sql_database_instance.mlflow_backend projects/${var.project-id}/instances/mlflow-backend

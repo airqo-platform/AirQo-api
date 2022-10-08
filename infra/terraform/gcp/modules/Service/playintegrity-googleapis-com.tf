@@ -1,5 +1,5 @@
 resource "google_project_service" "playintegrity_googleapis_com" {
-  project = "702081712633"
+  project = "${var.project-number}"
   service = "playintegrity.googleapis.com"
 }
-# terraform import google_project_service.playintegrity_googleapis_com 702081712633/playintegrity.googleapis.com
+# terraform import google_project_service.playintegrity_googleapis_com ${var.project-number}/playintegrity.googleapis.com

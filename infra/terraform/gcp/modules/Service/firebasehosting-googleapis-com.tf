@@ -1,5 +1,5 @@
 resource "google_project_service" "firebasehosting_googleapis_com" {
-  project = "702081712633"
+  project = "${var.project-number}"
   service = "firebasehosting.googleapis.com"
 }
-# terraform import google_project_service.firebasehosting_googleapis_com 702081712633/firebasehosting.googleapis.com
+# terraform import google_project_service.firebasehosting_googleapis_com ${var.project-number}/firebasehosting.googleapis.com

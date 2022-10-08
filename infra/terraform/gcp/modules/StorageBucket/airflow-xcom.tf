@@ -12,9 +12,9 @@ resource "google_storage_bucket" "airflow_xcom" {
     }
   }
 
-  location                    = "EU"
+  location                    = "${var.location}"
   name                        = "airflow_xcom"
-  project                     = "${var.project-id}"
+  project                     = var.project-id
   # Argument "public_access_prevention" not expected here.
 # public_access_prevention    = "inherited"
   storage_class               = "STANDARD"

@@ -16,7 +16,7 @@ resource "google_bigquery_dataset" "dev_dataset" {
 
   dataset_id                 = "dev_dataset"
   delete_contents_on_destroy = false
-  location                   = "EU"
-  project                    = "${var.project-id}"
+  location                   = "${var.location}"
+  project                    = var.project-id
 }
-# terraform import google_bigquery_dataset.dev_dataset projects/airqo-250220/datasets/dev_dataset
+# terraform import google_bigquery_dataset.dev_dataset projects/${var.project-id}/datasets/dev_dataset

@@ -1,5 +1,5 @@
 resource "google_secret_manager_secret" "sta_env_network_uptime" {
-  project = "702081712633"
+  project = "${var.project-number}"
 
   replication {
     automatic = true
@@ -7,4 +7,4 @@ resource "google_secret_manager_secret" "sta_env_network_uptime" {
 
   secret_id = "sta-env-network-uptime"
 }
-# terraform import google_secret_manager_secret.sta_env_network_uptime projects/702081712633/secrets/sta-env-network-uptime
+# terraform import google_secret_manager_secret.sta_env_network_uptime projects/${var.project-number}/secrets/sta-env-network-uptime

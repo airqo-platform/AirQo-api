@@ -1,5 +1,5 @@
 resource "google_project_service" "storage_component_googleapis_com" {
-  project = "702081712633"
+  project = "${var.project-number}"
   service = "storage-component.googleapis.com"
 }
-# terraform import google_project_service.storage_component_googleapis_com 702081712633/storage-component.googleapis.com
+# terraform import google_project_service.storage_component_googleapis_com ${var.project-number}/storage-component.googleapis.com

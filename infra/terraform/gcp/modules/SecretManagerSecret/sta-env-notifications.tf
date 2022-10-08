@@ -1,5 +1,5 @@
 resource "google_secret_manager_secret" "sta_env_notifications" {
-  project = "702081712633"
+  project = "${var.project-number}"
 
   replication {
     automatic = true
@@ -13,7 +13,7 @@ resource "google_secret_manager_secret" "sta_env_notifications" {
   secret_id = "sta-env-notifications"
 
   topics {
-    name = "projects/airqo-250220/topics/secrets-manager"
+    name = "projects/${var.project-id}/topics/secrets-manager"
   }
 }
-# terraform import google_secret_manager_secret.sta_env_notifications projects/702081712633/secrets/sta-env-notifications
+# terraform import google_secret_manager_secret.sta_env_notifications projects/${var.project-number}/secrets/sta-env-notifications

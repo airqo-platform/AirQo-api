@@ -17,6 +17,6 @@ resource "google_bigquery_dataset" "thingspeak_testing" {
   dataset_id                 = "thingspeak_testing"
   delete_contents_on_destroy = false
   location                   = "US"
-  project                    = "${var.project-id}"
+  project                    = var.project-id
 }
-# terraform import google_bigquery_dataset.thingspeak_testing projects/airqo-250220/datasets/thingspeak_testing
+# terraform import google_bigquery_dataset.thingspeak_testing projects/${var.project-id}/datasets/thingspeak_testing

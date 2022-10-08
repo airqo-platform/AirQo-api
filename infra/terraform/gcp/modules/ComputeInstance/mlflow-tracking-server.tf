@@ -10,7 +10,7 @@ resource "google_compute_instance" "mlflow_tracking_server" {
     }
 
     mode   = "READ_WRITE"
-    source = "https://www.googleapis.com/compute/v1/projects/airqo-250220/zones/us-central1-a/disks/mlflow-tracking-server"
+    source = "https://www.googleapis.com/compute/v1/projects/${var.project-id}/zones/us-central1-a/disks/mlflow-tracking-server"
   }
 
   machine_type = "e2-small"
@@ -27,14 +27,14 @@ resource "google_compute_instance" "mlflow_tracking_server" {
       network_tier = "PREMIUM"
     }
 
-    network            = "https://www.googleapis.com/compute/v1/projects/airqo-250220/global/networks/default"
+    network            = "https://www.googleapis.com/compute/v1/projects/${var.project-id}/global/networks/default"
     network_ip         = "10.128.0.22"
     stack_type         = "IPV4_ONLY"
-    subnetwork         = "https://www.googleapis.com/compute/v1/projects/airqo-250220/regions/us-central1/subnetworks/default"
-    subnetwork_project = "${var.project-id}"
+    subnetwork         = "https://www.googleapis.com/compute/v1/projects/${var.project-id}/regions/us-central1/subnetworks/default"
+    subnetwork_project = var.project-id
   }
 
-  project = "${var.project-id}"
+  project = var.project-id
 
   reservation_affinity {
     type = "ANY_RESERVATION"
@@ -59,4 +59,4 @@ resource "google_compute_instance" "mlflow_tracking_server" {
   tags = ["mlflow-tracking-server"]
   zone = "us-central1-a"
 }
-# terraform import google_compute_instance.mlflow_tracking_server projects/airqo-250220/zones/us-central1-a/instances/mlflow-tracking-server
+# terraform import google_compute_instance.mlflow_tracking_server projects/${var.project-id}/zones/us-central1-a/instances/mlflow-tracking-server

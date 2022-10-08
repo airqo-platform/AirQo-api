@@ -1,5 +1,5 @@
 resource "google_pubsub_topic" "slack" {
   name    = "slack"
-  project = "${var.project-id}"
+  project = var.project-id
 }
-# terraform import google_pubsub_topic.slack projects/airqo-250220/topics/slack
+# terraform import google_pubsub_topic.slack projects/${var.project-id}/topics/slack

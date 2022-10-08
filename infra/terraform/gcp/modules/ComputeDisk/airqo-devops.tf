@@ -1,10 +1,10 @@
 resource "google_compute_disk" "airqo_devops" {
-  image                     = "https://www.googleapis.com/compute/beta/projects/ubuntu-os-cloud/global/images/ubuntu-1604-xenial-v20200129"
+  image                     = "ubuntu-1604-xenial-v20200129"
   name                      = "airqo-devops"
   physical_block_size_bytes = 4096
-  project                   = "${var.project-id}"
-  size                      = 200
+  project                   = var.project-id
+  size      = var.disk_size["large"]
   type                      = "pd-standard"
-  zone                      = "us-central1-a"
+  zone                      = var.zone
 }
-# terraform import google_compute_disk.airqo_devops projects/airqo-250220/zones/us-central1-a/disks/airqo-devops
+# terraform import google_compute_disk.airqo_devops projects/${var.project-id}/zones/us-central1-a/disks/airqo-devops

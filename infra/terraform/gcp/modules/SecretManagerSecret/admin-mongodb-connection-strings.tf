@@ -1,5 +1,5 @@
 resource "google_secret_manager_secret" "admin_mongodb_connection_strings" {
-  project = "702081712633"
+  project = "${var.project-number}"
 
   replication {
     automatic = true
@@ -13,7 +13,7 @@ resource "google_secret_manager_secret" "admin_mongodb_connection_strings" {
   secret_id = "admin-mongodb-connection-strings"
 
   topics {
-    name = "projects/airqo-250220/topics/secrets-manager"
+    name = "projects/${var.project-id}/topics/secrets-manager"
   }
 }
-# terraform import google_secret_manager_secret.admin_mongodb_connection_strings projects/702081712633/secrets/admin-mongodb-connection-strings
+# terraform import google_secret_manager_secret.admin_mongodb_connection_strings projects/${var.project-number}/secrets/admin-mongodb-connection-strings

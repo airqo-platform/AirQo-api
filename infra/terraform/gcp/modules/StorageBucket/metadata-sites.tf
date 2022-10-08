@@ -2,7 +2,7 @@ resource "google_storage_bucket" "metadata_sites" {
   force_destroy               = false
   location                    = "US"
   name                        = "metadata_sites"
-  project                     = "${var.project-id}"
+  project                     = var.project-id
   # Argument "public_access_prevention" not expected here.
 # public_access_prevention    = "inherited"
   storage_class               = "STANDARD"

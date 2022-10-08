@@ -50,7 +50,7 @@ resource "google_storage_bucket" "auth_service_db_backup" {
 
   location                    = "US"
   name                        = "auth-service-db-backup"
-  project                     = "${var.project-id}"
+  project                     = var.project-id
   # Argument "public_access_prevention" not expected here.
 # public_access_prevention    = "enforced"
   storage_class               = "STANDARD"

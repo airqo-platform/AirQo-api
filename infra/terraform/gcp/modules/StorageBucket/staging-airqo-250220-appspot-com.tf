@@ -14,7 +14,7 @@ resource "google_storage_bucket" "staging_airqo_250220_appspot_com" {
 
   location                 = "US"
   name                     = "staging.airqo-250220.appspot.com"
-  project                  = "${var.project-id}"
+  project                  = var.project-id
   storage_class            = "STANDARD"
 }
 # terraform import google_storage_bucket.staging_airqo_250220_appspot_com staging.airqo-250220.appspot.com

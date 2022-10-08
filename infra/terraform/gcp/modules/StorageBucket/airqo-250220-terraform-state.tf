@@ -2,7 +2,7 @@ resource "google_storage_bucket" "airqo_250220_terraform_state" {
   force_destroy = false
   location      = "US"
   name          = "${var.project-id}-terraform-state"
-  project       = "${var.project-id}"
+  project       = var.project-id
   storage_class = "STANDARD"
   versioning {
     enabled = true

@@ -1,5 +1,5 @@
 resource "google_secret_manager_secret" "sta_env_auth_service" {
-  project = "702081712633"
+  project = "${var.project-number}"
 
   replication {
     automatic = true
@@ -13,7 +13,7 @@ resource "google_secret_manager_secret" "sta_env_auth_service" {
   secret_id = "sta-env-auth-service"
 
   topics {
-    name = "projects/airqo-250220/topics/secrets-manager"
+    name = "projects/${var.project-id}/topics/secrets-manager"
   }
 }
-# terraform import google_secret_manager_secret.sta_env_auth_service projects/702081712633/secrets/sta-env-auth-service
+# terraform import google_secret_manager_secret.sta_env_auth_service projects/${var.project-number}/secrets/sta-env-auth-service

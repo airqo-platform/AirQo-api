@@ -10,7 +10,7 @@ resource "google_compute_instance_template" "airqo_k8s_dev_worker" {
     disk_size_gb = 100
     disk_type    = "pd-standard"
     mode         = "READ_WRITE"
-    source_image = "projects/airqo-250220/global/images/airqo-k8s-dev-worker"
+    source_image = "projects/${var.project-id}/global/images/airqo-k8s-dev-worker"
     type         = "PERSISTENT"
   }
 
@@ -26,12 +26,12 @@ resource "google_compute_instance_template" "airqo_k8s_dev_worker" {
       network_tier = "PREMIUM"
     }
 
-    network            = "https://www.googleapis.com/compute/v1/projects/airqo-250220/global/networks/airqo-k8s-cluster"
-    subnetwork         = "https://www.googleapis.com/compute/v1/projects/airqo-250220/regions/europe-west1/subnetworks/k8s-nodes"
-    subnetwork_project = "${var.project-id}"
+    network            = "https://www.googleapis.com/compute/v1/projects/${var.project-id}/global/networks/airqo-k8s-cluster"
+    subnetwork         = "https://www.googleapis.com/compute/v1/projects/${var.project-id}/regions/europe-west1/subnetworks/k8s-nodes"
+    subnetwork_project = var.project-id
   }
 
-  project = "${var.project-id}"
+  project = var.project-id
   region  = "europe-west1"
 
   reservation_affinity {
@@ -45,7 +45,7 @@ resource "google_compute_instance_template" "airqo_k8s_dev_worker" {
   }
 
   service_account {
-    email  = "702081712633-compute@developer.gserviceaccount.com"
+    email  = "${var.project-number}-compute@developer.gserviceaccount.com"
     scopes = ["https://www.googleapis.com/auth/compute", "https://www.googleapis.com/auth/devstorage.read_only", "https://www.googleapis.com/auth/logging.write", "https://www.googleapis.com/auth/monitoring", "https://www.googleapis.com/auth/service.management.readonly", "https://www.googleapis.com/auth/servicecontrol"]
   }
 
@@ -56,4 +56,4 @@ resource "google_compute_instance_template" "airqo_k8s_dev_worker" {
 
   tags = ["airqo-k8s", "http-server", "https-server", "worker"]
 }
-# terraform import google_compute_instance_template.airqo_k8s_dev_worker projects/airqo-250220/global/instanceTemplates/airqo-k8s-dev-worker
+# terraform import google_compute_instance_template.airqo_k8s_dev_worker projects/${var.project-id}/global/instanceTemplates/airqo-k8s-dev-worker

@@ -17,6 +17,6 @@ resource "google_bigquery_dataset" "testingroles" {
   dataset_id                 = "TestingRoles"
   delete_contents_on_destroy = false
   location                   = "US"
-  project                    = "${var.project-id}"
+  project                    = var.project-id
 }
-# terraform import google_bigquery_dataset.testingroles projects/airqo-250220/datasets/TestingRoles
+# terraform import google_bigquery_dataset.testingroles projects/${var.project-id}/datasets/TestingRoles

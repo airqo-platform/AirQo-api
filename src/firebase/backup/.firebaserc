@@ -1,5 +1,5 @@
 {
   "projects": {
-    "default": "${var.project-id}"
+    "default": var.project-id
   }
 }

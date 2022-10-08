@@ -886,7 +886,7 @@ const device = {
   listOnGCP: (req, res) => {
     let device = req.params.name;
     const formattedName = client.devicePath(
-      "${var.project-id}",
+      var.project-id,
       "europe-west1",
       "device-registry",
       `${device}`
@@ -901,7 +901,7 @@ const device = {
   },
   createOnGCP: (req, res) => {
     const formattedParent = client.registryPath(
-      "${var.project-id}",
+      var.project-id,
       "europe-west1",
       "device-registry"
     );
@@ -925,7 +925,7 @@ const device = {
   },
   listOneOnGCP: (req, res) => {
     const formattedParent = client.registryPath(
-      "${var.project-id}",
+      var.project-id,
       "europe-west1",
       "device-registry"
     );
@@ -949,7 +949,7 @@ const device = {
   deleteOnGCP: (req, res) => {
     let device = req.params.name;
     const formattedName = client.devicePath(
-      "${var.project-id}",
+      var.project-id,
       "europe-west1",
       "device-registry",
       `${device}`
@@ -971,7 +971,7 @@ const device = {
   updateOnGCP: (req, res) => {
     let device = req.params.name;
     const formattedName = client.devicePath(
-      "${var.project-id}",
+      var.project-id,
       "europe-west1",
       "device-registry",
       `${device}`

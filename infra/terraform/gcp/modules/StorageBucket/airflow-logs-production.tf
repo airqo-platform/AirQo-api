@@ -12,7 +12,7 @@ resource "google_storage_bucket" "airflow_logs_production" {
     }
   }
 
-  location                    = "EU"
+  location                    = "${var.location}"
   name                        = "airflow_logs_production"
   project                     = "airqo-250220"
   # Argument "public_access_prevention" not expected here.

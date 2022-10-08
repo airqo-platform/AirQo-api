@@ -1,8 +1,8 @@
 resource "google_storage_bucket" "airqo_compute_engine_usage_report" {
   force_destroy               = false
-  location                    = "EU"
+  location                    = "${var.location}"
   name                        = "airqo_compute_engine_usage_report"
-  project                     = "${var.project-id}"
+  project                     = var.project-id
   # Argument "public_access_prevention" not expected here.
 # public_access_prevention    = "enforced"
   storage_class               = "STANDARD"

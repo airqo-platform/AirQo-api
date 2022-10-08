@@ -1,5 +1,5 @@
 resource "google_secret_manager_secret" "sta_key_calibrate_service_account" {
-  project = "702081712633"
+  project = "${var.project-number}"
 
   replication {
     automatic = true
@@ -13,7 +13,7 @@ resource "google_secret_manager_secret" "sta_key_calibrate_service_account" {
   secret_id = "sta-key-calibrate-service-account"
 
   topics {
-    name = "projects/airqo-250220/topics/secrets-manager"
+    name = "projects/${var.project-id}/topics/secrets-manager"
   }
 }
-# terraform import google_secret_manager_secret.sta_key_calibrate_service_account projects/702081712633/secrets/sta-key-calibrate-service-account
+# terraform import google_secret_manager_secret.sta_key_calibrate_service_account projects/${var.project-number}/secrets/sta-key-calibrate-service-account

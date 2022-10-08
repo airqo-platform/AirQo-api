@@ -1,5 +1,5 @@
 resource "google_project_service" "identitytoolkit_googleapis_com" {
-  project = "702081712633"
+  project = "${var.project-number}"
   service = "identitytoolkit.googleapis.com"
 }
-# terraform import google_project_service.identitytoolkit_googleapis_com 702081712633/identitytoolkit.googleapis.com
+# terraform import google_project_service.identitytoolkit_googleapis_com ${var.project-number}/identitytoolkit.googleapis.com

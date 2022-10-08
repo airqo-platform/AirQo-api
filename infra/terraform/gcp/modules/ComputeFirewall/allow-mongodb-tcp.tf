@@ -11,9 +11,9 @@ resource "google_compute_firewall" "allow_mongodb_tcp" {
 
   direction     = "INGRESS"
   name          = "allow-mongodb-tcp"
-  network       = "https://www.googleapis.com/compute/v1/projects/airqo-250220/global/networks/airqo-k8s-cluster"
+  network       = "https://www.googleapis.com/compute/v1/projects/${var.project-id}/global/networks/airqo-k8s-cluster"
   priority      = 1000
-  project       = "${var.project-id}"
+  project       = var.project-id
   source_ranges = ["0.0.0.0/0"]
 }
-# terraform import google_compute_firewall.allow_mongodb_tcp projects/airqo-250220/global/firewalls/allow-mongodb-tcp
+# terraform import google_compute_firewall.allow_mongodb_tcp projects/${var.project-id}/global/firewalls/allow-mongodb-tcp

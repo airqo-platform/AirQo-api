@@ -1,5 +1,5 @@
 resource "google_project_service" "firebaseappcheck_googleapis_com" {
-  project = "702081712633"
+  project = "${var.project-number}"
   service = "firebaseappcheck.googleapis.com"
 }
-# terraform import google_project_service.firebaseappcheck_googleapis_com 702081712633/firebaseappcheck.googleapis.com
+# terraform import google_project_service.firebaseappcheck_googleapis_com ${var.project-number}/firebaseappcheck.googleapis.com

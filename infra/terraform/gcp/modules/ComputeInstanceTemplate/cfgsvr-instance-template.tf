@@ -26,12 +26,12 @@ resource "google_compute_instance_template" "cfgsvr_instance_template" {
       network_tier = "PREMIUM"
     }
 
-    network            = "https://www.googleapis.com/compute/v1/projects/airqo-250220/global/networks/airqo-k8s-cluster"
-    subnetwork         = "https://www.googleapis.com/compute/v1/projects/airqo-250220/regions/europe-west1/subnetworks/k8s-nodes"
-    subnetwork_project = "${var.project-id}"
+    network            = "https://www.googleapis.com/compute/v1/projects/${var.project-id}/global/networks/airqo-k8s-cluster"
+    subnetwork         = "https://www.googleapis.com/compute/v1/projects/${var.project-id}/regions/europe-west1/subnetworks/k8s-nodes"
+    subnetwork_project = var.project-id
   }
 
-  project = "${var.project-id}"
+  project = var.project-id
   region  = "europe-west1"
 
   reservation_affinity {
@@ -44,7 +44,7 @@ resource "google_compute_instance_template" "cfgsvr_instance_template" {
   }
 
   service_account {
-    email  = "702081712633-compute@developer.gserviceaccount.com"
+    email  = "${var.project-number}-compute@developer.gserviceaccount.com"
     scopes = ["https://www.googleapis.com/auth/devstorage.read_only", "https://www.googleapis.com/auth/logging.write", "https://www.googleapis.com/auth/monitoring.write", "https://www.googleapis.com/auth/service.management.readonly", "https://www.googleapis.com/auth/servicecontrol", "https://www.googleapis.com/auth/trace.append"]
   }
 
@@ -55,4 +55,4 @@ resource "google_compute_instance_template" "cfgsvr_instance_template" {
 
   tags = ["airqo-shard", "http-server", "https-server"]
 }
-# terraform import google_compute_instance_template.cfgsvr_instance_template projects/airqo-250220/global/instanceTemplates/cfgsvr-instance-template
+# terraform import google_compute_instance_template.cfgsvr_instance_template projects/${var.project-id}/global/instanceTemplates/cfgsvr-instance-template

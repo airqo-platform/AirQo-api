@@ -4,13 +4,13 @@ resource "google_compute_instance" "airqo_stage_k8s_worker_2" {
     device_name = "airqo-stage-k8s-worker-2"
 
     initialize_params {
-      image = "https://www.googleapis.com/compute/beta/projects/ubuntu-os-cloud/global/images/ubuntu-2004-focal-v20220712"
+      image = "ubuntu-2004-focal-v20220712"
       size  = 100
       type  = "pd-standard"
     }
 
     mode   = "READ_WRITE"
-    source = "https://www.googleapis.com/compute/v1/projects/airqo-250220/zones/europe-west1-b/disks/airqo-stage-k8s-worker-2"
+    source = "https://www.googleapis.com/compute/v1/projects/${var.project-id}/zones/europe-west1-b/disks/airqo-stage-k8s-worker-2"
   }
 
   can_ip_forward = true
@@ -29,14 +29,14 @@ resource "google_compute_instance" "airqo_stage_k8s_worker_2" {
       network_tier = "PREMIUM"
     }
 
-    network            = "https://www.googleapis.com/compute/v1/projects/airqo-250220/global/networks/airqo-k8s-cluster"
+    network            = "https://www.googleapis.com/compute/v1/projects/${var.project-id}/global/networks/airqo-k8s-cluster"
     network_ip         = "10.240.0.70"
     stack_type         = "IPV4_ONLY"
-    subnetwork         = "https://www.googleapis.com/compute/v1/projects/airqo-250220/regions/europe-west1/subnetworks/k8s-nodes"
-    subnetwork_project = "${var.project-id}"
+    subnetwork         = "https://www.googleapis.com/compute/v1/projects/${var.project-id}/regions/europe-west1/subnetworks/k8s-nodes"
+    subnetwork_project = var.project-id
   }
 
-  project = "${var.project-id}"
+  project = var.project-id
 
   reservation_affinity {
     type = "ANY_RESERVATION"
@@ -49,7 +49,7 @@ resource "google_compute_instance" "airqo_stage_k8s_worker_2" {
   }
 
   service_account {
-    email  = "702081712633-compute@developer.gserviceaccount.com"
+    email  = "${var.project-number}-compute@developer.gserviceaccount.com"
     scopes = ["https://www.googleapis.com/auth/compute", "https://www.googleapis.com/auth/devstorage.read_only", "https://www.googleapis.com/auth/logging.write", "https://www.googleapis.com/auth/monitoring", "https://www.googleapis.com/auth/service.management.readonly", "https://www.googleapis.com/auth/servicecontrol"]
   }
 
@@ -61,4 +61,4 @@ resource "google_compute_instance" "airqo_stage_k8s_worker_2" {
   tags = ["airqo-k8s-cluster", "worker"]
   zone = "europe-west1-b"
 }
-# terraform import google_compute_instance.airqo_stage_k8s_worker_2 projects/airqo-250220/zones/europe-west1-b/instances/airqo-stage-k8s-worker-2
+# terraform import google_compute_instance.airqo_stage_k8s_worker_2 projects/${var.project-id}/zones/europe-west1-b/instances/airqo-stage-k8s-worker-2

@@ -5,9 +5,9 @@ resource "google_compute_firewall" "ingress_allow_all" {
 
   direction     = "INGRESS"
   name          = "ingress-allow-all"
-  network       = "https://www.googleapis.com/compute/v1/projects/airqo-250220/global/networks/pipeline-k8s-cluster"
+  network       = "https://www.googleapis.com/compute/v1/projects/${var.project-id}/global/networks/pipeline-k8s-cluster"
   priority      = 1000
-  project       = "${var.project-id}"
+  project       = var.project-id
   source_ranges = ["0.0.0.0/0"]
 }
-# terraform import google_compute_firewall.ingress_allow_all projects/airqo-250220/global/firewalls/ingress-allow-all
+# terraform import google_compute_firewall.ingress_allow_all projects/${var.project-id}/global/firewalls/ingress-allow-all

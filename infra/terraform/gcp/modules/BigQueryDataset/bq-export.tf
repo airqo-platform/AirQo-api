@@ -17,6 +17,6 @@ resource "google_bigquery_dataset" "bq_export" {
   dataset_id                 = "bq_export"
   delete_contents_on_destroy = false
   location                   = "US"
-  project                    = "${var.project-id}"
+  project                    = var.project-id
 }
-# terraform import google_bigquery_dataset.bq_export projects/airqo-250220/datasets/bq_export
+# terraform import google_bigquery_dataset.bq_export projects/${var.project-id}/datasets/bq_export

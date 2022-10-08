@@ -12,9 +12,9 @@ resource "google_storage_bucket" "airflow_logs_stage" {
     }
   }
 
-  location                    = "EU"
+  location                    = "${var.location}"
   name                        = "airflow_logs_stage"
-  project                     = "${var.project-id}"
+  project                     = var.project-id
   # Argument "public_access_prevention" not expected here.
 # public_access_prevention    = "inherited"
   storage_class               = "STANDARD"

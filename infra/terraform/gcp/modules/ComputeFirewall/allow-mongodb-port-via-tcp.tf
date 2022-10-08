@@ -10,9 +10,9 @@ resource "google_compute_firewall" "allow_mongodb_port_via_tcp" {
 
   direction     = "INGRESS"
   name          = "allow-mongodb-port-via-tcp"
-  network       = "https://www.googleapis.com/compute/v1/projects/airqo-250220/global/networks/default"
+  network       = "https://www.googleapis.com/compute/v1/projects/${var.project-id}/global/networks/default"
   priority      = 1000
-  project       = "${var.project-id}"
+  project       = var.project-id
   source_ranges = ["0.0.0.0/0"]
 }
-# terraform import google_compute_firewall.allow_mongodb_port_via_tcp projects/airqo-250220/global/firewalls/allow-mongodb-port-via-tcp
+# terraform import google_compute_firewall.allow_mongodb_port_via_tcp projects/${var.project-id}/global/firewalls/allow-mongodb-port-via-tcp

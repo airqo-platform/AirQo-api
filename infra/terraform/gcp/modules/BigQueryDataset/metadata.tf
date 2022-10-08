@@ -16,7 +16,7 @@ resource "google_bigquery_dataset" "metadata" {
 
   dataset_id                 = "metadata"
   delete_contents_on_destroy = false
-  location                   = "EU"
-  project                    = "${var.project-id}"
+  location                   = "${var.location}"
+  project                    = var.project-id
 }
-# terraform import google_bigquery_dataset.metadata projects/airqo-250220/datasets/metadata
+# terraform import google_bigquery_dataset.metadata projects/${var.project-id}/datasets/metadata

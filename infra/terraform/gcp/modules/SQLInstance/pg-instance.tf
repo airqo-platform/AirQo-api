@@ -1,7 +1,7 @@
 resource "google_sql_database_instance" "pg_instance" {
   database_version = "MYSQL_5_7"
   name             = "pg-instance"
-  project          = "${var.project-id}"
+  project          = var.project-id
   region           = "us-central1"
 
   settings {
@@ -38,4 +38,4 @@ resource "google_sql_database_instance" "pg_instance" {
     tier         = "db-n1-highmem-4"
   }
 }
-# terraform import google_sql_database_instance.pg_instance projects/airqo-250220/instances/pg-instance
+# terraform import google_sql_database_instance.pg_instance projects/${var.project-id}/instances/pg-instance

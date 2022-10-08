@@ -1,10 +1,10 @@
 resource "google_compute_disk" "temp_calibrate_service" {
-  image                     = "https://www.googleapis.com/compute/beta/projects/ubuntu-os-cloud/global/images/ubuntu-2004-focal-v20220419"
+  image                     = "ubuntu-2004-focal-v20220419"
   name                      = "temp-calibrate-service"
   physical_block_size_bytes = 4096
-  project                   = "${var.project-id}"
-  size                      = 10
+  project                   = var.project-id
+  size      = var.disk_size["tiny"]
   type                      = "pd-balanced"
-  zone                      = "europe-west1-b"
+  zone                      = var.zone
 }
-# terraform import google_compute_disk.temp_calibrate_service projects/airqo-250220/zones/europe-west1-b/disks/temp-calibrate-service
+# terraform import google_compute_disk.temp_calibrate_service projects/${var.project-id}/zones/europe-west1-b/disks/temp-calibrate-service

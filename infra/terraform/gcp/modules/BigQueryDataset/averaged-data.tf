@@ -16,7 +16,7 @@ resource "google_bigquery_dataset" "averaged_data" {
 
   dataset_id                 = "averaged_data"
   delete_contents_on_destroy = false
-  location                   = "EU"
-  project                    = "${var.project-id}"
+  location                   = "${var.location}"
+  project                    = var.project-id
 }
-# terraform import google_bigquery_dataset.averaged_data projects/airqo-250220/datasets/averaged_data
+# terraform import google_bigquery_dataset.averaged_data projects/${var.project-id}/datasets/averaged_data

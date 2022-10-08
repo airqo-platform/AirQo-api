@@ -9,6 +9,6 @@ resource "google_compute_backend_bucket" "stage_website_cdn" {
 
   enable_cdn = true
   name       = "stage-website-cdn"
-  project    = "${var.project-id}"
+  project    = var.project-id
 }
-# terraform import google_compute_backend_bucket.stage_website_cdn projects/airqo-250220/global/backendBuckets/stage-website-cdn
+# terraform import google_compute_backend_bucket.stage_website_cdn projects/${var.project-id}/global/backendBuckets/stage-website-cdn

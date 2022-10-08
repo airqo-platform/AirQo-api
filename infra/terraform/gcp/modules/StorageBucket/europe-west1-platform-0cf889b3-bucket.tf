@@ -9,7 +9,7 @@ resource "google_storage_bucket" "europe_west1_platform_0cf889b3_bucket" {
 
   location                 = "EUROPE-WEST1"
   name                     = "europe-west1-platform-0cf889b3-bucket"
-  project                  = "${var.project-id}"
+  project                  = var.project-id
   storage_class            = "STANDARD"
 }
 # terraform import google_storage_bucket.europe_west1_platform_0cf889b3_bucket europe-west1-platform-0cf889b3-bucket

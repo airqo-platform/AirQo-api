@@ -14,6 +14,10 @@ variable "zone" {
   default = "europe-west1-b"
 }
 
+variable "location" {
+  default = "EU"
+}
+
 variable "os" {
   default = {
     "ubuntu-xenial" = "ubuntu-1604-xenial-v20200129"

@@ -38,7 +38,7 @@ resource "google_storage_bucket" "us_artifacts_airqo_250220_appspot_com" {
 
   location                 = "US"
   name                     = "us.artifacts.airqo-250220.appspot.com"
-  project                  = "${var.project-id}"
+  project                  = var.project-id
   storage_class            = "STANDARD"
 }
 # terraform import google_storage_bucket.us_artifacts_airqo_250220_appspot_com us.artifacts.airqo-250220.appspot.com

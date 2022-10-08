@@ -1,5 +1,5 @@
 resource "google_secret_manager_secret" "prod_env_website" {
-  project = "702081712633"
+  project = "${var.project-number}"
 
   replication {
     automatic = true
@@ -7,4 +7,4 @@ resource "google_secret_manager_secret" "prod_env_website" {
 
   secret_id = "prod-env-website"
 }
-# terraform import google_secret_manager_secret.prod_env_website projects/702081712633/secrets/prod-env-website
+# terraform import google_secret_manager_secret.prod_env_website projects/${var.project-number}/secrets/prod-env-website

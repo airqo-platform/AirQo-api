@@ -1,5 +1,5 @@
 resource "google_secret_manager_secret" "prod_env_exceedances" {
-  project = "702081712633"
+  project = "${var.project-number}"
 
   replication {
     automatic = true
@@ -13,7 +13,7 @@ resource "google_secret_manager_secret" "prod_env_exceedances" {
   secret_id = "prod-env-exceedances"
 
   topics {
-    name = "projects/airqo-250220/topics/secrets-manager"
+    name = "projects/${var.project-id}/topics/secrets-manager"
   }
 }
-# terraform import google_secret_manager_secret.prod_env_exceedances projects/702081712633/secrets/prod-env-exceedances
+# terraform import google_secret_manager_secret.prod_env_exceedances projects/${var.project-number}/secrets/prod-env-exceedances

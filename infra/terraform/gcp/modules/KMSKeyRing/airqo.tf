@@ -1,6 +1,6 @@
 resource "google_kms_crypto_key" "airqo" {
   destroy_scheduled_duration = "86400s"
-  key_ring                   = "projects/airqo-250220/locations/eur3/keyRings/airqo-api"
+  key_ring                   = "projects/${var.project-id}/locations/eur3/keyRings/airqo-api"
   name                       = "airqo"
   purpose                    = "ENCRYPT_DECRYPT"
   rotation_period            = "7776000s"
@@ -10,4 +10,4 @@ resource "google_kms_crypto_key" "airqo" {
     protection_level = "SOFTWARE"
   }
 }
-# terraform import google_kms_crypto_key.airqo projects/airqo-250220/locations/eur3/keyRings/airqo-api/cryptoKeys/airqo
+# terraform import google_kms_crypto_key.airqo projects/${var.project-id}/locations/eur3/keyRings/airqo-api/cryptoKeys/airqo

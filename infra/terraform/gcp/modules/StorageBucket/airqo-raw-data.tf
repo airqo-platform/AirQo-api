@@ -1,8 +1,8 @@
 resource "google_storage_bucket" "airqo_raw_data" {
   force_destroy               = false
-  location                    = "EU"
+  location                    = "${var.location}"
   name                        = "airqo_raw_data"
-  project                     = "${var.project-id}"
+  project                     = var.project-id
   # Argument "public_access_prevention" not expected here.
 # public_access_prevention    = "inherited"
   storage_class               = "STANDARD"

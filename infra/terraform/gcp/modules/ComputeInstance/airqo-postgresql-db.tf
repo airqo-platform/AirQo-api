@@ -4,13 +4,13 @@ resource "google_compute_instance" "airqo_postgresql_db" {
     device_name = "airqo-postgresql-db"
 
     initialize_params {
-      image = "https://www.googleapis.com/compute/beta/projects/ubuntu-os-cloud/global/images/ubuntu-2004-focal-v20211212"
+      image = "ubuntu-2004-focal-v20211212"
       size  = 50
       type  = "pd-balanced"
     }
 
     mode   = "READ_WRITE"
-    source = "https://www.googleapis.com/compute/v1/projects/airqo-250220/zones/europe-west1-b/disks/airqo-postgresql-db"
+    source = "https://www.googleapis.com/compute/v1/projects/${var.project-id}/zones/europe-west1-b/disks/airqo-postgresql-db"
   }
 
   confidential_instance_config {
@@ -27,14 +27,14 @@ resource "google_compute_instance" "airqo_postgresql_db" {
       network_tier = "PREMIUM"
     }
 
-    network            = "https://www.googleapis.com/compute/v1/projects/airqo-250220/global/networks/default"
+    network            = "https://www.googleapis.com/compute/v1/projects/${var.project-id}/global/networks/default"
     network_ip         = "10.132.0.26"
     stack_type         = "IPV4_ONLY"
-    subnetwork         = "https://www.googleapis.com/compute/v1/projects/airqo-250220/regions/europe-west1/subnetworks/default"
-    subnetwork_project = "${var.project-id}"
+    subnetwork         = "https://www.googleapis.com/compute/v1/projects/${var.project-id}/regions/europe-west1/subnetworks/default"
+    subnetwork_project = var.project-id
   }
 
-  project = "${var.project-id}"
+  project = var.project-id
 
   reservation_affinity {
     type = "ANY_RESERVATION"
@@ -47,7 +47,7 @@ resource "google_compute_instance" "airqo_postgresql_db" {
   }
 
   service_account {
-    email  = "702081712633-compute@developer.gserviceaccount.com"
+    email  = "${var.project-number}-compute@developer.gserviceaccount.com"
     scopes = ["https://www.googleapis.com/auth/cloud-platform"]
   }
 
@@ -59,4 +59,4 @@ resource "google_compute_instance" "airqo_postgresql_db" {
   tags = ["airqo-postgresql-db", "http-server", "https-server"]
   zone = "europe-west1-b"
 }
-# terraform import google_compute_instance.airqo_postgresql_db projects/airqo-250220/zones/europe-west1-b/instances/airqo-postgresql-db
+# terraform import google_compute_instance.airqo_postgresql_db projects/${var.project-id}/zones/europe-west1-b/instances/airqo-postgresql-db
