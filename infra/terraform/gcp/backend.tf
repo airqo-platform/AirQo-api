@@ -1,6 +1,6 @@
 terraform {
  backend "gcs" {
-   bucket  = "${var.project-id}-terraform-state"
+   bucket  = "airqo-250220-terraform-state"
    prefix  = "terraform/state"
  }
 }
