@@ -29,8 +29,6 @@ resource "google_compute_instance" "temp_calibrate_service" {
     network            = "default"
     network_ip         = "10.132.0.29"
     stack_type         = "IPV4_ONLY"
-    subnetwork         = "default"
-    subnetwork_project = var.project-id
   }
 
   project = var.project-id

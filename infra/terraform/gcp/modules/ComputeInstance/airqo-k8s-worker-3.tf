@@ -31,8 +31,6 @@ resource "google_compute_instance" "airqo_k8s_worker_3" {
     network            = "airqo-k8s-cluster"
     network_ip         = "10.240.0.67"
     stack_type         = "IPV4_ONLY"
-    subnetwork         = "k8s-nodes"
-    subnetwork_project = var.project-id
   }
 
   project = var.project-id

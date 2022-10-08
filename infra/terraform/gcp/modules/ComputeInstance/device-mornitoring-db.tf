@@ -28,8 +28,6 @@ resource "google_compute_instance" "device_mornitoring_db" {
 
     network            = "airqo-k8s-cluster"
     network_ip         = "10.240.0.10"
-    subnetwork         = "k8s-nodes"
-    subnetwork_project = var.project-id
   }
 
   project = var.project-id

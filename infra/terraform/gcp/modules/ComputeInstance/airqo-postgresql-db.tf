@@ -29,8 +29,6 @@ resource "google_compute_instance" "airqo_postgresql_db" {
     network            = "default"
     network_ip         = "10.132.0.26"
     stack_type         = "IPV4_ONLY"
-    subnetwork         = "default"
-    subnetwork_project = var.project-id
   }
 
   project = var.project-id

@@ -29,8 +29,6 @@ resource "google_compute_instance" "mlflow_tracking_server" {
     network            = "default"
     network_ip         = "10.128.0.22"
     stack_type         = "IPV4_ONLY"
-    subnetwork         = "default"
-    subnetwork_project = var.project-id
   }
 
   project = var.project-id

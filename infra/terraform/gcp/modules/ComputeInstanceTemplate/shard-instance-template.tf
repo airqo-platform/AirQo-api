@@ -27,8 +27,6 @@ resource "google_compute_instance_template" "shard_instance_template" {
     }
 
     network            = "airqo-k8s-cluster"
-    subnetwork         = "k8s-nodes"
-    subnetwork_project = var.project-id
   }
 
   project = var.project-id

@@ -28,8 +28,6 @@ resource "google_compute_instance" "airqo_devops" {
 
     network            = "default"
     network_ip         = "10.128.0.62"
-    subnetwork         = "default"
-    subnetwork_project = var.project-id
   }
 
   project = var.project-id
