@@ -7,12 +7,7 @@ At AirQo, we utilize terraform to quickly build and configure a reproducible clo
 ```  
 gcp
 │
-└───assets
-│   │
-└───airqo-250220
-│   │
-└───airqo-frontend
-│   │
+└───modules
 │_______  
 ```
 ### Installation and Usage 
