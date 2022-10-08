@@ -3,4 +3,4 @@ resource "google_service_account" "airqo_grc_cicd" {
   display_name = "airqo-grc-cicd"
   project      = var.project-id
 }
-# terraform import google_service_account.airqo_grc_cicd projects/${var.project-id}/serviceAccounts/airqo-grc-cicd@airqo-250220.iam.gserviceaccount.com
+# terraform import google_service_account.airqo_grc_cicd projects/${var.project-id}/serviceAccounts/airqo-grc-cicd@${var.project-id}.iam.gserviceaccount.com

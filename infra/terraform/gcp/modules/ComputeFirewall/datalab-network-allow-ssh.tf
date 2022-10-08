@@ -7,7 +7,7 @@ resource "google_compute_firewall" "datalab_network_allow_ssh" {
   description   = "Allow SSH access to Datalab instances"
   direction     = "INGRESS"
   name          = "datalab-network-allow-ssh"
-  network       = "https://www.googleapis.com/compute/v1/projects/${var.project-id}/global/networks/datalab-network"
+  network       = "datalab-network"
   priority      = 1000
   project       = var.project-id
   source_ranges = ["0.0.0.0/0"]

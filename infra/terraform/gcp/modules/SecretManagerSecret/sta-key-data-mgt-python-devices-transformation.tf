@@ -1,5 +1,5 @@
 resource "google_secret_manager_secret" "sta_key_data_mgt_python_devices_transformation" {
-  project = "${var.project-number}"
+  project = var.project-number
 
   replication {
     automatic = true

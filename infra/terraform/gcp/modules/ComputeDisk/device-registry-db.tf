@@ -1,9 +1,9 @@
 resource "google_compute_disk" "device_registry_db" {
-  image                     = "ubuntu-1804-bionic-v20210504"
+  image                     = var.os["ubuntu-focal"]
   name                      = "device-registry-db"
   physical_block_size_bytes = 4096
   project                   = var.project-id
-  size      = var.disk_size["large"]
+  size                      = var.disk_size["large"]
   type                      = "pd-balanced"
   zone                      = var.zone
 }

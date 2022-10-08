@@ -1,5 +1,5 @@
 resource "google_secret_manager_secret" "airflow_env_file" {
-  project = "${var.project-number}"
+  project = var.project-number
 
   replication {
     automatic = true

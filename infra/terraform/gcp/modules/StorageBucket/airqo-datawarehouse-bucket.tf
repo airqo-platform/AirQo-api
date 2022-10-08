@@ -1,6 +1,6 @@
 resource "google_storage_bucket" "airqo_datawarehouse_bucket" {
   force_destroy               = false
-  location                    = "US"
+  location                    = var.location
   name                        = "airqo_datawarehouse_bucket"
   project                     = var.project-id
   # Argument "public_access_prevention" not expected here.

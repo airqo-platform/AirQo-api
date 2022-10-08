@@ -4,4 +4,4 @@ resource "google_service_account" "mlflow_tracking_sa" {
   display_name = "MLFlow tracking SA"
   project      = var.project-id
 }
-# terraform import google_service_account.mlflow_tracking_sa projects/${var.project-id}/serviceAccounts/mlflow-tracking-sa@airqo-250220.iam.gserviceaccount.com
+# terraform import google_service_account.mlflow_tracking_sa projects/${var.project-id}/serviceAccounts/mlflow-tracking-sa@${var.project-id}.iam.gserviceaccount.com

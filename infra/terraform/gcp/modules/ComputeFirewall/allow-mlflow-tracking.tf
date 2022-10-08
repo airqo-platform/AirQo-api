@@ -6,7 +6,7 @@ resource "google_compute_firewall" "allow_mlflow_tracking" {
 
   direction     = "INGRESS"
   name          = "allow-mlflow-tracking"
-  network       = "https://www.googleapis.com/compute/v1/projects/${var.project-id}/global/networks/default"
+  network       = "default"
   priority      = 1000
   project       = var.project-id
   source_ranges = ["0.0.0.0/0"]

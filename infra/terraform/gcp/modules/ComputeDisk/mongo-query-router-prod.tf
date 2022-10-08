@@ -1,9 +1,9 @@
 resource "google_compute_disk" "mongo_query_router_prod" {
-  image                     = "ubuntu-1804-bionic-v20220616"
+  image                     = var.os["ubuntu-bionic"]
   name                      = "mongo-query-router-prod"
   physical_block_size_bytes = 4096
   project                   = var.project-id
-  size      = var.disk_size["tiny"]
+  size                      = var.disk_size["tiny"]
   type                      = "pd-balanced"
   zone                      = var.zone
 }

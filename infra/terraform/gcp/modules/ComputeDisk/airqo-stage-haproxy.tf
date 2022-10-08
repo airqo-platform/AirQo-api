@@ -1,9 +1,9 @@
 resource "google_compute_disk" "airqo_stage_haproxy" {
-  image                     = "ubuntu-1804-bionic-v20210720"
+  image                     = var.os["ubuntu-focal"]
   name                      = "airqo-stage-haproxy"
   physical_block_size_bytes = 4096
   project                   = var.project-id
-  size      = var.disk_size["tiny"]
+  size                      = var.disk_size["tiny"]
   type                      = "pd-balanced"
   zone                      = var.zone
 }

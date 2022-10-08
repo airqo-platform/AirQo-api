@@ -4,12 +4,12 @@ resource "google_compute_instance" "airqo_stage_k8s_worker_0" {
     device_name = "persistent-disk-0"
 
     initialize_params {
-      size = 100
+      size  = var.disk_size["medium"]
       type = "pd-standard"
     }
 
     mode   = "READ_WRITE"
-    source = "https://www.googleapis.com/compute/v1/projects/${var.project-id}/zones/europe-west1-b/disks/airqo-stage-k8s-worker-0"
+    source = "airqo-stage-k8s-worker-0"
   }
 
   can_ip_forward = true
@@ -24,14 +24,13 @@ resource "google_compute_instance" "airqo_stage_k8s_worker_0" {
 
   network_interface {
     access_config {
-      nat_ip       = "35.205.96.82"
       network_tier = "PREMIUM"
     }
 
-    network            = "https://www.googleapis.com/compute/v1/projects/${var.project-id}/global/networks/airqo-k8s-cluster"
+    network            = "airqo-k8s-cluster"
     network_ip         = "10.240.0.36"
     stack_type         = "IPV4_ONLY"
-    subnetwork         = "https://www.googleapis.com/compute/v1/projects/${var.project-id}/regions/europe-west1/subnetworks/k8s-nodes"
+    subnetwork         = "k8s-nodes"
     subnetwork_project = var.project-id
   }
 
@@ -58,6 +57,6 @@ resource "google_compute_instance" "airqo_stage_k8s_worker_0" {
   }
 
   tags = ["airqo-k8s-cluster", "worker"]
-  zone = "europe-west1-b"
+  zone = var.zone
 }
 # terraform import google_compute_instance.airqo_stage_k8s_worker_0 projects/${var.project-id}/zones/europe-west1-b/instances/airqo-stage-k8s-worker-0

@@ -48,7 +48,7 @@ resource "google_storage_bucket" "device_registry_db_backup" {
     }
   }
 
-  location                    = "US"
+  location                    = var.location
   name                        = "device-registry-db-backup"
   project                     = var.project-id
   # Argument "public_access_prevention" not expected here.

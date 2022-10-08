@@ -1,5 +1,5 @@
 resource "google_secret_manager_secret" "prod_key_auth_service_firebase_admin_sdk" {
-  project = "${var.project-number}"
+  project = var.project-number
 
   replication {
     automatic = true

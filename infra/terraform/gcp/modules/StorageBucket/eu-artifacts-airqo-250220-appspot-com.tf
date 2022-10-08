@@ -36,9 +36,9 @@ resource "google_storage_bucket" "eu_artifacts_airqo_250220_appspot_com" {
     }
   }
 
-  location                 = "${var.location}"
-  name                     = "eu.artifacts.airqo-250220.appspot.com"
+  location                 = var.location
+  name                     = "eu.artifacts.${var.project-id}.appspot.com"
   project                  = var.project-id
   storage_class            = "STANDARD"
 }
-# terraform import google_storage_bucket.eu_artifacts_airqo_250220_appspot_com eu.artifacts.airqo-250220.appspot.com
+# terraform import google_storage_bucket.eu_artifacts_airqo_250220_appspot_com eu.artifacts.${var.project-id}.appspot.com

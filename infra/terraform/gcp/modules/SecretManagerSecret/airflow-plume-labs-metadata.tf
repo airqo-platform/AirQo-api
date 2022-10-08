@@ -1,5 +1,5 @@
 resource "google_secret_manager_secret" "airflow_plume_labs_metadata" {
-  project = "${var.project-number}"
+  project = var.project-number
 
   replication {
     automatic = true

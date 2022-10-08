@@ -7,10 +7,10 @@ resource "google_compute_instance_template" "shard_instance_template" {
     auto_delete  = true
     boot         = true
     device_name  = "shard-instance-template"
-    disk_size_gb = 100
+    disk_size_gb  = var.disk_size["medium"]
     disk_type    = "pd-balanced"
     mode         = "READ_WRITE"
-    source_image = "projects/ubuntu-os-cloud/global/images/ubuntu-1804-bionic-v20210720"
+    source_image = var.os["ubuntu-bionic"]
     type         = "PERSISTENT"
   }
 
@@ -26,8 +26,8 @@ resource "google_compute_instance_template" "shard_instance_template" {
       network_tier = "PREMIUM"
     }
 
-    network            = "https://www.googleapis.com/compute/v1/projects/${var.project-id}/global/networks/airqo-k8s-cluster"
-    subnetwork         = "https://www.googleapis.com/compute/v1/projects/${var.project-id}/regions/europe-west1/subnetworks/k8s-nodes"
+    network            = "airqo-k8s-cluster"
+    subnetwork         = "k8s-nodes"
     subnetwork_project = var.project-id
   }
 

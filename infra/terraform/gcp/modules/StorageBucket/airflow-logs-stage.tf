@@ -12,11 +12,11 @@ resource "google_storage_bucket" "airflow_logs_stage" {
     }
   }
 
-  location                    = "${var.location}"
+  location                    = var.location
   name                        = "airflow_logs_stage"
   project                     = var.project-id
-  # Argument "public_access_prevention" not expected here.
-# public_access_prevention    = "inherited"
+  ## Argument "public_access_prevention" not expected here.
+  # public_access_prevention    = "inherited"
   storage_class               = "STANDARD"
   uniform_bucket_level_access = true
 }

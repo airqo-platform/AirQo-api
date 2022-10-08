@@ -4,13 +4,13 @@ resource "google_compute_instance" "auth_service_db" {
     device_name = "auth-service-db"
 
     initialize_params {
-      image = "ubuntu-1804-bionic-v20210504"
-      size  = 100
+      image = var.os["ubuntu-bionic"]
+      size  = var.disk_size["tiny"]
       type  = "pd-balanced"
     }
 
     mode   = "READ_WRITE"
-    source = "https://www.googleapis.com/compute/v1/projects/${var.project-id}/zones/europe-west1-b/disks/auth-service-db"
+    source = "auth-service-db"
   }
 
   confidential_instance_config {
@@ -23,13 +23,12 @@ resource "google_compute_instance" "auth_service_db" {
 
   network_interface {
     access_config {
-      nat_ip       = "35.240.84.68"
       network_tier = "PREMIUM"
     }
 
-    network            = "https://www.googleapis.com/compute/v1/projects/${var.project-id}/global/networks/airqo-k8s-cluster"
+    network            = "airqo-k8s-cluster"
     network_ip         = "10.240.0.7"
-    subnetwork         = "https://www.googleapis.com/compute/v1/projects/${var.project-id}/regions/europe-west1/subnetworks/k8s-nodes"
+    subnetwork         = "k8s-nodes"
     subnetwork_project = var.project-id
   }
 
@@ -56,6 +55,6 @@ resource "google_compute_instance" "auth_service_db" {
   }
 
   tags = ["db-vm", "http-server", "https-server"]
-  zone = "europe-west1-b"
+  zone = var.zone
 }
 # terraform import google_compute_instance.auth_service_db projects/${var.project-id}/zones/europe-west1-b/instances/auth-service-db

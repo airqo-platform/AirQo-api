@@ -3,7 +3,7 @@ resource "google_compute_disk" "paul_analysis_pd" {
   name                      = "paul-analysis-pd"
   physical_block_size_bytes = 4096
   project                   = var.project-id
-  size      = var.disk_size["large"]
+  size                      = var.disk_size["large"]
   type                      = "pd-standard"
   zone                      = var.zone
 }

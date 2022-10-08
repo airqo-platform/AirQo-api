@@ -17,7 +17,7 @@ resource "google_compute_firewall" "airqo_k8s_allow_internal" {
 
   direction     = "INGRESS"
   name          = "airqo-k8s-allow-internal"
-  network       = "https://www.googleapis.com/compute/v1/projects/${var.project-id}/global/networks/airqo-k8s-cluster"
+  network       = "airqo-k8s-cluster"
   priority      = 1000
   project       = var.project-id
   source_ranges = ["10.240.0.0/24"]

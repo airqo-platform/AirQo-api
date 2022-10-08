@@ -1,5 +1,5 @@
 resource "google_secret_manager_secret" "prod_key_analytics_service_account" {
-  project = "${var.project-number}"
+  project = var.project-number
 
   replication {
     automatic = true

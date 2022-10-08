@@ -1,10 +1,10 @@
 resource "google_storage_bucket" "hourly_data" {
   force_destroy               = false
-  location                    = "${var.location}"
+  location                    = var.location
   name                        = "hourly_data"
   project                     = var.project-id
-  # Argument "public_access_prevention" not expected here.
-# public_access_prevention    = "inherited"
+  ## Argument "public_access_prevention" not expected here.
+  # public_access_prevention    = "inherited"
   storage_class               = "STANDARD"
   uniform_bucket_level_access = true
 }

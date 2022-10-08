@@ -1,5 +1,5 @@
 resource "google_secret_manager_secret" "sta_env_calibrate_app" {
-  project = "${var.project-number}"
+  project = var.project-number
 
   replication {
     automatic = true

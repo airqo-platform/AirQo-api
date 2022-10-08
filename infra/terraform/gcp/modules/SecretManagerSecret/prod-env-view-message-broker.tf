@@ -1,5 +1,5 @@
 resource "google_secret_manager_secret" "prod_env_view_message_broker" {
-  project = "${var.project-number}"
+  project = var.project-number
 
   replication {
     automatic = true

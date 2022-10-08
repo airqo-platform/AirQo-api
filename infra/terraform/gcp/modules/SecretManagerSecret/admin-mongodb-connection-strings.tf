@@ -1,5 +1,5 @@
 resource "google_secret_manager_secret" "admin_mongodb_connection_strings" {
-  project = "${var.project-number}"
+  project = var.project-number
 
   replication {
     automatic = true

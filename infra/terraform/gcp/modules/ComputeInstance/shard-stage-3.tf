@@ -4,13 +4,13 @@ resource "google_compute_instance" "shard_stage_3" {
     device_name = "shard-dev-1"
 
     initialize_params {
-      image = "ubuntu-1804-bionic-v20220616"
-      size  = 100
+      image = var.os["ubuntu-bionic"]
+      size  = var.disk_size["tiny"]
       type  = "pd-balanced"
     }
 
     mode   = "READ_WRITE"
-    source = "https://www.googleapis.com/compute/v1/projects/${var.project-id}/zones/europe-west1-b/disks/shard-stage-3"
+    source = "shard-stage-3"
   }
 
   confidential_instance_config {
@@ -26,10 +26,10 @@ resource "google_compute_instance" "shard_stage_3" {
       network_tier = "PREMIUM"
     }
 
-    network            = "https://www.googleapis.com/compute/v1/projects/${var.project-id}/global/networks/airqo-k8s-cluster"
+    network            = "airqo-k8s-cluster"
     network_ip         = "10.240.0.97"
     stack_type         = "IPV4_ONLY"
-    subnetwork         = "https://www.googleapis.com/compute/v1/projects/${var.project-id}/regions/europe-west1/subnetworks/k8s-nodes"
+    subnetwork         = "k8s-nodes"
     subnetwork_project = var.project-id
   }
 
@@ -56,6 +56,6 @@ resource "google_compute_instance" "shard_stage_3" {
   }
 
   tags = ["airqo-shard", "http-server", "https-server"]
-  zone = "europe-west1-b"
+  zone = var.zone
 }
 # terraform import google_compute_instance.shard_stage_3 projects/${var.project-id}/zones/europe-west1-b/instances/shard-stage-3

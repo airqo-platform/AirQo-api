@@ -1,5 +1,5 @@
 resource "google_secret_manager_secret" "prod_env_predict_train_job" {
-  project = "${var.project-number}"
+  project = var.project-number
 
   replication {
     automatic = true

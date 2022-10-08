@@ -1,5 +1,5 @@
 resource "google_secret_manager_secret" "k8s_pipeline_zip" {
-  project = "${var.project-number}"
+  project = var.project-number
 
   replication {
     automatic = true

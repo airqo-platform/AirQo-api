@@ -3,7 +3,7 @@ resource "google_compute_disk" "airqo_k8s_pd_storage" {
   name                      = "airqo-k8s-pd-storage"
   physical_block_size_bytes = 4096
   project                   = var.project-id
-  size      = var.disk_size["small"]
+  size                      = var.disk_size["small"]
   type                      = "pd-standard"
   zone                      = "${var.zone}"
 }

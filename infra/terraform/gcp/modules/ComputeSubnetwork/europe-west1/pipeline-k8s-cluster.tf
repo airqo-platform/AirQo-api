@@ -1,7 +1,7 @@
 resource "google_compute_subnetwork" "pipeline_k8s_cluster" {
   ip_cidr_range = "10.132.0.0/20"
   name          = "pipeline-k8s-cluster"
-  network       = "https://www.googleapis.com/compute/v1/projects/${var.project-id}/global/networks/pipeline-k8s-cluster"
+  network       = "pipeline-k8s-cluster"
   project       = var.project-id
   purpose       = "PRIVATE"
   region        = "europe-west1"

@@ -1,5 +1,5 @@
 resource "google_secret_manager_secret" "sta_env_network_uptime" {
-  project = "${var.project-number}"
+  project = var.project-number
 
   replication {
     automatic = true

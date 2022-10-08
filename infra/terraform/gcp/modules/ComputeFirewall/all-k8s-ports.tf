@@ -10,7 +10,7 @@ resource "google_compute_firewall" "all_k8s_ports" {
 
   direction     = "INGRESS"
   name          = "all-k8s-ports"
-  network       = "https://www.googleapis.com/compute/v1/projects/${var.project-id}/global/networks/pipeline-k8s-cluster"
+  network       = "pipeline-k8s-cluster"
   priority      = 1000
   project       = var.project-id
   source_ranges = ["0.0.0.0/0"]

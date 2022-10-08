@@ -1,6 +1,6 @@
 resource "google_storage_bucket" "airqo_mlflow_artifacts" {
   force_destroy            = false
-  location                 = "US"
+  location                 = var.location
   name                     = "airqo-mlflow-artifacts"
   project                  = var.project-id
   storage_class            = "STANDARD"

@@ -4,13 +4,13 @@ resource "google_compute_instance" "mlflow_tracking_server" {
     device_name = "mlflow-tracking-server"
 
     initialize_params {
-      image = "https://www.googleapis.com/compute/beta/projects/cos-cloud/global/images/cos-77-12371-1109-0"
-      size  = 10
+      image = var.os["ubuntu-bionic"]
+      size  = var.disk_size["tiny"]
       type  = "pd-balanced"
     }
 
     mode   = "READ_WRITE"
-    source = "https://www.googleapis.com/compute/v1/projects/${var.project-id}/zones/us-central1-a/disks/mlflow-tracking-server"
+    source = "mlflow-tracking-server"
   }
 
   machine_type = "e2-small"
@@ -23,14 +23,13 @@ resource "google_compute_instance" "mlflow_tracking_server" {
 
   network_interface {
     access_config {
-      nat_ip       = "23.251.144.212"
       network_tier = "PREMIUM"
     }
 
-    network            = "https://www.googleapis.com/compute/v1/projects/${var.project-id}/global/networks/default"
+    network            = "default"
     network_ip         = "10.128.0.22"
     stack_type         = "IPV4_ONLY"
-    subnetwork         = "https://www.googleapis.com/compute/v1/projects/${var.project-id}/regions/us-central1/subnetworks/default"
+    subnetwork         = "default"
     subnetwork_project = var.project-id
   }
 
@@ -47,7 +46,7 @@ resource "google_compute_instance" "mlflow_tracking_server" {
   }
 
   service_account {
-    email  = "mlflow-tracking-sa@airqo-250220.iam.gserviceaccount.com"
+    email  = "mlflow-tracking-sa@${var.project-id}.iam.gserviceaccount.com"
     scopes = ["https://www.googleapis.com/auth/cloud-platform"]
   }
 
@@ -57,6 +56,6 @@ resource "google_compute_instance" "mlflow_tracking_server" {
   }
 
   tags = ["mlflow-tracking-server"]
-  zone = "us-central1-a"
+  zone = var.zone
 }
 # terraform import google_compute_instance.mlflow_tracking_server projects/${var.project-id}/zones/us-central1-a/instances/mlflow-tracking-server

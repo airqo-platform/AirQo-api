@@ -4,13 +4,13 @@ resource "google_compute_instance" "airqo_postgresql_db" {
     device_name = "airqo-postgresql-db"
 
     initialize_params {
-      image = "ubuntu-2004-focal-v20211212"
-      size  = 50
+      image = var.os["ubuntu-focal"]
+      size  = var.disk_size["small"]
       type  = "pd-balanced"
     }
 
     mode   = "READ_WRITE"
-    source = "https://www.googleapis.com/compute/v1/projects/${var.project-id}/zones/europe-west1-b/disks/airqo-postgresql-db"
+    source = "airqo-postgresql-db"
   }
 
   confidential_instance_config {
@@ -23,14 +23,13 @@ resource "google_compute_instance" "airqo_postgresql_db" {
 
   network_interface {
     access_config {
-      nat_ip       = "34.79.143.111"
       network_tier = "PREMIUM"
     }
 
-    network            = "https://www.googleapis.com/compute/v1/projects/${var.project-id}/global/networks/default"
+    network            = "default"
     network_ip         = "10.132.0.26"
     stack_type         = "IPV4_ONLY"
-    subnetwork         = "https://www.googleapis.com/compute/v1/projects/${var.project-id}/regions/europe-west1/subnetworks/default"
+    subnetwork         = "default"
     subnetwork_project = var.project-id
   }
 
@@ -57,6 +56,6 @@ resource "google_compute_instance" "airqo_postgresql_db" {
   }
 
   tags = ["airqo-postgresql-db", "http-server", "https-server"]
-  zone = "europe-west1-b"
+  zone = var.zone
 }
 # terraform import google_compute_instance.airqo_postgresql_db projects/${var.project-id}/zones/europe-west1-b/instances/airqo-postgresql-db

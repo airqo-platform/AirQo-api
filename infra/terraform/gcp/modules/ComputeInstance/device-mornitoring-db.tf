@@ -4,13 +4,13 @@ resource "google_compute_instance" "device_mornitoring_db" {
     device_name = "device-mornitoring-db"
 
     initialize_params {
-      image = "ubuntu-1804-bionic-v20210514"
-      size  = 250
+      image = var.os["ubuntu-bionic"]
+      size  = var.disk_size["large"]
       type  = "pd-balanced"
     }
 
     mode   = "READ_WRITE"
-    source = "https://www.googleapis.com/compute/v1/projects/${var.project-id}/zones/europe-west1-b/disks/device-mornitoring-db"
+    source = "device-mornitoring-db"
   }
 
   confidential_instance_config {
@@ -23,13 +23,12 @@ resource "google_compute_instance" "device_mornitoring_db" {
 
   network_interface {
     access_config {
-      nat_ip       = "34.140.46.94"
       network_tier = "PREMIUM"
     }
 
-    network            = "https://www.googleapis.com/compute/v1/projects/${var.project-id}/global/networks/airqo-k8s-cluster"
+    network            = "airqo-k8s-cluster"
     network_ip         = "10.240.0.10"
-    subnetwork         = "https://www.googleapis.com/compute/v1/projects/${var.project-id}/regions/europe-west1/subnetworks/k8s-nodes"
+    subnetwork         = "k8s-nodes"
     subnetwork_project = var.project-id
   }
 
@@ -56,6 +55,6 @@ resource "google_compute_instance" "device_mornitoring_db" {
   }
 
   tags = ["http-server", "https-server"]
-  zone = "europe-west1-b"
+  zone = var.zone
 }
 # terraform import google_compute_instance.device_mornitoring_db projects/${var.project-id}/zones/europe-west1-b/instances/device-mornitoring-db

@@ -4,13 +4,13 @@ resource "google_compute_instance" "temp_calibrate_service" {
     device_name = "temp-calibrate-service"
 
     initialize_params {
-      image = "ubuntu-2004-focal-v20220419"
-      size  = 10
+      image = var.os["ubuntu-focal"]
+      size  = var.disk_size["tiny"]
       type  = "pd-balanced"
     }
 
     mode   = "READ_WRITE"
-    source = "https://www.googleapis.com/compute/v1/projects/${var.project-id}/zones/europe-west1-b/disks/temp-calibrate-service"
+    source = "temp-calibrate-service"
   }
 
   confidential_instance_config {
@@ -23,14 +23,13 @@ resource "google_compute_instance" "temp_calibrate_service" {
 
   network_interface {
     access_config {
-      nat_ip       = "104.155.76.226"
       network_tier = "PREMIUM"
     }
 
-    network            = "https://www.googleapis.com/compute/v1/projects/${var.project-id}/global/networks/default"
+    network            = "default"
     network_ip         = "10.132.0.29"
     stack_type         = "IPV4_ONLY"
-    subnetwork         = "https://www.googleapis.com/compute/v1/projects/${var.project-id}/regions/europe-west1/subnetworks/default"
+    subnetwork         = "default"
     subnetwork_project = var.project-id
   }
 
@@ -57,6 +56,6 @@ resource "google_compute_instance" "temp_calibrate_service" {
   }
 
   tags = ["default-allow-http", "http-server", "https-server"]
-  zone = "europe-west1-b"
+  zone = var.zone
 }
 # terraform import google_compute_instance.temp_calibrate_service projects/${var.project-id}/zones/europe-west1-b/instances/temp-calibrate-service

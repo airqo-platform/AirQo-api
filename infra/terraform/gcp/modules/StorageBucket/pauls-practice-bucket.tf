@@ -1,6 +1,6 @@
 resource "google_storage_bucket" "pauls_practice_bucket" {
   force_destroy            = false
-  location                 = "US"
+  location                 = var.location
   name                     = "pauls-practice-bucket"
   project                  = var.project-id
   storage_class            = "STANDARD"

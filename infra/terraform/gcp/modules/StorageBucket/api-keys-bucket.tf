@@ -1,6 +1,6 @@
 resource "google_storage_bucket" "api_keys_bucket" {
   force_destroy            = false
-  location                 = "US"
+  location                 = var.location
   name                     = "api-keys-bucket"
   project                  = var.project-id
   storage_class            = "STANDARD"

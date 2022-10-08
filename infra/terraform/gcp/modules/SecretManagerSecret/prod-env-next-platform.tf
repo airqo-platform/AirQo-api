@@ -1,5 +1,5 @@
 resource "google_secret_manager_secret" "prod_env_next_platform" {
-  project = "${var.project-number}"
+  project = var.project-number
 
   replication {
     automatic = true

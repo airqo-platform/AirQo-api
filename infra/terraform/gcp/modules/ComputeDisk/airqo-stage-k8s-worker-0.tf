@@ -2,7 +2,7 @@ resource "google_compute_disk" "airqo_stage_k8s_worker_0" {
   name                      = "airqo-stage-k8s-worker-0"
   physical_block_size_bytes = 4096
   project                   = var.project-id
-  size      = var.disk_size["medium"]
+  size                      = var.disk_size["medium"]
   type                      = "pd-standard"
   zone                      = var.zone
 }

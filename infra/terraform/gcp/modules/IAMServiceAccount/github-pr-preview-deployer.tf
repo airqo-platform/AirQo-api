@@ -4,4 +4,4 @@ resource "google_service_account" "github_pr_preview_deployer" {
   display_name = "github-pr-preview-deployer"
   project      = var.project-id
 }
-# terraform import google_service_account.github_pr_preview_deployer projects/${var.project-id}/serviceAccounts/github-pr-preview-deployer@airqo-250220.iam.gserviceaccount.com
+# terraform import google_service_account.github_pr_preview_deployer projects/${var.project-id}/serviceAccounts/github-pr-preview-deployer@${var.project-id}.iam.gserviceaccount.com

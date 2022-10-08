@@ -3,4 +3,4 @@ resource "google_service_account" "mikebq" {
   display_name = "MikeBQ"
   project      = var.project-id
 }
-# terraform import google_service_account.mikebq projects/${var.project-id}/serviceAccounts/mikebq@airqo-250220.iam.gserviceaccount.com
+# terraform import google_service_account.mikebq projects/${var.project-id}/serviceAccounts/mikebq@${var.project-id}.iam.gserviceaccount.com

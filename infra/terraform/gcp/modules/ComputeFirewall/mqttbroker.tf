@@ -6,7 +6,7 @@ resource "google_compute_firewall" "mqttbroker" {
 
   direction     = "INGRESS"
   name          = "mqttbroker"
-  network       = "https://www.googleapis.com/compute/v1/projects/${var.project-id}/global/networks/default"
+  network       = "default"
   priority      = 0
   project       = var.project-id
   source_ranges = ["0.0.0.0/0"]

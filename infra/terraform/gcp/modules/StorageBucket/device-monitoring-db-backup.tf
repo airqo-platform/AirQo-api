@@ -1,6 +1,6 @@
 resource "google_storage_bucket" "device_monitoring_db_backup" {
   force_destroy               = false
-  location                    = "US"
+  location                    = var.location
   name                        = "device-monitoring-db-backup"
   project                     = var.project-id
   # Argument "public_access_prevention" not expected here.

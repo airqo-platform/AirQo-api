@@ -1,6 +1,6 @@
 resource "google_storage_bucket" "traffic_maps" {
   force_destroy            = false
-  location                 = "US"
+  location                 = var.location
   name                     = "traffic_maps"
   project                  = var.project-id
   storage_class            = "NEARLINE"

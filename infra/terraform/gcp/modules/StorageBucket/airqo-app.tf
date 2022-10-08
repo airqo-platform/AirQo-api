@@ -1,6 +1,6 @@
 resource "google_storage_bucket" "airqo_app" {
   force_destroy               = false
-  location                    = "US"
+  location                    = var.location
   name                        = "airqo-app"
   project                     = var.project-id
   # Argument "public_access_prevention" not expected here.

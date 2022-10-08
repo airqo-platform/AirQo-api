@@ -2,7 +2,7 @@ resource "google_sql_database_instance" "mlflow_backend" {
   database_version = "MYSQL_5_7"
   name             = "mlflow-backend"
   project          = var.project-id
-  region           = "us-central1"
+  region           = var.region
 
   settings {
     activation_policy = "ALWAYS"
@@ -20,7 +20,7 @@ resource "google_sql_database_instance" "mlflow_backend" {
 
     disk_autoresize       = true
     disk_autoresize_limit = 0
-    disk_size             = 10
+    disk_size             = var.disk_size["tiny"]
     disk_type             = "PD_SSD"
 
     ip_configuration {
@@ -28,7 +28,7 @@ resource "google_sql_database_instance" "mlflow_backend" {
     }
 
     location_preference {
-      zone = "us-central1-c"
+      zone = var.zone
     }
 
     pricing_plan = "PER_USE"

@@ -4,13 +4,13 @@ resource "google_compute_instance" "airqo_devops" {
     device_name = "airqo-devops"
 
     initialize_params {
-      image = "ubuntu-1604-xenial-v20200129"
-      size  = 200
+      image = var.os["ubuntu-xenial"]
+      size  = var.disk_size["large"]
       type  = "pd-standard"
     }
 
     mode   = "READ_WRITE"
-    source = "https://www.googleapis.com/compute/v1/projects/${var.project-id}/zones/us-central1-a/disks/airqo-devops"
+    source = "airqo-devops"
   }
 
   machine_type = "custom-1-7424-ext"
@@ -23,13 +23,12 @@ resource "google_compute_instance" "airqo_devops" {
 
   network_interface {
     access_config {
-      nat_ip       = "35.224.67.244"
       network_tier = "PREMIUM"
     }
 
-    network            = "https://www.googleapis.com/compute/v1/projects/${var.project-id}/global/networks/default"
+    network            = "default"
     network_ip         = "10.128.0.62"
-    subnetwork         = "https://www.googleapis.com/compute/v1/projects/${var.project-id}/regions/us-central1/subnetworks/default"
+    subnetwork         = "default"
     subnetwork_project = var.project-id
   }
 
@@ -51,6 +50,6 @@ resource "google_compute_instance" "airqo_devops" {
   }
 
   tags = ["http-server", "https-server"]
-  zone = "us-central1-a"
+  zone = var.zone
 }
 # terraform import google_compute_instance.airqo_devops projects/${var.project-id}/zones/us-central1-a/instances/airqo-devops

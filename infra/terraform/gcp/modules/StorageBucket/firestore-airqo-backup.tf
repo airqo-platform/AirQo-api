@@ -12,11 +12,11 @@ resource "google_storage_bucket" "firestore_airqo_backup" {
     }
   }
 
-  location                    = "US"
+  location                    = var.location
   name                        = "firestore_airqo_backup"
   project                     = var.project-id
-  # Argument "public_access_prevention" not expected here.
-# public_access_prevention    = "inherited"
+  ## Argument "public_access_prevention" not expected here.
+  # public_access_prevention    = "inherited"
   storage_class               = "NEARLINE"
   uniform_bucket_level_access = true
 }

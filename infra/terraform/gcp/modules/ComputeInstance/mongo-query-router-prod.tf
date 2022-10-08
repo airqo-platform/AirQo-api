@@ -4,13 +4,13 @@ resource "google_compute_instance" "mongo_query_router_prod" {
     device_name = "mongo-query-router-dev"
 
     initialize_params {
-      image = "ubuntu-1804-bionic-v20220616"
-      size  = 10
+      image = var.os["ubuntu-bionic"]
+      size  = var.disk_size["tiny"]
       type  = "pd-balanced"
     }
 
     mode   = "READ_WRITE"
-    source = "https://www.googleapis.com/compute/v1/projects/${var.project-id}/zones/europe-west1-b/disks/mongo-query-router-prod"
+    source = "mongo-query-router-prod"
   }
 
   confidential_instance_config {
@@ -23,14 +23,13 @@ resource "google_compute_instance" "mongo_query_router_prod" {
 
   network_interface {
     access_config {
-      nat_ip       = "35.205.222.241"
       network_tier = "PREMIUM"
     }
 
-    network            = "https://www.googleapis.com/compute/v1/projects/${var.project-id}/global/networks/airqo-k8s-cluster"
+    network            = "airqo-k8s-cluster"
     network_ip         = "10.240.0.84"
     stack_type         = "IPV4_ONLY"
-    subnetwork         = "https://www.googleapis.com/compute/v1/projects/${var.project-id}/regions/europe-west1/subnetworks/k8s-nodes"
+    subnetwork         = "k8s-nodes"
     subnetwork_project = var.project-id
   }
 
@@ -57,6 +56,6 @@ resource "google_compute_instance" "mongo_query_router_prod" {
   }
 
   tags = ["airqo-shard", "http-server", "https-server"]
-  zone = "europe-west1-b"
+  zone = var.zone
 }
 # terraform import google_compute_instance.mongo_query_router_prod projects/${var.project-id}/zones/europe-west1-b/instances/mongo-query-router-prod

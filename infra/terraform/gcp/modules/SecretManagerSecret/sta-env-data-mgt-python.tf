@@ -1,5 +1,5 @@
 resource "google_secret_manager_secret" "sta_env_data_mgt_python" {
-  project = "${var.project-number}"
+  project = var.project-number
 
   replication {
     automatic = true

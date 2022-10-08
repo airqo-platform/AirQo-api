@@ -1,9 +1,9 @@
 resource "google_compute_disk" "airqo_k8s_worker_2" {
-  image                     = "ubuntu-2004-focal-v20220712"
+  image                     = var.os["ubuntu-focal"]
   name                      = "airqo-k8s-worker-2"
   physical_block_size_bytes = 4096
   project                   = var.project-id
-  size      = var.disk_size["large"]
+  size                      = var.disk_size["large"]
   type                      = "pd-standard"
   zone                      = var.zone
 }

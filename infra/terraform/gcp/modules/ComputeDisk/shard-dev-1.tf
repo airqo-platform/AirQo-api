@@ -1,9 +1,9 @@
 resource "google_compute_disk" "shard_dev_1" {
-  image                     = "ubuntu-1804-bionic-v20220616"
+  image                     = var.os["ubuntu-bionic"]
   name                      = "shard-dev-1"
   physical_block_size_bytes = 4096
   project                   = var.project-id
-  size      = var.disk_size["medium"]
+  size                      = var.disk_size["medium"]
   type                      = "pd-balanced"
   zone                      = var.zone
 }

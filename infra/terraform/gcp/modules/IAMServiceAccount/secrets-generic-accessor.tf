@@ -4,4 +4,4 @@ resource "google_service_account" "secrets_generic_accessor" {
   display_name = "secrets-generic-accessor"
   project      = var.project-id
 }
-# terraform import google_service_account.secrets_generic_accessor projects/${var.project-id}/serviceAccounts/secrets-generic-accessor@airqo-250220.iam.gserviceaccount.com
+# terraform import google_service_account.secrets_generic_accessor projects/${var.project-id}/serviceAccounts/secrets-generic-accessor@${var.project-id}.iam.gserviceaccount.com

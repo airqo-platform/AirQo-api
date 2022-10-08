@@ -1,6 +1,6 @@
 resource "google_storage_bucket" "static_thingspeak" {
   force_destroy            = false
-  location                 = "US"
+  location                 = var.location
   name                     = "static-thingspeak"
   project                  = var.project-id
   storage_class            = "STANDARD"
