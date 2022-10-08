@@ -20,8 +20,8 @@ variable "location" {
 
 variable "os" {
   default = {
-    "ubuntu-xenial" = var.os["ubuntu-xenial"]
-    "ubuntu-bionic" = "ubuntu-1804-bionic"
+    "ubuntu-xenial" = "ubuntu-1604-xenial-v20200129"
+    "ubuntu-bionic" = "ubuntu-1804-bionic-v20200916"
     "ubuntu-focal" = "ubuntu-2004-focal-v20220712"
   }
 }
