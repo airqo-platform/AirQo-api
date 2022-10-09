@@ -315,16 +315,14 @@ class MainClass:
             dataframe=pd.DataFrame(message_broker_data),
         )
 
-        api_data = KccaUtils.transform_data_for_api(data=clean_data)
-
         big_query_data = DataValidationUtils.process_for_big_query(
             dataframe=clean_data,
-            table=BigQueryApi().hourly_measurements_table,
+            table=self.bigquery_api.hourly_measurements_table,
             tenant=Tenant.ALL,
         )
         self.export_dataframe(file_name="kcca_big_query_data", dataframe=big_query_data)
 
-        kcca_latest_data = KccaUtils.process_latest_data(big_query_data)
+        kcca_latest_data = KccaUtils.process_latest_data(clean_data)
         kcca_latest_data.to_csv("kcca_latest_data.csv", index=False)
 
         DataWarehouseUtils.update_latest_measurements(

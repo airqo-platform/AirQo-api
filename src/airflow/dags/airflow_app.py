@@ -14,7 +14,6 @@ from airqo_etl_utils.airflow_custom_utils import slack_dag_failure_notification
     tags=["cleanup"],
 )
 def aiflow_app_cleanup():
-
     @task()
     def delete_old_dag_runs():
         from airqo_etl_utils.airflow_custom_utils import AirflowUtils
