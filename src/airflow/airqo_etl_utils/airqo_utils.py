@@ -289,7 +289,9 @@ class AirQoDataUtils:
 
         airqo_api = AirQoApi()
         thingspeak_api = ThingspeakApi()
-        devices = airqo_api.get_devices(tenant=Tenant.AIRQO, category=device_category)
+        devices = airqo_api.get_devices(
+            tenant=Tenant.AIRQO, device_category=device_category
+        )
 
         if device_numbers:
             devices = list(

@@ -20,20 +20,17 @@ def big_query_update_sites_etl():
     def extract_sites() -> pd.DataFrame:
         from airqo_etl_utils.meta_data_utils import MetaDataUtils
 
-        sites_data = MetaDataUtils.extract_meta_data(component="sites")
-
-        return sites_data
+        return MetaDataUtils.extract_meta_data(component="sites")
 
     @task()
     def load(data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
-        from airqo_etl_utils.constants import JobAction
 
         big_query_api = BigQueryApi()
-        big_query_api.load_data(
+        big_query_api.update_meta_data(
             dataframe=data,
             table=big_query_api.sites_table,
-            job_action=JobAction.OVERWRITE,
+            component="sites",
         )
 
     sites = extract_sites()
@@ -55,20 +52,17 @@ def big_query_update_devices_etl():
     def extract_devices():
         from airqo_etl_utils.meta_data_utils import MetaDataUtils
 
-        devices_data = MetaDataUtils.extract_meta_data(component="devices")
-
-        return devices_data
+        return MetaDataUtils.extract_meta_data(component="devices")
 
     @task()
     def load(data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
-        from airqo_etl_utils.constants import JobAction
 
         big_query_api = BigQueryApi()
-        big_query_api.load_data(
+        big_query_api.update_meta_data(
             dataframe=data,
             table=big_query_api.devices_table,
-            job_action=JobAction.OVERWRITE,
+            component="devices",
         )
 
     devices = extract_devices()

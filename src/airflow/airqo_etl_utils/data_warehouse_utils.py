@@ -213,7 +213,6 @@ class DataWarehouseUtils:
             columns={
                 "latitude": "device_latitude",
                 "longitude": "device_longitude",
-                "category": "device_category",
             },
             inplace=True,
         )

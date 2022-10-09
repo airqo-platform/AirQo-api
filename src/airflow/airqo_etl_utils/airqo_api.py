@@ -94,7 +94,7 @@ class AirQoApi:
     def get_devices(
         self,
         tenant: Tenant = Tenant.ALL,
-        category: DeviceCategory = DeviceCategory.NONE,
+        device_category: DeviceCategory = DeviceCategory.NONE,
     ) -> list:
         devices = []
         if tenant == Tenant.ALL:
@@ -104,7 +104,16 @@ class AirQoApi:
                 try:
                     response = self.__request("devices", {"tenant": str(tenant_enum)})
                     tenant_devices = [
-                        {**device, **{"tenant": str(tenant_enum)}}
+                        {
+                            **device,
+                            **{
+                                "tenant": str(tenant_enum),
+                                "device_manufacturer": device.get(
+                                    "device_manufacturer",
+                                    tenant_enum.device_manufacturer(),
+                                ),
+                            },
+                        }
                         for device in response.get("devices", [])
                     ]
                     devices.extend(tenant_devices)
@@ -115,7 +124,15 @@ class AirQoApi:
             response = self.__request("devices", {"tenant": str(tenant)})
             if response:
                 devices = [
-                    {**device, **{"tenant": str(tenant)}}
+                    {
+                        **device,
+                        **{
+                            "tenant": str(tenant),
+                            "device_manufacturer": device.get(
+                                "device_manufacturer", tenant.device_manufacturer()
+                            ),
+                        },
+                    }
                     for device in response.get("devices", [])
                 ]
 
@@ -124,9 +141,15 @@ class AirQoApi:
                 **device,
                 **{
                     "device_number": device.get("device_number", None),
+                    "approximate_latitude": device.get(
+                        "approximate_latitude", device.get("latitude", None)
+                    ),
+                    "approximate_longitude": device.get(
+                        "approximate_longitude", device.get("longitude", None)
+                    ),
                     "device_id": device.get("name", None),
                     "site_id": device.get("site", {}).get("_id", None),
-                    "category": str(
+                    "device_category": str(
                         DeviceCategory.from_str(device.get("category", ""))
                     ),
                 },
@@ -134,8 +157,10 @@ class AirQoApi:
             for device in devices
         ]
 
-        if category != DeviceCategory.NONE:
-            devices = list(filter(lambda y: y["category"] == str(category), devices))
+        if device_category != DeviceCategory.NONE:
+            devices = list(
+                filter(lambda y: y["device_category"] == str(device_category), devices)
+            )
 
         return devices
 
@@ -248,6 +273,17 @@ class AirQoApi:
                 **site,
                 **{
                     "site_id": site.get("_id", None),
+                    "location": site.get("location", None),
+                    "approximate_latitude": site.get(
+                        "approximate_latitude", site.get("latitude", None)
+                    ),
+                    "approximate_longitude": site.get(
+                        "approximate_longitude", site.get("longitude", None)
+                    ),
+                    "search_name": site.get("search_name", site.get("name", None)),
+                    "location_name": site.get(
+                        "location_name", site.get("location", None)
+                    ),
                 },
             }
             for site in sites
