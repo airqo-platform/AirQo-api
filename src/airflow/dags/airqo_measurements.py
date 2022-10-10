@@ -451,23 +451,14 @@ def airqo_realtime_measurements_etl():
 
     @task()
     def update_latest_data(data: pd.DataFrame):
-        from airqo_etl_utils.bigquery_api import BigQueryApi
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
-        from airqo_etl_utils.data_validator import DataValidationUtils
+        from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
         from airqo_etl_utils.constants import Tenant, DeviceCategory
 
-        bam_data = AirQoDataUtils.process_latest_data(
+        data = AirQoDataUtils.process_latest_data(
             data=data, device_category=DeviceCategory.LOW_COST
         )
-
-        big_query_api = BigQueryApi()
-        table = big_query_api.latest_measurements_table
-
-        data = DataValidationUtils.process_for_big_query(
-            dataframe=bam_data, table=table, tenant=Tenant.AIRQO
-        )
-
-        big_query_api.update_data(data, table=table)
+        DataWarehouseUtils.update_latest_measurements(data=data, tenant=Tenant.AIRQO)
 
     raw_data = extract_raw_data()
     clean_data = clean_data_raw_data(raw_data)

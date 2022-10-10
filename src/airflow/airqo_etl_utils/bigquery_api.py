@@ -29,7 +29,6 @@ class BigQueryApi:
         )
         self.hourly_weather_table = configuration.BIGQUERY_HOURLY_WEATHER_TABLE
         self.raw_weather_table = configuration.BIGQUERY_RAW_WEATHER_TABLE
-        self.analytics_table = configuration.BIGQUERY_ANALYTICS_TABLE
         self.consolidated_data_table = configuration.BIGQUERY_ANALYTICS_TABLE
         self.sites_table = configuration.BIGQUERY_SITES_TABLE
         self.devices_table = configuration.BIGQUERY_DEVICES_TABLE
@@ -63,19 +62,19 @@ class BigQueryApi:
         date_time_columns = (
             date_time_columns
             if date_time_columns
-            else self.get_columns(table=table, data_type=ColumnDataType.TIMESTAMP)
+            else self.get_columns(table=table, column_type=ColumnDataType.TIMESTAMP)
         )
 
         float_columns = (
             float_columns
             if float_columns
-            else self.get_columns(table=table, data_type=ColumnDataType.FLOAT)
+            else self.get_columns(table=table, column_type=ColumnDataType.FLOAT)
         )
 
         integer_columns = (
             integer_columns
             if integer_columns
-            else self.get_columns(table=table, data_type=ColumnDataType.INTEGER)
+            else self.get_columns(table=table, column_type=ColumnDataType.INTEGER)
         )
 
         from .data_validator import DataValidationUtils
@@ -90,18 +89,18 @@ class BigQueryApi:
         return dataframe.drop_duplicates(keep="first")
 
     def get_columns(
-        self, table: str, data_type: ColumnDataType = ColumnDataType.NONE
+        self, table: str, column_type: ColumnDataType = ColumnDataType.NONE
     ) -> list:
 
         if table == self.hourly_measurements_table:
             schema_file = "measurements.json"
         elif table == self.raw_measurements_table:
             schema_file = "raw_measurements.json"
-        elif table == self.latest_measurements_table:
-            schema_file = "latest_measurements.json"
         elif table == self.hourly_weather_table or table == self.raw_weather_table:
             schema_file = "weather_data.json"
-        elif table == self.analytics_table or table == self.consolidated_data_table:
+        elif table == self.latest_measurements_table:
+            schema_file = "latest_measurements.json"
+        elif table == self.consolidated_data_table:
             schema_file = "data_warehouse.json"
         elif table == self.sites_table:
             schema_file = "sites.json"
@@ -120,19 +119,47 @@ class BigQueryApi:
             schema_file = "bam_measurements.json"
         elif table == self.raw_bam_measurements_table:
             schema_file = "bam_raw_measurements.json"
+        elif table == "all":
+            schema_file = None
         else:
             raise Exception("Invalid table")
 
-        schema = Utils.load_schema(file_name=schema_file)
+        if schema_file:
+            schema = Utils.load_schema(file_name=schema_file)
+        else:
+            schema = []
+            for file in [
+                "measurements",
+                "raw_measurements",
+                "weather_data",
+                "latest_measurements",
+                "data_warehouse",
+                "sites",
+                "sensor_positions",
+                "devices",
+                "mobile_measurements",
+                "airqo_mobile_measurements",
+                "bam_measurements",
+                "bam_raw_measurements",
+            ]:
+                file_schema = Utils.load_schema(file_name=f"{file}.json")
+                schema.extend(file_schema)
+
+            # with os.scandir(os.path.join("path", "schema")) as iterator:
+            #     for entry in iterator:
+            #         if entry.name.endswith(".json") and entry.is_file():
+            #
+            #             file_schema = Utils.load_schema(file_path=entry.path)
+            #             schema.extend(file_schema)
 
         columns = []
-        if data_type != ColumnDataType.NONE:
+        if column_type != ColumnDataType.NONE:
             for column in schema:
-                if column["type"] == str(data_type):
+                if column["type"] == str(column_type):
                     columns.append(column["name"])
         else:
             columns = [column["name"] for column in schema]
-        return columns
+        return list(set(columns))
 
     def load_data(
         self,

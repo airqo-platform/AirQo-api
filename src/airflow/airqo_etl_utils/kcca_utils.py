@@ -7,7 +7,7 @@ import requests
 from .airqo_api import AirQoApi
 from .bigquery_api import BigQueryApi
 from .config import configuration
-from .constants import Tenant, DataSource, Frequency, ColumnDataType
+from .constants import Tenant, DataSource, Frequency, DeviceCategory
 from .data_validator import DataValidationUtils
 from .date import date_to_str
 from .utils import Utils
@@ -109,38 +109,19 @@ class KccaUtils:
         )
 
         big_query_api = BigQueryApi()
-        columns = big_query_api.get_columns(
+        required_cols = big_query_api.get_columns(
             table=big_query_api.hourly_measurements_table
         )
-        columns = list(set(columns) & set(data.columns.to_list()))
-        data = data[columns]
 
-        floats = big_query_api.get_columns(
-            table=big_query_api.hourly_measurements_table,
-            data_type=ColumnDataType.FLOAT,
-        )
-        floats = list(set(columns) & set(floats))
+        data = Utils.populate_missing_columns(data=data, cols=required_cols)
+        data = data[required_cols]
 
-        timestamps = big_query_api.get_columns(
-            table=big_query_api.hourly_measurements_table,
-            data_type=ColumnDataType.TIMESTAMP,
-        )
-        timestamps = list(set(columns) & set(timestamps))
-
-        integers = big_query_api.get_columns(
-            table=big_query_api.hourly_measurements_table,
-            data_type=ColumnDataType.INTEGER,
-        )
-        integers = list(set(columns) & set(integers))
-
-        data = DataValidationUtils.format_data_types(
-            data=data, floats=floats, timestamps=timestamps, integers=integers
-        )
-
-        return data
+        return DataValidationUtils.remove_outliers(data)
 
     @staticmethod
     def process_latest_data(data: pd.DataFrame) -> pd.DataFrame:
+        data.loc[:, "tenant"] = str(Tenant.KCCA)
+        data.loc[:, "device_category"] = str(DeviceCategory.LOW_COST)
         return data
 
     @staticmethod
