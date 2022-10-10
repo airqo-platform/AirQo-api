@@ -10,9 +10,9 @@ from .constants import DeviceCategory, Tenant
 
 class AirQoApi:
     def __init__(self):
-        self.AIRQO_BASE_URL = configuration.AIRQO_BASE_URL
+        self.AIRQO_BASE_URL = configuration.AIRQO_BASE_URL.removesuffix("/")
         self.CALIBRATION_BASE_URL = configuration.CALIBRATION_BASE_URL
-        self.AIRQO_BASE_URL_V2 = configuration.AIRQO_BASE_URL_V2
+        self.AIRQO_BASE_URL_V2 = configuration.AIRQO_BASE_URL_V2.removesuffix("/")
         self.AIRQO_API_KEY = f"JWT {configuration.AIRQO_API_KEY}"
 
     def save_events(self, measurements: list, tenant: str) -> None:
@@ -276,7 +276,7 @@ class AirQoApi:
         headers = {"Authorization": self.AIRQO_API_KEY}
         if method is None or method == "get":
             api_request = requests.get(
-                "%s%s" % (base_url, endpoint),
+                "%s/%s" % (base_url, endpoint),
                 params=params,
                 headers=headers,
                 verify=False,
@@ -284,7 +284,7 @@ class AirQoApi:
         elif method == "put":
             headers["Content-Type"] = "application/json"
             api_request = requests.put(
-                "%s%s" % (base_url, endpoint),
+                "%s/%s" % (base_url, endpoint),
                 params=params,
                 headers=headers,
                 data=simplejson.dumps(body, ignore_nan=True),
@@ -293,7 +293,7 @@ class AirQoApi:
         elif method == "post":
             headers["Content-Type"] = "application/json"
             api_request = requests.post(
-                "%s%s" % (base_url, endpoint),
+                "%s/%s" % (base_url, endpoint),
                 params=params,
                 headers=headers,
                 data=simplejson.dumps(body, ignore_nan=True),

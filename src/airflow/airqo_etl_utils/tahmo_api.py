@@ -6,7 +6,7 @@ from .config import configuration
 
 class TahmoApi:
     def __init__(self):
-        self.BASE_URL = configuration.TAHMO_BASE_URL
+        self.BASE_URL = configuration.TAHMO_BASE_URL.removesuffix("/")
         self.API_MAX_PERIOD = configuration.TAHMO_API_MAX_PERIOD
         self.API_KEY = configuration.TAHMO_API_KEY
         self.API_SECRET = configuration.TAHMO_API_SECRET

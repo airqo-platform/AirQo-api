@@ -13,7 +13,7 @@ from .config import configuration
 class AirflowUtils:
     def __init__(self) -> None:
         super().__init__()
-        self.base_url = os.getenv("AIRFLOW__WEBSERVER__BASE_URL")
+        self.base_url = os.getenv("AIRFLOW__WEBSERVER__BASE_URL").removesuffix("/")
         self.headers = {
             "Authorization": f"Basic {AirflowUtils.authentication_string()}",
             "Content-Type": "application/json",
@@ -32,7 +32,7 @@ class AirflowUtils:
         self, page_offset, dag_ids, execution_date_time, page_limit=100
     ):
         dag_runs_response = requests.post(
-            f"{self.base_url}api/v1/dags/~/dagRuns/list",
+            f"{self.base_url}/api/v1/dags/~/dagRuns/list",
             data=json.dumps(
                 {
                     "states": ["success", "failed"],
@@ -73,7 +73,7 @@ class AirflowUtils:
         execution_date_time = datetime.utcnow() - timedelta(days=14)
 
         dags_response = requests.get(
-            f"{self.base_url}api/v1/dags",
+            f"{self.base_url}/api/v1/dags",
             headers=self.headers,
         )
 
@@ -92,7 +92,7 @@ class AirflowUtils:
             dag_id = dag_run.get("dag_id")
             dag_run_id = dag_run.get("dag_run_id")
             response = requests.delete(
-                f"{self.base_url}api/v1/dags/{dag_id}/dagRuns/{dag_run_id}",
+                f"{self.base_url}/api/v1/dags/{dag_id}/dagRuns/{dag_run_id}",
                 headers=self.headers,
             )
             print(f"{dag_id} : {dag_run_id} : {response.status_code}")
