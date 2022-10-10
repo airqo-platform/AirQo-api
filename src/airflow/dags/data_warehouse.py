@@ -76,11 +76,20 @@ def consolidated_data_etl():
     def load(data: pd.DataFrame):
 
         from airqo_etl_utils.bigquery_api import BigQueryApi
+        from airqo_etl_utils.data_validator import DataValidationUtils
+        from airqo_etl_utils.constants import Tenant
 
         big_query_api = BigQueryApi()
+        table = big_query_api.consolidated_data_table
+        data = DataValidationUtils.process_for_big_query(
+            dataframe=data,
+            table=table,
+            tenant=Tenant.ALL,
+        )
+
         big_query_api.load_data(
             dataframe=data,
-            table=big_query_api.consolidated_data_table,
+            table=table,
         )
 
     hourly_low_cost_data = extract_hourly_low_cost_data()
@@ -115,7 +124,7 @@ def cleanup_consolidated_data_etl():
             days=7, kwargs=kwargs
         )
 
-        return DataWarehouseUtils.extract_hourly_low_cost_data(
+        return DataWarehouseUtils.extract_data(
             start_date_time=start_date_time, end_date_time=end_date_time
         )
 
