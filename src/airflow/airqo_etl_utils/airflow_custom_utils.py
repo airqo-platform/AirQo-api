@@ -1,19 +1,30 @@
 import base64
-from datetime import datetime, timedelta
 import json
 import os
+from datetime import datetime, timedelta
 
 import requests
 from airflow.hooks.base import BaseHook
 from airflow.providers.slack.operators.slack_webhook import SlackWebhookOperator
 
-from .config import configuration
+from .utils import Utils
 
 
 class AirflowUtils:
+    @staticmethod
+    def dag_default_configs():
+        return {
+            "start_date": datetime.utcnow() - timedelta(days=2),
+            "owner": "airflow",
+            "retries": 0,
+            "on_failure_callback": AirflowUtils.dag_failure_notification,
+        }
+
     def __init__(self) -> None:
         super().__init__()
-        self.base_url = os.getenv("AIRFLOW__WEBSERVER__BASE_URL").removesuffix("/")
+        self.base_url = Utils.remove_suffix(
+            os.getenv("AIRFLOW__WEBSERVER__BASE_URL"), suffix="/"
+        )
         self.headers = {
             "Authorization": f"Basic {AirflowUtils.authentication_string()}",
             "Content-Type": "application/json",
@@ -27,6 +38,49 @@ class AirflowUtils:
         base64_bytes = base64.b64encode(auth_bytes)
         base64_string = base64_bytes.decode("ascii")
         return base64_string
+
+    @staticmethod
+    def dag_failure_notification(context):
+        slack_webhook_token = BaseHook.get_connection("slack").password
+        msg = f"""
+              :red_circle: Task Failed. 
+              *Dag*: {context.get("task_instance").dag_id} 
+              *Task*: {context.get("task_instance").task_id}  
+              *Execution Time*: {context.get("execution_date")}  
+              *Access Url*: {context.get("task_instance").log_url} 
+              """
+
+        failed_alert = SlackWebhookOperator(
+            task_id="slack_failed_notification",
+            http_conn_id="slack",
+            webhook_token=slack_webhook_token,
+            message=msg,
+            username="airflow",
+        )
+
+        return failed_alert.execute(context=context)
+
+    @staticmethod
+    def dag_success_notification(context):
+        slack_webhook_token = BaseHook.get_connection("slack").password
+
+        msg = f"""
+              :green_circle: Task Successful. 
+              *Dag*: {context.get("task_instance").dag_id} 
+              *Task*: {context.get("task_instance").task_id}  
+              *Execution Time*: {context.get("execution_date")}  
+              *Access Url*: {context.get("task_instance").log_url} 
+              """
+
+        success_alert = SlackWebhookOperator(
+            task_id="slack_success_notification",
+            http_conn_id="slack",
+            webhook_token=slack_webhook_token,
+            message=msg,
+            username="airflow",
+        )
+
+        return success_alert.execute(context=context)
 
     def __query_dag_runs(
         self, page_offset, dag_ids, execution_date_time, page_limit=100
@@ -96,65 +150,3 @@ class AirflowUtils:
                 headers=self.headers,
             )
             print(f"{dag_id} : {dag_run_id} : {response.status_code}")
-
-
-def slack_success_notification(context):
-    slack_webhook_token = BaseHook.get_connection("slack").password
-
-    msg = """
-          :green_circle: Task Successful. 
-          *Task*: {task}  
-          *Dag*: {dag} 
-          *Execution Time*: {exec_date}  
-          *Log Url*: {log_url} 
-          """.format(
-        task=context.get("task_instance").task_id,
-        dag=context.get("task_instance").dag_id,
-        ti=context.get("task_instance"),
-        exec_date=context.get("execution_date"),
-        log_url=context.get("task_instance").log_url,
-    )
-
-    success_alert = SlackWebhookOperator(
-        task_id="slack_success_notification",
-        http_conn_id="slack",
-        webhook_token=slack_webhook_token,
-        message=msg,
-        username="airflow",
-    )
-
-    return success_alert.execute(context=context)
-
-
-def slack_dag_failure_notification(context):
-    slack_webhook_token = BaseHook.get_connection("slack").password
-    icon_color = (
-        ":red_circle"
-        if configuration.ENVIRONMENT.lower() == "production"
-        else ":yellow_circle"
-    )
-
-    msg = """
-          {icon_color}: Task Failed. 
-          *Task*: {task}  
-          *Dag*: {dag}
-          *Execution Time*: {exec_date}  
-          *Log Url*: {log_url} 
-          """.format(
-        icon_color=icon_color,
-        task=context.get("task_instance").task_id,
-        dag=context.get("task_instance").dag_id,
-        ti=context.get("task_instance"),
-        exec_date=context.get("execution_date"),
-        log_url=context.get("task_instance").log_url,
-    )
-
-    failed_alert = SlackWebhookOperator(
-        task_id="slack_failed_notification",
-        http_conn_id="slack",
-        webhook_token=slack_webhook_token,
-        message=msg,
-        username="airflow",
-    )
-
-    return failed_alert.execute(context=context)

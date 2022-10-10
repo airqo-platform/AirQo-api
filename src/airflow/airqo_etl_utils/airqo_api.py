@@ -6,13 +6,18 @@ import simplejson
 
 from .config import configuration
 from .constants import DeviceCategory, Tenant
+from .utils import Utils
 
 
 class AirQoApi:
     def __init__(self):
-        self.AIRQO_BASE_URL = configuration.AIRQO_BASE_URL.removesuffix("/")
         self.CALIBRATION_BASE_URL = configuration.CALIBRATION_BASE_URL
-        self.AIRQO_BASE_URL_V2 = configuration.AIRQO_BASE_URL_V2.removesuffix("/")
+        self.AIRQO_BASE_URL = Utils.remove_suffix(
+            configuration.AIRQO_BASE_URL, suffix="/"
+        )
+        self.AIRQO_BASE_URL_V2 = Utils.remove_suffix(
+            configuration.AIRQO_BASE_URL_V2, suffix="/"
+        )
         self.AIRQO_API_KEY = f"JWT {configuration.AIRQO_API_KEY}"
 
     def save_events(self, measurements: list, tenant: str) -> None:

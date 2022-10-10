@@ -1,4 +1,4 @@
-FROM python:3.9 as utils-package
+FROM python:3 as utils-package
 RUN pip install --upgrade pip setuptools wheel
 WORKDIR airqo_etl_utils
 COPY airqo_etl_utils/* airqo_etl_utils/
@@ -12,8 +12,6 @@ USER airflow
 
 COPY --from=utils-package airqo_etl_utils/dist/airqo_etl_utils-1.0.0-py3-none-any.whl airqo_etl_utils-1.0.0-py3-none-any.whl
 RUN pip install --upgrade pip setuptools wheel
-COPY requirements.txt requirements.txt
-RUN pip install -r requirements.txt
 RUN pip install airqo_etl_utils-1.0.0-py3-none-any.whl
 COPY --chown=airflow:root dags/* /opt/airflow/dags/
 

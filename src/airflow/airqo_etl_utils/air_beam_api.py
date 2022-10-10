@@ -5,11 +5,14 @@ import pandas as pd
 import requests
 
 from .config import configuration
+from .utils import Utils
 
 
 class AirBeamApi:
     def __init__(self):
-        self.AIR_BEAM_BASE_URL = configuration.AIR_BEAM_BASE_URL.removesuffix("/")
+        self.AIR_BEAM_BASE_URL = Utils.remove_suffix(
+            configuration.AIR_BEAM_BASE_URL, suffix="/"
+        )
 
     def get_stream_ids(
         self,
