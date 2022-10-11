@@ -261,6 +261,44 @@ const join = {
     }
   },
 
+  sendFeedback: async ({ email, message, subject }) => {
+    try {
+      let responseFromSendEmail = await mailer.feedback({
+        email,
+        message,
+        subject,
+      });
+
+      logObject("responseFromSendEmail ....", responseFromSendEmail);
+
+      if (responseFromSendEmail.success === true) {
+        return {
+          success: true,
+          message: "email successfully sent",
+        };
+      } else if (responseFromSendEmail.success === false) {
+        let status = responseFromSendEmail.status
+          ? responseFromSendEmail.status
+          : "";
+        let errors = responseFromSendEmail.errors
+          ? responseFromSendEmail.errors
+          : "";
+        return {
+          success: false,
+          message: responseFromSendEmail.message,
+          errors,
+          status,
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      };
+    }
+  },
+
   create: async (request) => {
     try {
       let {
@@ -311,9 +349,7 @@ const join = {
               message: "user successfully created",
               data: createdUser._doc,
             };
-          }
-
-          if (responseFromSendEmail.success === false) {
+          } else if (responseFromSendEmail.success === false) {
             let status = responseFromSendEmail.status
               ? responseFromSendEmail.status
               : "";
@@ -327,9 +363,7 @@ const join = {
               status,
             };
           }
-        }
-
-        if (responseFromCreateUser.success === false) {
+        } else if (responseFromCreateUser.success === false) {
           let error = responseFromCreateUser.error
             ? responseFromCreateUser.error
             : "";
@@ -344,9 +378,7 @@ const join = {
             status,
           };
         }
-      }
-
-      if (responseFromGeneratePassword.success === false) {
+      } else if (responseFromGeneratePassword.success === false) {
         let error = responseFromGeneratePassword.error
           ? responseFromGeneratePassword.error
           : "";

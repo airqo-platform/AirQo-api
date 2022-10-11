@@ -83,6 +83,105 @@ const join = {
       response: "valid token",
     });
   },
+  validate: (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+
+      /***
+ * 
+ * exports.httpCheckIfUserExists = functions.https.onRequest(async (req, res) => {
+  try {
+    let exists;
+    if (req.body.phoneNumber) {
+      const phoneNumber = req.body.phoneNumber;
+      exists = await checkIfUserExists(
+          {"phoneNumber": phoneNumber, "emailAddress": ""});
+      res.json({status: exists});
+    } else if (req.body.emailAddress) {
+      const emailAddress = req.body.emailAddress;
+      exists = await checkIfUserExists(
+          {"phoneNumber": "", "emailAddress": emailAddress});
+      res.json({status: exists});
+    } else {
+      res.status(404);
+      res.json({message: "Please provide emailAddress or phoneNumber"});
+    }
+  } catch (e) {
+    res.status(500);
+    res.json({message: "Internal Server Error"});
+  }
+});
+ */
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  sendFeedback: async (req, res) => {
+    try {
+      const { email, message, subject } = req.body;
+      const hasErrors = !validationResult(req).isEmpty();
+
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+
+      const responseFromSendEmail = await joinUtil.sendFeedback({
+        email,
+        message,
+        subject,
+      });
+
+      if (responseFromSendEmail.success === true) {
+        const status = responseFromSendEmail.status
+          ? responseFromSendEmail.status
+          : HTTPStatus.OK;
+        res.status(status).json({
+          success: true,
+          message: "successfully responded to email",
+          status,
+        });
+      } else if (responseFromSendEmail.success === false) {
+        const status = responseFromSendEmail.status
+          ? responseFromSendEmail.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        const errors = responseFromSendEmail.errors
+          ? responseFromSendEmail.errors
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+
+        res.status(status).json({
+          success: true,
+          message: responseFromSendEmail.message,
+          status,
+          errors,
+        });
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
   forgot: async (req, res) => {
     logText("...........................................");
     logText("forgot password...");

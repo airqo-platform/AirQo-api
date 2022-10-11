@@ -85,6 +85,60 @@ router.post(
   joinController.emailAuth
 );
 
+router.post(
+  "/feedback",
+  oneOf([
+    [
+      body("email")
+        .exists()
+        .withMessage("the email must be provided")
+        .bail()
+        .notEmpty()
+        .withMessage("the email must not be empty if provided")
+        .bail()
+        .isEmail()
+        .withMessage("this is not a valid email address"),
+      body("subject")
+        .exists()
+        .withMessage("the subject must be provided")
+        .bail()
+        .notEmpty()
+        .withMessage("the subject must not be empty if provided"),
+      body("message")
+        .exists()
+        .withMessage("the message must be provided")
+        .bail()
+        .notEmpty()
+        .withMessage("the message must not be empty if provided"),
+    ],
+  ]),
+  joinController.sendFeedback
+);
+
+router.post(
+  "/validate",
+  oneOf([
+    [
+      body("email")
+        .exists()
+        .withMessage("the email must be provided")
+        .bail()
+        .notEmpty()
+        .withMessage("the email must not be empty if provided")
+        .bail()
+        .isEmail()
+        .withMessage("this is not a valid email address"),
+      body("phoneNumber")
+        .exists()
+        .withMessage("the phoneNumber must be provided")
+        .bail()
+        .notEmpty()
+        .withMessage("the phoneNumber must not be empty if provided"),
+    ],
+  ]),
+  joinController.validate
+);
+
 router.post("/verify", setJWTAuth, authJWT, joinController.verify);
 router.get(
   "/",

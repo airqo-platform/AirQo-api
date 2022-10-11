@@ -272,6 +272,54 @@ const mailer = {
       };
     }
   },
+
+  feedback: async ({ email, message, subject } = {}) => {
+    try {
+      let bcc = constants.REQUEST_ACCESS_EMAILS;
+
+      const mailOptions = {
+        from: {
+          name: "AirQo Data Team",
+          address: constants.EMAIL,
+        },
+        subject,
+        text: message,
+        cc: email,
+        to: constants.SUPPORT_EMAIL,
+        bcc,
+      };
+
+      let response = transporter.sendMail(mailOptions);
+
+      logObject("response", response);
+
+      let data = await response;
+      if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
+        return {
+          success: true,
+          message: "email successfully sent",
+          data,
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: false,
+          message: "email not sent",
+          status: httpStatus.BAD_GATEWAY,
+        };
+      }
+    } catch (error) {
+      logObject("error", error);
+      return {
+        message: "",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        success: false,
+        errors: {
+          message: error.message,
+        },
+      };
+    }
+  },
 };
 
 module.exports = mailer;
