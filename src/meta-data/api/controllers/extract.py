@@ -122,27 +122,27 @@ def get_nearest_weather_stations():
     )
 
 
-@extract_bp.route(api.GEO_COORDINATES, methods=["POST"])
+@extract_bp.route(api.GEO_COORDINATES, methods=["GET"])
 def get_geo_coordinates():
     try:
-        json_data = request.get_json()
-
+        ip_address = request.args.get("ip_address", request.remote_addr)
         geo_coordinates = ext.Extract().get_geo_coordinates(
-            ip_address=json_data["ip_address"],
+            ip_address=ip_address,
         )
 
         return (
-            jsonify(
-                dict(message="Operation successful", data=geo_coordinates)
-            ),
+            jsonify(dict(message="Operation successful", data=geo_coordinates)),
             200,
+        )
+    except KeyError:
+        return (
+            jsonify(dict(message="Failed to get geo coordinates", data={})),
+            400,
         )
     except Exception as ex:
         print(ex)
         return (
-            jsonify(
-                dict(message="Operation failed", data={})
-            ),
+            jsonify(dict(message="Operation failed", data={})),
             500,
         )
 
