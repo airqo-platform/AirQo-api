@@ -122,11 +122,36 @@ def get_nearest_weather_stations():
     )
 
 
-@extract_bp.route(api.GEO_COORDINATES, methods=["GET"])
+@extract_bp.route(api.MOBILE_CARRIER, methods=["POST"])
+def get_mobile_carrier():
+    try:
+        phone_number = request.get_json()["phone_number"]
+        carrier_info = ext.Extract.get_mobile_carrier(
+            phone_number=phone_number,
+        )
+
+        return (
+            jsonify(dict(message="Operation successful", data=carrier_info)),
+            200,
+        )
+    except KeyError:
+        return (
+            jsonify(dict(message="Failed to get carrier information", data={})),
+            400,
+        )
+    except Exception as ex:
+        print(ex)
+        return (
+            jsonify(dict(message="Operation failed", data={})),
+            500,
+        )
+
+
+@extract_bp.route(api.IP_GEO_COORDINATES, methods=["GET"])
 def get_geo_coordinates():
     try:
         ip_address = request.args.get("ip_address", request.remote_addr)
-        geo_coordinates = ext.Extract().get_geo_coordinates(
+        geo_coordinates = ext.Extract.get_geo_coordinates(
             ip_address=ip_address,
         )
 
