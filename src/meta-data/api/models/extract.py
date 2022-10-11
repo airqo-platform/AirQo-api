@@ -71,7 +71,8 @@ class Extract:
         altitude = response["results"][0]["elevation"]
         return round(altitude, 2)
 
-    def get_geo_coordinates(self, ip_address):
+    @staticmethod
+    def get_geo_coordinates(ip_address):
         response = requests.get(f"http://ip-api.com/json/{ip_address}")
         return {
             "latitude": response.json()["lat"],
@@ -79,6 +80,16 @@ class Extract:
             "city": response.json()["city"],
             "region": response.json()["regionName"],
             "country": response.json()["country"],
+        }
+
+    @staticmethod
+    def get_mobile_carrier(phone_number):
+        response = requests.get(f"https://api.apilayer.com/number_verification/validate?number={phone_number}",
+                                headers={"apikey": Config.MOBILE_CARRIER_LOOK_UP_API_KEY})
+        return {
+            "country_code": response.json()["country_code"],
+            "country": response.json()["country_name"],
+            "carrier": response.json()["carrier"],
         }
 
     def get_nearest_weather_stations(
