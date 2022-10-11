@@ -2,11 +2,13 @@ from datetime import timedelta, datetime
 
 from airflow.decorators import dag, task
 
+from airqo_etl_utils.airflow_custom_utils import AirflowUtils
+
 
 @dag(
     "Historical-Raw-Weather-Measurements",
     schedule_interval="0 1 * * *",
-    start_date=datetime(2021, 1, 1),
+    default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["weather", "historical", "raw"],
 )
@@ -52,7 +54,7 @@ def historical_raw_weather_measurements_etl():
 @dag(
     "Historical-Hourly-Weather-Measurements",
     schedule_interval="0 6 * * *",
-    start_date=datetime(2021, 1, 1),
+    default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["weather", "historical", "hourly"],
 )
@@ -94,7 +96,7 @@ def historical_hourly_weather_measurements_etl():
 @dag(
     "Cleanup-Weather-Measurements",
     schedule_interval="0 11 * * *",
-    start_date=datetime(2021, 1, 1),
+    default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["weather", "cleanup"],
 )
@@ -158,7 +160,7 @@ def cleanup_weather_measurements_etl():
 @dag(
     "Weather-Measurements",
     schedule_interval="40 * * * *",
-    start_date=datetime(2021, 1, 1),
+    default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["weather", "hourly", "raw"],
 )
