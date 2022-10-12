@@ -11,6 +11,7 @@ metadata:
   namespace: staging
 spec:
   concurrencyPolicy: Allow
+  successfulJobsHistoryLimit: 2
   failedJobsHistoryLimit: 1
   jobTemplate:
     metadata:
@@ -61,6 +62,5 @@ spec:
           securityContext: {}
           terminationGracePeriodSeconds: 30
   schedule: 0 * * * *
-  successfulJobsHistoryLimit: 3
   suspend: false
 status: {}
