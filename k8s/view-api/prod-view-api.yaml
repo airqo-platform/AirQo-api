@@ -12,6 +12,8 @@ spec:
       app: view-api
   replicas: 2
   minReadySeconds: 90
+  revisionHistoryLimit: 3
+  progressDeadlineSeconds: 600
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -25,32 +27,32 @@ spec:
       affinity:
         nodeAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
-          - weight: 10
-            preference:
-              matchExpressions:
-              - key: node-type
-                operator: In
-                values:
-                - high-memory
-          - weight: 1
-            preference:
-              matchExpressions:
-              - key: node-type
-                operator: In
-                values:
-                - general-purpose
+            - weight: 10
+              preference:
+                matchExpressions:
+                  - key: node-type
+                    operator: In
+                    values:
+                      - high-memory
+            - weight: 1
+              preference:
+                matchExpressions:
+                  - key: node-type
+                    operator: In
+                    values:
+                      - general-purpose
       containers:
         - name: view-api
           image: us.gcr.io/airqo-250220/airqo-view-api:latest
           imagePullPolicy: Always
           resources:
             requests:
-              # Average usage was 0.01 vCPU and 1400Mi over the last 30 days
+              # Average usage was 0.01 vCPU and 500Mi over the last 30 days
               cpu: 10m
-              memory: 1400Mi
+              memory: 500Mi
             limits:
               cpu: 100m
-              memory: 2500Mi
+              memory: 1500Mi
           ports:
             - containerPort: 8080
               name: view-api
@@ -58,17 +60,25 @@ spec:
             - configMapRef:
                 name: prod-view-api-config
           readinessProbe:
-            initialDelaySeconds: 60
-            periodSeconds: 10
             httpGet:
-              port: 8080
               path: api/v1/view/actuator/health/readiness
-          livenessProbe:
-            initialDelaySeconds: 240
-            periodSeconds: 20
-            httpGet:
               port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 60
+            timeoutSeconds: 1
+            periodSeconds: 10
+            successThreshold: 1
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
               path: api/v1/view/actuator/health/liveness
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 240
+            timeoutSeconds: 1
+            periodSeconds: 20
+            successThreshold: 1
+            failureThreshold: 3
           lifecycle:
             preStop:
               exec:
@@ -102,9 +112,9 @@ spec:
   minReplicas: 1
   maxReplicas: 3
   metrics:
-  - type: Resource
-    resource:
-      name: cpu
-      target:
-        type: Utilization
-        averageUtilization: 70
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
