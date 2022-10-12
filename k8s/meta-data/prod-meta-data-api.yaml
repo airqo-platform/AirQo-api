@@ -8,6 +8,7 @@ spec:
     matchLabels:
       app: meta-data-api
   replicas: 3
+  revisionHistoryLimit: 3
   strategy:
     type: RollingUpdate
     rollingUpdate:

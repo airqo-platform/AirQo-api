@@ -11,6 +11,7 @@ spec:
     matchLabels:
       app: prediction-api
   replicas: 2
+  revisionHistoryLimit: 3
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -25,13 +26,13 @@ spec:
       affinity:
         nodeAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
-          - weight: 10
-            preference:
-              matchExpressions:
-              - key: node-type
-                operator: In
-                values:
-                - general-purpose
+            - weight: 10
+              preference:
+                matchExpressions:
+                  - key: node-type
+                    operator: In
+                    values:
+                      - general-purpose
       containers:
         - name: prediction-api
           image: us.gcr.io/airqo-250220/airqo-stage-prediction-api:latest
@@ -50,8 +51,8 @@ spec:
             - configMapRef:
                 name: env-predict-staging
           volumeMounts:
-          - name: config-volume
-            mountPath: /etc/config
+            - name: config-volume
+              mountPath: /etc/config
           resources:
             requests:
               # Average usage was 0.0006 vCPU and 140Mi over the last 30 days
@@ -78,12 +79,12 @@ spec:
   minReplicas: 1
   maxReplicas: 2
   metrics:
-  - type: Resource
-    resource:
-      name: memory
-      target:
-        type: Utilization
-        averageUtilization: 80
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
 
 ---
 kind: Service

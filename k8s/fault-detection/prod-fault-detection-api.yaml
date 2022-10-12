@@ -11,6 +11,7 @@ spec:
     matchLabels:
       app: prod-fault-detection
   replicas: 3
+  revisionHistoryLimit: 3
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -25,13 +26,13 @@ spec:
       affinity:
         nodeAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
-          - weight: 10
-            preference:
-              matchExpressions:
-              - key: node-type
-                operator: In
-                values:
-                - compute
+            - weight: 10
+              preference:
+                matchExpressions:
+                  - key: node-type
+                    operator: In
+                    values:
+                      - compute
       initContainers:
         - name: train-catboost-model
           image: us.gcr.io/airqo-250220/prod-train-catboost-model:latest
@@ -43,8 +44,8 @@ spec:
             - name: CATBOOST_MODEL
               value: /usr/models/catboost_model.pkl
           volumeMounts:
-          - name: shared-data
-            mountPath: /usr/models
+            - name: shared-data
+              mountPath: /usr/models
         - name: train-lstm-model
           image: us.gcr.io/airqo-250220/prod-train-lstm-model:latest
           imagePullPolicy: Always
@@ -57,8 +58,8 @@ spec:
             - name: SCALER
               value: /usr/models/scaler.pkl
           volumeMounts:
-          - name: shared-data
-            mountPath: /usr/models
+            - name: shared-data
+              mountPath: /usr/models
       containers:
         - name: fault-detection-api
           image: us.gcr.io/airqo-250220/prod-fault-detection-api:latest
@@ -85,8 +86,8 @@ spec:
             - configMapRef:
                 name: prod-fault-detection-api-config
           volumeMounts:
-          - name: shared-data
-            mountPath: /usr/models
+            - name: shared-data
+              mountPath: /usr/models
       volumes:
         - name: shared-data
           emptyDir: {}
@@ -120,9 +121,9 @@ spec:
   minReplicas: 1
   maxReplicas: 3
   metrics:
-  - type: Resource
-    resource:
-      name: memory
-      target:
-        type: Utilization
-        averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 70
