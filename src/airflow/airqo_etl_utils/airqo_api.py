@@ -242,6 +242,40 @@ class AirQoApi:
 
         return list(response["weather_stations"]) if response else []
 
+    def get_meta_data(self, latitude, longitude) -> dict:
+        meta_data = {}
+        meta_data_mappings = {
+            "bearing_to_kampala_center": "",
+            "distance_to_kampala_center": "distance_to_kampala_center",
+            "landform_90": "landform-90",
+            "landform_270": "landform-270",
+            "aspect": "aspect",
+            "bearing": "bearing",
+            "altitude": "altitude",
+            "distance_to_nearest_motorway_road": "distance/motorway/road",
+            "distance_to_nearest_trunk_road": "distance/trunk/road",
+            "distance_to_nearest_tertiary_road": "distance/tertiary/road",
+            "distance_to_nearest_primary_road": "distance/primary/road",
+            "distance_to_nearest_road": "distance/road",
+            "distance_to_nearest_residential_road": "distance/residential/road",
+            "distance_to_nearest_secondary_road": "distance/secondary/road",
+            "distance_to_nearest_unclassified_road": "distance/unclassified/road",
+        }
+
+        for key, endpoint in meta_data_mappings.items():
+            try:
+                response = self.__request(
+                    endpoint=f"meta-data/{endpoint}",
+                    params={"latitude": latitude, "longitude": longitude},
+                    method="get",
+                )
+
+                meta_data[key] = response["data"]
+            except Exception as ex:
+                print(ex)
+
+        return meta_data
+
     def get_sites(self, tenant: Tenant = Tenant.ALL) -> list:
         sites = []
         if tenant == Tenant.ALL:

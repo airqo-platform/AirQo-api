@@ -72,7 +72,21 @@ def update_sites_meta_data_etl():
 
         MetaDataUtils.update_nearest_weather_stations(tenant=Tenant.ALL)
 
-    update_nearest_weather_stations()
+    @task()
+    def update_distance_measures() -> None:
+        from airqo_etl_utils.meta_data_utils import MetaDataUtils
+        from airqo_etl_utils.constants import Tenant
+
+        MetaDataUtils.update_sites_distance_measures(tenant=Tenant.ALL)
+
+    @task()
+    def update_bigquery_meta_data() -> None:
+        from airqo_etl_utils.meta_data_utils import MetaDataUtils
+
+        MetaDataUtils.update_bigquery_meta_data()
+
+    update_nearest_weather_stations.set_downstream(update_bigquery_meta_data)
+    update_distance_measures.set_downstream(update_bigquery_meta_data)
 
 
 big_query_update_sites_and_devices_etl_dag = big_query_update_sites_and_devices_etl()

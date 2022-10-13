@@ -31,6 +31,7 @@ class BigQueryApi:
         self.raw_weather_table = configuration.BIGQUERY_RAW_WEATHER_TABLE
         self.consolidated_data_table = configuration.BIGQUERY_ANALYTICS_TABLE
         self.sites_table = configuration.BIGQUERY_SITES_TABLE
+        self.sites_meta_data_table = configuration.BIGQUERY_SITES_META_DATA_TABLE
         self.devices_table = configuration.BIGQUERY_DEVICES_TABLE
         self.devices_data_table = configuration.BIGQUERY_DEVICES_DATA_TABLE
 
@@ -104,6 +105,9 @@ class BigQueryApi:
             schema_file = "data_warehouse.json"
         elif table == self.sites_table:
             schema_file = "sites.json"
+        elif table == self.sites_meta_data_table:
+            schema_file = "sites_meta_data.json"
+
         elif table == self.sensor_positions_table:
             schema_file = "sensor_positions.json"
         elif table == self.devices_table:
@@ -243,6 +247,38 @@ class BigQueryApi:
 
         if component == "devices":
             del up_to_date_data[unique_id]
+
+        self.load_data(
+            dataframe=up_to_date_data, table=table, job_action=JobAction.OVERWRITE
+        )
+
+    def update_sites_meta_data(self, dataframe: pd.DataFrame) -> None:
+
+        dataframe.reset_index(drop=True, inplace=True)
+        table = self.sites_meta_data_table
+        dataframe = self.validate_data(dataframe=dataframe, table=table)
+
+        unique_id = "site_id"
+
+        dataframe.drop_duplicates(subset=[unique_id], inplace=True, keep="first")
+
+        available_data = (
+            self.client.query(query=f"SELECT * FROM `{table}`").result().to_dataframe()
+        )
+
+        if available_data.empty:
+            up_to_date_data = dataframe
+        else:
+
+            available_data.drop_duplicates(
+                subset=[unique_id], inplace=True, keep="first"
+            )
+            data_not_for_updating = available_data.loc[
+                ~available_data[unique_id].isin(dataframe[unique_id].to_list())
+            ]
+            up_to_date_data = pd.concat(
+                [data_not_for_updating, dataframe], ignore_index=True
+            )
 
         self.load_data(
             dataframe=up_to_date_data, table=table, job_action=JobAction.OVERWRITE

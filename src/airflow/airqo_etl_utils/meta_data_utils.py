@@ -1,6 +1,7 @@
 import pandas as pd
 
 from .airqo_api import AirQoApi
+from .bigquery_api import BigQueryApi
 from .constants import Tenant
 from .data_validator import DataValidationUtils
 from .weather_data_utils import WeatherDataUtils
@@ -93,3 +94,43 @@ class MetaDataUtils:
             for site in updated_sites
         ]
         airqo_api.update_sites(updated_sites)
+
+    @staticmethod
+    def update_sites_distance_measures(tenant: Tenant) -> None:
+        airqo_api = AirQoApi()
+        sites = airqo_api.get_sites(tenant=tenant)
+        updated_sites = []
+        for site in sites:
+            record = {
+                "site_id": site.get("site_id", None),
+                "tenant": site.get("tenant", None),
+                "latitude": site.get("latitude", None),
+                "longitude": site.get("longitude", None),
+            }
+            meta_data = airqo_api.get_meta_data(
+                latitude=record.get("latitude"),
+                longitude=record.get("longitude"),
+            )
+
+            if len(meta_data) != 0:
+                updated_sites.append(
+                    {
+                        **meta_data,
+                        **{"site_id": record["site_id"], "tenant": record["tenant"]},
+                    }
+                )
+
+        airqo_api.update_sites(updated_sites)
+
+    @staticmethod
+    def update_bigquery_meta_data() -> None:
+
+        sites = AirQoApi().get_sites(tenant=Tenant.ALL)
+        meta_data = pd.DataFrame(sites)
+
+        bigquery_api = BigQueryApi()
+        table = bigquery_api.sites_meta_data_table
+        meta_data = DataValidationUtils.process_for_big_query(
+            dataframe=meta_data, table=table, tenant=Tenant.ALL
+        )
+        bigquery_api.update_sites_meta_data(meta_data)
