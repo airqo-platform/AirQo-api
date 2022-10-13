@@ -2,10 +2,10 @@ import ee
 import osmnx as ox
 import pyproj
 import requests
+from geopy import distance
 from shapely.geometry import Point
 from shapely.ops import transform
-import json
-from geopy import distance
+
 from api.models import TAHMO
 from config import Config
 
@@ -70,6 +70,27 @@ class Extract:
         response = requests.get(url).json()
         altitude = response["results"][0]["elevation"]
         return round(altitude, 2)
+
+    @staticmethod
+    def get_geo_coordinates(ip_address):
+        response = requests.get(f"http://ip-api.com/json/{ip_address}")
+        return {
+            "latitude": response.json()["lat"],
+            "longitude": response.json()["lon"],
+            "city": response.json()["city"],
+            "region": response.json()["regionName"],
+            "country": response.json()["country"],
+        }
+
+    @staticmethod
+    def get_mobile_carrier(phone_number):
+        response = requests.get(f"https://api.apilayer.com/number_verification/validate?number={phone_number}",
+                                headers={"apikey": Config.MOBILE_CARRIER_LOOK_UP_API_KEY})
+        return {
+            "country_code": response.json()["country_code"],
+            "country": response.json()["country_name"],
+            "carrier": response.json()["carrier"],
+        }
 
     def get_nearest_weather_stations(
         self, latitude, longitude, threshold_distance=None
@@ -143,29 +164,6 @@ class Extract:
         # df.rename(columns={'ap':'Atmospheric pressure [kPa]','pr':'Precipitation', 'rh':'Relative humidity', 'ws':'Wind speed [m/s]','Wind gusts [m/s]'},inplace=True)
         # df.to_csv(station+'.csv', na_rep='', date_format='%Y-%m-%d %H:%M')
         return df
-
-    def get_devices(self, name="", tenant="airqo"):
-        if name == "":
-            api_url = Config.DEVICE_REGISTRY_BASE_URL + "devices?tenant=" + tenant
-        else:
-            api_url = (
-                Config.DEVICE_REGISTRY_BASE_URL
-                + "devices?tenant="
-                + tenant
-                + "&name="
-                + name
-            )
-        try:
-            results = requests.get(api_url, verify=False)
-            devices_data = results.json()["devices"]
-        except Exception as ex:
-            print("Devices Url returned an error : " + str(ex))
-            devices_data = {}
-
-        with open("device.json", "w") as f:
-            json.dump(list(devices_data), f)
-
-        return devices_data
 
     def get_aspect_270(self, lat, lon):
         """

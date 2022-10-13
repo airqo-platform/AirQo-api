@@ -8,6 +8,7 @@ spec:
     matchLabels:
       app: airflow
   replicas: 2
+  revisionHistoryLimit: 2
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -21,20 +22,20 @@ spec:
       affinity:
         nodeAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
-          - weight: 10
-            preference:
-              matchExpressions:
-              - key: node-type
-                operator: In
-                values:
-                - compute
-          - weight: 1
-            preference:
-              matchExpressions:
-              - key: node-type
-                operator: In
-                values:
-                - high-memory  
+            - weight: 10
+              preference:
+                matchExpressions:
+                  - key: node-type
+                    operator: In
+                    values:
+                      - compute
+            - weight: 1
+              preference:
+                matchExpressions:
+                  - key: node-type
+                    operator: In
+                    values:
+                      - high-memory
       serviceAccountName: airflow-sa
       initContainers:
         - name: airflow-xcom
@@ -65,10 +66,10 @@ spec:
               cpu: 1500m
               memory: 4500Mi
           volumeMounts:
-          - name: config-volume
-            mountPath: /etc/config
-          - name: xcom-config-volume
-            mountPath: /etc/airflow_xcom
+            - name: config-volume
+              mountPath: /etc/config
+            - name: xcom-config-volume
+              mountPath: /etc/airflow_xcom
         - name: airflow-webserver
           image: us.gcr.io/airqo-250220/airqo-apache-airflow:latest
           imagePullPolicy: Always
@@ -80,22 +81,22 @@ spec:
           command: ["airflow"]
           args: ["webserver"]
           resources: {}
-          readinessProbe: 
+          readinessProbe:
             initialDelaySeconds: 120
             timeoutSeconds: 120
             httpGet:
               path: /airflow/health
               port: 8080
           volumeMounts:
-          - name: config-volume
-            mountPath: /etc/config
-          - name: xcom-config-volume
-            mountPath: /etc/airflow_xcom
+            - name: config-volume
+              mountPath: /etc/config
+            - name: xcom-config-volume
+              mountPath: /etc/airflow_xcom
       volumes:
         - name: config-volume
           configMap:
             name: airflow-config-files
-        - name:  xcom-config-volume
+        - name: xcom-config-volume
           emptyDir: {}
       restartPolicy: Always
 
@@ -112,19 +113,19 @@ spec:
   minReplicas: 1
   maxReplicas: 3
   metrics:
-  - type: Resource
-    resource:
-      name: cpu
-      target:
-        type: Utilization
-        averageUtilization: 70
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
 
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
- name: airflow-sa
- namespace: pipeline
+  name: airflow-sa
+  namespace: pipeline
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -132,18 +133,18 @@ kind: ClusterRole
 metadata:
   name: airflow-cluster-role
 rules:
-- apiGroups: [""]
-  resources: ["services"]
-  verbs: ["get", "list", "watch"]
-- apiGroups: [""]
-  resources: ["pods", "pods/exec", "pods/log"]
-  verbs: ["get", "list", "watch", "create", "update", "delete", "patch"]
-- apiGroups: ["extensions"]
-  resources: ["ingresses"]
-  verbs: ["get","watch","list"]
-- apiGroups: [""]
-  resources: ["nodes"]
-  verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods", "pods/exec", "pods/log"]
+    verbs: ["get", "list", "watch", "create", "update", "delete", "patch"]
+  - apiGroups: ["extensions"]
+    resources: ["ingresses"]
+    verbs: ["get", "watch", "list"]
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "watch"]
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -155,28 +156,28 @@ roleRef:
   kind: ClusterRole
   name: airflow-cluster-role
 subjects:
-- kind: ServiceAccount
-  name: airflow-sa
-  namespace: pipeline
+  - kind: ServiceAccount
+    name: airflow-sa
+    namespace: pipeline
 
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
   name: airflow-workers
-  
+
 ---
 kind: Service
 apiVersion: v1
 metadata:
- name: airflow-svc
- namespace: pipeline
+  name: airflow-svc
+  namespace: pipeline
 spec:
- type: NodePort
- ports:
-  - port: 8080
-    protocol: TCP
-    targetPort: 8080
-    nodePort: 30036
- selector:
-  app: airflow
+  type: NodePort
+  ports:
+    - port: 8080
+      protocol: TCP
+      targetPort: 8080
+      nodePort: 30036
+  selector:
+    app: airflow

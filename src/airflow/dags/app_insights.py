@@ -2,14 +2,13 @@ from datetime import datetime
 
 from airflow.decorators import dag, task
 
-from airqo_etl_utils.airflow_custom_utils import slack_dag_failure_notification
+from airqo_etl_utils.airflow_custom_utils import AirflowUtils
 
 
 @dag(
     "App-Forecast-Insights",
     schedule_interval="50 */2 * * *",
-    on_failure_callback=slack_dag_failure_notification,
-    start_date=datetime(2021, 1, 1),
+    default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["insights", "forecast"],
 )
@@ -39,8 +38,7 @@ def app_forecast_insights_etl():
 @dag(
     "App-Latest-Air-Quality",
     schedule_interval=None,
-    on_failure_callback=slack_dag_failure_notification,
-    start_date=datetime(2021, 1, 1),
+    default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["insights", "latest"],
 )
@@ -73,8 +71,7 @@ def app_latest_air_quality_etl():
 @dag(
     "App-Historical-Daily-Insights",
     schedule_interval=None,
-    on_failure_callback=slack_dag_failure_notification,
-    start_date=datetime(2021, 1, 1),
+    default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["insights", "daily"],
 )
@@ -113,8 +110,7 @@ def app_historical_daily_insights_etl():
 @dag(
     "App-Realtime-Daily-Insights",
     schedule_interval="50 */2 * * *",
-    on_failure_callback=slack_dag_failure_notification,
-    start_date=datetime(2021, 1, 1),
+    default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["insights", "daily", "realtime"],
 )
@@ -155,8 +151,7 @@ def app_realtime_daily_insights_etl():
 @dag(
     "App-Historical-Hourly-Insights",
     schedule_interval=None,
-    on_failure_callback=slack_dag_failure_notification,
-    start_date=datetime(2021, 1, 1),
+    default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["insights", "hourly", "historical"],
 )
@@ -188,8 +183,7 @@ def app_historical_hourly_insights_etl():
 @dag(
     "App-Realtime-Hourly-Insights",
     schedule_interval=None,
-    on_failure_callback=slack_dag_failure_notification,
-    start_date=datetime(2021, 1, 1),
+    default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["insights", "hourly"],
 )
@@ -221,8 +215,7 @@ def app_realtime_hourly_insights_etl():
 @dag(
     "App-Insights-cleanup",
     schedule_interval="@daily",
-    on_failure_callback=slack_dag_failure_notification,
-    start_date=datetime(2021, 1, 1),
+    default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["insights", "empty"],
 )

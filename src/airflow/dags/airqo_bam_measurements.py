@@ -1,15 +1,12 @@
-from datetime import datetime
-
 from airflow.decorators import dag, task
 
-from airqo_etl_utils.airflow_custom_utils import slack_dag_failure_notification
+from airqo_etl_utils.airflow_custom_utils import AirflowUtils
 
 
 @dag(
     "AirQo-Historical-Bam-Measurements",
     schedule_interval=None,
-    on_failure_callback=slack_dag_failure_notification,
-    start_date=datetime(2021, 1, 1),
+    default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["airqo", "historical", "bam"],
 )
@@ -75,8 +72,7 @@ def bam_historical_measurements_etl():
 @dag(
     "AirQo-Realtime-Bam-Measurements",
     schedule_interval="30 * * * *",
-    on_failure_callback=slack_dag_failure_notification,
-    start_date=datetime(2021, 1, 1),
+    default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["airqo", "bam", "realtime"],
 )
