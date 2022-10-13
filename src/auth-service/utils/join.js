@@ -121,6 +121,69 @@ const join = {
       };
     }
   },
+
+  lookUpFirebaseUser: async (request, callback) => {
+    try {
+      const { body } = request;
+      const { email, phoneNumber, uid, providerId, providerUid } = body;
+
+      return getAuth()
+        .getUsers([
+          { uid: uid },
+          { email: email },
+          { phoneNumber: phoneNumber },
+          ,
+        ])
+        .then(async (getUsersResult) => {
+          logObject("getUsersResult", getUsersResult);
+          getUsersResult.users.forEach((userRecord) => {
+            logObject("userRecord", userRecord);
+            callback({
+              success: true,
+              message: "Successfully fetched user data",
+              status: httpStatus.OK,
+              data: userRecord,
+            });
+          });
+
+          getUsersResult.notFound.forEach((userIdentifier) => {
+            logObject("userIdentifier", userIdentifier);
+            callback({
+              success: false,
+              message:
+                "Unable to find users corresponding to these identifiers",
+              status: httpStatus.NOT_FOUND,
+              data: userIdentifier,
+            });
+          });
+        })
+        .catch((error) => {
+          let status = httpStatus.INTERNAL_SERVER_ERROR;
+
+          if (error.code === "auth/invalid-email") {
+            status = httpStatus.BAD_REQUEST;
+          }
+          callback({
+            success: false,
+            message: "unable to sign in using email link",
+            status,
+            errors: {
+              message: error,
+            },
+          });
+        });
+    } catch (error) {
+      callback({
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: {
+          message: error.message,
+        },
+      });
+    }
+  },
+
   generateSignInWithEmailLink: async (request, callback) => {
     try {
       const { body, query } = request;

@@ -116,7 +116,7 @@ router.post(
 );
 
 router.post(
-  "/validate",
+  "/firebase/lookup",
   oneOf([
     [
       body("email")
@@ -133,10 +133,13 @@ router.post(
         .withMessage("the phoneNumber must be provided")
         .bail()
         .notEmpty()
-        .withMessage("the phoneNumber must not be empty if provided"),
+        .withMessage("the phoneNumber must not be empty if provided")
+        .bail()
+        .isMobilePhone()
+        .withMessage("the phoneNumber must be valid"),
     ],
   ]),
-  joinController.validate
+  joinController.lookUpFirebaseUser
 );
 
 router.post("/verify", setJWTAuth, authJWT, joinController.verify);

@@ -83,8 +83,9 @@ const join = {
       response: "valid token",
     });
   },
-  validate: (req, res) => {
+  lookUpFirebaseUser: async (req, res) => {
     try {
+      const { email, phoneNumber, uid, providerId, providerUid } = req.body;
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -95,31 +96,38 @@ const join = {
         );
       }
 
-      /***
- * 
- * exports.httpCheckIfUserExists = functions.https.onRequest(async (req, res) => {
-  try {
-    let exists;
-    if (req.body.phoneNumber) {
-      const phoneNumber = req.body.phoneNumber;
-      exists = await checkIfUserExists(
-          {"phoneNumber": phoneNumber, "emailAddress": ""});
-      res.json({status: exists});
-    } else if (req.body.emailAddress) {
-      const emailAddress = req.body.emailAddress;
-      exists = await checkIfUserExists(
-          {"phoneNumber": "", "emailAddress": emailAddress});
-      res.json({status: exists});
-    } else {
-      res.status(404);
-      res.json({message: "Please provide emailAddress or phoneNumber"});
-    }
-  } catch (e) {
-    res.status(500);
-    res.json({message: "Internal Server Error"});
-  }
-});
- */
+      let request = {};
+      request["body"] = {};
+      request["body"]["email"] = email;
+      request["body"]["phoneNumber"] = phoneNumber;
+      request["body"]["uid"] = uid;
+      request["body"]["providerId"] = providerId;
+      request["body"]["providerUid"] = providerUid;
+
+      await joinUtil.lookUpFirebaseUser(request, (result) => {
+        if (result.success === true) {
+          const status = result.status ? result.status : HTTPStatus.OK;
+          res.status(status).json({
+            success: true,
+            message: result.message,
+            user: result.data,
+            status: "exists",
+          });
+        } else if (result.success === false) {
+          const status = result.status
+            ? result.status
+            : HTTPStatus.INTERNAL_SERVER_ERROR;
+          const errors = result.errors
+            ? result.errors
+            : { message: "Internal Server Error" };
+
+          res.status(status).json({
+            success: false,
+            message: result.message,
+            errors,
+          });
+        }
+      });
     } catch (error) {
       return {
         success: false,
