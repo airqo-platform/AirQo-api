@@ -17,13 +17,25 @@ def big_query_update_sites_and_devices_etl():
     def extract_sites() -> pd.DataFrame:
         from airqo_etl_utils.meta_data_utils import MetaDataUtils
 
-        return MetaDataUtils.extract_meta_data(component="sites")
+        return MetaDataUtils.extract_sites_from_api()
+
+    @task()
+    def extract_sites_meta_data() -> pd.DataFrame:
+        from airqo_etl_utils.meta_data_utils import MetaDataUtils
+
+        return MetaDataUtils.extract_sites_meta_data_from_api()
 
     @task()
     def extract_devices():
         from airqo_etl_utils.meta_data_utils import MetaDataUtils
 
-        return MetaDataUtils.extract_meta_data(component="devices")
+        return MetaDataUtils.extract_devices_from_api()
+
+    @task()
+    def load_sites_meta_data(data: pd.DataFrame):
+        from airqo_etl_utils.bigquery_api import BigQueryApi
+
+        BigQueryApi().update_sites_meta_data(dataframe=data)
 
     @task()
     def load_sites(data: pd.DataFrame):
@@ -48,19 +60,21 @@ def big_query_update_sites_and_devices_etl():
         )
 
     devices = extract_devices()
+    load_devices(devices)
     sites = extract_sites()
     load_sites(sites)
-    load_devices(devices)
+    sites_meta_data = extract_sites_meta_data()
+    load_sites_meta_data(sites_meta_data)
 
 
 @dag(
-    "Update-Sites-Meta-Data",
+    "Update-Microservice-Sites-Meta-Data",
     schedule_interval="@daily",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["daily", "sites", "meta-data"],
 )
-def update_sites_meta_data_etl():
+def update_microservice_sites_meta_data_etl():
     @task()
     def update_nearest_weather_stations() -> None:
         from airqo_etl_utils.meta_data_utils import MetaDataUtils
@@ -75,15 +89,9 @@ def update_sites_meta_data_etl():
 
         MetaDataUtils.update_sites_distance_measures(tenant=Tenant.ALL)
 
-    @task()
-    def update_bigquery_meta_data() -> None:
-        from airqo_etl_utils.meta_data_utils import MetaDataUtils
-
-        MetaDataUtils.update_bigquery_meta_data()
-
-    update_nearest_weather_stations.set_downstream(update_bigquery_meta_data)
-    update_distance_measures.set_downstream(update_bigquery_meta_data)
+    update_nearest_weather_stations()
+    update_distance_measures()
 
 
 big_query_update_sites_and_devices_etl_dag = big_query_update_sites_and_devices_etl()
-update_sites_meta_data_etl_dag = update_sites_meta_data_etl()
+update_microservice_sites_meta_data_etl_dag = update_microservice_sites_meta_data_etl()

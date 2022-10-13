@@ -49,7 +49,7 @@ class DataWarehouseUtils:
         return DataWarehouseUtils.filter_valid_columns(data)
 
     @staticmethod
-    def extract_data(
+    def extract_data_from_big_query(
         start_date_time: str,
         end_date_time: str,
     ) -> pd.DataFrame:
@@ -216,21 +216,6 @@ class DataWarehouseUtils:
 
         firebase_data = AirQoAppUtils.process_for_firebase(data=data, tenant=tenant)
         AirQoAppUtils.update_firebase_air_quality_readings(firebase_data)
-
-    @staticmethod
-    def extract_devices_meta_data(tenant: Tenant = Tenant.ALL) -> pd.DataFrame:
-        airqo_api = AirQoApi()
-        devices = airqo_api.get_devices(tenant=tenant)
-        devices = pd.DataFrame(devices)
-        devices.rename(
-            columns={
-                "latitude": "device_latitude",
-                "longitude": "device_longitude",
-            },
-            inplace=True,
-        )
-
-        return DataWarehouseUtils.filter_valid_columns(devices)
 
     @staticmethod
     def merge_datasets(
