@@ -32,12 +32,13 @@ class WeatherDataUtils:
                 latitude=record.get("latitude"),
                 longitude=record.get("longitude"),
             )
-            data.append(
-                {
-                    **record,
-                    **{"weather_stations": weather_stations},
-                }
-            )
+            if len(weather_stations) > 0:
+                data.append(
+                    {
+                        **record,
+                        **{"weather_stations": weather_stations},
+                    }
+                )
 
         return data
 
