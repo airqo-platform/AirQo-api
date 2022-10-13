@@ -358,11 +358,12 @@ class AirQoDataUtils:
 
                 meta_data = data.attrs.pop("meta_data", {})
 
-                data[field_8_cols] = data["field8"].apply(
-                    lambda x: AirQoDataUtils.flatten_field_8(
-                        device_category=device_category, field_8=x
+                if "field8" in data.columns.to_list():
+                    data[field_8_cols] = data["field8"].apply(
+                        lambda x: AirQoDataUtils.flatten_field_8(
+                            device_category=device_category, field_8=x
+                        )
                     )
-                )
 
                 data["device_number"] = device_number
                 data["device_id"] = device.get("device_id")
