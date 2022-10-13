@@ -5,6 +5,7 @@ metadata:
   namespace: production
 spec:
   replicas: 2
+  revisionHistoryLimit: 2
   selector:
     matchLabels:
       app: airqo-data-mgt-api
@@ -22,20 +23,20 @@ spec:
       affinity:
         nodeAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
-          - weight: 10
-            preference:
-              matchExpressions:
-              - key: node-type
-                operator: In
-                values:
-                - general-purpose
-          - weight: 1
-            preference:
-              matchExpressions:
-              - key: node-type
-                operator: In
-                values:
-                - high-memory
+            - weight: 10
+              preference:
+                matchExpressions:
+                  - key: node-type
+                    operator: In
+                    values:
+                      - general-purpose
+            - weight: 1
+              preference:
+                matchExpressions:
+                  - key: node-type
+                    operator: In
+                    values:
+                      - high-memory
       containers:
         - name: airqo-data-mgt-api
           image: us.gcr.io/airqo-250220/airqo-data-mgt-api:latest
@@ -91,9 +92,9 @@ spec:
   minReplicas: 1
   maxReplicas: 3
   metrics:
-  - type: Resource
-    resource:
-      name: memorycpu
-      target:
-        type: Utilization
-        averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memorycpu
+        target:
+          type: Utilization
+          averageUtilization: 70

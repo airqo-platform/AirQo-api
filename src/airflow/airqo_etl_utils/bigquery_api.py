@@ -31,6 +31,7 @@ class BigQueryApi:
         self.raw_weather_table = configuration.BIGQUERY_RAW_WEATHER_TABLE
         self.consolidated_data_table = configuration.BIGQUERY_ANALYTICS_TABLE
         self.sites_table = configuration.BIGQUERY_SITES_TABLE
+        self.sites_meta_data_table = configuration.BIGQUERY_SITES_META_DATA_TABLE
         self.devices_table = configuration.BIGQUERY_DEVICES_TABLE
         self.devices_data_table = configuration.BIGQUERY_DEVICES_DATA_TABLE
 
@@ -104,6 +105,9 @@ class BigQueryApi:
             schema_file = "data_warehouse.json"
         elif table == self.sites_table:
             schema_file = "sites.json"
+        elif table == self.sites_meta_data_table:
+            schema_file = "sites_meta_data.json"
+
         elif table == self.sensor_positions_table:
             schema_file = "sensor_positions.json"
         elif table == self.devices_table:
@@ -184,14 +188,101 @@ class BigQueryApi:
         print(f"Total rows after load :  {destination_table.num_rows}")
 
     @staticmethod
-    def add_unique_id(dataframe: pd.DataFrame) -> pd.DataFrame:
-        dataframe["unique_id"] = dataframe.apply(
-            lambda row: str(
-                f"{row['tenant']}:{row['device_id']}:{row['device_number']}"
-            ).lower(),
+    def add_unique_id(dataframe: pd.DataFrame, id_column="unique_id") -> pd.DataFrame:
+        dataframe[id_column] = dataframe.apply(
+            lambda row: BigQueryApi.device_unique_col(
+                tenant=row["tenant"],
+                device_number=row["device_number"],
+                device_id=row["device_id"],
+            ),
             axis=1,
         )
         return dataframe
+
+    @staticmethod
+    def device_unique_col(tenant: str, device_id: str, device_number: int):
+        return str(f"{tenant}:{device_id}:{device_number}").lower()
+
+    def update_sites_and_devices(
+        self,
+        dataframe: pd.DataFrame,
+        table: str,
+        component: str,
+    ) -> None:
+
+        dataframe.reset_index(drop=True, inplace=True)
+        dataframe = self.validate_data(dataframe=dataframe, table=table)
+
+        if component == "sites":
+            unique_id = "id"
+
+        elif component == "devices":
+            unique_id = "unique_id"
+            dataframe = self.add_unique_id(dataframe)
+
+        else:
+            raise Exception("Invalid component. Valid values are sites and devices.")
+
+        dataframe.drop_duplicates(subset=[unique_id], inplace=True, keep="first")
+
+        available_data = (
+            self.client.query(query=f"SELECT * FROM `{table}`").result().to_dataframe()
+        )
+
+        if available_data.empty:
+            up_to_date_data = dataframe
+        else:
+            if component == "devices":
+                available_data = self.add_unique_id(available_data)
+
+            available_data.drop_duplicates(
+                subset=[unique_id], inplace=True, keep="first"
+            )
+            data_not_for_updating = available_data.loc[
+                ~available_data[unique_id].isin(dataframe[unique_id].to_list())
+            ]
+            up_to_date_data = pd.concat(
+                [data_not_for_updating, dataframe], ignore_index=True
+            )
+
+        if component == "devices":
+            del up_to_date_data[unique_id]
+
+        self.load_data(
+            dataframe=up_to_date_data, table=table, job_action=JobAction.OVERWRITE
+        )
+
+    def update_sites_meta_data(self, dataframe: pd.DataFrame) -> None:
+
+        dataframe.reset_index(drop=True, inplace=True)
+        table = self.sites_meta_data_table
+        dataframe = self.validate_data(dataframe=dataframe, table=table)
+
+        unique_id = "site_id"
+
+        dataframe.drop_duplicates(subset=[unique_id], inplace=True, keep="first")
+
+        available_data = (
+            self.client.query(query=f"SELECT * FROM `{table}`").result().to_dataframe()
+        )
+
+        if available_data.empty:
+            up_to_date_data = dataframe
+        else:
+
+            available_data.drop_duplicates(
+                subset=[unique_id], inplace=True, keep="first"
+            )
+            data_not_for_updating = available_data.loc[
+                ~available_data[unique_id].isin(dataframe[unique_id].to_list())
+            ]
+            up_to_date_data = pd.concat(
+                [data_not_for_updating, dataframe], ignore_index=True
+            )
+
+        self.load_data(
+            dataframe=up_to_date_data, table=table, job_action=JobAction.OVERWRITE
+        )
 
     def update_data(
         self,

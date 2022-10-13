@@ -18,27 +18,28 @@ spec:
           affinity:
             nodeAffinity:
               preferredDuringSchedulingIgnoredDuringExecution:
-              - weight: 10
-                preference:
-                  matchExpressions:
-                  - key: node-type
-                    operator: In
-                    values:
-                    - compute
+                - weight: 10
+                  preference:
+                    matchExpressions:
+                      - key: node-type
+                        operator: In
+                        values:
+                          - compute
           containers:
-          - name: stage-airqo-train-job
-            image: us.gcr.io/airqo-250220/stage-airqo-train-job:latest
-            imagePullPolicy: Always
-            envFrom:
-              - configMapRef:
-                  name: env-train-job-staging
-            volumeMounts:
-              - name: config-volume
-                mountPath: /etc/config
-            resources:
-              limits:
-                cpu: 2000m
-                memory: 4000Mi
+            - name: stage-airqo-train-job
+              image: us.gcr.io/airqo-250220/stage-airqo-train-job:latest
+              imagePullPolicy: Always
+              envFrom:
+                - configMapRef:
+                    name: env-train-job-staging
+              volumeMounts:
+                - name: config-volume
+                  mountPath: /etc/config
+              resources:
+                limits:
+                  # Has had an average CPU throttling rate of 30% of 2000m in the last 30 days
+                  cpu: 2500m
+                  memory: 4000Mi
           volumes:
             - name: config-volume
               configMap:

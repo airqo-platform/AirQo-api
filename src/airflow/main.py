@@ -21,6 +21,7 @@ from airqo_etl_utils.constants import (
 )
 from airqo_etl_utils.data_validator import DataValidationUtils
 from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
+from airqo_etl_utils.date import date_to_str_hours
 from airqo_etl_utils.kcca_utils import KccaUtils
 from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
 from airqo_etl_utils.utils import Utils
@@ -378,6 +379,31 @@ class MainClass:
             data=latest_data, tenant=Tenant.AIRQO
         )
 
+    def meta_data(self):
+        from airqo_etl_utils.meta_data_utils import MetaDataUtils
+
+        sites = MetaDataUtils.extract_meta_data(component="sites")
+        bigquery_data = DataValidationUtils.process_for_big_query(
+            dataframe=sites, table=self.bigquery_api.sites_table, tenant=Tenant.ALL
+        )
+        bigquery_data.to_csv(path_or_buf="bigquery_sites_data.csv", index=False)
+        self.bigquery_api.update_sites_and_devices(
+            dataframe=bigquery_data,
+            table=self.bigquery_api.sites_table,
+            component="sites",
+        )
+
+        devices = MetaDataUtils.extract_meta_data(component="devices")
+        bigquery_data = DataValidationUtils.process_for_big_query(
+            dataframe=devices, table=self.bigquery_api.devices_table, tenant=Tenant.ALL
+        )
+        bigquery_data.to_csv(path_or_buf="bigquery_devices_data.csv", index=False)
+        self.bigquery_api.update_sites_and_devices(
+            dataframe=bigquery_data,
+            table=self.bigquery_api.devices_table,
+            component="devices",
+        )
+
 
 def data_warehouse(start_date_time: str, end_date_time: str):
     from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
@@ -559,31 +585,6 @@ def weather_data(start_date_time, end_date_time, file):
     #     data=hourly_weather_data
     # )
     # bigquery_weather_data.to_csv(path_or_buf="bigquery_weather_data.csv", index=False)
-
-
-def meta_data():
-    from airqo_etl_utils.meta_data_utils import MetaDataUtils
-    from airqo_etl_utils.bigquery_api import BigQueryApi
-
-    sites = MetaDataUtils.extract_meta_data(component="sites")
-    sites_df = pd.DataFrame(sites)
-    sites_df.to_csv(path_or_buf="sites_data.csv", index=False)
-
-    bigquery_api = BigQueryApi()
-    bigquery_data_df = bigquery_api.validate_data(
-        dataframe=sites_df, table=bigquery_api.sites_table
-    )
-    bigquery_data_df.to_csv(path_or_buf="bigquery_sites_data.csv", index=False)
-
-    devices = MetaDataUtils.extract_meta_data(component="devices")
-    devices_df = pd.DataFrame(devices)
-    devices_df.to_csv(path_or_buf="devices_data.csv", index=False)
-
-    bigquery_api = BigQueryApi()
-    bigquery_data_df = bigquery_api.validate_data(
-        dataframe=devices_df, table=bigquery_api.devices_table
-    )
-    bigquery_data_df.to_csv(path_or_buf="bigquery_devices_data.csv", index=False)
 
 
 def nasa_purple_air_data():
@@ -822,7 +823,9 @@ def airqo_historical_csv_bam_data():
 
     from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
-    devices = AirQoApi().get_devices(tenant=Tenant.AIRQO, category=DeviceCategory.BAM)
+    devices = AirQoApi().get_devices(
+        tenant=Tenant.AIRQO, device_category=DeviceCategory.BAM
+    )
 
     unclean_data = pd.read_csv(
         "airqo_historical_bam_data.csv",
@@ -1004,7 +1007,7 @@ if __name__ == "__main__":
         app_notifications()
 
     elif args.action == "meta_data":
-        meta_data()
+        main_class.meta_data()
 
     elif args.action == "calibrate_historical_airqo_data":
         main_class.calibrate_historical_airqo_data()
