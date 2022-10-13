@@ -209,14 +209,9 @@ class AirQoAppUtils:
 
         print(f"saving {len(insights_data)} insights .... ")
 
-        data = {
-            "data": insights_data,
-            "action": "",
-        }
-
         kafka = KafkaBrokerClient()
         kafka.send_data(
-            info=data,
+            data=insights_data,
             topic=configuration.INSIGHTS_MEASUREMENTS_TOPIC,
             partition=partition,
         )

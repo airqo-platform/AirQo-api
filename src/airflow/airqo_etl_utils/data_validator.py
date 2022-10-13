@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 
 from airqo_etl_utils.bigquery_api import BigQueryApi
-from airqo_etl_utils.constants import Tenant, ColumnDataType
+from airqo_etl_utils.constants import Tenant, ColumnDataType, Frequency
 from airqo_etl_utils.utils import Utils
 
 
@@ -132,6 +132,15 @@ class DataValidationUtils:
             dataframe.loc[:, "tenant"] = str(tenant)
         dataframe = Utils.populate_missing_columns(data=dataframe, cols=columns)
         return dataframe[columns]
+
+    @staticmethod
+    def process_for_message_broker(
+        data: pd.DataFrame, tenant: Tenant, frequency: Frequency = Frequency.HOURLY
+    ) -> list:
+        data.loc[:, "frequency"] = str(frequency)
+        if tenant != Tenant.ALL:
+            data.loc[:, "tenant"] = str(tenant)
+        return data.to_dict("records")
 
     @staticmethod
     def convert_pressure_values(value):

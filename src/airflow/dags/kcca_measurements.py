@@ -45,21 +45,17 @@ def hourly_measurements_etl():
 
     @task()
     def send_to_message_broker(data: pd.DataFrame):
-        from airqo_etl_utils.kcca_utils import KccaUtils
+        from airqo_etl_utils.data_validator import DataValidationUtils
         from airqo_etl_utils.config import configuration
         from airqo_etl_utils.constants import Tenant
         from airqo_etl_utils.message_broker import KafkaBrokerClient
 
-        kcca_restructured_data = KccaUtils.transform_data_for_message_broker(data=data)
-
-        info = {
-            "data": kcca_restructured_data,
-            "action": "insert",
-            "tenant": str(Tenant.KCCA),
-        }
+        data = DataValidationUtils.process_for_message_broker(
+            data=data, tenant=Tenant.KCCA
+        )
 
         kafka = KafkaBrokerClient()
-        kafka.send_data(info=info, topic=configuration.HOURLY_MEASUREMENTS_TOPIC)
+        kafka.send_data(data=data, topic=configuration.HOURLY_MEASUREMENTS_TOPIC)
 
     @task()
     def send_to_bigquery(data: pd.DataFrame):

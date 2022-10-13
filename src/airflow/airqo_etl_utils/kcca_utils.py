@@ -188,7 +188,3 @@ class KccaUtils:
             measurements.append(row_data)
 
         return measurements
-
-    @staticmethod
-    def transform_data_for_message_broker(data: pd.DataFrame) -> list:
-        return data.to_dict("records")
