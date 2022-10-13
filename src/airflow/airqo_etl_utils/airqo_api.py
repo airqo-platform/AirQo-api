@@ -99,7 +99,7 @@ class AirQoApi:
     def get_devices(
         self,
         tenant: Tenant = Tenant.ALL,
-        category: DeviceCategory = DeviceCategory.NONE,
+        device_category: DeviceCategory = DeviceCategory.NONE,
     ) -> list:
         devices = []
         if tenant == Tenant.ALL:
@@ -109,7 +109,16 @@ class AirQoApi:
                 try:
                     response = self.__request("devices", {"tenant": str(tenant_enum)})
                     tenant_devices = [
-                        {**device, **{"tenant": str(tenant_enum)}}
+                        {
+                            **device,
+                            **{
+                                "tenant": str(tenant_enum),
+                                "device_manufacturer": device.get(
+                                    "device_manufacturer",
+                                    tenant_enum.device_manufacturer(),
+                                ),
+                            },
+                        }
                         for device in response.get("devices", [])
                     ]
                     devices.extend(tenant_devices)
@@ -120,7 +129,15 @@ class AirQoApi:
             response = self.__request("devices", {"tenant": str(tenant)})
             if response:
                 devices = [
-                    {**device, **{"tenant": str(tenant)}}
+                    {
+                        **device,
+                        **{
+                            "tenant": str(tenant),
+                            "device_manufacturer": device.get(
+                                "device_manufacturer", tenant.device_manufacturer()
+                            ),
+                        },
+                    }
                     for device in response.get("devices", [])
                 ]
 
@@ -129,9 +146,15 @@ class AirQoApi:
                 **device,
                 **{
                     "device_number": device.get("device_number", None),
+                    "approximate_latitude": device.get(
+                        "approximate_latitude", device.get("latitude", None)
+                    ),
+                    "approximate_longitude": device.get(
+                        "approximate_longitude", device.get("longitude", None)
+                    ),
                     "device_id": device.get("name", None),
                     "site_id": device.get("site", {}).get("_id", None),
-                    "category": str(
+                    "device_category": str(
                         DeviceCategory.from_str(device.get("category", ""))
                     ),
                 },
@@ -139,8 +162,10 @@ class AirQoApi:
             for device in devices
         ]
 
-        if category != DeviceCategory.NONE:
-            devices = list(filter(lambda y: y["category"] == str(category), devices))
+        if device_category != DeviceCategory.NONE:
+            devices = list(
+                filter(lambda y: y["device_category"] == str(device_category), devices)
+            )
 
         return devices
 
@@ -222,6 +247,40 @@ class AirQoApi:
 
         return list(response["weather_stations"]) if response else []
 
+    def get_meta_data(self, latitude, longitude) -> dict:
+        meta_data = {}
+        meta_data_mappings = {
+            "bearing_to_kampala_center": "",
+            "distance_to_kampala_center": "distance_to_kampala_center",
+            "landform_90": "landform-90",
+            "landform_270": "landform-270",
+            "aspect": "aspect",
+            "bearing": "bearing",
+            "altitude": "altitude",
+            "distance_to_nearest_motorway_road": "distance/motorway/road",
+            "distance_to_nearest_trunk_road": "distance/trunk/road",
+            "distance_to_nearest_tertiary_road": "distance/tertiary/road",
+            "distance_to_nearest_primary_road": "distance/primary/road",
+            "distance_to_nearest_road": "distance/road",
+            "distance_to_nearest_residential_road": "distance/residential/road",
+            "distance_to_nearest_secondary_road": "distance/secondary/road",
+            "distance_to_nearest_unclassified_road": "distance/unclassified/road",
+        }
+
+        for key, endpoint in meta_data_mappings.items():
+            try:
+                response = self.__request(
+                    endpoint=f"meta-data/{endpoint}",
+                    params={"latitude": latitude, "longitude": longitude},
+                    method="get",
+                )
+
+                meta_data[key] = response["data"]
+            except Exception as ex:
+                print(ex)
+
+        return meta_data
+
     def get_sites(self, tenant: Tenant = Tenant.ALL) -> list:
         sites = []
         if tenant == Tenant.ALL:
@@ -253,6 +312,17 @@ class AirQoApi:
                 **site,
                 **{
                     "site_id": site.get("_id", None),
+                    "location": site.get("location", None),
+                    "approximate_latitude": site.get(
+                        "approximate_latitude", site.get("latitude", None)
+                    ),
+                    "approximate_longitude": site.get(
+                        "approximate_longitude", site.get("longitude", None)
+                    ),
+                    "search_name": site.get("search_name", site.get("name", None)),
+                    "location_name": site.get(
+                        "location_name", site.get("location", None)
+                    ),
                 },
             }
             for site in sites

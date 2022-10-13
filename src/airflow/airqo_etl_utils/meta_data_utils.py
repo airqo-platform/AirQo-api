@@ -1,8 +1,9 @@
 import pandas as pd
 
 from .airqo_api import AirQoApi
-from .constants import ColumnDataType, Tenant
-from .utils import Utils
+from .bigquery_api import BigQueryApi
+from .constants import Tenant
+from .data_validator import DataValidationUtils
 from .weather_data_utils import WeatherDataUtils
 
 
@@ -10,146 +11,63 @@ class MetaDataUtils:
     @staticmethod
     def extract_meta_data(component: str, tenant: Tenant = Tenant.ALL) -> pd.DataFrame:
         airqo_api = AirQoApi()
-        if component == "sites":
-            meta_data = airqo_api.get_sites(tenant=tenant)
-        elif component == "devices":
-            meta_data = airqo_api.get_devices(tenant=tenant)
-        else:
-            raise Exception("Invalid component. Valid values are sites and devices.")
-
-        dataframe = pd.json_normalize(meta_data)
-
-        date_time_columns = []
 
         if component == "sites":
-
+            sites = airqo_api.get_sites(tenant=tenant)
+            dataframe = pd.json_normalize(sites)
             dataframe = dataframe[
                 [
-                    "_id",
-                    "latitude",
                     "tenant",
+                    "site_id",
+                    "latitude",
                     "longitude",
                     "approximate_latitude",
                     "approximate_longitude",
-                    "generated_name",
                     "name",
-                    "bearing_to_kampala_center",
-                    "landform_90",
-                    "distance_to_kampala_center",
-                    "altitude",
-                    "landform_270",
-                    "aspect",
+                    "location",
+                    "search_name",
+                    "location_name",
                     "description",
-                    "distance_to_nearest_tertiary_road",
-                    "distance_to_nearest_primary_road",
-                    "distance_to_nearest_road",
-                    "distance_to_nearest_residential_road",
-                    "distance_to_nearest_secondary_road",
-                    "distance_to_nearest_unclassified_road",
-                    "country",
-                    "region",
-                    "parish",
-                    "sub_county",
-                    "county",
-                    "district",
                     "city",
+                    "region",
+                    "country",
                 ]
             ]
 
-            numeric_columns = [
-                "latitude",
-                "longitude",
-                "approximate_latitude",
-                "approximate_longitude",
-                "bearing_to_kampala_center",
-                "landform_90",
-                "distance_to_kampala_center",
-                "altitude",
-                "landform_270",
-                "aspect",
-                "distance_to_nearest_tertiary_road",
-                "distance_to_nearest_primary_road",
-                "distance_to_nearest_road",
-                "distance_to_nearest_residential_road",
-                "distance_to_nearest_secondary_road",
-                "distance_to_nearest_unclassified_road",
-            ]
-            rename_columns = {
-                "_id": "id",
-            }
+            dataframe.rename(
+                columns={
+                    "search_name": "display_name",
+                    "site_id": "id",
+                    "location_name": "display_location",
+                },
+                inplace=True,
+            )
 
         elif component == "devices":
-
+            devices = airqo_api.get_devices(tenant=tenant)
+            dataframe = pd.json_normalize(devices)
             dataframe = dataframe[
                 [
-                    "_id",
                     "tenant",
-                    "visibility",
-                    "mobility",
-                    "height",
-                    "isPrimaryInLocation",
-                    "nextMaintenance",
-                    "isActive",
-                    "device_number",
-                    "long_name",
-                    "description",
-                    "createdAt",
-                    "writeKey",
-                    "readKey",
-                    "phoneNumber",
-                    "name",
-                    "deployment_date",
-                    "maintenance_date",
-                    "recall_date",
                     "latitude",
                     "longitude",
-                    "mountType",
-                    "powerType",
-                    "site._id",
+                    "site_id",
+                    "device_id",
+                    "device_number",
+                    "name",
+                    "description",
+                    "device_manufacturer",
+                    "device_category",
+                    "approximate_latitude",
+                    "approximate_longitude",
                 ]
             ]
-            numeric_columns = [
-                "latitude",
-                "longitude",
-                "device_number",
-                "height",
-            ]
-            date_time_columns = [
-                "recall_date",
-                "maintenance_date",
-                "deployment_date",
-                "createdAt",
-                "nextMaintenance",
-            ]
-            rename_columns = {
-                "site._id": "site_id",
-                "_id": "id",
-                "isPrimaryInLocation": "primary",
-                "nextMaintenance": "next_maintenance",
-                "phoneNumber": "phone_number",
-                "writeKey": "write_key",
-                "readKey": "read_key",
-                "isActive": "active",
-                "createdAt": "created_on",
-                "mountType": "mount_type",
-                "powerType": "power_type",
-            }
 
         else:
             raise Exception("Invalid component. Valid values are sites and devices.")
 
-        dataframe = Utils.format_dataframe_column_type(
-            dataframe=dataframe,
-            data_type=ColumnDataType.FLOAT,
-            columns=numeric_columns,
-        )
-        dataframe = Utils.format_dataframe_column_type(
-            dataframe=dataframe,
-            data_type=ColumnDataType.TIMESTAMP_STR,
-            columns=date_time_columns,
-        )
-        dataframe.rename(columns=rename_columns, inplace=True)
-        dataframe.reset_index(drop=True, inplace=True)
+        dataframe = DataValidationUtils.remove_outliers(dataframe)
+
         return dataframe
 
     @staticmethod
@@ -176,3 +94,43 @@ class MetaDataUtils:
             for site in updated_sites
         ]
         airqo_api.update_sites(updated_sites)
+
+    @staticmethod
+    def update_sites_distance_measures(tenant: Tenant) -> None:
+        airqo_api = AirQoApi()
+        sites = airqo_api.get_sites(tenant=tenant)
+        updated_sites = []
+        for site in sites:
+            record = {
+                "site_id": site.get("site_id", None),
+                "tenant": site.get("tenant", None),
+                "latitude": site.get("latitude", None),
+                "longitude": site.get("longitude", None),
+            }
+            meta_data = airqo_api.get_meta_data(
+                latitude=record.get("latitude"),
+                longitude=record.get("longitude"),
+            )
+
+            if len(meta_data) != 0:
+                updated_sites.append(
+                    {
+                        **meta_data,
+                        **{"site_id": record["site_id"], "tenant": record["tenant"]},
+                    }
+                )
+
+        airqo_api.update_sites(updated_sites)
+
+    @staticmethod
+    def update_bigquery_meta_data() -> None:
+
+        sites = AirQoApi().get_sites(tenant=Tenant.ALL)
+        meta_data = pd.DataFrame(sites)
+
+        bigquery_api = BigQueryApi()
+        table = bigquery_api.sites_meta_data_table
+        meta_data = DataValidationUtils.process_for_big_query(
+            dataframe=meta_data, table=table, tenant=Tenant.ALL
+        )
+        bigquery_api.update_sites_meta_data(meta_data)
