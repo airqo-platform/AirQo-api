@@ -2,7 +2,7 @@ name: remove-deploy-previews
 
 on:
   pull_request:
-    branches: 
+    branches:
       - staging
     types:
       - closed
@@ -20,8 +20,6 @@ jobs:
           string: ${{ github.head_ref || github.ref_name }}
 
   check:
-    # this job will only run if the PR has been merged
-    if: github.event.pull_request.merged == true
     name: check changed microservice(s)
     outputs:
       remove_preview__auth_service: ${{ steps.check_files.outputs.remove_preview__auth_service }} # auth service
@@ -31,12 +29,12 @@ jobs:
       remove_preview__analytics: ${{ steps.check_files.outputs.remove_preview__analytics }} # analytics
       remove_preview__locate: ${{ steps.check_files.outputs.remove_preview__locate }} # locate
       remove_preview__predict: ${{ steps.check_files.outputs.remove_preview__predict }} # predict
-      remove_preview__datawarehouse: ${{ steps.check_files.outputs.remove_preview__datawarehouse }} # datawarehouse
+      remove_preview__meta_data: ${{ steps.check_files.outputs.remove_preview__meta_data }} # meta-data
       remove_preview__view: ${{ steps.check_files.outputs.remove_preview__view }} # view
       remove_preview__calibrate: ${{ steps.check_files.outputs.remove_preview__calibrate }} # calibrate
       remove_preview__notifications: ${{ steps.check_files.outputs.remove_preview__notifications }} # notification
       remove_preview__network_uptime: ${{ steps.check_files.outputs.remove_preview__network_uptime }} # network_uptime
-      
+
     runs-on: ubuntu-latest
     steps:
       - name: checkout code
@@ -50,10 +48,10 @@ jobs:
         run: |
           echo "=============== list modified files ==============="
           git diff --name-only HEAD^ HEAD
-          
+
           echo "========== check paths of modified files =========="
           git diff --name-only HEAD^ HEAD > files.txt
-          
+
           echo "::set-output name=remove_preview__auth_service::false"
           echo "::set-output name=remove_preview__device_registry::false"  
           echo "::set-output name=remove_preview__device_monitoring::false" 
@@ -61,7 +59,7 @@ jobs:
           echo "::set-output name=remove_preview__analytics::false"
           echo "::set-output name=remove_preview__locate::false"
           echo "::set-output name=remove_preview__predict::false"
-          echo "::set-output name=remove_preview__datawarehouse::false"
+          echo "::set-output name=remove_preview__meta_data::false"
           echo "::set-output name=remove_preview__view::false"
           echo "::set-output name=remove_preview__calibrate::false" 
           echo "::set-output name=remove_preview__notifications::false"
@@ -98,8 +96,8 @@ jobs:
               echo "::set-output name=remove_preview__predict::true"
             fi
 
-            if [[ $file == src/data-mgt/python/extract-external-data/* ]]; then
-              echo "::set-output name=remove_preview__datawarehouse::true"
+            if [[ $file == src/meta-data/* ]]; then
+              echo "::set-output name=remove_preview__meta_data::true"
             fi
 
             if [[ $file == src/view/* ]]; then
@@ -131,11 +129,11 @@ jobs:
         id: auth
         uses: google-github-actions/auth@v0
         with:
-          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
-          
+          credentials_json: "${{ secrets.GCP_SA_CREDENTIALS }}"
+
       - name: Setup Cloud SDK
-        uses: 'google-github-actions/setup-gcloud@v0'
-        
+        uses: "google-github-actions/setup-gcloud@v0"
+
       - name: Delete PR deploy preview
         run: |-
           gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-auth-service-preview \
@@ -153,11 +151,11 @@ jobs:
         id: auth
         uses: google-github-actions/auth@v0
         with:
-          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
-          
+          credentials_json: "${{ secrets.GCP_SA_CREDENTIALS }}"
+
       - name: Setup Cloud SDK
-        uses: 'google-github-actions/setup-gcloud@v0'
-        
+        uses: "google-github-actions/setup-gcloud@v0"
+
       - name: Delete PR deploy preview
         run: |-
           gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-device-registry-preview \
@@ -175,11 +173,11 @@ jobs:
         id: auth
         uses: google-github-actions/auth@v0
         with:
-          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
-          
+          credentials_json: "${{ secrets.GCP_SA_CREDENTIALS }}"
+
       - name: Setup Cloud SDK
-        uses: 'google-github-actions/setup-gcloud@v0'
-        
+        uses: "google-github-actions/setup-gcloud@v0"
+
       - name: Delete PR deploy preview
         run: |-
           gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-device-monitoring-preview \
@@ -197,11 +195,11 @@ jobs:
         id: auth
         uses: google-github-actions/auth@v0
         with:
-          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
-          
+          credentials_json: "${{ secrets.GCP_SA_CREDENTIALS }}"
+
       - name: Setup Cloud SDK
-        uses: 'google-github-actions/setup-gcloud@v0'
-        
+        uses: "google-github-actions/setup-gcloud@v0"
+
       - name: Delete PR deploy preview
         run: |-
           gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-data-mgt-preview \
@@ -219,17 +217,17 @@ jobs:
         id: auth
         uses: google-github-actions/auth@v0
         with:
-          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
-          
+          credentials_json: "${{ secrets.GCP_SA_CREDENTIALS }}"
+
       - name: Setup Cloud SDK
-        uses: 'google-github-actions/setup-gcloud@v0'
-        
+        uses: "google-github-actions/setup-gcloud@v0"
+
       - name: Delete PR deploy preview
         run: |-
           gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-analytics-preview \
             --region=${{ secrets.REGION }} \
             --quiet
-  
+
   ### locate ###
   locate:
     name: remove-preview--locate
@@ -241,17 +239,17 @@ jobs:
         id: auth
         uses: google-github-actions/auth@v0
         with:
-          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
-          
+          credentials_json: "${{ secrets.GCP_SA_CREDENTIALS }}"
+
       - name: Setup Cloud SDK
-        uses: 'google-github-actions/setup-gcloud@v0'
-        
+        uses: "google-github-actions/setup-gcloud@v0"
+
       - name: Delete PR deploy preview
         run: |-
           gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-locate \
             --region=${{ secrets.REGION }} \
             --quiet
-  
+
   ### predict api and jobs ###
   predict-service:
     name: remove-preview--predict-service
@@ -263,39 +261,39 @@ jobs:
         id: auth
         uses: google-github-actions/auth@v0
         with:
-          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
-          
+          credentials_json: "${{ secrets.GCP_SA_CREDENTIALS }}"
+
       - name: Setup Cloud SDK
-        uses: 'google-github-actions/setup-gcloud@v0'
-        
+        uses: "google-github-actions/setup-gcloud@v0"
+
       - name: Delete PR deploy preview
         run: |-
           gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-predict-service \
             --region=${{ secrets.REGION }} \
             --quiet
 
-  ### datawarehouse ###
-  datawarehouse:
-    name: remove-preview--datawarehouse
+  ### meta-data ###
+  meta-data:
+    name: remove-preview-meta-data
     needs: [check, branch-name]
-    if: needs.check.outputs.remove_preview__datawarehouse == 'true'
+    if: needs.check.outputs.remove_preview__meta_data == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Google Auth
         id: auth
         uses: google-github-actions/auth@v0
         with:
-          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
-          
+          credentials_json: "${{ secrets.GCP_SA_CREDENTIALS }}"
+
       - name: Setup Cloud SDK
-        uses: 'google-github-actions/setup-gcloud@v0'
-        
+        uses: "google-github-actions/setup-gcloud@v0"
+
       - name: Delete PR deploy preview
         run: |-
-          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-datawarehouse \
+          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-meta-data \
             --region=${{ secrets.REGION }} \
             --quiet
-  
+
   ### view  ###
   view:
     name: remove-preview--view
@@ -307,11 +305,11 @@ jobs:
         id: auth
         uses: google-github-actions/auth@v0
         with:
-          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
-          
+          credentials_json: "${{ secrets.GCP_SA_CREDENTIALS }}"
+
       - name: Setup Cloud SDK
-        uses: 'google-github-actions/setup-gcloud@v0'
-        
+        uses: "google-github-actions/setup-gcloud@v0"
+
       - name: Delete PR deploy preview
         run: |-
           gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-view \
@@ -329,11 +327,11 @@ jobs:
         id: auth
         uses: google-github-actions/auth@v0
         with:
-          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
-          
+          credentials_json: "${{ secrets.GCP_SA_CREDENTIALS }}"
+
       - name: Setup Cloud SDK
-        uses: 'google-github-actions/setup-gcloud@v0'
-        
+        uses: "google-github-actions/setup-gcloud@v0"
+
       - name: Delete PR deploy preview
         run: |-
           gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-calibrate \
@@ -351,11 +349,11 @@ jobs:
         id: auth
         uses: google-github-actions/auth@v0
         with:
-          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
-          
+          credentials_json: "${{ secrets.GCP_SA_CREDENTIALS }}"
+
       - name: Setup Cloud SDK
-        uses: 'google-github-actions/setup-gcloud@v0'
-        
+        uses: "google-github-actions/setup-gcloud@v0"
+
       - name: Delete PR deploy preview
         run: |-
           gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-notifications \
@@ -373,11 +371,11 @@ jobs:
         id: auth
         uses: google-github-actions/auth@v0
         with:
-          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
-          
+          credentials_json: "${{ secrets.GCP_SA_CREDENTIALS }}"
+
       - name: Setup Cloud SDK
-        uses: 'google-github-actions/setup-gcloud@v0'
-        
+        uses: "google-github-actions/setup-gcloud@v0"
+
       - name: Delete PR deploy preview
         run: |-
           gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-network_uptime \

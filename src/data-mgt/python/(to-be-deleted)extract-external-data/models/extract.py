@@ -1,18 +1,34 @@
+import os
 import ee
 import osmnx as ox
 import pyproj
 import requests
-from geopy import distance
 from shapely.geometry import Point
 from shapely.ops import transform
+import json
+from dotenv import load_dotenv
+from geopy import distance
+from models import TAHMO
+import pandas as pd
 
-from api.models import TAHMO
-from config import Config
+load_dotenv()
 
-credentials = ee.ServiceAccountCredentials(
-    key_file=Config.GOOGLE_APPLICATION_CREDENTIALS,
-    email=Config.GOOGLE_APPLICATION_CREDENTIALS_EMAIL,
+TAHMO_API_CREDENTIALS_USERNAME = os.getenv("TAHMO_API_CREDENTIALS_USERNAME")
+TAHMO_API_CREDENTIALS_PASSWORD = os.getenv("TAHMO_API_CREDENTIALS_PASSWORD")
+DEVICE_REGISTRY_BASE_URL = os.getenv("DEVICE_REGISTRY_BASE_URL")
+GOOGLE_APPLICATION_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+ELEVATION_BASE_URL = os.getenv("ELEVATION_BASE_URL")
+GOOGLE_MAP_API_KEY = os.getenv("GOOGLE_MAP_API_KEY")
+WEATHER_STATION_AIRQUALITY_SITE_DISTANCE_THRESHOLD = os.getenv(
+    "WEATHER_STATION_AIRQUALITY_SITE_DISTANCE_THRESHOLD"
 )
+CENTER_OF_KAMPALA_LATITUDE = os.getenv("CENTER_OF_KAMPALA_LATITUDE")
+CENTER_OF_KAMPALA_LONGITUDE = os.getenv("CENTER_OF_KAMPALA_LONGITUDE")
+SERVICE_ACCOUNT = os.getenv("SERVICE_ACCOUNT")
+PRIVATE_KEY = os.getenv("PRIVATE_KEY")
+
+credentials = ee.ServiceAccountCredentials(SERVICE_ACCOUNT, PRIVATE_KEY)
+
 ee.Initialize(credentials)
 
 
@@ -22,15 +38,16 @@ class Extract:
         Gets & returns the average greenness value at the specified coordinates
         for the specified time  period
         """
+        greenness = ""
         dataset = (
             ee.ImageCollection("MODIS/006/MOD13Q1")
             .filter(ee.Filter.date(start_date, end_date))
             .mean()
         )
         location_geometry = ee.Geometry.Point(lon, lat)
-        greenness_dict = dataset.reduceRegion(ee.Reducer.mean(), location_geometry, 90)
-        mean_greenness = greenness_dict.get("NDVI")
-        greenness = mean_greenness.getInfo()
+        greennessDict = dataset.reduceRegion(ee.Reducer.mean(), location_geometry, 90)
+        meanGreenness = greennessDict.get("NDVI")
+        greenness = meanGreenness.getInfo()
         return greenness
 
     def get_landuse(self, lat, lon):
@@ -57,81 +74,80 @@ class Extract:
         ]
         ox.utils.config(useful_tags_way=useful_tags_path)
         tags = {"amenity": True, "landuse": True}
-        g = ox.graph_from_point((lat, lon), dist=10000, network_type="drive")
-        gdf = ox.graph_to_gdfs(g, nodes=False, fill_edge_geometry=True)
-        del gdf["geometry"]  # removing geometry because it's not jSON serializable
-        return gdf.to_dict("records")
+        G = ox.graph_from_point((lat, lon), dist=10000, network_type="drive")
+        gdf = ox.graph_to_gdfs(G, nodes=False, fill_edge_geometry=True)
+
+        return gdf
 
     def get_altitude(self, lat, lon):
         """
         Returns the altitude at the specified coordinates
         """
-        url = f"{Config.ELEVATION_BASE_URL}?locations={lat},{lon}&key={Config.GOOGLE_MAP_API_KEY}"
+        url = ELEVATION_BASE_URL + "?locations={0},{1}&key={2}".format(
+            lat, lon, GOOGLE_MAP_API_KEY
+        )
+
         response = requests.get(url).json()
         altitude = response["results"][0]["elevation"]
         return round(altitude, 2)
 
-    @staticmethod
-    def get_geo_coordinates(ip_address):
-        response = requests.get(f"http://ip-api.com/json/{ip_address}")
-        return {
-            "latitude": response.json()["lat"],
-            "longitude": response.json()["lon"],
-            "city": response.json()["city"],
-            "region": response.json()["regionName"],
-            "country": response.json()["country"],
-        }
+    def checkKey(self, dict, key):
+        """
+        checks wether specified key is available in the specified dictionary.
+        """
+        if key in dict.keys():
+            return True
+        else:
+            return False
 
-    @staticmethod
-    def get_mobile_carrier(phone_number):
-        response = requests.get(f"https://api.apilayer.com/number_verification/validate?number={phone_number}",
-                                headers={"apikey": Config.MOBILE_CARRIER_LOOK_UP_API_KEY})
-        return {
-            "country_code": response.json()["country_code"],
-            "country": response.json()["country_name"],
-            "carrier": response.json()["carrier"],
-        }
-
-    def get_nearest_weather_stations(
-        self, latitude, longitude, threshold_distance=None
-    ):
-        if not threshold_distance:
-            threshold_distance = (
-                Config.WEATHER_STATION_AIRQUALITY_SITE_DISTANCE_THRESHOLD
-            )
-
-        all_stations = self.get_all_weather_station_account_has_access_on()
-        stations_with_distances = []
+    def get_closest_weather_station(self, name, latitude, longitude):
         specified_coordinates = (latitude, longitude)
-
-        for station in all_stations:
-            station_coordinates = (
-                station["latitude"],
-                station["longitude"],
+        weather_stations_with_distances_from_specified_coordinates = {}
+        all_stations = self.get_all_weather_station_account_has_access_on()
+        specified_coordinates = (latitude, longitude)
+        for key, station in all_stations.items():
+            # print(station)
+            weather_station_coordinates = (
+                station["location"]["latitude"],
+                station["location"]["longitude"],
             )
+            # print(weather_station_coordinates)
             distance_between_coordinates = distance.distance(
-                specified_coordinates, station_coordinates
+                specified_coordinates, weather_station_coordinates
             ).km
-            if float(distance_between_coordinates) <= float(threshold_distance):
-                stations_with_distances.append(
-                    {
-                        "distance": distance_between_coordinates,
-                        "code": station.get("code", ""),
-                        "country": station.get("countrycode", ""),
-                        "id": station.get("id", ""),
-                        "latitude": station.get("latitude", None),
-                        "longitude": station.get("longitude", None),
-                        "name": station.get("name", ""),
-                        "timezone": station.get("timezone", ""),
-                        "type": station.get("type", ""),
-                    }
-                )
-        return sorted(stations_with_distances, key=lambda x: float(x["distance"]))
+            weather_stations_with_distances_from_specified_coordinates[
+                station["code"]
+            ] = distance_between_coordinates
+
+        # print(weather_stations_with_distances_from_specified_coordinates)
+        weather_station_with_min_distance = min(
+            weather_stations_with_distances_from_specified_coordinates.keys(),
+            key=(
+                lambda k: weather_stations_with_distances_from_specified_coordinates[k]
+            ),
+        )
+        selected_station = {}
+        print(type(weather_station_with_min_distance))
+        print(weather_station_with_min_distance)
+
+        if weather_stations_with_distances_from_specified_coordinates[
+            weather_station_with_min_distance
+        ]:
+            if weather_stations_with_distances_from_specified_coordinates[
+                weather_station_with_min_distance
+            ] >= float(WEATHER_STATION_AIRQUALITY_SITE_DISTANCE_THRESHOLD):
+                return weather_station_with_min_distance, selected_station
+            else:
+                selected_station = all_stations.get(weather_station_with_min_distance)
+                # print(selected_station)
+                return weather_station_with_min_distance, selected_station
+        else:
+            return weather_station_with_min_distance, selected_station
 
     def get_all_weather_station_account_has_access_on(self):
         tahmo_api = TAHMO.apiWrapper()
         tahmo_api.setCredentials(
-            Config.TAHMO_API_CREDENTIALS_USERNAME, Config.TAHMO_API_CREDENTIALS_PASSWORD
+            TAHMO_API_CREDENTIALS_USERNAME, TAHMO_API_CREDENTIALS_PASSWORD
         )
         stations = tahmo_api.getStations()
         return stations
@@ -139,7 +155,7 @@ class Extract:
     def get_all_available_variables_and_units_tahmo_api(self):
         tahmo_api = TAHMO.apiWrapper()
         tahmo_api.setCredentials(
-            Config.TAHMO_API_CREDENTIALS_USERNAME, Config.TAHMO_API_CREDENTIALS_PASSWORD
+            TAHMO_API_CREDENTIALS_USERNAME, TAHMO_API_CREDENTIALS_PASSWORD
         )
         variables = tahmo_api.getVariables()
         print("Available variables in TAHMO API:")
@@ -156,7 +172,7 @@ class Extract:
     def get_station_measurements(self, station, startDate, endDate):
         tahmo_api = TAHMO.apiWrapper()
         tahmo_api.setCredentials(
-            Config.TAHMO_API_CREDENTIALS_USERNAME, Config.TAHMO_API_CREDENTIALS_PASSWORD
+            TAHMO_API_CREDENTIALS_USERNAME, TAHMO_API_CREDENTIALS_PASSWORD
         )
         df = tahmo_api.getMeasurements(station, startDate=startDate, endDate=endDate)
         df.index.name = "Timestamp"
@@ -164,6 +180,25 @@ class Extract:
         # df.rename(columns={'ap':'Atmospheric pressure [kPa]','pr':'Precipitation', 'rh':'Relative humidity', 'ws':'Wind speed [m/s]','Wind gusts [m/s]'},inplace=True)
         # df.to_csv(station+'.csv', na_rep='', date_format='%Y-%m-%d %H:%M')
         return df
+
+    def get_devices(self, name="", tenant="airqo"):
+        if name == "":
+            api_url = DEVICE_REGISTRY_BASE_URL + "devices?tenant=" + tenant
+        else:
+            api_url = (
+                DEVICE_REGISTRY_BASE_URL + "devices?tenant=" + tenant + "&name=" + name
+            )
+        try:
+            results = requests.get(api_url, verify=False)
+            devices_data = results.json()["devices"]
+        except Exception as ex:
+            print("Devices Url returned an error : " + str(ex))
+            devices_data = {}
+
+        with open("device.json", "w") as f:
+            json.dump(list(devices_data), f)
+
+        return devices_data
 
     def get_aspect_270(self, lat, lon):
         """
@@ -211,15 +246,18 @@ class Extract:
         return land_value
 
     def get_bearing_from_kampala(self, lat, lon):
-        KAMPALA_LAT = float(Config.CENTER_OF_KAMPALA_LATITUDE)
-        KAMPALA_LONG = float(Config.CENTER_OF_KAMPALA_LONGITUDE)
+        KAMPALA_LAT = float(CENTER_OF_KAMPALA_LATITUDE)
+        KAMPALA_LONG = float(CENTER_OF_KAMPALA_LONGITUDE)
         bearing = ox.bearing.calculate_bearing(KAMPALA_LAT, KAMPALA_LONG, lat, lon)
         return bearing
 
     def get_distance_from_kampala(self, lat, lon):
-        KAMPALA_LAT = float(Config.CENTER_OF_KAMPALA_LATITUDE)
-        KAMPALA_LONG = float(Config.CENTER_OF_KAMPALA_LONGITUDE)
+        KAMPALA_LAT = float(CENTER_OF_KAMPALA_LATITUDE)
+        KAMPALA_LONG = float(CENTER_OF_KAMPALA_LONGITUDE)
         kamapla_coordinates = (KAMPALA_LAT, KAMPALA_LONG)
+        distance_from_kla = ox.distance.euclidean_dist_vec(
+            KAMPALA_LONG, KAMPALA_LAT, lon, lat
+        )
         distance_of_specified_coordinates_from_kla = distance.distance(
             kamapla_coordinates, (lat, lon)
         ).km

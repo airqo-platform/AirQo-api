@@ -388,6 +388,10 @@ class AirQoDataUtils:
                 )
 
         if remove_outliers:
+            if "vapor_pressure" in devices_data.columns.to_list():
+                devices_data.loc[:, "vapor_pressure"] = devices_data[
+                    "vapor_pressure"
+                ].apply(DataValidationUtils.convert_pressure_values)
             devices_data = DataValidationUtils.remove_outliers(devices_data)
 
         return devices_data
@@ -428,6 +432,14 @@ class AirQoDataUtils:
         data.loc[:, "tenant"] = str(Tenant.AIRQO)
         data = data.copy().loc[data["status"] == 0]
         data.rename(columns=configuration.AIRQO_BAM_MAPPING, inplace=True)
+
+        big_query_api = BigQueryApi()
+        required_cols = big_query_api.get_columns(
+            table=big_query_api.bam_measurements_table
+        )
+
+        data = Utils.populate_missing_columns(data=data, cols=required_cols)
+        data = data[required_cols]
 
         return data
 
@@ -493,7 +505,17 @@ class AirQoDataUtils:
         data: pd.DataFrame, device_category: DeviceCategory
     ) -> pd.DataFrame:
 
+        cols = data.columns.to_list()
         if device_category == DeviceCategory.BAM:
+            if "pm2_5" not in cols:
+                data.loc[:, "pm2_5"] = None
+
+            if "pm10" not in cols:
+                data.loc[:, "pm10"] = None
+
+            if "no2" not in cols:
+                data.loc[:, "no2"] = None
+
             data["s1_pm2_5"] = data["pm2_5"]
             data["pm2_5_raw_value"] = data["pm2_5"]
             data["pm2_5_calibrated_value"] = data["pm2_5"]
@@ -514,6 +536,10 @@ class AirQoDataUtils:
 
             data["pm2_5"] = data["pm2_5"].fillna(data["pm2_5_raw_value"])
             data["pm10"] = data["pm10"].fillna(data["pm10_raw_value"])
+
+        data.loc[:, "tenant"] = str(Tenant.AIRQO)
+        data.loc[:, "device_category"] = str(device_category)
+
         return data
 
     @staticmethod
@@ -543,7 +569,7 @@ class AirQoDataUtils:
                         devices,
                     )
                 )[0]
-                data = {
+                row_data = {
                     "device": device_details["name"],
                     "device_id": device_details["_id"],
                     "site_id": row["site_id"],
@@ -584,10 +610,10 @@ class AirQoDataUtils:
                     "externalHumidity": {"value": row["humidity"]},
                 }
 
-                if data["site_id"] is None or data["site_id"] is np.nan:
-                    data.pop("site_id")
+                if row_data["site_id"] is None or row_data["site_id"] is np.nan:
+                    row_data.pop("site_id")
 
-                restructured_data.append(data)
+                restructured_data.append(row_data)
 
             except Exception as ex:
                 traceback.print_exc()

@@ -1,15 +1,12 @@
-from datetime import datetime
-
 from airflow.decorators import dag, task
 
-from airqo_etl_utils.airflow_custom_utils import slack_dag_failure_notification
+from airqo_etl_utils.airflow_custom_utils import AirflowUtils
 
 
 @dag(
     "Urban-Better-Plume-Labs-Historical-Raw-Measurements",
     schedule_interval=None,
-    on_failure_callback=slack_dag_failure_notification,
-    start_date=datetime(2021, 1, 1),
+    default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["urban better", "raw", "historical", "plume labs"],
 )
@@ -80,8 +77,7 @@ def historical_raw_measurements_etl__plume_labs():
 @dag(
     "Urban-Better-Plume-Labs-Historical-Processed-Measurements",
     schedule_interval=None,
-    on_failure_callback=slack_dag_failure_notification,
-    start_date=datetime(2021, 1, 1),
+    default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["urban better", "processed", "historical", "plume labs"],
 )
@@ -168,9 +164,9 @@ def historical_processed_measurements_etl__plume_labs():
 
     @task()
     def add_air_quality_data(data: pd.DataFrame):
-        from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
+        from airqo_etl_utils.air_quality_utils import AirQualityUtils
 
-        return UrbanBetterUtils.add_air_quality(data)
+        return AirQualityUtils.add_categorisation(data)
 
     @task()
     def clean_data(data: pd.DataFrame):
@@ -208,8 +204,7 @@ def historical_processed_measurements_etl__plume_labs():
 @dag(
     "Urban-Better-Plume-Labs-Realtime-Raw-Measurements",
     schedule_interval="0 2 * * *",
-    on_failure_callback=slack_dag_failure_notification,
-    start_date=datetime(2021, 1, 1),
+    default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["urban better", "realtime", "raw", "plume labs"],
 )
@@ -297,9 +292,9 @@ def realtime_measurements_etl__plume_labs():
 
     @task()
     def add_air_quality_data(data: pd.DataFrame):
-        from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
+        from airqo_etl_utils.air_quality_utils import AirQualityUtils
 
-        return UrbanBetterUtils.add_air_quality(data)
+        return AirQualityUtils.add_categorisation(data)
 
     @task()
     def clean_data(data: pd.DataFrame):
@@ -337,8 +332,7 @@ def realtime_measurements_etl__plume_labs():
 @dag(
     "Urban-Better-Air-Beam-Historical-Raw-Measurements",
     schedule_interval=None,
-    on_failure_callback=slack_dag_failure_notification,
-    start_date=datetime(2021, 1, 1),
+    default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["urban better", "historical", "raw", "air beam"],
 )
@@ -386,8 +380,7 @@ def historical_measurements_etl__air_beam():
 @dag(
     "Urban-Better-Air-Beam-Realtime-Raw-Measurements",
     schedule_interval="10 * * * *",
-    on_failure_callback=slack_dag_failure_notification,
-    start_date=datetime(2021, 1, 1),
+    default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["urban better", "realtime", "raw", "air beam"],
 )

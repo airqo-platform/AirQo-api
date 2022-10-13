@@ -1,15 +1,12 @@
-from datetime import datetime
-
 from airflow.decorators import dag, task
 
-from airqo_etl_utils.airflow_custom_utils import slack_dag_failure_notification
+from airqo_etl_utils.airflow_custom_utils import AirflowUtils
 
 
 @dag(
     "Update-BigQuery-Sites",
     schedule_interval="@daily",
-    on_failure_callback=slack_dag_failure_notification,
-    start_date=datetime(2021, 1, 1),
+    default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["daily", "sites", "bigquery"],
 )
@@ -43,8 +40,7 @@ def big_query_update_sites_etl():
 @dag(
     "Update-BigQuery-Devices",
     schedule_interval="@daily",
-    on_failure_callback=slack_dag_failure_notification,
-    start_date=datetime(2021, 1, 1),
+    default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["daily", "devices", "bigquery"],
 )
@@ -78,8 +74,7 @@ def big_query_update_devices_etl():
 @dag(
     "Update-Sites-Meta-Data",
     schedule_interval="@daily",
-    on_failure_callback=slack_dag_failure_notification,
-    start_date=datetime(2021, 1, 1),
+    default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["daily", "sites", "meta-data"],
 )
