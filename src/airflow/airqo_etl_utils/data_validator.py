@@ -127,8 +127,6 @@ class DataValidationUtils:
     def process_for_big_query(
         dataframe: pd.DataFrame, table: str, tenant: Tenant
     ) -> pd.DataFrame:
-        from airqo_etl_utils.bigquery_api import BigQueryApi
-
         columns = BigQueryApi().get_columns(table)
         if tenant != Tenant.ALL:
             dataframe.loc[:, "tenant"] = str(tenant)
