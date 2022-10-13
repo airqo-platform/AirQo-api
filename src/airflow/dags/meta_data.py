@@ -6,10 +6,9 @@ from airqo_etl_utils.airflow_custom_utils import AirflowUtils
 @dag(
     "Update-BigQuery-Sites-And-Devices",
     schedule_interval="@hourly",
-    on_failure_callback=slack_dag_failure_notification,
-    start_date=datetime(2021, 1, 1),
+    default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
-    tags=["daily", "sites", "bigquery", "devices"],
+    tags=["hourly", "sites", "devices"],
 )
 def big_query_update_sites_and_devices_etl():
     import pandas as pd
