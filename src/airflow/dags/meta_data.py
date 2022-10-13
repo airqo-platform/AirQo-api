@@ -5,7 +5,7 @@ from airqo_etl_utils.airflow_custom_utils import AirflowUtils
 
 @dag(
     "Update-BigQuery-Sites-And-Devices",
-    schedule_interval="@hourly",
+    schedule_interval="*/15 * * * *",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["hourly", "sites", "devices"],

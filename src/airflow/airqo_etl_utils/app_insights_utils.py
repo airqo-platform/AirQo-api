@@ -369,6 +369,20 @@ class AirQoAppUtils:
     @staticmethod
     def process_for_firebase(data: pd.DataFrame, tenant: Tenant) -> pd.DataFrame:
 
+        data = data[
+            [
+                "pm2_5_calibrated_value",
+                "pm2_5_raw_value",
+                "pm10_calibrated_value",
+                "pm10_raw_value",
+                "tenant",
+                "site_id",
+                "timestamp",
+                "site_latitude",
+                "site_longitude",
+            ]
+        ]
+
         data.loc[:, "calibrated"] = np.where(
             data["pm2_5_calibrated_value"].isnull(), False, True
         )
@@ -391,7 +405,7 @@ class AirQoAppUtils:
         )
         data["pm10"] = data["pm10_calibrated_value"]
 
-        data.loc[:, "source"] = data["tenant"].apply(
+        data.loc[:, "tenant"] = data["tenant"].apply(
             lambda x: Tenant.from_str(x).name()
         )
 
@@ -401,6 +415,7 @@ class AirQoAppUtils:
                 "timestamp": "dateTime",
                 "site_latitude": "latitude",
                 "site_longitude": "longitude",
+                "tenant": "source",
             },
             inplace=True,
         )
@@ -415,40 +430,19 @@ class AirQoAppUtils:
             ],
         )
 
-        if tenant == Tenant.ALL:
-            pass
-        elif tenant in [Tenant.AIRQO, Tenant.KCCA]:
-            sites = AirQoApi().get_sites(tenant=tenant)
-            del data["latitude"]
-            del data["longitude"]
+        bigquery_api = BigQueryApi()
+        sites = bigquery_api.query_sites(tenant=tenant)
+        sites = sites[["region", "country", "display_name", "display_location", "id"]]
+        sites.rename(
+            columns={
+                "display_name": "name",
+                "display_location": "location",
+                "id": "referenceSite",
+            },
+            inplace=True,
+        )
 
-            sites = [
-                {
-                    "referenceSite": site.get("site_id", None),
-                    "name": site.get("search_name", None),
-                    "location": site.get("location_name", None),
-                    "region": site.get("region", None),
-                    "country": site.get("country", None),
-                    "latitude": site.get("latitude", None),
-                    "longitude": site.get("longitude", None),
-                    "site_sec_name": site.get("name", None),
-                    "site_sec_location": site.get("description", None),
-                }
-                for site in sites
-            ]
-
-            sites = pd.DataFrame(sites)
-            sites["name"] = sites["name"].fillna(sites["site_sec_name"])
-            sites["location"] = sites["location"].fillna(sites["site_sec_location"])
-            sites.dropna(inplace=True, subset=["referenceSite", "name", "location"])
-
-            data = data.merge(sites, on=["referenceSite"], how="left")
-
-        elif tenant == Tenant.US_EMBASSY:
-            data["location"] = data["site_name"]
-            data["country"] = data["site_name"]
-            data["region"] = data["site_name"]
-            data["name"] = data["site_name"]
+        data = data.merge(sites, on=["referenceSite"], how="left")
 
         data = data[
             [
