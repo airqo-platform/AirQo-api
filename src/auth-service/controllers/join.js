@@ -104,6 +104,20 @@ const join = {
       request["body"]["providerId"] = providerId;
       request["body"]["providerUid"] = providerUid;
 
+      function cleanObject(obj) {
+        for (key in obj) {
+          if (typeof obj[key] === "object") {
+            cleanObject(obj[key]);
+          } else if (
+            typeof obj[key] === "undefined" ||
+            typeof obj[key] === null
+          ) {
+            delete obj[key];
+          }
+        }
+        return obj;
+      }
+      cleanObject(request);
       await joinUtil.lookUpFirebaseUser(request, (result) => {
         if (result.success === true) {
           const status = result.status ? result.status : HTTPStatus.OK;

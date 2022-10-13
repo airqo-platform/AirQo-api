@@ -125,19 +125,13 @@ const join = {
   lookUpFirebaseUser: async (request, callback) => {
     try {
       const { body } = request;
-      const { email, phoneNumber, uid, providerId, providerUid } = body;
+      const { email, phoneNumber, providerId, providerUid } = body;
 
       return getAuth()
-        .getUsers([
-          { uid: uid },
-          { email: email },
-          { phoneNumber: phoneNumber },
-          ,
-        ])
+        .getUsers([{ email }, { phoneNumber }])
         .then(async (getUsersResult) => {
           logObject("getUsersResult", getUsersResult);
           getUsersResult.users.forEach((userRecord) => {
-            logObject("userRecord", userRecord);
             callback({
               success: true,
               message: "Successfully fetched user data",
@@ -147,7 +141,6 @@ const join = {
           });
 
           getUsersResult.notFound.forEach((userIdentifier) => {
-            logObject("userIdentifier", userIdentifier);
             callback({
               success: false,
               message:
@@ -165,7 +158,7 @@ const join = {
           }
           callback({
             success: false,
-            message: "unable to sign in using email link",
+            message: "internal server error",
             status,
             errors: {
               message: error,
