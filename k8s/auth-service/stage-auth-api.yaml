@@ -11,7 +11,7 @@ spec:
     matchLabels:
       app: sta-auth-api
   replicas: 2
-  revisionHistoryLimit: 3
+  revisionHistoryLimit: 2
   strategy:
     type: RollingUpdate
     rollingUpdate:

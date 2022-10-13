@@ -4,7 +4,7 @@ metadata:
   name: airqo-predict-job
   namespace: production
 spec:
-  successfulJobsHistoryLimit: 2
+  successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 1
   schedule: "0 * * * *"
   jobTemplate:

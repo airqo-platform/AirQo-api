@@ -11,7 +11,7 @@ metadata:
   namespace: staging
 spec:
   concurrencyPolicy: Allow
-  successfulJobsHistoryLimit: 2
+  successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 1
   jobTemplate:
     metadata:

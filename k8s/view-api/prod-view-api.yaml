@@ -12,7 +12,7 @@ spec:
       app: view-api
   replicas: 2
   minReadySeconds: 90
-  revisionHistoryLimit: 3
+  revisionHistoryLimit: 2
   progressDeadlineSeconds: 600
   strategy:
     type: RollingUpdate

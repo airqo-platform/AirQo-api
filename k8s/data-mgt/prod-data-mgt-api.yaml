@@ -5,7 +5,7 @@ metadata:
   namespace: production
 spec:
   replicas: 2
-  revisionHistoryLimit: 3
+  revisionHistoryLimit: 2
   selector:
     matchLabels:
       app: airqo-data-mgt-api

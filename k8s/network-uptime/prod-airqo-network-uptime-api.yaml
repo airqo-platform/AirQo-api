@@ -12,7 +12,7 @@ spec:
     matchLabels:
       app: prod-network-uptime
   replicas: 3
-  revisionHistoryLimit: 3
+  revisionHistoryLimit: 2
   strategy:
     type: RollingUpdate
     rollingUpdate:
