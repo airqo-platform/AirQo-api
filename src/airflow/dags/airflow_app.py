@@ -12,10 +12,17 @@ from airqo_etl_utils.airflow_custom_utils import AirflowUtils
 )
 def aiflow_app_cleanup():
     @task()
-    def delete_old_dag_runs():
+    def delete_old_dag_runs(**kwargs):
         from airqo_etl_utils.airflow_custom_utils import AirflowUtils
 
-        AirflowUtils().remove_old_dag_runs()
+        try:
+            dag_run = kwargs.get("dag_run")
+            days = int(dag_run.conf["days"])
+        except Exception as ex:
+            print(ex)
+            days = 14
+
+        AirflowUtils().remove_old_dag_runs(days)
 
     delete_old_dag_runs()
 
