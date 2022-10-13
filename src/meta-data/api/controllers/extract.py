@@ -177,8 +177,8 @@ def get_greenness():
     input_params = {
         "latitude": request.args.get("latitude"),
         "longitude": request.args.get("longitude"),
-        "start_date": request.args.get("start_date"),
-        "end_date": request.args.get("end_date"),
+        "start_date": request.args.get("startDate"),
+        "end_date": request.args.get("endDate"),
     }
     input_data, errors = validation.validate_inputs(input_data=input_params)
 

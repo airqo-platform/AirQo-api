@@ -25,6 +25,13 @@ class Utils:
         }
 
     @staticmethod
+    def remove_suffix(string: str, suffix):
+        if string.endswith(suffix):
+            return string[: -len(suffix)]
+        else:
+            return string[:]
+
+    @staticmethod
     def epa_pollutant_category(value: float, pollutant: Pollutant) -> str:
 
         if not value:

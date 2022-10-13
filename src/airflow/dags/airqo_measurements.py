@@ -1,16 +1,13 @@
-from datetime import datetime
-
 from airflow.decorators import dag, task
 
-from airqo_etl_utils.airflow_custom_utils import slack_dag_failure_notification
+from airqo_etl_utils.airflow_custom_utils import AirflowUtils
 from airqo_etl_utils.constants import Frequency
 
 
 @dag(
     "Calibrate-AirQo-Measurements",
     schedule_interval="0 0 * * 6",
-    on_failure_callback=slack_dag_failure_notification,
-    start_date=datetime(2021, 1, 1),
+    default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["airqo", "calibrate"],
 )
@@ -99,8 +96,7 @@ def calibrate_measurements_etl():
 @dag(
     "AirQo-Historical-Hourly-Measurements",
     schedule_interval="0 0 * * *",
-    on_failure_callback=slack_dag_failure_notification,
-    start_date=datetime(2021, 1, 1),
+    default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["airqo", "hourly", "historical", "low cost"],
 )
@@ -174,8 +170,7 @@ def historical_hourly_measurements_etl():
 @dag(
     "AirQo-Historical-Raw-Low-Cost-Measurements",
     schedule_interval="0 4 * * *",
-    on_failure_callback=slack_dag_failure_notification,
-    start_date=datetime(2021, 1, 1),
+    default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["airqo", "raw", "historical", "low cost"],
 )
@@ -246,7 +241,7 @@ def historical_raw_measurements_etl():
 @dag(
     "Cleanup-AirQo-Measurements",
     schedule_interval="0 11 * * *",
-    start_date=datetime(2021, 1, 1),
+    default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["airqo", "cleanup"],
 )
@@ -314,8 +309,7 @@ def cleanup_airqo_measurements_etl():
 @dag(
     "AirQo-Realtime-Low-Cost-Measurements",
     schedule_interval="10 * * * *",
-    on_failure_callback=slack_dag_failure_notification,
-    start_date=datetime(2021, 1, 1),
+    default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["airqo", "hourly", "realtime", "raw", "low cost"],
 )
