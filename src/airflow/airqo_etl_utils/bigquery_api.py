@@ -199,7 +199,7 @@ class BigQueryApi:
     def device_unique_col(tenant: str, device_id: str, device_number: int):
         return str(f"{tenant}:{device_id}:{device_number}").lower()
 
-    def update_meta_data(
+    def update_sites_and_devices(
         self,
         dataframe: pd.DataFrame,
         table: str,

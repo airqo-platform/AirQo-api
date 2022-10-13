@@ -389,7 +389,7 @@ class MainClass:
             dataframe=sites, table=self.bigquery_api.sites_table, tenant=Tenant.ALL
         )
         bigquery_data.to_csv(path_or_buf="bigquery_sites_data.csv", index=False)
-        self.bigquery_api.update_meta_data(
+        self.bigquery_api.update_sites_and_devices(
             dataframe=bigquery_data,
             table=self.bigquery_api.sites_table,
             component="sites",
@@ -400,7 +400,7 @@ class MainClass:
             dataframe=devices, table=self.bigquery_api.devices_table, tenant=Tenant.ALL
         )
         bigquery_data.to_csv(path_or_buf="bigquery_devices_data.csv", index=False)
-        self.bigquery_api.update_meta_data(
+        self.bigquery_api.update_sites_and_devices(
             dataframe=bigquery_data,
             table=self.bigquery_api.devices_table,
             component="devices",
