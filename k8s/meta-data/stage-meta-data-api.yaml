@@ -8,6 +8,7 @@ spec:
     matchLabels:
       app: meta-data-api
   replicas: 2
+  revisionHistoryLimit: 2
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -83,7 +84,7 @@ spec:
   metrics:
     - type: Resource
       resource:
-        name: memory
+        name: cpu
         target:
           type: Utilization
           averageUtilization: 80

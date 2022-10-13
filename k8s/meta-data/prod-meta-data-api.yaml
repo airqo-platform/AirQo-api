@@ -8,6 +8,7 @@ spec:
     matchLabels:
       app: meta-data-api
   replicas: 3
+  revisionHistoryLimit: 2
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -41,7 +42,7 @@ spec:
               cpu: 100m
               memory: 250Mi
             limits:
-              cpu: 400m
+              cpu: 500m
               memory: 500Mi
           envFrom:
             - configMapRef:
@@ -83,7 +84,7 @@ spec:
   metrics:
     - type: Resource
       resource:
-        name: memory
+        name: cpu
         target:
           type: Utilization
           averageUtilization: 70
