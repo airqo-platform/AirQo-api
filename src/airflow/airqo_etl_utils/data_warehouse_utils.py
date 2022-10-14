@@ -190,6 +190,7 @@ class DataWarehouseUtils:
                     "latitude": "site_latitude",
                     "longitude": "site_longitude",
                     "name": "site_name",
+                    "id": "site_id",
                     "location": "site_location",
                     "display_name": "site_display_name",
                     "display_location": "site_display_location",

@@ -75,32 +75,10 @@ class MetaDataUtils:
 
         sites = AirQoApi().get_sites(tenant=tenant)
         dataframe = pd.json_normalize(sites)
-        dataframe = dataframe[
-            [
-                "site_id",
-                "bearing_to_kampala_center",
-                "distance_to_kampala_center",
-                "landform_90",
-                "landform_270",
-                "aspect",
-                "greenness",
-                "bearing",
-                "altitude",
-                "distance_to_nearest_motorway_road",
-                "distance_to_nearest_trunk_road",
-                "distance_to_nearest_tertiary_road",
-                "distance_to_nearest_primary_road",
-                "distance_to_nearest_road",
-                "distance_to_nearest_residential_road",
-                "distance_to_nearest_secondary_road",
-                "distance_to_nearest_unclassified_road",
-                "district",
-                "county",
-                "sub_county",
-                "parish",
-            ]
-        ]
-
+        big_query_api = BigQueryApi()
+        cols = big_query_api.get_columns(table=big_query_api.sites_meta_data_table)
+        dataframe = DataValidationUtils.fill_missing_columns(data=dataframe, cols=cols)
+        dataframe = dataframe[cols]
         dataframe = DataValidationUtils.remove_outliers(dataframe)
 
         return dataframe
