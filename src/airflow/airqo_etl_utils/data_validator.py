@@ -124,13 +124,25 @@ class DataValidationUtils:
         return data
 
     @staticmethod
+    def fill_missing_columns(data: pd.DataFrame, cols: list) -> pd.DataFrame:
+        for col in cols:
+            if col not in list(data.columns):
+                print(f"{col} missing in dataframe")
+                data.loc[:, col] = None
+
+        return data
+
+    @staticmethod
     def process_for_big_query(
         dataframe: pd.DataFrame, table: str, tenant: Tenant
     ) -> pd.DataFrame:
         columns = BigQueryApi().get_columns(table)
         if tenant != Tenant.ALL:
             dataframe.loc[:, "tenant"] = str(tenant)
-        dataframe = Utils.populate_missing_columns(data=dataframe, cols=columns)
+        dataframe = DataValidationUtils.fill_missing_columns(
+            data=dataframe, cols=columns
+        )
+        dataframe = DataValidationUtils.remove_outliers(dataframe)
         return dataframe[columns]
 
     @staticmethod

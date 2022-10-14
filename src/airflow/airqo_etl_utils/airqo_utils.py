@@ -358,7 +358,11 @@ class AirQoDataUtils:
 
                 meta_data = data.attrs.pop("meta_data", {})
 
-                if "field8" in data.columns.to_list():
+                if "field8" not in data.columns.to_list():
+                    data = DataValidationUtils.fill_missing_columns(
+                        data=data, cols=data_columns
+                    )
+                else:
                     data[field_8_cols] = data["field8"].apply(
                         lambda x: AirQoDataUtils.flatten_field_8(
                             device_category=device_category, field_8=x
