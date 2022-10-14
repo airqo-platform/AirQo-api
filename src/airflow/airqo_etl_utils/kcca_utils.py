@@ -7,7 +7,7 @@ import requests
 from .airqo_api import AirQoApi
 from .bigquery_api import BigQueryApi
 from .config import configuration
-from .constants import Tenant, DataSource, Frequency, ColumnDataType
+from .constants import Tenant, DataSource, Frequency, DeviceCategory
 from .data_validator import DataValidationUtils
 from .date import date_to_str
 from .utils import Utils
@@ -69,6 +69,19 @@ class KccaUtils:
             return pd.Series({"site_id": None, "device_number": None})
 
     @staticmethod
+    def flatten_location_coordinates(coordinates: str):
+        try:
+            coordinates = coordinates.replace("[", "")
+            coordinates = coordinates.replace("]", "")
+            coordinates = coordinates.replace(" ", "")
+            coordinates = coordinates.split(",")
+
+            return pd.Series({"latitude": coordinates[1], "longitude": coordinates[0]})
+        except Exception as ex:
+            print(ex)
+            return pd.Series({"latitude": None, "longitude": None})
+
+    @staticmethod
     def transform_data(data: pd.DataFrame) -> pd.DataFrame:
         data.rename(
             columns={
@@ -95,9 +108,7 @@ class KccaUtils:
         )
 
         data[["latitude", "longitude"]] = data["location.coordinates"].apply(
-            lambda coordinates: pd.Series(
-                {"latitude": coordinates[1], "longitude": coordinates[0]}
-            )
+            KccaUtils.flatten_location_coordinates
         )
 
         airqo_api = AirQoApi()
@@ -109,38 +120,19 @@ class KccaUtils:
         )
 
         big_query_api = BigQueryApi()
-        columns = big_query_api.get_columns(
+        required_cols = big_query_api.get_columns(
             table=big_query_api.hourly_measurements_table
         )
-        columns = list(set(columns) & set(data.columns.to_list()))
-        data = data[columns]
 
-        floats = big_query_api.get_columns(
-            table=big_query_api.hourly_measurements_table,
-            data_type=ColumnDataType.FLOAT,
-        )
-        floats = list(set(columns) & set(floats))
+        data = DataValidationUtils.fill_missing_columns(data=data, cols=required_cols)
+        data = data[required_cols]
 
-        timestamps = big_query_api.get_columns(
-            table=big_query_api.hourly_measurements_table,
-            data_type=ColumnDataType.TIMESTAMP,
-        )
-        timestamps = list(set(columns) & set(timestamps))
-
-        integers = big_query_api.get_columns(
-            table=big_query_api.hourly_measurements_table,
-            data_type=ColumnDataType.INTEGER,
-        )
-        integers = list(set(columns) & set(integers))
-
-        data = DataValidationUtils.format_data_types(
-            data=data, floats=floats, timestamps=timestamps, integers=integers
-        )
-
-        return data
+        return DataValidationUtils.remove_outliers(data)
 
     @staticmethod
     def process_latest_data(data: pd.DataFrame) -> pd.DataFrame:
+        data.loc[:, "tenant"] = str(Tenant.KCCA)
+        data.loc[:, "device_category"] = str(DeviceCategory.LOW_COST)
         return data
 
     @staticmethod
@@ -207,7 +199,3 @@ class KccaUtils:
             measurements.append(row_data)
 
         return measurements
-
-    @staticmethod
-    def transform_data_for_message_broker(data: pd.DataFrame) -> list:
-        return data.to_dict("records")

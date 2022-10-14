@@ -1,4 +1,3 @@
-
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -12,6 +11,7 @@ metadata:
   namespace: staging
 spec:
   concurrencyPolicy: Allow
+  successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 1
   jobTemplate:
     metadata:
@@ -25,21 +25,25 @@ spec:
           affinity:
             nodeAffinity:
               preferredDuringSchedulingIgnoredDuringExecution:
-              - weight: 10
-                preference:
-                  matchExpressions:
-                  - key: node-type
-                    operator: In
-                    values:
-                    - compute
+                - weight: 10
+                  preference:
+                    matchExpressions:
+                      - key: node-type
+                        operator: In
+                        values:
+                          - compute
           containers:
             - name: stage-update-channel-data-job
               image: us.gcr.io/airqo-250220/airqo-stage-update-channel-data-job:latest
               imagePullPolicy: Always
               resources:
+                requests:
+                  # Average usage was 0.02 vCPU and 100Mi over the last 30 days
+                  cpu: 20m
+                  memory: 100Mi
                 limits:
-                  cpu: 1000m
-                  memory: 4000Mi
+                  cpu: 500m
+                  memory: 500Mi
               terminationMessagePath: /dev/termination-log
               terminationMessagePolicy: File
               envFrom:
@@ -51,13 +55,12 @@ spec:
           volumes:
             - name: config-volume
               configMap:
-                name:  env-update-channel-data-staging-files
+                name: env-update-channel-data-staging-files
           dnsPolicy: ClusterFirst
           restartPolicy: OnFailure
           schedulerName: default-scheduler
           securityContext: {}
           terminationGracePeriodSeconds: 30
   schedule: 0 * * * *
-  successfulJobsHistoryLimit: 3
   suspend: false
 status: {}

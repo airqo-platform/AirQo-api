@@ -307,6 +307,7 @@ const createActivity = {
             : 0;
           deviceBody["body"]["site_id"] = site_id;
           deviceBody["body"]["isActive"] = true;
+          deviceBody["body"]["status"] = "deployed";
           deviceBody["query"]["name"] = deviceName;
           deviceBody["query"]["tenant"] = tenant;
 
@@ -392,6 +393,7 @@ const createActivity = {
       deviceBody["body"]["latitude"] = "";
       deviceBody["body"]["longitude"] = "";
       deviceBody["body"]["isActive"] = false;
+      deviceBody["body"]["status"] = "recalled";
       deviceBody["query"]["name"] = deviceName;
       deviceBody["query"]["tenant"] = tenant;
 

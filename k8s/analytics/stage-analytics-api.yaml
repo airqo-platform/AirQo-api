@@ -11,6 +11,7 @@ spec:
     matchLabels:
       app: sta-alytics-api
   replicas: 2
+  revisionHistoryLimit: 2
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -25,20 +26,20 @@ spec:
       affinity:
         nodeAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
-          - weight: 10
-            preference:
-              matchExpressions:
-              - key: node-type
-                operator: In
-                values:
-                - high-memory  
-          - weight: 1
-            preference:
-              matchExpressions:
-              - key: node-type
-                operator: In
-                values:
-                - general-purpose  
+            - weight: 10
+              preference:
+                matchExpressions:
+                  - key: node-type
+                    operator: In
+                    values:
+                      - high-memory
+            - weight: 1
+              preference:
+                matchExpressions:
+                  - key: node-type
+                    operator: In
+                    values:
+                      - general-purpose
       containers:
         - name: sta-alytics-api
           image: us.gcr.io/airqo-250220/airqo-stage-analytics-api:latest
@@ -57,8 +58,8 @@ spec:
             - configMapRef:
                 name: env-analytics-staging
           volumeMounts:
-          - name: config-volume
-            mountPath: /etc/config
+            - name: config-volume
+              mountPath: /etc/config
           resources:
             requests:
               # Average usage was 0.001 vCPU and 250Mi over the last 30 days
@@ -101,9 +102,9 @@ spec:
   minReplicas: 1
   maxReplicas: 2
   metrics:
-  - type: Resource
-    resource:
-      name: memory
-      target:
-        type: Utilization
-        averageUtilization: 80
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80

@@ -1,7 +1,10 @@
 import traceback
 from datetime import datetime, timedelta
 
+import firebase_admin
+import numpy as np
 import pandas as pd
+from firebase_admin import credentials, firestore
 
 from .airqo_api import AirQoApi
 from .bigquery_api import BigQueryApi
@@ -9,7 +12,8 @@ from .commons import (
     get_air_quality,
 )
 from .config import configuration
-from .constants import Frequency, DataSource, Tenant
+from .constants import Frequency, DataSource, Tenant, Pollutant
+from .data_validator import DataValidationUtils
 from .date import (
     date_to_str,
     predict_str_to_date,
@@ -22,8 +26,63 @@ insights_columns = ["time", "pm2_5", "pm10", "siteId", "frequency", "forecast", 
 
 class AirQoAppUtils:
     @staticmethod
-    def extract_hourly_airqo_data(start_date_time, end_date_time) -> pd.DataFrame:
-        cols = [
+    def create_empty_insights(start_date_time, end_date_time):
+
+        import random
+        from airqo_etl_utils.date import (
+            date_to_str_days,
+            date_to_str_hours,
+        )
+
+        big_query_api = BigQueryApi()
+        sites = big_query_api.query_sites()
+        insights = []
+
+        dates = pd.date_range(start_date_time, end_date_time, freq="1H")
+        for date in dates:
+            date_time = date_to_str_hours(date)
+            for site in sites:
+                try:
+                    hourly_insight = {
+                        "time": date_time,
+                        "pm2_5": random.uniform(50.0, 150.0),
+                        "pm10": random.uniform(50.0, 150.0),
+                        "empty": True,
+                        "frequency": "HOURLY",
+                        "forecast": False,
+                        "siteId": site["id"],
+                    }
+                    insights.append(hourly_insight)
+                except Exception as ex:
+                    print(ex)
+
+        dates = pd.date_range(start_date_time, end_date_time, freq="24H")
+        for date in dates:
+            date_time = date_to_str_days(date)
+            for site in sites:
+                try:
+                    daily_insight = {
+                        "time": date_time,
+                        "pm2_5": random.uniform(50.0, 150.0),
+                        "pm10": random.uniform(50.0, 150.0),
+                        "empty": True,
+                        "frequency": "DAILY",
+                        "forecast": False,
+                        "siteId": site["id"],
+                    }
+                    insights.append(daily_insight)
+                except Exception as ex:
+                    print(ex)
+
+        return pd.DataFrame(insights)
+
+    @staticmethod
+    def extract_hourly_data(start_date_time, end_date_time) -> pd.DataFrame:
+
+        bigquery_api = BigQueryApi()
+        insights_data = pd.DataFrame()
+
+        low_cost_sensor_cols = [
             "pm2_5_raw_value",
             "pm2_5_calibrated_value",
             "pm10_raw_value",
@@ -31,39 +90,75 @@ class AirQoAppUtils:
             "timestamp",
             "site_id",
         ]
-        bigquery_api = BigQueryApi()
-        measurements = bigquery_api.query_data(
+        low_cost_sensor_data = bigquery_api.query_data(
             start_date_time=start_date_time,
             end_date_time=end_date_time,
-            columns=cols,
+            columns=low_cost_sensor_cols,
             table=bigquery_api.hourly_measurements_table,
-            tenant=Tenant.AIRQO,
+            tenant=Tenant.ALL,
         )
 
-        if measurements.empty:
-            return pd.DataFrame([], columns=cols)
+        if not low_cost_sensor_data.empty:
+            low_cost_sensor_data.rename(
+                columns={
+                    "timestamp": "time",
+                    "site_id": "siteId",
+                    "pm2_5_calibrated_value": "pm2_5",
+                    "pm10_calibrated_value": "pm10",
+                },
+                inplace=True,
+            )
 
-        measurements.rename(
-            columns={
-                "timestamp": "time",
-                "site_id": "siteId",
-                "pm2_5_calibrated_value": "pm2_5",
-                "pm10_calibrated_value": "pm10",
-            },
-            inplace=True,
-        )
-        measurements["pm2_5"] = measurements["pm2_5"].fillna(
-            measurements["pm2_5_raw_value"]
-        )
-        measurements["pm10"] = measurements["pm10"].fillna(
-            measurements["pm10_raw_value"]
+            low_cost_sensor_data["pm2_5"] = low_cost_sensor_data["pm2_5"].fillna(
+                low_cost_sensor_data["pm2_5_raw_value"]
+            )
+            low_cost_sensor_data["pm10"] = low_cost_sensor_data["pm10"].fillna(
+                low_cost_sensor_data["pm10_raw_value"]
+            )
+
+            low_cost_sensor_data["time"] = low_cost_sensor_data["time"].apply(
+                pd.to_datetime
+            )
+            low_cost_sensor_data["frequency"] = str(Frequency.HOURLY)
+            low_cost_sensor_data[["forecast", "empty"]] = False
+
+            insights_data = pd.concat(
+                [insights_data, low_cost_sensor_data], ignore_index=True
+            )
+
+        bam_sensor_cols = [
+            "pm2_5",
+            "pm10",
+            "timestamp",
+            "site_id",
+        ]
+        bam_data = bigquery_api.query_data(
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            columns=bam_sensor_cols,
+            table=bigquery_api.bam_measurements_table,
+            tenant=Tenant.ALL,
         )
 
-        measurements["time"] = measurements["time"].apply(pd.to_datetime)
-        measurements["frequency"] = str(Frequency.HOURLY)
-        measurements[["forecast", "empty"]] = False
+        if not bam_data.empty:
+            bam_data.rename(
+                columns={
+                    "timestamp": "time",
+                    "site_id": "siteId",
+                },
+                inplace=True,
+            )
 
-        return measurements[insights_columns]
+            bam_data["time"] = bam_data["time"].apply(pd.to_datetime)
+            bam_data["frequency"] = str(Frequency.HOURLY)
+            bam_data[["forecast", "empty"]] = False
+
+            insights_data = pd.concat([insights_data, bam_data], ignore_index=True)
+
+        if insights_data.empty:
+            return pd.DataFrame([], columns=insights_columns)
+
+        return insights_data[insights_columns]
 
     @staticmethod
     def format_data_to_insights(
@@ -114,14 +209,9 @@ class AirQoAppUtils:
 
         print(f"saving {len(insights_data)} insights .... ")
 
-        data = {
-            "data": insights_data,
-            "action": "",
-        }
-
         kafka = KafkaBrokerClient()
         kafka.send_data(
-            info=data,
+            data=insights_data,
             topic=configuration.INSIGHTS_MEASUREMENTS_TOPIC,
             partition=partition,
         )
@@ -261,6 +351,8 @@ class AirQoAppUtils:
 
     @staticmethod
     def round_off_value(value, pollutant, decimals: int = 2):
+        if value is None:
+            return None
         new_value = round(value, decimals)
 
         if get_air_quality(value, pollutant) != get_air_quality(new_value, pollutant):
@@ -273,3 +365,124 @@ class AirQoAppUtils:
             return value
 
         return new_value
+
+    @staticmethod
+    def process_for_firebase(data: pd.DataFrame, tenant: Tenant) -> pd.DataFrame:
+
+        data = data[
+            [
+                "pm2_5_calibrated_value",
+                "pm2_5_raw_value",
+                "pm10_calibrated_value",
+                "pm10_raw_value",
+                "tenant",
+                "site_id",
+                "timestamp",
+                "site_latitude",
+                "site_longitude",
+            ]
+        ]
+
+        data.loc[:, "calibrated"] = np.where(
+            data["pm2_5_calibrated_value"].isnull(), False, True
+        )
+        data.loc[:, "pm2_5_calibrated_value"] = data["pm2_5_calibrated_value"].fillna(
+            data["pm2_5_raw_value"]
+        )
+        data.loc[:, "pm2_5_calibrated_value"] = data["pm2_5_calibrated_value"].apply(
+            lambda pm2_5: AirQoAppUtils.round_off_value(pm2_5, Pollutant.PM2_5)
+        )
+        data["pm2_5"] = data["pm2_5_calibrated_value"]
+        data.loc[:, "airQuality"] = data["pm2_5_calibrated_value"].apply(
+            lambda pm2_5: str(get_air_quality(pm2_5, Pollutant.PM2_5))
+        )
+
+        data.loc[:, "pm10_calibrated_value"] = data["pm10_calibrated_value"].fillna(
+            data["pm10_raw_value"]
+        )
+        data.loc[:, "pm10_calibrated_value"] = data["pm10_calibrated_value"].apply(
+            lambda pm10: AirQoAppUtils.round_off_value(pm10, Pollutant.PM10)
+        )
+        data["pm10"] = data["pm10_calibrated_value"]
+
+        data.loc[:, "tenant"] = data["tenant"].apply(
+            lambda x: Tenant.from_str(x).name()
+        )
+
+        data.rename(
+            columns={
+                "site_id": "referenceSite",
+                "timestamp": "dateTime",
+                "site_latitude": "latitude",
+                "site_longitude": "longitude",
+                "tenant": "source",
+            },
+            inplace=True,
+        )
+
+        data.dropna(
+            inplace=True,
+            subset=[
+                "pm2_5",
+                "referenceSite",
+                "dateTime",
+                "source",
+            ],
+        )
+
+        bigquery_api = BigQueryApi()
+        sites = bigquery_api.query_sites(tenant=tenant)
+        sites = sites[["region", "country", "display_name", "display_location", "id"]]
+        sites.rename(
+            columns={
+                "display_name": "name",
+                "display_location": "location",
+                "id": "referenceSite",
+            },
+            inplace=True,
+        )
+
+        data = data.merge(sites, on=["referenceSite"], how="left")
+
+        data = data[
+            [
+                "pm2_5",
+                "pm10",
+                "calibrated",
+                "dateTime",
+                "referenceSite",
+                "name",
+                "location",
+                "latitude",
+                "longitude",
+                "region",
+                "country",
+                "source",
+            ]
+        ]
+        data = DataValidationUtils.remove_outliers(data)
+
+        data.loc[:, "placeId"] = data["referenceSite"]
+        data.loc[:, "dateTime"] = pd.to_datetime(data["dateTime"])
+
+        data.sort_values(ascending=True, by="dateTime", inplace=True)
+        data.drop_duplicates(
+            keep="first", inplace=True, subset=["referenceSite", "dateTime"]
+        )
+
+        return data
+
+    @staticmethod
+    def update_firebase_air_quality_readings(data: pd.DataFrame):
+        cred = credentials.Certificate(configuration.GOOGLE_APPLICATION_CREDENTIALS)
+        firebase_admin.initialize_app(cred)
+        db = firestore.client()
+        batch = db.batch()
+
+        for _, row in data.iterrows():
+            site_collection = db.collection(
+                configuration.FIREBASE_AIR_QUALITY_READINGS_COLLECTION
+            ).document(row["placeId"])
+            batch.set(site_collection, row.to_dict())
+
+        batch.commit()

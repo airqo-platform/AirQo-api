@@ -3,6 +3,7 @@ import os
 from datetime import datetime, timedelta
 
 import pandas as pd
+import requests
 from requests import Response
 
 from .constants import ColumnDataType, Pollutant, AirQuality, DataSource
@@ -10,6 +11,26 @@ from .date import date_to_str
 
 
 class Utils:
+    @staticmethod
+    def get_country_boundaries(country):
+        response = requests.get(
+            f"https://nominatim.openstreetmap.org/search?q={country}&format=json"
+        )
+        bounding_box = response.json()[0]["boundingbox"]
+        return {
+            "west": float(bounding_box[0]),
+            "east": float(bounding_box[1]),
+            "south": float(bounding_box[2]),
+            "north": float(bounding_box[3]),
+        }
+
+    @staticmethod
+    def remove_suffix(string: str, suffix):
+        if string.endswith(suffix):
+            return string[: -len(suffix)]
+        else:
+            return string[:]
+
     @staticmethod
     def epa_pollutant_category(value: float, pollutant: Pollutant) -> str:
 

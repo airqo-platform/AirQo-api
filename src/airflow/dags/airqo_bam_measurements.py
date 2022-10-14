@@ -1,15 +1,12 @@
-from datetime import datetime
-
 from airflow.decorators import dag, task
 
-from airqo_etl_utils.airflow_custom_utils import slack_dag_failure_notification
+from airqo_etl_utils.airflow_custom_utils import AirflowUtils
 
 
 @dag(
     "AirQo-Historical-Bam-Measurements",
     schedule_interval=None,
-    on_failure_callback=slack_dag_failure_notification,
-    start_date=datetime(2021, 1, 1),
+    default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["airqo", "historical", "bam"],
 )
@@ -75,8 +72,7 @@ def bam_historical_measurements_etl():
 @dag(
     "AirQo-Realtime-Bam-Measurements",
     schedule_interval="30 * * * *",
-    on_failure_callback=slack_dag_failure_notification,
-    start_date=datetime(2021, 1, 1),
+    default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["airqo", "bam", "realtime"],
 )
@@ -135,23 +131,14 @@ def bam_realtime_measurements_etl():
 
     @task()
     def update_latest_data(data: pd.DataFrame):
-        from airqo_etl_utils.bigquery_api import BigQueryApi
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
-        from airqo_etl_utils.data_validator import DataValidationUtils
+        from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
         from airqo_etl_utils.constants import Tenant, DeviceCategory
 
-        bam_data = AirQoDataUtils.process_latest_data(
+        data = AirQoDataUtils.process_latest_data(
             data=data, device_category=DeviceCategory.BAM
         )
-
-        big_query_api = BigQueryApi()
-        table = big_query_api.latest_measurements_table
-
-        data = DataValidationUtils.process_for_big_query(
-            dataframe=bam_data, table=table, tenant=Tenant.AIRQO
-        )
-
-        big_query_api.update_data(data, table=table)
+        DataWarehouseUtils.update_latest_measurements(data=data, tenant=Tenant.AIRQO)
 
     unclean_data = extract_bam_data()
     save_unclean_data(unclean_data)
