@@ -33,7 +33,6 @@ class BigQueryApi:
         self.sites_table = configuration.BIGQUERY_SITES_TABLE
         self.sites_meta_data_table = configuration.BIGQUERY_SITES_META_DATA_TABLE
         self.devices_table = configuration.BIGQUERY_DEVICES_TABLE
-        self.devices_data_table = configuration.BIGQUERY_DEVICES_DATA_TABLE
 
         self.package_directory, _ = os.path.split(__file__)
 
@@ -440,7 +439,7 @@ class BigQueryApi:
 
     def query_devices(self, tenant: Tenant) -> pd.DataFrame:
         query = f"""
-            SELECT * FROM `{self.devices_data_table}` WHERE tenant = '{tenant}'
+            SELECT * FROM `{self.devices_table}` WHERE tenant = '{tenant}'
         """
         dataframe = self.client.query(query=query).result().to_dataframe()
         return dataframe.drop_duplicates(keep="first")

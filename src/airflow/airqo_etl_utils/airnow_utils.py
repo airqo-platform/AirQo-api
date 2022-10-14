@@ -74,13 +74,12 @@ class AirnowDataUtils:
                 )
 
                 pollutant_value[parameter_col_name] = row["Value"]
-                site_id = str(row["SiteName"]).lower().replace(" ", "_")
                 air_now_data.append(
                     {
                         "timestamp": row["UTC"],
                         "tenant": str(Tenant.US_EMBASSY),
-                        "site_id": site_id,
-                        "device_id": site_id,
+                        "site_id": row["FullAQSCode"],
+                        "device_id": row["FullAQSCode"],
                         "device_number": -1,
                         "latitude": row["Latitude"],
                         "longitude": row["Longitude"],
@@ -94,7 +93,6 @@ class AirnowDataUtils:
                 traceback.print_exc()
 
         air_now_data = pd.DataFrame(air_now_data)
-        air_now_data["timestamp"] = air_now_data["timestamp"].apply(pd.to_datetime)
         return DataValidationUtils.remove_outliers(air_now_data)
 
     @staticmethod
@@ -111,17 +109,6 @@ class AirnowDataUtils:
         data["no2_calibrated_value"] = data["no2"]
 
         data.loc[:, "tenant"] = str(Tenant.US_EMBASSY)
-
-        data.loc[:, "site_name"] = data["site_id"]
-        data["site_name"] = data["site_name"].apply(
-            lambda x: str(x).replace("_", " ").title()
-        )
-
-        data.loc[:, "device_latitude"] = data["latitude"]
-        data.loc[:, "site_latitude"] = data["latitude"]
-        data.loc[:, "site_longitude"] = data["longitude"]
-        data.loc[:, "device_longitude"] = data["longitude"]
-
         data.loc[:, "device_category"] = str(DeviceCategory.BAM)
 
         return data

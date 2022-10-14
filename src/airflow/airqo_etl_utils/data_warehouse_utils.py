@@ -200,8 +200,12 @@ class DataWarehouseUtils:
                 inplace=True,
             )
             sites_data = sites_data[site_cols]
+
+            if tenant == Tenant.US_EMBASSY:
+                data = data[data["site_id"].isin(sites_data["site_id"].to_list())]
+
             data = pd.merge(
-                left=sites_data,
+                left=data,
                 right=sites_data,
                 on=["site_id"],
                 how="left",
