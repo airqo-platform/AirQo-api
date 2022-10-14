@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 
 from airqo_etl_utils.bigquery_api import BigQueryApi
-from airqo_etl_utils.constants import Tenant, ColumnDataType
+from airqo_etl_utils.constants import Tenant, ColumnDataType, Frequency
 from airqo_etl_utils.utils import Utils
 
 
@@ -124,14 +124,35 @@ class DataValidationUtils:
         return data
 
     @staticmethod
+    def fill_missing_columns(data: pd.DataFrame, cols: list) -> pd.DataFrame:
+        for col in cols:
+            if col not in list(data.columns):
+                print(f"{col} missing in dataframe")
+                data.loc[:, col] = None
+
+        return data
+
+    @staticmethod
     def process_for_big_query(
         dataframe: pd.DataFrame, table: str, tenant: Tenant
     ) -> pd.DataFrame:
         columns = BigQueryApi().get_columns(table)
         if tenant != Tenant.ALL:
             dataframe.loc[:, "tenant"] = str(tenant)
-        dataframe = Utils.populate_missing_columns(data=dataframe, cols=columns)
+        dataframe = DataValidationUtils.fill_missing_columns(
+            data=dataframe, cols=columns
+        )
+        dataframe = DataValidationUtils.remove_outliers(dataframe)
         return dataframe[columns]
+
+    @staticmethod
+    def process_for_message_broker(
+        data: pd.DataFrame, tenant: Tenant, frequency: Frequency = Frequency.HOURLY
+    ) -> list:
+        data.loc[:, "frequency"] = str(frequency)
+        if tenant != Tenant.ALL:
+            data.loc[:, "tenant"] = str(tenant)
+        return data.to_dict("records")
 
     @staticmethod
     def convert_pressure_values(value):

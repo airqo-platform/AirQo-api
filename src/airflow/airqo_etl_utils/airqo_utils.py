@@ -54,20 +54,24 @@ class AirQoDataUtils:
 
     @staticmethod
     def remove_duplicates(data: pd.DataFrame) -> pd.DataFrame:
+
         cols = data.columns.to_list()
         cols.remove("timestamp")
         cols.remove("device_number")
         data.dropna(subset=cols, how="all", inplace=True)
         data["timestamp"] = pd.to_datetime(data["timestamp"])
-
         data["duplicated"] = data.duplicated(
             keep=False, subset=["device_number", "timestamp"]
         )
-        duplicated_data = pd.DataFrame(data.copy().loc[data["duplicated"] is True])
-        not_duplicated_data = pd.DataFrame(data.copy().loc[data["duplicated"] is False])
 
-        for _, by_station in duplicated_data.groupby(by="station_code"):
-            for _, by_timestamp in by_station.groupby(by="timestamp"):
+        if True not in data["duplicated"].values:
+            return data
+
+        duplicated_data = data.loc[data["duplicated"] is True]
+        not_duplicated_data = data.loc[data["duplicated"] is False]
+
+        for _, by_device_number in duplicated_data.groupby(by="device_number"):
+            for _, by_timestamp in by_device_number.groupby(by="timestamp"):
                 by_timestamp = by_timestamp.copy()
                 by_timestamp.fillna(inplace=True, method="ffill")
                 by_timestamp.fillna(inplace=True, method="bfill")
@@ -358,7 +362,11 @@ class AirQoDataUtils:
 
                 meta_data = data.attrs.pop("meta_data", {})
 
-                if "field8" in data.columns.to_list():
+                if "field8" not in data.columns.to_list():
+                    data = DataValidationUtils.fill_missing_columns(
+                        data=data, cols=data_columns
+                    )
+                else:
                     data[field_8_cols] = data["field8"].apply(
                         lambda x: AirQoDataUtils.flatten_field_8(
                             device_category=device_category, field_8=x

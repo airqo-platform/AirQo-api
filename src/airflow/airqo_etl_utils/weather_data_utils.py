@@ -210,8 +210,12 @@ class WeatherDataUtils:
         data["duplicated"] = data.duplicated(
             keep=False, subset=["station_code", "timestamp"]
         )
-        duplicated_data = pd.DataFrame(data.copy().loc[data["duplicated"] is True])
-        not_duplicated_data = pd.DataFrame(data.copy().loc[data["duplicated"] is False])
+
+        if True not in data["duplicated"].values:
+            return data
+
+        duplicated_data = data.loc[data["duplicated"] is True]
+        not_duplicated_data = data.loc[data["duplicated"] is False]
 
         for _, by_station in duplicated_data.groupby(by="station_code"):
             for _, by_timestamp in by_station.groupby(by="timestamp"):

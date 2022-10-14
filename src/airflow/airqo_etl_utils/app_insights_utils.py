@@ -26,8 +26,63 @@ insights_columns = ["time", "pm2_5", "pm10", "siteId", "frequency", "forecast", 
 
 class AirQoAppUtils:
     @staticmethod
-    def extract_hourly_airqo_data(start_date_time, end_date_time) -> pd.DataFrame:
-        cols = [
+    def create_empty_insights(start_date_time, end_date_time):
+
+        import random
+        from airqo_etl_utils.date import (
+            date_to_str_days,
+            date_to_str_hours,
+        )
+
+        big_query_api = BigQueryApi()
+        sites = big_query_api.query_sites()
+        insights = []
+
+        dates = pd.date_range(start_date_time, end_date_time, freq="1H")
+        for date in dates:
+            date_time = date_to_str_hours(date)
+            for site in sites:
+                try:
+                    hourly_insight = {
+                        "time": date_time,
+                        "pm2_5": random.uniform(50.0, 150.0),
+                        "pm10": random.uniform(50.0, 150.0),
+                        "empty": True,
+                        "frequency": "HOURLY",
+                        "forecast": False,
+                        "siteId": site["id"],
+                    }
+                    insights.append(hourly_insight)
+                except Exception as ex:
+                    print(ex)
+
+        dates = pd.date_range(start_date_time, end_date_time, freq="24H")
+        for date in dates:
+            date_time = date_to_str_days(date)
+            for site in sites:
+                try:
+                    daily_insight = {
+                        "time": date_time,
+                        "pm2_5": random.uniform(50.0, 150.0),
+                        "pm10": random.uniform(50.0, 150.0),
+                        "empty": True,
+                        "frequency": "DAILY",
+                        "forecast": False,
+                        "siteId": site["id"],
+                    }
+                    insights.append(daily_insight)
+                except Exception as ex:
+                    print(ex)
+
+        return pd.DataFrame(insights)
+
+    @staticmethod
+    def extract_hourly_data(start_date_time, end_date_time) -> pd.DataFrame:
+
+        bigquery_api = BigQueryApi()
+        insights_data = pd.DataFrame()
+
+        low_cost_sensor_cols = [
             "pm2_5_raw_value",
             "pm2_5_calibrated_value",
             "pm10_raw_value",
@@ -35,39 +90,75 @@ class AirQoAppUtils:
             "timestamp",
             "site_id",
         ]
-        bigquery_api = BigQueryApi()
-        measurements = bigquery_api.query_data(
+        low_cost_sensor_data = bigquery_api.query_data(
             start_date_time=start_date_time,
             end_date_time=end_date_time,
-            columns=cols,
+            columns=low_cost_sensor_cols,
             table=bigquery_api.hourly_measurements_table,
-            tenant=Tenant.AIRQO,
+            tenant=Tenant.ALL,
         )
 
-        if measurements.empty:
-            return pd.DataFrame([], columns=cols)
+        if not low_cost_sensor_data.empty:
+            low_cost_sensor_data.rename(
+                columns={
+                    "timestamp": "time",
+                    "site_id": "siteId",
+                    "pm2_5_calibrated_value": "pm2_5",
+                    "pm10_calibrated_value": "pm10",
+                },
+                inplace=True,
+            )
 
-        measurements.rename(
-            columns={
-                "timestamp": "time",
-                "site_id": "siteId",
-                "pm2_5_calibrated_value": "pm2_5",
-                "pm10_calibrated_value": "pm10",
-            },
-            inplace=True,
-        )
-        measurements["pm2_5"] = measurements["pm2_5"].fillna(
-            measurements["pm2_5_raw_value"]
-        )
-        measurements["pm10"] = measurements["pm10"].fillna(
-            measurements["pm10_raw_value"]
+            low_cost_sensor_data["pm2_5"] = low_cost_sensor_data["pm2_5"].fillna(
+                low_cost_sensor_data["pm2_5_raw_value"]
+            )
+            low_cost_sensor_data["pm10"] = low_cost_sensor_data["pm10"].fillna(
+                low_cost_sensor_data["pm10_raw_value"]
+            )
+
+            low_cost_sensor_data["time"] = low_cost_sensor_data["time"].apply(
+                pd.to_datetime
+            )
+            low_cost_sensor_data["frequency"] = str(Frequency.HOURLY)
+            low_cost_sensor_data[["forecast", "empty"]] = False
+
+            insights_data = pd.concat(
+                [insights_data, low_cost_sensor_data], ignore_index=True
+            )
+
+        bam_sensor_cols = [
+            "pm2_5",
+            "pm10",
+            "timestamp",
+            "site_id",
+        ]
+        bam_data = bigquery_api.query_data(
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            columns=bam_sensor_cols,
+            table=bigquery_api.bam_measurements_table,
+            tenant=Tenant.ALL,
         )
 
-        measurements["time"] = measurements["time"].apply(pd.to_datetime)
-        measurements["frequency"] = str(Frequency.HOURLY)
-        measurements[["forecast", "empty"]] = False
+        if not bam_data.empty:
+            bam_data.rename(
+                columns={
+                    "timestamp": "time",
+                    "site_id": "siteId",
+                },
+                inplace=True,
+            )
 
-        return measurements[insights_columns]
+            bam_data["time"] = bam_data["time"].apply(pd.to_datetime)
+            bam_data["frequency"] = str(Frequency.HOURLY)
+            bam_data[["forecast", "empty"]] = False
+
+            insights_data = pd.concat([insights_data, bam_data], ignore_index=True)
+
+        if insights_data.empty:
+            return pd.DataFrame([], columns=insights_columns)
+
+        return insights_data[insights_columns]
 
     @staticmethod
     def format_data_to_insights(
@@ -118,14 +209,9 @@ class AirQoAppUtils:
 
         print(f"saving {len(insights_data)} insights .... ")
 
-        data = {
-            "data": insights_data,
-            "action": "",
-        }
-
         kafka = KafkaBrokerClient()
         kafka.send_data(
-            info=data,
+            data=insights_data,
             topic=configuration.INSIGHTS_MEASUREMENTS_TOPIC,
             partition=partition,
         )
@@ -283,6 +369,20 @@ class AirQoAppUtils:
     @staticmethod
     def process_for_firebase(data: pd.DataFrame, tenant: Tenant) -> pd.DataFrame:
 
+        data = data[
+            [
+                "pm2_5_calibrated_value",
+                "pm2_5_raw_value",
+                "pm10_calibrated_value",
+                "pm10_raw_value",
+                "tenant",
+                "site_id",
+                "timestamp",
+                "site_latitude",
+                "site_longitude",
+            ]
+        ]
+
         data.loc[:, "calibrated"] = np.where(
             data["pm2_5_calibrated_value"].isnull(), False, True
         )
@@ -305,7 +405,7 @@ class AirQoAppUtils:
         )
         data["pm10"] = data["pm10_calibrated_value"]
 
-        data.loc[:, "source"] = data["tenant"].apply(
+        data.loc[:, "tenant"] = data["tenant"].apply(
             lambda x: Tenant.from_str(x).name()
         )
 
@@ -315,6 +415,7 @@ class AirQoAppUtils:
                 "timestamp": "dateTime",
                 "site_latitude": "latitude",
                 "site_longitude": "longitude",
+                "tenant": "source",
             },
             inplace=True,
         )
@@ -329,40 +430,19 @@ class AirQoAppUtils:
             ],
         )
 
-        if tenant == Tenant.ALL:
-            pass
-        elif tenant in [Tenant.AIRQO, Tenant.KCCA]:
-            sites = AirQoApi().get_sites(tenant=tenant)
-            del data["latitude"]
-            del data["longitude"]
+        bigquery_api = BigQueryApi()
+        sites = bigquery_api.query_sites(tenant=tenant)
+        sites = sites[["region", "country", "display_name", "display_location", "id"]]
+        sites.rename(
+            columns={
+                "display_name": "name",
+                "display_location": "location",
+                "id": "referenceSite",
+            },
+            inplace=True,
+        )
 
-            sites = [
-                {
-                    "referenceSite": site.get("site_id", None),
-                    "name": site.get("search_name", None),
-                    "location": site.get("location_name", None),
-                    "region": site.get("region", None),
-                    "country": site.get("country", None),
-                    "latitude": site.get("latitude", None),
-                    "longitude": site.get("longitude", None),
-                    "site_sec_name": site.get("name", None),
-                    "site_sec_location": site.get("description", None),
-                }
-                for site in sites
-            ]
-
-            sites = pd.DataFrame(sites)
-            sites["name"] = sites["name"].fillna(sites["site_sec_name"])
-            sites["location"] = sites["location"].fillna(sites["site_sec_location"])
-            sites.dropna(inplace=True, subset=["referenceSite", "name", "location"])
-
-            data = data.merge(sites, on=["referenceSite"], how="left")
-
-        elif tenant == Tenant.US_EMBASSY:
-            data["location"] = data["site_name"]
-            data["country"] = data["site_name"]
-            data["region"] = data["site_name"]
-            data["name"] = data["site_name"]
+        data = data.merge(sites, on=["referenceSite"], how="left")
 
         data = data[
             [

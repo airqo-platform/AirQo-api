@@ -398,18 +398,18 @@ def airqo_realtime_measurements_etl():
         airqo_api.save_events(measurements=data, tenant="airqo")
 
     @task()
-    def send_hourly_measurements_to_message_broker(airqo_data: pd.DataFrame):
+    def send_hourly_measurements_to_message_broker(data: pd.DataFrame):
         from airqo_etl_utils.config import configuration
         from airqo_etl_utils.message_broker import KafkaBrokerClient
-        from airqo_etl_utils.airqo_utils import AirQoDataUtils
+        from airqo_etl_utils.data_validator import DataValidationUtils
+        from airqo_etl_utils.constants import Tenant
 
-        data = AirQoDataUtils.process_data_for_message_broker(
-            data=airqo_data, frequency=Frequency.HOURLY
+        data = DataValidationUtils.process_for_message_broker(
+            data=data, tenant=Tenant.AIRQO
         )
-        info = {"data": data, "action": "insert", "tenant": "airqo"}
 
         kafka = KafkaBrokerClient()
-        kafka.send_data(info=info, topic=configuration.HOURLY_MEASUREMENTS_TOPIC)
+        kafka.send_data(data=data, topic=configuration.HOURLY_MEASUREMENTS_TOPIC)
 
     @task()
     def send_hourly_measurements_to_bigquery(airqo_data: pd.DataFrame):
@@ -423,16 +423,6 @@ def airqo_realtime_measurements_etl():
             dataframe=data,
             table=big_query_api.hourly_measurements_table,
         )
-
-    @task()
-    def update_app_insights(airqo_data: pd.DataFrame):
-        from airqo_etl_utils.app_insights_utils import AirQoAppUtils
-
-        insights = AirQoAppUtils.format_data_to_insights(
-            data=airqo_data, frequency=Frequency.HOURLY
-        )
-
-        AirQoAppUtils.save_insights(insights_data=insights)
 
     @task()
     def send_raw_measurements_to_bigquery(airqo_data: pd.DataFrame):
@@ -464,9 +454,8 @@ def airqo_realtime_measurements_etl():
     )
     calibrated_data = calibrate(merged_data)
     send_hourly_measurements_to_api(calibrated_data)
-    # send_hourly_measurements_to_message_broker(calibrated_data)
+    send_hourly_measurements_to_message_broker(calibrated_data)
     send_hourly_measurements_to_bigquery(calibrated_data)
-    update_app_insights(calibrated_data)
     update_latest_data(calibrated_data)
 
 

@@ -382,7 +382,7 @@ class MainClass:
     def meta_data(self):
         from airqo_etl_utils.meta_data_utils import MetaDataUtils
 
-        sites = MetaDataUtils.extract_meta_data(component="sites")
+        sites = MetaDataUtils.extract_sites_from_api()
         bigquery_data = DataValidationUtils.process_for_big_query(
             dataframe=sites, table=self.bigquery_api.sites_table, tenant=Tenant.ALL
         )
@@ -393,7 +393,7 @@ class MainClass:
             component="sites",
         )
 
-        devices = MetaDataUtils.extract_meta_data(component="devices")
+        devices = MetaDataUtils.extract_devices_from_api()
         bigquery_data = DataValidationUtils.process_for_big_query(
             dataframe=devices, table=self.bigquery_api.devices_table, tenant=Tenant.ALL
         )

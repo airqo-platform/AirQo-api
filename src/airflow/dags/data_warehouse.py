@@ -121,7 +121,7 @@ def cleanup_consolidated_data_etl():
             days=7, kwargs=kwargs
         )
 
-        return DataWarehouseUtils.extract_data(
+        return DataWarehouseUtils.extract_data_from_big_query(
             start_date_time=start_date_time, end_date_time=end_date_time
         )
 

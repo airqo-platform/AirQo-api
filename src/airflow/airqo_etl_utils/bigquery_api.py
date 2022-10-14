@@ -444,3 +444,16 @@ class BigQueryApi:
         """
         dataframe = self.client.query(query=query).result().to_dataframe()
         return dataframe.drop_duplicates(keep="first")
+
+    def query_sites(self, tenant: Tenant = Tenant.ALL) -> pd.DataFrame:
+        if tenant == Tenant.ALL:
+            query = f"""
+              SELECT * FROM `{self.sites_table}`'
+          """
+        else:
+            query = f"""
+                SELECT * FROM `{self.sites_table}` WHERE tenant = '{tenant}'
+            """
+
+        dataframe = self.client.query(query=query).result().to_dataframe()
+        return dataframe.drop_duplicates(keep="first")
