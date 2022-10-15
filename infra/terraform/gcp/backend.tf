@@ -1,6 +1,6 @@
 terraform {
- backend "gcs" {
-   bucket  = "airqo-250220-terraform-state"
-   prefix  = "terraform/state"
- }
+  backend "gcs" {
+    bucket = "airqo-terraform-state"
+    prefix = "terraform/state"
+  }
 }

@@ -19,14 +19,14 @@ resource "google_compute_instance_template" "shard_template" {
   }
 
   machine_type = "e2-custom-4-8192"
-  name         = "shard-instance-template"
+  name         = "shard-template"
 
   network_interface {
     access_config {
       network_tier = "PREMIUM"
     }
 
-    network            = "airqo-k8s-cluster"
+    network            = "default"
   }
 
   project = var.project-id

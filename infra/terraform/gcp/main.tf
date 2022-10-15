@@ -57,10 +57,3 @@ module "SecretManagerSecret" {
   project-id     = var.project-id
   project-number = var.project-number
 }
-
-module "StorageBucket" {
-  source = "./modules/StorageBucket"
-
-  project-id = var.project-id
-  location   = var.location
-}

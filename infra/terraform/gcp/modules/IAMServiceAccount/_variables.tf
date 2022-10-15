@@ -1,3 +1,1 @@
-variable "project-id" {
-  type = string
-}
+variable "project-id" { type = string }

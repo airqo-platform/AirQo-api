@@ -26,7 +26,7 @@ resource "google_compute_instance_template" "cfgsvr_template" {
       network_tier = "PREMIUM"
     }
 
-    network            = "airqo-k8s-cluster"
+    network            = "default"
   }
 
   project = var.project-id
