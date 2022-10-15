@@ -18,6 +18,13 @@ const admin = new AdminJS({
   databases: [],
   rootPath: "/admin",
 });
+
+const AdminJSMongoose = require("@adminjs/mongoose");
+
+AdminJS.registerAdapter({
+  Resource: AdminJSMongoose.Resource,
+  Database: AdminJSMongoose.Database,
+});
 const adminRouter = AdminJSExpress.buildRouter(admin);
 
 app.use(admin.options.rootPath, adminRouter);
