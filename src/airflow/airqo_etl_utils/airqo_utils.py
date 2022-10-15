@@ -54,20 +54,24 @@ class AirQoDataUtils:
 
     @staticmethod
     def remove_duplicates(data: pd.DataFrame) -> pd.DataFrame:
+
         cols = data.columns.to_list()
         cols.remove("timestamp")
         cols.remove("device_number")
         data.dropna(subset=cols, how="all", inplace=True)
         data["timestamp"] = pd.to_datetime(data["timestamp"])
-
         data["duplicated"] = data.duplicated(
             keep=False, subset=["device_number", "timestamp"]
         )
-        duplicated_data = pd.DataFrame(data.copy().loc[data["duplicated"] is True])
-        not_duplicated_data = pd.DataFrame(data.copy().loc[data["duplicated"] is False])
 
-        for _, by_station in duplicated_data.groupby(by="station_code"):
-            for _, by_timestamp in by_station.groupby(by="timestamp"):
+        if True not in data["duplicated"].values:
+            return data
+
+        duplicated_data = data.loc[data["duplicated"] is True]
+        not_duplicated_data = data.loc[data["duplicated"] is False]
+
+        for _, by_device_number in duplicated_data.groupby(by="device_number"):
+            for _, by_timestamp in by_device_number.groupby(by="timestamp"):
                 by_timestamp = by_timestamp.copy()
                 by_timestamp.fillna(inplace=True, method="ffill")
                 by_timestamp.fillna(inplace=True, method="bfill")
@@ -289,7 +293,9 @@ class AirQoDataUtils:
 
         airqo_api = AirQoApi()
         thingspeak_api = ThingspeakApi()
-        devices = airqo_api.get_devices(tenant=Tenant.AIRQO, category=device_category)
+        devices = airqo_api.get_devices(
+            tenant=Tenant.AIRQO, device_category=device_category
+        )
 
         if device_numbers:
             devices = list(
@@ -356,11 +362,16 @@ class AirQoDataUtils:
 
                 meta_data = data.attrs.pop("meta_data", {})
 
-                data[field_8_cols] = data["field8"].apply(
-                    lambda x: AirQoDataUtils.flatten_field_8(
-                        device_category=device_category, field_8=x
+                if "field8" not in data.columns.to_list():
+                    data = DataValidationUtils.fill_missing_columns(
+                        data=data, cols=data_columns
                     )
-                )
+                else:
+                    data[field_8_cols] = data["field8"].apply(
+                        lambda x: AirQoDataUtils.flatten_field_8(
+                            device_category=device_category, field_8=x
+                        )
+                    )
 
                 data["device_number"] = device_number
                 data["device_id"] = device.get("device_id")
@@ -433,6 +444,14 @@ class AirQoDataUtils:
         data = data.copy().loc[data["status"] == 0]
         data.rename(columns=configuration.AIRQO_BAM_MAPPING, inplace=True)
 
+        big_query_api = BigQueryApi()
+        required_cols = big_query_api.get_columns(
+            table=big_query_api.bam_measurements_table
+        )
+
+        data = Utils.populate_missing_columns(data=data, cols=required_cols)
+        data = data[required_cols]
+
         return data
 
     @staticmethod
@@ -497,7 +516,17 @@ class AirQoDataUtils:
         data: pd.DataFrame, device_category: DeviceCategory
     ) -> pd.DataFrame:
 
+        cols = data.columns.to_list()
         if device_category == DeviceCategory.BAM:
+            if "pm2_5" not in cols:
+                data.loc[:, "pm2_5"] = None
+
+            if "pm10" not in cols:
+                data.loc[:, "pm10"] = None
+
+            if "no2" not in cols:
+                data.loc[:, "no2"] = None
+
             data["s1_pm2_5"] = data["pm2_5"]
             data["pm2_5_raw_value"] = data["pm2_5"]
             data["pm2_5_calibrated_value"] = data["pm2_5"]
@@ -518,6 +547,10 @@ class AirQoDataUtils:
 
             data["pm2_5"] = data["pm2_5"].fillna(data["pm2_5_raw_value"])
             data["pm10"] = data["pm10"].fillna(data["pm10_raw_value"])
+
+        data.loc[:, "tenant"] = str(Tenant.AIRQO)
+        data.loc[:, "device_category"] = str(device_category)
+
         return data
 
     @staticmethod

@@ -9,6 +9,7 @@ on:
 
 jobs:
   image-tag:
+    if: github.event.pull_request.merged == true
     name: create image tag
     runs-on: ubuntu-latest
     outputs:
@@ -25,6 +26,7 @@ jobs:
           echo "::set-output name=datetime::${datetime}"
 
   branch-name:
+    if: github.event.pull_request.merged == true
     name: Format branch name string
     runs-on: ubuntu-latest
     outputs:

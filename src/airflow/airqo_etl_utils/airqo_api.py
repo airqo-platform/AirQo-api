@@ -6,13 +6,18 @@ import simplejson
 
 from .config import configuration
 from .constants import DeviceCategory, Tenant
+from .utils import Utils
 
 
 class AirQoApi:
     def __init__(self):
-        self.AIRQO_BASE_URL = configuration.AIRQO_BASE_URL
         self.CALIBRATION_BASE_URL = configuration.CALIBRATION_BASE_URL
-        self.AIRQO_BASE_URL_V2 = configuration.AIRQO_BASE_URL_V2
+        self.AIRQO_BASE_URL = Utils.remove_suffix(
+            configuration.AIRQO_BASE_URL, suffix="/"
+        )
+        self.AIRQO_BASE_URL_V2 = Utils.remove_suffix(
+            configuration.AIRQO_BASE_URL_V2, suffix="/"
+        )
         self.AIRQO_API_KEY = f"JWT {configuration.AIRQO_API_KEY}"
 
     def save_events(self, measurements: list, tenant: str) -> None:
@@ -94,7 +99,7 @@ class AirQoApi:
     def get_devices(
         self,
         tenant: Tenant = Tenant.ALL,
-        category: DeviceCategory = DeviceCategory.NONE,
+        device_category: DeviceCategory = DeviceCategory.NONE,
     ) -> list:
         devices = []
         if tenant == Tenant.ALL:
@@ -104,7 +109,16 @@ class AirQoApi:
                 try:
                     response = self.__request("devices", {"tenant": str(tenant_enum)})
                     tenant_devices = [
-                        {**device, **{"tenant": str(tenant_enum)}}
+                        {
+                            **device,
+                            **{
+                                "tenant": str(tenant_enum),
+                                "device_manufacturer": device.get(
+                                    "device_manufacturer",
+                                    tenant_enum.device_manufacturer(),
+                                ),
+                            },
+                        }
                         for device in response.get("devices", [])
                     ]
                     devices.extend(tenant_devices)
@@ -113,25 +127,45 @@ class AirQoApi:
 
         else:
             response = self.__request("devices", {"tenant": str(tenant)})
-            devices = [
-                {**device, **{"tenant": str(tenant)}}
-                for device in response.get("devices", [])
-            ]
+            if response:
+                devices = [
+                    {
+                        **device,
+                        **{
+                            "tenant": str(tenant),
+                            "device_manufacturer": device.get(
+                                "device_manufacturer", tenant.device_manufacturer()
+                            ),
+                        },
+                    }
+                    for device in response.get("devices", [])
+                ]
 
         devices = [
             {
                 **device,
                 **{
+                    "device_number": device.get("device_number", None),
+                    "approximate_latitude": device.get(
+                        "approximate_latitude", device.get("latitude", None)
+                    ),
+                    "approximate_longitude": device.get(
+                        "approximate_longitude", device.get("longitude", None)
+                    ),
                     "device_id": device.get("name", None),
                     "site_id": device.get("site", {}).get("_id", None),
-                    "category": DeviceCategory.from_str(device.get("category", "")),
+                    "device_category": str(
+                        DeviceCategory.from_str(device.get("category", ""))
+                    ),
                 },
             }
             for device in devices
         ]
 
-        if category != DeviceCategory.NONE:
-            devices = list(filter(lambda y: y["category"] == category, devices))
+        if device_category != DeviceCategory.NONE:
+            devices = list(
+                filter(lambda y: y["device_category"] == str(device_category), devices)
+            )
 
         return devices
 
@@ -154,7 +188,8 @@ class AirQoApi:
         decrypted_keys = response.get("decrypted_keys", [])
 
         return {
-            int(entry["device_number"]): entry["decrypted_key"] for entry in decrypted_keys
+            int(entry["device_number"]): entry["decrypted_key"]
+            for entry in decrypted_keys
         }
 
     def get_app_insights(
@@ -212,6 +247,40 @@ class AirQoApi:
 
         return list(response["weather_stations"]) if response else []
 
+    def get_meta_data(self, latitude, longitude) -> dict:
+        meta_data = {}
+        meta_data_mappings = {
+            "bearing_to_kampala_center": "",
+            "distance_to_kampala_center": "distance_to_kampala_center",
+            "landform_90": "landform-90",
+            "landform_270": "landform-270",
+            "aspect": "aspect",
+            "bearing": "bearing",
+            "altitude": "altitude",
+            "distance_to_nearest_motorway_road": "distance/motorway/road",
+            "distance_to_nearest_trunk_road": "distance/trunk/road",
+            "distance_to_nearest_tertiary_road": "distance/tertiary/road",
+            "distance_to_nearest_primary_road": "distance/primary/road",
+            "distance_to_nearest_road": "distance/road",
+            "distance_to_nearest_residential_road": "distance/residential/road",
+            "distance_to_nearest_secondary_road": "distance/secondary/road",
+            "distance_to_nearest_unclassified_road": "distance/unclassified/road",
+        }
+
+        for key, endpoint in meta_data_mappings.items():
+            try:
+                response = self.__request(
+                    endpoint=f"meta-data/{endpoint}",
+                    params={"latitude": latitude, "longitude": longitude},
+                    method="get",
+                )
+
+                meta_data[key] = response["data"]
+            except Exception as ex:
+                print(ex)
+
+        return meta_data
+
     def get_sites(self, tenant: Tenant = Tenant.ALL) -> list:
         sites = []
         if tenant == Tenant.ALL:
@@ -232,16 +301,28 @@ class AirQoApi:
 
         else:
             response = self.__request("devices/sites", {"tenant": str(tenant)})
-            sites = [
-                {**site, **{"tenant": str(tenant)}}
-                for site in response.get("sites", [])
-            ]
+            if response:
+                sites = [
+                    {**site, **{"tenant": str(tenant)}}
+                    for site in response.get("sites", [])
+                ]
 
         sites = [
             {
                 **site,
                 **{
                     "site_id": site.get("_id", None),
+                    "location": site.get("location", None),
+                    "approximate_latitude": site.get(
+                        "approximate_latitude", site.get("latitude", None)
+                    ),
+                    "approximate_longitude": site.get(
+                        "approximate_longitude", site.get("longitude", None)
+                    ),
+                    "search_name": site.get("search_name", site.get("name", None)),
+                    "location_name": site.get(
+                        "location_name", site.get("location", None)
+                    ),
                 },
             }
             for site in sites
@@ -270,7 +351,7 @@ class AirQoApi:
         headers = {"Authorization": self.AIRQO_API_KEY}
         if method is None or method == "get":
             api_request = requests.get(
-                "%s%s" % (base_url, endpoint),
+                "%s/%s" % (base_url, endpoint),
                 params=params,
                 headers=headers,
                 verify=False,
@@ -278,7 +359,7 @@ class AirQoApi:
         elif method == "put":
             headers["Content-Type"] = "application/json"
             api_request = requests.put(
-                "%s%s" % (base_url, endpoint),
+                "%s/%s" % (base_url, endpoint),
                 params=params,
                 headers=headers,
                 data=simplejson.dumps(body, ignore_nan=True),
@@ -287,7 +368,7 @@ class AirQoApi:
         elif method == "post":
             headers["Content-Type"] = "application/json"
             api_request = requests.post(
-                "%s%s" % (base_url, endpoint),
+                "%s/%s" % (base_url, endpoint),
                 params=params,
                 headers=headers,
                 data=simplejson.dumps(body, ignore_nan=True),

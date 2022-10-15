@@ -17,21 +17,23 @@ const log4js = require("log4js");
 const HTTPStatus = require("http-status");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- create-site-util`);
 const distanceUtil = require("./distance");
-
 const SiteModel = (tenant) => {
   getModelByTenant(tenant.toLowerCase(), "site", SiteSchema);
 };
-
 const createAirqloudUtil = require("./create-airqloud");
 const pointInPolygon = require("point-in-polygon");
 const httpStatus = require("http-status");
 const geolib = require("geolib");
 const { kafkaProducer, kafkaClient } = require("../config/kafkajs");
-
 const DeviceSchema = require("../models/Device");
 const SiteActivitySchema = require("../models/SiteActivity");
-const mongoose = require("mongoose");
-const { threeMonthsFromNow } = require("./date");
+
+const {
+  threeMonthsFromNow,
+  generateDateFormatWithoutHrs,
+  monthsInfront,
+} = require("./date");
+
 const createDeviceUtil = require("./create-device");
 
 const manageSite = {
@@ -575,6 +577,10 @@ const manageSite = {
     try {
       let response = {};
       let promises = [];
+      const today = monthsInfront(0);
+      const oneMonthAgo = monthsInfront(-1);
+      const endDate = generateDateFormatWithoutHrs(today);
+      const startDate = generateDateFormatWithoutHrs(oneMonthAgo);
       const paths = constants.GET_ROAD_METADATA_PATHS;
       const arrayOfPaths = Object.entries(paths);
       for (const [key, path] of arrayOfPaths) {
@@ -582,6 +588,8 @@ const manageSite = {
           path,
           latitude,
           longitude,
+          startDate,
+          endDate,
         });
         promises.push(
           axios
@@ -652,8 +660,6 @@ const manageSite = {
       let altitudeResponseData = {};
       let reverseGeoCodeResponseData = {};
 
-      logElement("the tenant in metadata", tenant);
-
       logger.info(`the body sent to generate metadata -- ${body}`);
 
       let responseFromGetAltitude = await manageSite.getAltitude(
@@ -664,9 +670,7 @@ const manageSite = {
       logger.info(`responseFromGetAltitude -- ${responseFromGetAltitude}`);
       if (responseFromGetAltitude.success === true) {
         altitudeResponseData["altitude"] = responseFromGetAltitude.data;
-      }
-
-      if (responseFromGetAltitude.success === false) {
+      } else if (responseFromGetAltitude.success === false) {
         let errors = responseFromGetAltitude.errors
           ? responseFromGetAltitude.errors
           : "";
@@ -686,11 +690,11 @@ const manageSite = {
         longitude
       );
 
+      logObject("responseFromGetRoadMetadata", responseFromGetRoadMetadata);
+
       if (responseFromGetRoadMetadata.success === true) {
         roadResponseData = responseFromGetRoadMetadata.data;
-      }
-
-      if (responseFromGetRoadMetadata.success === false) {
+      } else if (responseFromGetRoadMetadata.success === false) {
         let errors = responseFromGetRoadMetadata.errors
           ? responseFromGetRoadMetadata.errors
           : "";
@@ -733,9 +737,7 @@ const manageSite = {
           data: finalResponseBody,
           status,
         };
-      }
-
-      if (responseFromReverseGeoCode.success === false) {
+      } else if (responseFromReverseGeoCode.success === false) {
         let errors = responseFromReverseGeoCode.errors
           ? responseFromReverseGeoCode.errors
           : "";

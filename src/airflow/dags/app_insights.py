@@ -2,14 +2,13 @@ from datetime import datetime
 
 from airflow.decorators import dag, task
 
-from airqo_etl_utils.airflow_custom_utils import slack_dag_failure_notification
+from airqo_etl_utils.airflow_custom_utils import AirflowUtils
 
 
 @dag(
     "App-Forecast-Insights",
     schedule_interval="50 */2 * * *",
-    on_failure_callback=slack_dag_failure_notification,
-    start_date=datetime(2021, 1, 1),
+    default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["insights", "forecast"],
 )
@@ -39,8 +38,7 @@ def app_forecast_insights_etl():
 @dag(
     "App-Historical-Daily-Insights",
     schedule_interval=None,
-    on_failure_callback=slack_dag_failure_notification,
-    start_date=datetime(2021, 1, 1),
+    default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["insights", "daily"],
 )
@@ -79,8 +77,7 @@ def app_historical_daily_insights_etl():
 @dag(
     "App-Realtime-Daily-Insights",
     schedule_interval="50 */2 * * *",
-    on_failure_callback=slack_dag_failure_notification,
-    start_date=datetime(2021, 1, 1),
+    default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["insights", "daily", "realtime"],
 )
@@ -121,8 +118,7 @@ def app_realtime_daily_insights_etl():
 @dag(
     "App-Historical-Hourly-Insights",
     schedule_interval=None,
-    on_failure_callback=slack_dag_failure_notification,
-    start_date=datetime(2021, 1, 1),
+    default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["insights", "hourly", "historical"],
 )
@@ -130,13 +126,15 @@ def app_historical_hourly_insights_etl():
     import pandas as pd
 
     @task()
-    def extract_airqo_data(**kwargs):
+    def extract_data(**kwargs):
         from airqo_etl_utils.app_insights_utils import AirQoAppUtils
-        from airqo_etl_utils.utils import Utils
+        from airqo_etl_utils.date import DateUtils
 
-        start_date_time, end_date_time = Utils.get_dag_date_time_config(**kwargs)
+        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
+            kwargs=kwargs
+        )
 
-        return AirQoAppUtils.extract_hourly_airqo_data(
+        return AirQoAppUtils.extract_hourly_data(
             start_date_time=start_date_time, end_date_time=end_date_time
         )
 
@@ -147,15 +145,14 @@ def app_historical_hourly_insights_etl():
         insights = AirQoAppUtils.create_insights(data)
         AirQoAppUtils.save_insights(insights_data=insights, partition=2)
 
-    hourly_data = extract_airqo_data()
+    hourly_data = extract_data()
     load_hourly_insights(hourly_data)
 
 
 @dag(
     "App-Realtime-Hourly-Insights",
-    schedule_interval=None,
-    on_failure_callback=slack_dag_failure_notification,
-    start_date=datetime(2021, 1, 1),
+    schedule_interval="30 * * * *",
+    default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["insights", "hourly"],
 )
@@ -163,13 +160,13 @@ def app_realtime_hourly_insights_etl():
     import pandas as pd
 
     @task()
-    def extract_airqo_data():
+    def extract_data():
         from airqo_etl_utils.app_insights_utils import AirQoAppUtils
-        from airqo_etl_utils.utils import Utils
+        from airqo_etl_utils.date import DateUtils
 
-        start_date_time, end_date_time = Utils.get_hourly_date_time_values()
+        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(hours=2)
 
-        return AirQoAppUtils.extract_hourly_airqo_data(
+        return AirQoAppUtils.extract_hourly_data(
             start_date_time=start_date_time, end_date_time=end_date_time
         )
 
@@ -180,15 +177,14 @@ def app_realtime_hourly_insights_etl():
         insights = AirQoAppUtils.create_insights(data)
         AirQoAppUtils.save_insights(insights_data=insights)
 
-    hourly_data = extract_airqo_data()
+    hourly_data = extract_data()
     load_hourly_insights(hourly_data)
 
 
 @dag(
     "App-Insights-cleanup",
     schedule_interval="@daily",
-    on_failure_callback=slack_dag_failure_notification,
-    start_date=datetime(2021, 1, 1),
+    default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["insights", "empty"],
 )
@@ -213,56 +209,11 @@ def insights_cleanup_etl():
     @task()
     def create_empty_insights():
 
-        from airqo_etl_utils.airqo_api import AirQoApi
-        from airqo_etl_utils.constants import Tenant
+        from airqo_etl_utils.app_insights_utils import AirQoAppUtils
 
-        import random
-        from airqo_etl_utils.date import (
-            date_to_str_days,
-            date_to_str_hours,
+        return AirQoAppUtils.create_empty_insights(
+            start_date_time=start_date_time, end_date_time=end_date_time
         )
-
-        airqo_api = AirQoApi()
-        sites = airqo_api.get_sites(tenant=Tenant.AIRQO)
-        insights = []
-
-        dates = pd.date_range(start_date_time, end_date_time, freq="1H")
-        for date in dates:
-            date_time = date_to_str_hours(date)
-            for site in sites:
-                try:
-                    hourly_insight = {
-                        "time": date_time,
-                        "pm2_5": random.uniform(50.0, 150.0),
-                        "pm10": random.uniform(50.0, 150.0),
-                        "empty": True,
-                        "frequency": "HOURLY",
-                        "forecast": False,
-                        "siteId": site["_id"],
-                    }
-                    insights.append(hourly_insight)
-                except Exception as ex:
-                    print(ex)
-
-        dates = pd.date_range(start_date_time, end_date_time, freq="24H")
-        for date in dates:
-            date_time = date_to_str_days(date)
-            for site in sites:
-                try:
-                    daily_insight = {
-                        "time": date_time,
-                        "pm2_5": random.uniform(50.0, 150.0),
-                        "pm10": random.uniform(50.0, 150.0),
-                        "empty": True,
-                        "frequency": "DAILY",
-                        "forecast": False,
-                        "siteId": site["_id"],
-                    }
-                    insights.append(daily_insight)
-                except Exception as ex:
-                    print(ex)
-
-        return pd.DataFrame(insights)
 
     @task()
     def query_insights_data():

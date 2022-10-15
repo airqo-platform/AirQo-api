@@ -1,15 +1,12 @@
-from datetime import datetime
-
 from airflow.decorators import dag, task
 
-from airqo_etl_utils.airflow_custom_utils import slack_dag_failure_notification
+from airqo_etl_utils.airflow_custom_utils import AirflowUtils
 
 
 @dag(
     "Consolidated-Data-ETL",
     schedule_interval="0 1 * * 1",
-    on_failure_callback=slack_dag_failure_notification,
-    start_date=datetime(2021, 1, 1),
+    default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["hourly", "consolidated data"],
 )
@@ -76,11 +73,20 @@ def consolidated_data_etl():
     def load(data: pd.DataFrame):
 
         from airqo_etl_utils.bigquery_api import BigQueryApi
+        from airqo_etl_utils.data_validator import DataValidationUtils
+        from airqo_etl_utils.constants import Tenant
 
         big_query_api = BigQueryApi()
+        table = big_query_api.consolidated_data_table
+        data = DataValidationUtils.process_for_big_query(
+            dataframe=data,
+            table=table,
+            tenant=Tenant.ALL,
+        )
+
         big_query_api.load_data(
             dataframe=data,
-            table=big_query_api.analytics_table,
+            table=table,
         )
 
     hourly_low_cost_data = extract_hourly_low_cost_data()
@@ -99,7 +105,7 @@ def consolidated_data_etl():
 @dag(
     "Cleanup-Consolidated-Data",
     schedule_interval="0 4 * * 1",
-    start_date=datetime(2021, 1, 1),
+    default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["consolidated data", "cleanup"],
 )
@@ -115,7 +121,7 @@ def cleanup_consolidated_data_etl():
             days=7, kwargs=kwargs
         )
 
-        return DataWarehouseUtils.extract_hourly_low_cost_data(
+        return DataWarehouseUtils.extract_data_from_big_query(
             start_date_time=start_date_time, end_date_time=end_date_time
         )
 

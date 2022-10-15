@@ -2,8 +2,10 @@ import pandas as pd
 
 from .airqo_api import AirQoApi
 from .airqo_utils import AirQoDataUtils
+from .app_insights_utils import AirQoAppUtils
 from .bigquery_api import BigQueryApi
 from .constants import Tenant, DeviceCategory
+from .data_validator import DataValidationUtils
 from .weather_data_utils import WeatherDataUtils
 
 
@@ -47,7 +49,7 @@ class DataWarehouseUtils:
         return DataWarehouseUtils.filter_valid_columns(data)
 
     @staticmethod
-    def extract_data(
+    def extract_data_from_big_query(
         start_date_time: str,
         end_date_time: str,
     ) -> pd.DataFrame:
@@ -134,6 +136,91 @@ class DataWarehouseUtils:
         )
 
         return DataWarehouseUtils.filter_valid_columns(sites)
+
+    @staticmethod
+    def update_latest_measurements(data: pd.DataFrame, tenant: Tenant):
+
+        device_cols = [
+            "device_number",
+            "device_id",
+            "device_latitude",
+            "device_longitude",
+        ]
+        site_cols = [
+            "site_latitude",
+            "site_longitude",
+            "site_name",
+            "site_id",
+            "site_location",
+            "site_display_name",
+            "site_display_location",
+            "site_approximate_latitude",
+            "site_approximate_longitude",
+        ]
+
+        big_query_api = BigQueryApi()
+        devices_data = big_query_api.query_devices(tenant=tenant)
+
+        if not devices_data.empty:
+            devices_data.rename(
+                columns={
+                    "latitude": "device_latitude",
+                    "longitude": "device_longitude",
+                },
+                inplace=True,
+            )
+            devices_data = devices_data[device_cols]
+            data = pd.merge(
+                left=data,
+                right=devices_data,
+                on=["device_number", "device_id"],
+                how="left",
+            )
+            data["device_latitude"] = data["device_latitude"].fillna(data["latitude"])
+            data["device_longitude"] = data["device_longitude"].fillna(
+                data["longitude"]
+            )
+            del data["latitude"]
+            del data["longitude"]
+
+        sites_data = big_query_api.query_sites(tenant=tenant)
+        if not sites_data.empty:
+            sites_data.rename(
+                columns={
+                    "latitude": "site_latitude",
+                    "longitude": "site_longitude",
+                    "name": "site_name",
+                    "id": "site_id",
+                    "location": "site_location",
+                    "display_name": "site_display_name",
+                    "display_location": "site_display_location",
+                    "approximate_latitude": "site_approximate_latitude",
+                    "approximate_longitude": "site_approximate_longitude",
+                },
+                inplace=True,
+            )
+            sites_data = sites_data[site_cols]
+
+            if tenant == Tenant.US_EMBASSY:
+                data = data[data["site_id"].isin(sites_data["site_id"].to_list())]
+
+            data = pd.merge(
+                left=data,
+                right=sites_data,
+                on=["site_id"],
+                how="left",
+            )
+
+        table = big_query_api.latest_measurements_table
+
+        data = DataValidationUtils.process_for_big_query(
+            dataframe=data, table=table, tenant=tenant
+        )
+
+        big_query_api.update_data(data, table=table)
+
+        firebase_data = AirQoAppUtils.process_for_firebase(data=data, tenant=tenant)
+        AirQoAppUtils.update_firebase_air_quality_readings(firebase_data)
 
     @staticmethod
     def merge_datasets(

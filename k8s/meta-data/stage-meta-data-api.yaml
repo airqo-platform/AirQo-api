@@ -8,6 +8,7 @@ spec:
     matchLabels:
       app: meta-data-api
   replicas: 2
+  revisionHistoryLimit: 2
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -37,9 +38,9 @@ spec:
             - containerPort: 4001
           resources:
             requests:
-              # Average usage was 0.1 vCPU and 250Mi over the last 7 days
+              # Average usage was 0.1 vCPU and 200Mi over the last 7 days
               cpu: 100m
-              memory: 250Mi
+              memory: 200Mi
             limits:
               cpu: 300m
               memory: 400Mi
@@ -83,7 +84,7 @@ spec:
   metrics:
     - type: Resource
       resource:
-        name: memory
+        name: cpu
         target:
           type: Utilization
           averageUtilization: 80
