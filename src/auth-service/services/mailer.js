@@ -17,7 +17,7 @@ const mailer = {
 
       const mailOptions = {
         from: {
-          name: "AirQo Data Team",
+          name: constants.EMAIL_NAME,
           address: constants.EMAIL,
         },
         to: `${email}`,
@@ -65,8 +65,10 @@ const mailer = {
 
       const mailOptionsForAirQo = {
         to: `${email}`,
-        name: constants.EMAIL_NAME,
-        address: constants.EMAIL,
+        from: {
+          name: constants.EMAIL_NAME,
+          address: constants.EMAIL,
+        },
         subject: `Welcome to AirQo, for ${categoryNameWithFirstLetterCapital}`,
         html: msgTemplates.inquiryTemplate(fullName),
         bcc,
@@ -109,7 +111,7 @@ const mailer = {
       if (tenant.toLowerCase() == "kcca") {
         mailOptions = {
           from: {
-            name: "AirQo Data Team",
+            name: constants.EMAIL_NAME,
             address: constants.EMAIL,
           },
           to: `${email}`,
@@ -120,7 +122,7 @@ const mailer = {
       } else {
         mailOptions = {
           from: {
-            name: "AirQo Data Team",
+            name: constants.EMAIL_NAME,
             address: constants.EMAIL,
           },
           to: `${email}`,
@@ -156,12 +158,10 @@ const mailer = {
     try {
       const mailOptions = {
         from: {
-          name: "AirQo Data Team",
+          name: constants.EMAIL_NAME,
           address: constants.EMAIL,
         },
         to: email,
-        name: constants.EMAIL_NAME,
-        address: constants.EMAIL,
         subject: `Link To Reset Password`,
         text: msgs.recovery_email(token, tenant),
       };
@@ -192,12 +192,10 @@ const mailer = {
     try {
       const mailOptions = {
         from: {
-          name: "AirQo Data Team",
+          name: constants.EMAIL_NAME,
           address: constants.EMAIL,
         },
         to: `${email}`,
-        name: constants.EMAIL_NAME,
-        address: constants.EMAIL,
         subject: "Welcome to AirQo!",
         text: `${msgs.join_by_email(token)}`,
       };
@@ -232,12 +230,10 @@ const mailer = {
     try {
       const mailOptions = {
         from: {
-          name: "AirQo Data Team",
+          name: constants.EMAIL_NAME,
           address: constants.EMAIL,
         },
         to: `${email}`,
-        name: constants.EMAIL_NAME,
-        address: constants.EMAIL,
         subject: "Changes to your AirQo email",
         text: `${msgs.authenticate_email(token)}`,
       };
@@ -271,12 +267,10 @@ const mailer = {
     try {
       const mailOptions = {
         from: {
-          name: "AirQo Data Team",
+          name: constants.EMAIL_NAME,
           address: constants.EMAIL,
         },
         to: `${email}`,
-        name: constants.EMAIL_NAME,
-        address: constants.EMAIL,
         subject: "AirQo Platform account updated",
         text: `${msgs.user_updated(firstName, lastName)}`,
       };
