@@ -1,25 +1,25 @@
-resource "google_compute_instance" "airqo_stage_haproxy" {
-  boot_disk {
-    auto_delete = true
-    device_name = "airqo-stage-haproxy"
-
-    initialize_params {
-      image = var.os["ubuntu-bionic"]
-      size  = var.disk_size["tiny"]
-      type  = "pd-balanced"
-    }
-
-    mode   = "READ_WRITE"
-    source = "airqo-stage-haproxy"
-  }
-
+resource "google_compute_instance_template" "cfgsvr_template" {
   confidential_instance_config {
     enable_confidential_compute = false
   }
 
-  machine_type = "e2-small"
+  disk {
+    auto_delete  = true
+    boot         = true
+    device_name  = "cfgsvr-template"
+    disk_size_gb  = var.disk_size["small"]
+    disk_type    = "pd-balanced"
+    mode         = "READ_WRITE"
+    source_image = var.os["ubuntu-bionic"]
+    type         = "PERSISTENT"
+  }
 
-  name = "airqo-stage-haproxy"
+  labels = {
+    managed-by-cnrm = "true"
+  }
+
+  machine_type = "e2-custom-4-8192"
+  name         = "cfgsvr-template"
 
   network_interface {
     access_config {
@@ -27,11 +27,10 @@ resource "google_compute_instance" "airqo_stage_haproxy" {
     }
 
     network            = "airqo-k8s-cluster"
-    network_ip         = "10.240.0.103"
-    stack_type         = "IPV4_ONLY"
   }
 
   project = var.project-id
+  region  = "europe-west1"
 
   reservation_affinity {
     type = "ANY_RESERVATION"
@@ -40,7 +39,6 @@ resource "google_compute_instance" "airqo_stage_haproxy" {
   scheduling {
     automatic_restart   = true
     on_host_maintenance = "MIGRATE"
-    provisioning_model  = "STANDARD"
   }
 
   service_account {
@@ -53,7 +51,6 @@ resource "google_compute_instance" "airqo_stage_haproxy" {
     enable_vtpm                 = true
   }
 
-  tags = ["haproxy", "http-server", "https-server"]
-  zone = var.zone
+  tags = ["airqo-shard", "http-server", "https-server"]
 }
-# terraform import google_compute_instance.airqo_stage_haproxy projects/${var.project-id}/zones/europe-west1-b/instances/airqo-stage-haproxy
+# terraform import google_compute_instance_template.cfgsvr_template projects/${var.project-id}/global/instanceTemplates/cfgsvr-template

@@ -1,25 +1,25 @@
-resource "google_compute_instance" "mongo_query_router_stage" {
-  boot_disk {
-    auto_delete = true
-    device_name = "mongo-query-router-dev"
-
-    initialize_params {
-      image = var.os["ubuntu-bionic"]
-      size  = var.disk_size["tiny"]
-      type  = "pd-balanced"
-    }
-
-    mode   = "READ_WRITE"
-    source = "mongo-query-router-stage"
-  }
-
+resource "google_compute_instance_template" "shard_template" {
   confidential_instance_config {
     enable_confidential_compute = false
   }
 
-  machine_type = "e2-micro"
+  disk {
+    auto_delete  = true
+    boot         = true
+    device_name  = "shard-template"
+    disk_size_gb  = var.disk_size["medium"]
+    disk_type    = "pd-balanced"
+    mode         = "READ_WRITE"
+    source_image = var.os["ubuntu-bionic"]
+    type         = "PERSISTENT"
+  }
 
-  name = "mongo-query-router-stage"
+  labels = {
+    managed-by-cnrm = "true"
+  }
+
+  machine_type = "e2-custom-4-8192"
+  name         = "shard-instance-template"
 
   network_interface {
     access_config {
@@ -27,11 +27,10 @@ resource "google_compute_instance" "mongo_query_router_stage" {
     }
 
     network            = "airqo-k8s-cluster"
-    network_ip         = "10.240.0.72"
-    stack_type         = "IPV4_ONLY"
   }
 
   project = var.project-id
+  region  = "europe-west1"
 
   reservation_affinity {
     type = "ANY_RESERVATION"
@@ -40,7 +39,6 @@ resource "google_compute_instance" "mongo_query_router_stage" {
   scheduling {
     automatic_restart   = true
     on_host_maintenance = "MIGRATE"
-    provisioning_model  = "STANDARD"
   }
 
   service_account {
@@ -54,6 +52,5 @@ resource "google_compute_instance" "mongo_query_router_stage" {
   }
 
   tags = ["airqo-shard", "http-server", "https-server"]
-  zone = var.zone
 }
-# terraform import google_compute_instance.mongo_query_router_stage projects/${var.project-id}/zones/europe-west1-b/instances/mongo-query-router-stage
+# terraform import google_compute_instance_template.shard_template projects/${var.project-id}/global/instanceTemplates/shard-instance-template
