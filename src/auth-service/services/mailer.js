@@ -16,9 +16,10 @@ const mailer = {
       }
 
       const mailOptions = {
-        from: constants.EMAIL,
-        name: constants.EMAIL_NAME,
-        address: constants.EMAIL,
+        from: {
+          name: "AirQo Data Team",
+          address: constants.EMAIL,
+        },
         to: `${email}`,
         subject: "AirQo Platform JOIN request",
         text: msgs.joinRequest(firstName, lastName),
@@ -107,9 +108,10 @@ const mailer = {
       let mailOptions = {};
       if (tenant.toLowerCase() == "kcca") {
         mailOptions = {
-          from: constants.EMAIL,
-          name: constants.EMAIL_NAME,
-          address: constants.EMAIL,
+          from: {
+            name: "AirQo Data Team",
+            address: constants.EMAIL,
+          },
           to: `${email}`,
           subject: "Welcome to the AirQo KCCA Platform",
           text: `${msgs.welcome_kcca(firstName, lastName, password, email)}`,
@@ -117,7 +119,10 @@ const mailer = {
         };
       } else {
         mailOptions = {
-          from: constants.EMAIL,
+          from: {
+            name: "AirQo Data Team",
+            address: constants.EMAIL,
+          },
           to: `${email}`,
           subject: "Welcome to the AirQo Platform",
           text: `${msgs.welcome_general(firstName, lastName, password, email)}`,
@@ -150,7 +155,10 @@ const mailer = {
   forgot: async (email, token, tenant) => {
     try {
       const mailOptions = {
-        from: constants.EMAIL,
+        from: {
+          name: "AirQo Data Team",
+          address: constants.EMAIL,
+        },
         to: email,
         name: constants.EMAIL_NAME,
         address: constants.EMAIL,
@@ -183,7 +191,10 @@ const mailer = {
   signInWithEmailLink: async (email, token) => {
     try {
       const mailOptions = {
-        from: constants.EMAIL,
+        from: {
+          name: "AirQo Data Team",
+          address: constants.EMAIL,
+        },
         to: `${email}`,
         name: constants.EMAIL_NAME,
         address: constants.EMAIL,
@@ -220,7 +231,10 @@ const mailer = {
   authenticateEmail: async (email, token) => {
     try {
       const mailOptions = {
-        from: constants.EMAIL,
+        from: {
+          name: "AirQo Data Team",
+          address: constants.EMAIL,
+        },
         to: `${email}`,
         name: constants.EMAIL_NAME,
         address: constants.EMAIL,
@@ -256,7 +270,10 @@ const mailer = {
   update: async (email, firstName, lastName) => {
     try {
       const mailOptions = {
-        from: constants.EMAIL,
+        from: {
+          name: "AirQo Data Team",
+          address: constants.EMAIL,
+        },
         to: `${email}`,
         name: constants.EMAIL_NAME,
         address: constants.EMAIL,
