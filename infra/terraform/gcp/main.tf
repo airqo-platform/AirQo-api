@@ -3,20 +3,6 @@ provider "google" {
   region  = var.region
 }
 
-module "BigQueryDataset" {
-  source = "./modules/BigQueryDataset"
-
-  project-id = var.project-id
-  location = var.location
-}
-
-module "ComputeAddress" {
-  source = "./modules/ComputeAddress"
-
-  project-id = var.project-id
-  region = var.region
-}
-
 module "ComputeDisk" {
   source = "./modules/ComputeDisk"
 
@@ -43,12 +29,6 @@ module "ComputeInstanceTemplate" {
   project-number = var.project-number
   os             = var.os
   disk_size      = var.disk_size
-}
-
-module "IAMServiceAccount" {
-  source = "./modules/IAMServiceAccount"
-
-  project-id = var.project-id
 }
 
 module "SecretManagerSecret" {
