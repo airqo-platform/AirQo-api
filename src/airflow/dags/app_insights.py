@@ -160,7 +160,23 @@ def app_realtime_hourly_insights_etl():
     import pandas as pd
 
     @task()
-    def extract_data():
+    def update_latest_hourly_data():
+        from airqo_etl_utils.app_insights_utils import AirQoAppUtils
+        from airqo_etl_utils.constants import Tenant
+        from airqo_etl_utils.date import DateUtils
+
+        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(hours=2)
+
+        latest_hourly_data = AirQoAppUtils.extract_bigquery_latest_hourly_data(
+            start_date_time=start_date_time, end_date_time=end_date_time
+        )
+
+        return AirQoAppUtils.update_latest_hourly_data(
+            bigquery_latest_hourly_data=latest_hourly_data, tenant=Tenant.ALL
+        )
+
+    @task()
+    def extract_hourly_insights():
         from airqo_etl_utils.app_insights_utils import AirQoAppUtils
         from airqo_etl_utils.date import DateUtils
 
@@ -177,8 +193,9 @@ def app_realtime_hourly_insights_etl():
         insights = AirQoAppUtils.create_insights(data)
         AirQoAppUtils.save_insights(insights_data=insights)
 
-    hourly_data = extract_data()
+    hourly_data = extract_hourly_insights()
     load_hourly_insights(hourly_data)
+    update_latest_hourly_data()
 
 
 @dag(

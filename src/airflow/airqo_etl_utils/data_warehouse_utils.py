@@ -219,8 +219,9 @@ class DataWarehouseUtils:
 
         big_query_api.update_data(data, table=table)
 
-        firebase_data = AirQoAppUtils.process_for_firebase(data=data, tenant=tenant)
-        AirQoAppUtils.update_firebase_air_quality_readings(firebase_data)
+        AirQoAppUtils.update_latest_hourly_data(
+            bigquery_latest_hourly_data=data, tenant=tenant
+        )
 
     @staticmethod
     def merge_datasets(
