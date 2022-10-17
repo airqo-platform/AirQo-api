@@ -541,14 +541,19 @@ jobs:
           target: xcom-setup
           tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-apache-airflow-xcom:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-apache-airflow-xcom:latest
 
-      # - name: Deploy to K8S
-      #   uses: Azure/k8s-deploy@v1.4
-      #   with:
-      #     namespace: "pipeline"
-      #     manifests: |
-      #       k8s/airflow/stage-airflow-app.yaml
-      #     images: "${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-apache-airflow:${{ needs.image-tag.outputs.build_id }}"
-      #     kubectl-version: "latest"
+      - name: Login to GCP
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
+
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
+
+      - name: Update the corresponding k8s configmap(s)
+        run: |
+          cd src/airflow/
+          gcloud secrets versions access latest --secret="sta-env-airflow" > .env
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env airflow-config | kubectl replace -f - -n staging
 
       - name: Deploy to K8S
         run: |
