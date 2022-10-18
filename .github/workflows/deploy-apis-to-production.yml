@@ -1576,3 +1576,4 @@ jobs:
         run: |
           kubectl apply -f k8s/nginx-ingress/prod-api-ingress-resource.yaml
           kubectl apply -f k8s/nginx-ingress/prod-platform-ingress-resource.yaml
+          kubectl apply -f k8s/nginx-ingress/global-configs/prod-nginx-config.yaml
