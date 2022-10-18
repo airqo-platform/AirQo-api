@@ -13,6 +13,8 @@ USER airflow
 COPY --from=utils-package airqo_etl_utils/dist/airqo_etl_utils-1.0.0-py3-none-any.whl airqo_etl_utils-1.0.0-py3-none-any.whl
 RUN pip install --upgrade pip setuptools wheel
 RUN pip install airqo_etl_utils-1.0.0-py3-none-any.whl
+COPY airflow-requirements.txt airflow-requirements.txt
+RUN pip install -r airflow-requirements.txt
 COPY --chown=airflow:root dags/* /opt/airflow/dags/
 
 FROM base-builder as db-setup
