@@ -2,6 +2,8 @@ from airflow.decorators import dag, task
 
 from airqo_etl_utils.airflow_custom_utils import AirflowUtils
 from airqo_etl_utils.constants import Frequency
+from dag_docs import airqo_realtime_low_cost_measurements_doc
+from task_docs import extract_raw_airqo_data_doc
 
 
 @dag(
@@ -311,6 +313,7 @@ def cleanup_airqo_measurements_etl():
     schedule_interval="10 * * * *",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
+    doc_md=airqo_realtime_low_cost_measurements_doc,
     tags=["airqo", "hourly", "realtime", "raw", "low cost"],
 )
 def airqo_realtime_measurements_etl():
@@ -323,7 +326,9 @@ def airqo_realtime_measurements_etl():
     start_date_time = date_to_str_hours(hour_of_day)
     end_date_time = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
 
-    @task()
+    @task(
+        doc_md=extract_raw_airqo_data_doc,
+    )
     def extract_raw_data():
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
         from airqo_etl_utils.constants import DeviceCategory

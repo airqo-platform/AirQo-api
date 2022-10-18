@@ -161,6 +161,29 @@ class AirQoAppUtils:
         return insights_data[insights_columns]
 
     @staticmethod
+    def update_latest_hourly_data(
+        bigquery_latest_hourly_data: pd.DataFrame, tenant: Tenant
+    ):
+        firebase_data = AirQoAppUtils.process_for_firebase(
+            data=bigquery_latest_hourly_data, tenant=tenant
+        )
+        AirQoAppUtils.update_firebase_air_quality_readings(firebase_data)
+
+    @staticmethod
+    def extract_bigquery_latest_hourly_data(
+        start_date_time, end_date_time
+    ) -> pd.DataFrame:
+
+        bigquery_api = BigQueryApi()
+
+        return bigquery_api.query_data(
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            table=bigquery_api.latest_measurements_table,
+            tenant=Tenant.ALL,
+        )
+
+    @staticmethod
     def format_data_to_insights(
         data: pd.DataFrame, frequency: Frequency
     ) -> pd.DataFrame:
