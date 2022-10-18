@@ -9,63 +9,76 @@ from .weather_data_utils import WeatherDataUtils
 
 class MetaDataUtils:
     @staticmethod
-    def extract_meta_data(component: str, tenant: Tenant = Tenant.ALL) -> pd.DataFrame:
-        airqo_api = AirQoApi()
-
-        if component == "sites":
-            sites = airqo_api.get_sites(tenant=tenant)
-            dataframe = pd.json_normalize(sites)
-            dataframe = dataframe[
-                [
-                    "tenant",
-                    "site_id",
-                    "latitude",
-                    "longitude",
-                    "approximate_latitude",
-                    "approximate_longitude",
-                    "name",
-                    "location",
-                    "search_name",
-                    "location_name",
-                    "description",
-                    "city",
-                    "region",
-                    "country",
-                ]
+    def extract_devices_from_api(tenant: Tenant = Tenant.ALL) -> pd.DataFrame:
+        devices = AirQoApi().get_devices(tenant=tenant)
+        dataframe = pd.json_normalize(devices)
+        dataframe = dataframe[
+            [
+                "tenant",
+                "latitude",
+                "longitude",
+                "site_id",
+                "device_id",
+                "device_number",
+                "name",
+                "description",
+                "device_manufacturer",
+                "device_category",
+                "approximate_latitude",
+                "approximate_longitude",
             ]
+        ]
 
-            dataframe.rename(
-                columns={
-                    "search_name": "display_name",
-                    "site_id": "id",
-                    "location_name": "display_location",
-                },
-                inplace=True,
-            )
+        dataframe = DataValidationUtils.remove_outliers(dataframe)
 
-        elif component == "devices":
-            devices = airqo_api.get_devices(tenant=tenant)
-            dataframe = pd.json_normalize(devices)
-            dataframe = dataframe[
-                [
-                    "tenant",
-                    "latitude",
-                    "longitude",
-                    "site_id",
-                    "device_id",
-                    "device_number",
-                    "name",
-                    "description",
-                    "device_manufacturer",
-                    "device_category",
-                    "approximate_latitude",
-                    "approximate_longitude",
-                ]
+        return dataframe
+
+    @staticmethod
+    def extract_sites_from_api(tenant: Tenant = Tenant.ALL) -> pd.DataFrame:
+
+        sites = AirQoApi().get_sites(tenant=tenant)
+        dataframe = pd.json_normalize(sites)
+        dataframe = dataframe[
+            [
+                "tenant",
+                "site_id",
+                "latitude",
+                "longitude",
+                "approximate_latitude",
+                "approximate_longitude",
+                "name",
+                "location",
+                "search_name",
+                "location_name",
+                "description",
+                "city",
+                "region",
+                "country",
             ]
+        ]
 
-        else:
-            raise Exception("Invalid component. Valid values are sites and devices.")
+        dataframe.rename(
+            columns={
+                "search_name": "display_name",
+                "site_id": "id",
+                "location_name": "display_location",
+            },
+            inplace=True,
+        )
 
+        dataframe = DataValidationUtils.remove_outliers(dataframe)
+
+        return dataframe
+
+    @staticmethod
+    def extract_sites_meta_data_from_api(tenant: Tenant = Tenant.ALL) -> pd.DataFrame:
+
+        sites = AirQoApi().get_sites(tenant=tenant)
+        dataframe = pd.json_normalize(sites)
+        big_query_api = BigQueryApi()
+        cols = big_query_api.get_columns(table=big_query_api.sites_meta_data_table)
+        dataframe = DataValidationUtils.fill_missing_columns(data=dataframe, cols=cols)
+        dataframe = dataframe[cols]
         dataframe = DataValidationUtils.remove_outliers(dataframe)
 
         return dataframe
@@ -121,16 +134,3 @@ class MetaDataUtils:
                 )
 
         airqo_api.update_sites(updated_sites)
-
-    @staticmethod
-    def update_bigquery_meta_data() -> None:
-
-        sites = AirQoApi().get_sites(tenant=Tenant.ALL)
-        meta_data = pd.DataFrame(sites)
-
-        bigquery_api = BigQueryApi()
-        table = bigquery_api.sites_meta_data_table
-        meta_data = DataValidationUtils.process_for_big_query(
-            dataframe=meta_data, table=table, tenant=Tenant.ALL
-        )
-        bigquery_api.update_sites_meta_data(meta_data)
