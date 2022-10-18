@@ -4,7 +4,7 @@ metadata:
   name: airflow
   namespace: pipeline
 spec:
-  host: staging-platform.airqo.net
+  host: platform.airqo.net
   upstreams:
     - name: airflow
       service: airflow-svc
@@ -18,58 +18,58 @@ spec:
 apiVersion: k8s.nginx.org/v1
 kind: VirtualServer
 metadata:
-  name: staging-virtual-server
-  namespace: staging
+  name: production-virtual-server
+  namespace: production
 spec:
-  host: staging-platform.airqo.net
+  host: platform.airqo.net
   upstreams:
     - name: platform-ui
-      service: airqo-stage-platform-ui-svc
+      service: airqo-platform-svc
       port: 80
     - name: auth-service
-      service: airqo-stage-auth-api-svc
+      service: airqo-auth-api-svc
       port: 3000
     - name: device-registry
-      service: airqo-stage-device-registry-api-svc
+      service: airqo-device-registry-api-svc
       port: 3000
     - name: data-mgt
-      service: airqo-stage-data-mgt-api-svc
+      service: airqo-data-mgt-api-svc
       port: 3000
     - name: locate
-      service: airqo-stage-locate-api-svc
+      service: airqo-locate-api-svc
       port: 4001
     - name: analytics
-      service: airqo-stage-analytics-api-svc
+      service: airqo-analytics-api-svc
       port: 5000
     - name: predict
-      service: airqo-stage-prediction-api-svc
+      service: airqo-prediction-api-svc
       port: 5000
     - name: monitor
-      service: airqo-stage-device-monitor-api-svc
+      service: airqo-device-monitor-api-svc
       port: 4001
     - name: calibrate
-      service: airqo-stage-calibrate-api-svc
+      service: airqo-calibrate-api-svc
       port: 4001
     - name: incentives
-      service: airqo-stage-incentives-api-svc
+      service: airqo-incentives-api-svc
       port: 3000
     - name: meta-data
-      service: airqo-stage-meta-data-api-svc
+      service: airqo-meta-data-api-svc
       port: 4001
     - name: view
-      service: airqo-stage-view-api-svc
+      service: airqo-view-api-svc
       port: 8080
     - name: views
-      service: airqo-stage-view-api-svc
+      service: airqo-view-api-svc
       port: 8081
     - name: network-uptime
-      service: airqo-stage-network-uptime-api-svc
+      service: airqo-network-uptime-api-svc
       port: 8501
     - name: fault-detection
-      service: stage-fault-detection-api-svc
+      service: prod-fault-detection-api-svc
       port: 4001
     - name: notifications
-      service: airqo-stage-notification-api-svc
+      service: airqo-notification-api-svc
       port: 8080
   routes:
     - path: /

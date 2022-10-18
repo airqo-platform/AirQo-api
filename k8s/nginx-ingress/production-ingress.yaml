@@ -1,12 +1,10 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: ingress-platform-resource
+  name: production-ingress
   namespace: production
   annotations:
     kubernetes.io/ingress.class: "nginx"
-    nginx.ingress.kubernetes.io/rewrite-target: /
-    nginx.ingress.kubernetes.io/use-regex: "true"
 spec:
   rules:
     - host: airqalibrate.airqo.net
@@ -39,16 +37,9 @@ spec:
                 name: airqo-docs-svc
                 port:
                   number: 3000
-    - host: platform.airqo.net
+    - host: api.airqo.net
       http:
         paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: airqo-platform-svc
-                port:
-                  number: 80
           - path: /api/v1/users
             pathType: Prefix
             backend:
@@ -189,13 +180,6 @@ spec:
                 name: airqo-meta-data-api-svc
                 port:
                   number: 4001
-          - path: /api/v1/notifications
-            pathType: Prefix
-            backend:
-              service:
-                name: airqo-notification-api-svc
-                port:
-                  number: 8080
           - path: /api/v1/view
             pathType: Prefix
             backend:
