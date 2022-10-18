@@ -77,48 +77,123 @@ spec:
         pass: platform-ui
     - path: /airflow
       route: pipeline/airflow
-    - path: /api\/v[1-2]\/users
+    - path: ~ /api\/v[1-2]\/users
       action:
-        pass: auth-service
-    - path: /api\/v[1-2]\/devicesdevices
+        proxy:
+          upstream: auth-service
+          responseHeaders:
+            add:
+              - name: Content-Type
+                value: application/json
+    - path: ~ /api\/v[1-2]\/devices
       action:
-        pass: device-registry
-    - path: /api\/v[1-2]\/devicesdata
+        proxy:
+          upstream: device-registry
+          responseHeaders:
+            add:
+              - name: Content-Type
+                value: application/json
+    - path: ~ /api\/v[1-2]\/data
       action:
-        pass: data-mgt
-    - path: /api\/v[1-2]\/deviceslocate/map
+        proxy:
+          upstream: data-mgt
+          responseHeaders:
+            add:
+              - name: Content-Type
+                value: application/json
+    - path: ~ /api\/v[1-2]\/locate/map
       action:
-        pass: locate
-    - path: /api\/v[1-2]\/devicesanalytics
+        proxy:
+          upstream: locate
+          responseHeaders:
+            add:
+              - name: Content-Type
+                value: application/json
+    - path: ~ /api\/v[1-2]\/analytics
       action:
-        pass: analytics
-    - path: /api\/v[1-2]\/devicespredict
+        proxy:
+          upstream: analytics
+          responseHeaders:
+            add:
+              - name: Content-Type
+                value: application/json
+    - path: ~ /api\/v[1-2]\/predict
       action:
-        pass: predict
-    - path: /api\/v[1-2]\/devicesmonitor
+        proxy:
+          upstream: predict
+          responseHeaders:
+            add:
+              - name: Content-Type
+                value: application/json
+    - path: ~ /api\/v[1-2]\/monitor
       action:
-        pass: monitor
-    - path: /api\/v[1-2]\/devicescalibrate
+        proxy:
+          upstream: monitor
+          responseHeaders:
+            add:
+              - name: Content-Type
+                value: application/json
+    - path: ~ /api\/v[1-2]\/calibrate
       action:
-        pass: calibrate
-    - path: /api\/v[1-2]\/devicesincentives
+        proxy:
+          upstream: calibrate
+          responseHeaders:
+            add:
+              - name: Content-Type
+                value: application/json
+    - path: ~ /api\/v[1-2]\/incentives
       action:
-        pass: incentives
-    - path: /api\/v[1-2]\/devicesmeta-data
+        proxy:
+          upstream: incentives
+          responseHeaders:
+            add:
+              - name: Content-Type
+                value: application/json
+    - path: ~ /api\/v[1-2]\/meta-data
       action:
-        pass: meta-data
-    - path: /api\/v[1-2]\/devicesview
+        proxy:
+          upstream: meta-data
+          responseHeaders:
+            add:
+              - name: Content-Type
+                value: application/json
+    - path: ~ /api\/v[1-2]\/view
       action:
-        pass: view
-    - path: /api\/v[1-2]\/devicesviews
+        proxy:
+          upstream: view
+          responseHeaders:
+            add:
+              - name: Content-Type
+                value: application/json
+    - path: ~ /api\/v[1-2]\/views
       action:
-        pass: views
-    - path: /api\/v[1-2]\/devicesnetwork-uptime
+        proxy:
+          upstream: views
+          responseHeaders:
+            add:
+              - name: Content-Type
+                value: application/json
+    - path: ~ /api\/v[1-2]\/network-uptime
       action:
-        pass: network-uptime
-    - path: /api\/v[1-2]\/devicespredict-faults
+        proxy:
+          upstream: network-uptime
+          responseHeaders:
+            add:
+              - name: Content-Type
+                value: application/json
+    - path: ~ /api\/v[1-2]\/predict-faults
       action:
-        pass: fault-detection
-    - path: /api\/v[1-2]\/devicesnotifications
+        proxy:
+          upstream: fault-detection
+          responseHeaders:
+            add:
+              - name: Content-Type
+                value: application/json
+    - path: ~ /api\/v[1-2]\/notifications
       action:
-        pass: notifications
+        proxy:
+          upstream: notifications
+          responseHeaders:
+            add:
+              - name: Content-Type
+                value: application/json
