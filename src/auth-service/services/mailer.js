@@ -16,7 +16,10 @@ const mailer = {
       }
 
       const mailOptions = {
-        from: constants.EMAIL,
+        from: {
+          name: constants.EMAIL_NAME,
+          address: constants.EMAIL,
+        },
         to: `${email}`,
         subject: "AirQo Platform JOIN request",
         text: msgs.joinRequest(firstName, lastName),
@@ -62,6 +65,10 @@ const mailer = {
 
       const mailOptionsForAirQo = {
         to: `${email}`,
+        from: {
+          name: constants.EMAIL_NAME,
+          address: constants.EMAIL,
+        },
         subject: `Welcome to AirQo, for ${categoryNameWithFirstLetterCapital}`,
         html: msgTemplates.inquiryTemplate(fullName),
         bcc,
@@ -103,7 +110,10 @@ const mailer = {
       let mailOptions = {};
       if (tenant.toLowerCase() == "kcca") {
         mailOptions = {
-          from: constants.EMAIL,
+          from: {
+            name: constants.EMAIL_NAME,
+            address: constants.EMAIL,
+          },
           to: `${email}`,
           subject: "Welcome to the AirQo KCCA Platform",
           text: `${msgs.welcome_kcca(firstName, lastName, password, email)}`,
@@ -111,7 +121,10 @@ const mailer = {
         };
       } else {
         mailOptions = {
-          from: constants.EMAIL,
+          from: {
+            name: constants.EMAIL_NAME,
+            address: constants.EMAIL,
+          },
           to: `${email}`,
           subject: "Welcome to the AirQo Platform",
           text: `${msgs.welcome_general(firstName, lastName, password, email)}`,
@@ -144,7 +157,10 @@ const mailer = {
   forgot: async (email, token, tenant) => {
     try {
       const mailOptions = {
-        from: constants.EMAIL,
+        from: {
+          name: constants.EMAIL_NAME,
+          address: constants.EMAIL,
+        },
         to: email,
         subject: `Link To Reset Password`,
         text: msgs.recovery_email(token, tenant),
@@ -175,7 +191,10 @@ const mailer = {
   signInWithEmailLink: async (email, token) => {
     try {
       const mailOptions = {
-        from: constants.EMAIL,
+        from: {
+          name: constants.EMAIL_NAME,
+          address: constants.EMAIL,
+        },
         to: `${email}`,
         subject: "Welcome to AirQo!",
         text: `${msgs.join_by_email(token)}`,
@@ -210,7 +229,10 @@ const mailer = {
   authenticateEmail: async (email, token) => {
     try {
       const mailOptions = {
-        from: constants.EMAIL,
+        from: {
+          name: constants.EMAIL_NAME,
+          address: constants.EMAIL,
+        },
         to: `${email}`,
         subject: "Changes to your AirQo email",
         text: `${msgs.authenticate_email(token)}`,
@@ -244,7 +266,10 @@ const mailer = {
   update: async (email, firstName, lastName) => {
     try {
       const mailOptions = {
-        from: constants.EMAIL,
+        from: {
+          name: constants.EMAIL_NAME,
+          address: constants.EMAIL,
+        },
         to: `${email}`,
         subject: "AirQo Platform account updated",
         text: `${msgs.user_updated(firstName, lastName)}`,

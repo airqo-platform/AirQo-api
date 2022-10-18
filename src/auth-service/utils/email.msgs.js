@@ -21,7 +21,7 @@ module.exports = {
       "we shall get back to you as soon as possible. \n\n" +
       "Before utilising the AirQo data, your application record has to undergo " +
       "the process of approval by the AirQo platform administration.\n" +
-      "Once your application is reviewed, you will receive an email on the mailbox \n\n" +
+      "Once your application is approved, you will receive a confirmation email\n\n" +
       "Please visit our website to learn more about us. \n" +
       `https://airqo.net/`
     );

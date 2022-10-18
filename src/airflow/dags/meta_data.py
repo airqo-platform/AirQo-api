@@ -4,81 +4,77 @@ from airqo_etl_utils.airflow_custom_utils import AirflowUtils
 
 
 @dag(
-    "Update-BigQuery-Sites",
-    schedule_interval="@daily",
+    "Update-BigQuery-Sites-And-Devices",
+    schedule_interval="*/15 * * * *",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
-    tags=["daily", "sites", "bigquery"],
+    tags=["hourly", "sites", "devices"],
 )
-def big_query_update_sites_etl():
+def big_query_update_sites_and_devices_etl():
     import pandas as pd
 
     @task()
     def extract_sites() -> pd.DataFrame:
         from airqo_etl_utils.meta_data_utils import MetaDataUtils
 
-        sites_data = MetaDataUtils.extract_meta_data(component="sites")
-
-        return sites_data
+        return MetaDataUtils.extract_sites_from_api()
 
     @task()
-    def load(data: pd.DataFrame):
-        from airqo_etl_utils.bigquery_api import BigQueryApi
-        from airqo_etl_utils.constants import JobAction
+    def extract_sites_meta_data() -> pd.DataFrame:
+        from airqo_etl_utils.meta_data_utils import MetaDataUtils
 
-        big_query_api = BigQueryApi()
-        big_query_api.load_data(
-            dataframe=data,
-            table=big_query_api.sites_table,
-            job_action=JobAction.OVERWRITE,
-        )
-
-    sites = extract_sites()
-    load(sites)
-
-
-@dag(
-    "Update-BigQuery-Devices",
-    schedule_interval="@daily",
-    default_args=AirflowUtils.dag_default_configs(),
-    catchup=False,
-    tags=["daily", "devices", "bigquery"],
-)
-def big_query_update_devices_etl():
-    import pandas as pd
+        return MetaDataUtils.extract_sites_meta_data_from_api()
 
     @task()
     def extract_devices():
         from airqo_etl_utils.meta_data_utils import MetaDataUtils
 
-        devices_data = MetaDataUtils.extract_meta_data(component="devices")
-
-        return devices_data
+        return MetaDataUtils.extract_devices_from_api()
 
     @task()
-    def load(data: pd.DataFrame):
+    def load_sites_meta_data(data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
-        from airqo_etl_utils.constants import JobAction
+
+        BigQueryApi().update_sites_meta_data(dataframe=data)
+
+    @task()
+    def load_sites(data: pd.DataFrame):
+        from airqo_etl_utils.bigquery_api import BigQueryApi
 
         big_query_api = BigQueryApi()
-        big_query_api.load_data(
+        big_query_api.update_sites_and_devices(
+            dataframe=data,
+            table=big_query_api.sites_table,
+            component="sites",
+        )
+
+    @task()
+    def load_devices(data: pd.DataFrame):
+        from airqo_etl_utils.bigquery_api import BigQueryApi
+
+        big_query_api = BigQueryApi()
+        big_query_api.update_sites_and_devices(
             dataframe=data,
             table=big_query_api.devices_table,
-            job_action=JobAction.OVERWRITE,
+            component="devices",
         )
 
     devices = extract_devices()
-    load(devices)
+    load_devices(devices)
+    sites = extract_sites()
+    load_sites(sites)
+    sites_meta_data = extract_sites_meta_data()
+    load_sites_meta_data(sites_meta_data)
 
 
 @dag(
-    "Update-Sites-Meta-Data",
+    "Update-Microservice-Sites-Meta-Data",
     schedule_interval="@daily",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["daily", "sites", "meta-data"],
 )
-def update_sites_meta_data_etl():
+def update_microservice_sites_meta_data_etl():
     @task()
     def update_nearest_weather_stations() -> None:
         from airqo_etl_utils.meta_data_utils import MetaDataUtils
@@ -86,9 +82,16 @@ def update_sites_meta_data_etl():
 
         MetaDataUtils.update_nearest_weather_stations(tenant=Tenant.ALL)
 
+    @task()
+    def update_distance_measures() -> None:
+        from airqo_etl_utils.meta_data_utils import MetaDataUtils
+        from airqo_etl_utils.constants import Tenant
+
+        MetaDataUtils.update_sites_distance_measures(tenant=Tenant.ALL)
+
     update_nearest_weather_stations()
+    update_distance_measures()
 
 
-big_query_update_sites_etl_dag = big_query_update_sites_etl()
-big_query_update_devices_etl_dag = big_query_update_devices_etl()
-update_sites_meta_data_etl_dag = update_sites_meta_data_etl()
+big_query_update_sites_and_devices_etl_dag = big_query_update_sites_and_devices_etl()
+update_microservice_sites_meta_data_etl_dag = update_microservice_sites_meta_data_etl()
