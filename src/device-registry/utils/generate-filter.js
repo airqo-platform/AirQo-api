@@ -238,6 +238,7 @@ const generateFilter = {
         tenant,
         recent,
         page,
+        network,
       } = query;
 
       let oneMonthBack = monthsInfront(-1);
@@ -269,7 +270,9 @@ const generateFilter = {
       if (!external) {
         filter["external"] = "yes";
       }
-
+      if (network) {
+        filter["values.network"] = network;
+      }
       if (tenant) {
         filter["tenant"] = tenant;
       }
