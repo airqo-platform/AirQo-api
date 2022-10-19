@@ -10,7 +10,7 @@ from airqo_etl_utils.airflow_custom_utils import AirflowUtils
     catchup=False,
     tags=["raw", "nasa", "historical"],
 )
-def nasa_historical_data_etl():
+def nasa_historical_data():
     import pandas as pd
 
     @task()
@@ -54,7 +54,7 @@ def nasa_historical_data_etl():
     catchup=False,
     tags=["raw", "nasa", "realtime"],
 )
-def nasa_realtime_data_etl():
+def nasa_realtime_data():
     import pandas as pd
 
     @task()
@@ -91,5 +91,5 @@ def nasa_realtime_data_etl():
     send_to_bigquery(processed_bam_data)
 
 
-nasa_realtime_data_etl()
-nasa_historical_data_etl()
+nasa_realtime_data()
+nasa_historical_data()

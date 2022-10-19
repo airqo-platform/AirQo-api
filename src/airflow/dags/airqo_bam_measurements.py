@@ -10,7 +10,7 @@ from airqo_etl_utils.airflow_custom_utils import AirflowUtils
     catchup=False,
     tags=["airqo", "historical", "bam"],
 )
-def bam_historical_measurements_etl():
+def airqo_bam_historical_measurements():
     import pandas as pd
 
     @task()
@@ -76,7 +76,7 @@ def bam_historical_measurements_etl():
     catchup=False,
     tags=["airqo", "bam", "realtime"],
 )
-def bam_realtime_measurements_etl():
+def airqo_bam_realtime_measurements():
     import pandas as pd
 
     @task()
@@ -147,5 +147,5 @@ def bam_realtime_measurements_etl():
     update_latest_data(measurements)
 
 
-bam_realtime_measurements_etl()
-bam_historical_measurements_etl()
+airqo_bam_realtime_measurements()
+airqo_bam_historical_measurements()
