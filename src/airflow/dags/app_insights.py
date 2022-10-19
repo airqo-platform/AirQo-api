@@ -12,7 +12,7 @@ from airqo_etl_utils.airflow_custom_utils import AirflowUtils
     catchup=False,
     tags=["insights", "forecast"],
 )
-def app_forecast_insights_etl():
+def app_forecast_insights():
     import pandas as pd
 
     @task()
@@ -42,7 +42,7 @@ def app_forecast_insights_etl():
     catchup=False,
     tags=["insights", "daily"],
 )
-def app_historical_daily_insights_etl():
+def app_historical_daily_insights():
     import pandas as pd
 
     @task()
@@ -81,7 +81,7 @@ def app_historical_daily_insights_etl():
     catchup=False,
     tags=["insights", "daily", "realtime"],
 )
-def app_realtime_daily_insights_etl():
+def app_realtime_daily_insights():
     import pandas as pd
 
     @task()
@@ -122,7 +122,7 @@ def app_realtime_daily_insights_etl():
     catchup=False,
     tags=["insights", "hourly", "historical"],
 )
-def app_historical_hourly_insights_etl():
+def app_historical_hourly_insights():
     import pandas as pd
 
     @task()
@@ -156,7 +156,7 @@ def app_historical_hourly_insights_etl():
     catchup=False,
     tags=["insights", "hourly"],
 )
-def app_realtime_hourly_insights_etl():
+def app_realtime_hourly_insights():
     import pandas as pd
 
     @task()
@@ -205,7 +205,7 @@ def app_realtime_hourly_insights_etl():
     catchup=False,
     tags=["insights", "empty"],
 )
-def insights_cleanup_etl():
+def app_insights_cleanup():
     import pandas as pd
 
     from airqo_etl_utils.date import (
@@ -269,9 +269,9 @@ def insights_cleanup_etl():
     load(insights_data=filtered_insights)
 
 
-app_forecast_insights_etl()
-app_historical_daily_insights_etl()
-app_historical_hourly_insights_etl()
-app_realtime_daily_insights_etl()
-app_realtime_hourly_insights_etl()
-insights_cleanup_etl()
+app_forecast_insights()
+app_historical_daily_insights()
+app_historical_hourly_insights()
+app_realtime_daily_insights()
+app_realtime_hourly_insights()
+app_insights_cleanup()

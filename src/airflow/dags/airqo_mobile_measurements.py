@@ -10,7 +10,7 @@ from airqo_etl_utils.airflow_custom_utils import AirflowUtils
     catchup=False,
     tags=["airqo", "mobile"],
 )
-def airqo_mobile_devices_measurements_etl():
+def airqo_mobile_devices_measurements():
     import pandas as pd
 
     @task()
@@ -82,4 +82,4 @@ def airqo_mobile_devices_measurements_etl():
     load(calibrated_data)
 
 
-airqo_mobile_devices_measurements_etl()
+airqo_mobile_devices_measurements()

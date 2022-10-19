@@ -12,7 +12,7 @@ from airqo_etl_utils.airflow_custom_utils import AirflowUtils
     catchup=False,
     tags=["weather", "historical", "raw"],
 )
-def historical_raw_weather_measurements_etl():
+def weather_data_historical_raw_measurements():
     import pandas as pd
 
     @task()
@@ -58,7 +58,7 @@ def historical_raw_weather_measurements_etl():
     catchup=False,
     tags=["weather", "historical", "hourly"],
 )
-def historical_hourly_weather_measurements_etl():
+def weather_data_historical_hourly_measurements():
     import pandas as pd
 
     @task()
@@ -100,9 +100,8 @@ def historical_hourly_weather_measurements_etl():
     catchup=False,
     tags=["weather", "cleanup"],
 )
-def cleanup_weather_measurements_etl():
+def weather_data_cleanup_measurements():
     import pandas as pd
-    from airqo_etl_utils.constants import Frequency
 
     @task()
     def extract_raw_data(**kwargs) -> pd.DataFrame:
@@ -129,32 +128,39 @@ def cleanup_weather_measurements_etl():
         )
 
     @task()
-    def remove_duplicates(data: pd.DataFrame) -> pd.DataFrame:
+    def remove_duplicated_raw_data(data: pd.DataFrame) -> pd.DataFrame:
         from airqo_etl_utils.weather_data_utils import WeatherDataUtils
 
         return WeatherDataUtils.remove_duplicates(data=data)
 
     @task()
-    def load(data: pd.DataFrame, frequency: Frequency):
+    def remove_duplicated_hourly_data(data: pd.DataFrame) -> pd.DataFrame:
+        from airqo_etl_utils.weather_data_utils import WeatherDataUtils
+
+        return WeatherDataUtils.remove_duplicates(data=data)
+
+    @task()
+    def load_raw_data(data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
         big_query_api = BigQueryApi()
+        big_query_api.reload_data(dataframe=data, table=big_query_api.raw_weather_table)
 
-        if frequency == Frequency.RAW:
-            big_query_api.reload_data(
-                dataframe=data, table=big_query_api.raw_weather_table
-            )
-        elif frequency == Frequency.HOURLY:
-            big_query_api.reload_data(
-                dataframe=data, table=big_query_api.hourly_weather_table
-            )
+    @task()
+    def load_hourly_data(data: pd.DataFrame):
+        from airqo_etl_utils.bigquery_api import BigQueryApi
+
+        big_query_api = BigQueryApi()
+        big_query_api.reload_data(
+            dataframe=data, table=big_query_api.hourly_weather_table
+        )
 
     raw_data = extract_raw_data()
     hourly_data = extract_hourly_data()
-    clean_raw_data = remove_duplicates(raw_data)
-    clean_hourly_data = remove_duplicates(hourly_data)
-    load(data=clean_raw_data, frequency=Frequency.RAW)
-    load(data=clean_hourly_data, frequency=Frequency.HOURLY)
+    clean_raw_data = remove_duplicated_raw_data(raw_data)
+    clean_hourly_data = remove_duplicated_hourly_data(hourly_data)
+    load_raw_data(data=clean_raw_data)
+    load_hourly_data(data=clean_hourly_data)
 
 
 @dag(
@@ -164,7 +170,7 @@ def cleanup_weather_measurements_etl():
     catchup=False,
     tags=["weather", "hourly", "raw"],
 )
-def weather_measurements_etl():
+def weather_data_realtime():
     import pandas as pd
 
     @task()
@@ -225,7 +231,7 @@ def weather_measurements_etl():
     save_hourly_data_to_bigquery(averaged_data)
 
 
-historical_raw_weather_measurements_etl()
-historical_hourly_weather_measurements_etl()
-weather_measurements_etl()
-cleanup_weather_measurements_etl()
+weather_data_historical_raw_measurements()
+weather_data_historical_hourly_measurements()
+weather_data_realtime()
+weather_data_cleanup_measurements()
