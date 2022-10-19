@@ -8,7 +8,7 @@ from task_docs import extract_raw_airqo_data_doc
 
 @dag(
     "Calibrate-AirQo-Measurements",
-    schedule_interval="0 0 * * 6",
+    schedule="0 0 * * 6",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["airqo", "calibrate"],
@@ -97,7 +97,7 @@ def calibrate_measurements_etl():
 
 @dag(
     "AirQo-Historical-Hourly-Measurements",
-    schedule_interval="0 0 * * *",
+    schedule="0 0 * * *",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["airqo", "hourly", "historical", "low cost"],
@@ -171,7 +171,7 @@ def historical_hourly_measurements_etl():
 
 @dag(
     "AirQo-Historical-Raw-Low-Cost-Measurements",
-    schedule_interval="0 4 * * *",
+    schedule="0 4 * * *",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["airqo", "raw", "historical", "low cost"],
@@ -242,7 +242,7 @@ def historical_raw_measurements_etl():
 
 @dag(
     "Cleanup-AirQo-Measurements",
-    schedule_interval="0 11 * * *",
+    schedule="0 11 * * *",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["airqo", "cleanup"],
@@ -310,7 +310,7 @@ def cleanup_airqo_measurements_etl():
 
 @dag(
     "AirQo-Realtime-Low-Cost-Measurements",
-    schedule_interval="10 * * * *",
+    schedule="10 * * * *",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     doc_md=airqo_realtime_low_cost_measurements_doc,
@@ -464,8 +464,8 @@ def airqo_realtime_measurements_etl():
     update_latest_data(calibrated_data)
 
 
-historical_hourly_measurements_etl_dag = historical_hourly_measurements_etl()
-airqo_realtime_measurements_etl_dag = airqo_realtime_measurements_etl()
-historical_raw_measurements_etl_dag = historical_raw_measurements_etl()
-calibrate_measurements_etl_dag = calibrate_measurements_etl()
-cleanup_airqo_measurements_etl_dag = cleanup_airqo_measurements_etl()
+historical_hourly_measurements_etl()
+airqo_realtime_measurements_etl()
+historical_raw_measurements_etl()
+calibrate_measurements_etl()
+cleanup_airqo_measurements_etl()

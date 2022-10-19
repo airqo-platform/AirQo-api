@@ -5,7 +5,7 @@ from airqo_etl_utils.airflow_custom_utils import AirflowUtils
 
 @dag(
     "AirQo-Historical-Bam-Measurements",
-    schedule_interval=None,
+    schedule=None,
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["airqo", "historical", "bam"],
@@ -71,7 +71,7 @@ def bam_historical_measurements_etl():
 
 @dag(
     "AirQo-Realtime-Bam-Measurements",
-    schedule_interval="30 * * * *",
+    schedule="30 * * * *",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["airqo", "bam", "realtime"],
@@ -147,5 +147,5 @@ def bam_realtime_measurements_etl():
     update_latest_data(measurements)
 
 
-realtime_measurements_etl_dag = bam_realtime_measurements_etl()
-historical_measurements_etl_dag = bam_historical_measurements_etl()
+bam_realtime_measurements_etl()
+bam_historical_measurements_etl()
