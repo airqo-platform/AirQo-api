@@ -54,7 +54,7 @@ jobs:
       run_channel_data: ${{ steps.check_files.outputs.run_channel_data }} # channel data job
       run_kafka_connectors: ${{ steps.check_files.outputs.run_kafka_connectors }} # kafka connectors
       run_fault_detection: ${{ steps.check_files.outputs.run_fault_detection }} # fault detection
-      run_nginx_ingress: ${{ steps.check_files.outputs.run_nginx_ingress }} # nginx ingress
+      run_nginx: ${{ steps.check_files.outputs.run_nginx }} # nginx ingress
 
     runs-on: ubuntu-latest
     steps:
@@ -98,7 +98,7 @@ jobs:
           echo "::set-output name=run_channel_data::false"
           echo "::set-output name=run_kafka_connectors::false"
           echo "::set-output name=run_fault_detection::false"
-          echo "::set-output name=run_nginx_ingress::false"
+          echo "::set-output name=run_nginx::false"
 
           while IFS= read -r file
           do
@@ -284,8 +284,8 @@ jobs:
               echo "::set-output name=run_kafka_connectors::true"
             fi
 
-            if [[ $file == k8s/nginx-ingress/* ]]; then
-              echo "::set-output name=run_nginx_ingress::true"
+            if [[ $file == k8s/nginx/production/* ]]; then
+              echo "::set-output name=run_nginx::true"
             fi
 
             if [[ $file == workflow-trigger ]]; then
@@ -311,7 +311,7 @@ jobs:
               echo "::set-output name=run_fault_detection::true"
               echo "::set-output name=run_view::true"
               echo "::set-output name=run_kafka_connectors::true"
-              echo "::set-output name=run_nginx_ingress::true"
+              echo "::set-output name=run_nginx::true"
             fi
 
           done < files.txt
@@ -1565,7 +1565,7 @@ jobs:
   nginx-ingress:
     name: apply-nginx-ingress
     needs: [check]
-    if: needs.check.outputs.run_nginx_ingress == 'true'
+    if: needs.check.outputs.run_nginx == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -1579,5 +1579,6 @@ jobs:
 
       - name: Apply ingress changes
         run: |
-          kubectl apply -f k8s/nginx-ingress/prod-api-ingress-resource.yaml
-          kubectl apply -f k8s/nginx-ingress/prod-platform-ingress-resource.yaml
+          kubectl apply -f k8s/nginx/production/ingress.yaml
+          kubectl apply -f k8s/nginx/production/virtual-server.yaml
+          kubectl apply -f k8s/nginx/production/global-config.yaml
