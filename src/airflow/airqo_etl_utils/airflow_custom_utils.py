@@ -19,7 +19,6 @@ class AirflowUtils:
             "owner_links": {"AirQo": "https://airqo.africa"},
             "retries": 0,
             "on_failure_callback": AirflowUtils.dag_failure_notification,
-            "on_success_callback": AirflowUtils.dag_success_notification,
         }
 
     def __init__(self) -> None:
