@@ -5,7 +5,7 @@ from airqo_etl_utils.airflow_custom_utils import AirflowUtils
 
 @dag(
     "AirQo-Mobile-Devices-Measurements",
-    schedule_interval=None,
+    schedule=None,
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["airqo", "mobile"],
@@ -82,4 +82,4 @@ def airqo_mobile_devices_measurements_etl():
     load(calibrated_data)
 
 
-airqo_mobile_devices_measurements_etl_dag = airqo_mobile_devices_measurements_etl()
+airqo_mobile_devices_measurements_etl()

@@ -5,7 +5,7 @@ from airqo_etl_utils.airflow_custom_utils import AirflowUtils
 
 @dag(
     "Nasa-Historical-Raw-Data",
-    schedule_interval=None,
+    schedule=None,
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["raw", "nasa", "historical"],
@@ -49,7 +49,7 @@ def nasa_historical_data_etl():
 
 @dag(
     "Nasa-Realtime-Raw-Data",
-    schedule_interval="30 * * * *",
+    schedule="30 * * * *",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["raw", "nasa", "realtime"],
@@ -91,5 +91,5 @@ def nasa_realtime_data_etl():
     send_to_bigquery(processed_bam_data)
 
 
-nasa_realtime_data_etl_dag = nasa_realtime_data_etl()
-nasa_historical_data_etl_dag = nasa_historical_data_etl()
+nasa_realtime_data_etl()
+nasa_historical_data_etl()

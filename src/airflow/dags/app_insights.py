@@ -7,7 +7,7 @@ from airqo_etl_utils.airflow_custom_utils import AirflowUtils
 
 @dag(
     "App-Forecast-Insights",
-    schedule_interval="50 */2 * * *",
+    schedule="50 */2 * * *",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["insights", "forecast"],
@@ -37,7 +37,7 @@ def app_forecast_insights_etl():
 
 @dag(
     "App-Historical-Daily-Insights",
-    schedule_interval=None,
+    schedule=None,
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["insights", "daily"],
@@ -76,7 +76,7 @@ def app_historical_daily_insights_etl():
 
 @dag(
     "App-Realtime-Daily-Insights",
-    schedule_interval="50 */2 * * *",
+    schedule="50 */2 * * *",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["insights", "daily", "realtime"],
@@ -117,7 +117,7 @@ def app_realtime_daily_insights_etl():
 
 @dag(
     "App-Historical-Hourly-Insights",
-    schedule_interval=None,
+    schedule=None,
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["insights", "hourly", "historical"],
@@ -151,7 +151,7 @@ def app_historical_hourly_insights_etl():
 
 @dag(
     "App-Realtime-Hourly-Insights",
-    schedule_interval="30 * * * *",
+    schedule="30 * * * *",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["insights", "hourly"],
@@ -200,7 +200,7 @@ def app_realtime_hourly_insights_etl():
 
 @dag(
     "App-Insights-cleanup",
-    schedule_interval="@daily",
+    schedule="@daily",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["insights", "empty"],
@@ -269,9 +269,9 @@ def insights_cleanup_etl():
     load(insights_data=filtered_insights)
 
 
-app_forecast_insights_etl_dag = app_forecast_insights_etl()
-app_historical_daily_insights_etl_dag = app_historical_daily_insights_etl()
-app_historical_hourly_insights_etl_dag = app_historical_hourly_insights_etl()
-app_daily_insights_etl_dag = app_realtime_daily_insights_etl()
-app_realtime_hourly_insights_etl_dag = app_realtime_hourly_insights_etl()
-insights_cleanup_etl_dag = insights_cleanup_etl()
+app_forecast_insights_etl()
+app_historical_daily_insights_etl()
+app_historical_hourly_insights_etl()
+app_realtime_daily_insights_etl()
+app_realtime_hourly_insights_etl()
+insights_cleanup_etl()

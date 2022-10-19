@@ -7,7 +7,7 @@ from airqo_etl_utils.airflow_custom_utils import AirflowUtils
 
 @dag(
     "Historical-Raw-Weather-Measurements",
-    schedule_interval="0 1 * * *",
+    schedule="0 1 * * *",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["weather", "historical", "raw"],
@@ -53,7 +53,7 @@ def historical_raw_weather_measurements_etl():
 
 @dag(
     "Historical-Hourly-Weather-Measurements",
-    schedule_interval="0 6 * * *",
+    schedule="0 6 * * *",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["weather", "historical", "hourly"],
@@ -95,7 +95,7 @@ def historical_hourly_weather_measurements_etl():
 
 @dag(
     "Cleanup-Weather-Measurements",
-    schedule_interval="0 11 * * *",
+    schedule="0 11 * * *",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["weather", "cleanup"],
@@ -159,7 +159,7 @@ def cleanup_weather_measurements_etl():
 
 @dag(
     "Weather-Measurements",
-    schedule_interval="40 * * * *",
+    schedule="40 * * * *",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["weather", "hourly", "raw"],
@@ -225,9 +225,7 @@ def weather_measurements_etl():
     save_hourly_data_to_bigquery(averaged_data)
 
 
-historical_raw_weather_measurements_etl_dag = historical_raw_weather_measurements_etl()
-historical_hourly_weather_measurements_etl_dag = (
-    historical_hourly_weather_measurements_etl()
-)
-weather_measurements_etl_dag = weather_measurements_etl()
-cleanup_weather_measurements_etl_dag = cleanup_weather_measurements_etl()
+historical_raw_weather_measurements_etl()
+historical_hourly_weather_measurements_etl()
+weather_measurements_etl()
+cleanup_weather_measurements_etl()

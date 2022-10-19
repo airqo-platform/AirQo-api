@@ -10,7 +10,7 @@ from airqo_etl_utils.airflow_custom_utils import AirflowUtils
 # in timezones +3, +2, +1, 0 from UTC going to work
 @dag(
     "Monday-Notifications",
-    schedule_interval="10 5,6,7,8 * * 1",
+    schedule="10 5,6,7,8 * * 1",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["app", "notifications", "monday", "morning"],
@@ -53,7 +53,7 @@ def monday_morning_notifications():
 # in timezones +3, +2, +1, 0 from UTC going to work
 @dag(
     "Friday-Notifications",
-    schedule_interval="10 16,17,18,19 * * 5",
+    schedule="10 16,17,18,19 * * 5",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["app", "notifications", "friday", "evening"],
@@ -97,7 +97,7 @@ def friday_evening_notifications():
 # in timezones +3, +2, +1, 0 from UTC going to work
 @dag(
     "Morning-Notifications",
-    schedule_interval="10 5,6,7,8 * * 0,2,3,4,5,6",
+    schedule="10 5,6,7,8 * * 0,2,3,4,5,6",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["app", "notifications", "morning"],
@@ -143,7 +143,7 @@ def morning_notifications():
 # the forecast of one favourite place
 @dag(
     "Evening-Notifications",
-    schedule_interval="10 16,17,18,19 * * 0,1,2,3,4,6",
+    schedule="10 16,17,18,19 * * 0,1,2,3,4,6",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["app", "notifications", "evening"],
