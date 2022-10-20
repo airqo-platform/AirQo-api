@@ -194,13 +194,6 @@ spec:
                 name: airqo-stage-view-api-svc
                 port:
                   number: 8080
-          - path: /api/v1/views
-            pathType: Prefix
-            backend:
-              service:
-                name: airqo-stage-view-api-svc
-                port:
-                  number: 8081
           - path: /api/v1/network-uptime
             pathType: Prefix
             backend:
