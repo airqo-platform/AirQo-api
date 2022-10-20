@@ -217,6 +217,7 @@ const defaultConfig = {
       site: "site",
       site_id: "site_id",
       tenant: "tenant",
+      network: "network",
       is_test_data: "is_test_data",
       is_device_primary: "is_device_primary",
 

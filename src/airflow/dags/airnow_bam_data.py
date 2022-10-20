@@ -5,12 +5,12 @@ from airqo_etl_utils.airflow_custom_utils import AirflowUtils
 
 @dag(
     "Airnow-Historical-Bam-Data",
-    schedule_interval=None,
+    schedule=None,
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["bam", "airnow", "historical"],
 )
-def airnow_bam_historical_data_etl():
+def airnow_bam_historical_data():
     import pandas as pd
 
     @task()
@@ -50,12 +50,12 @@ def airnow_bam_historical_data_etl():
 
 @dag(
     "Airnow-Realtime-Bam-Data",
-    schedule_interval="30 * * * *",
+    schedule="30 * * * *",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["bam", "airnow", "realtime"],
 )
-def airnow_bam_realtime_data_etl():
+def airnow_bam_realtime_data():
     import pandas as pd
 
     @task()
@@ -114,5 +114,5 @@ def airnow_bam_realtime_data_etl():
     update_latest_data(processed_bam_data)
 
 
-airnow_bam_realtime_data_etl_dag = airnow_bam_realtime_data_etl()
-airnow_bam_historical_data_etl_dag = airnow_bam_historical_data_etl()
+airnow_bam_realtime_data()
+airnow_bam_historical_data()

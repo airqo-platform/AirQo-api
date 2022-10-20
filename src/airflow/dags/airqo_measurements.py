@@ -8,12 +8,12 @@ from task_docs import extract_raw_airqo_data_doc
 
 @dag(
     "Calibrate-AirQo-Measurements",
-    schedule_interval="0 0 * * 6",
+    schedule="0 0 * * 6",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["airqo", "calibrate"],
 )
-def calibrate_measurements_etl():
+def airqo_calibrate_measurements():
     import pandas as pd
 
     @task()
@@ -97,12 +97,12 @@ def calibrate_measurements_etl():
 
 @dag(
     "AirQo-Historical-Hourly-Measurements",
-    schedule_interval="0 0 * * *",
+    schedule="0 0 * * *",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["airqo", "hourly", "historical", "low cost"],
 )
-def historical_hourly_measurements_etl():
+def airqo_historical_hourly_measurements():
     import pandas as pd
 
     @task()
@@ -171,12 +171,12 @@ def historical_hourly_measurements_etl():
 
 @dag(
     "AirQo-Historical-Raw-Low-Cost-Measurements",
-    schedule_interval="0 4 * * *",
+    schedule="0 4 * * *",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["airqo", "raw", "historical", "low cost"],
 )
-def historical_raw_measurements_etl():
+def airqo_historical_raw_measurements():
     import pandas as pd
 
     @task()
@@ -242,12 +242,12 @@ def historical_raw_measurements_etl():
 
 @dag(
     "Cleanup-AirQo-Measurements",
-    schedule_interval="0 11 * * *",
+    schedule="0 11 * * *",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["airqo", "cleanup"],
 )
-def cleanup_airqo_measurements_etl():
+def airqo_cleanup_measurements():
     import pandas as pd
     from airqo_etl_utils.constants import Frequency
 
@@ -280,43 +280,52 @@ def cleanup_airqo_measurements_etl():
         )
 
     @task()
-    def remove_duplicates(data: pd.DataFrame) -> pd.DataFrame:
+    def remove_duplicated_raw_data(data: pd.DataFrame) -> pd.DataFrame:
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
         return AirQoDataUtils.remove_duplicates(data=data)
 
     @task()
-    def load(data: pd.DataFrame, frequency: Frequency):
+    def remove_duplicated_hourly_data(data: pd.DataFrame) -> pd.DataFrame:
+        from airqo_etl_utils.airqo_utils import AirQoDataUtils
+
+        return AirQoDataUtils.remove_duplicates(data=data)
+
+    @task()
+    def load_raw_data(data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
         big_query_api = BigQueryApi()
+        big_query_api.reload_data(
+            dataframe=data, table=big_query_api.raw_measurements_table
+        )
 
-        if frequency == Frequency.RAW:
-            big_query_api.reload_data(
-                dataframe=data, table=big_query_api.raw_measurements_table
-            )
-        elif frequency == Frequency.HOURLY:
-            big_query_api.reload_data(
-                dataframe=data, table=big_query_api.hourly_measurements_table
-            )
+    @task()
+    def load_hourly_data(data: pd.DataFrame):
+        from airqo_etl_utils.bigquery_api import BigQueryApi
+
+        big_query_api = BigQueryApi()
+        big_query_api.reload_data(
+            dataframe=data, table=big_query_api.hourly_measurements_table
+        )
 
     raw_data = extract_raw_data()
     hourly_data = extract_hourly_data()
-    clean_raw_data = remove_duplicates(raw_data)
-    clean_hourly_data = remove_duplicates(hourly_data)
-    load(data=clean_raw_data, frequency=Frequency.RAW)
-    load(data=clean_hourly_data, frequency=Frequency.HOURLY)
+    clean_raw_data = remove_duplicated_raw_data(raw_data)
+    clean_hourly_data = remove_duplicated_hourly_data(hourly_data)
+    load_raw_data(data=clean_raw_data)
+    load_hourly_data(data=clean_hourly_data)
 
 
 @dag(
     "AirQo-Realtime-Low-Cost-Measurements",
-    schedule_interval="10 * * * *",
+    schedule="10 * * * *",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     doc_md=airqo_realtime_low_cost_measurements_doc,
     tags=["airqo", "hourly", "realtime", "raw", "low cost"],
 )
-def airqo_realtime_measurements_etl():
+def airqo_realtime_measurements():
     import pandas as pd
 
     from airqo_etl_utils.date import date_to_str_hours
@@ -464,8 +473,8 @@ def airqo_realtime_measurements_etl():
     update_latest_data(calibrated_data)
 
 
-historical_hourly_measurements_etl_dag = historical_hourly_measurements_etl()
-airqo_realtime_measurements_etl_dag = airqo_realtime_measurements_etl()
-historical_raw_measurements_etl_dag = historical_raw_measurements_etl()
-calibrate_measurements_etl_dag = calibrate_measurements_etl()
-cleanup_airqo_measurements_etl_dag = cleanup_airqo_measurements_etl()
+airqo_historical_hourly_measurements()
+airqo_realtime_measurements()
+airqo_historical_raw_measurements()
+airqo_calibrate_measurements()
+airqo_cleanup_measurements()

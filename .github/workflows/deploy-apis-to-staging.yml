@@ -66,7 +66,7 @@ jobs:
       run_channel_data: ${{ steps.check_files.outputs.run_channel_data }} # channel data job
       run_kafka_connectors: ${{ steps.check_files.outputs.run_kafka_connectors }} # kafka connectors
       run_fault_detection: ${{ steps.check_files.outputs.run_fault_detection }} # fault detection
-      run_nginx_ingress: ${{ steps.check_files.outputs.run_nginx_ingress }} # nginx ingress
+      run_nginx: ${{ steps.check_files.outputs.run_nginx }} # nginx ingress
 
     runs-on: ubuntu-latest
     steps:
@@ -110,7 +110,7 @@ jobs:
           echo "::set-output name=run_channel_data::false"
           echo "::set-output name=run_kafka_connectors::false"
           echo "::set-output name=run_fault_detection::false"
-          echo "::set-output name=run_nginx_ingress::false"
+          echo "::set-output name=run_nginx::false"
 
           while IFS= read -r file
           do
@@ -296,8 +296,8 @@ jobs:
               echo "::set-output name=run_kafka_connectors::true"
             fi
 
-            if [[ $file == k8s/nginx-ingress/* ]]; then
-              echo "::set-output name=run_nginx_ingress::true"
+            if [[ $file == k8s/nginx/staging/* ]]; then
+              echo "::set-output name=run_nginx::true"
             fi
 
             if [[ $file == workflow-trigger ]]; then
@@ -323,7 +323,7 @@ jobs:
               echo "::set-output name=run_fault_detection::true"
               echo "::set-output name=run_view::true"
               echo "::set-output name=run_kafka_connectors::true"
-              echo "::set-output name=run_nginx_ingress::true"
+              echo "::set-output name=run_nginx::true"
             fi
 
           done < files.txt
@@ -541,14 +541,19 @@ jobs:
           target: xcom-setup
           tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-apache-airflow-xcom:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-apache-airflow-xcom:latest
 
-      # - name: Deploy to K8S
-      #   uses: Azure/k8s-deploy@v1.4
-      #   with:
-      #     namespace: "pipeline"
-      #     manifests: |
-      #       k8s/airflow/stage-airflow-app.yaml
-      #     images: "${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-apache-airflow:${{ needs.image-tag.outputs.build_id }}"
-      #     kubectl-version: "latest"
+      - name: Login to GCP
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
+
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
+
+      - name: Update the corresponding k8s configmap(s)
+        run: |
+          cd src/airflow/
+          gcloud secrets versions access latest --secret="sta-env-airflow" > .env
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env airflow-config | kubectl replace -f - -n pipeline
 
       - name: Deploy to K8S
         run: |
@@ -1578,7 +1583,7 @@ jobs:
   nginx-ingress:
     name: apply-nginx-ingress
     needs: [check]
-    if: needs.check.outputs.run_nginx_ingress == 'true'
+    if: needs.check.outputs.run_nginx == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -1591,4 +1596,7 @@ jobs:
           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
 
       - name: Apply ingress changes
-        run: kubectl apply -f k8s/nginx-ingress/stage-platform-ingress-resource.yaml
+        run: |
+          kubectl apply -f k8s/nginx/staging/ingress.yaml
+          kubectl apply -f k8s/nginx/staging/virtual-server.yaml
+          kubectl apply -f k8s/nginx/staging/global-config.yaml

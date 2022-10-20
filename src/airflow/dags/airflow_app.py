@@ -5,7 +5,7 @@ from airqo_etl_utils.airflow_custom_utils import AirflowUtils
 
 @dag(
     "Airflow-App-Cleanup",
-    schedule_interval="0 0 * * 0",
+    schedule="0 0 * * 0",
     catchup=False,
     tags=["cleanup"],
     default_args=AirflowUtils.dag_default_configs(),
@@ -27,4 +27,4 @@ def aiflow_app_cleanup():
     delete_old_dag_runs()
 
 
-aiflow_app_cleanup_dag = aiflow_app_cleanup()
+aiflow_app_cleanup()
