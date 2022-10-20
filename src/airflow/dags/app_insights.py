@@ -37,7 +37,7 @@ def app_forecast_insights():
 
 @dag(
     "App-Historical-Daily-Insights",
-    schedule=None,
+    schedule="0 1 * * *",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["insights", "daily"],
@@ -48,10 +48,11 @@ def app_historical_daily_insights():
     @task()
     def average_insights_data(**kwargs):
         from airqo_etl_utils.app_insights_utils import AirQoAppUtils
+        from airqo_etl_utils.date import DateUtils
 
-        from airqo_etl_utils.commons import get_date_time_values
-
-        start_date_time, end_date_time = get_date_time_values(**kwargs)
+        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
+            days=3, **kwargs
+        )
 
         hourly_insights_data = AirQoAppUtils.extract_insights(
             freq="hourly", start_date_time=start_date_time, end_date_time=end_date_time
@@ -117,7 +118,7 @@ def app_realtime_daily_insights():
 
 @dag(
     "App-Historical-Hourly-Insights",
-    schedule=None,
+    schedule="0 0 * * *",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["insights", "hourly", "historical"],
@@ -131,7 +132,7 @@ def app_historical_hourly_insights():
         from airqo_etl_utils.date import DateUtils
 
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
-            kwargs=kwargs
+            days=3, **kwargs
         )
 
         return AirQoAppUtils.extract_hourly_data(
