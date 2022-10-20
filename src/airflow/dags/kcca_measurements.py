@@ -5,12 +5,12 @@ from airqo_etl_utils.airflow_custom_utils import AirflowUtils
 
 @dag(
     "KCCA-Hourly-Measurements",
-    schedule_interval="30 * * * *",
+    schedule="30 * * * *",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["kcca", "hourly"],
 )
-def hourly_measurements_etl():
+def kcca_hourly_measurements():
     import pandas as pd
 
     @task()
@@ -94,12 +94,12 @@ def hourly_measurements_etl():
 
 @dag(
     "Kcca-Historical-Hourly-Measurements",
-    schedule_interval=None,
+    schedule=None,
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["kcca", "hourly", "historical"],
 )
-def historical_hourly_measurements_etl():
+def kcca_historical_hourly_measurements():
     import pandas as pd
 
     @task()
@@ -140,5 +140,5 @@ def historical_hourly_measurements_etl():
     send_to_bigquery(transformed_data)
 
 
-hourly_measurements_etl_dag = hourly_measurements_etl()
-historical_hourly_measurements_etl_dag = historical_hourly_measurements_etl()
+kcca_hourly_measurements()
+kcca_historical_hourly_measurements()

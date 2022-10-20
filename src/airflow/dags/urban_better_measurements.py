@@ -5,7 +5,7 @@ from airqo_etl_utils.airflow_custom_utils import AirflowUtils
 
 @dag(
     "Urban-Better-Plume-Labs-Historical-Raw-Measurements",
-    schedule_interval=None,
+    schedule=None,
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["urban better", "raw", "historical", "plume labs"],
@@ -76,7 +76,7 @@ def historical_raw_measurements_etl__plume_labs():
 
 @dag(
     "Urban-Better-Plume-Labs-Historical-Processed-Measurements",
-    schedule_interval=None,
+    schedule=None,
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["urban better", "processed", "historical", "plume labs"],
@@ -203,7 +203,7 @@ def historical_processed_measurements_etl__plume_labs():
 
 @dag(
     "Urban-Better-Plume-Labs-Realtime-Raw-Measurements",
-    schedule_interval="0 2 * * *",
+    schedule="0 2 * * *",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["urban better", "realtime", "raw", "plume labs"],
@@ -331,7 +331,7 @@ def realtime_measurements_etl__plume_labs():
 
 @dag(
     "Urban-Better-Air-Beam-Historical-Raw-Measurements",
-    schedule_interval=None,
+    schedule=None,
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["urban better", "historical", "raw", "air beam"],
@@ -379,7 +379,7 @@ def historical_measurements_etl__air_beam():
 
 @dag(
     "Urban-Better-Air-Beam-Realtime-Raw-Measurements",
-    schedule_interval="10 * * * *",
+    schedule="10 * * * *",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["urban better", "realtime", "raw", "air beam"],
@@ -429,12 +429,8 @@ def realtime_measurements_etl__air_beam():
     load(measurements)
 
 
-realtime_measurements_etl__plume_labs_dag = realtime_measurements_etl__plume_labs()
-realtime_measurements_etl__air_beam_dag = realtime_measurements_etl__air_beam()
-historical_measurements_etl__air_beam_dag = historical_measurements_etl__air_beam()
-historical_raw_measurements_etl__plume_labs_dag = (
-    historical_raw_measurements_etl__plume_labs()
-)
-historical_processed_measurements_etl__plume_labs_dag = (
-    historical_processed_measurements_etl__plume_labs()
-)
+realtime_measurements_etl__plume_labs()
+realtime_measurements_etl__air_beam()
+historical_measurements_etl__air_beam()
+historical_raw_measurements_etl__plume_labs()
+historical_processed_measurements_etl__plume_labs()

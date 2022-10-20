@@ -83,6 +83,127 @@ const join = {
       response: "valid token",
     });
   },
+  lookUpFirebaseUser: async (req, res) => {
+    try {
+      const { email, phoneNumber, uid, providerId, providerUid } = req.body;
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+
+      let request = {};
+      request["body"] = {};
+      request["body"]["email"] = email;
+      request["body"]["phoneNumber"] = phoneNumber;
+      request["body"]["uid"] = uid;
+      request["body"]["providerId"] = providerId;
+      request["body"]["providerUid"] = providerUid;
+
+      function cleanObject(obj) {
+        for (key in obj) {
+          if (typeof obj[key] === "object") {
+            cleanObject(obj[key]);
+          } else if (
+            typeof obj[key] === "undefined" ||
+            typeof obj[key] === null
+          ) {
+            delete obj[key];
+          }
+        }
+        return obj;
+      }
+      cleanObject(request);
+      await joinUtil.lookUpFirebaseUser(request, (result) => {
+        if (result.success === true) {
+          const status = result.status ? result.status : HTTPStatus.OK;
+          res.status(status).json({
+            success: true,
+            message: result.message,
+            user: result.data,
+            status: "exists",
+          });
+        } else if (result.success === false) {
+          const status = result.status
+            ? result.status
+            : HTTPStatus.INTERNAL_SERVER_ERROR;
+          const errors = result.errors
+            ? result.errors
+            : { message: "Internal Server Error" };
+
+          res.status(status).json({
+            success: false,
+            message: result.message,
+            errors,
+          });
+        }
+      });
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  sendFeedback: async (req, res) => {
+    try {
+      const { email, message, subject } = req.body;
+      const hasErrors = !validationResult(req).isEmpty();
+
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+
+      const responseFromSendEmail = await joinUtil.sendFeedback({
+        email,
+        message,
+        subject,
+      });
+
+      if (responseFromSendEmail.success === true) {
+        const status = responseFromSendEmail.status
+          ? responseFromSendEmail.status
+          : HTTPStatus.OK;
+        res.status(status).json({
+          success: true,
+          message: "successfully responded to email",
+          status,
+        });
+      } else if (responseFromSendEmail.success === false) {
+        const status = responseFromSendEmail.status
+          ? responseFromSendEmail.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        const errors = responseFromSendEmail.errors
+          ? responseFromSendEmail.errors
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+
+        res.status(status).json({
+          success: true,
+          message: responseFromSendEmail.message,
+          status,
+          errors,
+        });
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
   forgot: async (req, res) => {
     logText("...........................................");
     logText("forgot password...");

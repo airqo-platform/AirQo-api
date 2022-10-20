@@ -311,6 +311,7 @@ const createEvent = {
         external,
         metadata,
         tenant,
+        network,
         recent,
         skip,
         limit,
@@ -329,6 +330,7 @@ const createEvent = {
       request["query"]["external"] = external;
       request["query"]["metadata"] = metadata;
       request["query"]["tenant"] = tenant;
+      request["query"]["network"] = network;
       request["query"]["recent"] = recent;
       request["query"]["skip"] = parseInt(skip);
       request["query"]["limit"] = parseInt(limit);
