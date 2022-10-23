@@ -59,9 +59,6 @@ spec:
     - name: view
       service: airqo-view-api-svc
       port: 8080
-    - name: views
-      service: airqo-view-api-svc
-      port: 8081
     - name: network-uptime
       service: airqo-network-uptime-api-svc
       port: 8501
@@ -161,14 +158,6 @@ spec:
       action:
         proxy:
           upstream: view
-          responseHeaders:
-            add:
-              - name: Content-Type
-                value: application/json
-    - path: /api/v1/views
-      action:
-        proxy:
-          upstream: views
           responseHeaders:
             add:
               - name: Content-Type
