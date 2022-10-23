@@ -67,8 +67,8 @@ class AirQoDataUtils:
         if True not in data["duplicated"].values:
             return data
 
-        duplicated_data = data.loc[data["duplicated"] is True]
-        not_duplicated_data = data.loc[data["duplicated"] is False]
+        duplicated_data = data.loc[data["duplicated"]]
+        not_duplicated_data = data.loc[~data["duplicated"]]
 
         for _, by_device_number in duplicated_data.groupby(by="device_number"):
             for _, by_timestamp in by_device_number.groupby(by="timestamp"):

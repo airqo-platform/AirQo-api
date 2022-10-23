@@ -7,12 +7,12 @@ from airqo_etl_utils.airflow_custom_utils import AirflowUtils
 
 @dag(
     "App-Forecast-Insights",
-    schedule_interval="50 */2 * * *",
+    schedule="50 */2 * * *",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["insights", "forecast"],
 )
-def app_forecast_insights_etl():
+def app_forecast_insights():
     import pandas as pd
 
     @task()
@@ -37,21 +37,22 @@ def app_forecast_insights_etl():
 
 @dag(
     "App-Historical-Daily-Insights",
-    schedule_interval=None,
+    schedule="0 1 * * *",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["insights", "daily"],
 )
-def app_historical_daily_insights_etl():
+def app_historical_daily_insights():
     import pandas as pd
 
     @task()
     def average_insights_data(**kwargs):
         from airqo_etl_utils.app_insights_utils import AirQoAppUtils
+        from airqo_etl_utils.date import DateUtils
 
-        from airqo_etl_utils.commons import get_date_time_values
-
-        start_date_time, end_date_time = get_date_time_values(**kwargs)
+        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
+            days=3, **kwargs
+        )
 
         hourly_insights_data = AirQoAppUtils.extract_insights(
             freq="hourly", start_date_time=start_date_time, end_date_time=end_date_time
@@ -76,12 +77,12 @@ def app_historical_daily_insights_etl():
 
 @dag(
     "App-Realtime-Daily-Insights",
-    schedule_interval="50 */2 * * *",
+    schedule="50 */2 * * *",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["insights", "daily", "realtime"],
 )
-def app_realtime_daily_insights_etl():
+def app_realtime_daily_insights():
     import pandas as pd
 
     @task()
@@ -117,12 +118,12 @@ def app_realtime_daily_insights_etl():
 
 @dag(
     "App-Historical-Hourly-Insights",
-    schedule_interval=None,
+    schedule="0 0 * * *",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["insights", "hourly", "historical"],
 )
-def app_historical_hourly_insights_etl():
+def app_historical_hourly_insights():
     import pandas as pd
 
     @task()
@@ -131,7 +132,7 @@ def app_historical_hourly_insights_etl():
         from airqo_etl_utils.date import DateUtils
 
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
-            kwargs=kwargs
+            days=3, **kwargs
         )
 
         return AirQoAppUtils.extract_hourly_data(
@@ -151,16 +152,32 @@ def app_historical_hourly_insights_etl():
 
 @dag(
     "App-Realtime-Hourly-Insights",
-    schedule_interval="30 * * * *",
+    schedule="30 * * * *",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["insights", "hourly"],
 )
-def app_realtime_hourly_insights_etl():
+def app_realtime_hourly_insights():
     import pandas as pd
 
     @task()
-    def extract_data():
+    def update_latest_hourly_data():
+        from airqo_etl_utils.app_insights_utils import AirQoAppUtils
+        from airqo_etl_utils.constants import Tenant
+        from airqo_etl_utils.date import DateUtils
+
+        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(hours=2)
+
+        latest_hourly_data = AirQoAppUtils.extract_bigquery_latest_hourly_data(
+            start_date_time=start_date_time, end_date_time=end_date_time
+        )
+
+        return AirQoAppUtils.update_latest_hourly_data(
+            bigquery_latest_hourly_data=latest_hourly_data, tenant=Tenant.ALL
+        )
+
+    @task()
+    def extract_hourly_insights():
         from airqo_etl_utils.app_insights_utils import AirQoAppUtils
         from airqo_etl_utils.date import DateUtils
 
@@ -177,18 +194,19 @@ def app_realtime_hourly_insights_etl():
         insights = AirQoAppUtils.create_insights(data)
         AirQoAppUtils.save_insights(insights_data=insights)
 
-    hourly_data = extract_data()
+    hourly_data = extract_hourly_insights()
     load_hourly_insights(hourly_data)
+    update_latest_hourly_data()
 
 
 @dag(
     "App-Insights-cleanup",
-    schedule_interval="@daily",
+    schedule="@daily",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["insights", "empty"],
 )
-def insights_cleanup_etl():
+def app_insights_cleanup():
     import pandas as pd
 
     from airqo_etl_utils.date import (
@@ -252,8 +270,9 @@ def insights_cleanup_etl():
     load(insights_data=filtered_insights)
 
 
-app_forecast_insights_etl_dag = app_forecast_insights_etl()
-app_historical_daily_insights_etl_dag = app_historical_daily_insights_etl()
-app_historical_hourly_insights_etl_dag = app_historical_hourly_insights_etl()
-app_daily_insights_etl_dag = app_realtime_daily_insights_etl()
-insights_cleanup_etl_dag = insights_cleanup_etl()
+app_forecast_insights()
+app_historical_daily_insights()
+app_historical_hourly_insights()
+app_realtime_daily_insights()
+app_realtime_hourly_insights()
+app_insights_cleanup()

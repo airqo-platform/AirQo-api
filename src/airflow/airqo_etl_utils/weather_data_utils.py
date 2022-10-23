@@ -214,8 +214,8 @@ class WeatherDataUtils:
         if True not in data["duplicated"].values:
             return data
 
-        duplicated_data = data.loc[data["duplicated"] is True]
-        not_duplicated_data = data.loc[data["duplicated"] is False]
+        duplicated_data = data.loc[data["duplicated"]]
+        not_duplicated_data = data.loc[~data["duplicated"]]
 
         for _, by_station in duplicated_data.groupby(by="station_code"):
             for _, by_timestamp in by_station.groupby(by="timestamp"):

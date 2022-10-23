@@ -16,7 +16,10 @@ const mailer = {
       }
 
       const mailOptions = {
-        from: constants.EMAIL,
+        from: {
+          name: constants.EMAIL_NAME,
+          address: constants.EMAIL,
+        },
         to: `${email}`,
         subject: "AirQo Platform JOIN request",
         text: msgs.joinRequest(firstName, lastName),
@@ -62,6 +65,10 @@ const mailer = {
 
       const mailOptionsForAirQo = {
         to: `${email}`,
+        from: {
+          name: constants.EMAIL_NAME,
+          address: constants.EMAIL,
+        },
         subject: `Welcome to AirQo, for ${categoryNameWithFirstLetterCapital}`,
         html: msgTemplates.inquiryTemplate(fullName),
         bcc,
@@ -103,7 +110,10 @@ const mailer = {
       let mailOptions = {};
       if (tenant.toLowerCase() == "kcca") {
         mailOptions = {
-          from: constants.EMAIL,
+          from: {
+            name: constants.EMAIL_NAME,
+            address: constants.EMAIL,
+          },
           to: `${email}`,
           subject: "Welcome to the AirQo KCCA Platform",
           text: `${msgs.welcome_kcca(firstName, lastName, password, email)}`,
@@ -111,7 +121,10 @@ const mailer = {
         };
       } else {
         mailOptions = {
-          from: constants.EMAIL,
+          from: {
+            name: constants.EMAIL_NAME,
+            address: constants.EMAIL,
+          },
           to: `${email}`,
           subject: "Welcome to the AirQo Platform",
           text: `${msgs.welcome_general(firstName, lastName, password, email)}`,
@@ -144,7 +157,10 @@ const mailer = {
   forgot: async (email, token, tenant) => {
     try {
       const mailOptions = {
-        from: constants.EMAIL,
+        from: {
+          name: constants.EMAIL_NAME,
+          address: constants.EMAIL,
+        },
         to: email,
         subject: `Link To Reset Password`,
         text: msgs.recovery_email(token, tenant),
@@ -175,7 +191,10 @@ const mailer = {
   signInWithEmailLink: async (email, token) => {
     try {
       const mailOptions = {
-        from: constants.EMAIL,
+        from: {
+          name: constants.EMAIL_NAME,
+          address: constants.EMAIL,
+        },
         to: `${email}`,
         subject: "Welcome to AirQo!",
         text: `${msgs.join_by_email(token)}`,
@@ -210,7 +229,10 @@ const mailer = {
   authenticateEmail: async (email, token) => {
     try {
       const mailOptions = {
-        from: constants.EMAIL,
+        from: {
+          name: constants.EMAIL_NAME,
+          address: constants.EMAIL,
+        },
         to: `${email}`,
         subject: "Changes to your AirQo email",
         text: `${msgs.authenticate_email(token)}`,
@@ -244,7 +266,10 @@ const mailer = {
   update: async (email, firstName, lastName) => {
     try {
       const mailOptions = {
-        from: constants.EMAIL,
+        from: {
+          name: constants.EMAIL_NAME,
+          address: constants.EMAIL,
+        },
         to: `${email}`,
         subject: "AirQo Platform account updated",
         text: `${msgs.user_updated(firstName, lastName)}`,
@@ -269,6 +294,54 @@ const mailer = {
         success: false,
         message: "mailer server error",
         error: error.message,
+      };
+    }
+  },
+
+  feedback: async ({ email, message, subject } = {}) => {
+    try {
+      let bcc = constants.REQUEST_ACCESS_EMAILS;
+
+      const mailOptions = {
+        from: {
+          name: "AirQo Data Team",
+          address: constants.EMAIL,
+        },
+        subject,
+        text: message,
+        cc: email,
+        to: constants.SUPPORT_EMAIL,
+        bcc,
+      };
+
+      let response = transporter.sendMail(mailOptions);
+
+      logObject("response", response);
+
+      let data = await response;
+      if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
+        return {
+          success: true,
+          message: "email successfully sent",
+          data,
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: false,
+          message: "email not sent",
+          status: httpStatus.BAD_GATEWAY,
+        };
+      }
+    } catch (error) {
+      logObject("error", error);
+      return {
+        message: "",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        success: false,
+        errors: {
+          message: error.message,
+        },
       };
     }
   },

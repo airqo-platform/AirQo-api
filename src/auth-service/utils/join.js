@@ -121,6 +121,62 @@ const join = {
       };
     }
   },
+
+  lookUpFirebaseUser: async (request, callback) => {
+    try {
+      const { body } = request;
+      const { email, phoneNumber, providerId, providerUid } = body;
+
+      return getAuth()
+        .getUsers([{ email }, { phoneNumber }])
+        .then(async (getUsersResult) => {
+          logObject("getUsersResult", getUsersResult);
+          getUsersResult.users.forEach((userRecord) => {
+            callback({
+              success: true,
+              message: "Successfully fetched user data",
+              status: httpStatus.OK,
+              data: userRecord,
+            });
+          });
+
+          getUsersResult.notFound.forEach((userIdentifier) => {
+            callback({
+              success: false,
+              message:
+                "Unable to find users corresponding to these identifiers",
+              status: httpStatus.NOT_FOUND,
+              data: userIdentifier,
+            });
+          });
+        })
+        .catch((error) => {
+          let status = httpStatus.INTERNAL_SERVER_ERROR;
+
+          if (error.code === "auth/invalid-email") {
+            status = httpStatus.BAD_REQUEST;
+          }
+          callback({
+            success: false,
+            message: "internal server error",
+            status,
+            errors: {
+              message: error,
+            },
+          });
+        });
+    } catch (error) {
+      callback({
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: {
+          message: error.message,
+        },
+      });
+    }
+  },
+
   generateSignInWithEmailLink: async (request, callback) => {
     try {
       const { body, query } = request;
@@ -261,6 +317,44 @@ const join = {
     }
   },
 
+  sendFeedback: async ({ email, message, subject }) => {
+    try {
+      let responseFromSendEmail = await mailer.feedback({
+        email,
+        message,
+        subject,
+      });
+
+      logObject("responseFromSendEmail ....", responseFromSendEmail);
+
+      if (responseFromSendEmail.success === true) {
+        return {
+          success: true,
+          message: "email successfully sent",
+        };
+      } else if (responseFromSendEmail.success === false) {
+        let status = responseFromSendEmail.status
+          ? responseFromSendEmail.status
+          : "";
+        let errors = responseFromSendEmail.errors
+          ? responseFromSendEmail.errors
+          : "";
+        return {
+          success: false,
+          message: responseFromSendEmail.message,
+          errors,
+          status,
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      };
+    }
+  },
+
   create: async (request) => {
     try {
       let {
@@ -311,9 +405,7 @@ const join = {
               message: "user successfully created",
               data: createdUser._doc,
             };
-          }
-
-          if (responseFromSendEmail.success === false) {
+          } else if (responseFromSendEmail.success === false) {
             let status = responseFromSendEmail.status
               ? responseFromSendEmail.status
               : "";
@@ -327,9 +419,7 @@ const join = {
               status,
             };
           }
-        }
-
-        if (responseFromCreateUser.success === false) {
+        } else if (responseFromCreateUser.success === false) {
           let error = responseFromCreateUser.error
             ? responseFromCreateUser.error
             : "";
@@ -344,9 +434,7 @@ const join = {
             status,
           };
         }
-      }
-
-      if (responseFromGeneratePassword.success === false) {
+      } else if (responseFromGeneratePassword.success === false) {
         let error = responseFromGeneratePassword.error
           ? responseFromGeneratePassword.error
           : "";
