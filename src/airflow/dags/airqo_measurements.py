@@ -355,6 +355,22 @@ def airqo_realtime_measurements():
         return AirQoDataUtils.clean_low_cost_sensor_data(data=data)
 
     @task()
+    def test_data(data: pd.DataFrame, bucket_name: str, destination_file: str):
+        from google.cloud import storage
+        storage_client = storage.Client()
+        bucket = storage_client.bucket(bucket_name)
+        blob = bucket.blob(destination_file)
+        data.reset_index(drop=True, inplace=True)
+        blob.upload_from_string(data.to_csv(index=False), "text/csv")
+
+        print(
+            "{} with contents {} has been uploaded to {}.".format(
+                destination_file, len(data), bucket_name
+            )
+        )
+
+        return f"gs://{bucket_name}/{blob.name}"
+    @task()
     def aggregate(data: pd.DataFrame):
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
@@ -460,6 +476,7 @@ def airqo_realtime_measurements():
 
     raw_data = extract_raw_data()
     clean_data = clean_data_raw_data(raw_data)
+    test_data = test_data(clean_data, "airflow_untested_data", "landing_zone/airqo_data_tests/airqo_data_tests.csv")
     averaged_airqo_data = aggregate(clean_data)
     send_raw_measurements_to_bigquery(clean_data)
     extracted_weather_data = extract_hourly_weather_data()
