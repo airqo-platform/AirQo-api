@@ -248,8 +248,7 @@ const createAirqloud = {
           message: responseFromRefreshAirQloud.message,
           refreshed_airqloud: responseFromRefreshAirQloud.data,
         });
-      }
-      if (responseFromRefreshAirQloud.success === false) {
+      } else if (responseFromRefreshAirQloud.success === false) {
         const status = responseFromRefreshAirQloud.status
           ? responseFromRefreshAirQloud.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
