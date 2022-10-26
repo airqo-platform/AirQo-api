@@ -715,7 +715,7 @@ const generateFilter = {
     return filter;
   },
   airqlouds: (req) => {
-    let { id, name, admin_level, summary } = req.query;
+    let { id, name, admin_level, summary, airqloud_id } = req.query;
     let filter = {};
 
     if (name) {
@@ -728,6 +728,10 @@ const generateFilter = {
 
     if (id) {
       filter["_id"] = ObjectId(id);
+    }
+
+    if (airqloud_id) {
+      filter["_id"] = ObjectId(airqloud_id);
     }
 
     if (admin_level) {

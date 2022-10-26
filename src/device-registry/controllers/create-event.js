@@ -313,6 +313,8 @@ const createEvent = {
         tenant,
         network,
         recent,
+        airqloud,
+        airqloud_id,
         skip,
         limit,
         page,
@@ -327,6 +329,8 @@ const createEvent = {
       request["query"]["endTime"] = endTime;
       request["query"]["device_id"] = device_id;
       request["query"]["site_id"] = site_id;
+      request["query"]["airqloud_id"] = airqloud_id;
+      request["query"]["airqloud"] = airqloud;
       request["query"]["external"] = external;
       request["query"]["metadata"] = metadata;
       request["query"]["tenant"] = tenant;

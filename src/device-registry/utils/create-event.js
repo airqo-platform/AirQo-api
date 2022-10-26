@@ -30,6 +30,7 @@ const {
 const { Parser } = require("json2csv");
 
 const httpStatus = require("http-status");
+const createAirqloudUtil = require("./create-airqloud");
 
 const createEvent = {
   getMeasurementsFromBigQuery: async (req) => {
@@ -390,11 +391,35 @@ const createEvent = {
       let limit = parseInt(query.limit);
       let skip = parseInt(query.skip);
       let filter = {};
+      /**
+       * if given an AirQloud's ID, then just get the corresponding sites
+       * and attach them to the site_id query parameter
+       */
+      if (query.airqloud_id) {
+        logElement("airqloud ID is provided", query.airqloud_id);
+        let airqloudSites = "";
+        const responseFromListAirQlouds = await createAirqloudUtil.list(
+          request
+        );
+        // logObject(":responseFromListAirQlouds", responseFromListAirQlouds);
+        if (responseFromListAirQlouds.success === true) {
+          let sites = responseFromListAirQlouds.data.sites;
+          if (sites) {
+            sites.map((element) => {
+              airqloudSites.concat(element);
+            });
+          }
+          request.query.site_id = airqloudSites;
+        } else if (responseFromListAirQlouds.success === false) {
+          return responseFromListAirQlouds;
+        }
+        logElement("airqloudSites", airqloudSites);
+      }
+
       const responseFromFilter = generateFilter.events_v2(request);
       if (responseFromFilter.success === true) {
         filter = responseFromFilter.data;
-      }
-      if (responseFromFilter.success === false) {
+      } else if (responseFromFilter.success === false) {
         const errors = responseFromFilter.errors
           ? responseFromFilter.errors
           : { message: "" };
@@ -405,8 +430,7 @@ const createEvent = {
         if (result.success === true) {
           logText(result.message);
           callback(result.data);
-        }
-        if (result.success === false) {
+        } else if (result.success === false) {
           await createDeviceUtil.getDevicesCount(request, async (result) => {
             if (result.success === true) {
               if ((device && !recent) || recent === "no") {
@@ -420,8 +444,7 @@ const createEvent = {
                     skip = parseInt(constants.DEFAULT_EVENTS_SKIP);
                   }
                 }
-              }
-              if ((!recent && !device) || recent === "yes") {
+              } else if ((!recent && !device) || recent === "yes") {
                 if (!limit) {
                   limit = result.data;
                 }
@@ -445,8 +468,7 @@ const createEvent = {
                 createEvent.setCache(data, request, (result) => {
                   if (result.success === true) {
                     logText(result.message);
-                  }
-                  if (result.success === false) {
+                  } else if (result.success === false) {
                     logText(result.message);
                   }
                 });
@@ -461,9 +483,7 @@ const createEvent = {
                   status,
                   isCache: false,
                 });
-              }
-
-              if (responseFromListEvents.success === false) {
+              } else if (responseFromListEvents.success === false) {
                 const status = responseFromListEvents.status
                   ? responseFromListEvents.status
                   : "";
@@ -478,8 +498,7 @@ const createEvent = {
                   isCache: false,
                 });
               }
-            }
-            if (result.success === false) {
+            } else if (result.success === false) {
               logText(result.message);
             }
           });
