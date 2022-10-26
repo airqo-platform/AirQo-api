@@ -98,7 +98,7 @@ const candidate = {
       const skip = parseInt(req.query.skip, 0);
       let responseFromFilter = generateFilter.candidates(req);
       logObject("responseFromFilter", responseFromFilter);
-      if (responseFromFilter.success == true) {
+      if (responseFromFilter.success === true) {
         let filter = responseFromFilter.data;
         const responseFromListCandidate = await requestUtil.list({
           tenant,
@@ -107,13 +107,13 @@ const candidate = {
           skip,
         });
         logObject("responseFromListCandidate", responseFromListCandidate);
-        if (responseFromListCandidate.success == true) {
+        if (responseFromListCandidate.success === true) {
           return res.status(HTTPStatus.OK).json({
             success: true,
             message: responseFromListCandidate.message,
             candidates: responseFromListCandidate.data,
           });
-        } else if (responseFromListCandidate.success == false) {
+        } else if (responseFromListCandidate.success === false) {
           if (responseFromListCandidate.error) {
             return res.status(HTTPStatus.BAD_GATEWAY).json({
               success: false,
@@ -127,7 +127,7 @@ const candidate = {
             });
           }
         }
-      } else if (responseFromFilter.success == false) {
+      } else if (responseFromFilter.success === false) {
         if (responseFromFilter.error) {
           if (responseFromFilter.error) {
             return res.status(HTTPStatus.BAD_GATEWAY).json({
