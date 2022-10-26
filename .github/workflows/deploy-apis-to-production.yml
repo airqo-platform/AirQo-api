@@ -891,8 +891,12 @@ jobs:
           export KAFKA_BROKER_0=${{ secrets.PROD_KAFKA_BROKER_0 }}
           export KAFKA_BROKER_1=${{ secrets.PROD_KAFKA_BROKER_1 }}
           export KAFKA_BROKER_2=${{ secrets.PROD_KAFKA_BROKER_2 }}
-          cat k8s/kafka/clusters/kafka-cluster.yaml | sed "s/{{KAFKA_BROKER_0}}/$PROD_KAFKA_BROKER_0/g" | sed "s/{{KAFKA_BROKER_1}}/$PROD_KAFKA_BROKER_1/g" | sed "s/{{KAFKA_BROKER_2}}/$PROD_KAFKA_BROKER_2/g" | kubectl apply -n message-broker -f-
 
+          sed -i 's/KAFKA_BROKER_0/'"$KAFKA_BROKER_0"'/g' k8s/kafka/clusters/kafka-cluster.yaml
+          sed -i 's/KAFKA_BROKER_1/'"$KAFKA_BROKER_1"'/g' k8s/kafka/clusters/kafka-cluster.yaml
+          sed -i 's/KAFKA_BROKER_2/'"$KAFKA_BROKER_2"'/g' k8s/kafka/clusters/kafka-cluster.yaml
+
+          kubectl apply -n message-broker -f k8s/kafka/clusters/kafka-cluster.yaml
   ### kafka topics ###
   kafka-topics:
     name: build-push-deploy-kafka-topics
