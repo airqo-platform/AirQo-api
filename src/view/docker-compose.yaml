@@ -8,12 +8,10 @@ x-common-data: &common-data
 services:
   view-mongo-db:
     container_name: view-mongo-db
-#    platform: linux/amd64
     image: mongo
 
   view-redis-cache:
     container_name: view-redis-cache
-#    platform: linux/amd64
     image: redis
 
   view-message-broker:
@@ -27,7 +25,6 @@ services:
     build:
       context: .
       target: kafka-setup
-#    platform: linux/amd64
     restart: on-failure
     healthcheck:
       test: "exit 0"
@@ -37,7 +34,6 @@ services:
   view-api:
     <<: *common-data
     container_name: view-api
-#    platform: linux/amd64
     build:
       context: .
       target: dev
