@@ -215,39 +215,32 @@ const transform = {
     }
   },
 
-  transformMeasurement: async (measurement) => {
+  transformMeasurement: (measurement) => {
     try {
       const deviceCategory = measurement.field9
         ? measurement.field9
         : "lowcost";
-
-      let newObj = await Object.entries(measurement).reduce(
-        (newObj, [field, value]) => {
-          if (value) {
-            let transformedField = "";
-            if (deviceCategory === "reference") {
-              logText("the device is a BAM");
-              transformedField = transform.getBamFieldLabel(field);
-              logElement("transformedField", transformedField);
-            } else if (deviceCategory === "lowcost") {
-              logText("the device is a lowcost one");
-              transformedField = transform.getFieldLabel(field);
-            } else {
-              logText("the device does not have a category/type");
-              return {};
-            }
-            return {
-              ...newObj,
-              [transformedField]: value,
-            };
-          }
-        },
-        {}
-      );
-      delete newObj["undefined"];
-      return cleanDeep(newObj);
+      let response = {};
+      let transformedField = "";
+      for (const key in measurement) {
+        if (deviceCategory === "reference") {
+          logText("the device is a BAM");
+          transformedField = transform.getBamFieldLabel(key);
+          logElement("transformedField", transformedField);
+        } else if (deviceCategory === "lowcost") {
+          logText("the device is a lowcost one");
+          transformedField = transform.getFieldLabel(key);
+        } else {
+          logText("the device does not have a category/type");
+          return {};
+        }
+        if (transformedField) {
+          response[transformedField] = measurement[key];
+        }
+      }
+      return cleanDeep(response);
     } catch (e) {
-      console.log("the transformMeasurement error", e.message);
+      logObject("the transformMeasurement error", e);
     }
   },
   setCache: (data, request, callback) => {
