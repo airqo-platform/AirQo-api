@@ -611,7 +611,6 @@ const data = {
                 let transformedData = await transformUtil.transformMeasurement(
                   cleanedDeviceMeasurements
                 );
-
                 let transformedField = {};
                 let otherData = transformedData.other_data;
 
@@ -629,18 +628,21 @@ const data = {
                   ...transformedField,
                   errors,
                 };
-
                 let cleanedFinalTransformation = transformUtil.clean(newResp);
 
-                const responseFromConvertFromHectopascalsToKilopascals =
-                  transformUtil.convertFromHectopascalsToKilopascals(
-                    cleanedFinalTransformation.ExternalPressure
-                  );
+                if (cleanedFinalTransformation.ExternalPressure) {
+                  const responseFromConvertFromHectopascalsToKilopascals =
+                    transformUtil.convertFromHectopascalsToKilopascals(
+                      cleanedFinalTransformation.ExternalPressure
+                    );
 
-                if (responseFromConvertFromHectopascalsToKilopascals.success) {
-                  cleanedFinalTransformation.ExternalPressure =
-                    responseFromConvertFromHectopascalsToKilopascals.data;
-                } else {
+                  if (
+                    responseFromConvertFromHectopascalsToKilopascals.success
+                  ) {
+                    cleanedFinalTransformation.ExternalPressure =
+                      responseFromConvertFromHectopascalsToKilopascals.data;
+                  } else {
+                  }
                 }
 
                 redis.set(
