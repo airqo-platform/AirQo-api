@@ -243,11 +243,6 @@ const request = {
     } = req;
     try {
       let responseFromListCandidate = await request.list({ tenant, filter });
-      logObject(
-        "responseFromListCandidate during confirmation",
-        responseFromListCandidate
-      );
-
       if (
         responseFromListCandidate.success === true &&
         !isEmpty(responseFromListCandidate.data)
@@ -276,11 +271,13 @@ const request = {
         let responseFromCreateUser = await UserModel(tenant).register(
           requestBody
         );
+
         logObject(
           "responseFromCreateUser during confirmation",
           responseFromCreateUser
         );
         let createdUser = await responseFromCreateUser.data;
+        logObject("createdUser", createdUser);
         let jsonifyCreatedUser = jsonify(createdUser);
         logObject("jsonifyCreatedUser", jsonifyCreatedUser);
 
@@ -325,37 +322,27 @@ const request = {
               }
             }
           } else if (responseFromSendEmail.success === false) {
-            if (responseFromSendEmail.error) {
-              return {
-                success: false,
-                message: responseFromSendEmail.message,
-                error: responseFromSendEmail.error,
-              };
-            } else {
-              return {
-                success: false,
-                message: responseFromSendEmail.message,
-              };
-            }
-          }
-        }
-        if (responseFromCreateUser.success == false) {
-          if (responseFromCreateUser.error) {
-            return {
-              success: false,
-              message: responseFromCreateUser.message,
-              error: responseFromCreateUser.error,
-            };
-          } else {
-            return {
-              success: false,
-              message: responseFromCreateUser.message,
-            };
-          }
-        }
-      }
+            const error = responseFromSendEmail.error
+              ? responseFromSendEmail.error
+              : {};
 
-      if (
+            return {
+              success: false,
+              message: responseFromSendEmail.message,
+              error,
+            };
+          }
+        } else if (responseFromCreateUser.success === false) {
+          const error = responseFromCreateUser.error
+            ? responseFromCreateUser.error
+            : {};
+          return {
+            success: false,
+            message: responseFromCreateUser.message,
+            error,
+          };
+        }
+      } else if (
         responseFromListCandidate.success === true &&
         isEmpty(responseFromListCandidate.data)
       ) {
@@ -363,21 +350,15 @@ const request = {
           success: false,
           message: "the candidate does not exist",
         };
-      }
-
-      if (responseFromListCandidate.success === false) {
-        if (responseFromListCandidate.error) {
-          return {
-            success: false,
-            message: "unable to retrieve candidate",
-            error: responseFromListCandidate.error,
-          };
-        } else {
-          return {
-            success: true,
-            message: "unable to retrieve candidate",
-          };
-        }
+      } else if (responseFromListCandidate.success === false) {
+        const error = responseFromListCandidate.error
+          ? responseFromListCandidate.error
+          : {};
+        return {
+          success: false,
+          message: "unable to retrieve candidate",
+          error,
+        };
       }
     } catch (e) {
       if (e.code === 11000) {

@@ -141,9 +141,17 @@ const join = {
     try {
       const { body } = request;
       const { email, phoneNumber, providerId, providerUid } = body;
-
+      let userIndetificationArray = [];
+      if (isEmpty(email) && !isEmpty(phoneNumber)) {
+        userIndetificationArray.push({ phoneNumber });
+      } else if (!isEmpty(email) && isEmpty(phoneNumber)) {
+        userIndetificationArray.push({ email });
+      } else {
+        userIndetificationArray.push({ phoneNumber });
+        userIndetificationArray.push({ email });
+      }
       return getAuth()
-        .getUsers([{ email }, { phoneNumber }])
+        .getUsers(userIndetificationArray)
         .then(async (getUsersResult) => {
           logObject("getUsersResult", getUsersResult);
           getUsersResult.users.forEach((userRecord) => {

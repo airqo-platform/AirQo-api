@@ -5,6 +5,7 @@
     "main": "./bin/www",
     "scripts": {
         "start": "./bin/www",
+        "stage": "NODE_ENV=staging node ./bin/www",
         "dev-mac": "NODE_ENV=development nodemon ./bin/www",
         "stage-mac": "NODE_ENV=staging nodemon ./bin/www",
         "prod-mac": "NODE_ENV=production nodemon ./bin/www",
