@@ -41,9 +41,8 @@ def airqo_calibrate_measurements():
 
     @task()
     def merge_data(
-        device_measurements: pd.DataFrame, hourly_weather_data: pd.DataFrame
+            device_measurements: pd.DataFrame, hourly_weather_data: pd.DataFrame
     ):
-
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
         return AirQoDataUtils.merge_aggregated_weather_data(
@@ -53,14 +52,12 @@ def airqo_calibrate_measurements():
 
     @task()
     def calibrate_data(measurements: pd.DataFrame):
-
         from airqo_etl_utils.calibration_utils import CalibrationUtils
 
         return CalibrationUtils.calibrate_airqo_data(data=measurements)
 
     @task()
     def load(data: pd.DataFrame, **kwargs):
-
         from airqo_etl_utils.bigquery_api import BigQueryApi
         from airqo_etl_utils.data_validator import DataValidationUtils
         from airqo_etl_utils.date import DateUtils
@@ -132,7 +129,6 @@ def airqo_historical_hourly_measurements():
 
     @task()
     def merge_data(device_measurements: pd.DataFrame, weather_data: pd.DataFrame):
-
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
         return AirQoDataUtils.merge_aggregated_weather_data(
@@ -141,14 +137,12 @@ def airqo_historical_hourly_measurements():
 
     @task()
     def calibrate_data(measurements: pd.DataFrame):
-
         from airqo_etl_utils.calibration_utils import CalibrationUtils
 
         return CalibrationUtils.calibrate_airqo_data(data=measurements)
 
     @task()
     def load(data: pd.DataFrame):
-
         from airqo_etl_utils.bigquery_api import BigQueryApi
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
@@ -181,7 +175,6 @@ def airqo_historical_raw_measurements():
 
     @task()
     def extract_raw_data(**kwargs):
-
         from airqo_etl_utils.date import DateUtils
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
         from airqo_etl_utils.constants import DeviceCategory
@@ -203,14 +196,12 @@ def airqo_historical_raw_measurements():
 
     @task()
     def extract_device_deployment_logs():
-
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
         return AirQoDataUtils.extract_devices_deployment_logs()
 
     @task()
     def map_site_ids(airqo_data: pd.DataFrame, deployment_logs: pd.DataFrame):
-
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
         return AirQoDataUtils.map_site_ids_to_historical_data(
@@ -219,7 +210,6 @@ def airqo_historical_raw_measurements():
 
     @task()
     def load_data(airqo_data: pd.DataFrame):
-
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
@@ -355,21 +345,14 @@ def airqo_realtime_measurements():
         return AirQoDataUtils.clean_low_cost_sensor_data(data=data)
 
     @task()
-    def test_data(data: pd.DataFrame, bucket_name: str, destination_file: str):
-        from google.cloud import storage
-        storage_client = storage.Client()
-        bucket = storage_client.bucket(bucket_name)
-        blob = bucket.blob(destination_file)
-        data.reset_index(drop=True, inplace=True)
-        blob.upload_from_string(data.to_csv(index=False), "text/csv")
+    def save_test_data(data: pd.DataFrame):
+        from airqo_etl_utils.utils import Utils
+        from airqo_etl_utils.config import Config
 
-        print(
-            "{} with contents {} has been uploaded to {}.".format(
-                destination_file, len(data), bucket_name
-            )
-        )
+        bucket_name = Config.BUCKET_NAME_AIRQO
+        file_path = Config.FILE_PATH_AIRQO
+        return Utils.test_data(data=data, bucket_name=bucket_name, destination_file=file_path)
 
-        return f"gs://{bucket_name}/{blob.name}"
     @task()
     def aggregate(data: pd.DataFrame):
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
@@ -443,7 +426,6 @@ def airqo_realtime_measurements():
 
     @task()
     def send_hourly_measurements_to_bigquery(airqo_data: pd.DataFrame):
-
         from airqo_etl_utils.bigquery_api import BigQueryApi
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
@@ -476,7 +458,7 @@ def airqo_realtime_measurements():
 
     raw_data = extract_raw_data()
     clean_data = clean_data_raw_data(raw_data)
-    test_data = test_data(clean_data, "airflow_untested_data", "landing_zone/airqo_data_tests/airqo_data_tests.csv")
+    test_data = save_test_data(clean_data)
     averaged_airqo_data = aggregate(clean_data)
     send_raw_measurements_to_bigquery(clean_data)
     extracted_weather_data = extract_hourly_weather_data()
