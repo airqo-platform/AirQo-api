@@ -30,6 +30,11 @@ spec:
     - path: /argocd
       action:
         pass: argocd
+    - path: /argocd/(.*)
+      action:
+        proxy:
+          upstream: argocd
+          rewritePath: /$1
 
 ---
 apiVersion: k8s.nginx.org/v1
