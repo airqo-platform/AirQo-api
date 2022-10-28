@@ -1675,12 +1675,13 @@ const createEvent = {
 
     if (!responseFromTransformMeasurements.success) {
       logger.error(
-        `internal server error -- unable to transform measurements -- ${responseFromTransformMeasurements.message}`
+        `internal server error -- unable to transform measurements -- ${responseFromTransformMeasurements.message}, ${JSON.stringify(measurements)}`
       );
     }
 
-    for (const measurement of responseFromTransformMeasurements.data) {
+    for (const measurementdata of Object.keys(responseFromTransformMeasurements.data)) {
       try {
+        const measurement = responseFromTransformMeasurements.data[measurementdata];
         logObject("the measurement in the insertion process", measurement);
         const eventsFilter = {
           day: measurement.day,
