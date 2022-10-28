@@ -1679,9 +1679,8 @@ const createEvent = {
       );
     }
 
-    for (const measurementdata of Object.keys(responseFromTransformMeasurements.data)) {
+    for (const measurement of responseFromTransformMeasurements.data) {
       try {
-        const measurement = responseFromTransformMeasurements.data[measurementdata];
         logObject("the measurement in the insertion process", measurement);
         const eventsFilter = {
           day: measurement.day,
