@@ -154,12 +154,13 @@ const createEvent = {
           "voc_pi_value, no2_pi_value, gps_device_timestamp, timestamp_abs_diff";
         averaged_fields = "";
       }
+      // \`${constants.DATAWAREHOUSE_METADATA}.sites\`.altitude AS altitude ,
       const queryStatement = `SELECT ${averaged_fields} ${raw_fields}  \`${
         constants.DATAWAREHOUSE_METADATA
       }.sites\`.latitude AS latitude,
         \`${constants.DATAWAREHOUSE_METADATA}.sites\`.longitude AS longitude, 
         \`${constants.DATAWAREHOUSE_METADATA}.sites\`.tenant AS tenant ,
-        \`${constants.DATAWAREHOUSE_METADATA}.sites\`.altitude AS altitude ,
+      
         FROM \`${table}\` 
         JOIN \`${constants.DATAWAREHOUSE_METADATA}.sites\` 
         ON \`${
@@ -250,7 +251,7 @@ const createEvent = {
         bqQuery = queryStatementReference;
       }
 
-      logObject("bqQuery", bqQuery);
+      // logObject("bqQuery", bqQuery);
       const options = {
         query: bqQuery,
         location: constants.BIG_QUERY_LOCATION,
@@ -288,6 +289,7 @@ const createEvent = {
         message: "successfully retrieved the measurements",
       };
     } catch (error) {
+      logObject("error", error);
       logger.error(`internal server error --- ${error.message}`);
       return {
         success: false,
