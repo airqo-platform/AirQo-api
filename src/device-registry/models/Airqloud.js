@@ -96,6 +96,7 @@ const airqloudSchema = new Schema(
       required: [true, "isCustom is required!"],
     },
     metadata: { type: metadataSchema },
+    network: { type: String },
     airqloud_tags: {
       type: Array,
       default: [],

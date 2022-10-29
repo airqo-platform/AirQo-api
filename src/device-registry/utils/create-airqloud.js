@@ -112,8 +112,7 @@ const createAirqloud = {
 
         if (responseFromRetrieveCoordinates.success === true) {
           modifiedBody["location"] = responseFromRetrieveCoordinates.data;
-        }
-        if (responseFromRetrieveCoordinates.success === false) {
+        } else if (responseFromRetrieveCoordinates.success === false) {
           return responseFromRetrieveCoordinates;
         }
       }

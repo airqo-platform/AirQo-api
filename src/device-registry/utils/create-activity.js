@@ -111,9 +111,7 @@ const createActivity = {
           errors,
           status,
         };
-      }
-
-      if (responseFromListActivity.success === true) {
+      } else if (responseFromListActivity.success === true) {
         let status = responseFromListActivity.status
           ? responseFromListActivity.status
           : "";
@@ -247,6 +245,7 @@ const createActivity = {
         powerType,
         isPrimaryInLocation,
         site_id,
+        network,
       } = body;
       let requestForFilter = {};
       requestForFilter["query"] = {};
@@ -265,6 +264,7 @@ const createActivity = {
             description: "device deployed",
             activityType: "deployment",
             site_id,
+            network,
             nextMaintenance: addMonthsToProvideDateTime(
               date && new Date(date),
               3
@@ -451,13 +451,21 @@ const createActivity = {
     try {
       const { body, query } = request;
       const { tenant, deviceName } = query;
-      const { date, tags, description, site_id, maintenanceType } = body;
+      const {
+        date,
+        tags,
+        description,
+        site_id,
+        maintenanceType,
+        network,
+      } = body;
       const siteActivityBody = {
         device: deviceName,
         date: (date && new Date(date)) || new Date(),
         description: description,
         activityType: "maintenance",
         site_id,
+        network,
         tags,
         maintenanceType,
         nextMaintenance: addMonthsToProvideDateTime(date && new Date(date), 3),

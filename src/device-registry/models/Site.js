@@ -17,6 +17,10 @@ const siteSchema = new Schema(
       type: String,
       trim: true,
     },
+    network: {
+      type: String,
+      trim: true,
+    },
     location_name: {
       type: String,
       trim: true,
@@ -317,6 +321,7 @@ siteSchema.methods = {
       name: this.name,
       generated_name: this.generated_name,
       search_name: this.search_name,
+      network: this.network,
       location_name: this.location_name,
       formatted_name: this.formatted_name,
       lat_long: this.lat_long,
@@ -454,6 +459,7 @@ siteSchema.statics = {
           location_name: 1,
           lat_long: 1,
           country: 1,
+          network: 1,
           district: 1,
           sub_county: 1,
           parish: 1,

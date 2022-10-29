@@ -41,6 +41,7 @@ const activity = {
         powerType,
         isPrimaryInLocation,
         site_id,
+        network,
       } = body;
       const { tenant, deviceName } = query;
       let request = {};
@@ -53,6 +54,7 @@ const activity = {
       request["body"]["powerType"] = powerType;
       request["body"]["isPrimaryInLocation"] = isPrimaryInLocation;
       request["body"]["site_id"] = site_id;
+      request["body"]["network"] = network;
 
       request["query"]["tenant"] = tenant;
       request["query"]["deviceName"] = deviceName;
@@ -102,6 +104,7 @@ const activity = {
         powerType,
         isPrimaryInLocation,
         site_id,
+        network,
       } = body;
       const { tenant, deviceName } = query;
       let request = {};
@@ -112,9 +115,9 @@ const activity = {
       request["body"]["height"] = height;
       request["body"]["mountType"] = mountType;
       request["body"]["powerType"] = powerType;
+      request["body"]["network"] = network;
       request["body"]["isPrimaryInLocation"] = isPrimaryInLocation;
       request["body"]["site_id"] = site_id;
-
       request["query"]["tenant"] = tenant;
       request["query"]["deviceName"] = deviceName;
       request["query"]["type"] = "recall";
@@ -165,6 +168,7 @@ const activity = {
         tags,
         description,
         site_id,
+        network,
       } = body;
       const { tenant, deviceName } = query;
       let request = {};
@@ -174,6 +178,7 @@ const activity = {
       request["body"]["date"] = date;
       request["body"]["height"] = height;
       request["body"]["mountType"] = mountType;
+      request["body"]["network"] = network;
       request["body"]["powerType"] = powerType;
       request["body"]["isPrimaryInLocation"] = isPrimaryInLocation;
       request["body"]["site_id"] = site_id;
@@ -254,9 +259,7 @@ const activity = {
           message: responseFromUpdateActivity.message,
           updated_activity: responseFromUpdateActivity.data,
         });
-      }
-
-      if (responseFromUpdateActivity.success === false) {
+      } else if (responseFromUpdateActivity.success === false) {
         let errors = responseFromUpdateActivity.errors
           ? responseFromUpdateActivity.errors
           : "";
