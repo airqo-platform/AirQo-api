@@ -998,7 +998,7 @@ const manageSite = {
   },
   list: async ({ tenant, filter, skip, limit }) => {
     try {
-      let responseFromListSite = await getModelByTenant(
+      const responseFromListSite = await getModelByTenant(
         tenant.toLowerCase(),
         "site",
         SiteSchema
