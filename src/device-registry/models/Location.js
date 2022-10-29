@@ -74,6 +74,7 @@ const locationSchema = new Schema(
       default: false,
     },
     metadata: { type: metadataSchema },
+    network: { type: String },
     location_tags: {
       type: Array,
       default: [],
@@ -113,6 +114,7 @@ locationSchema.methods = {
       admin_level: this.admin_level,
       isCustom: this.isCustom,
       location: this.location,
+      network: this.network,
       metadata: this.metadata,
     };
   },
@@ -178,6 +180,7 @@ locationSchema.statics = {
         admin_level: 1,
         isCustom: 1,
         metadata: 1,
+        network: 1,
         sites: "$sites",
       };
 
@@ -187,6 +190,7 @@ locationSchema.statics = {
         long_name: 1,
         admin_level: 1,
         description: 1,
+        network: 1,
         metadata: 1,
       };
 
@@ -302,6 +306,7 @@ locationSchema.statics = {
           location_tags: 1,
           description: 1,
           admin_level: 1,
+          network: 1,
           isCustom: 1,
           metadata: 1,
         },
@@ -316,9 +321,7 @@ locationSchema.statics = {
           data,
           status: HTTPStatus.OK,
         };
-      }
-
-      if (isEmpty(removedLocation)) {
+      } else if (isEmpty(removedLocation)) {
         return {
           success: false,
           message: "location does not exist, please crosscheck",
