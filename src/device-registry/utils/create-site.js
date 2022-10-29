@@ -367,6 +367,7 @@ const manageSite = {
         latitude,
         longitude,
         airqlouds,
+        network,
         approximate_distance_in_km,
       } = body;
 
@@ -375,6 +376,7 @@ const manageSite = {
       request["query"] = {};
       request["body"]["latitude"] = latitude;
       request["body"]["longitude"] = longitude;
+      request["body"]["network"] = network;
       request["body"]["airqlouds"] = airqlouds;
       request["body"]["name"] = name;
       request["query"]["tenant"] = tenant;
