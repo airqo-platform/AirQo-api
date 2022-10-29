@@ -26,9 +26,6 @@ Using a separate termial, create the kafka topics to be used by the microservice
 
 ```bash
 bin/kafka-topics.sh --create --topic app-insights-measurements-topic --partitions 1 --replication-factor 1 --bootstrap-server view-message-broker:9092
-bin/kafka-topics.sh --create --topic hourly-measurements-topic --partitions 1 --replication-factor 1 --bootstrap-server view-message-broker:9092
-bin/kafka-topics.sh --create --topic devices-topic --partitions 1 --replication-factor 1 --bootstrap-server view-message-broker:9092
-bin/kafka-topics.sh --create --topic sites-topic --partitions 1 --replication-factor 1 --bootstrap-server view-message-broker:9092
 ```
 
 ### Consume data from the message broker

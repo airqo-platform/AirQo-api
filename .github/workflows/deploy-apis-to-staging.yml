@@ -244,16 +244,20 @@ jobs:
               echo "::set-output name=run_notifications::true"
             fi
 
-            if [[ $file == k8s/kafka-clusters/* ]]; then
+            if [[ $file == k8s/kafka/clusters/* ]]; then
               echo "::set-output name=run_kafka_cluster::true"
             fi
 
-            if [[ $file == k8s/kafka-operator/* ]]; then
+            if [[ $file == k8s/kafka/operator/* ]]; then
               echo "::set-output name=run_kafka_cluster_operator::true"
             fi
 
-            if [[ $file == k8s/kafka-topics/* ]]; then
+            if [[ $file == k8s/kafka/topics/* ]]; then
               echo "::set-output name=run_kafka_topics::true"
+            fi
+
+            if [[ $file == src/kafka/connectors/* ]]; then
+              echo "::set-output name=run_kafka_connectors::true"
             fi
 
             if [[ $file == src/airflow/* ]]; then
@@ -286,14 +290,6 @@ jobs:
 
             if [[ $file == k8s/fault-detection/* ]]; then
               echo "::set-output name=run_fault_detection::true"
-            fi
-
-            if [[ $file == src/kafka-connectors/* ]]; then
-              echo "::set-output name=run_kafka_connectors::true"
-            fi
-
-            if [[ $file == k8s/kafka-connectors/* ]]; then
-              echo "::set-output name=run_kafka_connectors::true"
             fi
 
             if [[ $file == k8s/nginx/staging/* ]]; then
@@ -408,7 +404,7 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           push: true
-          context: src/kafka-connectors/measurements-source-connector
+          context: src/kafka/connectors/measurements-source-connector
           tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-measurements-connect:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-measurements-connect:latest
 
       - name: Login to k8s cluster
@@ -421,8 +417,8 @@ jobs:
         run: |
           export MEASUREMENTS_CONNECT_IMAGE=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-measurements-connect:${{ needs.image-tag.outputs.build_id }}
           export STAGE_KAFKA_CLUSTER=${{ secrets.STAGE_KAFKA_CLUSTER }}
-          cat k8s/kafka-connectors/measurements-connect.yaml | sed "s/{{MEASUREMENTS_CONNECT_IMAGE}}/$MEASUREMENTS_CONNECT_IMAGE/g" | sed "s/{{KAFKA_CLUSTER}}/$STAGE_KAFKA_CLUSTER/g" | kubectl apply -n message-broker -f-
-          kubectl apply -f k8s/kafka-connectors/purple-air-connector.yaml -n message-broker
+          cat k8s/kafka/connectors/measurements-connect.yaml | sed "s/{{MEASUREMENTS_CONNECT_IMAGE}}/$MEASUREMENTS_CONNECT_IMAGE/g" | sed "s/{{KAFKA_CLUSTER}}/$STAGE_KAFKA_CLUSTER/g" | kubectl apply -n message-broker -f-
+          kubectl apply -f k8s/kafka/connectors/purple-air-connector.yaml -n message-broker
 
   #### Fault Detection ######
   fault-detection:
@@ -553,7 +549,7 @@ jobs:
         run: |
           cd src/airflow/
           gcloud secrets versions access latest --secret="sta-env-airflow" > .env
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env airflow-config | kubectl replace -f - -n staging
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env airflow-config | kubectl replace -f - -n pipeline
 
       - name: Deploy to K8S
         run: |
@@ -664,7 +660,7 @@ jobs:
       - name: Deploy to K8S
         run: |
           kubectl apply -f k8s/namespaces/message-broker.yaml
-          bash k8s/kafka-operator/deployment-script.sh
+          bash k8s/kafka/operator/deployment-script.sh
 
   ### kafka cluster ###
   kafka-cluster:
@@ -687,7 +683,12 @@ jobs:
           export KAFKA_BROKER_0=${{ secrets.STAGE_KAFKA_BROKER_0 }}
           export KAFKA_BROKER_1=${{ secrets.STAGE_KAFKA_BROKER_1 }}
           export KAFKA_BROKER_2=${{ secrets.STAGE_KAFKA_BROKER_2 }}
-          cat k8s/kafka-clusters/kafka-cluster.yaml | sed "s/{{KAFKA_BROKER_0}}/$STAGE_KAFKA_BROKER_0/g" | sed "s/{{KAFKA_BROKER_1}}/$STAGE_KAFKA_BROKER_1/g" | sed "s/{{KAFKA_BROKER_2}}/$STAGE_KAFKA_BROKER_2/g" | kubectl apply -n message-broker -f-
+
+          sed -i 's/KAFKA_BROKER_0/'"$KAFKA_BROKER_0"'/g' k8s/kafka/clusters/kafka-cluster.yaml
+          sed -i 's/KAFKA_BROKER_1/'"$KAFKA_BROKER_1"'/g' k8s/kafka/clusters/kafka-cluster.yaml
+          sed -i 's/KAFKA_BROKER_2/'"$KAFKA_BROKER_2"'/g' k8s/kafka/clusters/kafka-cluster.yaml
+
+          kubectl apply -n message-broker -f k8s/kafka/clusters/kafka-cluster.yaml
 
   ### kafka topics ###
   kafka-topics:
@@ -707,7 +708,7 @@ jobs:
 
       - name: Deploy to K8S
         run: |
-          kubectl apply -f k8s/kafka-topics/kafka-topics.yaml -n message-broker
+          kubectl apply -f k8s/kafka/topics/kafka-topics.yaml -n message-broker
 
   #### Device Registry ######
   device-registry:

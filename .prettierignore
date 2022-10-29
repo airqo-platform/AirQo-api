@@ -1,2 +1,2 @@
-k8s/nginx-ingress/global-configs/prod-nginx-config.yaml
-k8s/nginx-ingress/global-configs/stage-nginx-config.yaml
+k8s/nginx/production/global-config.yaml
+k8s/nginx/staging/global-config.yaml

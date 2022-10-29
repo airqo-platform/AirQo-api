@@ -10,7 +10,7 @@ from airqo_etl_utils.airflow_custom_utils import AirflowUtils
     catchup=False,
     tags=["hourly", "consolidated data"],
 )
-def consolidated_data_etl():
+def data_warehouse_consolidated_data():
     import pandas as pd
 
     @task()
@@ -109,7 +109,7 @@ def consolidated_data_etl():
     catchup=False,
     tags=["consolidated data", "cleanup"],
 )
-def cleanup_consolidated_data_etl():
+def data_warehouse_cleanup_consolidated_data():
     import pandas as pd
 
     @task()
@@ -145,5 +145,5 @@ def cleanup_consolidated_data_etl():
     load(clean_consolidated_data)
 
 
-consolidated_data_etl()
-cleanup_consolidated_data_etl()
+data_warehouse_consolidated_data()
+data_warehouse_cleanup_consolidated_data()
