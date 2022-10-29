@@ -10,6 +10,7 @@ const HTTPStatus = require("http-status");
 const photoSchema = new Schema(
   {
     device_name: { type: String },
+    network: { type: String },
     device_id: {
       type: ObjectId,
       required: [true, "the object ID is required!"],
@@ -69,6 +70,7 @@ photoSchema.methods = {
       id: this._id,
       tags: this.tags,
       name: this.name,
+      network: this.network,
       image_url: this.image_url,
       device_id: this.device_id,
       device_name: this.device_name,
@@ -142,6 +144,7 @@ photoSchema.statics = {
           image_code: 1,
           description: 1,
           metadata: 1,
+          network: 1,
         })
         .skip(_skip)
         .limit(_limit)
@@ -260,6 +263,7 @@ photoSchema.statics = {
           device_id: 1,
           device_number: 1,
           device_name: 1,
+          network: 1,
           image_code: 1,
           image_url: 1,
         },

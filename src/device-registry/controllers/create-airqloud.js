@@ -436,9 +436,7 @@ const createAirqloud = {
           message: responseFromListAirQlouds.message,
           airqlouds: responseFromListAirQlouds.data,
         });
-      }
-
-      if (responseFromListAirQlouds.success === false) {
+      } else if (responseFromListAirQlouds.success === false) {
         let errors = responseFromListAirQlouds.errors
           ? responseFromListAirQlouds.errors
           : { message: "" };

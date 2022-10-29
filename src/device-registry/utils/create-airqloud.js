@@ -113,8 +113,7 @@ const createAirqloud = {
 
         if (responseFromRetrieveCoordinates.success === true) {
           modifiedBody["location"] = responseFromRetrieveCoordinates.data;
-        }
-        if (responseFromRetrieveCoordinates.success === false) {
+        } else if (responseFromRetrieveCoordinates.success === false) {
           return responseFromRetrieveCoordinates;
         }
       }
@@ -606,9 +605,7 @@ const createAirqloud = {
           errors,
           status,
         };
-      }
-
-      if (responseFromListAirQloud.success === true) {
+      } else if (responseFromListAirQloud.success === true) {
         let status = responseFromListAirQloud.status
           ? responseFromListAirQloud.status
           : "";
