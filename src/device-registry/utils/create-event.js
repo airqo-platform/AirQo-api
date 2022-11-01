@@ -1675,7 +1675,7 @@ const createEvent = {
 
     if (!responseFromTransformMeasurements.success) {
       logger.error(
-        `internal server error -- unable to transform measurements -- ${responseFromTransformMeasurements.message}`
+        `internal server error -- unable to transform measurements -- ${responseFromTransformMeasurements.message}, ${JSON.stringify(measurements)}`
       );
     }
 
