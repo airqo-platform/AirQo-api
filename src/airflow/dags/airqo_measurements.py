@@ -41,7 +41,7 @@ def airqo_calibrate_measurements():
 
     @task()
     def merge_data(
-            device_measurements: pd.DataFrame, hourly_weather_data: pd.DataFrame
+        device_measurements: pd.DataFrame, hourly_weather_data: pd.DataFrame
     ):
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
@@ -351,7 +351,9 @@ def airqo_realtime_measurements():
 
         bucket_name = Config.BUCKET_NAME_AIRQO
         file_path = Config.FILE_PATH_AIRQO
-        return Utils.test_data(data=data, bucket_name=bucket_name, destination_file=file_path)
+        return Utils.test_data(
+            data=data, bucket_name=bucket_name, destination_file=file_path
+        )
 
     @task()
     def aggregate(data: pd.DataFrame):

@@ -257,6 +257,7 @@ class Utils:
     @staticmethod
     def test_data(data: pd.DataFrame, bucket_name: str, destination_file: str):
         from google.cloud import storage
+
         storage_client = storage.Client()
         bucket = storage_client.bucket(bucket_name)
         blob = bucket.blob(destination_file)
