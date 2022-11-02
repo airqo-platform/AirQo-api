@@ -1,5 +1,5 @@
 gcloud functions deploy  data_unit_test2 \
-    --source cloud_functions/data_validation \
+    --source ../cloud_functions/data_validation \
     --entry-point main \
     --project $PROJECT \
     --region europe-west2 \
