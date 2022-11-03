@@ -246,7 +246,7 @@ jobs:
 
       - name: Delete PR deploy preview
         run: |-
-          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-locate \
+          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-locate-preview \
             --region=${{ secrets.REGION }} \
             --quiet
 
@@ -268,7 +268,7 @@ jobs:
 
       - name: Delete PR deploy preview
         run: |-
-          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-predict-service \
+          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-predict-service-preview \
             --region=${{ secrets.REGION }} \
             --quiet
 
@@ -290,7 +290,7 @@ jobs:
 
       - name: Delete PR deploy preview
         run: |-
-          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-meta-data \
+          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-meta-data-preview \
             --region=${{ secrets.REGION }} \
             --quiet
 
@@ -312,7 +312,7 @@ jobs:
 
       - name: Delete PR deploy preview
         run: |-
-          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-view \
+          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-view-preview \
             --region=${{ secrets.REGION }} \
             --quiet
 
@@ -334,7 +334,7 @@ jobs:
 
       - name: Delete PR deploy preview
         run: |-
-          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-calibrate \
+          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-calibrate-preview \
             --region=${{ secrets.REGION }} \
             --quiet
 
@@ -356,7 +356,7 @@ jobs:
 
       - name: Delete PR deploy preview
         run: |-
-          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-notifications \
+          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-notifications-preview \
             --region=${{ secrets.REGION }} \
             --quiet
 
@@ -378,6 +378,6 @@ jobs:
 
       - name: Delete PR deploy preview
         run: |-
-          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-network_uptime \
+          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-network-uptime-preview \
             --region=${{ secrets.REGION }} \
             --quiet
