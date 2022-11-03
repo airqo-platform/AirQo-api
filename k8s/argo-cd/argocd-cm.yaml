@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    app.kubernetes.io/name: argocd-cm
+    app.kubernetes.io/part-of: argocd
+  name: argocd-cm
+data:
+  accounts.admin.enabled: "false"
+  accounts.guest: login
+  accounts.guest.enabled: "true"
+  dex.config: |
+    connectors:
+      - type: github
+        id: github
+        name: GitHub
+        config:
+          clientID: <<clientID>>
+          clientSecret: <<clientSecret>>
+          orgs:
+          - name: airqo-platform
+            teams:
+            - devops
+            - engineering    
+          loadAllGroups: false
+          useLoginAsID: true
+  url: https://platform.airqo.net/argocd
