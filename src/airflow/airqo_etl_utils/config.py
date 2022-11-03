@@ -137,5 +137,9 @@ class Config:
         10: "vapor_pressure",
     }
 
+    # Data unit tests
+    BUCKET_NAME_AIRQO = os.getenv("BUCKET_NAME")
+    FILE_PATH_AIRQO = os.getenv("FILE_PATH_AIRQO")
+
 
 configuration = Config()
