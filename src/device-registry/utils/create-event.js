@@ -388,7 +388,7 @@ const createEvent = {
   list: async (request, callback) => {
     try {
       const { query } = request;
-      let { recent, tenant, device } = query;
+      let { recent, tenant, device, site_id } = query;
       let page = parseInt(query.page);
       let limit = parseInt(query.limit);
       let skip = parseInt(query.skip);
@@ -396,26 +396,45 @@ const createEvent = {
       /**
        * if given an AirQloud's ID, then just get the corresponding sites
        * and attach them to the site_id query parameter
+       *
+       * If both the site and airqloud IDs are provided,
+       * then merge both the sites from the AirQloud with the provided site IDs.
+       *
+       * this is also assuming that we have the said query parameter! :)
        */
+      // logElement("site_id", query.site_id);
+      // logElement("type of site_id", typeof query.site_id);
+      let airqloudSites = site_id ? site_id : "";
       if (query.airqloud_id) {
         logElement("airqloud ID is provided", query.airqloud_id);
-        let airqloudSites = "";
         const responseFromListAirQlouds = await createAirqloudUtil.list(
           request
         );
-        // logObject(":responseFromListAirQlouds", responseFromListAirQlouds);
+        logObject("responseFromListAirQlouds", responseFromListAirQlouds);
         if (responseFromListAirQlouds.success === true) {
-          let sites = responseFromListAirQlouds.data.sites;
-          if (sites) {
+          if (responseFromListAirQlouds.data.length > 1) {
+            return {
+              success: false,
+              message: "returned more than one result",
+            };
+          }
+          let sites = responseFromListAirQlouds.data[0].sites;
+          logObject("sites", sites);
+          if (sites && Array.isArray(sites)) {
+            // for (const site of sites) {
+            //   airqloudSites.concat(site._id);
+            // }
             sites.map((element) => {
-              airqloudSites.concat(element);
+              airqloudSites.concat(element._id);
             });
           }
+          logElement("airqloudSites", airqloudSites);
           request.query.site_id = airqloudSites;
         } else if (responseFromListAirQlouds.success === false) {
           return responseFromListAirQlouds;
         }
-        logElement("airqloudSites", airqloudSites);
+        // logElement("airqloudSites", airqloudSites);
+        logObject("request.query", request.query);
       }
 
       const responseFromFilter = generateFilter.events_v2(request);
