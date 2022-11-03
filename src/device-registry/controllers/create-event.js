@@ -154,11 +154,10 @@ const createEvent = {
           ? responseFromListFromBigQuery.status
           : HTTPStatus.OK;
         if (format && format === "csv") {
-          res.set({
-            "Content-Type": "text/csv",
-          });
-          // .type("text/csv")
-          return res.status(status).send(responseFromListFromBigQuery.data);
+          return res
+            .status(status)
+            .type("text/csv")
+            .send(responseFromListFromBigQuery.data);
         }
         return res.status(status).json({
           success: true,
