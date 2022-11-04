@@ -206,12 +206,15 @@ class DataWarehouseUtils:
             if tenant == Tenant.US_EMBASSY:
                 data = data[data["site_id"].isin(sites_data["site_id"].to_list())]
 
-            data = pd.merge(
-                left=data,
-                right=sites_data,
-                on=["site_id"],
-                how="left",
-            )
+            try:
+                data = pd.merge(
+                    left=data,
+                    right=sites_data,
+                    on=["site_id"],
+                    how="left",
+                )
+            except Exception as ex:
+                print(ex)
 
         table = big_query_api.latest_measurements_table
 
