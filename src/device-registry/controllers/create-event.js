@@ -156,6 +156,10 @@ const createEvent = {
         if (format && format === "csv") {
           return res
             .status(status)
+            .set({
+              "Content-Type": "text/csv",
+              "Content-Disposition": `attachment; filename="airqo-data-export.csv"`,
+            })
             .type("text/csv")
             .send(responseFromListFromBigQuery.data);
         }
