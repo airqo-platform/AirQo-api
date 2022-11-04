@@ -25,7 +25,7 @@ class AirQoApi:
         network_measurements = []
 
         for measurement in measurements:
-            measurement["network_name"] = str(tenant)
+            measurement["network"] = str(tenant)
             measurement["tenant"] = str(Tenant.AIRQO)
             network_measurements.append(measurement)
 
