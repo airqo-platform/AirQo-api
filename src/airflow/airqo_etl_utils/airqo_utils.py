@@ -946,7 +946,7 @@ class AirQoDataUtils:
         for _, data_row in data.iterrows():
             restructured_data.append(
                 {
-                    "tenant": str(Tenant.US_EMBASSY),
+                    "tenant": str(Tenant.AIRQO),
                     "time": data_row["timestamp"],
                     "frequency": str(Frequency.HOURLY),
                     "site_id": data_row["site_id"],
