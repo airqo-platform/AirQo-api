@@ -164,6 +164,7 @@ class AirQoApi:
                         "approximate_longitude", device.get("longitude", None)
                     ),
                     "device_id": device.get("name", None),
+                    "mongo_id": device.get("_id", None),
                     "site_id": device.get("site", {}).get("_id", None),
                     "device_category": str(
                         DeviceCategory.from_str(device.get("category", ""))

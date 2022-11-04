@@ -76,7 +76,7 @@ def kcca_hourly_measurements():
         )
 
     @task()
-    def update_latest_data(data: pd.DataFrame):
+    def update_latest_data_table(data: pd.DataFrame):
         from airqo_etl_utils.kcca_utils import KccaUtils
         from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
         from airqo_etl_utils.constants import Tenant
@@ -85,11 +85,21 @@ def kcca_hourly_measurements():
 
         DataWarehouseUtils.update_latest_measurements(data=data, tenant=Tenant.KCCA)
 
+    @task()
+    def update_latest_data_topic(data: pd.DataFrame):
+        from airqo_etl_utils.kcca_utils import KccaUtils
+        from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
+
+        data = KccaUtils.process_latest_data(data=data)
+
+        MessageBrokerUtils.update_latest_data_topic(data=data)
+
     extracted_data = extract()
     transformed_data = transform(extracted_data)
     send_to_message_broker(transformed_data)
     send_to_api(transformed_data)
-    update_latest_data(transformed_data)
+    update_latest_data_table(transformed_data)
+    update_latest_data_topic(transformed_data)
     send_to_bigquery(transformed_data)
 
 
