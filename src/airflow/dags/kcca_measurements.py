@@ -37,11 +37,12 @@ def kcca_hourly_measurements():
     def send_to_api(data: pd.DataFrame):
         from airqo_etl_utils.kcca_utils import KccaUtils
         from airqo_etl_utils.airqo_api import AirQoApi
+        from airqo_etl_utils.constants import Tenant
 
         kcca_data = KccaUtils.transform_data_for_api(data)
 
         airqo_api = AirQoApi()
-        airqo_api.save_events(measurements=kcca_data, tenant="kcca")
+        airqo_api.save_events(measurements=kcca_data, tenant=Tenant.KCCA)
 
     @task()
     def send_to_message_broker(data: pd.DataFrame):

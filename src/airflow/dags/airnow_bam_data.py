@@ -92,10 +92,11 @@ def airnow_bam_realtime_data():
     def send_measurements_to_api(data: pd.DataFrame):
         from airqo_etl_utils.airqo_api import AirQoApi
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
+        from airqo_etl_utils.constants import Tenant
 
         restructured_data = AirQoDataUtils.process_airnow_data_for_api(data=data)
         airqo_api = AirQoApi()
-        airqo_api.save_events(measurements=restructured_data, tenant="airqo")
+        airqo_api.save_events(measurements=restructured_data, tenant=Tenant.US_EMBASSY)
 
     @task()
     def update_latest_data(data: pd.DataFrame):
@@ -112,6 +113,7 @@ def airnow_bam_realtime_data():
     processed_bam_data = process_data(extracted_bam_data)
     send_to_bigquery(processed_bam_data)
     update_latest_data(processed_bam_data)
+    send_measurements_to_api(processed_bam_data)
 
 
 airnow_bam_realtime_data()

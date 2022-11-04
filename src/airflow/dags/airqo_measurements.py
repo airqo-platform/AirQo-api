@@ -1,7 +1,6 @@
 from airflow.decorators import dag, task
 
 from airqo_etl_utils.airflow_custom_utils import AirflowUtils
-from airqo_etl_utils.constants import Frequency
 from dag_docs import airqo_realtime_low_cost_measurements_doc
 from task_docs import extract_raw_airqo_data_doc
 
@@ -403,13 +402,14 @@ def airqo_realtime_measurements():
     def send_hourly_measurements_to_api(airqo_data: pd.DataFrame):
         from airqo_etl_utils.airqo_api import AirQoApi
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
+        from airqo_etl_utils.constants import Frequency, Tenant
 
         data = AirQoDataUtils.process_data_for_api(
             airqo_data, frequency=Frequency.HOURLY
         )
 
         airqo_api = AirQoApi()
-        airqo_api.save_events(measurements=data, tenant="airqo")
+        airqo_api.save_events(measurements=data, tenant=Tenant.AIRQO)
 
     @task()
     def send_hourly_measurements_to_message_broker(data: pd.DataFrame):

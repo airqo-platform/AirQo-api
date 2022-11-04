@@ -20,13 +20,24 @@ class AirQoApi:
         )
         self.AIRQO_API_KEY = f"JWT {configuration.AIRQO_API_KEY}"
 
-    def save_events(self, measurements: list, tenant: str) -> None:
+    def save_events(self, measurements: list, tenant: Tenant) -> None:
 
-        for i in range(0, len(measurements), int(configuration.POST_EVENTS_BODY_SIZE)):
-            data = measurements[i : i + int(configuration.POST_EVENTS_BODY_SIZE)]
+        network_measurements = []
+
+        for measurement in measurements:
+            measurement["network_name"] = str(tenant)
+            measurement["tenant"] = str(Tenant.AIRQO)
+            network_measurements.append(measurement)
+
+        for i in range(
+            0, len(network_measurements), int(configuration.POST_EVENTS_BODY_SIZE)
+        ):
+            data = network_measurements[
+                i : i + int(configuration.POST_EVENTS_BODY_SIZE)
+            ]
             response = self.__request(
                 endpoint="devices/events",
-                params={"tenant": tenant},
+                params={"tenant": str(Tenant.AIRQO)},
                 method="post",
                 body=data,
             )
