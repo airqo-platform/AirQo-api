@@ -12,7 +12,7 @@ const logger = log4js.getLogger(
 const { transform } = require("node-json-transform");
 const Dot = require("dot-object");
 const cleanDeep = require("clean-deep");
-const createDeviceUtil = require("./create-device");
+const { getDevicesCount, list, decryptKey } = require("./create-monitor");
 const HTTPStatus = require("http-status");
 const redis = require("../config/redis");
 const axios = require("axios");
@@ -55,7 +55,7 @@ const createEvent = {
         access_code,
       } = query;
 
-      const responseFromGetDeviceDetails = await createDeviceUtil.list(req);
+      const responseFromGetDeviceDetails = await list(req);
       let deviceDetails = {};
 
       if (responseFromGetDeviceDetails.success === true) {
@@ -154,12 +154,13 @@ const createEvent = {
           "voc_pi_value, no2_pi_value, gps_device_timestamp, timestamp_abs_diff";
         averaged_fields = "";
       }
+      // \`${constants.DATAWAREHOUSE_METADATA}.sites\`.altitude AS altitude ,
       const queryStatement = `SELECT ${averaged_fields} ${raw_fields}  \`${
         constants.DATAWAREHOUSE_METADATA
       }.sites\`.latitude AS latitude,
         \`${constants.DATAWAREHOUSE_METADATA}.sites\`.longitude AS longitude, 
         \`${constants.DATAWAREHOUSE_METADATA}.sites\`.tenant AS tenant ,
-        \`${constants.DATAWAREHOUSE_METADATA}.sites\`.altitude AS altitude ,
+      
         FROM \`${table}\` 
         JOIN \`${constants.DATAWAREHOUSE_METADATA}.sites\` 
         ON \`${
@@ -250,7 +251,7 @@ const createEvent = {
         bqQuery = queryStatementReference;
       }
 
-      logObject("bqQuery", bqQuery);
+      // logObject("bqQuery", bqQuery);
       const options = {
         query: bqQuery,
         location: constants.BIG_QUERY_LOCATION,
@@ -288,6 +289,7 @@ const createEvent = {
         message: "successfully retrieved the measurements",
       };
     } catch (error) {
+      logObject("error", error);
       logger.error(`internal server error --- ${error.message}`);
       return {
         success: false,
@@ -407,7 +409,7 @@ const createEvent = {
           callback(result.data);
         }
         if (result.success === false) {
-          await createDeviceUtil.getDevicesCount(request, async (result) => {
+          await getDevicesCount(request, async (result) => {
             if (result.success === true) {
               if ((device && !recent) || recent === "no") {
                 if (!limit) {
@@ -420,8 +422,7 @@ const createEvent = {
                     skip = parseInt(constants.DEFAULT_EVENTS_SKIP);
                   }
                 }
-              }
-              if ((!recent && !device) || recent === "yes") {
+              } else if ((!recent && !device) || recent === "yes") {
                 if (!limit) {
                   limit = result.data;
                 }
@@ -439,7 +440,6 @@ const createEvent = {
                 filter,
                 page,
               });
-
               if (responseFromListEvents.success === true) {
                 const data = cleanDeep(responseFromListEvents.data);
                 createEvent.setCache(data, request, (result) => {
@@ -461,15 +461,18 @@ const createEvent = {
                   status,
                   isCache: false,
                 });
-              }
-
-              if (responseFromListEvents.success === false) {
+              } else if (responseFromListEvents.success === false) {
                 const status = responseFromListEvents.status
                   ? responseFromListEvents.status
                   : "";
                 const errors = responseFromListEvents.errors
                   ? responseFromListEvents.errors
                   : { message: "" };
+
+                logger.error(
+                  `unable to retrieve events --- ${JSON.stringify(errors)}`
+                );
+
                 callback({
                   success: false,
                   message: responseFromListEvents.message,
@@ -478,8 +481,10 @@ const createEvent = {
                   isCache: false,
                 });
               }
-            }
-            if (result.success === false) {
+            } else if (result.success === false) {
+              logger.error(
+                `unable to retrieve events --- ${JSON.stringify(result)}`
+              );
               logText(result.message);
             }
           });
@@ -718,7 +723,7 @@ const createEvent = {
   transmitMultipleSensorValues: async (request) => {
     try {
       let requestBody = {};
-      const responseFromListDevice = await createDeviceUtil.list(request);
+      const responseFromListDevice = await list(request);
       let deviceDetail = {};
       if (responseFromListDevice.success === true) {
         if (responseFromListDevice.data.length === 1) {
@@ -778,7 +783,7 @@ const createEvent = {
       }
 
       let api_key = deviceDetail.writeKey;
-      const responseFromDecryptKey = await createDeviceUtil.decryptKey(api_key);
+      const responseFromDecryptKey = await decryptKey(api_key);
       if (responseFromDecryptKey.success === true) {
         api_key = responseFromDecryptKey.data;
       } else if (responseFromDecryptKey.success === false) {
@@ -850,7 +855,7 @@ const createEvent = {
       const { name, chid, device_number, tenant } = request.query;
       const { body } = request;
 
-      const responseFromListDevice = await createDeviceUtil.list(request);
+      const responseFromListDevice = await list(request);
 
       let deviceDetail = {};
 
@@ -879,7 +884,7 @@ const createEvent = {
       const channel = deviceDetail.device_number;
       let api_key = deviceDetail.writeKey;
 
-      const responseFromDecryptKey = await createDeviceUtil.decryptKey(api_key);
+      const responseFromDecryptKey = await decryptKey(api_key);
       if (responseFromDecryptKey.success === true) {
         api_key = responseFromDecryptKey.data;
       } else if (responseFromDecryptKey.success === false) {
@@ -1033,6 +1038,7 @@ const createEvent = {
             data: resultJSON,
           });
         } else if (err) {
+          logger.error(`unable to get cache --- ${JSON.stringify(err)}`);
           callback({
             success: false,
             message: "Internal Server Error",
@@ -1119,7 +1125,7 @@ const createEvent = {
       request["query"]["device_id"] = transformedEvent.filter.device_id;
       request["query"]["tenant"] = transformedEvent.tenant;
 
-      const responseFromGetDeviceDetails = await createDeviceUtil.list(request);
+      const responseFromGetDeviceDetails = await list(request);
       logger.info(
         `responseFromGetDeviceDetails ${JSON.stringify(
           responseFromGetDeviceDetails
@@ -1635,7 +1641,7 @@ const createEvent = {
       };
     }
   },
-  insertMeasurements: async(measurements)=>{
+  insertMeasurements: async (measurements) => {
     try {
       const responseFromInsertMeasurements = await createEvent.insert(
         "airqo",
@@ -1669,7 +1675,7 @@ const createEvent = {
 
     if (!responseFromTransformMeasurements.success) {
       logger.error(
-        `internal server error -- unable to transform measurements -- ${responseFromTransformMeasurements.message}`
+        `internal server error -- unable to transform measurements -- ${responseFromTransformMeasurements.message}, ${JSON.stringify(measurements)}`
       );
     }
 
@@ -1938,7 +1944,7 @@ const createEvent = {
       request["query"]["tenant"] = tenant;
       request["query"]["device_number"] = chid || device_number;
 
-      const responseFromListDevice = await createDeviceUtil.list(request);
+      const responseFromListDevice = await list(request);
 
       let deviceDetail = {};
 
