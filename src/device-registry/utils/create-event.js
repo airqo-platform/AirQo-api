@@ -1,4 +1,6 @@
 const EventModel = require("../models/Event");
+const AirQloudSchema = require("../models/Airqloud");
+const { getModelByTenant } = require("./multitenancy");
 const MeasurementModel = require("../models/Measurement");
 const { logObject, logElement, logText } = require("./log");
 const constants = require("../config/constants");
@@ -390,51 +392,50 @@ const createEvent = {
       const { query } = request;
       let { recent, tenant, device, site_id } = query;
       let page = parseInt(query.page);
-      let limit = parseInt(query.limit);
+      let limit = parseInt(query.limit) || 0;
       let skip = parseInt(query.skip);
       let filter = {};
-      /**
-       * if given an AirQloud's ID, then just get the corresponding sites
-       * and attach them to the site_id query parameter
-       *
-       * If both the site and airqloud IDs are provided,
-       * then merge both the sites from the AirQloud with the provided site IDs.
-       *
-       * this is also assuming that we have the said query parameter! :)
-       */
-      // logElement("site_id", query.site_id);
-      // logElement("type of site_id", typeof query.site_id);
+
       let airqloudSites = site_id ? site_id : "";
       if (query.airqloud_id) {
-        logElement("airqloud ID is provided", query.airqloud_id);
-        const responseFromListAirQlouds = await createAirqloudUtil.list(
-          request
-        );
-        logObject("responseFromListAirQlouds", responseFromListAirQlouds);
-        if (responseFromListAirQlouds.success === true) {
-          if (responseFromListAirQlouds.data.length > 1) {
+        let filter = generateFilter.airqlouds(request);
+        let responseFromListAirQloud = await getModelByTenant(
+          tenant.toLowerCase(),
+          "airqloud",
+          AirQloudSchema
+        ).list({
+          filter,
+          limit,
+          skip,
+        });
+        if (responseFromListAirQloud.success === true) {
+          filter = {};
+          if (responseFromListAirQloud.data.length > 1) {
             return {
               success: false,
-              message: "returned more than one result",
+              message: "AirQloud search returned more than one result",
+              status: HTTPStatus.NOT_FOUND,
             };
           }
-          let sites = responseFromListAirQlouds.data[0].sites;
-          logObject("sites", sites);
-          if (sites && Array.isArray(sites)) {
-            // for (const site of sites) {
-            //   airqloudSites.concat(site._id);
-            // }
-            sites.map((element) => {
-              airqloudSites.concat(element._id);
-            });
+          let sites = responseFromListAirQloud.data[0].sites;
+          if (sites && Array.isArray(sites) && sites.length > 0) {
+            let sitesFromAirQloud = [];
+            for (const site of sites) {
+              sitesFromAirQloud.push(site._id.toString());
+            }
+            airqloudSites = sitesFromAirQloud.join(",");
           }
-          logElement("airqloudSites", airqloudSites);
           request.query.site_id = airqloudSites;
-        } else if (responseFromListAirQlouds.success === false) {
-          return responseFromListAirQlouds;
+        } else if (responseFromListAirQloud.success === false) {
+          return responseFromListAirQloud;
         }
-        // logElement("airqloudSites", airqloudSites);
-        logObject("request.query", request.query);
+      }
+
+      if (query.lat_long) {
+        /**
+         * go ahead and retrieve the nearest sites
+         * afterwards, just return the measurements accordingly
+         */
       }
 
       const responseFromFilter = generateFilter.events_v2(request);
@@ -1016,6 +1017,8 @@ const createEvent = {
       device_id,
       site,
       site_id,
+      airqloud_id,
+      airqloud,
       tenant,
       skip,
       limit,
@@ -1040,6 +1043,8 @@ const createEvent = {
       device_number ? device_number : "noDeviceNumber"
     }_${metadata ? metadata : "noMetadata"}_${
       external ? external : "noExternal"
+    }_${airqloud ? airqloud : "noAirQloud"}_${
+      airqloud_id ? airqloud_id : "noAirQloudID"
     }`;
   },
   getEventsCount: async (request) => {},
@@ -1718,7 +1723,9 @@ const createEvent = {
 
     if (!responseFromTransformMeasurements.success) {
       logger.error(
-        `internal server error -- unable to transform measurements -- ${responseFromTransformMeasurements.message}, ${JSON.stringify(measurements)}`
+        `internal server error -- unable to transform measurements -- ${
+          responseFromTransformMeasurements.message
+        }, ${JSON.stringify(measurements)}`
       );
     }
 
