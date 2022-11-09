@@ -118,7 +118,7 @@ const centerPointSchema = new Schema(
 
 const airqloudSchema = new Schema(
   {
-    location: { type: geometrySchema },
+    location: { type: polygonSchema },
     center_point: { type: centerPointSchema },
     name: {
       type: String,
