@@ -46,7 +46,7 @@ spec:
   host: platform.airqo.net
   upstreams:
     - name: platform-ui
-      service: airqo-platform-svc
+      service: airqo-platform-frontend-svc
       port: 80
     - name: auth-service
       service: airqo-auth-api-svc
