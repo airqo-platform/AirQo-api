@@ -322,6 +322,7 @@ const createEvent = {
         skip,
         limit,
         page,
+        lat_long,
       } = query;
       let request = {};
       request["query"] = {};
@@ -340,6 +341,7 @@ const createEvent = {
       request["query"]["tenant"] = tenant;
       request["query"]["network"] = network;
       request["query"]["recent"] = recent;
+      request["query"]["lat_long"] = lat_long;
       request["query"]["skip"] = parseInt(skip);
       request["query"]["limit"] = parseInt(limit);
       request["query"]["page"] = parseInt(page);

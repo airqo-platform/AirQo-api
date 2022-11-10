@@ -29,6 +29,8 @@ const {
   formatDate,
 } = require("./date");
 
+const createSiteUtil = require("./create-site");
+
 const { Parser } = require("json2csv");
 
 const httpStatus = require("http-status");
@@ -411,13 +413,23 @@ const createEvent = {
         if (responseFromListAirQloud.success === true) {
           filter = {};
           if (responseFromListAirQloud.data.length > 1) {
-            return {
+            callback({
               success: false,
               message: "AirQloud search returned more than one result",
               status: HTTPStatus.NOT_FOUND,
-            };
+            });
           }
-          let sites = responseFromListAirQloud.data[0].sites;
+          if (isEmpty(responseFromListAirQloud.data[0])) {
+            callback({
+              success: false,
+              data: [],
+              status: 404,
+              message: responseFromListAirQloud.message,
+            });
+          }
+          let sites = responseFromListAirQloud.data[0]
+            ? responseFromListAirQloud.data[0].sites
+            : [];
           if (sites && Array.isArray(sites) && sites.length > 0) {
             let sitesFromAirQloud = [];
             for (const site of sites) {
@@ -427,15 +439,57 @@ const createEvent = {
           }
           request.query.site_id = airqloudSites;
         } else if (responseFromListAirQloud.success === false) {
-          return responseFromListAirQloud;
+          callback({
+            success: false,
+            data: [],
+            status: responseFromListAirQloud.status,
+            message: responseFromListAirQloud.message,
+          });
         }
       }
 
       if (query.lat_long) {
-        /**
-         * go ahead and retrieve the nearest sites
-         * afterwards, just return the measurements accordingly
-         */
+        const arrayOfCoordinates = query.lat_long.split(",");
+        let latitude = parseInt(arrayOfCoordinates[0]);
+        let longitude = parseInt(arrayOfCoordinates[1]);
+
+        let requestBodyForFindingNearestSite = {};
+        requestBodyForFindingNearestSite["latitude"] = latitude;
+        requestBodyForFindingNearestSite["longitude"] = longitude;
+        requestBodyForFindingNearestSite["tenant"] = query.tenant
+          ? query.tenant
+          : "airqo";
+        requestBodyForFindingNearestSite["radius"] = query.radius
+          ? query.radius
+          : 5;
+
+        const responseFromFindNearestSiteByCoordinates = await createSiteUtil.findNearestSitesByCoordinates(
+          requestBodyForFindingNearestSite
+        );
+
+        if (responseFromFindNearestSiteByCoordinates.success === true) {
+          if (
+            Array.isArray(responseFromFindNearestSiteByCoordinates.data) &&
+            responseFromFindNearestSiteByCoordinates.data.length > 0
+          ) {
+            const stringifySiteObjects = [];
+
+            responseFromFindNearestSiteByCoordinates.data.forEach((element) => {
+              stringifySiteObjects.push(element._id.toString());
+            });
+            request.query.site_id = stringifySiteObjects.join(",");
+          } else {
+            logger.error(
+              `no Site is within a 5 KM radius to the provided coordinates`
+            );
+          }
+        } else if (responseFromFindNearestSiteByCoordinates.success === false) {
+          logger.error(
+            `unable to find the nearest Site -- ${JSON.parse(
+              responseFromFindNearestSiteByCoordinates.errors
+            )}`
+          );
+        }
       }
 
       const responseFromFilter = generateFilter.events_v2(request);
@@ -498,13 +552,17 @@ const createEvent = {
                 const status = responseFromListEvents.status
                   ? responseFromListEvents.status
                   : "";
-                callback({
-                  success: true,
-                  message: responseFromListEvents.message,
-                  data,
-                  status,
-                  isCache: false,
-                });
+                try {
+                  callback({
+                    success: true,
+                    message: responseFromListEvents.message,
+                    data,
+                    status,
+                    isCache: false,
+                  });
+                } catch (error) {
+                  logger.error(`listing events -- ${JSON.stringify(error)}`);
+                }
               } else if (responseFromListEvents.success === false) {
                 const status = responseFromListEvents.status
                   ? responseFromListEvents.status
@@ -535,6 +593,7 @@ const createEvent = {
         }
       });
     } catch (error) {
+      logObject("error", error);
       logger.error(`internal server error -- ${error.message}`);
       callback({
         success: false,
