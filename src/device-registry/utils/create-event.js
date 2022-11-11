@@ -1,4 +1,6 @@
 const EventModel = require("../models/Event");
+const AirQloudSchema = require("../models/Airqloud");
+const { getModelByTenant } = require("./multitenancy");
 const MeasurementModel = require("../models/Measurement");
 const { logObject, logElement, logText } = require("./log");
 const constants = require("../config/constants");
@@ -27,9 +29,12 @@ const {
   formatDate,
 } = require("./date");
 
+const createSiteUtil = require("./create-site");
+
 const { Parser } = require("json2csv");
 
 const httpStatus = require("http-status");
+const createAirqloudUtil = require("./create-airqloud");
 
 const createEvent = {
   getMeasurementsFromBigQuery: async (req) => {
@@ -387,16 +392,110 @@ const createEvent = {
   list: async (request, callback) => {
     try {
       const { query } = request;
-      let { recent, tenant, device } = query;
+      let { recent, tenant, device, site_id } = query;
       let page = parseInt(query.page);
-      let limit = parseInt(query.limit);
+      let limit = parseInt(query.limit) || 0;
       let skip = parseInt(query.skip);
       let filter = {};
+
+      let airqloudSites = site_id ? site_id : "";
+      if (query.airqloud_id) {
+        let filter = generateFilter.airqlouds(request);
+        let responseFromListAirQloud = await getModelByTenant(
+          tenant.toLowerCase(),
+          "airqloud",
+          AirQloudSchema
+        ).list({
+          filter,
+          limit,
+          skip,
+        });
+        if (responseFromListAirQloud.success === true) {
+          filter = {};
+          if (responseFromListAirQloud.data.length > 1) {
+            callback({
+              success: false,
+              message: "AirQloud search returned more than one result",
+              status: HTTPStatus.NOT_FOUND,
+            });
+          }
+          if (isEmpty(responseFromListAirQloud.data[0])) {
+            callback({
+              success: false,
+              data: [],
+              status: 404,
+              message: responseFromListAirQloud.message,
+            });
+          }
+          let sites = responseFromListAirQloud.data[0]
+            ? responseFromListAirQloud.data[0].sites
+            : [];
+          if (sites && Array.isArray(sites) && sites.length > 0) {
+            let sitesFromAirQloud = [];
+            for (const site of sites) {
+              sitesFromAirQloud.push(site._id.toString());
+            }
+            airqloudSites = sitesFromAirQloud.join(",");
+          }
+          request.query.site_id = airqloudSites;
+        } else if (responseFromListAirQloud.success === false) {
+          callback({
+            success: false,
+            data: [],
+            status: responseFromListAirQloud.status,
+            message: responseFromListAirQloud.message,
+          });
+        }
+      }
+
+      if (query.lat_long) {
+        const arrayOfCoordinates = query.lat_long.split(",");
+        let latitude = parseInt(arrayOfCoordinates[0]);
+        let longitude = parseInt(arrayOfCoordinates[1]);
+
+        let requestBodyForFindingNearestSite = {};
+        requestBodyForFindingNearestSite["latitude"] = latitude;
+        requestBodyForFindingNearestSite["longitude"] = longitude;
+        requestBodyForFindingNearestSite["tenant"] = query.tenant
+          ? query.tenant
+          : "airqo";
+        requestBodyForFindingNearestSite["radius"] = query.radius
+          ? query.radius
+          : 5;
+
+        const responseFromFindNearestSiteByCoordinates = await createSiteUtil.findNearestSitesByCoordinates(
+          requestBodyForFindingNearestSite
+        );
+
+        if (responseFromFindNearestSiteByCoordinates.success === true) {
+          if (
+            Array.isArray(responseFromFindNearestSiteByCoordinates.data) &&
+            responseFromFindNearestSiteByCoordinates.data.length > 0
+          ) {
+            const stringifySiteObjects = [];
+
+            responseFromFindNearestSiteByCoordinates.data.forEach((element) => {
+              stringifySiteObjects.push(element._id.toString());
+            });
+            request.query.site_id = stringifySiteObjects.join(",");
+          } else {
+            logger.error(
+              `no Site is within a 5 KM radius to the provided coordinates`
+            );
+          }
+        } else if (responseFromFindNearestSiteByCoordinates.success === false) {
+          logger.error(
+            `unable to find the nearest Site -- ${JSON.parse(
+              responseFromFindNearestSiteByCoordinates.errors
+            )}`
+          );
+        }
+      }
+
       const responseFromFilter = generateFilter.events_v2(request);
       if (responseFromFilter.success === true) {
         filter = responseFromFilter.data;
-      }
-      if (responseFromFilter.success === false) {
+      } else if (responseFromFilter.success === false) {
         const errors = responseFromFilter.errors
           ? responseFromFilter.errors
           : { message: "" };
@@ -445,8 +544,7 @@ const createEvent = {
                 createEvent.setCache(data, request, (result) => {
                   if (result.success === true) {
                     logText(result.message);
-                  }
-                  if (result.success === false) {
+                  } else if (result.success === false) {
                     logText(result.message);
                   }
                 });
@@ -454,13 +552,17 @@ const createEvent = {
                 const status = responseFromListEvents.status
                   ? responseFromListEvents.status
                   : "";
-                callback({
-                  success: true,
-                  message: responseFromListEvents.message,
-                  data,
-                  status,
-                  isCache: false,
-                });
+                try {
+                  callback({
+                    success: true,
+                    message: responseFromListEvents.message,
+                    data,
+                    status,
+                    isCache: false,
+                  });
+                } catch (error) {
+                  logger.error(`listing events -- ${JSON.stringify(error)}`);
+                }
               } else if (responseFromListEvents.success === false) {
                 const status = responseFromListEvents.status
                   ? responseFromListEvents.status
@@ -491,6 +593,7 @@ const createEvent = {
         }
       });
     } catch (error) {
+      logObject("error", error);
       logger.error(`internal server error -- ${error.message}`);
       callback({
         success: false,
@@ -973,6 +1076,8 @@ const createEvent = {
       device_id,
       site,
       site_id,
+      airqloud_id,
+      airqloud,
       tenant,
       skip,
       limit,
@@ -997,6 +1102,8 @@ const createEvent = {
       device_number ? device_number : "noDeviceNumber"
     }_${metadata ? metadata : "noMetadata"}_${
       external ? external : "noExternal"
+    }_${airqloud ? airqloud : "noAirQloud"}_${
+      airqloud_id ? airqloud_id : "noAirQloudID"
     }`;
   },
   getEventsCount: async (request) => {},
@@ -1675,7 +1782,9 @@ const createEvent = {
 
     if (!responseFromTransformMeasurements.success) {
       logger.error(
-        `internal server error -- unable to transform measurements -- ${responseFromTransformMeasurements.message}, ${JSON.stringify(measurements)}`
+        `internal server error -- unable to transform measurements -- ${
+          responseFromTransformMeasurements.message
+        }, ${JSON.stringify(measurements)}`
       );
     }
 

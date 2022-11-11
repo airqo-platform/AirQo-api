@@ -1306,8 +1306,7 @@ const manageSite = {
           message: "successfully retrieved the nearest sites",
           status,
         };
-      }
-      if (responseFromListSites.success === false) {
+      } else if (responseFromListSites.success === false) {
         let status = responseFromListSites.status
           ? responseFromListSites.status
           : "";

@@ -522,9 +522,7 @@ const manageSite = {
           message: responseFromFindNearestSite.message,
           sites: nearestSites,
         });
-      }
-
-      if (responseFromFindNearestSite.success === false) {
+      } else if (responseFromFindNearestSite.success === false) {
         let errors = responseFromFindNearestSite.errors
           ? responseFromFindNearestSite.errors
           : "";
