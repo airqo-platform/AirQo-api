@@ -44,7 +44,7 @@ public class MessageBroker {
 	@KafkaListener(topics = "#{'${spring.kafka.consumer.topics.insights}'.split(',')}",
 		clientIdPrefix = "insights-partition-1",
 		topicPartitions = @TopicPartition(
-			topic = "#{'${spring.kafka.consumer.topics.insights}'}", partitions = { "1" }))
+			topic = "#{'${spring.kafka.consumer.topics.insights}'}", partitions = {"1"}))
 	public void appForecastInsights(String content) {
 		log.info("\n");
 		log.info("Partition 1");
@@ -54,7 +54,7 @@ public class MessageBroker {
 	@KafkaListener(topics = "#{'${spring.kafka.consumer.topics.insights}'.split(',')}",
 		clientIdPrefix = "insights-partition-2",
 		topicPartitions = @TopicPartition(
-			topic = "#{'${spring.kafka.consumer.topics.insights}'}", partitions = { "2" }))
+			topic = "#{'${spring.kafka.consumer.topics.insights}'}", partitions = {"2"}))
 	public void appPlaceHolderInsights(String content) {
 		log.info("\n");
 		log.info("Partition 2");
