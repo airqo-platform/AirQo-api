@@ -255,7 +255,6 @@ const createEvent = {
       ) {
         bqQuery = queryStatementReference;
       }
-
       // logObject("bqQuery", bqQuery);
       const options = {
         query: bqQuery,
@@ -414,37 +413,58 @@ const createEvent = {
           filter = {};
           if (responseFromListAirQloud.data.length > 1) {
             callback({
-              success: false,
-              message: "AirQloud search returned more than one result",
-              status: HTTPStatus.NOT_FOUND,
+              success: true,
+              message: "No distinct AirQloud found in this search",
+              status: HTTPStatus.OK,
+              data: [],
             });
+          } else if (isEmpty(responseFromListAirQloud.data[0])) {
+            const status = HTTPStatus.OK;
+            callback({
+              success: true,
+              data: [],
+              status,
+              message: "No distinct AirQloud found in this search",
+            });
+          } else {
+            let sites = responseFromListAirQloud.data[0]
+              ? responseFromListAirQloud.data[0].sites
+              : [];
+            if (sites && Array.isArray(sites) && sites.length > 0) {
+              let sitesFromAirQloud = [];
+              for (const site of sites) {
+                sitesFromAirQloud.push(site._id.toString());
+              }
+              airqloudSites = sitesFromAirQloud.join(",");
+            }
+            if (isEmpty(airqloudSites)) {
+              const status = HTTPStatus.OK;
+              try {
+                callback({
+                  success: true,
+                  message: `Unable to find any sites associated with the provided AirQloud ID`,
+                  data: [],
+                  status,
+                  isCache: false,
+                });
+              } catch (error) {
+                logger.error(`listing events -- ${JSON.stringify(error)}`);
+              }
+            } else {
+              request.query.site_id = airqloudSites;
+            }
           }
-          if (isEmpty(responseFromListAirQloud.data[0])) {
+        } else if (responseFromListAirQloud.success === false) {
+          try {
             callback({
               success: false,
               data: [],
-              status: 404,
+              status: responseFromListAirQloud.status,
               message: responseFromListAirQloud.message,
             });
+          } catch (error) {
+            logger.error(`listing events -- ${JSON.stringify(error)}`);
           }
-          let sites = responseFromListAirQloud.data[0]
-            ? responseFromListAirQloud.data[0].sites
-            : [];
-          if (sites && Array.isArray(sites) && sites.length > 0) {
-            let sitesFromAirQloud = [];
-            for (const site of sites) {
-              sitesFromAirQloud.push(site._id.toString());
-            }
-            airqloudSites = sitesFromAirQloud.join(",");
-          }
-          request.query.site_id = airqloudSites;
-        } else if (responseFromListAirQloud.success === false) {
-          callback({
-            success: false,
-            data: [],
-            status: responseFromListAirQloud.status,
-            message: responseFromListAirQloud.message,
-          });
         }
       }
 
@@ -461,7 +481,7 @@ const createEvent = {
           : "airqo";
         requestBodyForFindingNearestSite["radius"] = query.radius
           ? query.radius
-          : 5;
+          : constants.DEFAULT_NEAREST_SITE_RADIUS;
 
         const responseFromFindNearestSiteByCoordinates = await createSiteUtil.findNearestSitesByCoordinates(
           requestBodyForFindingNearestSite
@@ -473,25 +493,36 @@ const createEvent = {
             responseFromFindNearestSiteByCoordinates.data.length > 0
           ) {
             const stringifySiteObjects = [];
-
             responseFromFindNearestSiteByCoordinates.data.forEach((element) => {
               stringifySiteObjects.push(element._id.toString());
             });
             request.query.site_id = stringifySiteObjects.join(",");
           } else {
+            const status = HTTPStatus.OK;
+            try {
+              callback({
+                success: true,
+                message: `No Site is within a ${constants.DEFAULT_NEAREST_SITE_RADIUS} KM radius to the provided coordinates`,
+                data: [],
+                status,
+                isCache: false,
+              });
+            } catch (error) {
+              logger.error(`listing events -- ${JSON.stringify(error)}`);
+            }
+
             logger.error(
-              `no Site is within a 5 KM radius to the provided coordinates`
+              `no Site is within a ${constants.DEFAULT_NEAREST_SITE_RADIUS} KM radius to the provided coordinates`
             );
           }
         } else if (responseFromFindNearestSiteByCoordinates.success === false) {
           logger.error(
-            `unable to find the nearest Site -- ${JSON.parse(
+            `unable to find the nearest Site -- ${JSON.stringify(
               responseFromFindNearestSiteByCoordinates.errors
             )}`
           );
         }
       }
-
       const responseFromFilter = generateFilter.events_v2(request);
       if (responseFromFilter.success === true) {
         filter = responseFromFilter.data;
@@ -505,7 +536,11 @@ const createEvent = {
       createEvent.getCache(request, async (result) => {
         if (result.success === true) {
           logText(result.message);
-          callback(result.data);
+          try {
+            callback(result.data);
+          } catch (error) {
+            logger.error(`listing events -- ${JSON.stringify(error)}`);
+          }
         }
         if (result.success === false) {
           await getDevicesCount(request, async (result) => {
@@ -540,7 +575,8 @@ const createEvent = {
                 page,
               });
               if (responseFromListEvents.success === true) {
-                const data = cleanDeep(responseFromListEvents.data);
+                // const data = cleanDeep(responseFromListEvents.data);
+                const data = responseFromListEvents.data;
                 createEvent.setCache(data, request, (result) => {
                   if (result.success === true) {
                     logText(result.message);
@@ -575,13 +611,17 @@ const createEvent = {
                   `unable to retrieve events --- ${JSON.stringify(errors)}`
                 );
 
-                callback({
-                  success: false,
-                  message: responseFromListEvents.message,
-                  errors,
-                  status,
-                  isCache: false,
-                });
+                try {
+                  callback({
+                    success: false,
+                    message: responseFromListEvents.message,
+                    errors,
+                    status,
+                    isCache: false,
+                  });
+                } catch (error) {
+                  logger.error(`listing events -- ${JSON.stringify(error)}`);
+                }
               }
             } else if (result.success === false) {
               logger.error(

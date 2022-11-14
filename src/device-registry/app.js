@@ -16,8 +16,8 @@ const { runKafkaConsumer, runKafkaProducer } = require("./config/kafkajs");
 
 mongodb;
 
-runKafkaProducer();
-runKafkaConsumer();
+// runKafkaProducer();
+// runKafkaConsumer();
 const moesif = require("moesif-nodejs");
 const compression = require("compression");
 
