@@ -40,7 +40,6 @@ const createAirqloud = {
       } else if (entity === "airqloud") {
         entityInstance = createAirqloud;
       }
-
       const responseFromListAirQloud = await entityInstance.list(request);
 
       if (responseFromListAirQloud.success === true) {
@@ -324,8 +323,7 @@ const createAirqloud = {
       if (responseFromRetrieveCoordinates.success === true) {
         requestForUpdateAirQloud["body"]["location"]["coordinates"] =
           responseFromRetrieveCoordinates.data.coordinates[0];
-      }
-      if (responseFromRetrieveCoordinates.success === false) {
+      } else if (responseFromRetrieveCoordinates.success === false) {
         return responseFromRetrieveCoordinates;
       }
 

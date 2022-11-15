@@ -619,6 +619,7 @@ eventSchema.statics = {
         return {
           success: true,
           data,
+          message: "successfully returned the measurements",
           status: httpStatus.OK,
         };
       }
@@ -735,6 +736,7 @@ eventSchema.statics = {
           .allowDiskUse(true);
         return {
           success: true,
+          message: "successfully returned the measurements",
           data,
           status: httpStatus.OK,
         };

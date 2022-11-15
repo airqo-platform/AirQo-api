@@ -6,6 +6,7 @@ const isEmpty = require("is-empty");
 const HTTPStatus = require("http-status");
 const constants = require("../config/constants");
 const log4js = require("log4js");
+const { stringify } = require("qs");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-airqloud-model`
 );
@@ -14,13 +15,66 @@ const polygonSchema = new Schema(
   {
     type: {
       type: String,
-      enum: ["Polygon", "Point"],
+      enum: ["Polygon"],
       required: true,
     },
     coordinates: {
       type: [[[Number]]],
       required: true,
     },
+  },
+  { _id: false }
+);
+
+const pointSchema = new Schema(
+  {
+    type: {
+      type: String,
+      enum: ["Point"],
+      required: true,
+    },
+    coordinates: {
+      type: [Number],
+      required: true,
+    },
+  },
+  { _id: false }
+);
+
+const multiPolygonSchema = new Schema(
+  {
+    type: {
+      type: String,
+      enum: ["MultiPolygon"],
+      required: true,
+    },
+    coordinates: {
+      type: [[[[Number]]]],
+      required: true,
+    },
+  },
+  { _id: false }
+);
+
+const geometrySchema = new Schema(
+  {
+    type: {
+      type: String,
+      enum: ["GeometryCollection"],
+      required: true,
+    },
+    geometries: [
+      {
+        type: polygonSchema,
+      },
+
+      {
+        type: pointSchema,
+      },
+      {
+        type: multiPolygonSchema,
+      },
+    ],
   },
   { _id: false }
 );
@@ -52,7 +106,7 @@ const metadataSchema = new Schema(
   { _id: false }
 );
 
-const pointSchema = new Schema(
+const centerPointSchema = new Schema(
   {
     longitude: { type: Number },
     latitude: { type: Number },
@@ -65,7 +119,7 @@ const pointSchema = new Schema(
 const airqloudSchema = new Schema(
   {
     location: { type: polygonSchema },
-    center_point: { type: pointSchema },
+    center_point: { type: centerPointSchema },
     name: {
       type: String,
       trim: true,
