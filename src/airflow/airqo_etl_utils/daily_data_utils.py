@@ -97,7 +97,7 @@ class DailyDataUtils:
         data = DataValidationUtils.process_for_big_query(
             dataframe=data,
             table=table,
-            tenant=Tenant.AIRQO,
+            tenant=Tenant.ALL,
         )
 
         bigquery_api.load_data(

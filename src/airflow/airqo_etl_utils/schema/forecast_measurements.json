@@ -1,0 +1,42 @@
+[
+    {
+        "name": "tenant",
+        "type": "STRING",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "timestamp",
+        "type": "TIMESTAMP",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "site_id",
+        "type": "STRING",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "device_number",
+        "type": "INTEGER",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "device_id",
+        "type": "STRING",
+        "mode": "NULLABLE"
+    },
+     {
+        "name": "pm2_5",
+        "type": "FLOAT",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "lower_confidence_interval",
+        "type": "FLOAT",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "upper_confidence_interval",
+        "type": "FLOAT",
+        "mode": "NULLABLE"
+    }
+]
