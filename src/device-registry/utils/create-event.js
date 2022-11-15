@@ -255,7 +255,6 @@ const createEvent = {
       ) {
         bqQuery = queryStatementReference;
       }
-
       // logObject("bqQuery", bqQuery);
       const options = {
         query: bqQuery,
@@ -391,6 +390,7 @@ const createEvent = {
 
   list: async (request, callback) => {
     try {
+      let missingDataMessage = "";
       const { query } = request;
       let { recent, tenant, device, site_id } = query;
       let page = parseInt(query.page);
@@ -413,38 +413,28 @@ const createEvent = {
         if (responseFromListAirQloud.success === true) {
           filter = {};
           if (responseFromListAirQloud.data.length > 1) {
-            callback({
-              success: false,
-              message: "AirQloud search returned more than one result",
-              status: HTTPStatus.NOT_FOUND,
-            });
-          }
-          if (isEmpty(responseFromListAirQloud.data[0])) {
-            callback({
-              success: false,
-              data: [],
-              status: 404,
-              message: responseFromListAirQloud.message,
-            });
-          }
-          let sites = responseFromListAirQloud.data[0]
-            ? responseFromListAirQloud.data[0].sites
-            : [];
-          if (sites && Array.isArray(sites) && sites.length > 0) {
-            let sitesFromAirQloud = [];
-            for (const site of sites) {
-              sitesFromAirQloud.push(site._id.toString());
+            missingDataMessage = "No distinct AirQloud found in this search";
+          } else if (isEmpty(responseFromListAirQloud.data[0])) {
+            missingDataMessage = "No distinct AirQloud found in this search";
+          } else {
+            let sites = responseFromListAirQloud.data[0]
+              ? responseFromListAirQloud.data[0].sites
+              : [];
+            if (sites && Array.isArray(sites) && sites.length > 0) {
+              let sitesFromAirQloud = [];
+              for (const site of sites) {
+                sitesFromAirQloud.push(site._id.toString());
+              }
+              airqloudSites = sitesFromAirQloud.join(",");
             }
-            airqloudSites = sitesFromAirQloud.join(",");
+            if (isEmpty(airqloudSites)) {
+              missingDataMessage = `Unable to find any sites associated with the provided AirQloud ID`;
+            } else {
+              request.query.site_id = airqloudSites;
+            }
           }
-          request.query.site_id = airqloudSites;
         } else if (responseFromListAirQloud.success === false) {
-          callback({
-            success: false,
-            data: [],
-            status: responseFromListAirQloud.status,
-            message: responseFromListAirQloud.message,
-          });
+          missingDataMessage = responseFromListAirQloud.message;
         }
       }
 
@@ -461,7 +451,7 @@ const createEvent = {
           : "airqo";
         requestBodyForFindingNearestSite["radius"] = query.radius
           ? query.radius
-          : 5;
+          : constants.DEFAULT_NEAREST_SITE_RADIUS;
 
         const responseFromFindNearestSiteByCoordinates = await createSiteUtil.findNearestSitesByCoordinates(
           requestBodyForFindingNearestSite
@@ -473,25 +463,25 @@ const createEvent = {
             responseFromFindNearestSiteByCoordinates.data.length > 0
           ) {
             const stringifySiteObjects = [];
-
             responseFromFindNearestSiteByCoordinates.data.forEach((element) => {
               stringifySiteObjects.push(element._id.toString());
             });
             request.query.site_id = stringifySiteObjects.join(",");
           } else {
+            missingDataMessage = `No Site is within a ${constants.DEFAULT_NEAREST_SITE_RADIUS} KM radius to the provided coordinates`;
             logger.error(
-              `no Site is within a 5 KM radius to the provided coordinates`
+              `no Site is within a ${constants.DEFAULT_NEAREST_SITE_RADIUS} KM radius to the provided coordinates`
             );
           }
         } else if (responseFromFindNearestSiteByCoordinates.success === false) {
+          missingDataMessage = responseFromFindNearestSiteByCoordinates.message;
           logger.error(
-            `unable to find the nearest Site -- ${JSON.parse(
+            `unable to find the nearest Site -- ${JSON.stringify(
               responseFromFindNearestSiteByCoordinates.errors
             )}`
           );
         }
       }
-
       const responseFromFilter = generateFilter.events_v2(request);
       if (responseFromFilter.success === true) {
         filter = responseFromFilter.data;
@@ -505,9 +495,12 @@ const createEvent = {
       createEvent.getCache(request, async (result) => {
         if (result.success === true) {
           logText(result.message);
-          callback(result.data);
-        }
-        if (result.success === false) {
+          try {
+            callback(result.data);
+          } catch (error) {
+            logger.error(`listing events -- ${JSON.stringify(error)}`);
+          }
+        } else if (result.success === false) {
           await getDevicesCount(request, async (result) => {
             if (result.success === true) {
               if ((device && !recent) || recent === "no") {
@@ -540,7 +533,8 @@ const createEvent = {
                 page,
               });
               if (responseFromListEvents.success === true) {
-                const data = cleanDeep(responseFromListEvents.data);
+                let data = responseFromListEvents.data;
+                data[0].data = missingDataMessage ? [] : data[0].data;
                 createEvent.setCache(data, request, (result) => {
                   if (result.success === true) {
                     logText(result.message);
@@ -552,10 +546,13 @@ const createEvent = {
                 const status = responseFromListEvents.status
                   ? responseFromListEvents.status
                   : "";
+
                 try {
                   callback({
                     success: true,
-                    message: responseFromListEvents.message,
+                    message: missingDataMessage
+                      ? missingDataMessage
+                      : responseFromListEvents.message,
                     data,
                     status,
                     isCache: false,
@@ -575,13 +572,17 @@ const createEvent = {
                   `unable to retrieve events --- ${JSON.stringify(errors)}`
                 );
 
-                callback({
-                  success: false,
-                  message: responseFromListEvents.message,
-                  errors,
-                  status,
-                  isCache: false,
-                });
+                try {
+                  callback({
+                    success: false,
+                    message: responseFromListEvents.message,
+                    errors,
+                    status,
+                    isCache: false,
+                  });
+                } catch (error) {
+                  logger.error(`listing events -- ${JSON.stringify(error)}`);
+                }
               }
             } else if (result.success === false) {
               logger.error(
@@ -593,12 +594,12 @@ const createEvent = {
         }
       });
     } catch (error) {
-      logObject("error", error);
       logger.error(`internal server error -- ${error.message}`);
       callback({
         success: false,
         errors: { message: error.message },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        message: "Internal Server Error",
       });
     }
   },
