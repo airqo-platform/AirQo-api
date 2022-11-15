@@ -1,2 +1,2 @@
 k8s/nginx/*/global-config.yaml
-k8s/*/templates/
+k8s/**/templates/
