@@ -47,7 +47,7 @@ affinity:
                 - general-purpose
 
 image:
-  repository: gcr.io/airqo-250220/airqo-auth-api
+  repository: gcr.io/airqo-250220/airqo-calibrate-api
   pullPolicy: Always
   tag: latest
 

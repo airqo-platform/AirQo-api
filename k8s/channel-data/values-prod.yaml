@@ -1,0 +1,41 @@
+app:
+  name: prod-update-channel-data-job
+  namespace: production
+  configmap: env-update-channel-data-production
+
+affinity:
+  nodeAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 10
+        preference:
+          matchExpressions:
+            - key: node-type
+              operator: In
+              values:
+                - compute
+
+image:
+  repository: gcr.io/airqo-250220/airqo-update-channel-data-job
+  pullPolicy: Always
+  tag: latest
+
+nameOverride: ""
+fullnameOverride: ""
+
+resources:
+  limits:
+    cpu: 500Mi
+    memory: 500Mi
+  requests:
+    # Average usage was 0.02 vCPU and 100Mi over the last 30 days
+    cpu: 20m
+    memory: 100Mi
+
+volumeMounts:
+  - name: config-volume
+    mountPath: /etc/config
+
+volumes:
+  - name: config-volume
+    configMap:
+      name: env-update-channel-data-production-files
