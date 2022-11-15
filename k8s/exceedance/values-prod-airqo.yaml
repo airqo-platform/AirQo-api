@@ -1,0 +1,12 @@
+app:
+  name: airqo-exceedance-job
+  namespace: staging
+  configmap: env-exceedance-production
+
+image:
+  repository: gcr.io/airqo-250220/airqo-exceedance-job
+  pullPolicy: Always
+  tag: latest
+
+nameOverride: ""
+fullnameOverride: ""
