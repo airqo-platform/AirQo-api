@@ -1,35 +1,97 @@
-# values for airqo-auth-api.
-env:
-  deployment_name: airqo-auth-api
-  service_name: airqo-auth-api-svc
-  labels: auth-api
-  secret: env-auth-production
+app:
+  name: airqo-auth-api
+  label: auth-api
+  namespace: production
+  configmap: prod-auth-api-config
 
-replicaCount: 2
+replicaCount: 3
+
+revisionHistoryLimit: 2
+
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 1
+    maxUnavailable: 1
+
+minReadySeconds: 5
+
+affinity:
+  nodeAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 10
+        preference:
+          matchExpressions:
+            - key: node-type
+              operator: In
+              values:
+                - high-memory
+      - weight: 1
+        preference:
+          matchExpressions:
+            - key: node-type
+              operator: In
+              values:
+                - general-purpose
 
 image:
-  repository: us.gcr.io/airqo-250220/airqo-auth-api
-  tag: latest
+  repository: gcr.io/airqo-250220/airqo-auth-api
   pullPolicy: Always
+  tag: latest
 
 imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
-service:
-  type: NodePort
-  nodePort: 30000
-  targetPort: 3000
-  port: 3000
+podAnnotations: {}
+
+podSecurityContext:
+  {}
+  # fsGroup: 2000
+
+securityContext:
+  {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+resources:
+  limits:
+    cpu: 100m
+    memory: 350Mi
+  requests:
+    # Average usage was 0.002 vCPU and 250Mi over the last 30 days
+    cpu: 10m
+    memory: 250Mi
+
+volumeMounts:
+  - name: config-volume
+    mountPath: /etc/config
+
+volumes:
+  - name: config-volume
+    configMap:
+      name: prod-auth-api-config-files
+
+nodeSelector: {}
+
+tolerations: []
 
 ingress:
   enabled: false
 
-nodeSelector: {}
-resources: {}
-affinity: {}
-torelations: {}
+service:
+  type: NodePort
+  port: 3000
+  protocol: TCP
+  targetPort: 3000
+  nodePort: 30000
 
-
-## Application level settings  
-appMode: production
+autoscaling:
+  minReplicas: 1
+  maxReplicas: 3
+  # targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 70

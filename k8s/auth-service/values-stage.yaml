@@ -1,35 +1,96 @@
-# values for airqo-auth-api.
-env:
-  deployment_name: airqo-stage-auth-api
-  service_name: airqo-stage-auth-api-svc
-  labels: sta-auth-api
-  secret: env-auth-staging
+app:
+  name: airqo-stage-auth-api
+  label: sta-auth-api
+  namespace: staging
+  configmap: stage-auth-api-config
 
 replicaCount: 2
 
+revisionHistoryLimit: 2
+
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 1
+    maxUnavailable: 1
+
+minReadySeconds: 5
+
+affinity:
+  nodeAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 10
+        preference:
+          matchExpressions:
+            - key: node-type
+              operator: In
+              values:
+                - high-memory
+      - weight: 1
+        preference:
+          matchExpressions:
+            - key: node-type
+              operator: In
+              values:
+                - general-purpose
+
 image:
-  repository: us.gcr.io/airqo-250220/airqo-stage-auth-api
-  tag: latest
+  repository: gcr.io/airqo-250220/airqo-stage-auth-api
   pullPolicy: Always
+  tag: latest
 
 imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
-service:
-  type: NodePort
-  nodePort: 31000
-  targetPort: 3000
-  port: 3000
+podAnnotations: {}
+
+podSecurityContext:
+  {}
+  # fsGroup: 2000
+
+securityContext:
+  {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+resources:
+  limits:
+    cpu: 100m
+    memory: 250Mi
+  requests:
+    # Average usage was 0.002 vCPU and 190Mi over the last 30 days
+    cpu: 10m
+    memory: 180Mi
+
+volumeMounts:
+  - name: config-volume
+    mountPath: /etc/config
+
+volumes:
+  - name: config-volume
+    configMap:
+      name: stage-auth-api-config-files
+
+nodeSelector: {}
+tolerations: []
 
 ingress:
   enabled: false
 
-nodeSelector: {}
-resources: {}
-affinity: {}
-torelations: {}
+service:
+  type: NodePort
+  port: 3000
+  protocol: TCP
+  targetPort: 3000
+  nodePort: 31000
 
-
-## Application level settings  
-appMode: staging
+autoscaling:
+  minReplicas: 1
+  maxReplicas: 2
+  # targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
