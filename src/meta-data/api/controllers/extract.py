@@ -1,5 +1,6 @@
 from flasgger import swag_from
 
+from api.models.extract import Extract
 from api.routes import api
 from flask import Blueprint, request, jsonify
 from api.models import extract as ext
@@ -118,6 +119,30 @@ def get_nearest_weather_stations():
         jsonify(
             dict(message="Operation successful", weather_stations=weather_stations)
         ),
+        200,
+    )
+
+
+@extract_bp.route(api.ADMINISTRATIVE_LEVELS, methods=["GET"])
+def get_administrative_levels():
+
+    place_id = request.args.get("place_id", None)
+
+    if not place_id:
+        return (
+            jsonify(
+                {
+                    "message": "place_id required",
+                    "errors": "place_id is missing in query parameters",
+                }
+            ),
+            400,
+        )
+
+    administrative_levels = Extract.get_administrative_levels(place_id)
+
+    return (
+        jsonify(dict(message="Operation successful", data=administrative_levels)),
         200,
     )
 
