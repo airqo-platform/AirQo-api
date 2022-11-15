@@ -1,0 +1,112 @@
+app:
+  name: airqo-stage-calibrate-api
+  label: sta-calibrate
+  namespace: staging
+  configmap: stage-calibrate-api-config
+
+initContainer:
+  image:
+    repository: gcr.io/airqo-250220/airqo-stage-calibrate-pickle-file
+    pullPolicy: Always
+    tag: latest
+
+env:
+  - name: RF_REG_MODEL
+    value: /usr/pickle-files/rf_reg_model.pkl
+  - name: LASSO_MODEL
+    value: /usr/pickle-files/lasso_model.pkl
+
+replicaCount: 2
+
+revisionHistoryLimit: 2
+
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 1
+    maxUnavailable: 1
+
+minReadySeconds: 5
+
+affinity:
+  nodeAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 10
+        preference:
+          matchExpressions:
+            - key: node-type
+              operator: In
+              values:
+                - high-memory
+      - weight: 1
+        preference:
+          matchExpressions:
+            - key: node-type
+              operator: In
+              values:
+                - general-purpose
+
+image:
+  repository: gcr.io/airqo-250220/airqo-stage-calibrate-api
+  pullPolicy: Always
+  tag: latest
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+podAnnotations: {}
+
+podSecurityContext:
+  {}
+  # fsGroup: 2000
+
+securityContext:
+  {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+resources:
+  limits:
+    cpu: 100m
+    memory: 400Mi
+  requests:
+    # Average usage was 0.0005 vCPU and 200Mi over the last 30 days
+    cpu: 10m
+    memory: 200Mi
+
+volumeMounts:
+  - name: config-volume
+    mountPath: /etc/config
+  - name: shared-data
+    mountPath: /usr/pickle-files
+
+volumes:
+  - name: config-volume
+    configMap:
+      name: stage-calibrate-api-config-files
+  - name: shared-data
+    emptyDir: {}
+
+nodeSelector: {}
+tolerations: []
+
+ingress:
+  enabled: false
+
+service:
+  type: NodePort
+  port: 4001
+  protocol: TCP
+  targetPort: 4001
+  nodePort: 31011
+
+autoscaling:
+  minReplicas: 1
+  maxReplicas: 2
+  # targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
