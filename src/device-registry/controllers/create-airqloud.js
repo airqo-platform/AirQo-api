@@ -53,9 +53,7 @@ const createAirqloud = {
           message: responseFromCreateAirQloud.message,
           airqloud: responseFromCreateAirQloud.data,
         });
-      }
-
-      if (responseFromCreateAirQloud.success === false) {
+      } else if (responseFromCreateAirQloud.success === false) {
         let status = responseFromCreateAirQloud.status
           ? responseFromCreateAirQloud.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
@@ -248,8 +246,7 @@ const createAirqloud = {
           message: responseFromRefreshAirQloud.message,
           refreshed_airqloud: responseFromRefreshAirQloud.data,
         });
-      }
-      if (responseFromRefreshAirQloud.success === false) {
+      } else if (responseFromRefreshAirQloud.success === false) {
         const status = responseFromRefreshAirQloud.status
           ? responseFromRefreshAirQloud.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;

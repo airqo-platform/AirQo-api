@@ -687,29 +687,29 @@ const manageSite = {
         }
       }
 
-      let responseFromGetRoadMetadata = await manageSite.getRoadMetadata(
-        latitude,
-        longitude
-      );
+      // let responseFromGetRoadMetadata = await manageSite.getRoadMetadata(
+      //   latitude,
+      //   longitude
+      // );
 
-      logObject("responseFromGetRoadMetadata", responseFromGetRoadMetadata);
+      // logObject("responseFromGetRoadMetadata", responseFromGetRoadMetadata);
 
-      if (responseFromGetRoadMetadata.success === true) {
-        roadResponseData = responseFromGetRoadMetadata.data;
-      } else if (responseFromGetRoadMetadata.success === false) {
-        let errors = responseFromGetRoadMetadata.errors
-          ? responseFromGetRoadMetadata.errors
-          : "";
-        try {
-          logger.error(
-            `unable to retrieve the road metadata, ${
-              responseFromGetRoadMetadata.message
-            } and ${JSON.stringify(errors)} `
-          );
-        } catch (error) {
-          logger.error(`internal server error -- ${error.message}`);
-        }
-      }
+      // if (responseFromGetRoadMetadata.success === true) {
+      //   roadResponseData = responseFromGetRoadMetadata.data;
+      // } else if (responseFromGetRoadMetadata.success === false) {
+      //   let errors = responseFromGetRoadMetadata.errors
+      //     ? responseFromGetRoadMetadata.errors
+      //     : "";
+      //   try {
+      //     logger.error(
+      //       `unable to retrieve the road metadata, ${
+      //         responseFromGetRoadMetadata.message
+      //       } and ${JSON.stringify(errors)} `
+      //     );
+      //   } catch (error) {
+      //     logger.error(`internal server error -- ${error.message}`);
+      //   }
+      // }
 
       let responseFromReverseGeoCode = await manageSite.reverseGeoCode(
         latitude,
@@ -1306,8 +1306,7 @@ const manageSite = {
           message: "successfully retrieved the nearest sites",
           status,
         };
-      }
-      if (responseFromListSites.success === false) {
+      } else if (responseFromListSites.success === false) {
         let status = responseFromListSites.status
           ? responseFromListSites.status
           : "";

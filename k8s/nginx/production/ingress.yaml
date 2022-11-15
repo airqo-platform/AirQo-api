@@ -34,7 +34,7 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: airqo-docs-svc
+                name: airqo-prod-docs-svc
                 port:
                   number: 3000
     - host: api.airqo.net
