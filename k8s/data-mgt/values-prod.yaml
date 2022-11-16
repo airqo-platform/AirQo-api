@@ -1,6 +1,6 @@
 app:
   name: airqo-data-mgt-api
-  label: airqo-data-mgt-api
+  label: data-mgt-api
   namespace: production
   configmap: data-mgt-api-config
 

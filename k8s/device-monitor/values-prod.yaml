@@ -1,6 +1,6 @@
 app:
   name: airqo-device-monitor-api
-  label: device-monitor-api
+  label: device-monitor
   namespace: production
   configmap: env-device-monitoring-production
 

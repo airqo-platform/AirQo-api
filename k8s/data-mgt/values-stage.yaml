@@ -1,6 +1,6 @@
 app:
   name: airqo-stage-data-mgt-api
-  label: airqo-stage-data-mgt-api
+  label: sta-data-mgt
   namespace: staging
   configmap: data-mgt-api-config
 

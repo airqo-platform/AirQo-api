@@ -1,7 +1,7 @@
 {{/*
 Expand the name of the chart.
 */}}
-{{- define ".name" -}}
+{{- define "data-mgt-api.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
@@ -10,7 +10,7 @@ Create a default fully qualified app name.
 We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
 If release name contains chart name it will be used as a full name.
 */}}
-{{- define ".fullname" -}}
+{{- define "data-mgt-api.fullname" -}}
 {{- if .Values.fullnameOverride }}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
@@ -26,16 +26,16 @@ If release name contains chart name it will be used as a full name.
 {{/*
 Create chart name and version as used by the chart label.
 */}}
-{{- define ".chart" -}}
+{{- define "data-mgt-api.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
 Common labels
 */}}
-{{- define ".labels" -}}
-helm.sh/chart: {{ include ".chart" . }}
-{{ include ".selectorLabels" . }}
+{{- define "data-mgt-api.labels" -}}
+helm.sh/chart: {{ include "data-mgt-api.chart" . }}
+{{ include "data-mgt-api.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
@@ -45,7 +45,7 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{/*
 Selector labels
 */}}
-{{- define ".selectorLabels" -}}
-app.kubernetes.io/name: {{ include ".name" . }}
+{{- define "data-mgt-api.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "data-mgt-api.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}

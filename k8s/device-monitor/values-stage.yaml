@@ -1,6 +1,6 @@
 app:
   name: airqo-stage-device-monitor-api
-  label: sta-device-monitor
+  label: device-monitor
   namespace: staging
   configmap: env-device-monitoring-staging
 
