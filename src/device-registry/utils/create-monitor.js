@@ -18,7 +18,6 @@ const logger = log4js.getLogger(
 
 const qs = require("qs");
 const QRCode = require("qrcode");
-const { kafkaProducer } = require("../config/kafkajs");
 const httpStatus = require("http-status");
 let devicesModel = (tenant) => {
   return getModelByTenant(tenant, "device", DeviceSchema);
