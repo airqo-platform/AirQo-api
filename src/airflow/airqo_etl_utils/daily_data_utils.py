@@ -7,9 +7,9 @@ from airqo_etl_utils.data_validator import DataValidationUtils
 
 class DailyDataUtils:
     @staticmethod
-    def aggregate_data(data: pd.DataFrame) -> pd.DataFrame:
+    def average_data(data: pd.DataFrame) -> pd.DataFrame:
 
-        aggregated_data = pd.DataFrame()
+        averaged_data = pd.DataFrame()
         data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
 
         for _, by_tenant in data.groupby("tenant"):
@@ -24,18 +24,18 @@ class DailyDataUtils:
                 del by_device["device_id"]
                 del by_device["device_number"]
 
-                device_average = by_device.resample("1D", on="timestamp").mean()
-                device_average["timestamp"] = device_average.index
-                device_average["device_id"] = device_id
-                device_average["site_id"] = site_id
-                device_average["device_number"] = device_number
-                device_average["tenant"] = tenant
+                device_averages = by_device.resample("1D", on="timestamp").mean()
+                device_averages["timestamp"] = device_averages.index
+                device_averages["device_id"] = device_id
+                device_averages["site_id"] = site_id
+                device_averages["device_number"] = device_number
+                device_averages["tenant"] = tenant
 
-                aggregated_data = pd.concat(
-                    [aggregated_data, device_average], ignore_index=True
+                averaged_data = pd.concat(
+                    [averaged_data, device_averages], ignore_index=True
                 )
 
-        return aggregated_data
+        return averaged_data
 
     @staticmethod
     def query_hourly_data(start_date_time, end_date_time) -> pd.DataFrame:

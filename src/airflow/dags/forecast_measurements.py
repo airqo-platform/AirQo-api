@@ -34,7 +34,7 @@ def cleanup_measurements():
         ForecastDataUtils.cleanup_and_reload(data=data)
 
     forecast_data = extract()
-    cleanup_and_load(data=forecast_data)
+    cleanup_and_load(forecast_data)
 
 
 @dag(
@@ -47,6 +47,7 @@ def cleanup_measurements():
 def realtime_forecast_measurements():
     import pandas as pd
 
+    @task()
     def extract():
         from airqo_etl_utils.forecast_data_utils import ForecastDataUtils
 
