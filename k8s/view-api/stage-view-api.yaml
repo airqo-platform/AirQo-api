@@ -83,6 +83,13 @@ spec:
             preStop:
               exec:
                 command: ["sh", "-c", "sleep 10"]
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/config
+      volumes:
+        - name: config-volume
+          configMap:
+            name: view-api-config-files
 
 ---
 kind: Service

@@ -14,14 +14,14 @@ import java.util.TimeZone;
 @EnableCaching
 public class ViewApplication {
 
+	public static void main(String[] args) {
+		SpringApplication.run(ViewApplication.class, args);
+	}
+
 	@PostConstruct
-	public void init(){
+	public void init() {
 		TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
 		System.out.println("Timezone set to UTC : " + new Date());
 	}
-
-    public static void main(String[] args) {
-        SpringApplication.run(ViewApplication.class, args);
-    }
 
 }
