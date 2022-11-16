@@ -2,11 +2,12 @@ import pandas as pd
 import requests
 
 from .config import configuration
+from .utils import Utils
 
 
 class TahmoApi:
     def __init__(self):
-        self.BASE_URL = configuration.TAHMO_BASE_URL
+        self.BASE_URL = Utils.remove_suffix(configuration.TAHMO_BASE_URL, suffix="/")
         self.API_MAX_PERIOD = configuration.TAHMO_API_MAX_PERIOD
         self.API_KEY = configuration.TAHMO_API_KEY
         self.API_SECRET = configuration.TAHMO_API_SECRET
@@ -33,15 +34,15 @@ class TahmoApi:
                     params,
                 )
 
-                if "results" in response and isinstance(response["results"], list):
+                if response and "results" in response:
                     results = response["results"]
                     values = results[0]["series"][0]["values"]
                     columns = results[0]["series"][0]["columns"]
 
                     station_measurements = pd.DataFrame(data=values, columns=columns)
 
-                    measurements = measurements.append(
-                        station_measurements[columns], ignore_index=True
+                    measurements = pd.concat(
+                        [measurements, station_measurements[columns]], ignore_index=True
                     )
 
             except Exception as ex:
@@ -62,4 +63,4 @@ class TahmoApi:
         if api_request.status_code == 200:
             return api_request.json()
         else:
-            return []
+            return None

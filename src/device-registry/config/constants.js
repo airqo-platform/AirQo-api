@@ -1,10 +1,6 @@
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
-
-const {
-  generateDateFormatWithoutHrs,
-  monthsInfront,
-} = require("../utils/date");
+const { generateDateFormatWithoutHrs } = require("../utils/date");
 
 const devConfig = {
   MONGO_URI: `mongodb://localhost/`,
@@ -55,6 +51,7 @@ const stageConfig = {
 };
 
 const defaultConfig = {
+  DEFAULT_NEAREST_SITE_RADIUS: process.env.DEFAULT_NEAREST_SITE_RADIUS,
   SLACK_TOKEN: process.env.SLACK_TOKEN,
   SLACK_CHANNEL: process.env.SLACK_CHANNEL,
   SLACK_USERNAME: process.env.SLACK_USERNAME,
@@ -81,8 +78,8 @@ const defaultConfig = {
     altitude: "altitude",
     greenness: "greenness",
     aspect: "aspect",
-    landform_270: "landform270",
-    landform_90: "landform90",
+    landform_270: "landform-270",
+    landform_90: "landform-90",
     bearing_to_kampala_center: "bearing",
     distance_to_kampala_center: "distance/kampala",
     distance_to_nearest_road: "distance/road",
@@ -91,17 +88,20 @@ const defaultConfig = {
     distance_to_nearest_primary_road: "distance/primary/road",
     distance_to_nearest_secondary_road: "distance/secondary/road",
     distance_to_nearest_unclassified_road: "distance/unclassified/road",
+    weather_stations: "nearest-weather-stations",
   },
   KEY_ENCRYPTION_KEY: process.env.KEY_ENCRYPTION_KEY,
-  GET_ROAD_METADATA: ({ path, latitude, longitude } = {}) => {
-    const today = monthsInfront(0);
-    const oneMonthAgo = monthsInfront(-1);
-    const endDate = generateDateFormatWithoutHrs(today);
-    const startDate = generateDateFormatWithoutHrs(oneMonthAgo);
+  GET_ROAD_METADATA: ({
+    path,
+    latitude,
+    longitude,
+    endDate,
+    startDate,
+  } = {}) => {
     if (path === "greenness") {
-      return `${process.env.PLATFORM_BASE_URL}/api/v1/datawarehouse/${path}?lat=${latitude}&lon=${longitude}&startDate=${startDate}&endDate=${endDate}`;
+      return `${process.env.PLATFORM_BASE_URL}/api/v1/meta-data/${path}?latitude=${latitude}&longitude=${longitude}&startDate=${startDate}&endDate=${endDate}`;
     }
-    return `${process.env.PLATFORM_BASE_URL}/api/v1/datawarehouse/${path}?lat=${latitude}&lon=${longitude}`;
+    return `${process.env.PLATFORM_BASE_URL}/api/v1/meta-data/${path}?latitude=${latitude}&longitude=${longitude}`;
   },
   GET_ADDRESS_URL: (lat, long) => {
     return `${process.env.MAPS_GOOGLEAPIS_BASE_URL}/maps/api/geocode/json?latlng=${lat},${long}&key=${process.env.GCP_KEY}`;
@@ -218,6 +218,7 @@ const defaultConfig = {
       site: "site",
       site_id: "site_id",
       tenant: "tenant",
+      network: "network",
       is_test_data: "is_test_data",
       is_device_primary: "is_device_primary",
 

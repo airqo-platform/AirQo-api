@@ -32,12 +32,13 @@ class WeatherDataUtils:
                 latitude=record.get("latitude"),
                 longitude=record.get("longitude"),
             )
-            data.append(
-                {
-                    **record,
-                    **{"weather_stations": weather_stations},
-                }
-            )
+            if len(weather_stations) > 0:
+                data.append(
+                    {
+                        **record,
+                        **{"weather_stations": weather_stations},
+                    }
+                )
 
         return data
 
@@ -197,6 +198,38 @@ class WeatherDataUtils:
             )
 
         return aggregated_data
+
+    @staticmethod
+    def remove_duplicates(data: pd.DataFrame) -> pd.DataFrame:
+        cols = data.columns.to_list()
+        cols.remove("timestamp")
+        cols.remove("station_code")
+        data.dropna(subset=cols, how="all", inplace=True)
+        data["timestamp"] = pd.to_datetime(data["timestamp"])
+
+        data["duplicated"] = data.duplicated(
+            keep=False, subset=["station_code", "timestamp"]
+        )
+
+        if True not in data["duplicated"].values:
+            return data
+
+        duplicated_data = data.loc[data["duplicated"]]
+        not_duplicated_data = data.loc[~data["duplicated"]]
+
+        for _, by_station in duplicated_data.groupby(by="station_code"):
+            for _, by_timestamp in by_station.groupby(by="timestamp"):
+                by_timestamp = by_timestamp.copy()
+                by_timestamp.fillna(inplace=True, method="ffill")
+                by_timestamp.fillna(inplace=True, method="bfill")
+                by_timestamp.drop_duplicates(
+                    subset=["station_code", "timestamp"], inplace=True, keep="first"
+                )
+                not_duplicated_data = pd.concat(
+                    [not_duplicated_data, by_timestamp], ignore_index=True
+                )
+
+        return not_duplicated_data
 
     @staticmethod
     def transform_for_bigquery(data: pd.DataFrame) -> pd.DataFrame:

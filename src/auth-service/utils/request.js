@@ -106,9 +106,7 @@ const request = {
               data: createdCandidate,
               status,
             });
-          }
-
-          if (responseFromSendEmail.success === false) {
+          } else if (responseFromSendEmail.success === false) {
             const errors = responseFromSendEmail.error
               ? responseFromSendEmail.error
               : "";
@@ -342,8 +340,7 @@ const request = {
                 };
               }
             }
-          }
-          if (responseFromCreateUser.success == false) {
+          } else if (responseFromCreateUser.success == false) {
             if (responseFromCreateUser.error) {
               return {
                 success: false,
@@ -357,9 +354,7 @@ const request = {
               };
             }
           }
-        }
-
-        if (responseFromGeneratePassword.success === false) {
+        } else if (responseFromGeneratePassword.success === false) {
           if (responseFromGeneratePassword.error) {
             return {
               success: false,
@@ -383,9 +378,7 @@ const request = {
           success: false,
           message: "the candidate does not exist",
         };
-      }
-
-      if (responseFromListCandidate.success === false) {
+      } else if (responseFromListCandidate.success === false) {
         if (responseFromListCandidate.error) {
           return {
             success: false,

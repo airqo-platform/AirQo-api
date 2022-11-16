@@ -238,6 +238,7 @@ const generateFilter = {
         tenant,
         recent,
         page,
+        network,
       } = query;
 
       let oneMonthBack = monthsInfront(-1);
@@ -269,7 +270,9 @@ const generateFilter = {
       if (!external) {
         filter["external"] = "yes";
       }
-
+      if (network) {
+        filter["values.network"] = network;
+      }
       if (tenant) {
         filter["tenant"] = tenant;
       }
@@ -536,6 +539,7 @@ const generateFilter = {
         device_id,
         device_number,
         category,
+        network,
       } = req.query;
 
       if (name) {
@@ -558,6 +562,10 @@ const generateFilter = {
 
       if (category) {
         filter["category"] = category;
+      }
+
+      if (network) {
+        filter["network"] = network;
       }
 
       if (device_number) {
@@ -653,6 +661,7 @@ const generateFilter = {
       parish,
       name,
       _id,
+      network,
       google_place_id,
     } = req.query;
     let filter = {};
@@ -663,6 +672,10 @@ const generateFilter = {
 
     if (county) {
       filter["county"] = county;
+    }
+
+    if (network) {
+      filter["network"] = network;
     }
 
     if (lat_long) {
@@ -712,11 +725,25 @@ const generateFilter = {
     return filter;
   },
   airqlouds: (req) => {
-    let { id, name, admin_level, summary } = req.query;
+    let {
+      id,
+      name,
+      admin_level,
+      summary,
+      airqloud_id,
+      network,
+      airqloud,
+    } = req.query;
     let filter = {};
 
     if (name) {
       filter["name"] = name;
+    } else if (airqloud) {
+      filter["name"] = airqloud;
+    }
+
+    if (network) {
+      filter["network"] = network;
     }
 
     if (summary === "yes") {
@@ -727,6 +754,10 @@ const generateFilter = {
       filter["_id"] = ObjectId(id);
     }
 
+    if (airqloud_id) {
+      filter["_id"] = ObjectId(airqloud_id);
+    }
+
     if (admin_level) {
       filter["admin_level"] = admin_level;
     }
@@ -735,15 +766,23 @@ const generateFilter = {
   },
 
   locations: (req) => {
-    let { id, name, admin_level } = req.query;
+    let { id, name, admin_level, summary, network } = req.query;
     let filter = {};
 
     if (id) {
       filter["_id"] = ObjectId(id);
     }
 
+    if (summary === "yes") {
+      filter["summary"] = summary;
+    }
+
     if (name) {
       filter["name"] = name;
+    }
+
+    if (network) {
+      filter["network"] = network;
     }
 
     if (admin_level) {
@@ -763,6 +802,7 @@ const generateFilter = {
       maintenance_type,
       startTime,
       endTime,
+      network,
       generated_name,
     } = req.query;
     let oneMonthBack = monthsInfront(-1);
@@ -784,6 +824,10 @@ const generateFilter = {
 
     if (generated_name) {
       filter["generated_name"] = generated_name;
+    }
+
+    if (network) {
+      filter["network"] = network;
     }
 
     if (maintenance_type) {
@@ -871,6 +915,7 @@ const generateFilter = {
       activity_tags,
       maintenance_type,
       site_id,
+      network,
     } = req.query;
 
     let filter = {
@@ -886,6 +931,10 @@ const generateFilter = {
     if (site_id) {
       filter["site_id"] = ObjectId(site_id);
     }
+    if (network) {
+      filter["network"] = network;
+    }
+
     if (activity_tags) {
       filter["tags"]["$in"] = activity_tags;
     }
@@ -905,7 +954,7 @@ const generateFilter = {
   },
 
   photos: (request) => {
-    let { id, device_id, device_number, device_name } = request.query;
+    let { id, device_id, device_number, device_name, network } = request.query;
     let filter = {};
     if (id) {
       filter["_id"] = ObjectId(id);
@@ -921,6 +970,10 @@ const generateFilter = {
 
     if (device_name) {
       filter["device_name"] = device_name;
+    }
+
+    if (network) {
+      filter["network"] = network;
     }
 
     return filter;

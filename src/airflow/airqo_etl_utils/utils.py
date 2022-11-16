@@ -3,6 +3,7 @@ import os
 from datetime import datetime, timedelta
 
 import pandas as pd
+import requests
 from requests import Response
 
 from .constants import ColumnDataType, Pollutant, AirQuality, DataSource
@@ -10,6 +11,26 @@ from .date import date_to_str
 
 
 class Utils:
+    @staticmethod
+    def get_country_boundaries(country):
+        response = requests.get(
+            f"https://nominatim.openstreetmap.org/search?q={country}&format=json"
+        )
+        bounding_box = response.json()[0]["boundingbox"]
+        return {
+            "west": float(bounding_box[0]),
+            "east": float(bounding_box[1]),
+            "south": float(bounding_box[2]),
+            "north": float(bounding_box[3]),
+        }
+
+    @staticmethod
+    def remove_suffix(string: str, suffix):
+        if string.endswith(suffix):
+            return string[: -len(suffix)]
+        else:
+            return string[:]
+
     @staticmethod
     def epa_pollutant_category(value: float, pollutant: Pollutant) -> str:
 
@@ -200,3 +221,51 @@ class Utils:
             return_dates.append((date_to_str(date), date_to_str(end)))
 
         return return_dates
+
+    @staticmethod
+    def year_months_query_array(year: int):
+        months = [
+            "01",
+            "02",
+            "03",
+            "04",
+            "05",
+            "06",
+            "07",
+            "08",
+            "09",
+            "10",
+            "11",
+            "12",
+        ]
+        last_month = months.pop()
+        dates = []
+        for month in months:
+            next_month = f"{int(month) + 1}"
+            if len(next_month) != 2:
+                next_month = f"0{next_month}"
+            dates.append(
+                (f"{year}-{month}-01T00:00:00Z", f"{year}-{next_month}-01T00:00:00Z")
+            )
+
+        dates.append(
+            (f"{year}-{last_month}-01T00:00:00Z", f"{int(year) + 1}-01-01T00:00:00Z")
+        )
+
+        return dates
+
+    @staticmethod
+    def test_data(data: pd.DataFrame, bucket_name: str, destination_file: str):
+        from google.cloud import storage
+
+        storage_client = storage.Client()
+        bucket = storage_client.bucket(bucket_name)
+        blob = bucket.blob(destination_file)
+        data.reset_index(drop=True, inplace=True)
+        blob.upload_from_string(data.to_csv(index=False), "text/csv")
+
+        print(
+            "{} with contents {} has been uploaded to {}.".format(
+                destination_file, len(data), bucket_name
+            )
+        )

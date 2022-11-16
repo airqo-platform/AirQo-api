@@ -16,26 +16,6 @@ class KafkaBrokerClient:
         #     headers={"Content-Type": "application/vnd.schemaregistry.v1+json"},
         # )
 
-    def get_topic_schema(self, topic: str) -> list:
-
-        if topic == self.bam_measurements_topic:
-            return [
-                "pm2_5",
-                "pm10",
-                "no2",
-                "latitude",
-                "longitude",
-                "timestamp",
-                "site_id",
-                "device_number",
-                "device_id",
-                "tenant",
-                "latitude",
-                "device",
-            ]
-        else:
-            raise Exception("Invalid topic")
-
     def get_partition(self, current_partition) -> int:
         current_partition = current_partition + 1
         if current_partition in self.__partitions:
@@ -54,9 +34,7 @@ class KafkaBrokerClient:
         print("\nFailed to send message")
         print(exception)
 
-    def send_data(self, topic: str, info: dict, partition: int = None):
-        data = info["data"]
-        tenant = info["tenant"] if "tenant" in info.keys() else ""
+    def send_data(self, topic: str, data: list, partition: int = None):
         # avro_serde = AvroKeyValueSerde(self.__registry_client, self.__output_topic)
         # bytes_data = avro_serde.value.serialize(measurements, schema_str)
         producer = KafkaProducer(
@@ -67,12 +45,11 @@ class KafkaBrokerClient:
         )
 
         if len(data) > 50:
-            action = info["action"]
             current_partition = -1
             for i in range(0, len(data), 50):
                 range_data = data[i : i + 50]
 
-                message = {"data": range_data, "action": action, "tenant": tenant}
+                message = {"data": range_data}
 
                 current_partition = (
                     partition
@@ -87,7 +64,7 @@ class KafkaBrokerClient:
                 ).add_callback(self.on_success).add_errback(self.on_error)
 
         else:
-            value = simplejson.dumps(info, ignore_nan=True).encode("utf-8")
+            value = simplejson.dumps(data, ignore_nan=True).encode("utf-8")
             if partition:
                 producer.send(
                     topic=topic,

@@ -57,6 +57,24 @@ class DataSource(Enum):
     PURPLE_AIR = 7
     BIGQUERY = 8
 
+    def __str__(self) -> str:
+        if self == self.THINGSPEAK:
+            return "thingspeak"
+        elif self == self.CLARITY:
+            return "clarity"
+        elif self == self.PLUME_LABS:
+            return "plume_labs"
+        elif self == self.AIRNOW:
+            return "airnow"
+        elif self == self.TAHMO:
+            return "tahmo"
+        elif self == self.AIRQO:
+            return "airqo"
+        elif self == self.PURPLE_AIR:
+            return "purple_air"
+        else:
+            return ""
+
 
 class QueryType(Enum):
     GET = 1
@@ -85,6 +103,45 @@ class Tenant(Enum):
         else:
             return ""
 
+    @staticmethod
+    def from_str(string: str):
+        if string.lower() == "nasa":
+            return Tenant.NASA
+        elif string.lower() == "urban_better":
+            return Tenant.URBAN_BETTER
+        elif string.lower() == "kcca":
+            return Tenant.KCCA
+        elif string.lower() == "us_embassy":
+            return Tenant.US_EMBASSY
+        else:
+            return Tenant.AIRQO
+
+    def name(self) -> str:
+        if self == self.NASA:
+            return "Nasa"
+        elif self == self.URBAN_BETTER:
+            return "Urban Better"
+        elif self == self.AIRQO:
+            return "AirQo"
+        elif self == self.KCCA:
+            return "KCCA"
+        elif self == self.US_EMBASSY:
+            return "US Embassy"
+        else:
+            return ""
+
+    def device_manufacturer(self) -> str:
+        if self == self.NASA:
+            return str(DataSource.PLUME_LABS)
+        elif self == self.AIRQO:
+            return str(DataSource.THINGSPEAK)
+        elif self == self.KCCA:
+            return str(DataSource.CLARITY)
+        elif self == self.US_EMBASSY:
+            return str(DataSource.AIRNOW)
+        else:
+            return ""
+
 
 class JobAction(Enum):
     APPEND = 1
@@ -103,16 +160,19 @@ class ColumnDataType(Enum):
     TIMESTAMP = 1
     FLOAT = 2
     TIMESTAMP_STR = 3
-    INTEGER = 4
-    NONE = 5
+    STRING = 4
+    INTEGER = 5
+    NONE = 6
 
-    def to_string(self):
+    def __str__(self):
         if self == self.TIMESTAMP:
             return "TIMESTAMP"
         elif self == self.FLOAT:
             return "FLOAT"
         elif self == self.INTEGER:
             return "INTEGER"
+        elif self == self.STRING:
+            return "STRING"
         elif self == self.TIMESTAMP_STR:
             return "TIMESTAMP_STR"
         else:

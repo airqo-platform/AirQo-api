@@ -22,7 +22,7 @@ FROM base as dev
 CMD [ "npm", "run", "dev-mac" ]
 
 FROM base as staging
-CMD [ "npm", "run", "stage-mac" ]
+CMD [ "npm", "run", "stage" ]
 
 FROM base as production
 

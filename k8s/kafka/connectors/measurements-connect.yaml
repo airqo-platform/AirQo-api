@@ -1,0 +1,59 @@
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaConnect
+metadata:
+  name: measurements-connect
+  namespace: message-broker
+  annotations:
+    strimzi.io/use-connector-resources: "true"
+spec:
+  version: 3.2.1
+  image: {{MEASUREMENTS_CONNECT_IMAGE}}
+  replicas: 2
+  bootstrapServers: {{KAFKA_CLUSTER}}
+  config:
+    group.id: measurements-connect
+    offset.storage.topic: measurements-connect-offsets
+    config.storage.topic: measurements-connect-configs
+    status.storage.topic: measurements-connect-status
+    cleanup.policy: compact
+    key.converter: org.apache.kafka.connect.json.JsonConverter
+    value.converter: org.apache.kafka.connect.json.JsonConverter
+    key.converter.schemas.enable: false
+    value.converter.schemas.enable: false
+    config.storage.replication.factor: -1
+    offset.storage.replication.factor: -1
+    status.storage.replication.factor: -1
+    config.providers: file,configmaps,secrets
+    config.providers.configmaps.class: io.strimzi.kafka.KubernetesConfigMapConfigProvider
+    config.providers.secrets.class: io.strimzi.kafka.KubernetesSecretConfigProvider
+    config.providers.file.class: org.apache.kafka.common.config.provider.FileConfigProvider
+  template:
+    connectContainer:
+      env:
+        - name: STRIMZI_IMAGE_PULL_POLICY
+          value: Always
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: measurements-connector-configuration-role
+rules:
+- apiGroups: [""]
+  resources: ["configmaps", "secrets"]
+  resourceNames: ["purple-air-measurements-connector-config", "purple-air-measurements-connector-secrets"]
+  verbs: ["get"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: measurements-connector-configuration-role-binding
+subjects:
+- kind: ServiceAccount
+  name: measurements-connect-connect
+  namespace: message-broker
+roleRef:
+  kind: Role
+  name: measurements-connector-configuration-role
+  apiGroup: rbac.authorization.k8s.io

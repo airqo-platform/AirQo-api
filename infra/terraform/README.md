@@ -4,24 +4,10 @@ Terraform is an open-source infrastructure as code software tool that enables yo
 At AirQo, we utilize terraform to quickly build and configure a reproducible cloud infrasturcture that spans multiple cloud providers. Using the concepts of `infrastructure as code (Iac)`, we are able to reconstruct the entire AirQo cloud infrasturcture in no time.
 
 ### Directory Structure
-```
-aws
-│
-└───assets
-│   │
-└───staging 
-│   │
-└───production
-│   │
-│   
+```  
 gcp
 │
-└───assets
-│   │
-└───staging 
-│   │
-└───production
-│   │
+└───modules
 │_______  
 ```
 ### Installation and Usage 

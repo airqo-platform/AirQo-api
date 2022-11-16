@@ -39,10 +39,7 @@ const createLocation = {
       request["query"] = query;
 
       let responseFromCreateLocation = await createLocationUtil.create(request);
-      logObject(
-        "responseFromCreateLocation in controller",
-        responseFromCreateLocation
-      );
+
       if (responseFromCreateLocation.success === true) {
         let status = responseFromCreateLocation.status
           ? responseFromCreateLocation.status
@@ -52,9 +49,7 @@ const createLocation = {
           message: responseFromCreateLocation.message,
           location: responseFromCreateLocation.data,
         });
-      }
-
-      if (responseFromCreateLocation.success === false) {
+      } else if (responseFromCreateLocation.success === false) {
         let status = responseFromCreateLocation.status
           ? responseFromCreateLocation.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
@@ -112,9 +107,7 @@ const createLocation = {
           message: responseFromRemoveLocation.message,
           location: responseFromRemoveLocation.data,
         });
-      }
-
-      if (responseFromRemoveLocation.success === false) {
+      } else if (responseFromRemoveLocation.success === false) {
         let errors = responseFromRemoveLocation.errors
           ? responseFromRemoveLocation.errors
           : "";
@@ -160,7 +153,7 @@ const createLocation = {
       request["body"] = body;
       request["query"] = query;
       let responseFromUpdateLocation = await createLocationUtil.update(request);
-      logObject("responseFromUpdateLocation", responseFromUpdateLocation);
+
       if (responseFromUpdateLocation.success === true) {
         let status = responseFromUpdateLocation.status
           ? responseFromUpdateLocation.status
@@ -170,9 +163,7 @@ const createLocation = {
           message: responseFromUpdateLocation.message,
           location: responseFromUpdateLocation.data,
         });
-      }
-
-      if (responseFromUpdateLocation.success === false) {
+      } else if (responseFromUpdateLocation.success === false) {
         let errors = responseFromUpdateLocation.errors
           ? responseFromUpdateLocation.errors
           : "";
@@ -190,6 +181,67 @@ const createLocation = {
     } catch (errors) {
       logger.error(`internal server error -- ${errors.message}`);
       errors.tryCatchErrors(res, errors, "createLocation controller");
+    }
+  },
+
+  listSummary: async (req, res) => {
+    try {
+      const { query } = req;
+      let request = {};
+      logText(".....................................");
+      logText("list all locations by query params provided");
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      request["query"] = query;
+      request["query"]["summary"] = "yes";
+      let responseFromListLocations = await createLocationUtil.list(request);
+
+      if (responseFromListLocations.success === true) {
+        let status = responseFromListLocations.status
+          ? responseFromListLocations.status
+          : HTTPStatus.OK;
+
+        res.status(status).json({
+          success: true,
+          message: responseFromListLocations.message,
+          airqlouds: responseFromListLocations.data,
+        });
+      } else if (responseFromListLocations.success === false) {
+        let errors = responseFromListLocations.errors
+          ? responseFromListLocations.errors
+          : { message: "" };
+        let status = responseFromListLocations.status
+          ? responseFromListLocations.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        res.status(status).json({
+          success: false,
+          message: responseFromListLocations.message,
+          errors,
+        });
+      }
+    } catch (errors) {
+      logger.error(`internal server error -- ${errors.message}`);
+      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: errors.message },
+      });
     }
   },
 
@@ -232,9 +284,7 @@ const createLocation = {
           message: responseFromListLocations.message,
           locations: responseFromListLocations.data,
         });
-      }
-
-      if (responseFromListLocations.success === false) {
+      } else if (responseFromListLocations.success === false) {
         let errors = responseFromListLocations.errors
           ? responseFromListLocations.errors
           : "";
@@ -291,9 +341,7 @@ const createLocation = {
           message: responseFromRemoveLocation.message,
           location: responseFromRemoveLocation.data,
         });
-      }
-
-      if (responseFromRemoveLocation.success === false) {
+      } else if (responseFromRemoveLocation.success === false) {
         let errors = responseFromRemoveLocation.errors
           ? responseFromRemoveLocation.errors
           : "";

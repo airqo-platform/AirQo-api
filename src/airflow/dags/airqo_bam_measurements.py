@@ -1,19 +1,16 @@
-from datetime import datetime
-
 from airflow.decorators import dag, task
 
-from airqo_etl_utils.airflow_custom_utils import slack_dag_failure_notification
+from airqo_etl_utils.airflow_custom_utils import AirflowUtils
 
 
 @dag(
     "AirQo-Historical-Bam-Measurements",
-    schedule_interval=None,
-    on_failure_callback=slack_dag_failure_notification,
-    start_date=datetime(2021, 1, 1),
+    schedule=None,
+    default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["airqo", "historical", "bam"],
 )
-def bam_historical_measurements_etl():
+def airqo_bam_historical_measurements():
     import pandas as pd
 
     @task()
@@ -74,13 +71,12 @@ def bam_historical_measurements_etl():
 
 @dag(
     "AirQo-Realtime-Bam-Measurements",
-    schedule_interval="30 * * * *",
-    on_failure_callback=slack_dag_failure_notification,
-    start_date=datetime(2021, 1, 1),
+    schedule="30 * * * *",
+    default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["airqo", "bam", "realtime"],
 )
-def bam_realtime_measurements_etl():
+def airqo_bam_realtime_measurements():
     import pandas as pd
 
     @task()
@@ -133,11 +129,35 @@ def bam_realtime_measurements_etl():
             table=big_query_api.bam_measurements_table,
         )
 
+    @task()
+    def update_latest_data_table(data: pd.DataFrame):
+        from airqo_etl_utils.airqo_utils import AirQoDataUtils
+        from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
+        from airqo_etl_utils.constants import Tenant, DeviceCategory
+
+        data = AirQoDataUtils.process_latest_data(
+            data=data, device_category=DeviceCategory.BAM
+        )
+        DataWarehouseUtils.update_latest_measurements(data=data, tenant=Tenant.AIRQO)
+
+    @task()
+    def update_latest_data_topic(data: pd.DataFrame):
+        from airqo_etl_utils.airqo_utils import AirQoDataUtils
+        from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
+        from airqo_etl_utils.constants import DeviceCategory
+
+        data = AirQoDataUtils.process_latest_data(
+            data=data, device_category=DeviceCategory.BAM
+        )
+        MessageBrokerUtils.update_latest_data_topic(data=data)
+
     unclean_data = extract_bam_data()
     save_unclean_data(unclean_data)
     measurements = clean_bam_data(unclean_data)
     save_clean_bam_data(measurements)
+    update_latest_data_table(measurements)
+    update_latest_data_topic(measurements)
 
 
-realtime_measurements_etl_dag = bam_realtime_measurements_etl()
-historical_measurements_etl_dag = bam_historical_measurements_etl()
+airqo_bam_realtime_measurements()
+airqo_bam_historical_measurements()

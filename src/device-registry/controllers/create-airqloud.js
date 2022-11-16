@@ -53,9 +53,7 @@ const createAirqloud = {
           message: responseFromCreateAirQloud.message,
           airqloud: responseFromCreateAirQloud.data,
         });
-      }
-
-      if (responseFromCreateAirQloud.success === false) {
+      } else if (responseFromCreateAirQloud.success === false) {
         let status = responseFromCreateAirQloud.status
           ? responseFromCreateAirQloud.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
@@ -210,6 +208,26 @@ const createAirqloud = {
     try {
       const { query, body } = req;
       const { id, admin_level, name, tenant } = query;
+
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+
       let request = {};
       request["query"] = {};
       request["query"]["id"] = id;
@@ -228,8 +246,7 @@ const createAirqloud = {
           message: responseFromRefreshAirQloud.message,
           refreshed_airqloud: responseFromRefreshAirQloud.data,
         });
-      }
-      if (responseFromRefreshAirQloud.success === false) {
+      } else if (responseFromRefreshAirQloud.success === false) {
         const status = responseFromRefreshAirQloud.status
           ? responseFromRefreshAirQloud.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
@@ -416,9 +433,7 @@ const createAirqloud = {
           message: responseFromListAirQlouds.message,
           airqlouds: responseFromListAirQlouds.data,
         });
-      }
-
-      if (responseFromListAirQlouds.success === false) {
+      } else if (responseFromListAirQlouds.success === false) {
         let errors = responseFromListAirQlouds.errors
           ? responseFromListAirQlouds.errors
           : { message: "" };

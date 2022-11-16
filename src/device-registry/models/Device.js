@@ -43,6 +43,10 @@ const deviceSchema = new mongoose.Schema(
     readKey: {
       type: String,
     },
+    network: {
+      type: String,
+      trim: true,
+    },
     access_code: {
       type: String,
     },
@@ -110,6 +114,7 @@ const deviceSchema = new mongoose.Schema(
     },
     status: {
       type: String,
+      default: "not deployed",
     },
     ISP: {
       type: String,
@@ -214,6 +219,7 @@ deviceSchema.methods = {
       id: this._id,
       name: this.name,
       mobility: this.mobility,
+      network: this.network,
       long_name: this.long_name,
       latitude: this.latitude,
       longitude: this.longitude,
@@ -337,6 +343,7 @@ deviceSchema.statics = {
           height: 1,
           mobility: 1,
           status: 1,
+          network: 1,
           category: 1,
           site: { $arrayElemAt: ["$site", 0] },
         })

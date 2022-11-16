@@ -50,6 +50,11 @@
         "mode": "NULLABLE"
     },
     {
+        "name": "device_category",
+        "type": "STRING",
+        "mode": "NULLABLE"
+    },
+    {
         "name": "device_latitude",
         "type": "FLOAT",
         "mode": "NULLABLE"

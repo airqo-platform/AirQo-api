@@ -11,6 +11,7 @@ spec:
     matchLabels:
       app: calibrate
   replicas: 3
+  revisionHistoryLimit: 2
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -25,20 +26,20 @@ spec:
       affinity:
         nodeAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
-          - weight: 10
-            preference:
-              matchExpressions:
-              - key: node-type
-                operator: In
-                values:
-                - high-memory  
-          - weight: 1
-            preference:
-              matchExpressions:
-              - key: node-type
-                operator: In
-                values:
-                - general-purpose
+            - weight: 10
+              preference:
+                matchExpressions:
+                  - key: node-type
+                    operator: In
+                    values:
+                      - high-memory
+            - weight: 1
+              preference:
+                matchExpressions:
+                  - key: node-type
+                    operator: In
+                    values:
+                      - general-purpose
       initContainers:
         - name: calibrate-pickle
           image: us.gcr.io/airqo-250220/airqo-calibrate-pickle-file:latest
@@ -50,13 +51,13 @@ spec:
           env:
             - name: RF_REG_MODEL
               value: /usr/pickle-files/rf_reg_model.pkl
-            - name:  LASSO_MODEL
+            - name: LASSO_MODEL
               value: /usr/pickle-files/lasso_model.pkl
           volumeMounts:
-          - name: config-volume
-            mountPath: /etc/config
-          - name: shared-data
-            mountPath: /usr/pickle-files
+            - name: config-volume
+              mountPath: /etc/config
+            - name: shared-data
+              mountPath: /usr/pickle-files
       containers:
         - name: calibrate
           image: us.gcr.io/airqo-250220/airqo-calibrate-api:latest
@@ -88,10 +89,10 @@ spec:
             - configMapRef:
                 name: prod-calibrate-api-config
           volumeMounts:
-          - name: config-volume
-            mountPath: /etc/config
-          - name: shared-data
-            mountPath: /usr/pickle-files
+            - name: config-volume
+              mountPath: /etc/config
+            - name: shared-data
+              mountPath: /usr/pickle-files
       volumes:
         - name: config-volume
           configMap:
@@ -128,9 +129,9 @@ spec:
   minReplicas: 1
   maxReplicas: 3
   metrics:
-  - type: Resource
-    resource:
-      name: memory
-      target:
-        type: Utilization
-        averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 70

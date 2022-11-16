@@ -17,21 +17,23 @@ const log4js = require("log4js");
 const HTTPStatus = require("http-status");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- create-site-util`);
 const distanceUtil = require("./distance");
-
 const SiteModel = (tenant) => {
   getModelByTenant(tenant.toLowerCase(), "site", SiteSchema);
 };
-
 const createAirqloudUtil = require("./create-airqloud");
 const pointInPolygon = require("point-in-polygon");
 const httpStatus = require("http-status");
 const geolib = require("geolib");
 const { kafkaProducer, kafkaClient } = require("../config/kafkajs");
-
 const DeviceSchema = require("../models/Device");
 const SiteActivitySchema = require("../models/SiteActivity");
-const mongoose = require("mongoose");
-const { threeMonthsFromNow } = require("./date");
+
+const {
+  threeMonthsFromNow,
+  generateDateFormatWithoutHrs,
+  monthsInfront,
+} = require("./date");
+
 const createDeviceUtil = require("./create-device");
 
 const manageSite = {
@@ -365,6 +367,7 @@ const manageSite = {
         latitude,
         longitude,
         airqlouds,
+        network,
         approximate_distance_in_km,
       } = body;
 
@@ -373,6 +376,7 @@ const manageSite = {
       request["query"] = {};
       request["body"]["latitude"] = latitude;
       request["body"]["longitude"] = longitude;
+      request["body"]["network"] = network;
       request["body"]["airqlouds"] = airqlouds;
       request["body"]["name"] = name;
       request["query"]["tenant"] = tenant;
@@ -575,6 +579,10 @@ const manageSite = {
     try {
       let response = {};
       let promises = [];
+      const today = monthsInfront(0);
+      const oneMonthAgo = monthsInfront(-1);
+      const endDate = generateDateFormatWithoutHrs(today);
+      const startDate = generateDateFormatWithoutHrs(oneMonthAgo);
       const paths = constants.GET_ROAD_METADATA_PATHS;
       const arrayOfPaths = Object.entries(paths);
       for (const [key, path] of arrayOfPaths) {
@@ -582,6 +590,8 @@ const manageSite = {
           path,
           latitude,
           longitude,
+          startDate,
+          endDate,
         });
         promises.push(
           axios
@@ -652,8 +662,6 @@ const manageSite = {
       let altitudeResponseData = {};
       let reverseGeoCodeResponseData = {};
 
-      logElement("the tenant in metadata", tenant);
-
       logger.info(`the body sent to generate metadata -- ${body}`);
 
       let responseFromGetAltitude = await manageSite.getAltitude(
@@ -664,9 +672,7 @@ const manageSite = {
       logger.info(`responseFromGetAltitude -- ${responseFromGetAltitude}`);
       if (responseFromGetAltitude.success === true) {
         altitudeResponseData["altitude"] = responseFromGetAltitude.data;
-      }
-
-      if (responseFromGetAltitude.success === false) {
+      } else if (responseFromGetAltitude.success === false) {
         let errors = responseFromGetAltitude.errors
           ? responseFromGetAltitude.errors
           : "";
@@ -681,29 +687,29 @@ const manageSite = {
         }
       }
 
-      let responseFromGetRoadMetadata = await manageSite.getRoadMetadata(
-        latitude,
-        longitude
-      );
+      // let responseFromGetRoadMetadata = await manageSite.getRoadMetadata(
+      //   latitude,
+      //   longitude
+      // );
 
-      if (responseFromGetRoadMetadata.success === true) {
-        roadResponseData = responseFromGetRoadMetadata.data;
-      }
+      // logObject("responseFromGetRoadMetadata", responseFromGetRoadMetadata);
 
-      if (responseFromGetRoadMetadata.success === false) {
-        let errors = responseFromGetRoadMetadata.errors
-          ? responseFromGetRoadMetadata.errors
-          : "";
-        try {
-          logger.error(
-            `unable to retrieve the road metadata, ${
-              responseFromGetRoadMetadata.message
-            } and ${JSON.stringify(errors)} `
-          );
-        } catch (error) {
-          logger.error(`internal server error -- ${error.message}`);
-        }
-      }
+      // if (responseFromGetRoadMetadata.success === true) {
+      //   roadResponseData = responseFromGetRoadMetadata.data;
+      // } else if (responseFromGetRoadMetadata.success === false) {
+      //   let errors = responseFromGetRoadMetadata.errors
+      //     ? responseFromGetRoadMetadata.errors
+      //     : "";
+      //   try {
+      //     logger.error(
+      //       `unable to retrieve the road metadata, ${
+      //         responseFromGetRoadMetadata.message
+      //       } and ${JSON.stringify(errors)} `
+      //     );
+      //   } catch (error) {
+      //     logger.error(`internal server error -- ${error.message}`);
+      //   }
+      // }
 
       let responseFromReverseGeoCode = await manageSite.reverseGeoCode(
         latitude,
@@ -733,9 +739,7 @@ const manageSite = {
           data: finalResponseBody,
           status,
         };
-      }
-
-      if (responseFromReverseGeoCode.success === false) {
+      } else if (responseFromReverseGeoCode.success === false) {
         let errors = responseFromReverseGeoCode.errors
           ? responseFromReverseGeoCode.errors
           : "";
@@ -994,7 +998,7 @@ const manageSite = {
   },
   list: async ({ tenant, filter, skip, limit }) => {
     try {
-      let responseFromListSite = await getModelByTenant(
+      const responseFromListSite = await getModelByTenant(
         tenant.toLowerCase(),
         "site",
         SiteSchema
@@ -1302,8 +1306,7 @@ const manageSite = {
           message: "successfully retrieved the nearest sites",
           status,
         };
-      }
-      if (responseFromListSites.success === false) {
+      } else if (responseFromListSites.success === false) {
         let status = responseFromListSites.status
           ? responseFromListSites.status
           : "";
@@ -1464,6 +1467,7 @@ const manageSite = {
           isPrimaryInLocation: isPrimaryInLocation,
           nextMaintenance: threeMonthsFromNow(date),
           isActive: true,
+          status: "deployed",
           latitude: latitude,
           longitude: longitude,
           site_id: site_id,
@@ -1491,6 +1495,7 @@ const manageSite = {
           longitude: "",
           latitude: "",
           isActive: false,
+          status: "recalled",
           site_id: null,
           description: "",
           siteName: "",

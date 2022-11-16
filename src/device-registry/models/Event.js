@@ -39,6 +39,10 @@ const valueSchema = new Schema({
     type: String,
     trim: true,
   },
+  network: {
+    type: String,
+    trim: true,
+  },
   is_device_primary: {
     type: Boolean,
     trim: true,
@@ -438,7 +442,15 @@ eventSchema.statics = {
   },
   async list({ skip = 0, limit = 100, filter = {}, page = 1 } = {}) {
     try {
-      const { metadata, frequency, external, tenant, device, recent } = filter;
+      const {
+        metadata,
+        frequency,
+        external,
+        tenant,
+        network,
+        device,
+        recent,
+      } = filter;
       let search = filter;
       let groupId = "$device";
       let localField = "device";
@@ -565,6 +577,7 @@ eventSchema.statics = {
             s2_pm10: { $first: "$s2_pm10" },
             frequency: { $first: "$frequency" },
             battery: { $first: "$battery" },
+            network: { $first: "$network" },
             location: { $first: "$location" },
             altitude: { $first: "$altitude" },
             speed: { $first: "$speed" },
@@ -606,6 +619,7 @@ eventSchema.statics = {
         return {
           success: true,
           data,
+          message: "successfully returned the measurements",
           status: httpStatus.OK,
         };
       }
@@ -638,6 +652,7 @@ eventSchema.statics = {
             _location: "$location",
             _altitude: "$altitude",
             _speed: "$speed",
+            _network: "$network",
             _satellites: "$satellites",
             _hdop: "$hdop",
             _site_id: "$site_id",
@@ -679,6 +694,7 @@ eventSchema.statics = {
             location: "$_location",
             altitude: "$_altitude",
             speed: "$_speed",
+            network: "$_network",
             satellites: "$_satellites",
             hdop: "$_hdop",
             internalTemperature: "$_internalTemperature",
@@ -720,6 +736,7 @@ eventSchema.statics = {
           .allowDiskUse(true);
         return {
           success: true,
+          message: "successfully returned the measurements",
           data,
           status: httpStatus.OK,
         };
