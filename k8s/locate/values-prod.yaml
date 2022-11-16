@@ -1,35 +1,60 @@
-# values for airqo-locate-api.
-env:
-  deployment_name: airqo-locate-api
-  service_name: airqo-locate-api-svc
-  labels: locate-api
-  secret: env-locate-production
+app:
+  name: airqo-locate-api
+  label: locate-api
+  namespace: production
+  configmap: env-locate-production
 
-replicaCount: 2
+replicaCount: 3
 
 image:
-  repository: us.gcr.io/airqo-250220/airqo-locate-api
-  tag: latest
+  repository: gcr.io/airqo-250220/airqo-locate-api
   pullPolicy: Always
+  tag: latest
 
 imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
-service:
-  type: NodePort
-  nodePort: 30004
-  targetPort: 4001
-  port: 4001
+podAnnotations: {}
+
+podSecurityContext:
+  {}
+  # fsGroup: 2000
+
+securityContext:
+  {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+resources:
+  limits:
+    cpu: 50m
+    memory: 500Mi
+  requests:
+    # Average usage was 0.0005 vCPU and 1Gi over the last 30 days
+    cpu: 5m
+    memory: 300Mi
+
+nodeSelector: {}
+
+tolerations: []
 
 ingress:
   enabled: false
 
-nodeSelector: {}
-resources: {}
-affinity: {}
-torelations: {}
+service:
+  type: NodePort
+  port: 4001
+  protocol: TCP
+  targetPort: 4001
+  nodePort: 30004
 
-
-## Application level settings  
-appMode: production
+autoscaling:
+  minReplicas: 1
+  maxReplicas: 3
+  # targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 70
