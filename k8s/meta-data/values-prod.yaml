@@ -1,0 +1,67 @@
+app:
+  name: airqo-meta-data-api
+  label: meta-data-api
+  namespace: production
+  configmap: prod-meta-data-api-config
+
+replicaCount: 3
+
+image:
+  repository: gcr.io/airqo-250220/airqo-meta-data-api
+  pullPolicy: Always
+  tag: latest
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+podAnnotations: {}
+
+podSecurityContext:
+  {}
+  # fsGroup: 2000
+
+securityContext:
+  {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 500Mi
+  requests:
+    # Average usage was 0.1 vCPU and 250Mi over the last 7 days
+    cpu: 100m
+    memory: 250Mi
+
+volumeMounts:
+  - name: config-volume
+    mountPath: /etc/config
+
+volumes:
+  - name: config-volume
+    configMap:
+      name: prod-meta-data-api-config-files
+
+nodeSelector: {}
+tolerations: []
+
+ingress:
+  enabled: false
+
+service:
+  type: NodePort
+  port: 4001
+  protocol: TCP
+  targetPort: 4001
+
+autoscaling:
+  minReplicas: 1
+  maxReplicas: 2
+  targetCPUUtilizationPercentage: 70
+  # targetMemoryUtilizationPercentage: 70
