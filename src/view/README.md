@@ -13,7 +13,7 @@ Generate the API docs
 Spin up the API
 
 ```bash
-./mvnw springboot:run -Dspring.profiles.active=api
+./mvnw spring-boot:run -Dspring.profiles.active=api
 ```
 
 [Link to API Docs](http://localhost:8080/api/v1/view/docs/index.html)
