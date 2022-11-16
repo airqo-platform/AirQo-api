@@ -1,0 +1,113 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.app.name }}
+  namespace: {{ .Values.app.namespace }}
+  labels:
+    {{- include "fault-detection-api.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+        app: {{ .Values.app.label }}
+  replicas: {{ .Values.replicaCount }}
+  revisionHistoryLimit: {{ .Values.revisionHistoryLimit }}
+  {{- with .Values.strategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  minReadySeconds: {{ .Values.minReadySeconds }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        app: {{ .Values.app.label }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      initContainers:
+        - name: train-catboost-model
+          image: "{{ .Values.initContainers.container1.image.repository }}:{{ .Values.initContainers.container1.image.tag }}"
+          imagePullPolicy: {{ .Values.initContainers.container1.image.pullPolicy }}
+          resources: {}
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.app.configmap }}          
+          env:
+            - name: CATBOOST_MODEL
+              value: /usr/models/catboost_model.pkl         
+          {{- with .Values.volumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+        - name: train-lstm-model
+          image: "{{ .Values.initContainers.container2.image.repository }}:{{ .Values.initContainers.container2.image.tag }}"
+          imagePullPolicy: {{ .Values.initContainers.container2.image.pullPolicy }}
+          resources: {}
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.app.configmap }}          
+          env:
+            - name: LSTM_MODEL
+              value: /usr/models/lstm.h5
+            - name: SCALER
+              value: /usr/models/scaler.pkl       
+          {{- with .Values.volumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      containers:
+        - name: {{ .Values.app.label }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.service.targetPort }}
+              name: {{ .Values.app.label }}
+          # livenessProbe:
+          #   httpGet:
+          #     path: /health
+          #     port: 5000
+          # readinessProbe:
+          #   httpGet:
+          #     path: /health
+          #     port: 5000
+          #   initialDelaySecond: 5
+          #   periodSeconds: 3
+          #   successThreshold: 1
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.app.configmap }}          
+          {{- with .Values.env }}
+          env:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}          
+          {{- with .Values.volumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.volumes }}
+      volumes:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
