@@ -52,6 +52,7 @@ const stageConfig = {
 };
 
 const defaultConfig = {
+  DEFAULT_NEAREST_SITE_RADIUS: process.env.DEFAULT_NEAREST_SITE_RADIUS,
   SLACK_TOKEN: process.env.SLACK_TOKEN,
   SLACK_CHANNEL: process.env.SLACK_CHANNEL,
   SLACK_USERNAME: process.env.SLACK_USERNAME,
