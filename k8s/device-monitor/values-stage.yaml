@@ -1,35 +1,87 @@
-# values for airqo-device-monitor-api.
-env:
-  deployment_name: airqo-stage-device-monitor-api
-  service_name: airqo-stage-device-registry-api-svc
-  labels: sta-dev-monitor
-  secret: env-device-monitoring-staging
+app:
+  name: airqo-stage-device-monitor-api
+  label: sta-device-monitor
+  namespace: staging
+  configmap: env-device-monitoring-staging
 
 replicaCount: 2
 
+revisionHistoryLimit: 2
+
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 1
+    maxUnavailable: 1
+
+minReadySeconds: 5
+
+affinity:
+  nodeAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 10
+        preference:
+          matchExpressions:
+            - key: node-type
+              operator: In
+              values:
+                - general-purpose
+      - weight: 1
+        preference:
+          matchExpressions:
+            - key: node-type
+              operator: In
+              values:
+                - high-memory
+
 image:
-  repository: us.gcr.io/airqo-250220/airqo-stage-device-monitor-api
-  tag: latest
+  repository: gcr.io/airqo-250220/airqo-stage-device-monitor-api
   pullPolicy: Always
+  tag: latest
 
 imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
-service:
-  type: NodePort
-  nodePort: 31006
-  targetPort: 4001
-  port: 4001
+podAnnotations: {}
+
+podSecurityContext:
+  {}
+  # fsGroup: 2000
+
+securityContext:
+  {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+resources:
+  limits:
+    cpu: 50m
+    memory: 80Mi
+  requests:
+    # Average usage was 0.0001 vCPU and 35Mi over the last 30 days
+    cpu: 5m
+    memory: 40Mi
+
+nodeSelector: {}
+tolerations: []
 
 ingress:
   enabled: false
 
-nodeSelector: {}
-resources: {}
-affinity: {}
-torelations: {}
+service:
+  type: NodePort
+  port: 4001
+  protocol: TCP
+  targetPort: 4001
+  nodePort: 31006
 
-
-## Application level settings  
-appMode: staging
+autoscaling:
+  minReplicas: 1
+  maxReplicas: 2
+  # targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
