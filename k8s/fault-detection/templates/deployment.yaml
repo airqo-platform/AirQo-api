@@ -10,12 +10,13 @@ spec:
     matchLabels:
         app: {{ .Values.app.label }}
   replicas: {{ .Values.replicaCount }}
-  revisionHistoryLimit: {{ .Values.revisionHistoryLimit }}
-  {{- with .Values.strategy }}
+  revisionHistoryLimit: 2
   strategy:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
-  minReadySeconds: {{ .Values.minReadySeconds }}
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  minReadySeconds: 5
   template:
     metadata:
       {{- with .Values.podAnnotations }}
@@ -25,16 +26,20 @@ spec:
       labels:
         app: {{ .Values.app.label }}
     spec:
-      {{- with .Values.imagePullSecrets }}
-      imagePullSecrets:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      securityContext:
-        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 10
+              preference:
+                matchExpressions:
+                  - key: node-type
+                    operator: In
+                    values:
+                      - compute
       initContainers:
         - name: train-catboost-model
           image: "{{ .Values.initContainers.container1.image.repository }}:{{ .Values.initContainers.container1.image.tag }}"
-          imagePullPolicy: {{ .Values.initContainers.container1.image.pullPolicy }}
+          imagePullPolicy: Always
           resources: {}
           envFrom:
             - configMapRef:
@@ -48,7 +53,7 @@ spec:
           {{- end }}
         - name: train-lstm-model
           image: "{{ .Values.initContainers.container2.image.repository }}:{{ .Values.initContainers.container2.image.tag }}"
-          imagePullPolicy: {{ .Values.initContainers.container2.image.pullPolicy }}
+          imagePullPolicy: Always
           resources: {}
           envFrom:
             - configMapRef:
@@ -64,31 +69,21 @@ spec:
           {{- end }}
       containers:
         - name: {{ .Values.app.label }}
-          securityContext:
-            {{- toYaml .Values.securityContext | nindent 12 }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: Always
           ports:
             - containerPort: {{ .Values.service.targetPort }}
               name: {{ .Values.app.label }}
-          # livenessProbe:
-          #   httpGet:
-          #     path: /health
-          #     port: 5000
-          # readinessProbe:
-          #   httpGet:
-          #     path: /health
-          #     port: 5000
-          #   initialDelaySecond: 5
-          #   periodSeconds: 3
-          #   successThreshold: 1
           envFrom:
             - configMapRef:
-                name: {{ .Values.app.configmap }}          
-          {{- with .Values.env }}
+                name: {{ .Values.app.configmap }}
           env:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}          
+            - name: LSTM_MODEL
+              value: /usr/models/lstm.h5
+            - name: SCALER
+              value: /usr/models/scaler.pkl
+            - name: CATBOOST_MODEL
+              value: /usr/models/catboost_model.pkl 
           {{- with .Values.volumeMounts }}
           volumeMounts:
             {{- toYaml . | nindent 12 }}
@@ -97,17 +92,5 @@ spec:
             {{- toYaml .Values.resources | nindent 12 }}
       {{- with .Values.volumes }}
       volumes:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .Values.nodeSelector }}
-      nodeSelector:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .Values.affinity }}
-      affinity:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .Values.tolerations }}
-      tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}

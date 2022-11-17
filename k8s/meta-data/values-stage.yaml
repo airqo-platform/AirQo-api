@@ -8,27 +8,12 @@ replicaCount: 2
 
 image:
   repository: gcr.io/airqo-250220/airqo-stage-meta-data-api
-  pullPolicy: Always
   tag: latest
 
-imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
 podAnnotations: {}
-
-podSecurityContext:
-  {}
-  # fsGroup: 2000
-
-securityContext:
-  {}
-  # capabilities:
-  #   drop:
-  #   - ALL
-  # readOnlyRootFilesystem: true
-  # runAsNonRoot: true
-  # runAsUser: 1000
 
 resources:
   limits:
@@ -47,9 +32,6 @@ volumes:
   - name: config-volume
     configMap:
       name: stage-meta-data-api-config-files
-
-nodeSelector: {}
-tolerations: []
 
 ingress:
   enabled: false

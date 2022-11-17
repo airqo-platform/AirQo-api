@@ -2,26 +2,12 @@ app:
   name: stage-update-channel-data-job
   namespace: staging
   configmap: env-update-channel-data-staging
-
-affinity:
-  nodeAffinity:
-    preferredDuringSchedulingIgnoredDuringExecution:
-      - weight: 10
-        preference:
-          matchExpressions:
-            - key: node-type
-              operator: In
-              values:
-                - compute
-
 image:
   repository: gcr.io/airqo-250220/airqo-stage-update-channel-data-job
-  pullPolicy: Always
   tag: latest
 
 nameOverride: ""
 fullnameOverride: ""
-
 resources:
   limits:
     cpu: 500m

@@ -3,20 +3,8 @@ app:
   namespace: production
   configmap: env-update-channel-data-production
 
-affinity:
-  nodeAffinity:
-    preferredDuringSchedulingIgnoredDuringExecution:
-      - weight: 10
-        preference:
-          matchExpressions:
-            - key: node-type
-              operator: In
-              values:
-                - compute
-
 image:
   repository: gcr.io/airqo-250220/airqo-update-channel-data-job
-  pullPolicy: Always
   tag: latest
 
 nameOverride: ""

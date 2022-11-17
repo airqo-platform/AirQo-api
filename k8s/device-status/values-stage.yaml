@@ -3,29 +3,13 @@ app:
   namespace: staging
   configmap: env-device-status-staging
 
-affinity:
-  nodeAffinity:
-    preferredDuringSchedulingIgnoredDuringExecution:
-      - weight: 10
-        preference:
-          matchExpressions:
-            - key: node-type
-              operator: In
-              values:
-                - compute
-
 image:
   repository: gcr.io/airqo-250220/airqo-stage-device-status-job
-  pullPolicy: Always
   tag: latest
 
 nameOverride: ""
 fullnameOverride: ""
-
 resources:
   limits:
     cpu: 1000m
     memory: 4000Mi
-  # requests:
-  #   cpu: 20m
-  #   memory: 200Mi

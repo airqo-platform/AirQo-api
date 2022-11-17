@@ -5,58 +5,14 @@ app:
   configmap: prod-auth-api-config
 
 replicaCount: 3
-
-revisionHistoryLimit: 2
-
-strategy:
-  type: RollingUpdate
-  rollingUpdate:
-    maxSurge: 1
-    maxUnavailable: 1
-
-minReadySeconds: 5
-
-affinity:
-  nodeAffinity:
-    preferredDuringSchedulingIgnoredDuringExecution:
-      - weight: 10
-        preference:
-          matchExpressions:
-            - key: node-type
-              operator: In
-              values:
-                - high-memory
-      - weight: 1
-        preference:
-          matchExpressions:
-            - key: node-type
-              operator: In
-              values:
-                - general-purpose
-
 image:
   repository: gcr.io/airqo-250220/airqo-auth-api
-  pullPolicy: Always
   tag: latest
 
-imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
 podAnnotations: {}
-
-podSecurityContext:
-  {}
-  # fsGroup: 2000
-
-securityContext:
-  {}
-  # capabilities:
-  #   drop:
-  #   - ALL
-  # readOnlyRootFilesystem: true
-  # runAsNonRoot: true
-  # runAsUser: 1000
 
 resources:
   limits:
@@ -75,10 +31,6 @@ volumes:
   - name: config-volume
     configMap:
       name: prod-auth-api-config-files
-
-nodeSelector: {}
-
-tolerations: []
 
 ingress:
   enabled: false

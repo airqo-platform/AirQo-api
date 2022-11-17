@@ -8,27 +8,12 @@ replicaCount: 3
 
 image:
   repository: gcr.io/airqo-250220/airqo-locate-api
-  pullPolicy: Always
   tag: latest
 
-imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
 podAnnotations: {}
-
-podSecurityContext:
-  {}
-  # fsGroup: 2000
-
-securityContext:
-  {}
-  # capabilities:
-  #   drop:
-  #   - ALL
-  # readOnlyRootFilesystem: true
-  # runAsNonRoot: true
-  # runAsUser: 1000
 
 resources:
   limits:
@@ -38,10 +23,6 @@ resources:
     # Average usage was 0.0005 vCPU and 1Gi over the last 30 days
     cpu: 5m
     memory: 300Mi
-
-nodeSelector: {}
-
-tolerations: []
 
 ingress:
   enabled: false

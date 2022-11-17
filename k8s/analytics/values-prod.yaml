@@ -4,39 +4,14 @@
 
 replicaCount: 3
 
-revisionHistoryLimit: 2
-
-strategy:
-  type: RollingUpdate
-  rollingUpdate:
-    maxSurge: 1
-    maxUnavailable: 1
-
-minReadySeconds: 5
-
 image:
   repository: gcr.io/airqo-250220/airqo-analytics-api
-  pullPolicy: Always
   tag: latest
 
-imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
 podAnnotations: {}
-
-podSecurityContext:
-  {}
-  # fsGroup: 2000
-
-securityContext:
-  {}
-  # capabilities:
-  #   drop:
-  #   - ALL
-  # readOnlyRootFilesystem: true
-  # runAsNonRoot: true
-  # runAsUser: 1000
 
 resources:
   limits:
@@ -71,28 +46,6 @@ autoscaling:
   maxReplicas: 3
   # targetCPUUtilizationPercentage: 70
   targetMemoryUtilizationPercentage: 70
-
-nodeSelector: {}
-
-tolerations: []
-
-affinity:
-  nodeAffinity:
-    preferredDuringSchedulingIgnoredDuringExecution:
-      - weight: 10
-        preference:
-          matchExpressions:
-            - key: node-type
-              operator: In
-              values:
-                - high-memory
-      - weight: 1
-        preference:
-          matchExpressions:
-            - key: node-type
-              operator: In
-              values:
-                - general-purpose
 
 app:
   name: airqo-analytics-api

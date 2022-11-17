@@ -10,24 +10,10 @@ image:
   repository: gcr.io/airqo-250220/airqo-stage-network-uptime-api
   tag: latest
 
-imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
 podAnnotations: {}
-
-podSecurityContext:
-  {}
-  # fsGroup: 2000
-
-securityContext:
-  {}
-  # capabilities:
-  #   drop:
-  #   - ALL
-  # readOnlyRootFilesystem: true
-  # runAsNonRoot: true
-  # runAsUser: 1000
 
 resources:
   limits:
@@ -37,9 +23,6 @@ resources:
     # No available over the last 30 days, using estimates
     cpu: 5m
     memory: 10Mi
-
-nodeSelector: {}
-tolerations: []
 
 ingress:
   enabled: false

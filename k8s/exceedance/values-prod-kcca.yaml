@@ -5,7 +5,6 @@ app:
 
 image:
   repository: gcr.io/airqo-250220/kcca-exceedance-job
-  pullPolicy: Always
   tag: latest
 
 nameOverride: ""

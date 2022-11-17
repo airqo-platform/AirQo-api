@@ -6,69 +6,19 @@ app:
 
 initContainer:
   image:
-    repository: gcr.io/airqo-250220/airqo-stage-calibrate-pickle-file
-    pullPolicy: Always
+    repository: gcr.io/airqo-250220/airqo-calibrate-pickle-file
     tag: latest
-
-env:
-  - name: RF_REG_MODEL
-    value: /usr/pickle-files/rf_reg_model.pkl
-  - name: LASSO_MODEL
-    value: /usr/pickle-files/lasso_model.pkl
 
 replicaCount: 3
 
-revisionHistoryLimit: 2
-
-strategy:
-  type: RollingUpdate
-  rollingUpdate:
-    maxSurge: 1
-    maxUnavailable: 1
-
-minReadySeconds: 5
-
-affinity:
-  nodeAffinity:
-    preferredDuringSchedulingIgnoredDuringExecution:
-      - weight: 10
-        preference:
-          matchExpressions:
-            - key: node-type
-              operator: In
-              values:
-                - high-memory
-      - weight: 1
-        preference:
-          matchExpressions:
-            - key: node-type
-              operator: In
-              values:
-                - general-purpose
-
 image:
   repository: gcr.io/airqo-250220/airqo-calibrate-api
-  pullPolicy: Always
   tag: latest
 
-imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
 podAnnotations: {}
-
-podSecurityContext:
-  {}
-  # fsGroup: 2000
-
-securityContext:
-  {}
-  # capabilities:
-  #   drop:
-  #   - ALL
-  # readOnlyRootFilesystem: true
-  # runAsNonRoot: true
-  # runAsUser: 1000
 
 resources:
   limits:
@@ -91,10 +41,6 @@ volumes:
       name: prod-calibrate-api-config-files
   - name: shared-data
     emptyDir: {}
-
-nodeSelector: {}
-
-tolerations: []
 
 ingress:
   enabled: false

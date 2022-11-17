@@ -8,60 +8,22 @@ initContainers:
   container1:
     image:
       repository: gcr.io/airqo-250220/prod-train-catboost-model
-      pullPolicy: Always
       tag: latest
   container2:
     image:
       repository: gcr.io/airqo-250220/prod-train-lstm-model
-      pullPolicy: Always
       tag: latest
 
 replicaCount: 2
 
-revisionHistoryLimit: 2
-
-strategy:
-  type: RollingUpdate
-  rollingUpdate:
-    maxSurge: 1
-    maxUnavailable: 1
-
-minReadySeconds: 5
-
-affinity:
-  nodeAffinity:
-    preferredDuringSchedulingIgnoredDuringExecution:
-      - weight: 10
-        preference:
-          matchExpressions:
-            - key: node-type
-              operator: In
-              values:
-                - compute
-
 image:
   repository: gcr.io/airqo-250220/stage-fault-detection-api
-  pullPolicy: Always
   tag: latest
 
-imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
 podAnnotations: {}
-
-podSecurityContext:
-  {}
-  # fsGroup: 2000
-
-securityContext:
-  {}
-  # capabilities:
-  #   drop:
-  #   - ALL
-  # readOnlyRootFilesystem: true
-  # runAsNonRoot: true
-  # runAsUser: 1000
 
 resources:
   limits:
@@ -79,9 +41,6 @@ volumeMounts:
 volumes:
   - name: shared-data
     emptyDir: {}
-
-nodeSelector: {}
-tolerations: []
 
 ingress:
   enabled: false

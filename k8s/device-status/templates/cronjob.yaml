@@ -19,10 +19,16 @@ spec:
           restartPolicy: OnFailure
           schedulerName: default-scheduler
           terminationGracePeriodSeconds: 30
-          {{- with .Values.affinity }}
           affinity:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
+            nodeAffinity:
+              preferredDuringSchedulingIgnoredDuringExecution:
+                - weight: 10
+                  preference:
+                    matchExpressions:
+                      - key: node-type
+                        operator: In
+                        values:
+                          - compute
           containers:
             - name: {{ .Values.app.name }}
               image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
