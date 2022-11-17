@@ -19,6 +19,7 @@ import static airqo.config.Constants.dateTimeFormat;
 @NoArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class GraphInsight implements Serializable {
+	private static final long serialVersionUID = 1L;
 
 	@JsonFormat(shape = JsonFormat.Shape.STRING, pattern = dateTimeFormat, timezone = "UTC")
 	@DateTimeFormat(pattern = dateTimeFormat)

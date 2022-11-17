@@ -171,26 +171,15 @@ public class InsightsServiceImpl implements InsightsService {
 	}
 
 	@Override
-	@Cacheable(value = "appInsightsApiCache", cacheNames = {"appInsightsApiCache"}, unless = "#result.isEmpty()")
+	@Cacheable(value = "appInsightsApiCache", cacheNames = {"appInsightsApiCache"}, unless = "#result.forecast.isEmpty() && #result.historical.isEmpty()")
 	public InsightData getInsights(Date startDateTime, Date endDateTime, String siteId, int utcOffSet) {
 
-		DateTime start = new DateTime(startDateTime);
-		DateTime end = new DateTime(endDateTime);
-
-		if (utcOffSet < 0) {
-			start = start.plusHours(utcOffSet);
-			end = end.plusHours(utcOffSet);
-		} else {
-			start = start.minusHours(utcOffSet);
-			end = end.minusHours(utcOffSet);
-		}
-
-		List<GraphInsight> insights = this.bigQueryApi.getInsights(start.toDate(), end.toDate(), siteId);
+		List<GraphInsight> insights = this.bigQueryApi.getInsights(startDateTime, endDateTime, siteId);
 
 		// Historical
 		List<GraphInsight> historicalInsights = insights.stream().filter(insight -> !insight.getForecast())
 			.collect(Collectors.toList());
-		historicalInsights = createHistoricalInsights(historicalInsights, start.toDate(), end.toDate(), siteId, utcOffSet);
+		historicalInsights = createHistoricalInsights(historicalInsights, startDateTime, endDateTime, siteId, utcOffSet);
 
 		// Forecast insights
 		List<GraphInsight> forecastInsights = insights.stream().filter(GraphInsight::getForecast)
