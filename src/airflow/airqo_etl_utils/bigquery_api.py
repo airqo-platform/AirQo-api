@@ -13,6 +13,8 @@ class BigQueryApi:
     def __init__(self):
         self.client = bigquery.Client()
         self.hourly_measurements_table = configuration.BIGQUERY_HOURLY_EVENTS_TABLE
+        self.daily_measurements_table = configuration.BIGQUERY_DAILY_EVENTS_TABLE
+        self.forecast_measurements_table = configuration.BIGQUERY_FORECAST_EVENTS_TABLE
         self.raw_measurements_table = configuration.BIGQUERY_RAW_EVENTS_TABLE
         self.latest_measurements_table = configuration.BIGQUERY_LATEST_EVENTS_TABLE
         self.bam_measurements_table = configuration.BIGQUERY_BAM_EVENTS_TABLE
@@ -92,8 +94,13 @@ class BigQueryApi:
         self, table: str, column_type: ColumnDataType = ColumnDataType.NONE
     ) -> list:
 
-        if table == self.hourly_measurements_table:
+        if (
+            table == self.hourly_measurements_table
+            or table == self.daily_measurements_table
+        ):
             schema_file = "measurements.json"
+        elif table == self.forecast_measurements_table:
+            schema_file = "forecast_measurements.json"
         elif table == self.raw_measurements_table:
             schema_file = "raw_measurements.json"
         elif table == self.hourly_weather_table or table == self.raw_weather_table:
