@@ -112,6 +112,13 @@ const deviceSchema = new mongoose.Schema(
       trim: true,
       lowercase: true,
     },
+    device_codes: [
+      {
+        type: String,
+        trim: true,
+      },
+    ],
+
     status: {
       type: String,
       default: "not deployed",
@@ -247,6 +254,7 @@ deviceSchema.methods = {
       pictures: this.pictures,
       site_id: this.site_id,
       height: this.height,
+      device_codes: this.device_codes,
       category: this.category,
       access_code: this.access_code,
     };
@@ -340,6 +348,7 @@ deviceSchema.statics = {
           readKey: 1,
           access_code: 1,
           pictures: 1,
+          device_codes: 1,
           height: 1,
           mobility: 1,
           status: 1,
