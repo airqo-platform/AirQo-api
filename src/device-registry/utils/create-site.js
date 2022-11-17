@@ -535,9 +535,7 @@ const manageSite = {
           data: responseFromModifySite.data,
           status,
         };
-      }
-
-      if (responseFromModifySite.success === false) {
+      } else if (responseFromModifySite.success === false) {
         let errors = responseFromModifySite.errors
           ? responseFromModifySite.errors
           : "";

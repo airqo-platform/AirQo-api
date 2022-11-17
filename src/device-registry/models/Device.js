@@ -424,6 +424,7 @@ deviceSchema.statics = {
   async modify({ filter = {}, update = {}, opts = {} } = {}) {
     try {
       let modifiedUpdate = update;
+      modifiedUpdate["$addToSet"] = {};
       delete modifiedUpdate.name;
       delete modifiedUpdate.device_number;
       delete modifiedUpdate._id;
@@ -437,6 +438,13 @@ deviceSchema.statics = {
           excludeSimilarCharacters: true,
         });
         modifiedUpdate.access_code = access_code.toUpperCase();
+      }
+
+      if (modifiedUpdate.device_codes) {
+        modifiedUpdate["$addToSet"]["device_codes"] = {};
+        modifiedUpdate["$addToSet"]["device_codes"]["$each"] =
+          modifiedUpdate.device_codes;
+        delete modifiedUpdate["device_codes"];
       }
 
       let updatedDevice = await this.findOneAndUpdate(

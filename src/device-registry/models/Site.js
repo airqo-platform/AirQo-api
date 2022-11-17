@@ -593,6 +593,13 @@ siteSchema.statics = {
         delete modifiedUpdateBody["site_tags"];
       }
 
+      if (modifiedUpdateBody.site_codes) {
+        modifiedUpdateBody["$addToSet"]["site_codes"] = {};
+        modifiedUpdateBody["$addToSet"]["site_codes"]["$each"] =
+          modifiedUpdateBody.site_codes;
+        delete modifiedUpdateBody["site_codes"];
+      }
+
       if (modifiedUpdateBody.airqlouds) {
         modifiedUpdateBody["$addToSet"]["airqlouds"] = {};
         modifiedUpdateBody["$addToSet"]["airqlouds"]["$each"] =
