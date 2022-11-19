@@ -84,13 +84,79 @@ class Extract:
 
     @staticmethod
     def get_mobile_carrier(phone_number):
-        response = requests.get(f"https://api.apilayer.com/number_verification/validate?number={phone_number}",
-                                headers={"apikey": Config.MOBILE_CARRIER_LOOK_UP_API_KEY})
+        response = requests.get(
+            f"https://api.apilayer.com/number_verification/validate?number={phone_number}",
+            headers={"apikey": Config.MOBILE_CARRIER_LOOK_UP_API_KEY},
+        )
         return {
             "country_code": response.json()["country_code"],
             "country": response.json()["country_name"],
             "carrier": response.json()["carrier"],
         }
+
+    @staticmethod
+    def get_administrative_levels(place_id):
+
+        hierarchy = []
+
+        administrative_levels = {
+            "postal_code": "",
+            "country": "",
+            "administrative_level_1": "",
+            "administrative_level_2": "",
+            "locality": "",
+            "sub_locality": "",
+            "neighborhood": "",
+            "route": "",
+            "street_number": "",
+        }
+
+        try:
+            response = requests.get(
+                f"https://maps.googleapis.com/maps/api/place/details/json?place_id={place_id}"
+                f"&key={Config.GOOGLE_MAP_API_KEY}"
+            )
+            data = response.json()["result"]["address_components"]
+
+            address_components = {
+                "country": "country",
+                "administrative_level_1": "administrative_area_level_1",
+                "administrative_level_2": "administrative_area_level_2",
+                "postal_code": "postal_code",
+                "locality": "locality",
+                "neighborhood": "neighborhood",
+                "route": "route",
+                "sub_locality": "sublocality",
+                "street_number": "street_number",
+            }
+
+            for name, address in address_components.items():
+                address_info = list(filter(lambda x: address in x["types"], data))
+                if address_info:
+                    administrative_levels[name] = address_info[0]["long_name"]
+
+            values = set(administrative_levels.values())
+            for level in [
+                "country",
+                "administrative_level_1",
+                "administrative_level_2",
+                "locality",
+                "sub_locality",
+                "neighborhood",
+                "route",
+                "street_number",
+            ]:
+                value = administrative_levels[level]
+                if value and value in values and value not in hierarchy:
+                    hierarchy.append(administrative_levels[level])
+
+            for name, address in administrative_levels.items():
+                pass
+
+        except Exception as ex:
+            print(ex)
+
+        return {"administrative_levels": administrative_levels, "hierarchy": hierarchy}
 
     def get_nearest_weather_stations(
         self, latitude, longitude, threshold_distance=None
