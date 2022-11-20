@@ -8,6 +8,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 
+import java.io.Serial;
 import java.io.Serializable;
 import java.util.Date;
 import java.util.Objects;
@@ -19,6 +20,8 @@ import static airqo.config.Constants.dateTimeFormat;
 @NoArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class GraphInsight implements Serializable {
+
+	@Serial
 	private static final long serialVersionUID = 1L;
 
 	@JsonFormat(shape = JsonFormat.Shape.STRING, pattern = dateTimeFormat, timezone = "UTC")
