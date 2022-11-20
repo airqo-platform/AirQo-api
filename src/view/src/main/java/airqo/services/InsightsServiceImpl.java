@@ -5,6 +5,7 @@ import airqo.models.GraphInsight;
 import airqo.models.InsightData;
 import lombok.extern.slf4j.Slf4j;
 import org.joda.time.DateTime;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
@@ -18,11 +19,9 @@ import java.util.stream.Collectors;
 @Service
 public class InsightsServiceImpl implements InsightsService {
 
-	private final BigQueryApi bigQueryApi;
-
-	public InsightsServiceImpl(BigQueryApi bigQueryApi) {
-		this.bigQueryApi = bigQueryApi;
-	}
+	private final int extraDays = 1;
+	@Autowired
+	BigQueryApi bigQueryApi;
 
 	private List<Date> getDatesArray(Date startDateTime, Date endDateTime, Frequency frequency) {
 
@@ -34,14 +33,10 @@ public class InsightsServiceImpl implements InsightsService {
 
 			datesArray.add(varyingDate.toDate());
 
-			switch (frequency) {
-				case HOURLY:
-					varyingDate = varyingDate.plusHours(1);
-					break;
-				case DAILY:
-					varyingDate = varyingDate.plusDays(1);
-					break;
-			}
+			varyingDate = switch (frequency) {
+				case HOURLY -> varyingDate.plusHours(1);
+				case DAILY -> varyingDate.plusDays(1);
+			};
 		}
 
 		final SimpleDateFormat simpleDateFormat = new SimpleDateFormat(frequency.dateTimeFormat());
@@ -60,7 +55,7 @@ public class InsightsServiceImpl implements InsightsService {
 									 Date endDateTime, String siteId, Frequency frequency, Boolean isForecast) {
 
 		Random random = new Random();
-		List<Date> insightsDateArray = insights.stream().map(GraphInsight::getTime).collect(Collectors.toList());
+		List<Date> insightsDateArray = insights.stream().map(GraphInsight::getTime).toList();
 
 		List<GraphInsight> missingData = getDatesArray(startDateTime, endDateTime, frequency)
 			.stream()
@@ -83,10 +78,15 @@ public class InsightsServiceImpl implements InsightsService {
 					insight.setPm10(refInsight.getPm10());
 				}
 				return insight;
-			}).collect(Collectors.toList());
+			}).toList();
 
 		insights.addAll(missingData);
 
+	}
+
+	private List<GraphInsight> removeOutliers(List<GraphInsight> insights, Date startDateTime, Date endDateTime) {
+
+		return insights.stream().filter(insight -> (insight.getTime().after(startDateTime) && insight.getTime().before(endDateTime)) || insight.getTime().equals(startDateTime) || insight.getTime().equals(endDateTime)).collect(Collectors.toList());
 	}
 
 	private List<GraphInsight> formatInsightsData(List<GraphInsight> insights, int utcOffSet) {
@@ -109,14 +109,10 @@ public class InsightsServiceImpl implements InsightsService {
 				insight.setPm2_5(Double.parseDouble(new DecimalFormat("#.##").format(insight.getPm2_5())));
 
 				switch (insight.getFrequency()) {
-					case DAILY:
-						insight.setTime(dailyDateFormat.parse(dailyDateFormat.format(insight.getTime())));
-						break;
-					case HOURLY:
-						insight.setTime(hourlyDateFormat.parse(hourlyDateFormat.format(insight.getTime())));
-						break;
-					default:
-						break;
+					case DAILY -> insight.setTime(dailyDateFormat.parse(dailyDateFormat.format(insight.getTime())));
+					case HOURLY -> insight.setTime(hourlyDateFormat.parse(hourlyDateFormat.format(insight.getTime())));
+					default -> {
+					}
 				}
 
 			} catch (Exception ignored) {
@@ -148,38 +144,41 @@ public class InsightsServiceImpl implements InsightsService {
 		return formatInsightsData(forecastInsights, utcOffSet);
 	}
 
-	private List<GraphInsight> createHistoricalInsights(List<GraphInsight> historicalInsights, Date startDateTime, Date endDateTime, String siteId, int utcOffSet) {
+	private List<GraphInsight> createHistoricalInsights(List<GraphInsight> historicalInsights, Date startDateTime, Date endDateTime, String siteId, int utcOffSet, Frequency frequency) {
 
-		historicalInsights = new ArrayList<>(new HashSet<>(historicalInsights));
-
-		// Daily insights
-		List<GraphInsight> historicalDailyInsights = historicalInsights.stream().filter(insight ->
-				insight.getFrequency() == Frequency.DAILY)
+		List<GraphInsight> insights = historicalInsights.stream().filter(insight ->
+				insight.getFrequency() == frequency)
 			.collect(Collectors.toList());
-		fillMissingInsights(historicalDailyInsights, startDateTime, endDateTime, siteId, Frequency.DAILY, false);
 
-		// Hourly insights
-		List<GraphInsight> historicalHourlyInsights = historicalInsights.stream().filter(insight ->
-				insight.getFrequency() == Frequency.HOURLY)
-			.collect(Collectors.toList());
-		fillMissingInsights(historicalHourlyInsights, startDateTime, endDateTime, siteId, Frequency.HOURLY, false);
+		Date dataStartDateTime = new DateTime(startDateTime).minusDays(extraDays).toDate();
+		Date dataEndDateTime = new DateTime(endDateTime).plusDays(extraDays).toDate();
 
-		// Insights
-		historicalHourlyInsights.addAll(historicalDailyInsights);
+		fillMissingInsights(insights, dataStartDateTime, dataEndDateTime, siteId, frequency, false);
 
-		return formatInsightsData(historicalHourlyInsights, utcOffSet);
+		insights = formatInsightsData(insights, utcOffSet);
+		return removeOutliers(insights, startDateTime, endDateTime);
 	}
 
 	@Override
 	@Cacheable(value = "appInsightsApiCache", cacheNames = {"appInsightsApiCache"}, unless = "#result.forecast.isEmpty() && #result.historical.isEmpty()")
 	public InsightData getInsights(Date startDateTime, Date endDateTime, String siteId, int utcOffSet) {
 
-		List<GraphInsight> insights = this.bigQueryApi.getInsights(startDateTime, endDateTime, siteId);
+		Date dataStartDateTime = new DateTime(startDateTime).minusDays(extraDays).toDate();
+		Date dataEndDateTime = new DateTime(endDateTime).plusDays(extraDays).toDate();
+
+		List<GraphInsight> insights = this.bigQueryApi.getInsights(dataStartDateTime, dataEndDateTime, siteId);
 
 		// Historical
 		List<GraphInsight> historicalInsights = insights.stream().filter(insight -> !insight.getForecast())
 			.collect(Collectors.toList());
-		historicalInsights = createHistoricalInsights(historicalInsights, startDateTime, endDateTime, siteId, utcOffSet);
+		historicalInsights = new ArrayList<>(new HashSet<>(historicalInsights));
+
+		List<GraphInsight> hourlyInsights = createHistoricalInsights(historicalInsights, startDateTime, endDateTime, siteId, utcOffSet, Frequency.HOURLY);
+		List<GraphInsight> dailyInsights = createHistoricalInsights(historicalInsights, startDateTime, endDateTime, siteId, utcOffSet, Frequency.DAILY);
+
+		historicalInsights = new ArrayList<>();
+		historicalInsights.addAll(hourlyInsights);
+		historicalInsights.addAll(dailyInsights);
 
 		// Forecast insights
 		List<GraphInsight> forecastInsights = insights.stream().filter(GraphInsight::getForecast)

@@ -8,7 +8,6 @@ import airqo.services.InsightsService;
 import airqo.services.MeasurementService;
 import com.querydsl.core.types.Predicate;
 import lombok.extern.slf4j.Slf4j;
-import org.joda.time.DateTime;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Profile;
 import org.springframework.data.querydsl.binding.QuerydslPredicate;
@@ -32,14 +31,11 @@ import static airqo.config.Constants.dateTimeFormat;
 @RequestMapping("measurements")
 public class MeasurementController {
 
-	private final MeasurementService measurementService;
-	private final InsightsService insightsService;
+	@Autowired
+	MeasurementService measurementService;
 
 	@Autowired
-	public MeasurementController(MeasurementService measurementService, InsightsService insightsService) {
-		this.measurementService = measurementService;
-		this.insightsService = insightsService;
-	}
+	InsightsService insightsService;
 
 	@Deprecated
 	@GetMapping("/app/insights")
@@ -58,22 +54,7 @@ public class MeasurementController {
 														  @RequestParam(required = false) Integer utcOffset,
 														  @RequestParam() String siteId) {
 
-		if (utcOffset == null) {
-			utcOffset = 0;
-		}
-
-		DateTime start = new DateTime(startDateTime);
-		DateTime end = new DateTime(endDateTime);
-
-		if (utcOffset < 0) {
-			start = start.plusHours(utcOffset);
-			end = end.plusHours(utcOffset);
-		} else {
-			start = start.minusHours(utcOffset);
-			end = end.minusHours(utcOffset);
-		}
-
-		InsightData insights = insightsService.getInsights(start.toDate(), end.toDate(), siteId, utcOffset);
+		InsightData insights = insightsService.getInsights(startDateTime, endDateTime, siteId, utcOffset);
 
 		ApiResponseBody apiResponseBody = new ApiResponseBody("Operation Successful", insights);
 		return new ResponseEntity<>(apiResponseBody, new HttpHeaders(), HttpStatus.OK);
