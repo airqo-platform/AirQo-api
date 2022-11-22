@@ -749,6 +749,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
+      checks: write
     outputs:
       url: ${{ steps.preview-url.outputs.url }}
     steps:
@@ -779,7 +780,7 @@ jobs:
           path: src/view/target/surefire-reports/*.xml
           reporter: java-junit
           fail-on-error: true
-          
+
       - name: Google Auth
         id: auth
         uses: google-github-actions/auth@v0
