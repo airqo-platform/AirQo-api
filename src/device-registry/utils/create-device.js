@@ -16,11 +16,16 @@ const logger = log4js.getLogger(
 );
 const qs = require("qs");
 const QRCode = require("qrcode");
-const { kafkaProducer } = require("../config/kafkajs");
 const httpStatus = require("http-status");
 let devicesModel = (tenant) => {
   return getModelByTenant(tenant, "device", DeviceSchema);
 };
+
+const { Kafka } = require("kafkajs");
+const kafka = new Kafka({
+  clientId: constants.KAFKA_CLIENT_ID,
+  brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
+});
 
 const createDevice = {
   doesDeviceSearchExist: async (request) => {
@@ -688,6 +693,10 @@ const createDevice = {
 
       if (responseFromRegisterDevice.success === true) {
         try {
+          const kafkaProducer = kafka.producer({
+            groupId: constants.UNIQUE_PRODUCER_GROUP,
+          });
+          await kafkaProducer.connect();
           await kafkaProducer.send({
             topic: constants.DEVICES_TOPIC,
             messages: [
@@ -697,6 +706,7 @@ const createDevice = {
               },
             ],
           });
+          await kafkaProducer.disconnect();
         } catch (error) {
           logObject("error on kafka", error);
         }
