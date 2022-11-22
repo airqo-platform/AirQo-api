@@ -1143,31 +1143,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
 
-      - name: Java Seutp
-        uses: actions/setup-java@v3
-        with:
-          java-version: '17'
-          distribution: 'adopt'
-      
-      - name: Packaging 
-        run: | 
-          cd src/view/
-          mvn --batch-mode -DskipTests package
-      
-      - name: Testing
-        run: |
-          cd src/view/
-          mvn --batch-mode -Dmaven.test.failure.ignore=true test
-      
-      - name: Reporting test results
-        uses: dorny/test-reporter@v1.6.0
-        if: always()
-        with:
-          name: Maven Tests
-          path: src/view/target/surefire-reports/*.xml
-          reporter: java-junit
-          fail-on-error: true
-
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v1
 
