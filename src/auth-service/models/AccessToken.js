@@ -11,11 +11,24 @@ const HTTPStatus = require("http-status");
 
 const AccessTokenSchema = new mongoose.Schema(
   {
-    userId: { type: ObjectId, ref: "user" },
+    user_id: {
+      type: ObjectId,
+      ref: "user",
+      required: [true, "user is required!"],
+    },
+    network_id: {
+      type: ObjectId,
+      ref: "network",
+    },
     name: { type: String },
-    token: { type: String, unique: true },
+    token: {
+      type: String,
+      unique: true,
+      required: [true, "token is required!"],
+    },
     last_used_at: { type: Date },
     last_ip_address: { type: Date },
+    expires_in: { type: Number },
   },
   { timestamps: true }
 );
@@ -47,8 +60,7 @@ AccessTokenSchema.pre("update", function (next) {
   return next();
 });
 
-AccessTokenSchema.index({ email: 1 }, { unique: true });
-AccessTokenSchema.index({ userName: 1 }, { unique: true });
+AccessTokenSchema.index({ token: 1 }, { unique: true });
 
 AccessTokenSchema.statics = {
   async findToken(authorizationToken) {
@@ -123,16 +135,17 @@ AccessTokenSchema.statics = {
         .match(filter)
         .lookup({
           from: "users",
-          localField: "userId",
+          localField: "user_id",
           foreignField: "_id",
           as: "users",
         })
         .sort({ createdAt: -1 })
         .project({
           _id: 1,
-          userId: 1,
+          user_id: 1,
           name: 1,
           token: 1,
+          network_id: 1,
           last_used_at: 1,
           last_ip_address: 1,
           user: { $arrayElemAt: ["$users", 0] },
@@ -199,7 +212,13 @@ AccessTokenSchema.statics = {
   async remove({ filter = {} } = {}) {
     try {
       let options = {
-        projection: { _id: 0, token: 1, userId: 1, expires_in: 1 },
+        projection: {
+          _id: 0,
+          token: 1,
+          network_id: 1,
+          user_id: 1,
+          expires_in: 1,
+        },
       };
       let removedToken = await this.findOneAndRemove(filter, options).exec();
 
@@ -231,7 +250,8 @@ AccessTokenSchema.methods = {
     return {
       _id: this._id,
       token: this.token,
-      userId: this.userId,
+      user_id: this.user_id,
+      network_id: this.network_id,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
       name: this.name,

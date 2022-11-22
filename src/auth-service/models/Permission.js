@@ -2,10 +2,20 @@ const mongoose = require("mongoose").set("debug", true);
 const { logObject } = require("../utils/log");
 const isEmpty = require("is-empty");
 const HTTPStatus = require("http-status");
+const ObjectId = mongoose.Schema.Types.ObjectId;
 
 const PermissionSchema = new mongoose.Schema(
   {
-    name: { type: String, unique: true },
+    name: {
+      type: String,
+      unique: true,
+      required: [true, "Name is required"],
+    },
+    network_id: {
+      type: ObjectId,
+      ref: "network",
+      required: [true, "network ID is required"],
+    },
   },
   { timestamps: false }
 );
@@ -37,7 +47,7 @@ PermissionSchema.pre("update", function (next) {
   return next();
 });
 
-PermissionSchema.index({ name: 1 }, { unique: true });
+PermissionSchema.index({ name: 1, network_id: 1 }, { unique: true });
 
 PermissionSchema.statics = {
   async register(args) {
@@ -79,11 +89,29 @@ PermissionSchema.statics = {
 
   async list({ skip = 0, limit = 5, filter = {} } = {}) {
     try {
-      let permissions = await this.find(filter)
+      // network: { $arrayElemAt: ["$network", 0] },
+      let permissions = await this.aggregate()
+        .match(filter)
         .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .exec();
+        .lookup({
+          from: "networks",
+          localField: "network_id",
+          foreignField: "_id",
+          as: "network",
+        })
+        .project({
+          _id: 1,
+          name: 1,
+          network: { $arrayElemAt: ["$network", 0] },
+        })
+        .project({
+          "network.__v": 0,
+          "network.createdAt": 0,
+          "network.updatedAt": 0,
+        })
+        .skip(skip ? skip : 0)
+        .limit(limit ? limit : 100)
+        .allowDiskUse(true);
       if (!isEmpty(permissions)) {
         let data = permissions;
         return {
@@ -117,11 +145,13 @@ PermissionSchema.statics = {
     try {
       let options = { new: true };
       let modifiedUpdate = update;
+
       let updatedPermission = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,
         options
       ).exec();
+
       if (!isEmpty(updatedPermission)) {
         let data = updatedPermission._doc;
         return {

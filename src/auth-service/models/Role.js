@@ -2,10 +2,25 @@ const mongoose = require("mongoose").set("debug", true);
 const { logObject } = require("../utils/log");
 const isEmpty = require("is-empty");
 const HTTPStatus = require("http-status");
+const ObjectId = mongoose.Schema.Types.ObjectId;
 
 const RoleSchema = new mongoose.Schema(
   {
-    name: { type: String, unique: true },
+    name: {
+      type: String,
+      required: [true, "name is required"],
+    },
+    network_id: {
+      type: ObjectId,
+      ref: "network",
+      required: [true, "network ID is required"],
+    },
+    permissions: [
+      {
+        type: ObjectId,
+        ref: "permission",
+      },
+    ],
   },
   { timestamps: false }
 );
@@ -79,11 +94,22 @@ RoleSchema.statics = {
 
   async list({ skip = 0, limit = 5, filter = {} } = {}) {
     try {
-      let roles = await this.find(filter)
+      let roles = await this.aggregate()
+        .match(filter)
+        .lookup({
+          from: "networks",
+          localField: "network_id",
+          foreignField: "_id",
+          as: "network",
+        })
         .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .exec();
+        .project({
+          "network.__v": 0,
+        })
+        .skip(skip ? skip : 0)
+        .limit(limit ? limit : 100)
+        .allowDiskUse(true);
+
       if (!isEmpty(roles)) {
         let data = roles;
         return {
@@ -117,6 +143,15 @@ RoleSchema.statics = {
     try {
       let options = { new: true };
       let modifiedUpdate = update;
+      modifiedUpdate["$addToSet"] = {};
+
+      if (modifiedUpdate.permissions) {
+        modifiedUpdate["$addToSet"]["permissions"] = {};
+        modifiedUpdate["$addToSet"]["permissions"]["$each"] =
+          modifiedUpdate.permissions;
+        delete modifiedUpdate["permissions"];
+      }
+
       let updatedRole = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,

@@ -23,6 +23,12 @@ const CandidateSchema = new mongoose.Schema(
       required: [true, "FirstName is required!"],
       trim: true,
     },
+    network_id: {
+      type: ObjectId,
+      required: [true, "network_id is required!"],
+      trim: true,
+      ref: "network",
+    },
     lastName: {
       type: String,
       required: [true, "LastName is required"],
@@ -170,6 +176,7 @@ CandidateSchema.methods = {
       long_organization: this.long_organization,
       jobTitle: this.jobTitle,
       website: this.website,
+      network_id: this.network_id,
       status: this.status,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,

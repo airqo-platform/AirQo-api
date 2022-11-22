@@ -15,6 +15,7 @@ const AdminJS = require("adminjs");
 const AdminJSMongoose = require("@adminjs/mongoose");
 AdminJS.registerAdapter(AdminJSMongoose);
 const accessCodeGenerator = require("generate-password");
+const { getModelByTenant } = require("../utils/multitenancy");
 
 function oneMonthFromNow() {
   var d = new Date();
@@ -28,6 +29,11 @@ function oneMonthFromNow() {
 
 const UserSchema = new Schema(
   {
+    due_date: { type: Date },
+    status: { type: String },
+    address: { type: String },
+    country: { type: String },
+    city: { type: String },
     email: {
       type: String,
       unique: true,
@@ -75,20 +81,31 @@ const UserSchema = new Schema(
     privilege: { type: String, required: [true, "the role is required!"] },
     isActive: { type: Boolean },
     duration: { type: Date, default: oneMonthFromNow },
-    organizations: [
+    networks: [
       {
         type: ObjectId,
-        ref: "organization",
+        ref: "network",
+        required: [true, "the network is required!"],
       },
     ],
-    organization: {
-      type: String,
-      required: [true, "the organization is required!"],
-    },
-    long_organization: {
-      type: String,
-      required: [true, "the long_organization is required!"],
-    },
+    groups: [
+      {
+        type: ObjectId,
+        ref: "group",
+      },
+    ],
+    roles: [
+      {
+        type: ObjectId,
+        ref: "role",
+      },
+    ],
+    permissions: [
+      {
+        type: ObjectId,
+        ref: "permission",
+      },
+    ],
     country: { type: String },
     phoneNumber: { type: Number },
     locationCount: { type: Number, default: 5 },
@@ -190,13 +207,29 @@ UserSchema.statics = {
   },
   async list({ skip = 0, limit = 5, filter = {} } = {}) {
     try {
+      let projectAll = {
+        _id: 1,
+        firstName: 1,
+        lastName: 1,
+        userName: 1,
+        email: 1,
+        privilege: 1,
+        profilePicture: 1,
+        phoneNumber: 1,
+        networks: "$networks",
+        access_tokens: "$access_tokens",
+        permissions: "$permissions",
+        roles: "$roles",
+      };
+
+      const projectSummary = {};
       const response = await this.aggregate()
         .match(filter)
         .lookup({
-          from: "organizations",
+          from: "networks",
           localField: "_id",
           foreignField: "users",
-          as: "organizations",
+          as: "networks",
         })
         .lookup({
           from: "access_tokens",
@@ -207,9 +240,6 @@ UserSchema.statics = {
         .sort({ createdAt: -1 })
         .project({
           _id: 1,
-          locationCount: 1,
-          organization: 1,
-          long_organization: 1,
           firstName: 1,
           lastName: 1,
           userName: 1,
@@ -217,26 +247,52 @@ UserSchema.statics = {
           privilege: 1,
           profilePicture: 1,
           phoneNumber: 1,
-          organizations: "$organizations",
+          networks: "$networks",
           access_tokens: "$access_tokens",
+          permissions: "$permissions",
+          roles: "$roles",
         })
         .project({
-          "organizations.__v": 0,
-          "organizations.status": 0,
-          "organizations.isActive": 0,
-          "organizations.isAlias": 0,
-          "organizations.tenant": 0,
-          "organizations.acronym": 0,
-          "organizations.createdAt": 0,
-          "organizations.updatedAt": 0,
-          "organizations.users": 0,
+          "networks.__v": 0,
+          "networks.net_status": 0,
+          "networks.net_acronym": 0,
+          "networks.createdAt": 0,
+          "networks.updatedAt": 0,
+          "networks.net_users": 0,
+          "networks.net_roles": 0,
+          "networks.net_groups": 0,
+          "networks.net_description": 0,
+          "networks.net_departments": 0,
+          "networks.net_permissions": 0,
+          "networks.net_email": 0,
+          "networks.net_category": 0,
+          "networks.net_phoneNumber": 0,
+          "networks.net_manager": 0,
         })
         .project({
           "access_tokens.__v": 0,
           "access_tokens._id": 0,
-          "access_tokens.userId": 0,
+          "access_tokens.user_id": 0,
           "access_tokens.createdAt": 0,
           "access_tokens.updatedAt": 0,
+        })
+        .project({
+          "permissions.__v": 0,
+          "permissions._id": 0,
+          "permissions.createdAt": 0,
+          "permissions.updatedAt": 0,
+        })
+        .project({
+          "roles.__v": 0,
+          "roles._id": 0,
+          "roles.createdAt": 0,
+          "roles.updatedAt": 0,
+        })
+        .project({
+          "groups.__v": 0,
+          "groups._id": 0,
+          "groups.createdAt": 0,
+          "groups.updatedAt": 0,
         })
         .skip(skip ? skip : 0)
         .limit(limit ? limit : 100)
@@ -275,11 +331,30 @@ UserSchema.statics = {
       if (update.password) {
         modifiedUpdate.password = bcrypt.hashSync(update.password, saltRounds);
       }
-      if (modifiedUpdate.organizations) {
-        modifiedUpdate["$addToSet"]["organizations"] = {};
-        modifiedUpdate["$addToSet"]["organizations"]["$each"] =
-          modifiedUpdate.organizations;
-        delete modifiedUpdate["organizations"];
+      if (modifiedUpdate.networks) {
+        modifiedUpdate["$addToSet"]["networks"] = {};
+        modifiedUpdate["$addToSet"]["networks"]["$each"] =
+          modifiedUpdate.networks;
+        delete modifiedUpdate["networks"];
+      }
+
+      if (modifiedUpdate.permissions) {
+        modifiedUpdate["$addToSet"]["permissions"] = {};
+        modifiedUpdate["$addToSet"]["permissions"]["$each"] =
+          modifiedUpdate.permissions;
+        delete modifiedUpdate["permissions"];
+      }
+
+      if (modifiedUpdate.roles) {
+        modifiedUpdate["$addToSet"]["roles"] = {};
+        modifiedUpdate["$addToSet"]["roles"]["$each"] = modifiedUpdate.roles;
+        delete modifiedUpdate["roles"];
+      }
+
+      if (modifiedUpdate.groups) {
+        modifiedUpdate["$addToSet"]["groups"] = {};
+        modifiedUpdate["$addToSet"]["groups"]["$each"] = modifiedUpdate.groups;
+        delete modifiedUpdate["groups"];
       }
 
       let updatedUser = await this.findOneAndUpdate(

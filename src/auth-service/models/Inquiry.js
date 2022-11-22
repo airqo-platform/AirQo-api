@@ -25,6 +25,12 @@ const InquirySchema = new mongoose.Schema(
     },
     message: { type: String, required: [true, "message is required"] },
     category: { type: String, required: [true, "category is required"] },
+    network_id: {
+      type: ObjectId,
+      ref: "network",
+      trim: true,
+      required: [true, "network_id is required"],
+    },
     status: {
       type: String,
       default: "pending",
@@ -155,6 +161,7 @@ InquirySchema.methods = {
       message: this.message,
       category: this.category,
       status: this.status,
+      network_id: this.network_id,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
     };
