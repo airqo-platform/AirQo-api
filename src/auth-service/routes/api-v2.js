@@ -1,9 +1,9 @@
 const express = require("express");
 const router = express.Router();
-const joinController = require("../controllers/join");
-const requestController = require("../controllers/request");
-const defaultsController = require("../controllers/defaults");
-const organizationController = require("../controllers/create-organization");
+const createUserController = require("../controllers/create-user");
+const requestAccessController = require("../controllers/request-access");
+const createDefaultController = require("../controllers/create-default");
+const createOrganizationController = require("../controllers/create-network");
 const { check, oneOf, query, body, param } = require("express-validator");
 
 const {
@@ -12,7 +12,6 @@ const {
   setLocalAuth,
   authLocal,
 } = require("../middleware/passport");
-const privileges = require("../utils/privileges");
 
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
@@ -49,10 +48,10 @@ router.post(
   ]),
   setLocalAuth,
   authLocal,
-  joinController.login
+  createUserController.login
 );
 
-router.post("/verify", setJWTAuth, authJWT, joinController.verify);
+router.post("/verify", setJWTAuth, authJWT, createUserController.verify);
 router.get(
   "/",
   oneOf([
@@ -67,7 +66,7 @@ router.get(
   ]),
   setJWTAuth,
   authJWT,
-  joinController.list
+  createUserController.list
 );
 router.post(
   "/registerUser",
@@ -81,7 +80,7 @@ router.post(
       .isIn(["kcca", "airqo"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
-  joinController.register
+  createUserController.register
 );
 router.get(
   "/email/confirm/",
@@ -97,12 +96,12 @@ router.get(
   ]),
   setJWTAuth,
   authJWT,
-  joinController.confirmEmail
+  createUserController.confirmEmail
 );
 router.put(
   "/updatePasswordViaEmail",
   setJWTAuth,
-  joinController.updateForgottenPassword
+  createUserController.updateForgottenPassword
 );
 router.put(
   "/updatePassword",
@@ -118,7 +117,7 @@ router.put(
   ]),
   setJWTAuth,
   authJWT,
-  joinController.updateKnownPassword
+  createUserController.updateKnownPassword
 );
 router.post(
   "/forgotPassword",
@@ -132,7 +131,7 @@ router.post(
       .isIn(["kcca", "airqo"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
-  joinController.forgot
+  createUserController.forgot
 );
 router.put(
   "/",
@@ -180,7 +179,7 @@ router.put(
   ]),
   setJWTAuth,
   authJWT,
-  joinController.update
+  createUserController.update
 );
 router.delete(
   "/",
@@ -196,7 +195,7 @@ router.delete(
   ]),
   setJWTAuth,
   authJWT,
-  joinController.delete
+  createUserController.delete
 );
 
 /************************* settings/defaults **********************************/
@@ -320,7 +319,7 @@ router.put(
   ]),
   setJWTAuth,
   authJWT,
-  defaultsController.update
+  createDefaultController.update
 );
 
 router.post(
@@ -427,7 +426,7 @@ router.post(
   ]),
   setJWTAuth,
   authJWT,
-  defaultsController.create
+  createDefaultController.create
 );
 
 router.get(
@@ -488,7 +487,7 @@ router.get(
   ]),
   setJWTAuth,
   authJWT,
-  defaultsController.list
+  createDefaultController.list
 );
 
 router.delete(
@@ -520,7 +519,7 @@ router.delete(
   ]),
   setJWTAuth,
   authJWT,
-  defaultsController.delete
+  createDefaultController.delete
 );
 
 //************************ candidates ***********************************************
@@ -575,7 +574,7 @@ router.post(
         .trim(),
     ],
   ]),
-  requestController.create
+  requestAccessController.create
 );
 router.get(
   "/candidates",
@@ -591,7 +590,7 @@ router.get(
   ]),
   setJWTAuth,
   authJWT,
-  requestController.list
+  requestAccessController.list
 );
 router.post(
   "/candidates/confirm",
@@ -607,7 +606,7 @@ router.post(
   ]),
   setJWTAuth,
   authJWT,
-  requestController.confirm
+  requestAccessController.confirm
 );
 router.delete(
   "/candidates",
@@ -623,7 +622,7 @@ router.delete(
   ]),
   setJWTAuth,
   authJWT,
-  requestController.delete
+  requestAccessController.delete
 );
 router.put(
   "/candidates",
@@ -667,7 +666,7 @@ router.put(
   ]),
   setJWTAuth,
   authJWT,
-  requestController.update
+  requestAccessController.update
 );
 
 /**************** create organization use case ***********************/
@@ -700,7 +699,7 @@ router.delete(
   ]),
   setJWTAuth,
   authJWT,
-  organizationController.delete
+  createOrganizationController.delete
 );
 
 router.put(
@@ -813,7 +812,7 @@ router.put(
   ]),
   setJWTAuth,
   authJWT,
-  organizationController.update
+  createOrganizationController.update
 );
 
 router.get(
@@ -830,7 +829,7 @@ router.get(
   ]),
   setJWTAuth,
   authJWT,
-  organizationController.list
+  createOrganizationController.list
 );
 
 router.post(
@@ -920,7 +919,7 @@ router.post(
   ]),
   setJWTAuth,
   authJWT,
-  organizationController.create
+  createOrganizationController.create
 );
 
 module.exports = router;

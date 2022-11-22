@@ -1,11 +1,12 @@
 const express = require("express");
 const router = express.Router();
-const joinController = require("../controllers/join");
-const requestController = require("../controllers/request");
-const inquiryController = require("../controllers/inquire");
-const defaultsController = require("../controllers/defaults");
-const organizationController = require("../controllers/create-organization");
-const controlAccessController = require("../controllers/control-access");
+const createUserController = require("../controllers/create-user");
+const requestAccessController = require("../controllers/request-access");
+const createInquiryController = require("../controllers/create-inquiry");
+const createDefaultController = require("../controllers/create-default");
+const createNetworkController = require("../controllers/create-network");
+const createRoleController = require("../controllers/create-role");
+const createPermissionController = require("../controllers/create-permission");
 const { check, oneOf, query, body, param } = require("express-validator");
 
 const {
@@ -31,24 +32,7 @@ const headers = (req, res, next) => {
 };
 router.use(headers);
 
-/*************************** control access ********************************** */
-router.get(
-  "/roles",
-  oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
-  ]),
-  setJWTAuth,
-  authJWT,
-  controlAccessController.listRoles
-);
-
+/*************************** create role ********************************** */
 router.get(
   "/roles/:role_id",
   oneOf([
@@ -63,7 +47,7 @@ router.get(
   ]),
   setJWTAuth,
   authJWT,
-  controlAccessController.listRoles
+  createRoleController.list
 );
 
 router.post(
@@ -80,7 +64,7 @@ router.post(
   ]),
   setJWTAuth,
   authJWT,
-  controlAccessController.createRole
+  createRoleController.create
 );
 
 router.put(
@@ -97,7 +81,7 @@ router.put(
   ]),
   setJWTAuth,
   authJWT,
-  controlAccessController.updateRole
+  createRoleController.update
 );
 
 router.delete(
@@ -114,7 +98,7 @@ router.delete(
   ]),
   setJWTAuth,
   authJWT,
-  controlAccessController.deleteRole
+  createRoleController.delete
 );
 
 router.get(
@@ -131,7 +115,7 @@ router.get(
   ]),
   setJWTAuth,
   authJWT,
-  controlAccessController.listUserWithRole
+  createRoleController.listUserWithRole
 );
 
 router.get(
@@ -148,7 +132,7 @@ router.get(
   ]),
   setJWTAuth,
   authJWT,
-  controlAccessController.listAvailableUsersForRole
+  createRoleController.listAvailableUsersForRole
 );
 
 router.post(
@@ -165,7 +149,7 @@ router.post(
   ]),
   setJWTAuth,
   authJWT,
-  controlAccessController.assignUserToRole
+  createRoleController.assignUserToRole
 );
 
 router.delete(
@@ -182,7 +166,7 @@ router.delete(
   ]),
   setJWTAuth,
   authJWT,
-  controlAccessController.unAssignUserFromRole
+  createRoleController.unAssignUserFromRole
 );
 
 router.get(
@@ -199,24 +183,7 @@ router.get(
   ]),
   setJWTAuth,
   authJWT,
-  controlAccessController.listPermissionsForRole
-);
-
-router.get(
-  "/roles/:role_id/permissions",
-  oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
-  ]),
-  setJWTAuth,
-  authJWT,
-  controlAccessController.listPermissionsForRole
+  createRoleController.listPermissionsForRole
 );
 
 router.get(
@@ -233,7 +200,7 @@ router.get(
   ]),
   setJWTAuth,
   authJWT,
-  controlAccessController.listAvailablePermissionsForRole
+  createRoleController.listAvailablePermissionsForRole
 );
 
 router.post(
@@ -250,7 +217,7 @@ router.post(
   ]),
   setJWTAuth,
   authJWT,
-  controlAccessController.assignPermissionToRole
+  createRoleController.assignPermissionToRole
 );
 
 router.delete(
@@ -267,7 +234,77 @@ router.delete(
   ]),
   setJWTAuth,
   authJWT,
-  controlAccessController.unAssignPermissionFromRole
+  createRoleController.unAssignPermissionFromRole
+);
+
+/******************* create permissions  *********************************/
+
+router.get(
+  "/permissions/:permission_id",
+  oneOf([
+    query("tenant")
+      .exists()
+      .withMessage("tenant should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  setJWTAuth,
+  authJWT,
+  createPermissionController.list
+);
+
+router.post(
+  "/permissions",
+  oneOf([
+    query("tenant")
+      .exists()
+      .withMessage("tenant should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  setJWTAuth,
+  authJWT,
+  createPermissionController.create
+);
+
+router.put(
+  "/permissions/:permission_id",
+  oneOf([
+    query("tenant")
+      .exists()
+      .withMessage("tenant should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  setJWTAuth,
+  authJWT,
+  createPermissionController.update
+);
+
+router.delete(
+  "/permissions/:permission_id",
+  oneOf([
+    query("tenant")
+      .exists()
+      .withMessage("tenant should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  setJWTAuth,
+  authJWT,
+  createPermissionController.delete
 );
 
 //************************* users ***************************************************
@@ -292,7 +329,7 @@ router.post(
   ]),
   setLocalAuth,
   authLocal,
-  joinController.login
+  createUserController.login
 );
 
 router.post(
@@ -307,7 +344,7 @@ router.post(
         .withMessage("this is not a valid email address"),
     ],
   ]),
-  joinController.loginInViaEmail
+  createUserController.loginInViaEmail
 );
 
 router.post(
@@ -322,7 +359,7 @@ router.post(
         .withMessage("this is not a valid email address"),
     ],
   ]),
-  joinController.emailAuth
+  createUserController.emailAuth
 );
 
 router.post(
@@ -352,7 +389,7 @@ router.post(
         .withMessage("the message must not be empty if provided"),
     ],
   ]),
-  joinController.sendFeedback
+  createUserController.sendFeedback
 );
 
 router.post(
@@ -381,10 +418,10 @@ router.post(
       .isMobilePhone()
       .withMessage("the phoneNumber must be valid"),
   ]),
-  joinController.lookUpFirebaseUser
+  createUserController.lookUpFirebaseUser
 );
 
-router.post("/verify", setJWTAuth, authJWT, joinController.verify);
+router.post("/verify", setJWTAuth, authJWT, createUserController.verify);
 router.get(
   "/",
   oneOf([
@@ -399,7 +436,7 @@ router.get(
   ]),
   setJWTAuth,
   authJWT,
-  joinController.list
+  createUserController.list
 );
 router.post(
   "/registerUser",
@@ -413,7 +450,43 @@ router.post(
       .isIn(["kcca", "airqo"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
-  joinController.register
+  oneOf([
+    [
+      body("firstName")
+        .exists()
+        .withMessage("firstName is missing in your request")
+        .bail()
+        .trim(),
+      body("lastName")
+        .exists()
+        .withMessage("lastName is missing in your request")
+        .bail()
+        .trim(),
+      body("email")
+        .exists()
+        .withMessage("email is missing in your request")
+        .bail()
+        .isEmail()
+        .withMessage("this is not a valid email address")
+        .trim(),
+      body("organization")
+        .exists()
+        .withMessage("organization is missing in your request")
+        .bail()
+        .trim(),
+      body("long_organization")
+        .exists()
+        .withMessage("long_organization is missing in your request")
+        .bail()
+        .trim(),
+      body("privilege")
+        .exists()
+        .withMessage("privilege is missing in your request")
+        .bail()
+        .trim(),
+    ],
+  ]),
+  createUserController.register
 );
 router.get(
   "/email/confirm/",
@@ -429,12 +502,12 @@ router.get(
   ]),
   setJWTAuth,
   authJWT,
-  joinController.confirmEmail
+  createUserController.confirmEmail
 );
 router.put(
   "/updatePasswordViaEmail",
   setJWTAuth,
-  joinController.updateForgottenPassword
+  createUserController.updateForgottenPassword
 );
 router.put(
   "/updatePassword",
@@ -450,7 +523,7 @@ router.put(
   ]),
   setJWTAuth,
   authJWT,
-  joinController.updateKnownPassword
+  createUserController.updateKnownPassword
 );
 router.post(
   "/forgotPassword",
@@ -464,7 +537,7 @@ router.post(
       .isIn(["kcca", "airqo"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
-  joinController.forgot
+  createUserController.forgot
 );
 router.put(
   "/",
@@ -512,7 +585,7 @@ router.put(
   ]),
   setJWTAuth,
   authJWT,
-  joinController.update
+  createUserController.update
 );
 router.delete(
   "/",
@@ -528,7 +601,7 @@ router.delete(
   ]),
   setJWTAuth,
   authJWT,
-  joinController.delete
+  createUserController.delete
 );
 
 router.post(
@@ -564,7 +637,7 @@ router.post(
         .withMessage("the tags should be an array"),
     ],
   ]),
-  joinController.subscribeToNewsLetter
+  createUserController.subscribeToNewsLetter
 );
 
 /************************* settings/defaults **********************************/
@@ -697,7 +770,7 @@ router.put(
   ]),
   setJWTAuth,
   authJWT,
-  defaultsController.update
+  createDefaultController.update
 );
 
 router.post(
@@ -834,7 +907,7 @@ router.post(
   ]),
   setJWTAuth,
   authJWT,
-  defaultsController.create
+  createDefaultController.create
 );
 
 router.get(
@@ -895,7 +968,7 @@ router.get(
   ]),
   setJWTAuth,
   authJWT,
-  defaultsController.list
+  createDefaultController.list
 );
 
 router.delete(
@@ -927,7 +1000,7 @@ router.delete(
   ]),
   setJWTAuth,
   authJWT,
-  defaultsController.delete
+  createDefaultController.delete
 );
 
 //************************ candidates ***********************************************
@@ -982,7 +1055,7 @@ router.post(
         .trim(),
     ],
   ]),
-  requestController.create
+  requestAccessController.create
 );
 router.get(
   "/candidates",
@@ -998,7 +1071,7 @@ router.get(
   ]),
   setJWTAuth,
   authJWT,
-  requestController.list
+  requestAccessController.list
 );
 router.post(
   "/candidates/confirm",
@@ -1014,7 +1087,7 @@ router.post(
   ]),
   setJWTAuth,
   authJWT,
-  requestController.confirm
+  requestAccessController.confirm
 );
 router.delete(
   "/candidates",
@@ -1045,7 +1118,7 @@ router.delete(
   ]),
   setJWTAuth,
   authJWT,
-  requestController.delete
+  requestAccessController.delete
 );
 router.put(
   "/candidates",
@@ -1089,7 +1162,7 @@ router.put(
   ]),
   setJWTAuth,
   authJWT,
-  requestController.update
+  requestAccessController.update
 );
 
 //************************ inquiries ***********************************************
@@ -1146,7 +1219,7 @@ router.post(
         .trim(),
     ],
   ]),
-  inquiryController.create
+  createInquiryController.create
 );
 router.get(
   "/inquiries",
@@ -1162,7 +1235,7 @@ router.get(
   ]),
   setJWTAuth,
   authJWT,
-  inquiryController.list
+  createInquiryController.list
 );
 
 router.delete(
@@ -1194,7 +1267,7 @@ router.delete(
   ]),
   setJWTAuth,
   authJWT,
-  inquiryController.delete
+  createInquiryController.delete
 );
 router.put(
   "/inquiries",
@@ -1238,12 +1311,12 @@ router.put(
   ]),
   setJWTAuth,
   authJWT,
-  inquiryController.update
+  createInquiryController.update
 );
 
-/**************** create organization use case ***********************/
+/**************** create network use case ***********************/
 router.delete(
-  "/organizations",
+  "/networks",
   oneOf([
     query("tenant")
       .if(query("tenant").exists())
@@ -1272,11 +1345,11 @@ router.delete(
   ]),
   setJWTAuth,
   authJWT,
-  organizationController.delete
+  createNetworkController.delete
 );
 
 router.put(
-  "/organizations",
+  "/networks",
   oneOf([
     query("tenant")
       .if(query("tenant").exists())
@@ -1391,11 +1464,11 @@ router.put(
   ]),
   setJWTAuth,
   authJWT,
-  organizationController.update
+  createNetworkController.update
 );
 
 router.get(
-  "/organizations",
+  "/networks",
   oneOf([
     query("tenant")
       .if(query("tenant").exists())
@@ -1408,11 +1481,11 @@ router.get(
       .withMessage("the tenant value is not among the expected ones"),
   ]),
 
-  organizationController.list
+  createNetworkController.list
 );
 
 router.post(
-  "/organizations",
+  "/networks",
   oneOf([
     query("tenant")
       .if(query("tenant").exists())
@@ -1428,37 +1501,22 @@ router.post(
     [
       body("email")
         .exists()
-        .withMessage("the organization's email address is required")
+        .withMessage("the network's email address is required")
         .bail()
         .isEmail()
         .withMessage("This is not a valid email address")
         .trim(),
-      body("website")
+      body("net_website")
         .exists()
-        .withMessage("the organization's website is required")
+        .withMessage("the net_network's website is required")
         .bail()
         .isURL()
-        .withMessage("the website is not a valid URL")
+        .withMessage("the net_website is not a valid URL")
         .trim(),
-      body("isAlias")
-        .exists()
-        .withMessage("isAlias is required")
-        .bail()
-        .isBoolean()
-        .withMessage("isAlias must be a Boolean")
-        .trim(),
-      body("isActive")
-        .if(body("isActive").exists())
+      body("net_status")
+        .optional()
         .notEmpty()
-        .withMessage("the isActive should not be empty")
-        .bail()
-        .isBoolean()
-        .withMessage("isActive must be a Boolean")
-        .trim(),
-      body("status")
-        .if(body("status").exists())
-        .notEmpty()
-        .withMessage("the status should not be empty")
+        .withMessage("the net_status should not be empty")
         .bail()
         .toLowerCase()
         .isIn(["active", "inactive", "pending"])
@@ -1466,17 +1524,17 @@ router.post(
           "the status value is not among the expected ones which include: active, inactive, pending"
         )
         .trim(),
-      body("phoneNumber")
+      body("net_phoneNumber")
         .exists()
-        .withMessage("the organization's phoneNumber is required")
+        .withMessage("the net_phoneNumber is required")
         .bail()
         .isMobilePhone()
-        .withMessage("the phoneNumber is not a valid one")
+        .withMessage("the net_phoneNumber is not a valid one")
         .bail()
         .trim(),
-      body("category")
+      body("net_category")
         .exists()
-        .withMessage("the organization's category is required")
+        .withMessage("the net_category is required")
         .bail()
         .toLowerCase()
         .isIn([
@@ -1491,25 +1549,19 @@ router.post(
           "the status value is not among the expected ones which include: business, research, policy, awareness, school, others"
         )
         .trim(),
-      body("name")
+      body("net_description")
         .exists()
-        .withMessage("the organization's name is required")
+        .withMessage("the net_description is required")
         .trim(),
-      body("tenant")
-        .if(body("tenant").exists())
-        .notEmpty()
-        .withMessage("the tenant cannot be empty if provided")
-        .trim()
-        .toLowerCase(),
     ],
   ]),
   setJWTAuth,
   authJWT,
-  organizationController.create
+  createNetworkController.create
 );
 
 router.post(
-  "/organizations/tenant",
+  "/networks/find",
   oneOf([
     query("tenant")
       .if(query("tenant").exists())
@@ -1534,7 +1586,7 @@ router.post(
   ]),
   setJWTAuth,
   authJWT,
-  organizationController.getTenantFromEmail
+  createNetworkController.getNetworkFromEmail
 );
 
 module.exports = router;
