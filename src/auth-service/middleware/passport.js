@@ -19,8 +19,7 @@ const AccessTokenModel = (tenant) => {
 };
 
 const { validationResult } = require("express-validator");
-const manipulateArraysUtil = require("../utils/manipulate-arrays");
-const { badRequest } = require("../utils/errors");
+const { badRequest, convertErrorArrayToObject } = require("../utils/errors");
 
 const setLocalOptions = (req) => {
   try {
@@ -188,7 +187,7 @@ const useAuthTokenStrategy = (tenant, req, res, next) =>
 
           UserModel(tenant.toLowerCase()).findOne(
             {
-              id: accessToken.userId,
+              id: accessToken.user_id,
             },
             function (error, user) {
               if (error) {
@@ -229,7 +228,7 @@ function setLocalAuth(req, res, next) {
       return badRequest(
         res,
         "bad request errors",
-        manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        convertErrorArrayToObject(nestedErrors)
       );
     }
     let tenant = "airqo";
@@ -252,7 +251,7 @@ function setJWTAuth(req, res, next) {
       return badRequest(
         res,
         "bad request errors",
-        manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        convertErrorArrayToObject(nestedErrors)
       );
     }
     let tenant = "airqo";
@@ -279,7 +278,7 @@ function setAuthToken(req, res, next) {
       return badRequest(
         res,
         "bad request errors",
-        manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        convertErrorArrayToObject(nestedErrors)
       );
     }
     let tenant = "airqo";
