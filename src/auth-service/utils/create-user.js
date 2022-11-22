@@ -1,8 +1,8 @@
 const UserSchema = require("../models/User");
 const AccessTokenSchema = require("../models/AccessToken");
-const { getModelByTenant } = require("../utils/multitenancy");
-const { logObject, logElement, logText } = require("../utils/log");
-const mailer = require("../utils/mailer");
+const { getModelByTenant } = require("./multitenancy");
+const { logObject, logElement, logText } = require("./log");
+const mailer = require("./mailer");
 const bcrypt = require("bcrypt");
 const crypto = require("crypto");
 const isEmpty = require("is-empty");
@@ -163,13 +163,13 @@ const join = {
             });
           });
 
-          getUsersResult.notFound.forEach((userIdentifier) => {
+          getUsersResult.notFound.forEach((user_identifier) => {
             callback({
               success: false,
               message:
                 "Unable to find users corresponding to these identifiers",
               status: httpStatus.NOT_FOUND,
-              data: userIdentifier,
+              data: user_identifier,
             });
           });
         })
@@ -388,6 +388,7 @@ const join = {
         organization,
         long_organization,
         privilege,
+        network_id,
       } = request;
 
       const password = accessCodeGenerator.generate(
@@ -403,6 +404,7 @@ const join = {
         privilege,
         userName: email,
         password,
+        network_id,
       };
 
       const responseFromCreateUser = await UserModel(tenant).register(
@@ -416,7 +418,8 @@ const join = {
 
         let requestBodyForAccessToken = {};
         requestBodyForAccessToken["token"] = token;
-        requestBodyForAccessToken["userId"] = responseFromCreateUser.data._id;
+        requestBodyForAccessToken["network_id"] = network_id;
+        requestBodyForAccessToken["user_id"] = responseFromCreateUser.data._id;
 
         const responseFromSaveToken = await AccessTokenModel(tenant).register(
           requestBodyForAccessToken
@@ -460,11 +463,11 @@ const join = {
             : { message: "Internal Server Error" };
           let status = responseFromSaveToken.status
             ? responseFromSaveToken.status
-            : "";
+            : HTTPStatus.INTERNAL_SERVER_ERROR;
           return {
             success: false,
             message: responseFromSaveToken.message,
-            status: HTTPStatus.INTERNAL_SERVER_ERROR,
+            status,
             errors,
           };
         }

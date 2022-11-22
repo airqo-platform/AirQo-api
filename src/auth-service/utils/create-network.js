@@ -1,41 +1,38 @@
-const OrganizationSchema = require("../models/Organization");
+const NetworkSchema = require("../models/Network");
 const { getModelByTenant } = require("./multitenancy");
 const { logElement, logText, logObject } = require("./log");
 const generateFilter = require("./generate-filter");
 const HTTPStatus = require("http-status");
 const companyEmailValidator = require("company-email-validator");
 
-const createOrganization = {
-  getTenantFromEmail: async (request) => {
+const createNetwork = {
+  getNetworkFromEmail: async (request) => {
     try {
-      let responseFromExtractOneTenant =
-        createOrganization.extractOneAcronym(request);
+      let responseFromExtractOneNetwork =
+        createNetwork.extractOneAcronym(request);
 
-      if (responseFromExtractOneTenant.success === true) {
-        let acronym = responseFromExtractOneTenant.data;
+      if (responseFromExtractOneNetwork.success === true) {
+        let acronym = responseFromExtractOneNetwork.data;
         let modifiedRequest = request;
         modifiedRequest["query"] = {};
         modifiedRequest["query"]["acronym"] = acronym;
-        let responseFromListOrganizations = await createOrganization.list(
+        let responseFromListNetworks = await createNetwork.list(
           modifiedRequest
         );
-        if (responseFromListOrganizations.success === true) {
-          let data = responseFromListOrganizations.data;
-          let storedTenant = data[0].tenant;
+        if (responseFromListNetworks.success === true) {
+          let data = responseFromListNetworks.data;
+          let storedNetwork = data[0].name || data[0].acronym;
           return {
             success: true,
-            data: storedTenant,
-            message: "successfully retrieved the tenant",
+            data: storedNetwork,
+            message: "successfully retrieved the network",
             status: HTTPStatus.OK,
           };
+        } else if (responseFromListNetworks.success === false) {
+          return responseFromListNetworks;
         }
-        if (responseFromListOrganizations.success === false) {
-          return responseFromListOrganizations;
-        }
-      }
-
-      if (responseFromExtractOneTenant.success === false) {
-        return responseFromExtractOneTenant;
+      } else if (responseFromExtractOneNetwork.success === false) {
+        return responseFromExtractOneNetwork;
       }
     } catch (error) {
       return {
@@ -49,24 +46,24 @@ const createOrganization = {
     try {
       const { email } = request.body;
       let segments = [];
-      let tenant = "";
+      let network = "";
 
       if (email) {
         let isCompanyEmail = companyEmailValidator.isCompanyEmail(email);
 
         if (isCompanyEmail) {
           segments = email.split("@").filter((segment) => segment);
-          tenant = segments[1].split(".")[0];
+          network = segments[1].split(".")[0];
         }
 
         if (!isCompanyEmail) {
-          tenant = "airqo";
+          network = "airqo";
         }
       }
 
       return {
         success: true,
-        data: tenant,
+        data: network,
         status: HTTPStatus.OK,
         message: "successfully removed the file extension",
       };
@@ -95,58 +92,48 @@ const createOrganization = {
   create: async (request) => {
     try {
       let { body } = request;
-      let { tenant } = body;
       let modifiedBody = body;
 
-      let responseFromExtractTenant =
-        createOrganization.extractOneAcronym(request);
+      const responseFromExtractNetworkName =
+        createNetwork.extractOneAcronym(request);
 
-      if (responseFromExtractTenant.success === true) {
-        if (!tenant) {
-          modifiedBody["tenant"] = responseFromExtractTenant.data;
-          modifiedBody["acronym"] = responseFromExtractTenant.data;
-        }
-        modifiedBody["acronym"] = responseFromExtractTenant.data;
-      }
-      if (responseFromExtractTenant.success === false) {
-        return responseFromExtractTenant;
+      if (responseFromExtractNetworkName.success === true) {
+        modifiedBody["name"] = responseFromExtractNetworkName.data;
+        modifiedBody["acronym"] = responseFromExtractNetworkName.data;
+      } else if (responseFromExtractNetworkName.success === false) {
+        // return responseFromExtractNetworkName;
       }
 
-      let responseFromRegisterOrganization = await getModelByTenant(
+      let responseFromRegisterNetwork = await getModelByTenant(
         "airqo",
-        "organization",
-        OrganizationSchema
+        "network",
+        NetworkSchema
       ).register(modifiedBody);
 
-      logObject(
-        "responseFromRegisterOrganization",
-        responseFromRegisterOrganization
-      );
+      logObject("responseFromRegisterNetwork", responseFromRegisterNetwork);
 
-      if (responseFromRegisterOrganization.success === true) {
-        let status = responseFromRegisterOrganization.status
-          ? responseFromRegisterOrganization.status
+      if (responseFromRegisterNetwork.success === true) {
+        let status = responseFromRegisterNetwork.status
+          ? responseFromRegisterNetwork.status
           : "";
         return {
           success: true,
-          message: responseFromRegisterOrganization.message,
-          data: responseFromRegisterOrganization.data,
+          message: responseFromRegisterNetwork.message,
+          data: responseFromRegisterNetwork.data,
           status,
         };
-      }
-
-      if (responseFromRegisterOrganization.success === false) {
-        let errors = responseFromRegisterOrganization.errors
-          ? responseFromRegisterOrganization.errors
+      } else if (responseFromRegisterNetwork.success === false) {
+        let errors = responseFromRegisterNetwork.errors
+          ? responseFromRegisterNetwork.errors
           : "";
 
-        let status = responseFromRegisterOrganization.status
-          ? responseFromRegisterOrganization.status
+        let status = responseFromRegisterNetwork.status
+          ? responseFromRegisterNetwork.status
           : "";
 
         return {
           success: false,
-          message: responseFromRegisterOrganization.message,
+          message: responseFromRegisterNetwork.message,
           errors,
           status,
         };
@@ -154,7 +141,7 @@ const createOrganization = {
     } catch (err) {
       return {
         success: false,
-        message: "organization util server errors",
+        message: "network util server errors",
         errors: err.message,
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
@@ -166,7 +153,7 @@ const createOrganization = {
       let tenant = "airqo";
       let update = body;
       let filter = {};
-      let responseFromGeneratefilter = generateFilter.organizations(request);
+      let responseFromGeneratefilter = generateFilter.networks(request);
 
       if (responseFromGeneratefilter.success === true) {
         filter = responseFromGeneratefilter.data;
@@ -187,34 +174,34 @@ const createOrganization = {
         };
       }
 
-      let responseFromModifyOrganization = await getModelByTenant(
+      let responseFromModifyNetwork = await getModelByTenant(
         "airqo",
-        "organization",
-        OrganizationSchema
+        "network",
+        NetworkSchema
       ).modify({ update, filter });
 
-      if (responseFromModifyOrganization.success === true) {
-        let status = responseFromModifyOrganization.status
-          ? responseFromModifyOrganization.status
+      if (responseFromModifyNetwork.success === true) {
+        let status = responseFromModifyNetwork.status
+          ? responseFromModifyNetwork.status
           : "";
         return {
-          message: responseFromModifyOrganization.message,
+          message: responseFromModifyNetwork.message,
           status,
-          data: responseFromModifyOrganization.data,
+          data: responseFromModifyNetwork.data,
           success: true,
         };
       }
 
-      if (responseFromModifyOrganization.success === false) {
-        let status = responseFromModifyOrganization.status
-          ? responseFromModifyOrganization.status
+      if (responseFromModifyNetwork.success === false) {
+        let status = responseFromModifyNetwork.status
+          ? responseFromModifyNetwork.status
           : "";
-        let errors = responseFromModifyOrganization.errors
-          ? responseFromModifyOrganization.errors
+        let errors = responseFromModifyNetwork.errors
+          ? responseFromModifyNetwork.errors
           : "";
         return {
           success: false,
-          message: responseFromModifyOrganization.message,
+          message: responseFromModifyNetwork.message,
           errors,
           status,
         };
@@ -234,7 +221,7 @@ const createOrganization = {
       let tenant = "airqo";
       let filter = {};
 
-      let responseFromGenerateFilter = generateFilter.organizations(request);
+      let responseFromGenerateFilter = generateFilter.networks(request);
 
       logObject("responseFromGenerateFilter", responseFromGenerateFilter);
 
@@ -258,40 +245,37 @@ const createOrganization = {
 
       logObject("the filter", filter);
 
-      let responseFromRemoveOrganization = await getModelByTenant(
+      let responseFromRemoveNetwork = await getModelByTenant(
         "airqo",
-        "organization",
-        OrganizationSchema
+        "network",
+        NetworkSchema
       ).remove({ filter });
 
-      logObject(
-        "responseFromRemoveOrganization",
-        responseFromRemoveOrganization
-      );
+      logObject("responseFromRemoveNetwork", responseFromRemoveNetwork);
 
-      if (responseFromRemoveOrganization.success === true) {
-        let status = responseFromRemoveOrganization.status
-          ? responseFromRemoveOrganization.status
+      if (responseFromRemoveNetwork.success === true) {
+        let status = responseFromRemoveNetwork.status
+          ? responseFromRemoveNetwork.status
           : "";
 
         return {
           status,
-          message: responseFromRemoveOrganization.message,
-          data: responseFromRemoveOrganization.data,
+          message: responseFromRemoveNetwork.message,
+          data: responseFromRemoveNetwork.data,
           success: true,
         };
       }
 
-      if (responseFromRemoveOrganization.success === false) {
-        let status = responseFromRemoveOrganization.status
-          ? responseFromRemoveOrganization.status
+      if (responseFromRemoveNetwork.success === false) {
+        let status = responseFromRemoveNetwork.status
+          ? responseFromRemoveNetwork.status
           : "";
-        let errors = responseFromRemoveOrganization.errors
-          ? responseFromRemoveOrganization.errors
+        let errors = responseFromRemoveNetwork.errors
+          ? responseFromRemoveNetwork.errors
           : "";
 
         return {
-          message: responseFromRemoveOrganization.message,
+          message: responseFromRemoveNetwork.message,
           errors,
           status,
           success: false,
@@ -312,7 +296,7 @@ const createOrganization = {
       let tenant = "airqo";
       let filter = {};
 
-      let responseFromGenerateFilter = generateFilter.organizations(request);
+      let responseFromGenerateFilter = generateFilter.networks(request);
       if (responseFromGenerateFilter.success === true) {
         filter = responseFromGenerateFilter.data;
         logObject("filter", filter);
@@ -329,40 +313,40 @@ const createOrganization = {
         };
       }
 
-      let responseFromListOrganizations = await getModelByTenant(
+      let responseFromListNetworks = await getModelByTenant(
         "airqo",
-        "organization",
-        OrganizationSchema
+        "network",
+        NetworkSchema
       ).list({ filter, limit, skip });
 
-      logObject("responseFromListOrganizations", responseFromListOrganizations);
+      logObject("responseFromListNetworks", responseFromListNetworks);
 
-      if (responseFromListOrganizations.success === true) {
-        let status = responseFromListOrganizations.status
-          ? responseFromListOrganizations.status
+      if (responseFromListNetworks.success === true) {
+        let status = responseFromListNetworks.status
+          ? responseFromListNetworks.status
           : "";
 
         return {
           success: true,
           status,
-          message: responseFromListOrganizations.message,
-          data: responseFromListOrganizations.data,
+          message: responseFromListNetworks.message,
+          data: responseFromListNetworks.data,
         };
       }
 
-      if (responseFromListOrganizations.success === false) {
-        let status = responseFromListOrganizations.status
-          ? responseFromListOrganizations.status
+      if (responseFromListNetworks.success === false) {
+        let status = responseFromListNetworks.status
+          ? responseFromListNetworks.status
           : "";
-        let errors = responseFromListOrganizations.errors
-          ? responseFromListOrganizations.errors
+        let errors = responseFromListNetworks.errors
+          ? responseFromListNetworks.errors
           : "";
 
         return {
           success: false,
           status,
           errors,
-          message: responseFromListOrganizations.message,
+          message: responseFromListNetworks.message,
         };
       }
     } catch (error) {
@@ -377,4 +361,4 @@ const createOrganization = {
   },
 };
 
-module.exports = createOrganization;
+module.exports = createNetwork;
