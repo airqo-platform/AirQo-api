@@ -37,6 +37,8 @@ public class MeasurementServiceImpl implements MeasurementService {
 	}
 
 	@Override
+	@SentrySpan
+	@Cacheable(value = "appInsightsCacheV2", cacheNames = {"appInsightsCacheV2"}, unless = "#result.size() <= 0")
 	public List<Insight> apiGetInsights(Date startDateTime, Date endDateTime, List<String> siteIds) {
 
 		List<Insight> insights = bigQueryApi.getInsightsData(startDateTime, endDateTime, siteIds);
