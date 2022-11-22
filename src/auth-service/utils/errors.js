@@ -49,10 +49,22 @@ const callbackErrors = (error, req, res) => {
     .json({ success: false, message: "server error", error: error });
 };
 
+const convertErrorArrayToObject = (arrays) => {
+  const initialValue = {};
+  return arrays.reduce((obj, item) => {
+    let param = item.param;
+    return {
+      ...obj,
+      [param]: `${item.msg}`,
+    };
+  }, initialValue);
+};
+
 module.exports = {
   axiosError,
   tryCatchErrors,
   missingQueryParams,
   callbackErrors,
   badRequest,
+  convertErrorArrayToObject,
 };

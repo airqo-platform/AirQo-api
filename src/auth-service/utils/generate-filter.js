@@ -46,7 +46,7 @@ const filter = {
       };
     }
   },
-  organizations: (req) => {
+  networks: (req) => {
     try {
       let {
         id,
@@ -280,6 +280,68 @@ const filter = {
         success: false,
         message: "filter util server error",
         error: e.message,
+      };
+    }
+  },
+
+  roles: (req) => {
+    try {
+      const { query, params } = req;
+      const { id, name, network } = query;
+      const { role_id } = params;
+      let filter = {};
+
+      if (id) {
+        filter["_id"] = ObjectId(id);
+      }
+
+      if (role_id) {
+        filter["_id"] = ObjectId(role_id);
+      }
+
+      if (network) {
+        filter["network_id"] = network;
+      }
+      if (name) {
+        filter["name"] = name;
+      }
+      return filter;
+    } catch (e) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: e.message },
+      };
+    }
+  },
+
+  permissions: (req) => {
+    try {
+      const { query, params } = req;
+      const { id, name, network } = query;
+      const { perm_id } = params;
+      let filter = {};
+
+      if (id) {
+        filter["_id"] = ObjectId(id);
+      }
+
+      if (perm_id) {
+        filter["_id"] = ObjectId(perm_id);
+      }
+
+      if (network) {
+        filter["network_id"] = network;
+      }
+      if (name) {
+        filter["name"] = name;
+      }
+      return filter;
+    } catch (e) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: e.message },
       };
     }
   },
