@@ -349,8 +349,7 @@ const createDevice = {
             data: responseFromUpdateDeviceOnPlatform.data,
             status,
           };
-        }
-        if (responseFromUpdateDeviceOnPlatform.success === false) {
+        } else if (responseFromUpdateDeviceOnPlatform.success === false) {
           let errors = responseFromUpdateDeviceOnPlatform.errors
             ? responseFromUpdateDeviceOnPlatform.errors
             : "";
@@ -364,9 +363,7 @@ const createDevice = {
             status,
           };
         }
-      }
-
-      if (responseFromUpdateDeviceOnThingspeak.success === false) {
+      } else if (responseFromUpdateDeviceOnThingspeak.success === false) {
         let errors = responseFromUpdateDeviceOnThingspeak.errors
           ? responseFromUpdateDeviceOnThingspeak.errors
           : "";

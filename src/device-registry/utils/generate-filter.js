@@ -583,6 +583,7 @@ const generateFilter = {
 
       if (device_codes) {
         let deviceCodesArray = device_codes.split(",");
+        filter["device_codes"] = {};
         filter["device_codes"]["$in"] = deviceCodesArray;
       }
 
@@ -699,6 +700,7 @@ const generateFilter = {
 
     if (site_codes) {
       let siteCodesArray = site_codes.split(",");
+      filter["site_codes"] = {};
       filter["site_codes"]["$in"] = siteCodesArray;
     }
 
