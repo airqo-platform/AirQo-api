@@ -10,6 +10,8 @@ public interface MeasurementService {
 
 	List<Insight> apiGetInsights(Predicate predicate);
 
+	List<Insight> apiGetInsights(Date startDateTime, Date endDateTime, List<String> siteIds);
+
 	List<Insight> getForecastInsightsBefore(Date beforeTime);
 
 	void saveInsights(List<Insight> insights);

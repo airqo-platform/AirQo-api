@@ -1,2 +1,2 @@
-k8s/nginx/production/global-config.yaml
-k8s/nginx/staging/global-config.yaml
+k8s/nginx/*/global-config.yaml
+k8s/**/templates/

@@ -1,0 +1,26 @@
+app:
+  name: airqo-predict-job
+  namespace: production
+  configmap: env-predict-job-production
+
+schedule: 0 * * * *
+
+image:
+  repository: gcr.io/airqo-250220/airqo-predict-job
+  tag: latest
+
+nameOverride: ""
+fullnameOverride: ""
+resources:
+  limits:
+    cpu: 1000m
+    memory: 4000Mi
+
+volumeMounts:
+  - name: config-volume
+    mountPath: /etc/config
+
+volumes:
+  - name: config-volume
+    configMap:
+      name: predict-job-config-files
