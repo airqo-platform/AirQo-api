@@ -18,7 +18,6 @@ const { getDevicesCount, list, decryptKey } = require("./create-monitor");
 const HTTPStatus = require("http-status");
 const redis = require("../config/redis");
 const axios = require("axios");
-const { kafkaConsumer } = require("../config/kafkajs");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const { BigQuery } = require("@google-cloud/bigquery");
