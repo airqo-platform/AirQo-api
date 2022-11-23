@@ -207,7 +207,7 @@ UserSchema.statics = {
   },
   async list({ skip = 0, limit = 5, filter = {} } = {}) {
     try {
-      let projectAll = {
+      const projectAll = {
         _id: 1,
         firstName: 1,
         lastName: 1,
@@ -223,35 +223,41 @@ UserSchema.statics = {
       };
 
       const projectSummary = {};
+
       const response = await this.aggregate()
         .match(filter)
         .lookup({
           from: "networks",
           localField: "_id",
-          foreignField: "users",
+          foreignField: "net_users",
           as: "networks",
         })
         .lookup({
           from: "access_tokens",
           localField: "_id",
-          foreignField: "userId",
+          foreignField: "user_id",
           as: "access_tokens",
         })
-        .sort({ createdAt: -1 })
-        .project({
-          _id: 1,
-          firstName: 1,
-          lastName: 1,
-          userName: 1,
-          email: 1,
-          privilege: 1,
-          profilePicture: 1,
-          phoneNumber: 1,
-          networks: "$networks",
-          access_tokens: "$access_tokens",
-          permissions: "$permissions",
-          roles: "$roles",
+        .lookup({
+          from: "groups",
+          localField: "_id",
+          foreignField: "grp_users",
+          as: "groups",
         })
+        .lookup({
+          from: "permissions",
+          localField: "permissions",
+          foreignField: "_id",
+          as: "permissions",
+        })
+        .lookup({
+          from: "roles",
+          localField: "roles",
+          foreignField: "_id",
+          as: "roles",
+        })
+        .sort({ createdAt: -1 })
+        .project(projectAll)
         .project({
           "networks.__v": 0,
           "networks.net_status": 0,
