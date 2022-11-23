@@ -1,35 +1,41 @@
-# values for airqo-data-mgt-api.
-env:
-  deployment_name: airqo-data-mgt-api
-  service_name: airqo-data-mgt-api-svc
-  labels: data-mgt-api
-  secret: prod-data-mgt-secret
+app:
+  name: airqo-data-mgt-api
+  label: data-mgt-api
+  namespace: production
+  configmap: data-mgt-api-config
 
 replicaCount: 2
 
 image:
-  repository: us.gcr.io/airqo-250220/airqo-data-mgt-api
+  repository: gcr.io/airqo-250220/airqo-data-mgt-api
   tag: latest
-  pullPolicy: Always
 
-imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
-service:
-  type: NodePort
-  nodePort: 30001
-  targetPort: 3000
-  port: 3000
+podAnnotations: {}
+
+resources:
+  limits:
+    cpu: 50m
+    memory: 120Mi
+  requests:
+    # Average usage was 0.0005 vCPU and 80Mi over the last 30 days
+    cpu: 5m
+    memory: 70Mi
 
 ingress:
   enabled: false
 
-nodeSelector: {}
-resources: {}
-affinity: {}
-torelations: {}
+service:
+  type: NodePort
+  port: 3000
+  protocol: TCP
+  targetPort: 3000
+  nodePort: 30001
 
-
-## Application level settings  
-appMode: production
+autoscaling:
+  minReplicas: 1
+  maxReplicas: 3
+  # targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 70
