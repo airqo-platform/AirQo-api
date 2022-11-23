@@ -1,35 +1,41 @@
-# values for airqo-locate-api.
-env:
-  deployment_name: airqo-stage-locate-api
-  service_name: airqo-stage-locate-api-svc
-  labels: sta-locate-api
-  secret: env-locate-staging
+app:
+  name: airqo-stage-locate-api
+  label: sta-locate-api
+  namespace: staging
+  configmap: env-locate-staging
 
 replicaCount: 2
 
 image:
-  repository: us.gcr.io/airqo-250220/airqo-stage-locate-api
+  repository: gcr.io/airqo-250220/airqo-stage-locate-api
   tag: latest
-  pullPolicy: Always
 
-imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
-service:
-  type: NodePort
-  nodePort: 31004
-  targetPort: 4001
-  port: 4001
+podAnnotations: {}
+
+resources:
+  limits:
+    cpu: 50m
+    memory: 120Mi
+  requests:
+    # Average usage was 0.0005 vCPU and 200Mi over the last 30 days
+    cpu: 5m
+    memory: 80Mi
 
 ingress:
   enabled: false
 
-nodeSelector: {}
-resources: {}
-affinity: {}
-torelations: {}
+service:
+  type: NodePort
+  port: 4001
+  protocol: TCP
+  targetPort: 4001
+  nodePort: 31004
 
-
-## Application level settings  
-appMode: staging
+autoscaling:
+  minReplicas: 1
+  maxReplicas: 2
+  # targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
