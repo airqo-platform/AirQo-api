@@ -47,9 +47,7 @@ const manageSite = {
           message: responseFromCreateSite.message,
           site: responseFromCreateSite.data,
         });
-      }
-
-      if (responseFromCreateSite.success === false) {
+      } else if (responseFromCreateSite.success === false) {
         let errors = responseFromCreateSite.errors
           ? responseFromCreateSite.errors
           : "";

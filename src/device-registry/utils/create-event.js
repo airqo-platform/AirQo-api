@@ -399,6 +399,7 @@ const createEvent = {
       let filter = {};
 
       let airqloudSites = site_id ? site_id : "";
+
       if (query.airqloud_id) {
         let filter = generateFilter.airqlouds(request);
         let responseFromListAirQloud = await getModelByTenant(
@@ -534,7 +535,7 @@ const createEvent = {
               });
               if (responseFromListEvents.success === true) {
                 let data = responseFromListEvents.data;
-                data[0].data = missingDataMessage ? [] : data[0].data;
+                data[0].data = !isEmpty(missingDataMessage) ? [] : data[0].data;
                 createEvent.setCache(data, request, (result) => {
                   if (result.success === true) {
                     logText(result.message);
@@ -550,7 +551,7 @@ const createEvent = {
                 try {
                   callback({
                     success: true,
-                    message: missingDataMessage
+                    message: !isEmpty(missingDataMessage)
                       ? missingDataMessage
                       : responseFromListEvents.message,
                     data,
