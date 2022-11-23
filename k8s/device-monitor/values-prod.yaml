@@ -1,35 +1,41 @@
-# values for airqo-device-registry-api.
-env:
-  deployment_name: airqo-device-monitor-api
-  service_name: airqo-device-monitor-api-svc
-  labels: dev-monitor-api
-  secret: env-device-monitoring-production
+app:
+  name: airqo-device-monitor-api
+  label: device-monitor
+  namespace: production
+  configmap: env-device-monitoring-production
 
-replicaCount: 2
+replicaCount: 3
 
 image:
-  repository: us.gcr.io/airqo-250220/airqo-device-monitor-api
+  repository: gcr.io/airqo-250220/airqo-device-monitor-api
   tag: latest
-  pullPolicy: Always
 
-imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
-service:
-  type: NodePort
-  nodePort: 30006
-  targetPort: 4001
-  port: 4001
+podAnnotations: {}
+
+resources:
+  limits:
+    cpu: 50m
+    memory: 100Mi
+  requests:
+    # Average usage was 0.0005 vCPU and 1Gi over the last 30 days
+    cpu: 5m
+    memory: 50Mi
 
 ingress:
   enabled: false
 
-nodeSelector: {}
-resources: {}
-affinity: {}
-torelations: {}
+service:
+  type: NodePort
+  port: 4001
+  protocol: TCP
+  targetPort: 4001
+  nodePort: 30006
 
-
-## Application level settings  
-appMode: production
+autoscaling:
+  minReplicas: 1
+  maxReplicas: 3
+  # targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 70

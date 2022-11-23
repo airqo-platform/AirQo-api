@@ -1193,6 +1193,8 @@ jobs:
           kubectl create configmap --dry-run=client -o yaml --from-env-file=api.env prod-view-api-config | kubectl replace -f - -n production
           gcloud secrets versions access latest --secret="prod-env-view-message-broker" > message_broker.env
           kubectl create configmap --dry-run=client -o yaml --from-env-file=message_broker.env prod-view-message-broker-config | kubectl replace -f - -n production
+          gcloud secrets versions access latest --secret="prod-key-view-api-google-credentials" > google_application_credentials.json
+          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json view-api-config-files | kubectl replace -f - -n production
 
       - name: Deploy API to K8S
         run: |
