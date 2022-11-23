@@ -55,6 +55,12 @@ const siteSchema = new Schema(
       type: String,
       trim: true,
     },
+    site_codes: [
+      {
+        type: String,
+        trim: true,
+      },
+    ],
     latitude: {
       type: Number,
       required: [true, "latitude is required!"],
@@ -342,6 +348,7 @@ siteSchema.methods = {
       region: this.region,
       geometry: this.geometry,
       village: this.village,
+      site_codes: this.site_codes,
       city: this.city,
       street: this.street,
       county: this.county,
@@ -455,6 +462,7 @@ siteSchema.statics = {
           bearing_in_radians: 1,
           description: 1,
           site_tags: 1,
+          site_codes: 1,
           search_name: 1,
           location_name: 1,
           lat_long: 1,
@@ -583,6 +591,13 @@ siteSchema.statics = {
         modifiedUpdateBody["$addToSet"]["site_tags"]["$each"] =
           modifiedUpdateBody.site_tags;
         delete modifiedUpdateBody["site_tags"];
+      }
+
+      if (modifiedUpdateBody.site_codes) {
+        modifiedUpdateBody["$addToSet"]["site_codes"] = {};
+        modifiedUpdateBody["$addToSet"]["site_codes"]["$each"] =
+          modifiedUpdateBody.site_codes;
+        delete modifiedUpdateBody["site_codes"];
       }
 
       if (modifiedUpdateBody.airqlouds) {
