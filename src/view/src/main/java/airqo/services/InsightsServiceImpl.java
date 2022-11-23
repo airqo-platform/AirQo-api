@@ -150,9 +150,11 @@ public class InsightsServiceImpl implements InsightsService {
 
 	private CompletableFuture<List<GraphInsight>> createHistoricalInsights(List<GraphInsight> historicalInsights, Date startDateTime, Date endDateTime, String siteId, int utcOffSet, Frequency frequency) {
 
-		List<GraphInsight> insights = new HashSet<>(historicalInsights).stream().filter(insight ->
+		List<GraphInsight> insights = historicalInsights.stream().filter(insight ->
 				insight.getFrequency() == frequency && !insight.getForecast())
 			.collect(Collectors.toList());
+
+		insights = new ArrayList<>(new HashSet<>(insights));
 
 		Date dataStartDateTime = new DateTime(startDateTime).minusDays(extraDays).toDate();
 		Date dataEndDateTime = new DateTime(endDateTime).plusDays(extraDays).toDate();
