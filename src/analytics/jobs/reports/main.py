@@ -37,6 +37,7 @@ warnings.filterwarnings("ignore")
 
 
 BIGQUERY_SITES = configuration.BIGQUERY_SITES
+BIGQUERY_SITES_METADATA = configuration.BIGQUERY_SITES_METADATA
 BIGQUERY_EVENTS = configuration.BIGQUERY_EVENTS
 POLLUTANT_BIGQUERY_MAPPER = {
     "pm2_5": ["pm2_5_calibrated_value", "pm2_5_raw_value"],
@@ -838,9 +839,9 @@ def from_bigquery(
         f"{BIGQUERY_SITES}.approximate_longitude  AS longitude",
         f"{BIGQUERY_SITES}.city AS city",
         f"{BIGQUERY_SITES}.region AS region",
-        f"{BIGQUERY_SITES}.sub_county AS subcounty",
-        f"{BIGQUERY_SITES}.district AS district",
-        f"{BIGQUERY_SITES}.parish AS parish",
+        # f"{BIGQUERY_SITES_METADATA}.sub_county AS subcounty",
+        # f"{BIGQUERY_SITES_METADATA}.district AS district",
+        # f"{BIGQUERY_SITES_METADATA}.parish AS parish",
         f"{BIGQUERY_SITES}.country AS country",
     ]
     columns.extend(additional_columns)

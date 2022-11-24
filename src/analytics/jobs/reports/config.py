@@ -34,6 +34,7 @@ class ProductionConfig(Config):
     AIRQO_API_BASE_URL = os.getenv("AIRQO_API_BASE_URL_PROD")
     BIGQUERY_SITES = os.getenv("BIGQUERY_SITES_PROD")
     BIGQUERY_EVENTS = os.getenv("BIGQUERY_EVENTS_PROD")
+    BIGQUERY_SITES_METADATA = os.getenv("BIGQUERY_SITES_METADATA_PROD")
 
 
 class TestingConfig(Config):
@@ -49,6 +50,7 @@ class TestingConfig(Config):
     AIRQO_API_BASE_URL = os.getenv("AIRQO_API_BASE_URL_STAGE")
     BIGQUERY_SITES = os.getenv("BIGQUERY_SITES_STAGE")
     BIGQUERY_EVENTS = os.getenv("BIGQUERY_EVENTS_STAGE")
+    BIGQUERY_SITES_METADATA = os.getenv("BIGQUERY_SITES_METADATA_STAGE")
     EXPECTED_DAYS = os.getenv("EXPECTED_DAYS")
 
 
@@ -65,6 +67,7 @@ class DevelopmentConfig(Config):
     AIRQO_API_BASE_URL = os.getenv("AIRQO_API_BASE_URL_STAGE")
     BIGQUERY_SITES = os.getenv("BIGQUERY_SITES_STAGE")
     BIGQUERY_EVENTS = os.getenv("BIGQUERY_EVENTS_STAGE")
+    BIGQUERY_SITES_METADATA = os.getenv("BIGQUERY_SITES_METADATA_STAGE")
     EXPECTED_DAYS = os.getenv("EXPECTED_DAYS")
 
 
