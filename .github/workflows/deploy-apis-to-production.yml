@@ -775,6 +775,8 @@ jobs:
           cd src/analytics/jobs/reports
           gcloud secrets versions access latest --secret="prod-env-analytics-report-job" > .env
           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-analytics-report-production | kubectl replace -f - -n production
+          gcloud secrets versions access latest --secret="prod-key-analytics-report-job-service-account" > google_application_credentials.json
+          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json env-analytics-report-production-files | kubectl replace -f - -n production
 
   ### device uptime ###
   device-uptime:

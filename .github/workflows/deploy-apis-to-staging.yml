@@ -943,6 +943,8 @@ jobs:
           cd src/analytics/jobs/reports
           gcloud secrets versions access latest --secret="sta-env-analytics-report-job" > .env
           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-analytics-report-staging | kubectl replace -f - -n staging
+          gcloud secrets versions access latest --secret="sta-key-analytics-report-job-service-account" > google_application_credentials.json
+          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json env-analytics-report-staging-files | kubectl replace -f - -n staging
 
   ### device uptime ###
   device-uptime:
