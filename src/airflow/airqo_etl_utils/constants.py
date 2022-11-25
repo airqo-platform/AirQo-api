@@ -57,6 +57,24 @@ class DataSource(Enum):
     PURPLE_AIR = 7
     BIGQUERY = 8
 
+    def __str__(self) -> str:
+        if self == self.THINGSPEAK:
+            return "thingspeak"
+        elif self == self.CLARITY:
+            return "clarity"
+        elif self == self.PLUME_LABS:
+            return "plume_labs"
+        elif self == self.AIRNOW:
+            return "airnow"
+        elif self == self.TAHMO:
+            return "tahmo"
+        elif self == self.AIRQO:
+            return "airqo"
+        elif self == self.PURPLE_AIR:
+            return "purple_air"
+        else:
+            return ""
+
 
 class QueryType(Enum):
     GET = 1
@@ -109,6 +127,18 @@ class Tenant(Enum):
             return "KCCA"
         elif self == self.US_EMBASSY:
             return "US Embassy"
+        else:
+            return ""
+
+    def device_manufacturer(self) -> str:
+        if self == self.NASA:
+            return str(DataSource.PLUME_LABS)
+        elif self == self.AIRQO:
+            return str(DataSource.THINGSPEAK)
+        elif self == self.KCCA:
+            return str(DataSource.CLARITY)
+        elif self == self.US_EMBASSY:
+            return str(DataSource.AIRNOW)
         else:
             return ""
 

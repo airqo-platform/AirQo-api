@@ -1,22 +1,17 @@
 package airqo.controllers;
 
 import airqo.models.ApiResponseBody;
-import airqo.models.Frequency;
 import airqo.models.Insight;
-import airqo.models.Measurement;
+import airqo.models.InsightData;
 import airqo.predicate.InsightPredicate;
-import airqo.predicate.MeasurementPredicate;
+import airqo.services.InsightsService;
 import airqo.services.MeasurementService;
 import com.querydsl.core.types.Predicate;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Profile;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.data.querydsl.binding.QuerydslPredicate;
-import org.springframework.data.web.PageableDefault;
-import org.springframework.data.web.SortDefault;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -25,8 +20,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 
@@ -38,28 +32,13 @@ import static airqo.config.Constants.dateTimeFormat;
 @RequestMapping("measurements")
 public class MeasurementController {
 
-	private final SimpleDateFormat simpleDateFormat = new SimpleDateFormat(dateTimeFormat);
-	private final MeasurementService measurementService;
+	@Autowired
+	MeasurementService measurementService;
 
 	@Autowired
-	public MeasurementController(MeasurementService measurementService) {
-		this.measurementService = measurementService;
-	}
-
-	@GetMapping("")
-	public ResponseEntity<Page<Measurement>> apiGetMeasurements(
-		@QuerydslPredicate(root = Insight.class, bindings = MeasurementPredicate.class) Predicate predicate,
-		@PageableDefault(size = 100)
-		@SortDefault.SortDefaults(
-			{@SortDefault(sort = "time", direction = Sort.Direction.DESC),})
-			Pageable pageable) {
-
-		Page<Measurement> measurements = measurementService.apiGetMeasurements(predicate, pageable);
-		return ResponseEntity.ok(measurements);
-	}
+	InsightsService insightsService;
 
 	@Deprecated
-	@GetMapping("/app/insights")
 	public ResponseEntity<ApiResponseBody> getInsights(
 		@QuerydslPredicate(root = Insight.class, bindings = InsightPredicate.class) Predicate predicate) {
 		log.info("{}", predicate);
@@ -69,45 +48,26 @@ public class MeasurementController {
 		return new ResponseEntity<>(apiResponseBody, new HttpHeaders(), HttpStatus.OK);
 	}
 
-	@Deprecated
-	@GetMapping("/insights")
-	public ResponseEntity<ApiResponseBody> getAppInsights(
-		@RequestParam(defaultValue = "hourly", required = false) String frequency,
-		@RequestParam String startTime,
-		@RequestParam String endTime,
-		@RequestParam String siteId
-	) {
+	@GetMapping("/app/insights")
+	public ResponseEntity<ApiResponseBody> getInsightsData(@RequestParam() @DateTimeFormat(pattern = dateTimeFormat) Date startDateTime,
+														   @RequestParam() @DateTimeFormat(pattern = dateTimeFormat) Date endDateTime,
+														   @RequestParam() String siteId) {
+		List<String> siteIds = Arrays.stream(siteId.split(",")).toList();
+		log.info("\nStart Time: {} \nEnd time: {} \nSites: {}\n", startDateTime, endDateTime, siteIds);
+		List<Insight> insights = measurementService.apiGetInsights(startDateTime, endDateTime, siteIds);
 
-		Date startDateTime;
-		Date endDateTime;
-		try {
-			startDateTime = simpleDateFormat.parse(startTime);
-			endDateTime = simpleDateFormat.parse(endTime);
-		} catch (ParseException e) {
-			e.printStackTrace();
-			ApiResponseBody httpResponseBody = new ApiResponseBody("Invalid Datetime values", "Invalid DateTime");
-			return new ResponseEntity<>(httpResponseBody, new HttpHeaders(), HttpStatus.BAD_REQUEST);
-		}
+		ApiResponseBody apiResponseBody = new ApiResponseBody("Operation Successful", insights);
+		return new ResponseEntity<>(apiResponseBody, new HttpHeaders(), HttpStatus.OK);
+	}
 
-		if (startDateTime.after(endDateTime)) {
-			ApiResponseBody httpResponseBody = new ApiResponseBody("Invalid Datetime values", "Start Time must be a date before the end time");
-			return new ResponseEntity<>(httpResponseBody, new HttpHeaders(), HttpStatus.BAD_REQUEST);
-		}
+	@GetMapping("/mobile-app/insights")
+	public ResponseEntity<ApiResponseBody> getAppInsights(@RequestParam() @DateTimeFormat(pattern = dateTimeFormat) Date startDateTime,
+														  @RequestParam() @DateTimeFormat(pattern = dateTimeFormat) Date endDateTime,
+														  @RequestParam(required = false) Integer utcOffset,
+														  @RequestParam() String siteId) {
 
-		Frequency queryFrequency;
-		switch (frequency.toLowerCase()) {
-			case "hourly":
-				queryFrequency = Frequency.HOURLY;
-				break;
-			case "daily":
-				queryFrequency = Frequency.DAILY;
-				break;
-			default:
-				ApiResponseBody httpResponseBody = new ApiResponseBody("Invalid Frequency", null);
-				return new ResponseEntity<>(httpResponseBody, new HttpHeaders(), HttpStatus.BAD_REQUEST);
-		}
-		List<String> siteIds = List.of(siteId.split(","));
-		List<Insight> insights = measurementService.getInsights(queryFrequency, startDateTime, endDateTime, siteIds);
+		InsightData insights = insightsService.getInsights(startDateTime, endDateTime, siteId, utcOffset);
+
 		ApiResponseBody apiResponseBody = new ApiResponseBody("Operation Successful", insights);
 		return new ResponseEntity<>(apiResponseBody, new HttpHeaders(), HttpStatus.OK);
 	}

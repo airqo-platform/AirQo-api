@@ -13,6 +13,8 @@ class BigQueryApi:
     def __init__(self):
         self.client = bigquery.Client()
         self.hourly_measurements_table = configuration.BIGQUERY_HOURLY_EVENTS_TABLE
+        self.daily_measurements_table = configuration.BIGQUERY_DAILY_EVENTS_TABLE
+        self.forecast_measurements_table = configuration.BIGQUERY_FORECAST_EVENTS_TABLE
         self.raw_measurements_table = configuration.BIGQUERY_RAW_EVENTS_TABLE
         self.latest_measurements_table = configuration.BIGQUERY_LATEST_EVENTS_TABLE
         self.bam_measurements_table = configuration.BIGQUERY_BAM_EVENTS_TABLE
@@ -31,8 +33,8 @@ class BigQueryApi:
         self.raw_weather_table = configuration.BIGQUERY_RAW_WEATHER_TABLE
         self.consolidated_data_table = configuration.BIGQUERY_ANALYTICS_TABLE
         self.sites_table = configuration.BIGQUERY_SITES_TABLE
+        self.sites_meta_data_table = configuration.BIGQUERY_SITES_META_DATA_TABLE
         self.devices_table = configuration.BIGQUERY_DEVICES_TABLE
-        self.devices_data_table = configuration.BIGQUERY_DEVICES_DATA_TABLE
 
         self.package_directory, _ = os.path.split(__file__)
 
@@ -92,8 +94,13 @@ class BigQueryApi:
         self, table: str, column_type: ColumnDataType = ColumnDataType.NONE
     ) -> list:
 
-        if table == self.hourly_measurements_table:
+        if (
+            table == self.hourly_measurements_table
+            or table == self.daily_measurements_table
+        ):
             schema_file = "measurements.json"
+        elif table == self.forecast_measurements_table:
+            schema_file = "forecast_measurements.json"
         elif table == self.raw_measurements_table:
             schema_file = "raw_measurements.json"
         elif table == self.hourly_weather_table or table == self.raw_weather_table:
@@ -104,6 +111,9 @@ class BigQueryApi:
             schema_file = "data_warehouse.json"
         elif table == self.sites_table:
             schema_file = "sites.json"
+        elif table == self.sites_meta_data_table:
+            schema_file = "sites_meta_data.json"
+
         elif table == self.sensor_positions_table:
             schema_file = "sensor_positions.json"
         elif table == self.devices_table:
@@ -184,14 +194,101 @@ class BigQueryApi:
         print(f"Total rows after load :  {destination_table.num_rows}")
 
     @staticmethod
-    def add_unique_id(dataframe: pd.DataFrame) -> pd.DataFrame:
-        dataframe["unique_id"] = dataframe.apply(
-            lambda row: str(
-                f"{row['tenant']}:{row['device_id']}:{row['device_number']}"
-            ).lower(),
+    def add_unique_id(dataframe: pd.DataFrame, id_column="unique_id") -> pd.DataFrame:
+        dataframe[id_column] = dataframe.apply(
+            lambda row: BigQueryApi.device_unique_col(
+                tenant=row["tenant"],
+                device_number=row["device_number"],
+                device_id=row["device_id"],
+            ),
             axis=1,
         )
         return dataframe
+
+    @staticmethod
+    def device_unique_col(tenant: str, device_id: str, device_number: int):
+        return str(f"{tenant}:{device_id}:{device_number}").lower()
+
+    def update_sites_and_devices(
+        self,
+        dataframe: pd.DataFrame,
+        table: str,
+        component: str,
+    ) -> None:
+
+        dataframe.reset_index(drop=True, inplace=True)
+        dataframe = self.validate_data(dataframe=dataframe, table=table)
+
+        if component == "sites":
+            unique_id = "id"
+
+        elif component == "devices":
+            unique_id = "unique_id"
+            dataframe = self.add_unique_id(dataframe)
+
+        else:
+            raise Exception("Invalid component. Valid values are sites and devices.")
+
+        dataframe.drop_duplicates(subset=[unique_id], inplace=True, keep="first")
+
+        available_data = (
+            self.client.query(query=f"SELECT * FROM `{table}`").result().to_dataframe()
+        )
+
+        if available_data.empty:
+            up_to_date_data = dataframe
+        else:
+            if component == "devices":
+                available_data = self.add_unique_id(available_data)
+
+            available_data.drop_duplicates(
+                subset=[unique_id], inplace=True, keep="first"
+            )
+            data_not_for_updating = available_data.loc[
+                ~available_data[unique_id].isin(dataframe[unique_id].to_list())
+            ]
+            up_to_date_data = pd.concat(
+                [data_not_for_updating, dataframe], ignore_index=True
+            )
+
+        if component == "devices":
+            del up_to_date_data[unique_id]
+
+        self.load_data(
+            dataframe=up_to_date_data, table=table, job_action=JobAction.OVERWRITE
+        )
+
+    def update_sites_meta_data(self, dataframe: pd.DataFrame) -> None:
+
+        dataframe.reset_index(drop=True, inplace=True)
+        table = self.sites_meta_data_table
+        dataframe = self.validate_data(dataframe=dataframe, table=table)
+
+        unique_id = "site_id"
+
+        dataframe.drop_duplicates(subset=[unique_id], inplace=True, keep="first")
+
+        available_data = (
+            self.client.query(query=f"SELECT * FROM `{table}`").result().to_dataframe()
+        )
+
+        if available_data.empty:
+            up_to_date_data = dataframe
+        else:
+
+            available_data.drop_duplicates(
+                subset=[unique_id], inplace=True, keep="first"
+            )
+            data_not_for_updating = available_data.loc[
+                ~available_data[unique_id].isin(dataframe[unique_id].to_list())
+            ]
+            up_to_date_data = pd.concat(
+                [data_not_for_updating, dataframe], ignore_index=True
+            )
+
+        self.load_data(
+            dataframe=up_to_date_data, table=table, job_action=JobAction.OVERWRITE
+        )
 
     def update_data(
         self,
@@ -348,8 +445,27 @@ class BigQueryApi:
         return dataframe.drop_duplicates(keep="first")
 
     def query_devices(self, tenant: Tenant) -> pd.DataFrame:
-        query = f"""
-            SELECT * FROM `{self.devices_data_table}` WHERE tenant = '{tenant}'
-        """
+        if tenant == Tenant.ALL:
+            query = f"""
+              SELECT * FROM `{self.devices_table}`
+          """
+        else:
+            query = f"""
+                SELECT * FROM `{self.devices_table}` WHERE tenant = '{str(tenant)}'
+            """
+
+        dataframe = self.client.query(query=query).result().to_dataframe()
+        return dataframe.drop_duplicates(keep="first")
+
+    def query_sites(self, tenant: Tenant = Tenant.ALL) -> pd.DataFrame:
+        if tenant == Tenant.ALL:
+            query = f"""
+              SELECT * FROM `{self.sites_table}`
+          """
+        else:
+            query = f"""
+                SELECT * FROM `{self.sites_table}` WHERE tenant = '{str(tenant)}'
+            """
+
         dataframe = self.client.query(query=query).result().to_dataframe()
         return dataframe.drop_duplicates(keep="first")

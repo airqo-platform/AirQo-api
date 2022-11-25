@@ -78,65 +78,84 @@ const request = {
       });
 
       if (responseFromListCandidates.success === true) {
-        callback({
-          success: true,
-          message: "candidate already exists or successfully created",
-          status: httpStatus.OK,
-        });
-      } else if (responseFromListCandidates.success === false) {
-        const responseFromCreateCandidate = await CandidateModel(
-          tenant
-        ).register(req);
-
-        if (responseFromCreateCandidate.success === true) {
-          let createdCandidate = await responseFromCreateCandidate.data;
-          let responseFromSendEmail = await mailer.candidate(
-            firstName,
-            lastName,
-            email,
+        if (
+          Array.isArray(responseFromListCandidates.data) &&
+          responseFromListCandidates.data.length === 1
+        ) {
+          callback({
+            success: true,
+            message: "candidate already exists or successfully created",
+            status: httpStatus.OK,
+          });
+        } else {
+          const responseFromCreateCandidate = await CandidateModel(
             tenant
-          );
-          if (responseFromSendEmail.success === true) {
-            const status = responseFromSendEmail.status
-              ? responseFromSendEmail.status
-              : "";
-            callback({
-              success: true,
-              message: "candidate already exists or successfully created",
-              data: createdCandidate,
-              status,
-            });
-          }
+          ).register(req);
 
-          if (responseFromSendEmail.success === false) {
-            const errors = responseFromSendEmail.error
-              ? responseFromSendEmail.error
-              : "";
-            const status = responseFromSendEmail.status
-              ? responseFromSendEmail.status
-              : "";
+          if (responseFromCreateCandidate.success === true) {
+            let createdCandidate = await responseFromCreateCandidate.data;
+            let responseFromSendEmail = await mailer.candidate(
+              firstName,
+              lastName,
+              email,
+              tenant
+            );
+            if (responseFromSendEmail.success === true) {
+              const status = responseFromSendEmail.status
+                ? responseFromSendEmail.status
+                : "";
+              callback({
+                success: true,
+                message: "candidate already exists or successfully created",
+                data: createdCandidate,
+                status,
+              });
+            } else if (responseFromSendEmail.success === false) {
+              const errors = responseFromSendEmail.error
+                ? responseFromSendEmail.error
+                : "";
+              const status = responseFromSendEmail.status
+                ? responseFromSendEmail.status
+                : "";
 
+              callback({
+                success: false,
+                message: responseFromSendEmail.message,
+                errors,
+                status,
+              });
+            }
+          } else if (responseFromCreateCandidate.success === false) {
+            const errors = responseFromCreateCandidate.errors
+              ? responseFromCreateCandidate.errors
+              : "";
+            const status = responseFromCreateCandidate.status
+              ? responseFromCreateCandidate.status
+              : "";
             callback({
               success: false,
-              message: responseFromSendEmail.message,
+              message: responseFromCreateCandidate.message,
               errors,
               status,
             });
           }
-        } else if (responseFromCreateCandidate.success === false) {
-          const errors = responseFromCreateCandidate.errors
-            ? responseFromCreateCandidate.errors
-            : "";
-          const status = responseFromCreateCandidate.status
-            ? responseFromCreateCandidate.status
-            : "";
-          callback({
-            success: false,
-            message: responseFromCreateCandidate.message,
-            errors,
-            status,
-          });
         }
+      } else if (responseFromListCandidates.success === false) {
+        const errors = responseFromListCandidates.error
+          ? responseFromListCandidates.error
+          : { message: "Internal Server Error" };
+        const status = responseFromListCandidates.status
+          ? responseFromListCandidates.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        const message = responseFromListCandidates.message
+          ? responseFromListCandidates.message
+          : "Internal Server Error";
+        callback({
+          success: false,
+          message,
+          errors,
+          status,
+        });
       }
     } catch (e) {
       callback({
@@ -342,8 +361,7 @@ const request = {
                 };
               }
             }
-          }
-          if (responseFromCreateUser.success == false) {
+          } else if (responseFromCreateUser.success == false) {
             if (responseFromCreateUser.error) {
               return {
                 success: false,
@@ -357,9 +375,7 @@ const request = {
               };
             }
           }
-        }
-
-        if (responseFromGeneratePassword.success === false) {
+        } else if (responseFromGeneratePassword.success === false) {
           if (responseFromGeneratePassword.error) {
             return {
               success: false,
@@ -383,9 +399,7 @@ const request = {
           success: false,
           message: "the candidate does not exist",
         };
-      }
-
-      if (responseFromListCandidate.success === false) {
+      } else if (responseFromListCandidate.success === false) {
         if (responseFromListCandidate.error) {
           return {
             success: false,

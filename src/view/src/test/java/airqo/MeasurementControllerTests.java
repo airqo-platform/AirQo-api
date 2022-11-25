@@ -1,11 +1,13 @@
 package airqo;
 
 import airqo.models.Frequency;
+import airqo.models.GraphInsight;
 import airqo.models.Insight;
-import airqo.models.QInsight;
+import airqo.models.InsightData;
+import airqo.services.InsightsService;
 import airqo.services.MeasurementService;
-import com.querydsl.core.types.Predicate;
 import lombok.extern.slf4j.Slf4j;
+import org.joda.time.DateTime;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -27,9 +29,10 @@ import org.springframework.test.web.servlet.ResultActions;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Calendar;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static airqo.config.Constants.dateTimeFormat;
 import static org.hamcrest.Matchers.hasSize;
@@ -54,72 +57,99 @@ public class MeasurementControllerTests {
 	protected MockMvc mockMvc;
 	@MockBean
 	MeasurementService measurementService;
-
+	@MockBean
+	InsightsService insightsService;
+	String startDateTime = "";
+	String endDateTime = "";
+	String v1UrlTemplate = "";
+	String v2UrlTemplate = "";
+	String siteIds = "";
+	List<String> siteIdsList = new ArrayList<>();
 	List<Insight> insights = new ArrayList<>();
+
+	InsightData insightData;
 
 	@BeforeEach
 	public void initialize() {
+		startDateTime = simpleDateFormat.format(new DateTime(new Date()).minusDays(20).toDate());
+		endDateTime = simpleDateFormat.format(new DateTime(new Date()).plusDays(10).toDate());
+		v1UrlTemplate = "/measurements/app/insights";
+		v2UrlTemplate = "/measurements/mobile-app/insights";
+		siteIds = "site-01,site-02";
+		siteIdsList = Arrays.stream(siteIds.split(",")).toList();
+		insights = siteIdsList.stream().map(site -> {
+			Insight insight = new Insight();
+			insight.setSiteId(site);
+			insight.setId(site);
+			insight.setEmpty(false);
+			insight.setForecast(false);
+			insight.setFrequency(Frequency.HOURLY);
+			insight.setPm2_5(24);
+			insight.setPm10(50);
+			insight.setTime(new Date());
+			return insight;
+		}).collect(Collectors.toList());
 
+		List<GraphInsight> forecast = siteIdsList.stream().map(site -> {
+			GraphInsight insight = new GraphInsight();
+			insight.setSiteId(site);
+			insight.setAvailable(true);
+			insight.setForecast(true);
+			insight.setFrequency(Frequency.HOURLY);
+			insight.setPm2_5(24);
+			insight.setPm10(50);
+			insight.setTime(new Date());
+			return insight;
+		}).toList();
+		List<GraphInsight> historical = siteIdsList.stream().map(site -> {
+			GraphInsight insight = new GraphInsight();
+			insight.setSiteId(site);
+			insight.setAvailable(true);
+			insight.setForecast(false);
+			insight.setFrequency(Frequency.DAILY);
+			insight.setPm2_5(24);
+			insight.setPm10(50);
+			insight.setTime(new Date());
+			return insight;
+		}).toList();
+
+		insightData = new InsightData(forecast, historical);
 	}
 
 	@Test
-	@DisplayName("Testing app insights query parameters")
-	public void testAppInsightsQueryParameters() throws Exception {
-		Insight insight = new Insight();
+	@DisplayName("Testing app insights V1 API query parameters")
+	public void testAppInsightsV1QueryParameters() throws Exception {
 
-		QInsight qInsight = QInsight.insight;
-		Predicate predicate = qInsight.frequency.eq(Frequency.HOURLY);
+		// Testing start date parameter
+		this.mockMvc.perform(get(v1UrlTemplate)
+				.param("endDateTime", endDateTime)
+				.param("siteId", siteIds))
+			.andExpect(status().isBadRequest());
 
+		// Testing end date parameter
+		this.mockMvc.perform(get(v1UrlTemplate)
+				.param("startDateTime", startDateTime)
+				.param("siteId", siteIds))
+			.andExpect(status().isBadRequest());
 
-		// Testing Hourly Frequency parameter
-		insight.setFrequency(Frequency.HOURLY);
-		insights.clear();
-		insights.add(insight);
-		when(measurementService.apiGetInsights(predicate)).thenReturn(insights);
+		// Testing site id parameter
+		this.mockMvc.perform(get(v1UrlTemplate)
+				.param("startDateTime", startDateTime)
+				.param("endDateTime", endDateTime))
+			.andExpect(status().isBadRequest());
 
-		this.mockMvc.perform(get("/measurements/app/insights")
-				.param("frequency", "hourly"))
-			.andExpect(status().isOk())
-			.andExpect(content().contentType(MediaType.APPLICATION_JSON))
-			.andExpect(jsonPath("$.message", is("Operation Successful")))
-			.andExpect(jsonPath("$.data").isArray())
-			.andExpect(jsonPath("$.data", hasSize(1)))
-			.andExpect(jsonPath("$.data[0].frequency", is("HOURLY")));
-		verify(this.measurementService, times(1)).apiGetInsights(predicate);
+		when(measurementService.apiGetInsights(simpleDateFormat.parse(startDateTime), simpleDateFormat.parse(endDateTime), siteIdsList)).thenReturn(insights);
 
-
-		// Testing siteId parameter
-		insight = new Insight();
-		insight.setSiteId("site-01");
-		predicate = qInsight.siteId.eq("site-01");
-		insights.clear();
-		insights.add(insight);
-		when(measurementService.apiGetInsights(predicate)).thenReturn(insights);
-
-		this.mockMvc.perform(get("/measurements/app/insights")
-				.param("siteId", "site-01"))
-			.andExpect(status().isOk())
-			.andExpect(content().contentType(MediaType.APPLICATION_JSON))
-			.andExpect(jsonPath("$.message", is("Operation Successful")))
-			.andExpect(jsonPath("$.data").isArray())
-			.andExpect(jsonPath("$.data", hasSize(1)))
-			.andExpect(jsonPath("$.data[0].siteId", is("site-01")));
-		verify(this.measurementService, times(1)).apiGetInsights(predicate);
-
-		insight = new Insight();
-		insight.setSiteId("site-02");
-		insights.add(insight);
-
-		predicate = qInsight.siteId.in("site-01,site-02".split(","));
-		when(measurementService.apiGetInsights(predicate)).thenReturn(insights);
-
-		ResultActions resultActions = this.mockMvc.perform(get("/measurements/app/insights")
-				.param("siteId", "site-01,site-02"))
+		// Testing all parameters
+		ResultActions resultActions = this.mockMvc.perform(get(v1UrlTemplate)
+				.param("siteId", siteIds)
+				.param("startDateTime", startDateTime)
+				.param("endDateTime", endDateTime))
 			.andExpect(content().contentType(MediaType.APPLICATION_JSON))
 			.andExpect(jsonPath("$.message", is("Operation Successful")))
 			.andExpect(jsonPath("$.data").isArray())
 			.andExpect(jsonPath("$.data", hasSize(2)));
-		verify(this.measurementService, times(1)).apiGetInsights(predicate);
+		verify(this.measurementService, times(1)).apiGetInsights(simpleDateFormat.parse(startDateTime), simpleDateFormat.parse(endDateTime), siteIdsList);
 
 		MockHttpServletResponse response = resultActions.andReturn().getResponse();
 		Assertions.assertEquals(response.getStatus(), 200);
@@ -127,182 +157,52 @@ public class MeasurementControllerTests {
 	}
 
 	@Test
-	@DisplayName("Testing insights query parameters")
-	public void testInsightsQueryParameters() throws Exception {
+	@DisplayName("Testing app insights V2 API query parameters")
+	public void testAppInsightsV2QueryParameters() throws Exception {
 
+		String siteId = Arrays.stream(siteIds.split(",")).toList().get(0);
 
-		this.mockMvc.perform(get("/api/v1/views/measurements/insights").contextPath("/api/v1/views")
-				.param("endTime", "2022-01-28T00:00:00Z")
-				.param("startTime", "2022-01-27T00:00:00Z")
-			)
-			.andExpect(status().isBadRequest())
-			.andExpect(content().contentType(MediaType.APPLICATION_JSON))
-			.andExpect(jsonPath("$.message", is("Missing request parameter")));
+		// Testing start date parameter
+		this.mockMvc.perform(get(v2UrlTemplate)
+				.param("endDateTime", endDateTime)
+				.param("siteId", siteId))
+			.andExpect(status().isBadRequest());
 
-		this.mockMvc.perform(get("/api/v1/views/measurements/insights").contextPath("/api/v1/views")
-				.param("siteId", "617bc2162ea2ed001fc1ad20")
-				.param("startTime", "2022-01-27T00:00:00Z")
-			)
-			.andExpect(status().isBadRequest())
-			.andExpect(content().contentType(MediaType.APPLICATION_JSON))
-			.andExpect(jsonPath("$.message", is("Missing request parameter")));
+		// Testing end date parameter
+		this.mockMvc.perform(get(v2UrlTemplate)
+				.param("startDateTime", startDateTime)
+				.param("siteId", siteId))
+			.andExpect(status().isBadRequest());
 
-		this.mockMvc.perform(get("/api/v1/views/measurements/insights").contextPath("/api/v1/views")
-				.param("endTime", "2022-01-28T00:00:00Z")
-				.param("siteId", "617bc2162ea2ed001fc1ad20")
-			)
-			.andExpect(status().isBadRequest())
-			.andExpect(content().contentType(MediaType.APPLICATION_JSON))
-			.andExpect(jsonPath("$.message", is("Missing request parameter")));
+		// Testing site id parameter
+		this.mockMvc.perform(get(v2UrlTemplate)
+				.param("startDateTime", startDateTime)
+				.param("endDateTime", endDateTime))
+			.andExpect(status().isBadRequest());
 
-
-		this.mockMvc.perform(get("/api/v1/views/measurements/insights").contextPath("/api/v1/views")
-				.param("frequency", "hourly")
-				.param("endTime", "2022-01-28T00:00:00Z")
-				.param("siteId", "617bc2162ea2ed001fc1ad20")
-				.param("startTime", "2022-01-29T00:00:00Z")
-			)
-			.andExpect(status().isBadRequest())
-			.andExpect(content().contentType(MediaType.APPLICATION_JSON))
-			.andExpect(jsonPath("$.message", is("Invalid Datetime values")));
-
-		this.mockMvc.perform(get("/api/v1/views/measurements/insights").contextPath("/api/v1/views")
-				.param("frequency", "hourly")
-				.param("endTime", "2022-01-28sT00:00:00Z")
-				.param("siteId", "617bc2162ea2ed001fc1ad20")
-				.param("startTime", "2022-01-29T00:00:00Z")
-			)
-			.andExpect(status().isBadRequest())
-			.andExpect(content().contentType(MediaType.APPLICATION_JSON))
-			.andExpect(jsonPath("$.message", is("Invalid Datetime values")));
-
-		this.mockMvc.perform(get("/api/v1/views/measurements/insights").contextPath("/api/v1/views")
-				.param("frequency", "hourly")
-				.param("endTime", "2022-01-28T00:00:00Z")
-				.param("siteId", "617bc2162ea2ed001fc1ad20")
-				.param("startTime", "2022-01-29gT00:00:00Z")
-			)
-			.andExpect(status().isBadRequest())
-			.andExpect(content().contentType(MediaType.APPLICATION_JSON))
-			.andExpect(jsonPath("$.message", is("Invalid Datetime values")));
 	}
 
 	@Test
-	@DisplayName("App Insights API Documentation")
-	public void shouldGenerateAppInsightsAPIDocs() throws Exception {
+	@DisplayName("App Insights V1 API Documentation")
+	public void shouldGenerateAppInsightsV1APIDocs() throws Exception {
 
-		insights.clear();
-		Date startDateTime = simpleDateFormat.parse("2022-01-01T10:00:00Z");
-		Date endDateTime = simpleDateFormat.parse("2022-01-01T17:00:00Z");
-		String siteIds = "site-01,site-02";
-
-		Insight insight = new Insight();
-		insight.setTime(startDateTime);
-		insight.setFrequency(Frequency.HOURLY);
-		insight.setEmpty(false);
-		insight.setForecast(false);
-		insight.setPm2_5(23.90332);
-		insight.setPm10(34.54333);
-		insight.setSiteId("site-01");
-		insights.add(insight);
-
-		insight = new Insight();
-		insight.setTime(endDateTime);
-		insight.setFrequency(Frequency.HOURLY);
-		insight.setEmpty(false);
-		insight.setForecast(true);
-		insight.setPm2_5(45.2323);
-		insight.setPm10(52.3444);
-		insight.setSiteId("site-02");
-		insights.add(insight);
-
-		QInsight qInsight = QInsight.insight;
-		Predicate predicate = qInsight.siteId
-			.in(siteIds.split(","))
-			.and(qInsight.time.goe(startDateTime))
-			.and(qInsight.time.loe(endDateTime))
-			.and(qInsight.frequency.eq(Frequency.HOURLY));
-
-		when(measurementService.apiGetInsights(predicate)).thenReturn(insights);
+		when(measurementService.apiGetInsights(simpleDateFormat.parse(startDateTime), simpleDateFormat.parse(endDateTime), siteIdsList)).thenReturn(insights);
 
 		this.mockMvc.perform(get("/api/v1/view/measurements/app/insights")
 				.contextPath("/api/v1/view")
 				.header("Authorization", "Token my-jwt-token")
 				.param("siteId", siteIds)
-				.param("startDateTime", simpleDateFormat.format(startDateTime))
-				.param("endDateTime", simpleDateFormat.format(endDateTime))
-				.param("frequency", "hourly"))
+				.param("startDateTime", startDateTime)
+				.param("endDateTime", endDateTime))
 			.andDo(print())
 			.andExpect(status().isOk())
 			.andDo(document("app-insights",
 				requestParameters(
 					parameterWithName("siteId").description("Site id(s). Separate multiple site ids using commas").optional(),
 					parameterWithName("startDateTime").description("Start date time. Format `yyyy-MM-ddTHH:mm:ssZ` . Timezone is UTC").optional(),
-					parameterWithName("endDateTime").description("End date time. Format `yyyy-MM-ddTHH:mm:ssZ` . Timezone is UTC").optional(),
-					parameterWithName("frequency").description("Either *hourly* or *daily*").optional(),
-					parameterWithName("forecast").description("Return Forecast insights").optional(),
-					parameterWithName("empty").description("Return empty insights").optional()
-				)));
-	}
-
-	@Test
-	@DisplayName("Insights API Documentation")
-	public void shouldGenerateInsightsAPIDocs() throws Exception {
-
-		insights.clear();
-
-		Date startTime = new Date();
-
-		Calendar c = Calendar.getInstance();
-		c.setTime(startTime);
-		c.add(Calendar.HOUR, 1);
-		Date endTime = c.getTime();
-
-		Insight insight = new Insight();
-		insight.setTime(startTime);
-		insight.setFrequency(Frequency.HOURLY);
-		insight.setEmpty(false);
-		insight.setForecast(false);
-		insight.setPm2_5(23.90332);
-		insight.setPm10(34.54333);
-		insight.setSiteId("site-01");
-		insights.add(insight);
-
-		insight = new Insight();
-		insight.setTime(endTime);
-		insight.setFrequency(Frequency.HOURLY);
-		insight.setEmpty(false);
-		insight.setForecast(true);
-		insight.setPm2_5(45.2323);
-		insight.setPm10(52.3444);
-		insight.setSiteId("site-01,site-01");
-		insights.add(insight);
-
-		Frequency frequency = Frequency.HOURLY;
-		List<String> siteIds = new ArrayList<>();
-		siteIds.add("site-01");
-		siteIds.add("site-02");
-
-
-		when(measurementService.getInsights(frequency, startTime, endTime, siteIds)).thenReturn(insights);
-
-		this.mockMvc.perform(get("/api/v1/views/measurements/insights")
-				.contextPath("/api/v1/views")
-				.header("Authorization", "Token my-jwt-token")
-				.param("frequency", "hourly")
-				.param("endTime", simpleDateFormat.format(endTime))
-				.param("siteId", "site-01,site-02")
-				.param("startTime", simpleDateFormat.format(startTime))
-			)
-			.andDo(print())
-			.andExpect(status().isOk())
-			.andDo(document("insights",
-				requestParameters(
-					parameterWithName("siteId").description("Site id(s). Separate multiple site ids using commas"),
-					parameterWithName("startTime").description("Start time."),
-					parameterWithName("endTime").description("Start time."),
-					parameterWithName("frequency").description("Optional. Either *hourly* or *daily*").optional()
-				)));
+					parameterWithName("endDateTime").description("End date time. Format `yyyy-MM-ddTHH:mm:ssZ` . Timezone is UTC").optional()
+				)
+			));
 	}
 
 	@TestConfiguration

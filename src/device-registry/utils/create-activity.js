@@ -8,7 +8,6 @@ const createDeviceUtil = require("./create-device");
 const createSiteUtil = require("./create-site");
 const httpStatus = require("http-status");
 const { addMonthsToProvideDateTime } = require("./date");
-const { kafkaProducer } = require("../config/kafkajs");
 const generateFilter = require("./generate-filter");
 const constants = require("../config/constants");
 const distance = require("./distance");
@@ -16,6 +15,12 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-activity-util`
 );
+
+const { Kafka } = require("kafkajs");
+const kafka = new Kafka({
+  clientId: constants.KAFKA_CLIENT_ID,
+  brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
+});
 
 const createActivity = {
   create: async (request) => {
@@ -111,9 +116,7 @@ const createActivity = {
           errors,
           status,
         };
-      }
-
-      if (responseFromListActivity.success === true) {
+      } else if (responseFromListActivity.success === true) {
         let status = responseFromListActivity.status
           ? responseFromListActivity.status
           : "";
@@ -247,6 +250,7 @@ const createActivity = {
         powerType,
         isPrimaryInLocation,
         site_id,
+        network,
       } = body;
       let requestForFilter = {};
       requestForFilter["query"] = {};
@@ -265,6 +269,7 @@ const createActivity = {
             description: "device deployed",
             activityType: "deployment",
             site_id,
+            network,
             nextMaintenance: addMonthsToProvideDateTime(
               date && new Date(date),
               3
@@ -307,6 +312,7 @@ const createActivity = {
             : 0;
           deviceBody["body"]["site_id"] = site_id;
           deviceBody["body"]["isActive"] = true;
+          deviceBody["body"]["status"] = "deployed";
           deviceBody["query"]["name"] = deviceName;
           deviceBody["query"]["tenant"] = tenant;
 
@@ -323,6 +329,10 @@ const createActivity = {
               const updatedDevice = responseFromUpdateDevice.data;
               const data = { createdActivity, updatedDevice };
               try {
+                const kafkaProducer = kafka.producer({
+                  groupId: constants.UNIQUE_PRODUCER_GROUP,
+                });
+                await kafkaProducer.connect();
                 await kafkaProducer.send({
                   topic: constants.ACTIVITIES_TOPIC,
                   messages: [
@@ -332,6 +342,7 @@ const createActivity = {
                     },
                   ],
                 });
+                await kafkaProducer.disconnect();
               } catch (error) {
                 logger.error(`internal server error -- ${error.message}`);
               }
@@ -392,6 +403,7 @@ const createActivity = {
       deviceBody["body"]["latitude"] = "";
       deviceBody["body"]["longitude"] = "";
       deviceBody["body"]["isActive"] = false;
+      deviceBody["body"]["status"] = "recalled";
       deviceBody["query"]["name"] = deviceName;
       deviceBody["query"]["tenant"] = tenant;
 
@@ -408,6 +420,9 @@ const createActivity = {
           const updatedDevice = responseFromUpdateDevice.data;
           const data = { createdActivity, updatedDevice };
           try {
+            const kafkaProducer = kafka.producer({
+              groupId: constants.UNIQUE_PRODUCER_GROUP,
+            });
             await kafkaProducer.connect();
             await kafkaProducer.send({
               topic: "activities-topic",
@@ -449,13 +464,21 @@ const createActivity = {
     try {
       const { body, query } = request;
       const { tenant, deviceName } = query;
-      const { date, tags, description, site_id, maintenanceType } = body;
+      const {
+        date,
+        tags,
+        description,
+        site_id,
+        maintenanceType,
+        network,
+      } = body;
       const siteActivityBody = {
         device: deviceName,
         date: (date && new Date(date)) || new Date(),
         description: description,
         activityType: "maintenance",
         site_id,
+        network,
         tags,
         maintenanceType,
         nextMaintenance: addMonthsToProvideDateTime(date && new Date(date), 3),
@@ -483,6 +506,9 @@ const createActivity = {
           const updatedDevice = responseFromUpdateDevice.data;
           const data = { createdActivity, updatedDevice };
           try {
+            const kafkaProducer = kafka.producer({
+              groupId: constants.UNIQUE_PRODUCER_GROUP,
+            });
             await kafkaProducer.connect();
             await kafkaProducer.send({
               topic: "activities-topic",

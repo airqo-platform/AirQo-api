@@ -24,18 +24,3 @@ include::{snippets}/app-insights/curl-request.adoc[]
 .httpie request
 include::{snippets}/app-insights/httpie-request.adoc[]
 
-[[Insights]]
-== Insights
-
-=== Query Parameters
-
-include::{snippets}/insights/request-parameters.adoc[]
-
-=== Examples
-
-.http request
-include::{snippets}/insights/http-request.adoc[]
-.curl request
-include::{snippets}/insights/curl-request.adoc[]
-.httpie request
-include::{snippets}/insights/httpie-request.adoc[]

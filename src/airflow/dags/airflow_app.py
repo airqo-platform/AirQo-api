@@ -1,27 +1,30 @@
-from datetime import datetime
-
 from airflow.decorators import dag, task
 
-from airqo_etl_utils.airflow_custom_utils import slack_dag_failure_notification
+from airqo_etl_utils.airflow_custom_utils import AirflowUtils
 
 
 @dag(
     "Airflow-App-Cleanup",
-    schedule_interval="0 0 * * 0",
-    on_failure_callback=slack_dag_failure_notification,
-    start_date=datetime(2021, 1, 1),
+    schedule="0 0 * * 0",
     catchup=False,
     tags=["cleanup"],
+    default_args=AirflowUtils.dag_default_configs(),
 )
 def aiflow_app_cleanup():
-
     @task()
-    def delete_old_dag_runs():
+    def delete_old_dag_runs(**kwargs):
         from airqo_etl_utils.airflow_custom_utils import AirflowUtils
 
-        AirflowUtils().remove_old_dag_runs()
+        try:
+            dag_run = kwargs.get("dag_run")
+            days = int(dag_run.conf["days"])
+        except Exception as ex:
+            print(ex)
+            days = 14
+
+        AirflowUtils().remove_old_dag_runs(days)
 
     delete_old_dag_runs()
 
 
-aiflow_app_cleanup_dag = aiflow_app_cleanup()
+aiflow_app_cleanup()

@@ -13,7 +13,12 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-location-util`
 );
-const { kafkaProducer } = require("../config/kafkajs");
+
+const { Kafka } = require("kafkajs");
+const kafka = new Kafka({
+  clientId: constants.KAFKA_CLIENT_ID,
+  brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
+});
 
 const createLocation = {
   initialIsCapital: (word) => {
@@ -47,6 +52,10 @@ const createLocation = {
           : "";
 
         try {
+          const kafkaProducer = kafka.producer({
+            groupId: constants.UNIQUE_PRODUCER_GROUP,
+          });
+          await kafkaProducer.connect();
           await kafkaProducer.send({
             topic: constants.LOCATIONS_TOPIC,
             messages: [
@@ -56,6 +65,7 @@ const createLocation = {
               },
             ],
           });
+          await kafkaProducer.disconnect();
         } catch (error) {
           logger.error(`internal server error -- ${error.message}`);
         }

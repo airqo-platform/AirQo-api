@@ -1,19 +1,16 @@
-from datetime import datetime
-
 from airflow.decorators import dag, task
 
-from airqo_etl_utils.airflow_custom_utils import slack_dag_failure_notification
+from airqo_etl_utils.airflow_custom_utils import AirflowUtils
 
 
 @dag(
     "KCCA-Hourly-Measurements",
-    schedule_interval="30 * * * *",
-    on_failure_callback=slack_dag_failure_notification,
-    start_date=datetime(2021, 1, 1),
+    schedule="30 * * * *",
+    default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["kcca", "hourly"],
 )
-def hourly_measurements_etl():
+def kcca_hourly_measurements():
     import pandas as pd
 
     @task()
@@ -48,21 +45,17 @@ def hourly_measurements_etl():
 
     @task()
     def send_to_message_broker(data: pd.DataFrame):
-        from airqo_etl_utils.kcca_utils import KccaUtils
+        from airqo_etl_utils.data_validator import DataValidationUtils
         from airqo_etl_utils.config import configuration
         from airqo_etl_utils.constants import Tenant
         from airqo_etl_utils.message_broker import KafkaBrokerClient
 
-        kcca_restructured_data = KccaUtils.transform_data_for_message_broker(data=data)
-
-        info = {
-            "data": kcca_restructured_data,
-            "action": "insert",
-            "tenant": str(Tenant.KCCA),
-        }
+        data = DataValidationUtils.process_for_message_broker(
+            data=data, tenant=Tenant.KCCA
+        )
 
         kafka = KafkaBrokerClient()
-        kafka.send_data(info=info, topic=configuration.HOURLY_MEASUREMENTS_TOPIC)
+        kafka.send_data(data=data, topic=configuration.HOURLY_MEASUREMENTS_TOPIC)
 
     @task()
     def send_to_bigquery(data: pd.DataFrame):
@@ -82,7 +75,7 @@ def hourly_measurements_etl():
         )
 
     @task()
-    def update_latest_data(data: pd.DataFrame):
+    def update_latest_data_table(data: pd.DataFrame):
         from airqo_etl_utils.kcca_utils import KccaUtils
         from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
         from airqo_etl_utils.constants import Tenant
@@ -91,23 +84,32 @@ def hourly_measurements_etl():
 
         DataWarehouseUtils.update_latest_measurements(data=data, tenant=Tenant.KCCA)
 
+    @task()
+    def update_latest_data_topic(data: pd.DataFrame):
+        from airqo_etl_utils.kcca_utils import KccaUtils
+        from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
+
+        data = KccaUtils.process_latest_data(data=data)
+
+        MessageBrokerUtils.update_latest_data_topic(data=data)
+
     extracted_data = extract()
     transformed_data = transform(extracted_data)
     send_to_message_broker(transformed_data)
     send_to_api(transformed_data)
-    update_latest_data(transformed_data)
+    update_latest_data_table(transformed_data)
+    update_latest_data_topic(transformed_data)
     send_to_bigquery(transformed_data)
 
 
 @dag(
     "Kcca-Historical-Hourly-Measurements",
-    schedule_interval=None,
-    on_failure_callback=slack_dag_failure_notification,
-    start_date=datetime(2021, 1, 1),
+    schedule=None,
+    default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["kcca", "hourly", "historical"],
 )
-def historical_hourly_measurements_etl():
+def kcca_historical_hourly_measurements():
     import pandas as pd
 
     @task()
@@ -148,5 +150,5 @@ def historical_hourly_measurements_etl():
     send_to_bigquery(transformed_data)
 
 
-hourly_measurements_etl_dag = hourly_measurements_etl()
-historical_hourly_measurements_etl_dag = historical_hourly_measurements_etl()
+kcca_hourly_measurements()
+kcca_historical_hourly_measurements()

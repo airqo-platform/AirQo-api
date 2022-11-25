@@ -17,7 +17,12 @@ const logger = log4js.getLogger(
 const createLocationUtil = require("./create-location");
 const geolib = require("geolib");
 const httpStatus = require("http-status");
-const { kafkaProducer } = require("../config/kafkajs");
+
+const { Kafka } = require("kafkajs");
+const kafka = new Kafka({
+  clientId: constants.KAFKA_CLIENT_ID,
+  brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
+});
 
 const createAirqloud = {
   initialIsCapital: (word) => {
@@ -40,7 +45,6 @@ const createAirqloud = {
       } else if (entity === "airqloud") {
         entityInstance = createAirqloud;
       }
-
       const responseFromListAirQloud = await entityInstance.list(request);
 
       if (responseFromListAirQloud.success === true) {
@@ -113,8 +117,7 @@ const createAirqloud = {
 
         if (responseFromRetrieveCoordinates.success === true) {
           modifiedBody["location"] = responseFromRetrieveCoordinates.data;
-        }
-        if (responseFromRetrieveCoordinates.success === false) {
+        } else if (responseFromRetrieveCoordinates.success === false) {
           return responseFromRetrieveCoordinates;
         }
       }
@@ -149,6 +152,10 @@ const createAirqloud = {
 
       if (responseFromRegisterAirQloud.success === true) {
         try {
+          const kafkaProducer = kafka.producer({
+            groupId: constants.UNIQUE_PRODUCER_GROUP,
+          });
+          await kafkaProducer.connect();
           await kafkaProducer.send({
             topic: constants.AIRQLOUDS_TOPIC,
             messages: [
@@ -158,6 +165,7 @@ const createAirqloud = {
               },
             ],
           });
+          await kafkaProducer.disconnect();
         } catch (error) {
           logger.error(`internal server error -- ${error.message}`);
         }
@@ -325,8 +333,7 @@ const createAirqloud = {
       if (responseFromRetrieveCoordinates.success === true) {
         requestForUpdateAirQloud["body"]["location"]["coordinates"] =
           responseFromRetrieveCoordinates.data.coordinates[0];
-      }
-      if (responseFromRetrieveCoordinates.success === false) {
+      } else if (responseFromRetrieveCoordinates.success === false) {
         return responseFromRetrieveCoordinates;
       }
 
@@ -606,9 +613,7 @@ const createAirqloud = {
           errors,
           status,
         };
-      }
-
-      if (responseFromListAirQloud.success === true) {
+      } else if (responseFromListAirQloud.success === true) {
         let status = responseFromListAirQloud.status
           ? responseFromListAirQloud.status
           : "";

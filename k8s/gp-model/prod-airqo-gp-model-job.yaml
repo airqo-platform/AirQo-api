@@ -1,4 +1,3 @@
-
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -12,6 +11,7 @@ metadata:
   namespace: production
 spec:
   concurrencyPolicy: Allow
+  successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 1
   jobTemplate:
     metadata:
@@ -25,13 +25,13 @@ spec:
           affinity:
             nodeAffinity:
               preferredDuringSchedulingIgnoredDuringExecution:
-              - weight: 10
-                preference:
-                  matchExpressions:
-                  - key: node-type
-                    operator: In
-                    values:
-                    - compute
+                - weight: 10
+                  preference:
+                    matchExpressions:
+                      - key: node-type
+                        operator: In
+                        values:
+                          - compute
           containers:
             - name: airqo-prod-gpmodel
               image: us.gcr.io/airqo-250220/airqo-gp-model-job:latest
@@ -41,7 +41,8 @@ spec:
                     name: env-gp-model-production
               resources:
                 limits:
-                  cpu: 1000m
+                  # Has had an average CPU throttling rate of 80% of 1000m in the last 30 days
+                  cpu: 2000m
                   memory: 4000Mi
               terminationMessagePath: /dev/termination-log
               terminationMessagePolicy: File
@@ -51,6 +52,5 @@ spec:
           securityContext: {}
           terminationGracePeriodSeconds: 30
   schedule: 0 * * * *
-  successfulJobsHistoryLimit: 3
   suspend: false
 status: {}

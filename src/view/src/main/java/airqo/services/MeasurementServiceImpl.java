@@ -1,51 +1,33 @@
 package airqo.services;
 
+import airqo.Utils;
 import airqo.models.Frequency;
 import airqo.models.Insight;
-import airqo.models.Measurement;
-import airqo.models.QInsight;
 import airqo.repository.InsightRepository;
-import airqo.repository.MeasurementRepository;
 import com.google.common.collect.Lists;
 import com.querydsl.core.types.Predicate;
 import io.sentry.spring.tracing.SentrySpan;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
+import java.text.DecimalFormat;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
 public class MeasurementServiceImpl implements MeasurementService {
 
-	private final InsightRepository insightRepository;
-	private final MeasurementRepository measurementRepository;
+	@Autowired
+	BigQueryApi bigQueryApi;
 
 	@Autowired
-	public MeasurementServiceImpl(InsightRepository insightRepository, MeasurementRepository measurementRepository) {
-		this.insightRepository = insightRepository;
-		this.measurementRepository = measurementRepository;
-	}
-
-	@Override
-	@SentrySpan
-	@Cacheable(value = "insightsCache", cacheNames = {"insightsCache"}, unless = "#result.size() <= 0")
-	public List<Insight> getInsights(Frequency frequency, Date startTime, Date endTime, List<String> siteIds) {
-
-		QInsight qInsight = QInsight.insight;
-		Predicate predicate = qInsight.frequency.eq(frequency)
-			.and(qInsight.siteId.in(siteIds))
-			.and(qInsight.time.goe(startTime))
-			.and(qInsight.time.loe(endTime));
-		log.info(predicate.toString());
-		return Lists.newArrayList(insightRepository.findAll(predicate));
-
-	}
+	InsightRepository insightRepository;
 
 	@Override
 	@SentrySpan
@@ -55,8 +37,30 @@ public class MeasurementServiceImpl implements MeasurementService {
 	}
 
 	@Override
-	public Page<Measurement> apiGetMeasurements(Predicate predicate, Pageable pageable) {
-		return measurementRepository.findAll(predicate, pageable);
+	@SentrySpan
+	@Cacheable(value = "appInsightsCacheV2", cacheNames = {"appInsightsCacheV2"}, unless = "#result.size() <= 0")
+	public List<Insight> apiGetInsights(Date startDateTime, Date endDateTime, List<String> siteIds) {
+
+		List<Insight> insights = bigQueryApi.getInsightsData(startDateTime, endDateTime, siteIds);
+		List<Insight> sitesInsights = new ArrayList<>();
+
+		for (String siteId : siteIds) {
+			List<Insight> siteInsights = insights.stream().filter(insight -> insight.getSiteId().equalsIgnoreCase(siteId)).toList();
+			for (Frequency frequency : Frequency.values()) {
+				List<Insight> frequencyInsights = siteInsights.stream().filter(insight -> insight.getFrequency() == frequency).toList();
+				List<Insight> allSiteInsights = Utils.fillMissingInsights(frequencyInsights, startDateTime, endDateTime, siteId, frequency);
+				sitesInsights.addAll(allSiteInsights);
+			}
+		}
+
+		return sitesInsights.stream().peek(insight -> {
+			try {
+				insight.setPm10(Double.parseDouble(new DecimalFormat("#.##").format(insight.getPm10())));
+				insight.setPm2_5(Double.parseDouble(new DecimalFormat("#.##").format(insight.getPm2_5())));
+			} catch (Exception ignored) {
+			}
+		}).sorted(Comparator.comparing(Insight::getTime)).collect(Collectors.toList());
+
 	}
 
 	@Override
@@ -78,11 +82,6 @@ public class MeasurementServiceImpl implements MeasurementService {
 				log.info(e.toString());
 			}
 		}
-	}
-
-	@Override
-	public void saveMeasurements(List<Measurement> measurements) {
-		measurementRepository.saveAll(measurements);
 	}
 
 	@Override

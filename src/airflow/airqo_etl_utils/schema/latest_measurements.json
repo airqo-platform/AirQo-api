@@ -20,12 +20,37 @@
         "mode": "NULLABLE"
     },
     {
+        "name": "site_location",
+        "type": "STRING",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "site_display_name",
+        "type": "STRING",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "site_display_location",
+        "type": "STRING",
+        "mode": "NULLABLE"
+    },
+    {
         "name": "site_latitude",
         "type": "FLOAT",
         "mode": "NULLABLE"
     },
     {
         "name": "site_longitude",
+        "type": "FLOAT",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "site_approximate_latitude",
+        "type": "FLOAT",
+        "mode": "NULLABLE"
+    },
+    {
+        "name": "site_approximate_longitude",
         "type": "FLOAT",
         "mode": "NULLABLE"
     },

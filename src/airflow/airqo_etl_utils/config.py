@@ -23,6 +23,8 @@ class Config:
 
     # Aggregated data
     BIGQUERY_HOURLY_EVENTS_TABLE = os.getenv("BIGQUERY_HOURLY_EVENTS_TABLE")
+    BIGQUERY_DAILY_EVENTS_TABLE = os.getenv("BIGQUERY_DAILY_EVENTS_TABLE")
+    BIGQUERY_FORECAST_EVENTS_TABLE = os.getenv("BIGQUERY_FORECAST_EVENTS_TABLE")
     BIGQUERY_HOURLY_WEATHER_TABLE = os.getenv("BIGQUERY_HOURLY_WEATHER_TABLE")
     BIGQUERY_ANALYTICS_TABLE = os.getenv("BIGQUERY_ANALYTICS_TABLE")
 
@@ -47,6 +49,7 @@ class Config:
     BIGQUERY_DEVICES_TABLE = os.getenv("BIGQUERY_DEVICES_TABLE")
     BIGQUERY_DEVICES_DATA_TABLE = os.getenv("BIGQUERY_DEVICES_DATA_TABLE")
     BIGQUERY_SITES_TABLE = os.getenv("BIGQUERY_SITES_TABLE")
+    BIGQUERY_SITES_META_DATA_TABLE = os.getenv("BIGQUERY_SITES_META_DATA_TABLE")
 
     # AirQo
     POST_EVENTS_BODY_SIZE = os.getenv("POST_EVENTS_BODY_SIZE", 10)
@@ -135,6 +138,10 @@ class Config:
         9: "humidity",
         10: "vapor_pressure",
     }
+
+    # Data unit tests
+    BUCKET_NAME_AIRQO = os.getenv("BUCKET_NAME")
+    FILE_PATH_AIRQO = os.getenv("FILE_PATH_AIRQO")
 
 
 configuration = Config()

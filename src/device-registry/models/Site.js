@@ -17,6 +17,10 @@ const siteSchema = new Schema(
       type: String,
       trim: true,
     },
+    network: {
+      type: String,
+      trim: true,
+    },
     location_name: {
       type: String,
       trim: true,
@@ -51,6 +55,12 @@ const siteSchema = new Schema(
       type: String,
       trim: true,
     },
+    site_codes: [
+      {
+        type: String,
+        trim: true,
+      },
+    ],
     latitude: {
       type: Number,
       required: [true, "latitude is required!"],
@@ -317,6 +327,7 @@ siteSchema.methods = {
       name: this.name,
       generated_name: this.generated_name,
       search_name: this.search_name,
+      network: this.network,
       location_name: this.location_name,
       formatted_name: this.formatted_name,
       lat_long: this.lat_long,
@@ -337,6 +348,7 @@ siteSchema.methods = {
       region: this.region,
       geometry: this.geometry,
       village: this.village,
+      site_codes: this.site_codes,
       city: this.city,
       street: this.street,
       county: this.county,
@@ -450,10 +462,12 @@ siteSchema.statics = {
           bearing_in_radians: 1,
           description: 1,
           site_tags: 1,
+          site_codes: 1,
           search_name: 1,
           location_name: 1,
           lat_long: 1,
           country: 1,
+          network: 1,
           district: 1,
           sub_county: 1,
           parish: 1,
@@ -577,6 +591,13 @@ siteSchema.statics = {
         modifiedUpdateBody["$addToSet"]["site_tags"]["$each"] =
           modifiedUpdateBody.site_tags;
         delete modifiedUpdateBody["site_tags"];
+      }
+
+      if (modifiedUpdateBody.site_codes) {
+        modifiedUpdateBody["$addToSet"]["site_codes"] = {};
+        modifiedUpdateBody["$addToSet"]["site_codes"]["$each"] =
+          modifiedUpdateBody.site_codes;
+        delete modifiedUpdateBody["site_codes"];
       }
 
       if (modifiedUpdateBody.airqlouds) {

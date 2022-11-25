@@ -1,10 +1,7 @@
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
-
-const {
-  generateDateFormatWithoutHrs,
-  monthsInfront,
-} = require("../utils/date");
+const log4js = require("log4js");
+const logger = log4js.getLogger(`${this.ENVIRONMENT} -- constants-config`);
 
 const devConfig = {
   MONGO_URI: `mongodb://localhost/`,
@@ -55,7 +52,9 @@ const stageConfig = {
 };
 
 const defaultConfig = {
+  DEFAULT_NEAREST_SITE_RADIUS: process.env.DEFAULT_NEAREST_SITE_RADIUS,
   SLACK_TOKEN: process.env.SLACK_TOKEN,
+  KAFKA_CLIENT_ID: process.env.KAFKA_CLIENT_ID,
   SLACK_CHANNEL: process.env.SLACK_CHANNEL,
   SLACK_USERNAME: process.env.SLACK_USERNAME,
   DATAWAREHOUSE_RAW_DATA: process.env.DATAWAREHOUSE_RAW_DATA,
@@ -94,11 +93,13 @@ const defaultConfig = {
     weather_stations: "nearest-weather-stations",
   },
   KEY_ENCRYPTION_KEY: process.env.KEY_ENCRYPTION_KEY,
-  GET_ROAD_METADATA: ({ path, latitude, longitude } = {}) => {
-    const today = monthsInfront(0);
-    const oneMonthAgo = monthsInfront(-1);
-    const endDate = generateDateFormatWithoutHrs(today);
-    const startDate = generateDateFormatWithoutHrs(oneMonthAgo);
+  GET_ROAD_METADATA: ({
+    path,
+    latitude,
+    longitude,
+    endDate,
+    startDate,
+  } = {}) => {
     if (path === "greenness") {
       return `${process.env.PLATFORM_BASE_URL}/api/v1/meta-data/${path}?latitude=${latitude}&longitude=${longitude}&startDate=${startDate}&endDate=${endDate}`;
     }
@@ -219,6 +220,7 @@ const defaultConfig = {
       site: "site",
       site_id: "site_id",
       tenant: "tenant",
+      network: "network",
       is_test_data: "is_test_data",
       is_device_primary: "is_device_primary",
 
@@ -574,6 +576,25 @@ const defaultConfig = {
     }
   },
 };
+
+function generateDateFormatWithoutHrs(ISODate) {
+  try {
+    let date = new Date(ISODate);
+    let year = date.getFullYear();
+    let month = date.getMonth() + 1;
+    let day = date.getUTCDate();
+
+    if (day < 10) {
+      day = "0" + day;
+    }
+    if (month < 10) {
+      month = "0" + month;
+    }
+    return `${year}-${month}-${day}`;
+  } catch (e) {
+    logger.error(`internal server error -- ${e.message}`);
+  }
+}
 
 function envConfig(env) {
   switch (env) {

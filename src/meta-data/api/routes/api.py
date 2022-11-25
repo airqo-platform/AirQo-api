@@ -2,6 +2,9 @@ from config import BASE_URL
 
 ALL_META_DATA_URL = f"{BASE_URL}/all"
 NEAREST_WEATHER_STATIONS = f"{BASE_URL}/nearest-weather-stations"
+ADMINISTRATIVE_LEVELS = f"{BASE_URL}/administrative-levels"
+IP_GEO_COORDINATES = f"{BASE_URL}/ip-geo-coordinates"
+MOBILE_CARRIER = f"{BASE_URL}/mobile-carrier"
 ALTITUDE_URL = f"{BASE_URL}/altitude"
 GREENNESS_URL = f"{BASE_URL}/greenness"
 ASPECT_URL = f"{BASE_URL}/aspect"

@@ -17,24 +17,31 @@ const log4js = require("log4js");
 const HTTPStatus = require("http-status");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- create-site-util`);
 const distanceUtil = require("./distance");
-
 const SiteModel = (tenant) => {
   getModelByTenant(tenant.toLowerCase(), "site", SiteSchema);
 };
-
 const createAirqloudUtil = require("./create-airqloud");
 const pointInPolygon = require("point-in-polygon");
 const httpStatus = require("http-status");
 const geolib = require("geolib");
-const { kafkaProducer, kafkaClient } = require("../config/kafkajs");
-
 const DeviceSchema = require("../models/Device");
 const SiteActivitySchema = require("../models/SiteActivity");
-const mongoose = require("mongoose");
-const { threeMonthsFromNow } = require("./date");
+
+const {
+  threeMonthsFromNow,
+  generateDateFormatWithoutHrs,
+  monthsInfront,
+} = require("./date");
+
 const createDeviceUtil = require("./create-device");
 
-const manageSite = {
+const { Kafka } = require("kafkajs");
+const kafka = new Kafka({
+  clientId: constants.KAFKA_CLIENT_ID,
+  brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
+});
+
+const createSite = {
   hasWhiteSpace: (name) => {
     try {
       return name.indexOf(" ") >= 0;
@@ -64,7 +71,7 @@ const manageSite = {
       const { id, tenant } = query;
       let filter = {};
       filter["_id"] = id;
-      const responseFromListSites = await manageSite.list({ tenant, filter });
+      const responseFromListSites = await createSite.list({ tenant, filter });
       if (responseFromListSites.success === true) {
         let data = responseFromListSites.data;
         if (data.length > 1 || data.length === 0) {
@@ -153,7 +160,7 @@ const manageSite = {
       const { id, tenant } = query;
       let filter = {};
       filter["_id"] = id;
-      const responseFromListSites = await manageSite.list({ tenant, filter });
+      const responseFromListSites = await createSite.list({ tenant, filter });
       if (responseFromListSites.success === true) {
         let data = responseFromListSites.data;
         if (data.length > 1 || data.length === 0) {
@@ -164,7 +171,7 @@ const manageSite = {
           };
         }
         const { latitude, longitude } = data[0];
-        const responseFromListWeatherStations = await manageSite.listWeatherStations();
+        const responseFromListWeatherStations = await createSite.listWeatherStations();
         if (responseFromListWeatherStations.success === true) {
           const nearestWeatherStation = geolib.findNearest(
             { latitude, longitude },
@@ -278,8 +285,8 @@ const manageSite = {
 
   validateSiteName: (name) => {
     try {
-      // let nameHasWhiteSpace = manageSite.hasWhiteSpace(name);
-      let isValidStringLength = manageSite.checkStringLength(name);
+      // let nameHasWhiteSpace = createSite.hasWhiteSpace(name);
+      let isValidStringLength = createSite.checkStringLength(name);
       if (isValidStringLength) {
         return true;
       }
@@ -365,6 +372,7 @@ const manageSite = {
         latitude,
         longitude,
         airqlouds,
+        network,
         approximate_distance_in_km,
       } = body;
 
@@ -373,11 +381,12 @@ const manageSite = {
       request["query"] = {};
       request["body"]["latitude"] = latitude;
       request["body"]["longitude"] = longitude;
+      request["body"]["network"] = network;
       request["body"]["airqlouds"] = airqlouds;
       request["body"]["name"] = name;
       request["query"]["tenant"] = tenant;
 
-      const responseFromApproximateCoordinates = manageSite.createApproximateCoordinates(
+      const responseFromApproximateCoordinates = createSite.createApproximateCoordinates(
         { latitude, longitude, approximate_distance_in_km }
       );
 
@@ -401,7 +410,7 @@ const manageSite = {
       let generated_name = null;
       let requestBodyForCreatingSite = {};
 
-      let isNameValid = manageSite.validateSiteName(name);
+      let isNameValid = createSite.validateSiteName(name);
       if (!isNameValid) {
         return {
           success: false,
@@ -409,10 +418,10 @@ const manageSite = {
         };
       }
 
-      let lat_long = manageSite.generateLatLong(latitude, longitude);
+      let lat_long = createSite.generateLatLong(latitude, longitude);
       request["body"]["lat_long"] = lat_long;
 
-      let responseFromGenerateName = await manageSite.generateName(tenant);
+      let responseFromGenerateName = await createSite.generateName(tenant);
       logObject("responseFromGenerateName", responseFromGenerateName);
       if (responseFromGenerateName.success === true) {
         generated_name = responseFromGenerateName.data;
@@ -432,7 +441,7 @@ const manageSite = {
         };
       }
 
-      let responseFromGenerateMetadata = await manageSite.generateMetadata(
+      let responseFromGenerateMetadata = await createSite.generateMetadata(
         request
       );
       logObject("responseFromGenerateMetadata", responseFromGenerateMetadata);
@@ -462,6 +471,10 @@ const manageSite = {
       if (responseFromCreateSite.success === true) {
         let createdSite = responseFromCreateSite.data;
         try {
+          const kafkaProducer = kafka.producer({
+            groupId: constants.UNIQUE_PRODUCER_GROUP,
+          });
+          await kafkaProducer.connect();
           await kafkaProducer.send({
             topic: constants.SITES_TOPIC,
             messages: [
@@ -471,7 +484,9 @@ const manageSite = {
               },
             ],
           });
+          await kafkaProducer.disconnect();
         } catch (error) {
+          logObject("error", error);
           logger.error(`internal server error -- ${error.message}`);
         }
 
@@ -531,9 +546,7 @@ const manageSite = {
           data: responseFromModifySite.data,
           status,
         };
-      }
-
-      if (responseFromModifySite.success === false) {
+      } else if (responseFromModifySite.success === false) {
         let errors = responseFromModifySite.errors
           ? responseFromModifySite.errors
           : "";
@@ -575,6 +588,10 @@ const manageSite = {
     try {
       let response = {};
       let promises = [];
+      const today = monthsInfront(0);
+      const oneMonthAgo = monthsInfront(-1);
+      const endDate = generateDateFormatWithoutHrs(today);
+      const startDate = generateDateFormatWithoutHrs(oneMonthAgo);
       const paths = constants.GET_ROAD_METADATA_PATHS;
       const arrayOfPaths = Object.entries(paths);
       for (const [key, path] of arrayOfPaths) {
@@ -582,6 +599,8 @@ const manageSite = {
           path,
           latitude,
           longitude,
+          startDate,
+          endDate,
         });
         promises.push(
           axios
@@ -652,11 +671,9 @@ const manageSite = {
       let altitudeResponseData = {};
       let reverseGeoCodeResponseData = {};
 
-      logElement("the tenant in metadata", tenant);
-
       logger.info(`the body sent to generate metadata -- ${body}`);
 
-      let responseFromGetAltitude = await manageSite.getAltitude(
+      let responseFromGetAltitude = await createSite.getAltitude(
         latitude,
         longitude
       );
@@ -664,9 +681,7 @@ const manageSite = {
       logger.info(`responseFromGetAltitude -- ${responseFromGetAltitude}`);
       if (responseFromGetAltitude.success === true) {
         altitudeResponseData["altitude"] = responseFromGetAltitude.data;
-      }
-
-      if (responseFromGetAltitude.success === false) {
+      } else if (responseFromGetAltitude.success === false) {
         let errors = responseFromGetAltitude.errors
           ? responseFromGetAltitude.errors
           : "";
@@ -681,31 +696,31 @@ const manageSite = {
         }
       }
 
-      let responseFromGetRoadMetadata = await manageSite.getRoadMetadata(
-        latitude,
-        longitude
-      );
+      // let responseFromGetRoadMetadata = await createSite.getRoadMetadata(
+      //   latitude,
+      //   longitude
+      // );
 
-      if (responseFromGetRoadMetadata.success === true) {
-        roadResponseData = responseFromGetRoadMetadata.data;
-      }
+      // logObject("responseFromGetRoadMetadata", responseFromGetRoadMetadata);
 
-      if (responseFromGetRoadMetadata.success === false) {
-        let errors = responseFromGetRoadMetadata.errors
-          ? responseFromGetRoadMetadata.errors
-          : "";
-        try {
-          logger.error(
-            `unable to retrieve the road metadata, ${
-              responseFromGetRoadMetadata.message
-            } and ${JSON.stringify(errors)} `
-          );
-        } catch (error) {
-          logger.error(`internal server error -- ${error.message}`);
-        }
-      }
+      // if (responseFromGetRoadMetadata.success === true) {
+      //   roadResponseData = responseFromGetRoadMetadata.data;
+      // } else if (responseFromGetRoadMetadata.success === false) {
+      //   let errors = responseFromGetRoadMetadata.errors
+      //     ? responseFromGetRoadMetadata.errors
+      //     : "";
+      //   try {
+      //     logger.error(
+      //       `unable to retrieve the road metadata, ${
+      //         responseFromGetRoadMetadata.message
+      //       } and ${JSON.stringify(errors)} `
+      //     );
+      //   } catch (error) {
+      //     logger.error(`internal server error -- ${error.message}`);
+      //   }
+      // }
 
-      let responseFromReverseGeoCode = await manageSite.reverseGeoCode(
+      let responseFromReverseGeoCode = await createSite.reverseGeoCode(
         latitude,
         longitude
       );
@@ -733,9 +748,7 @@ const manageSite = {
           data: finalResponseBody,
           status,
         };
-      }
-
-      if (responseFromReverseGeoCode.success === false) {
+      } else if (responseFromReverseGeoCode.success === false) {
         let errors = responseFromReverseGeoCode.errors
           ? responseFromReverseGeoCode.errors
           : "";
@@ -815,20 +828,20 @@ const manageSite = {
 
       if (!name) {
         let siteNames = { name, parish, county, district };
-        let availableName = manageSite.pickAvailableValue(siteNames);
-        let isNameValid = manageSite.validateSiteName(availableName);
+        let availableName = createSite.pickAvailableValue(siteNames);
+        let isNameValid = createSite.validateSiteName(availableName);
         if (!isNameValid) {
-          let sanitisedName = manageSite.sanitiseName(availableName);
+          let sanitisedName = createSite.sanitiseName(availableName);
           request["body"]["name"] = sanitisedName;
         }
         request["body"]["name"] = availableName;
       }
 
-      let lat_long = manageSite.generateLatLong(latitude, longitude);
+      let lat_long = createSite.generateLatLong(latitude, longitude);
       request["body"]["lat_long"] = lat_long;
 
       if (isEmpty(request["body"]["generated_name"])) {
-        let responseFromGenerateName = await manageSite.generateName(tenant);
+        let responseFromGenerateName = await createSite.generateName(tenant);
         logObject("responseFromGenerateName", responseFromGenerateName);
         if (responseFromGenerateName.success === true) {
           generated_name = responseFromGenerateName.data;
@@ -849,7 +862,7 @@ const manageSite = {
       requestForAirQloudsAndWeatherStations["query"] = {};
       requestForAirQloudsAndWeatherStations["query"]["tenant"] = tenant;
       requestForAirQloudsAndWeatherStations["query"]["id"] = id;
-      let responseFromFindAirQlouds = await manageSite.findAirQlouds(
+      let responseFromFindAirQlouds = await createSite.findAirQlouds(
         requestForAirQloudsAndWeatherStations
       );
 
@@ -863,7 +876,7 @@ const manageSite = {
         );
       }
 
-      const responseFromNearestWeatherStation = await manageSite.findNearestWeatherStation(
+      const responseFromNearestWeatherStation = await createSite.findNearestWeatherStation(
         requestForAirQloudsAndWeatherStations
       );
 
@@ -883,7 +896,7 @@ const manageSite = {
       }
 
       request["query"]["tenant"] = tenant;
-      let responseFromGenerateMetadata = await manageSite.generateMetadata(
+      let responseFromGenerateMetadata = await createSite.generateMetadata(
         request
       );
 
@@ -906,7 +919,7 @@ const manageSite = {
 
       logger.info(`refresh -- update -- ${update}`);
 
-      let responseFromModifySite = await manageSite.update(
+      let responseFromModifySite = await createSite.update(
         tenant,
         filter,
         update
@@ -994,7 +1007,7 @@ const manageSite = {
   },
   list: async ({ tenant, filter, skip, limit }) => {
     try {
-      let responseFromListSite = await getModelByTenant(
+      const responseFromListSite = await getModelByTenant(
         tenant.toLowerCase(),
         "site",
         SiteSchema
@@ -1095,7 +1108,7 @@ const manageSite = {
         .then(async (response) => {
           let responseJSON = response.data;
           if (!isEmpty(responseJSON.results)) {
-            let responseFromTransformAddress = manageSite.retrieveInformationFromAddress(
+            let responseFromTransformAddress = createSite.retrieveInformationFromAddress(
               responseJSON
             );
             if (responseFromTransformAddress.success === true) {
@@ -1271,7 +1284,7 @@ const manageSite = {
   findNearestSitesByCoordinates: async (request) => {
     try {
       let { radius, latitude, longitude, tenant } = request;
-      const responseFromListSites = await manageSite.list({
+      const responseFromListSites = await createSite.list({
         tenant,
       });
 
@@ -1302,8 +1315,7 @@ const manageSite = {
           message: "successfully retrieved the nearest sites",
           status,
         };
-      }
-      if (responseFromListSites.success === false) {
+      } else if (responseFromListSites.success === false) {
         let status = responseFromListSites.status
           ? responseFromListSites.status
           : "";
@@ -1683,4 +1695,4 @@ const manageSite = {
   },
 };
 
-module.exports = manageSite;
+module.exports = createSite;

@@ -47,9 +47,7 @@ const manageSite = {
           message: responseFromCreateSite.message,
           site: responseFromCreateSite.data,
         });
-      }
-
-      if (responseFromCreateSite.success === false) {
+      } else if (responseFromCreateSite.success === false) {
         let errors = responseFromCreateSite.errors
           ? responseFromCreateSite.errors
           : "";
@@ -522,9 +520,7 @@ const manageSite = {
           message: responseFromFindNearestSite.message,
           sites: nearestSites,
         });
-      }
-
-      if (responseFromFindNearestSite.success === false) {
+      } else if (responseFromFindNearestSite.success === false) {
         let errors = responseFromFindNearestSite.errors
           ? responseFromFindNearestSite.errors
           : "";
