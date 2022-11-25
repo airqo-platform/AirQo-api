@@ -636,9 +636,7 @@ const device = {
           message: responseFromListDeviceDetails.message,
           devices: responseFromListDeviceDetails.data,
         });
-      }
-
-      if (responseFromListDeviceDetails.success === false) {
+      } else if (responseFromListDeviceDetails.success === false) {
         let errors = responseFromListDeviceDetails.errors
           ? responseFromListDeviceDetails.errors
           : "";

@@ -1,35 +1,41 @@
-# values for airqo-device-monitor-api.
-env:
-  deployment_name: airqo-stage-device-monitor-api
-  service_name: airqo-stage-device-registry-api-svc
-  labels: sta-dev-monitor
-  secret: env-device-monitoring-staging
+app:
+  name: airqo-stage-device-monitor-api
+  label: device-monitor
+  namespace: staging
+  configmap: env-device-monitoring-staging
 
 replicaCount: 2
 
 image:
-  repository: us.gcr.io/airqo-250220/airqo-stage-device-monitor-api
+  repository: gcr.io/airqo-250220/airqo-stage-device-monitor-api
   tag: latest
-  pullPolicy: Always
 
-imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
-service:
-  type: NodePort
-  nodePort: 31006
-  targetPort: 4001
-  port: 4001
+podAnnotations: {}
+
+resources:
+  limits:
+    cpu: 50m
+    memory: 80Mi
+  requests:
+    # Average usage was 0.0001 vCPU and 35Mi over the last 30 days
+    cpu: 5m
+    memory: 40Mi
 
 ingress:
   enabled: false
 
-nodeSelector: {}
-resources: {}
-affinity: {}
-torelations: {}
+service:
+  type: NodePort
+  port: 4001
+  protocol: TCP
+  targetPort: 4001
+  nodePort: 31006
 
-
-## Application level settings  
-appMode: staging
+autoscaling:
+  minReplicas: 1
+  maxReplicas: 2
+  # targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80

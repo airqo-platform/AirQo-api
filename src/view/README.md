@@ -13,7 +13,7 @@ Generate the API docs
 Spin up the API
 
 ```bash
-./mvnw springboot:run -Dspring.profiles.active=api
+./mvnw spring-boot:run -Dspring.profiles.active=api
 ```
 
 [Link to API Docs](http://localhost:8080/api/v1/view/docs/index.html)
@@ -26,9 +26,6 @@ Using a separate termial, create the kafka topics to be used by the microservice
 
 ```bash
 bin/kafka-topics.sh --create --topic app-insights-measurements-topic --partitions 1 --replication-factor 1 --bootstrap-server view-message-broker:9092
-bin/kafka-topics.sh --create --topic hourly-measurements-topic --partitions 1 --replication-factor 1 --bootstrap-server view-message-broker:9092
-bin/kafka-topics.sh --create --topic devices-topic --partitions 1 --replication-factor 1 --bootstrap-server view-message-broker:9092
-bin/kafka-topics.sh --create --topic sites-topic --partitions 1 --replication-factor 1 --bootstrap-server view-message-broker:9092
 ```
 
 ### Consume data from the message broker

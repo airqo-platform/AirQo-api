@@ -5,11 +5,14 @@ import pandas as pd
 import requests
 
 from .config import configuration
+from .utils import Utils
 
 
 class AirBeamApi:
     def __init__(self):
-        self.AIR_BEAM_BASE_URL = configuration.AIR_BEAM_BASE_URL
+        self.AIR_BEAM_BASE_URL = Utils.remove_suffix(
+            configuration.AIR_BEAM_BASE_URL, suffix="/"
+        )
 
     def get_stream_ids(
         self,
@@ -20,7 +23,7 @@ class AirBeamApi:
     ):
 
         request = requests.get(
-            url=f"{self.AIR_BEAM_BASE_URL}/mobile/sessions.json",
+            url=f"{self.AIR_BEAM_BASE_URL}mobile/sessions.json",
             params={
                 "q": json.dumps(
                     {
@@ -63,14 +66,14 @@ class AirBeamApi:
             "stream_ids": stream_id,
         }
         return self.__request(
-            endpoint=f"/measurements.json",
+            endpoint=f"measurements.json",
             params=params,
         )
 
     def __request(self, endpoint, params):
 
         api_request = requests.get(
-            "%s%s" % (self.AIR_BEAM_BASE_URL, endpoint),
+            "%s/%s" % (self.AIR_BEAM_BASE_URL, endpoint),
             params=params,
             verify=False,
         )

@@ -1,4 +1,6 @@
 const EventModel = require("../models/Event");
+const AirQloudSchema = require("../models/Airqloud");
+const { getModelByTenant } = require("./multitenancy");
 const MeasurementModel = require("../models/Measurement");
 const { logObject, logElement, logText } = require("./log");
 const constants = require("../config/constants");
@@ -12,11 +14,10 @@ const logger = log4js.getLogger(
 const { transform } = require("node-json-transform");
 const Dot = require("dot-object");
 const cleanDeep = require("clean-deep");
-const createDeviceUtil = require("./create-device");
+const { getDevicesCount, list, decryptKey } = require("./create-monitor");
 const HTTPStatus = require("http-status");
 const redis = require("../config/redis");
 const axios = require("axios");
-const { kafkaConsumer } = require("../config/kafkajs");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const { BigQuery } = require("@google-cloud/bigquery");
@@ -27,9 +28,12 @@ const {
   formatDate,
 } = require("./date");
 
+const createSiteUtil = require("./create-site");
+
 const { Parser } = require("json2csv");
 
 const httpStatus = require("http-status");
+const createAirqloudUtil = require("./create-airqloud");
 
 const createEvent = {
   getMeasurementsFromBigQuery: async (req) => {
@@ -55,7 +59,7 @@ const createEvent = {
         access_code,
       } = query;
 
-      const responseFromGetDeviceDetails = await createDeviceUtil.list(req);
+      const responseFromGetDeviceDetails = await list(req);
       let deviceDetails = {};
 
       if (responseFromGetDeviceDetails.success === true) {
@@ -154,12 +158,13 @@ const createEvent = {
           "voc_pi_value, no2_pi_value, gps_device_timestamp, timestamp_abs_diff";
         averaged_fields = "";
       }
+      // \`${constants.DATAWAREHOUSE_METADATA}.sites\`.altitude AS altitude ,
       const queryStatement = `SELECT ${averaged_fields} ${raw_fields}  \`${
         constants.DATAWAREHOUSE_METADATA
       }.sites\`.latitude AS latitude,
         \`${constants.DATAWAREHOUSE_METADATA}.sites\`.longitude AS longitude, 
         \`${constants.DATAWAREHOUSE_METADATA}.sites\`.tenant AS tenant ,
-        \`${constants.DATAWAREHOUSE_METADATA}.sites\`.altitude AS altitude ,
+      
         FROM \`${table}\` 
         JOIN \`${constants.DATAWAREHOUSE_METADATA}.sites\` 
         ON \`${
@@ -249,8 +254,7 @@ const createEvent = {
       ) {
         bqQuery = queryStatementReference;
       }
-
-      logObject("bqQuery", bqQuery);
+      // logObject("bqQuery", bqQuery);
       const options = {
         query: bqQuery,
         location: constants.BIG_QUERY_LOCATION,
@@ -288,6 +292,7 @@ const createEvent = {
         message: "successfully retrieved the measurements",
       };
     } catch (error) {
+      logObject("error", error);
       logger.error(`internal server error --- ${error.message}`);
       return {
         success: false,
@@ -384,17 +389,103 @@ const createEvent = {
 
   list: async (request, callback) => {
     try {
+      let missingDataMessage = "";
       const { query } = request;
-      let { recent, tenant, device } = query;
+      let { recent, tenant, device, site_id } = query;
       let page = parseInt(query.page);
-      let limit = parseInt(query.limit);
+      let limit = parseInt(query.limit) || 0;
       let skip = parseInt(query.skip);
       let filter = {};
+
+      let airqloudSites = site_id ? site_id : "";
+
+      if (query.airqloud_id) {
+        let filter = generateFilter.airqlouds(request);
+        let responseFromListAirQloud = await getModelByTenant(
+          tenant.toLowerCase(),
+          "airqloud",
+          AirQloudSchema
+        ).list({
+          filter,
+          limit,
+          skip,
+        });
+        if (responseFromListAirQloud.success === true) {
+          filter = {};
+          if (responseFromListAirQloud.data.length > 1) {
+            missingDataMessage = "No distinct AirQloud found in this search";
+          } else if (isEmpty(responseFromListAirQloud.data[0])) {
+            missingDataMessage = "No distinct AirQloud found in this search";
+          } else {
+            let sites = responseFromListAirQloud.data[0]
+              ? responseFromListAirQloud.data[0].sites
+              : [];
+            if (sites && Array.isArray(sites) && sites.length > 0) {
+              let sitesFromAirQloud = [];
+              for (const site of sites) {
+                sitesFromAirQloud.push(site._id.toString());
+              }
+              airqloudSites = sitesFromAirQloud.join(",");
+            }
+            if (isEmpty(airqloudSites)) {
+              missingDataMessage = `Unable to find any sites associated with the provided AirQloud ID`;
+            } else {
+              request.query.site_id = airqloudSites;
+            }
+          }
+        } else if (responseFromListAirQloud.success === false) {
+          missingDataMessage = responseFromListAirQloud.message;
+        }
+      }
+
+      if (query.lat_long) {
+        const arrayOfCoordinates = query.lat_long.split(",");
+        let latitude = parseInt(arrayOfCoordinates[0]);
+        let longitude = parseInt(arrayOfCoordinates[1]);
+
+        let requestBodyForFindingNearestSite = {};
+        requestBodyForFindingNearestSite["latitude"] = latitude;
+        requestBodyForFindingNearestSite["longitude"] = longitude;
+        requestBodyForFindingNearestSite["tenant"] = query.tenant
+          ? query.tenant
+          : "airqo";
+        requestBodyForFindingNearestSite["radius"] = query.radius
+          ? query.radius
+          : constants.DEFAULT_NEAREST_SITE_RADIUS;
+
+        const responseFromFindNearestSiteByCoordinates = await createSiteUtil.findNearestSitesByCoordinates(
+          requestBodyForFindingNearestSite
+        );
+
+        if (responseFromFindNearestSiteByCoordinates.success === true) {
+          if (
+            Array.isArray(responseFromFindNearestSiteByCoordinates.data) &&
+            responseFromFindNearestSiteByCoordinates.data.length > 0
+          ) {
+            const stringifySiteObjects = [];
+            responseFromFindNearestSiteByCoordinates.data.forEach((element) => {
+              stringifySiteObjects.push(element._id.toString());
+            });
+            request.query.site_id = stringifySiteObjects.join(",");
+          } else {
+            missingDataMessage = `No Site is within a ${constants.DEFAULT_NEAREST_SITE_RADIUS} KM radius to the provided coordinates`;
+            logger.error(
+              `no Site is within a ${constants.DEFAULT_NEAREST_SITE_RADIUS} KM radius to the provided coordinates`
+            );
+          }
+        } else if (responseFromFindNearestSiteByCoordinates.success === false) {
+          missingDataMessage = responseFromFindNearestSiteByCoordinates.message;
+          logger.error(
+            `unable to find the nearest Site -- ${JSON.stringify(
+              responseFromFindNearestSiteByCoordinates.errors
+            )}`
+          );
+        }
+      }
       const responseFromFilter = generateFilter.events_v2(request);
       if (responseFromFilter.success === true) {
         filter = responseFromFilter.data;
-      }
-      if (responseFromFilter.success === false) {
+      } else if (responseFromFilter.success === false) {
         const errors = responseFromFilter.errors
           ? responseFromFilter.errors
           : { message: "" };
@@ -404,10 +495,13 @@ const createEvent = {
       createEvent.getCache(request, async (result) => {
         if (result.success === true) {
           logText(result.message);
-          callback(result.data);
-        }
-        if (result.success === false) {
-          await createDeviceUtil.getDevicesCount(request, async (result) => {
+          try {
+            callback(result.data);
+          } catch (error) {
+            logger.error(`listing events -- ${JSON.stringify(error)}`);
+          }
+        } else if (result.success === false) {
+          await getDevicesCount(request, async (result) => {
             if (result.success === true) {
               if ((device && !recent) || recent === "no") {
                 if (!limit) {
@@ -420,8 +514,7 @@ const createEvent = {
                     skip = parseInt(constants.DEFAULT_EVENTS_SKIP);
                   }
                 }
-              }
-              if ((!recent && !device) || recent === "yes") {
+              } else if ((!recent && !device) || recent === "yes") {
                 if (!limit) {
                   limit = result.data;
                 }
@@ -439,14 +532,13 @@ const createEvent = {
                 filter,
                 page,
               });
-
               if (responseFromListEvents.success === true) {
-                const data = cleanDeep(responseFromListEvents.data);
+                let data = responseFromListEvents.data;
+                data[0].data = !isEmpty(missingDataMessage) ? [] : data[0].data;
                 createEvent.setCache(data, request, (result) => {
                   if (result.success === true) {
                     logText(result.message);
-                  }
-                  if (result.success === false) {
+                  } else if (result.success === false) {
                     logText(result.message);
                   }
                 });
@@ -454,32 +546,48 @@ const createEvent = {
                 const status = responseFromListEvents.status
                   ? responseFromListEvents.status
                   : "";
-                callback({
-                  success: true,
-                  message: responseFromListEvents.message,
-                  data,
-                  status,
-                  isCache: false,
-                });
-              }
 
-              if (responseFromListEvents.success === false) {
+                try {
+                  callback({
+                    success: true,
+                    message: !isEmpty(missingDataMessage)
+                      ? missingDataMessage
+                      : responseFromListEvents.message,
+                    data,
+                    status,
+                    isCache: false,
+                  });
+                } catch (error) {
+                  logger.error(`listing events -- ${JSON.stringify(error)}`);
+                }
+              } else if (responseFromListEvents.success === false) {
                 const status = responseFromListEvents.status
                   ? responseFromListEvents.status
                   : "";
                 const errors = responseFromListEvents.errors
                   ? responseFromListEvents.errors
                   : { message: "" };
-                callback({
-                  success: false,
-                  message: responseFromListEvents.message,
-                  errors,
-                  status,
-                  isCache: false,
-                });
+
+                logger.error(
+                  `unable to retrieve events --- ${JSON.stringify(errors)}`
+                );
+
+                try {
+                  callback({
+                    success: false,
+                    message: responseFromListEvents.message,
+                    errors,
+                    status,
+                    isCache: false,
+                  });
+                } catch (error) {
+                  logger.error(`listing events -- ${JSON.stringify(error)}`);
+                }
               }
-            }
-            if (result.success === false) {
+            } else if (result.success === false) {
+              logger.error(
+                `unable to retrieve events --- ${JSON.stringify(result)}`
+              );
               logText(result.message);
             }
           });
@@ -491,6 +599,7 @@ const createEvent = {
         success: false,
         errors: { message: error.message },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        message: "Internal Server Error",
       });
     }
   },
@@ -718,7 +827,7 @@ const createEvent = {
   transmitMultipleSensorValues: async (request) => {
     try {
       let requestBody = {};
-      const responseFromListDevice = await createDeviceUtil.list(request);
+      const responseFromListDevice = await list(request);
       let deviceDetail = {};
       if (responseFromListDevice.success === true) {
         if (responseFromListDevice.data.length === 1) {
@@ -778,7 +887,7 @@ const createEvent = {
       }
 
       let api_key = deviceDetail.writeKey;
-      const responseFromDecryptKey = await createDeviceUtil.decryptKey(api_key);
+      const responseFromDecryptKey = await decryptKey(api_key);
       if (responseFromDecryptKey.success === true) {
         api_key = responseFromDecryptKey.data;
       } else if (responseFromDecryptKey.success === false) {
@@ -850,7 +959,7 @@ const createEvent = {
       const { name, chid, device_number, tenant } = request.query;
       const { body } = request;
 
-      const responseFromListDevice = await createDeviceUtil.list(request);
+      const responseFromListDevice = await list(request);
 
       let deviceDetail = {};
 
@@ -879,7 +988,7 @@ const createEvent = {
       const channel = deviceDetail.device_number;
       let api_key = deviceDetail.writeKey;
 
-      const responseFromDecryptKey = await createDeviceUtil.decryptKey(api_key);
+      const responseFromDecryptKey = await decryptKey(api_key);
       if (responseFromDecryptKey.success === true) {
         api_key = responseFromDecryptKey.data;
       } else if (responseFromDecryptKey.success === false) {
@@ -968,6 +1077,8 @@ const createEvent = {
       device_id,
       site,
       site_id,
+      airqloud_id,
+      airqloud,
       tenant,
       skip,
       limit,
@@ -992,6 +1103,8 @@ const createEvent = {
       device_number ? device_number : "noDeviceNumber"
     }_${metadata ? metadata : "noMetadata"}_${
       external ? external : "noExternal"
+    }_${airqloud ? airqloud : "noAirQloud"}_${
+      airqloud_id ? airqloud_id : "noAirQloudID"
     }`;
   },
   getEventsCount: async (request) => {},
@@ -1033,6 +1146,7 @@ const createEvent = {
             data: resultJSON,
           });
         } else if (err) {
+          logger.error(`unable to get cache --- ${JSON.stringify(err)}`);
           callback({
             success: false,
             message: "Internal Server Error",
@@ -1119,7 +1233,7 @@ const createEvent = {
       request["query"]["device_id"] = transformedEvent.filter.device_id;
       request["query"]["tenant"] = transformedEvent.tenant;
 
-      const responseFromGetDeviceDetails = await createDeviceUtil.list(request);
+      const responseFromGetDeviceDetails = await list(request);
       logger.info(
         `responseFromGetDeviceDetails ${JSON.stringify(
           responseFromGetDeviceDetails
@@ -1635,6 +1749,28 @@ const createEvent = {
       };
     }
   },
+  insertMeasurements: async (measurements) => {
+    try {
+      const responseFromInsertMeasurements = await createEvent.insert(
+        "airqo",
+        measurements
+      );
+      logObject(
+        "responseFromInsertMeasurements",
+        responseFromInsertMeasurements
+      );
+      return responseFromInsertMeasurements;
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Unable to insert measurements",
+        errors: {
+          message: error.message,
+        },
+      };
+    }
+  },
   insert: async (tenant, measurements) => {
     let nAdded = 0;
     let eventsAdded = [];
@@ -1647,7 +1783,9 @@ const createEvent = {
 
     if (!responseFromTransformMeasurements.success) {
       logger.error(
-        `internal server error -- unable to transform measurements -- ${responseFromTransformMeasurements.message}`
+        `internal server error -- unable to transform measurements -- ${
+          responseFromTransformMeasurements.message
+        }, ${JSON.stringify(measurements)}`
       );
     }
 
@@ -1916,7 +2054,7 @@ const createEvent = {
       request["query"]["tenant"] = tenant;
       request["query"]["device_number"] = chid || device_number;
 
-      const responseFromListDevice = await createDeviceUtil.list(request);
+      const responseFromListDevice = await list(request);
 
       let deviceDetail = {};
 

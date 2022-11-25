@@ -69,6 +69,19 @@ class KccaUtils:
             return pd.Series({"site_id": None, "device_number": None})
 
     @staticmethod
+    def flatten_location_coordinates(coordinates: str):
+        try:
+            coordinates = coordinates.replace("[", "")
+            coordinates = coordinates.replace("]", "")
+            coordinates = coordinates.replace(" ", "")
+            coordinates = coordinates.split(",")
+
+            return pd.Series({"latitude": coordinates[1], "longitude": coordinates[0]})
+        except Exception as ex:
+            print(ex)
+            return pd.Series({"latitude": None, "longitude": None})
+
+    @staticmethod
     def transform_data(data: pd.DataFrame) -> pd.DataFrame:
         data.rename(
             columns={
@@ -95,9 +108,7 @@ class KccaUtils:
         )
 
         data[["latitude", "longitude"]] = data["location.coordinates"].apply(
-            lambda coordinates: pd.Series(
-                {"latitude": coordinates[1], "longitude": coordinates[0]}
-            )
+            KccaUtils.flatten_location_coordinates
         )
 
         airqo_api = AirQoApi()
@@ -113,7 +124,7 @@ class KccaUtils:
             table=big_query_api.hourly_measurements_table
         )
 
-        data = Utils.populate_missing_columns(data=data, cols=required_cols)
+        data = DataValidationUtils.fill_missing_columns(data=data, cols=required_cols)
         data = data[required_cols]
 
         return DataValidationUtils.remove_outliers(data)
@@ -188,7 +199,3 @@ class KccaUtils:
             measurements.append(row_data)
 
         return measurements
-
-    @staticmethod
-    def transform_data_for_message_broker(data: pd.DataFrame) -> list:
-        return data.to_dict("records")

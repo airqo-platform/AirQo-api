@@ -1,5 +1,6 @@
 from flasgger import swag_from
 
+from api.models.extract import Extract
 from api.routes import api
 from flask import Blueprint, request, jsonify
 from api.models import extract as ext
@@ -122,13 +123,87 @@ def get_nearest_weather_stations():
     )
 
 
+@extract_bp.route(api.ADMINISTRATIVE_LEVELS, methods=["GET"])
+def get_administrative_levels():
+
+    place_id = request.args.get("place_id", None)
+
+    if not place_id:
+        return (
+            jsonify(
+                {
+                    "message": "place_id required",
+                    "errors": "place_id is missing in query parameters",
+                }
+            ),
+            400,
+        )
+
+    administrative_levels = Extract.get_administrative_levels(place_id)
+
+    return (
+        jsonify(dict(message="Operation successful", data=administrative_levels)),
+        200,
+    )
+
+
+@extract_bp.route(api.MOBILE_CARRIER, methods=["POST"])
+def get_mobile_carrier():
+    try:
+        phone_number = request.get_json()["phone_number"]
+        carrier_info = ext.Extract.get_mobile_carrier(
+            phone_number=phone_number,
+        )
+
+        return (
+            jsonify(dict(message="Operation successful", data=carrier_info)),
+            200,
+        )
+    except KeyError:
+        return (
+            jsonify(dict(message="Failed to get carrier information", data={})),
+            400,
+        )
+    except Exception as ex:
+        print(ex)
+        return (
+            jsonify(dict(message="Operation failed", data={})),
+            500,
+        )
+
+
+@extract_bp.route(api.IP_GEO_COORDINATES, methods=["GET"])
+def get_geo_coordinates():
+    try:
+        ip_address = request.args.get("ip_address", request.remote_addr)
+        geo_coordinates = ext.Extract.get_geo_coordinates(
+            ip_address=ip_address,
+        )
+
+        return (
+            jsonify(dict(message="Operation successful", data=geo_coordinates)),
+            200,
+        )
+    except KeyError:
+        return (
+            jsonify(dict(message="Failed to get geo coordinates", data={})),
+            400,
+        )
+    except Exception as ex:
+        print(ex)
+        return (
+            jsonify(dict(message="Operation failed", data={})),
+            500,
+        )
+
+
 @extract_bp.route(api.GREENNESS_URL, methods=["GET"])
 def get_greenness():
     input_params = {
         "latitude": request.args.get("latitude"),
         "longitude": request.args.get("longitude"),
-        "start_date": request.args.get("start_date"),
-        "end_date": request.args.get("end_date"),
+        "start_date": request.args.get("startDate"),
+        "end_date": request.args.get("endDate"),
     }
     input_data, errors = validation.validate_inputs(input_data=input_params)
 

@@ -66,7 +66,7 @@ jobs:
       run_channel_data: ${{ steps.check_files.outputs.run_channel_data }} # channel data job
       run_kafka_connectors: ${{ steps.check_files.outputs.run_kafka_connectors }} # kafka connectors
       run_fault_detection: ${{ steps.check_files.outputs.run_fault_detection }} # fault detection
-      run_nginx_ingress: ${{ steps.check_files.outputs.run_nginx_ingress }} # nginx ingress
+      run_nginx: ${{ steps.check_files.outputs.run_nginx }} # nginx ingress
 
     runs-on: ubuntu-latest
     steps:
@@ -110,7 +110,7 @@ jobs:
           echo "::set-output name=run_channel_data::false"
           echo "::set-output name=run_kafka_connectors::false"
           echo "::set-output name=run_fault_detection::false"
-          echo "::set-output name=run_nginx_ingress::false"
+          echo "::set-output name=run_nginx::false"
 
           while IFS= read -r file
           do
@@ -244,16 +244,20 @@ jobs:
               echo "::set-output name=run_notifications::true"
             fi
 
-            if [[ $file == k8s/kafka-clusters/* ]]; then
+            if [[ $file == k8s/kafka/clusters/* ]]; then
               echo "::set-output name=run_kafka_cluster::true"
             fi
 
-            if [[ $file == k8s/kafka-operator/* ]]; then
+            if [[ $file == k8s/kafka/operator/* ]]; then
               echo "::set-output name=run_kafka_cluster_operator::true"
             fi
 
-            if [[ $file == k8s/kafka-topics/* ]]; then
+            if [[ $file == k8s/kafka/topics/* ]]; then
               echo "::set-output name=run_kafka_topics::true"
+            fi
+
+            if [[ $file == src/kafka/connectors/* ]]; then
+              echo "::set-output name=run_kafka_connectors::true"
             fi
 
             if [[ $file == src/airflow/* ]]; then
@@ -288,16 +292,8 @@ jobs:
               echo "::set-output name=run_fault_detection::true"
             fi
 
-            if [[ $file == src/kafka-connectors/* ]]; then
-              echo "::set-output name=run_kafka_connectors::true"
-            fi
-
-            if [[ $file == k8s/kafka-connectors/* ]]; then
-              echo "::set-output name=run_kafka_connectors::true"
-            fi
-
-            if [[ $file == k8s/nginx-ingress/* ]]; then
-              echo "::set-output name=run_nginx_ingress::true"
+            if [[ $file == k8s/nginx/staging/* ]]; then
+              echo "::set-output name=run_nginx::true"
             fi
 
             if [[ $file == workflow-trigger ]]; then
@@ -323,7 +319,7 @@ jobs:
               echo "::set-output name=run_fault_detection::true"
               echo "::set-output name=run_view::true"
               echo "::set-output name=run_kafka_connectors::true"
-              echo "::set-output name=run_nginx_ingress::true"
+              echo "::set-output name=run_nginx::true"
             fi
 
           done < files.txt
@@ -408,7 +404,7 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           push: true
-          context: src/kafka-connectors/measurements-source-connector
+          context: src/kafka/connectors/measurements-source-connector
           tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-measurements-connect:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-measurements-connect:latest
 
       - name: Login to k8s cluster
@@ -421,8 +417,8 @@ jobs:
         run: |
           export MEASUREMENTS_CONNECT_IMAGE=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-measurements-connect:${{ needs.image-tag.outputs.build_id }}
           export STAGE_KAFKA_CLUSTER=${{ secrets.STAGE_KAFKA_CLUSTER }}
-          cat k8s/kafka-connectors/measurements-connect.yaml | sed "s/{{MEASUREMENTS_CONNECT_IMAGE}}/$MEASUREMENTS_CONNECT_IMAGE/g" | sed "s/{{KAFKA_CLUSTER}}/$STAGE_KAFKA_CLUSTER/g" | kubectl apply -n message-broker -f-
-          kubectl apply -f k8s/kafka-connectors/purple-air-connector.yaml -n message-broker
+          cat k8s/kafka/connectors/measurements-connect.yaml | sed "s/{{MEASUREMENTS_CONNECT_IMAGE}}/$MEASUREMENTS_CONNECT_IMAGE/g" | sed "s/{{KAFKA_CLUSTER}}/$STAGE_KAFKA_CLUSTER/g" | kubectl apply -n message-broker -f-
+          kubectl apply -f k8s/kafka/connectors/purple-air-connector.yaml -n message-broker
 
   #### Fault Detection ######
   fault-detection:
@@ -541,14 +537,19 @@ jobs:
           target: xcom-setup
           tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-apache-airflow-xcom:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-apache-airflow-xcom:latest
 
-      # - name: Deploy to K8S
-      #   uses: Azure/k8s-deploy@v1.4
-      #   with:
-      #     namespace: "pipeline"
-      #     manifests: |
-      #       k8s/airflow/stage-airflow-app.yaml
-      #     images: "${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-apache-airflow:${{ needs.image-tag.outputs.build_id }}"
-      #     kubectl-version: "latest"
+      - name: Login to GCP
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
+
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
+
+      - name: Update the corresponding k8s configmap(s)
+        run: |
+          cd src/airflow/
+          gcloud secrets versions access latest --secret="sta-env-airflow" > .env
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env airflow-config | kubectl replace -f - -n pipeline
 
       - name: Deploy to K8S
         run: |
@@ -659,7 +660,7 @@ jobs:
       - name: Deploy to K8S
         run: |
           kubectl apply -f k8s/namespaces/message-broker.yaml
-          bash k8s/kafka-operator/deployment-script.sh
+          bash k8s/kafka/operator/deployment-script.sh
 
   ### kafka cluster ###
   kafka-cluster:
@@ -682,7 +683,12 @@ jobs:
           export KAFKA_BROKER_0=${{ secrets.STAGE_KAFKA_BROKER_0 }}
           export KAFKA_BROKER_1=${{ secrets.STAGE_KAFKA_BROKER_1 }}
           export KAFKA_BROKER_2=${{ secrets.STAGE_KAFKA_BROKER_2 }}
-          cat k8s/kafka-clusters/kafka-cluster.yaml | sed "s/{{KAFKA_BROKER_0}}/$STAGE_KAFKA_BROKER_0/g" | sed "s/{{KAFKA_BROKER_1}}/$STAGE_KAFKA_BROKER_1/g" | sed "s/{{KAFKA_BROKER_2}}/$STAGE_KAFKA_BROKER_2/g" | kubectl apply -n message-broker -f-
+
+          sed -i 's/KAFKA_BROKER_0/'"$KAFKA_BROKER_0"'/g' k8s/kafka/clusters/kafka-cluster.yaml
+          sed -i 's/KAFKA_BROKER_1/'"$KAFKA_BROKER_1"'/g' k8s/kafka/clusters/kafka-cluster.yaml
+          sed -i 's/KAFKA_BROKER_2/'"$KAFKA_BROKER_2"'/g' k8s/kafka/clusters/kafka-cluster.yaml
+
+          kubectl apply -n message-broker -f k8s/kafka/clusters/kafka-cluster.yaml
 
   ### kafka topics ###
   kafka-topics:
@@ -702,7 +708,7 @@ jobs:
 
       - name: Deploy to K8S
         run: |
-          kubectl apply -f k8s/kafka-topics/kafka-topics.yaml -n message-broker
+          kubectl apply -f k8s/kafka/topics/kafka-topics.yaml -n message-broker
 
   #### Device Registry ######
   device-registry:
@@ -1291,6 +1297,8 @@ jobs:
           kubectl create configmap --dry-run=client -o yaml --from-env-file=api.env stage-view-api-config | kubectl replace -f - -n staging
           gcloud secrets versions access latest --secret="sta-env-view-message-broker" > message_broker.env
           kubectl create configmap --dry-run=client -o yaml --from-env-file=message_broker.env stage-view-message-broker-config | kubectl replace -f - -n staging
+          gcloud secrets versions access latest --secret="sta-key-view-api-google-credentials" > google_application_credentials.json
+          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json view-api-config-files | kubectl replace -f - -n staging
 
       - name: Deploy API to K8S
         run: |
@@ -1578,7 +1586,7 @@ jobs:
   nginx-ingress:
     name: apply-nginx-ingress
     needs: [check]
-    if: needs.check.outputs.run_nginx_ingress == 'true'
+    if: needs.check.outputs.run_nginx == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -1591,4 +1599,7 @@ jobs:
           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
 
       - name: Apply ingress changes
-        run: kubectl apply -f k8s/nginx-ingress/stage-platform-ingress-resource.yaml
+        run: |
+          kubectl apply -f k8s/nginx/staging/ingress.yaml
+          kubectl apply -f k8s/nginx/staging/virtual-server.yaml
+          kubectl apply -f k8s/nginx/staging/global-config.yaml

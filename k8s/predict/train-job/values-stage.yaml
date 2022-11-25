@@ -1,0 +1,26 @@
+app:
+  name: stage-airqo-train-job
+  namespace: staging
+  configmap: env-train-job-staging
+
+schedule: 0 5 * * 1
+
+image:
+  repository: gcr.io/airqo-250220/stage-airqo-train-job
+  tag: latest
+
+nameOverride: ""
+fullnameOverride: ""
+resources:
+  limits:
+    cpu: 2500m
+    memory: 4000Mi
+
+volumeMounts:
+  - name: config-volume
+    mountPath: /etc/config
+
+volumes:
+  - name: config-volume
+    configMap:
+      name: train-job-config-files

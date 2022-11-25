@@ -266,7 +266,7 @@ const processImage = {
       }
       const { body, query } = req;
       const { tenant } = query;
-      const { image_url, device_name, device_id } = body;
+      const { image_url, device_name, device_id, network } = body;
 
       let request = {};
       request["body"] = {};
@@ -275,6 +275,7 @@ const processImage = {
       request["body"]["device_name"] = device_name;
       request["body"]["device_id"] = device_id;
       request["query"]["tenant"] = tenant;
+      request["body"]["network"] = network;
 
       const responseFromCreatePhotoOnPlatform = await createPhotoUtil.createPhotoOnPlatform(
         request

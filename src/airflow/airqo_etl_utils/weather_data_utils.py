@@ -32,12 +32,13 @@ class WeatherDataUtils:
                 latitude=record.get("latitude"),
                 longitude=record.get("longitude"),
             )
-            data.append(
-                {
-                    **record,
-                    **{"weather_stations": weather_stations},
-                }
-            )
+            if len(weather_stations) > 0:
+                data.append(
+                    {
+                        **record,
+                        **{"weather_stations": weather_stations},
+                    }
+                )
 
         return data
 
@@ -209,8 +210,12 @@ class WeatherDataUtils:
         data["duplicated"] = data.duplicated(
             keep=False, subset=["station_code", "timestamp"]
         )
-        duplicated_data = pd.DataFrame(data.copy().loc[data["duplicated"] is True])
-        not_duplicated_data = pd.DataFrame(data.copy().loc[data["duplicated"] is False])
+
+        if True not in data["duplicated"].values:
+            return data
+
+        duplicated_data = data.loc[data["duplicated"]]
+        not_duplicated_data = data.loc[~data["duplicated"]]
 
         for _, by_station in duplicated_data.groupby(by="station_code"):
             for _, by_timestamp in by_station.groupby(by="timestamp"):

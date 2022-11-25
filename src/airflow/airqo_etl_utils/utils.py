@@ -25,6 +25,13 @@ class Utils:
         }
 
     @staticmethod
+    def remove_suffix(string: str, suffix):
+        if string.endswith(suffix):
+            return string[: -len(suffix)]
+        else:
+            return string[:]
+
+    @staticmethod
     def epa_pollutant_category(value: float, pollutant: Pollutant) -> str:
 
         if not value:
@@ -246,3 +253,19 @@ class Utils:
         )
 
         return dates
+
+    @staticmethod
+    def test_data(data: pd.DataFrame, bucket_name: str, destination_file: str):
+        from google.cloud import storage
+
+        storage_client = storage.Client()
+        bucket = storage_client.bucket(bucket_name)
+        blob = bucket.blob(destination_file)
+        data.reset_index(drop=True, inplace=True)
+        blob.upload_from_string(data.to_csv(index=False), "text/csv")
+
+        print(
+            "{} with contents {} has been uploaded to {}.".format(
+                destination_file, len(data), bucket_name
+            )
+        )
