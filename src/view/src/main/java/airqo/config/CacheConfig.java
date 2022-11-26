@@ -19,6 +19,8 @@ public class CacheConfig {
 		return (builder) -> builder
 			.withCacheConfiguration("appInsightsCache",
 				RedisCacheConfiguration.defaultCacheConfig().entryTtl(Duration.ofMinutes(5)))
+			.withCacheConfiguration("appInsightsCacheV2",
+				RedisCacheConfiguration.defaultCacheConfig().entryTtl(Duration.ofMinutes(5)))
 			.withCacheConfiguration("appInsightsApiCache",
 				RedisCacheConfiguration.defaultCacheConfig().entryTtl(Duration.ofMinutes(5)));
 	}

@@ -537,6 +537,7 @@ const generateFilter = {
         id,
         device_name,
         device_id,
+        device_codes,
         device_number,
         category,
         network,
@@ -578,6 +579,12 @@ const generateFilter = {
 
       if (device_id) {
         filter["name"] = device_id;
+      }
+
+      if (device_codes) {
+        let deviceCodesArray = device_codes.split(",");
+        filter["device_codes"] = {};
+        filter["device_codes"]["$in"] = deviceCodesArray;
       }
 
       if (chid) {
@@ -660,6 +667,7 @@ const generateFilter = {
       county,
       parish,
       name,
+      site_codes,
       _id,
       network,
       google_place_id,
@@ -688,6 +696,12 @@ const generateFilter = {
 
     if (_id) {
       filter["_id"] = ObjectId(_id);
+    }
+
+    if (site_codes) {
+      let siteCodesArray = site_codes.split(",");
+      filter["site_codes"] = {};
+      filter["site_codes"]["$in"] = siteCodesArray;
     }
 
     if (google_place_id) {

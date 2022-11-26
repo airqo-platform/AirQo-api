@@ -1,0 +1,15 @@
+app:
+  name: stage-gpmodel
+  namespace: staging
+  configmap: env-gp-model-staging
+
+image:
+  repository: gcr.io/airqo-250220/airqo-stage-gp-model-job
+  tag: latest
+
+nameOverride: ""
+fullnameOverride: ""
+resources:
+  limits:
+    cpu: 1000m
+    memory: 4000Mi
