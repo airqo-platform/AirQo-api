@@ -172,18 +172,18 @@ if __name__ == "__main__":
         required=True,
         type=str.lower,
         choices=[
-            "created-air-qlouds",
-            "created-sites",
-            "created-devices",
+            "air-qlouds-consumer",
+            "sites-consumer",
+            "devices-consumer",
         ],
     )
 
     args = parser.parse_args()
-    if args.target == "created-air-qlouds":
+    if args.target == "air-qlouds-consumer":
         pass
 
-    elif args.target == "created-sites":
+    elif args.target == "sites-consumer":
         MessageBroker.listen_to_created_sites()
 
-    elif args.target == "created-devices":
+    elif args.target == "devices-consumer":
         pass

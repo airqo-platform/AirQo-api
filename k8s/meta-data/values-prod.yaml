@@ -3,11 +3,13 @@ app:
   label: meta-data-api
   namespace: production
   configmap: prod-meta-data-api-config
+  sitesConsumer: sites-consumer
 
 replicaCount: 3
 
 image:
   repository: gcr.io/airqo-250220/airqo-meta-data-api
+  sites-consumer: gcr.io/airqo-250220/airqo-meta-data-sites-consumer
   tag: latest
 
 nameOverride: ""
