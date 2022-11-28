@@ -10,6 +10,7 @@ on:
 env:
   REGISTRY_URL: gcr.io
   PROJECT_ID: airqo-250220
+  DEPLOY_BRANCH: deployment/argocd
 
 jobs:
   image-tag:
@@ -366,7 +367,7 @@ jobs:
           propertyPath: "image.tag"
           value: ${{ needs.image-tag.outputs.build_id }}
           updateFile: true
-          branch: deployment/argocd
+          branch: ${{ env.DEPLOY_BRANCH }}
           message: "Update auth service staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
@@ -486,7 +487,7 @@ jobs:
         with:
           valueFile: "k8s/fault-detection/values-stage.yaml"
           updateFile: true
-          branch: deployment/argocd
+          branch: ${{ env.DEPLOY_BRANCH }}
           message: "Update fault detection staging tags to ${{ needs.image-tag.outputs.build_id }}"
           changes: |
             {
@@ -628,7 +629,7 @@ jobs:
           propertyPath: "image.tag"
           value: ${{ needs.image-tag.outputs.build_id }}
           updateFile: true
-          branch: deployment/argocd
+          branch: ${{ env.DEPLOY_BRANCH }}
           message: "Update predict API staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Build and push predict Job Docker Image
@@ -646,7 +647,7 @@ jobs:
           propertyPath: "image.tag"
           value: ${{ needs.image-tag.outputs.build_id }}
           updateFile: true
-          branch: deployment/argocd
+          branch: ${{ env.DEPLOY_BRANCH }}
           message: "Update predict job staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Build and push train Job Docker Image
@@ -664,7 +665,7 @@ jobs:
           propertyPath: "image.tag"
           value: ${{ needs.image-tag.outputs.build_id }}
           updateFile: true
-          branch: deployment/argocd
+          branch: ${{ env.DEPLOY_BRANCH }}
           message: "Update predict train job staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
@@ -806,7 +807,7 @@ jobs:
           propertyPath: "image.tag"
           value: ${{ needs.image-tag.outputs.build_id }}
           updateFile: true
-          branch: deployment/argocd
+          branch: ${{ env.DEPLOY_BRANCH }}
           message: "Update device registry staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
@@ -871,7 +872,7 @@ jobs:
           propertyPath: "image.tag"
           value: ${{ needs.image-tag.outputs.build_id }}
           updateFile: true
-          branch: deployment/argocd
+          branch: ${{ env.DEPLOY_BRANCH }}
           message: "Update device monitor staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
@@ -932,7 +933,7 @@ jobs:
           propertyPath: "image.tag"
           value: ${{ needs.image-tag.outputs.build_id }}
           updateFile: true
-          branch: deployment/argocd
+          branch: ${{ env.DEPLOY_BRANCH }}
           message: "Update data mgt staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
@@ -986,6 +987,16 @@ jobs:
           docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-api:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-api:latest
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-api:${{ needs.image-tag.outputs.build_id }}
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-api:latest
+
+      - name: Update corresponding helm values file
+        uses: fjogeleit/yaml-update-action@main
+        with:
+          valueFile: "k8s/analytics/values-stage.yaml"
+          propertyPath: "image.tag"
+          value: ${{ needs.image-tag.outputs.build_id }}
+          updateFile: true
+          branch: ${{ env.DEPLOY_BRANCH }}
+          message: "Update analytics staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
         uses: google-github-actions/auth@v0
