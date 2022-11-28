@@ -390,6 +390,16 @@ jobs:
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-auth-api:${{ needs.image-tag.outputs.build_id }}
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-auth-api:latest
 
+      - name: Update corresponding helm values file
+        uses: fjogeleit/yaml-update-action@main
+        with:
+          valueFile: "k8s/auth-service/values-prod.yaml"
+          propertyPath: "image.tag"
+          value: ${{ needs.image-tag.outputs.build_id }}
+          updateFile: true
+          branch: deployment/argocd
+          message: "Update auth service production image tag to ${{ needs.image-tag.outputs.build_id }}"
+
       - name: Login to GCP
         uses: google-github-actions/auth@v0
         with:
@@ -458,6 +468,20 @@ jobs:
           context: src/fault-detection
           target: production
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/prod-fault-detection-api:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/prod-fault-detection-api:latest
+
+      - name: Update corresponding helm values file
+        uses: fjogeleit/yaml-update-action@main
+        with:
+          valueFile: "k8s/fault-detection/values-stage.yaml"
+          updateFile: true
+          branch: deployment/argocd
+          message: "Update fault detection staging tags to ${{ needs.image-tag.outputs.build_id }}"
+          changes: |
+            {
+              "image.tag": "${{ needs.image-tag.outputs.build_id }}",
+              "initContainers.container1.image.tag": "${{ needs.image-tag.outputs.build_id }}",
+              "initContainers.container2.image.tag": "${{ needs.image-tag.outputs.build_id }}"
+            }
 
       - name: Login to k8s cluster
         uses: azure/k8s-set-context@v1
