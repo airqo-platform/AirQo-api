@@ -889,7 +889,7 @@ jobs:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
 
-      - name: Build and Push Docker Image
+      - name: Build and Push API Docker Image
         run: |
           cd src/analytics/
           docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-analytics-api:${{ needs.image-tag.outputs.build_id }} .
@@ -918,6 +918,33 @@ jobs:
           kubectl apply -f k8s/analytics/stage-analytics-api.yaml
           kubectl set image deployment/airqo-stage-analytics-api sta-alytics-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-analytics-api:${{ needs.image-tag.outputs.build_id }} -n staging
           kubectl annotate deployment/airqo-stage-analytics-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-analytics-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
+
+      ######################### Analytics report job CI ##################################
+      - name: Build and Push Job's Docker Image
+        run: |
+          cd src/analytics/jobs/reports
+          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-analytics-report-job:${{ needs.image-tag.outputs.build_id }} .
+          docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-analytics-report-job:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-analytics-report-job:latest
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-analytics-report-job:${{ needs.image-tag.outputs.build_id }}
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-analytics-report-job:latest
+
+      - name: Update corresponding helm values file
+        uses: fjogeleit/yaml-update-action@main
+        with:
+          valueFile: "k8s/analytics/job/values-stage.yaml"
+          propertyPath: "image.tag"
+          value: ${{ needs.image-tag.outputs.build_id }}
+          updateFile: true
+          branch: deployment/argocd
+          message: "Update analytics report job staging image tag to ${{ needs.image-tag.outputs.build_id }}"
+
+      - name: Update the corresponding k8s configmap(s)
+        run: |
+          cd src/analytics/jobs/reports
+          gcloud secrets versions access latest --secret="sta-env-analytics-report-job" > .env
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-analytics-report-staging | kubectl replace -f - -n staging
+          gcloud secrets versions access latest --secret="sta-key-analytics-report-job-service-account" > google_application_credentials.json
+          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json env-analytics-report-staging-files | kubectl replace -f - -n staging
 
   ### device uptime ###
   device-uptime:
