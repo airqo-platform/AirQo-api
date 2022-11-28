@@ -473,7 +473,7 @@ jobs:
       - name: Update corresponding helm values file
         uses: fjogeleit/yaml-update-action@main
         with:
-          valueFile: "k8s/fault-detection/values-stage.yaml"
+          valueFile: "k8s/fault-detection/values-prod.yaml"
           updateFile: true
           branch: ${{ env.DEPLOY_BRANCH }}
           message: "Update fault detection staging tags to ${{ needs.image-tag.outputs.build_id }}"
@@ -793,7 +793,7 @@ jobs:
       - name: Update corresponding helm values file
         uses: fjogeleit/yaml-update-action@main
         with:
-          valueFile: "k8s/analytics/api/values-stage.yaml"
+          valueFile: "k8s/analytics/api/values-prod.yaml"
           propertyPath: "image.tag"
           value: ${{ needs.image-tag.outputs.build_id }}
           updateFile: true
@@ -912,7 +912,19 @@ jobs:
         run: |
           cd src/device-status/
           docker build --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-status-job:latest -f Dockerfile .
+          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-status-job:${{ needs.image-tag.outputs.build_id }}
+          docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-status-job:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-status-job:latest
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-status-job:latest
+
+      - name: Update corresponding helm values file
+        uses: fjogeleit/yaml-update-action@main
+        with:
+          valueFile: "k8s/device-status/values-prod.yaml"
+          propertyPath: "image.tag"
+          value: ${{ needs.image-tag.outputs.build_id }}
+          updateFile: true
+          branch: ${{ env.DEPLOY_BRANCH }}
+          message: "Update device uptime production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
         uses: google-github-actions/auth@v0
