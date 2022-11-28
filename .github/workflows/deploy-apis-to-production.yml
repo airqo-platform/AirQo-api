@@ -1443,6 +1443,16 @@ jobs:
           target: production
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-prediction-api:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-prediction-api:latest
 
+      - name: Update corresponding helm values file
+        uses: fjogeleit/yaml-update-action@main
+        with:
+          valueFile: "k8s/predict/api/values-prod.yaml"
+          propertyPath: "image.tag"
+          value: ${{ needs.image-tag.outputs.build_id }}
+          updateFile: true
+          branch: deployment/argocd
+          message: "Update predict API production image tag to ${{ needs.image-tag.outputs.build_id }}"
+
       - name: Build and push predict Job Docker Image
         uses: docker/build-push-action@v2
         with:
@@ -1451,6 +1461,16 @@ jobs:
           target: production
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-predict-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-predict-job:latest
 
+      - name: Update corresponding helm values file
+        uses: fjogeleit/yaml-update-action@main
+        with:
+          valueFile: "k8s/predict/job/values-prod.yaml"
+          propertyPath: "image.tag"
+          value: ${{ needs.image-tag.outputs.build_id }}
+          updateFile: true
+          branch: deployment/argocd
+          message: "Update predict job production image tag to ${{ needs.image-tag.outputs.build_id }}"
+
       - name: Build and push train Job Docker Image
         uses: docker/build-push-action@v2
         with:
@@ -1458,6 +1478,16 @@ jobs:
           context: src/predict/jobs/train
           target: production
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-train-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-train-job:latest
+
+      - name: Update corresponding helm values file
+        uses: fjogeleit/yaml-update-action@main
+        with:
+          valueFile: "k8s/predict/train-job/values-prod.yaml"
+          propertyPath: "image.tag"
+          value: ${{ needs.image-tag.outputs.build_id }}
+          updateFile: true
+          branch: deployment/argocd
+          message: "Update predict train job production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
         uses: google-github-actions/auth@v0
