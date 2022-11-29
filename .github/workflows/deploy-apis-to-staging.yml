@@ -1299,6 +1299,16 @@ jobs:
           target: airqo-staging
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-airqo-exceedance-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-airqo-exceedance-job:latest
 
+      - name: Update corresponding helm values file
+        uses: fjogeleit/yaml-update-action@main
+        with:
+          valueFile: "k8s/exceedance/values-stage-airqo.yaml"
+          propertyPath: "image.tag"
+          value: ${{ needs.image-tag.outputs.build_id }}
+          updateFile: true
+          branch: ${{ env.DEPLOY_BRANCH }}
+          message: "Update AirQo exceedance staging image tag to ${{ needs.image-tag.outputs.build_id }}"
+
       - name: Build and push KCCA Docker image
         uses: docker/build-push-action@v2
         with:
@@ -1306,6 +1316,16 @@ jobs:
           context: src/exceedances
           target: kcca-staging
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-kcca-exceedance-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-kcca-exceedance-job:latest
+
+      - name: Update corresponding helm values file
+        uses: fjogeleit/yaml-update-action@main
+        with:
+          valueFile: "k8s/exceedance/values-stage-kcca.yaml"
+          propertyPath: "image.tag"
+          value: ${{ needs.image-tag.outputs.build_id }}
+          updateFile: true
+          branch: ${{ env.DEPLOY_BRANCH }}
+          message: "Update KCCA exceedance staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
         uses: google-github-actions/auth@v0
