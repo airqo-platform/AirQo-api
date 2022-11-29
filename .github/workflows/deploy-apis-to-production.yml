@@ -476,7 +476,7 @@ jobs:
           valueFile: "k8s/fault-detection/values-prod.yaml"
           updateFile: true
           branch: ${{ env.DEPLOY_BRANCH }}
-          message: "Update fault detection staging tags to ${{ needs.image-tag.outputs.build_id }}"
+          message: "Update fault detection production tags to ${{ needs.image-tag.outputs.build_id }}"
           changes: |
             {
               "image.tag": "${{ needs.image-tag.outputs.build_id }}",
@@ -1177,7 +1177,7 @@ jobs:
           value: ${{ needs.image-tag.outputs.build_id }}
           updateFile: true
           branch: ${{ env.DEPLOY_BRANCH }}
-          message: "Update AirQo exceedance staging image tag to ${{ needs.image-tag.outputs.build_id }}"
+          message: "Update AirQo exceedance production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Build and push KCCA Docker image
         uses: docker/build-push-action@v2
@@ -1195,7 +1195,7 @@ jobs:
           value: ${{ needs.image-tag.outputs.build_id }}
           updateFile: true
           branch: ${{ env.DEPLOY_BRANCH }}
-          message: "Update KCCA exceedance staging image tag to ${{ needs.image-tag.outputs.build_id }}"
+          message: "Update KCCA exceedance production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Deploy to K8S
         run: |
@@ -1411,6 +1411,19 @@ jobs:
           context: src/calibrate
           target: pickle-file
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-calibrate-pickle-file:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-calibrate-pickle-file:latest
+
+      - name: Update corresponding helm values file
+        uses: fjogeleit/yaml-update-action@main
+        with:
+          valueFile: "k8s/calibrate/values-prod.yaml"
+          updateFile: true
+          branch: ${{ env.DEPLOY_BRANCH }}
+          message: "Update calibrate production tags to ${{ needs.image-tag.outputs.build_id }}"
+          changes: |
+            {
+              "image.tag": "${{ needs.image-tag.outputs.build_id }}",
+              "initContainer.image.tag": "${{ needs.image-tag.outputs.build_id }}"
+            }
 
       - name: Login to Main k8s cluster
         uses: azure/k8s-set-context@v1

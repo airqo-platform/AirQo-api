@@ -1546,6 +1546,19 @@ jobs:
           target: pickle-file
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-calibrate-pickle-file:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-calibrate-pickle-file:latest
 
+      - name: Update corresponding helm values file
+        uses: fjogeleit/yaml-update-action@main
+        with:
+          valueFile: "k8s/calibrate/values-stage.yaml"
+          updateFile: true
+          branch: ${{ env.DEPLOY_BRANCH }}
+          message: "Update calibrate staging tags to ${{ needs.image-tag.outputs.build_id }}"
+          changes: |
+            {
+              "image.tag": "${{ needs.image-tag.outputs.build_id }}",
+              "initContainer.image.tag": "${{ needs.image-tag.outputs.build_id }}"
+            }
+
       - name: Login to Main k8s cluster
         uses: azure/k8s-set-context@v1
         with:
