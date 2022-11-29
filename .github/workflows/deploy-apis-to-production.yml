@@ -356,8 +356,8 @@ jobs:
       - name: Deploy to k8s cluster
         run: |
           export MEASUREMENTS_CONNECT_IMAGE=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/measurements-connect:${{ needs.image-tag.outputs.build_id }}
-          export STAGE_KAFKA_CLUSTER=${{ secrets.STAGE_KAFKA_CLUSTER }}
-          cat k8s/kafka/connectors/measurements-connect.yaml | sed "s/{{MEASUREMENTS_CONNECT_IMAGE}}/$MEASUREMENTS_CONNECT_IMAGE/g" | sed "s/{{KAFKA_CLUSTER}}/$STAGE_KAFKA_CLUSTER/g" | kubectl apply -n message-broker -f-
+          export PROD_KAFKA_CLUSTER=${{ secrets.PROD_KAFKA_CLUSTER }}
+          cat k8s/kafka/connectors/measurements-connect.yaml | sed "s/{{MEASUREMENTS_CONNECT_IMAGE}}/$MEASUREMENTS_CONNECT_IMAGE/g" | sed "s/{{KAFKA_CLUSTER}}/$PROD_KAFKA_CLUSTER/g" | kubectl apply -n message-broker -f-
           kubectl apply -f k8s/kafka/connectors/purple-air-connector.yaml -n message-broker
 
   ### auth service ###
