@@ -16,8 +16,8 @@ const NetworkSchema = new Schema(
       required: [true, "net_email is required"],
       trim: true,
       validate: {
-        validator(email) {
-          return validator.isEmail(email);
+        validator(net_email) {
+          return validator.isEmail(net_email);
         },
         message: "{VALUE} is not a valid email!",
       },
@@ -26,7 +26,7 @@ const NetworkSchema = new Schema(
       type: ObjectId,
       ref: "network",
     },
-    net_title: { type: String, required: [true, "net_title is required"] },
+    net_name: { type: String, required: [true, "net_name is required"] },
     net_status: { type: String, default: "inactive" },
     net_manager: { type: ObjectId },
     net_last: { type: Number },
@@ -49,7 +49,7 @@ const NetworkSchema = new Schema(
     },
     net_acronym: {
       type: String,
-      required: [true, "acronym is required"],
+      required: [true, "net_acronym is required"],
       unique: true,
     },
     net_category: {
@@ -99,6 +99,7 @@ NetworkSchema.index({ net_website: 1 }, { unique: true });
 NetworkSchema.index({ net_email: 1 }, { unique: true });
 NetworkSchema.index({ net_phoneNumber: 1 }, { unique: true });
 NetworkSchema.index({ net_acronym: 1 }, { unique: true });
+NetworkSchema.index({ net_name: 1 }, { unique: true });
 
 NetworkSchema.methods = {
   toJSON() {
@@ -200,6 +201,12 @@ NetworkSchema.statics = {
           as: "net_users",
         })
         .lookup({
+          from: "users",
+          localField: "_id",
+          foreignField: "networks",
+          as: "user",
+        })
+        .lookup({
           from: "permissions",
           localField: "net_permissions",
           foreignField: "_id",
@@ -223,6 +230,12 @@ NetworkSchema.statics = {
           foreignField: "_id",
           as: "net_departments",
         })
+        .lookup({
+          from: "users",
+          localField: "net_manager",
+          foreignField: "_id",
+          as: "net_manager",
+        })
         .sort({ createdAt: -1 })
         .project({
           _id: 1,
@@ -235,6 +248,7 @@ NetworkSchema.statics = {
           net_description: 1,
           net_acronym: 1,
           createdAt: 1,
+          net_manager: { $arrayElemAt: ["$net_manager", 0] },
           net_users: "$net_users",
           net_permissions: "$net_permissions",
           net_roles: "$net_roles",
@@ -255,6 +269,24 @@ NetworkSchema.statics = {
           "net_users.duration": 0,
           "net_users.createdAt": 0,
           "net_users.updatedAt": 0,
+        })
+        .project({
+          "net_manager.__v": 0,
+          "net_manager.notifications": 0,
+          "net_manager.emailConfirmed": 0,
+          "net_manager.networks": 0,
+          "net_manager.locationCount": 0,
+          "net_manager.network": 0,
+          "net_manager.long_network": 0,
+          "net_manager.privilege": 0,
+          "net_manager.userName": 0,
+          "net_manager.password": 0,
+          "net_manager.duration": 0,
+          "net_manager.createdAt": 0,
+          "net_manager.updatedAt": 0,
+          "net_manager.groups": 0,
+          "net_manager.roles": 0,
+          "net_manager.permissions": 0,
         })
         .project({
           "net_permissions.__v": 0,
@@ -336,10 +368,32 @@ NetworkSchema.statics = {
       }
 
       if (modifiedUpdate.net_users) {
-        modifiedUpdate["$addToSet"]["net_users"] = {};
-        modifiedUpdate["$addToSet"]["net_users"]["$each"] =
-          modifiedUpdate.net_users;
-        delete modifiedUpdate["net_users"];
+        logObject("the users are here", modifiedUpdate.net_users);
+        if (modifiedUpdate.action) {
+          logElement("the action boy", modifiedUpdate.action);
+          if (modifiedUpdate.action === "unassign-user") {
+            modifiedUpdate["$pull"] = {};
+            modifiedUpdate["$pull"]["net_users"] = {};
+            modifiedUpdate["$pull"]["net_users"]["$in"] =
+              modifiedUpdate.net_users;
+            delete modifiedUpdate["net_users"];
+          } else if (modifiedUpdate.action === "assign-user") {
+            modifiedUpdate["$addToSet"]["net_users"] = {};
+            modifiedUpdate["$addToSet"]["net_users"]["$each"] =
+              modifiedUpdate.net_users;
+            delete modifiedUpdate["net_users"];
+          } else if (modifiedUpdate.action === "set-manager") {
+            modifiedUpdate["net_manager"] = modifiedUpdate.net_users[0];
+            delete modifiedUpdate["net_users"];
+          } else {
+          }
+          delete modifiedUpdate["action"];
+        } else {
+          modifiedUpdate["$pull"]["net_users"] = {};
+          modifiedUpdate["$pull"]["net_users"]["$each"] =
+            modifiedUpdate.net_users;
+          delete modifiedUpdate["net_users"];
+        }
       }
 
       if (modifiedUpdate.net_departments) {
@@ -369,6 +423,9 @@ NetworkSchema.statics = {
           modifiedUpdate.net_roles;
         delete modifiedUpdate["net_roles"];
       }
+
+      logObject("modifiedUpdate", modifiedUpdate);
+      logObject("filter", filter);
 
       let updatedNetwork = await this.findOneAndUpdate(
         filter,

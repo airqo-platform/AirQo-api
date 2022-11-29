@@ -14,6 +14,7 @@ const constants = require("../config/constants");
 const mailchimp = require("../config/mailchimp");
 const md5 = require("md5");
 const accessCodeGenerator = require("generate-password");
+const generateFilter = require("./generate-filter");
 
 const UserModel = (tenant) => {
   try {
@@ -77,8 +78,33 @@ const join = {
       };
     }
   },
-  update: async (tenant, filter, update) => {
+  update: async (request) => {
     try {
+      let filter = {};
+      const { query, body } = request;
+      let update = body;
+      delete update.password;
+      delete update._id;
+      const { tenant } = query;
+
+      const responseFromGenerateFilter = generateFilter.users(request);
+      logObject("responseFromGenerateFilter", responseFromGenerateFilter);
+
+      if (responseFromGenerateFilter.success === true) {
+        filter = responseFromGenerateFilter.data;
+      } else if (responseFromGenerateFilter.success === false) {
+        let status = responseFromGenerateFilter.status
+          ? responseFromGenerateFilter.status
+          : "";
+        let error = responseFromGenerateFilter.error
+          ? responseFromGenerateFilter.error
+          : "";
+        return {
+          status,
+          error,
+          message: responseFromGenerateFilter.message,
+        };
+      }
       let responseFromModifyUser = await UserModel(tenant.toLowerCase()).modify(
         {
           filter,
@@ -100,32 +126,24 @@ const join = {
             data: responseFromModifyUser.data,
           };
         } else if (responseFromSendEmail.success === false) {
-          if (responseFromSendEmail.error) {
-            return {
-              success: false,
-              message: responseFromSendEmail.message,
-              error: responseFromSendEmail.error,
-            };
-          } else {
-            return {
-              success: false,
-              message: responseFromSendEmail.message,
-            };
-          }
+          const error = responseFromSendEmail.error
+            ? responseFromSendEmail.error
+            : "";
+          return {
+            success: false,
+            message: responseFromSendEmail.message,
+            error,
+          };
         }
       } else if (responseFromModifyUser.success === false) {
-        if (responseFromModifyUser.error) {
-          return {
-            success: false,
-            message: responseFromModifyUser.message,
-            error: responseFromModifyUser.error,
-          };
-        } else {
-          return {
-            success: false,
-            message: responseFromModifyUser.message,
-          };
-        }
+        const error = responseFromModifyUser.error
+          ? responseFromModifyUser.error
+          : "";
+        return {
+          success: false,
+          message: responseFromModifyUser.message,
+          error,
+        };
       }
     } catch (e) {
       logElement("update users util", e.message);

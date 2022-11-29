@@ -5,8 +5,9 @@ const ObjectId = mongoose.Types.ObjectId;
 const filter = {
   users: (req) => {
     try {
-      let { privilege, id, username, active } = req.query;
-      let { email, resetPasswordToken } = req.body;
+      const { privilege, id, username, active } = req.query;
+      const { user_id } = req.params;
+      const { email, resetPasswordToken } = req.body;
       let filter = {};
       if (email) {
         filter["email"] = email;
@@ -23,10 +24,13 @@ const filter = {
       if (id) {
         filter["_id"] = ObjectId(id);
       }
+      if (user_id) {
+        filter["_id"] = ObjectId(user_id);
+      }
       if (active) {
-        if (active == "yes") {
+        if (active === "yes") {
           filter["isActive"] = true;
-        } else if (active == "no") {
+        } else if (active === "no") {
           filter["isActive"] = false;
         }
       }
@@ -48,59 +52,47 @@ const filter = {
   },
   networks: (req) => {
     try {
-      let {
-        id,
-        email,
-        active,
-        category,
-        tenant,
-        status,
-        phoneNumber,
-        website,
-        acronym,
-        isActive,
-        isAlias,
+      const {
+        net_email,
+        net_category,
+        net_tenant,
+        net_status,
+        net_phoneNumber,
+        net_website,
+        net_acronym,
       } = req.query;
 
+      const { net_id } = req.params;
+
       let filter = {};
-      if (email) {
-        filter["email"] = email;
+      if (net_email) {
+        filter["net_email"] = net_email;
       }
-      if (category) {
-        filter["category"] = category;
+      if (net_category) {
+        filter["net_category"] = net_category;
       }
-      if (tenant) {
-        filter["tenant"] = tenant;
+
+      if (net_id) {
+        filter["_id"] = ObjectId(net_id);
       }
-      if (acronym) {
-        filter["acronym"] = acronym;
+
+      if (net_tenant) {
+        filter["net_tenant"] = net_tenant;
       }
-      if (isActive) {
-        filter["isActive"] = isActive;
+      if (net_acronym) {
+        filter["net_acronym"] = net_acronym;
       }
-      if (isAlias) {
-        filter["isAlias"] = isAlias;
+
+      if (net_phoneNumber) {
+        filter["net_phoneNumber"] = net_phoneNumber;
       }
-      if (phoneNumber) {
-        filter["phoneNumber"] = phoneNumber;
+      if (net_website) {
+        filter["net_website"] = net_website;
       }
-      if (website) {
-        filter["website"] = website;
+      if (net_status) {
+        filter["net_status"] = net_status;
       }
-      if (status) {
-        filter["status"] = status;
-      }
-      if (id) {
-        filter["_id"] = ObjectId(id);
-      }
-      if (active) {
-        if (active === "yes") {
-          filter["isActive"] = true;
-        }
-        if (active === "no") {
-          filter["isActive"] = false;
-        }
-      }
+
       return {
         success: true,
         message: "successfully created the filter",

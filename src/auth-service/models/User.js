@@ -334,9 +334,11 @@ UserSchema.statics = {
       let options = { new: true };
       let modifiedUpdate = update;
       modifiedUpdate["$addToSet"] = {};
+
       if (update.password) {
         modifiedUpdate.password = bcrypt.hashSync(update.password, saltRounds);
       }
+
       if (modifiedUpdate.networks) {
         modifiedUpdate["$addToSet"]["networks"] = {};
         modifiedUpdate["$addToSet"]["networks"]["$each"] =

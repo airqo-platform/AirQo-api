@@ -4,6 +4,9 @@ const { logElement, logText, logObject } = require("./log");
 const generateFilter = require("./generate-filter");
 const HTTPStatus = require("http-status");
 const companyEmailValidator = require("company-email-validator");
+const isEmpty = require("is-empty");
+const mongoose = require("mongoose").set("debug", true);
+const ObjectId = mongoose.Types.ObjectId;
 
 const createNetwork = {
   getNetworkFromEmail: async (request) => {
@@ -12,16 +15,16 @@ const createNetwork = {
         createNetwork.extractOneAcronym(request);
 
       if (responseFromExtractOneNetwork.success === true) {
-        let acronym = responseFromExtractOneNetwork.data;
+        let net_acronym = responseFromExtractOneNetwork.data;
         let modifiedRequest = request;
         modifiedRequest["query"] = {};
-        modifiedRequest["query"]["acronym"] = acronym;
+        modifiedRequest["query"]["net_acronym"] = net_acronym;
         let responseFromListNetworks = await createNetwork.list(
           modifiedRequest
         );
         if (responseFromListNetworks.success === true) {
           let data = responseFromListNetworks.data;
-          let storedNetwork = data[0].name || data[0].acronym;
+          let storedNetwork = data[0].net_name || data[0].net_acronym;
           return {
             success: true,
             data: storedNetwork,
@@ -44,19 +47,17 @@ const createNetwork = {
   },
   extractOneAcronym: (request) => {
     try {
-      const { email } = request.body;
+      const { net_email } = request.body;
       let segments = [];
       let network = "";
 
-      if (email) {
-        let isCompanyEmail = companyEmailValidator.isCompanyEmail(email);
+      if (net_email) {
+        let isCompanyEmail = companyEmailValidator.isCompanyEmail(net_email);
 
         if (isCompanyEmail) {
-          segments = email.split("@").filter((segment) => segment);
+          segments = net_email.split("@").filter((segment) => segment);
           network = segments[1].split(".")[0];
-        }
-
-        if (!isCompanyEmail) {
+        } else if (!isCompanyEmail) {
           network = "airqo";
         }
       }
@@ -97,13 +98,19 @@ const createNetwork = {
       const responseFromExtractNetworkName =
         createNetwork.extractOneAcronym(request);
 
+      logObject(
+        "responseFromExtractNetworkName",
+        responseFromExtractNetworkName
+      );
+
       if (responseFromExtractNetworkName.success === true) {
-        modifiedBody["name"] = responseFromExtractNetworkName.data;
-        modifiedBody["acronym"] = responseFromExtractNetworkName.data;
+        modifiedBody["net_name"] = responseFromExtractNetworkName.data;
+        modifiedBody["net_acronym"] = responseFromExtractNetworkName.data;
       } else if (responseFromExtractNetworkName.success === false) {
-        // return responseFromExtractNetworkName;
+        return responseFromExtractNetworkName;
       }
 
+      logObject("modifiedBody", modifiedBody);
       let responseFromRegisterNetwork = await getModelByTenant(
         "airqo",
         "network",
@@ -149,17 +156,40 @@ const createNetwork = {
   },
   update: async (request) => {
     try {
-      let { body, query } = request;
+      let { body, query, params } = request;
       let tenant = "airqo";
       let update = body;
+      const action = request.path.split("/")[3];
+      logElement("action", action);
+      update["action"] = action;
       let filter = {};
       let responseFromGeneratefilter = generateFilter.networks(request);
 
-      if (responseFromGeneratefilter.success === true) {
-        filter = responseFromGeneratefilter.data;
+      if (!isEmpty(params.user_id)) {
+        logElement("params.user_id", params.user_id);
+        let usersArray = params.user_id.toString().split(",");
+        let modifiedUsersArray = usersArray.map((user_id) => {
+          return ObjectId(user_id);
+        });
+        update.net_users = modifiedUsersArray;
+      } else if (!isEmpty(update.user_ids)) {
+        let usersArray = update.user_ids.toString().split(",");
+        let modifiedUsersArray = usersArray.map((user_id) => {
+          return ObjectId(user_id);
+        });
+        update.net_users = modifiedUsersArray;
       }
 
-      if (responseFromGeneratefilter.success === false) {
+      if (responseFromGeneratefilter.success === true) {
+        filter = responseFromGeneratefilter.data;
+        if (
+          !isEmpty(params.user_id) &&
+          !isEmpty(action) &&
+          action === "unassign-user"
+        ) {
+          filter["net_users"] = ObjectId(params.user_id);
+        }
+      } else if (responseFromGeneratefilter.success === false) {
         let status = responseFromGeneratefilter.status
           ? responseFromGeneratefilter.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
@@ -190,9 +220,7 @@ const createNetwork = {
           data: responseFromModifyNetwork.data,
           success: true,
         };
-      }
-
-      if (responseFromModifyNetwork.success === false) {
+      } else if (responseFromModifyNetwork.success === false) {
         let status = responseFromModifyNetwork.status
           ? responseFromModifyNetwork.status
           : "";
@@ -207,6 +235,7 @@ const createNetwork = {
         };
       }
     } catch (error) {
+      logObject("error", error);
       return {
         success: false,
         message: "Internal Server Error",
@@ -221,15 +250,13 @@ const createNetwork = {
       let tenant = "airqo";
       let filter = {};
 
-      let responseFromGenerateFilter = generateFilter.networks(request);
+      const responseFromGenerateFilter = generateFilter.networks(request);
 
       logObject("responseFromGenerateFilter", responseFromGenerateFilter);
 
       if (responseFromGenerateFilter.success === true) {
         filter = responseFromGenerateFilter.data;
-      }
-
-      if (responseFromGenerateFilter.success === false) {
+      } else if (responseFromGenerateFilter.success === false) {
         let status = responseFromGenerateFilter.status
           ? responseFromGenerateFilter.status
           : "";
@@ -264,9 +291,7 @@ const createNetwork = {
           data: responseFromRemoveNetwork.data,
           success: true,
         };
-      }
-
-      if (responseFromRemoveNetwork.success === false) {
+      } else if (responseFromRemoveNetwork.success === false) {
         let status = responseFromRemoveNetwork.status
           ? responseFromRemoveNetwork.status
           : "";
@@ -319,7 +344,7 @@ const createNetwork = {
         NetworkSchema
       ).list({ filter, limit, skip });
 
-      logObject("responseFromListNetworks", responseFromListNetworks);
+      // logObject("responseFromListNetworks", responseFromListNetworks);
 
       if (responseFromListNetworks.success === true) {
         let status = responseFromListNetworks.status
@@ -332,9 +357,7 @@ const createNetwork = {
           message: responseFromListNetworks.message,
           data: responseFromListNetworks.data,
         };
-      }
-
-      if (responseFromListNetworks.success === false) {
+      } else if (responseFromListNetworks.success === false) {
         let status = responseFromListNetworks.status
           ? responseFromListNetworks.status
           : "";

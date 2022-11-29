@@ -458,10 +458,20 @@ const createUser = {
     try {
       logText(".................................................");
       logText("inside delete user............");
-      const { tenant, id } = req.query;
-      if (!tenant && !id) {
-        return missingQueryParams(req, res);
+      let { tenant, id } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
       }
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+
       let responseFromFilter = generateFilter.users(req);
       logObject("responseFromFilter", responseFromFilter);
       if (responseFromFilter.success === true) {
@@ -522,54 +532,25 @@ const createUser = {
           convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { tenant, id } = req.query;
-      if (!tenant && !id) {
-        return missingQueryParams(req, res);
-      }
-      let responseFromFilter = generateFilter.users(req);
-      logObject("responseFromFilter", responseFromFilter);
-      if (responseFromFilter.success === true) {
-        let filter = responseFromFilter.data;
-        let update = req.body;
-        delete update.password;
-        delete update._id;
-        let responseFromUpdateUser = await createUserUtil.update(
-          tenant,
-          filter,
-          update
-        );
-        logObject("responseFromUpdateUser", responseFromUpdateUser);
-        if (responseFromUpdateUser.success === true) {
-          return res.status(HTTPStatus.OK).json({
-            success: true,
-            message: responseFromUpdateUser.message,
-            user: responseFromUpdateUser.data,
-          });
-        } else if (responseFromUpdateUser.success === false) {
-          if (responseFromUpdateUser.error) {
-            return res.status(HTTPStatus.BAD_GATEWAY).json({
-              success: false,
-              message: responseFromUpdateUser.message,
-              error: responseFromUpdateUser.error,
-            });
-          } else {
-            return res.status(HTTPStatus.BAD_GATEWAY).json({
-              success: false,
-              message: responseFromUpdateUser.message,
-            });
-          }
-        }
-      } else if (responseFromFilter.success === false) {
-        if (responseFromFilter.error) {
-          res.status(HTTPStatus.BAD_GATEWAY).json({
+      let responseFromUpdateUser = await createUserUtil.update(req);
+      logObject("responseFromUpdateUser", responseFromUpdateUser);
+      if (responseFromUpdateUser.success === true) {
+        return res.status(HTTPStatus.OK).json({
+          success: true,
+          message: responseFromUpdateUser.message,
+          user: responseFromUpdateUser.data,
+        });
+      } else if (responseFromUpdateUser.success === false) {
+        if (responseFromUpdateUser.error) {
+          return res.status(HTTPStatus.BAD_GATEWAY).json({
             success: false,
-            message: responseFromFilter.message,
-            error: responseFromFilter.error,
+            message: responseFromUpdateUser.message,
+            error: responseFromUpdateUser.error,
           });
         } else {
-          res.status(HTTPStatus.BAD_GATEWAY).json({
+          return res.status(HTTPStatus.BAD_GATEWAY).json({
             success: false,
-            message: responseFromFilter.message,
+            message: responseFromUpdateUser.message,
           });
         }
       }
