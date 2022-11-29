@@ -9,6 +9,8 @@ import java.util.List;
 public interface BigQueryApi {
 	List<GraphInsight> getInsights(Date startDateTime, Date endDateTime, String siteId);
 
+	List<GraphInsight> cacheInsights(Date startDateTime, Date endDateTime, String siteId);
+
 	List<Insight> getInsightsData(Date startDateTime, Date endDateTime, List<String> siteIds);
 
 }

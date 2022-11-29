@@ -18,11 +18,12 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
+import static airqo.config.Constants.insightsExtraDays;
+
 @Slf4j
 @Service
 public class InsightsServiceImpl implements InsightsService {
 
-	private final int extraDays = 1;
 	@Autowired
 	BigQueryApi bigQueryApi;
 
@@ -156,8 +157,8 @@ public class InsightsServiceImpl implements InsightsService {
 
 		insights = new ArrayList<>(new HashSet<>(insights));
 
-		Date dataStartDateTime = new DateTime(startDateTime).minusDays(extraDays).toDate();
-		Date dataEndDateTime = new DateTime(endDateTime).plusDays(extraDays).toDate();
+		Date dataStartDateTime = new DateTime(startDateTime).minusDays(insightsExtraDays).toDate();
+		Date dataEndDateTime = new DateTime(endDateTime).plusDays(insightsExtraDays).toDate();
 
 		fillMissingInsights(insights, dataStartDateTime, dataEndDateTime, siteId, frequency, false);
 
@@ -170,8 +171,8 @@ public class InsightsServiceImpl implements InsightsService {
 	public InsightData getInsights(Date startDateTime, Date endDateTime, String siteId, int utcOffSet) {
 
 		try {
-			Date dataStartDateTime = new DateTime(startDateTime).minusDays(extraDays).toDate();
-			Date dataEndDateTime = new DateTime(endDateTime).plusDays(extraDays).toDate();
+			Date dataStartDateTime = new DateTime(startDateTime).minusDays(insightsExtraDays).toDate();
+			Date dataEndDateTime = new DateTime(endDateTime).plusDays(insightsExtraDays).toDate();
 
 			List<GraphInsight> insights = this.bigQueryApi.getInsights(dataStartDateTime, dataEndDateTime, siteId);
 

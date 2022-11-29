@@ -2,17 +2,60 @@ package airqo;
 
 import airqo.models.Frequency;
 import airqo.models.Insight;
+import airqo.services.BigQueryApi;
+import lombok.extern.slf4j.Slf4j;
 import org.joda.time.DateTime;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 import java.util.stream.Collectors;
 
+import static airqo.config.Constants.dateTimeFormat;
+import static airqo.config.Constants.insightsExtraDays;
+
+@Slf4j
+@Component
 public class Utils {
+	@Autowired
+	BigQueryApi bigQueryApi;
+
+	public static HashMap<String, Date> getInsightsQueryDates() {
+
+		HashMap<String, Date> results = new HashMap<>();
+
+		try {
+			final Date now = new Date();
+			final SimpleDateFormat startDateFormat = new SimpleDateFormat("yyyy-MM-01");
+
+			DateTime startDateTime = new DateTime(startDateFormat.parse(startDateFormat.format(now)));
+			while (startDateTime.getDayOfWeek() != 1) {
+				startDateTime = startDateTime.minusDays(1);
+			}
+
+			DateTime endDateTime = new DateTime(startDateFormat.parse(startDateFormat.format(now)));
+			endDateTime = endDateTime.plusMonths(1);
+			endDateTime = endDateTime.minusDays(1);
+			while (endDateTime.getDayOfWeek() != 7) {
+				endDateTime = endDateTime.plusDays(1);
+			}
+
+			final SimpleDateFormat simpleDayFormat = new SimpleDateFormat("yyyy-MM-dd");
+			String startDateTimeStr = String.format("%sT00:00:00Z", simpleDayFormat.format(startDateTime.toDate()));
+			String endDateTimeStr = String.format("%sT23:59:59Z", simpleDayFormat.format(endDateTime.toDate()));
+
+			final SimpleDateFormat simpleDateTimeFormat = new SimpleDateFormat(dateTimeFormat);
+			results.put("startDateTime", simpleDateTimeFormat.parse(startDateTimeStr));
+			results.put("endDateTime", simpleDateTimeFormat.parse(endDateTimeStr));
+		} catch (ParseException ignored) {
+
+		}
+
+		return results;
+	}
+
 	public static List<Date> getDatesArray(Date startDateTime, Date endDateTime, Frequency frequency) {
 
 		DateTime varyingDate = new DateTime(startDateTime);
@@ -48,7 +91,7 @@ public class Utils {
 		List<Date> insightsDateArray = siteInsights.stream().map(Insight::getTime).toList();
 
 
-		List<Insight> missingData = getDatesArray(startDateTime, endDateTime, frequency)
+		List<Insight> missingData = Utils.getDatesArray(startDateTime, endDateTime, frequency)
 			.stream()
 			.filter(date -> !insightsDateArray.contains(date))
 			.map(date -> {
@@ -76,6 +119,16 @@ public class Utils {
 
 		return siteInsights;
 
+	}
+
+	public void updateInsightsCache(List<String> siteIds) {
+		HashMap<String, Date> queryDates = Utils.getInsightsQueryDates();
+		log.info(String.format("Query Dates : %s", queryDates));
+
+		final DateTime startDateTime = new DateTime(queryDates.get("startDateTime")).minusDays(insightsExtraDays);
+		final DateTime endDateTime = new DateTime(queryDates.get("endDateTime")).plusDays(insightsExtraDays);
+
+		siteIds.forEach(s -> bigQueryApi.cacheInsights(startDateTime.toDate(), endDateTime.toDate(), s));
 	}
 
 }

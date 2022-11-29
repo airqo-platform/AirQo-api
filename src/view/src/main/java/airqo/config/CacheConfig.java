@@ -21,6 +21,8 @@ public class CacheConfig {
 				RedisCacheConfiguration.defaultCacheConfig().entryTtl(Duration.ofMinutes(5)))
 			.withCacheConfiguration("appInsightsCacheV2",
 				RedisCacheConfiguration.defaultCacheConfig().entryTtl(Duration.ofMinutes(5)))
+			.withCacheConfiguration("bigQueryInsightsCache",
+				RedisCacheConfiguration.defaultCacheConfig().entryTtl(Duration.ofHours(2)))
 			.withCacheConfiguration("appInsightsApiCache",
 				RedisCacheConfiguration.defaultCacheConfig().entryTtl(Duration.ofMinutes(5)));
 	}
