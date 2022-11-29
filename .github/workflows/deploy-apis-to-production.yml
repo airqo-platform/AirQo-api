@@ -1651,6 +1651,16 @@ jobs:
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-network-uptime-api:${{ needs.image-tag.outputs.build_id }}
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-network-uptime-api:latest
 
+      - name: Update corresponding helm values file
+        uses: fjogeleit/yaml-update-action@main
+        with:
+          valueFile: "k8s/network-uptime/values-prod.yaml"
+          propertyPath: "image.tag"
+          value: ${{ needs.image-tag.outputs.build_id }}
+          updateFile: true
+          branch: ${{ env.DEPLOY_BRANCH }}
+          message: "Update network-uptime production image tag to ${{ needs.image-tag.outputs.build_id }}"
+
       - name: Login to GCP
         uses: google-github-actions/auth@v0
         with:
