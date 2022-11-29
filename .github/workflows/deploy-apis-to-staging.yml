@@ -221,7 +221,7 @@ jobs:
               echo "::set-output name=run_view::true"
             fi
 
-            if [[ $file == k8s/view-api/* ]]; then
+            if [[ $file == k8s/view/* ]]; then
               echo "::set-output name=run_view::true"
             fi
             
@@ -1451,6 +1451,16 @@ jobs:
           target: api
           context: src/view
 
+      - name: Update corresponding helm values file
+        uses: fjogeleit/yaml-update-action@main
+        with:
+          valueFile: "k8s/view/api/values-stage.yaml"
+          propertyPath: "image.tag"
+          value: ${{ needs.image-tag.outputs.build_id }}
+          updateFile: true
+          branch: ${{ env.DEPLOY_BRANCH }}
+          message: "Update view api staging image tag to ${{ needs.image-tag.outputs.build_id }}"
+
       - name: Build and push Message Broker
         uses: docker/build-push-action@v2
         with:
@@ -1458,6 +1468,16 @@ jobs:
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-view-message-broker:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-view-message-broker:latest
           target: message-broker
           context: src/view
+
+      - name: Update corresponding helm values file
+        uses: fjogeleit/yaml-update-action@main
+        with:
+          valueFile: "k8s/view/message-broker/values-stage.yaml"
+          propertyPath: "image.tag"
+          value: ${{ needs.image-tag.outputs.build_id }}
+          updateFile: true
+          branch: ${{ env.DEPLOY_BRANCH }}
+          message: "Update view message broker staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
         uses: google-github-actions/auth@v0
@@ -1479,12 +1499,12 @@ jobs:
 
       - name: Deploy API to K8S
         run: |
-          kubectl apply -f k8s/view-api/stage-view-api.yaml
+          kubectl apply -f k8s/view/stage-view-api.yaml
           kubectl rollout restart deployment airqo-stage-view-api  -n staging
 
       - name: Deploy Message Broker to K8S
         run: |
-          kubectl apply -f k8s/view-api/stage-view-message-broker.yaml
+          kubectl apply -f k8s/view/stage-view-message-broker.yaml
           kubectl rollout restart deployment airqo-stage-view-message-broker  -n staging
 
   #### Calibrate ######
