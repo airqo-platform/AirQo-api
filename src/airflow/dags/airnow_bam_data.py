@@ -119,9 +119,9 @@ def airnow_bam_realtime_data():
     extracted_bam_data = extract_bam_data()
     processed_bam_data = process_data(extracted_bam_data)
     send_to_bigquery(processed_bam_data)
-    update_latest_data_table(processed_bam_data)
-    update_latest_data_topic(processed_bam_data)
-    send_measurements_to_api(processed_bam_data)
+    # update_latest_data_table(processed_bam_data)
+    # update_latest_data_topic(processed_bam_data)
+    # send_measurements_to_api(processed_bam_data)
 
 
 airnow_bam_realtime_data()
