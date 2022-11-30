@@ -3,7 +3,7 @@ import pandas as pd
 
 from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.constants import Tenant, ColumnDataType, Frequency
-from airqo_etl_utils.utils import Utils
+from airqo_etl_utils.date import date_to_str
 
 
 class DataValidationUtils:
@@ -148,11 +148,13 @@ class DataValidationUtils:
     @staticmethod
     def process_for_message_broker(
         data: pd.DataFrame, tenant: Tenant, frequency: Frequency = Frequency.HOURLY
-    ) -> list:
+    ) -> pd.DataFrame:
         data.loc[:, "frequency"] = str(frequency)
+        data["timestamp"] = pd.to_datetime(data["timestamp"])
+        data["timestamp"] = data["timestamp"].apply(date_to_str)
         if tenant != Tenant.ALL:
             data.loc[:, "tenant"] = str(tenant)
-        return data.to_dict("records")
+        return data
 
     @staticmethod
     def convert_pressure_values(value):

@@ -46,16 +46,14 @@ def kcca_hourly_measurements():
     @task()
     def send_to_message_broker(data: pd.DataFrame):
         from airqo_etl_utils.data_validator import DataValidationUtils
-        from airqo_etl_utils.config import configuration
         from airqo_etl_utils.constants import Tenant
-        from airqo_etl_utils.message_broker import KafkaBrokerClient
+        from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
 
         data = DataValidationUtils.process_for_message_broker(
             data=data, tenant=Tenant.KCCA
         )
 
-        kafka = KafkaBrokerClient()
-        kafka.send_data(data=data, topic=configuration.HOURLY_MEASUREMENTS_TOPIC)
+        MessageBrokerUtils.update_hourly_data_topic(data=data)
 
     @task()
     def send_to_bigquery(data: pd.DataFrame):
@@ -91,7 +89,7 @@ def kcca_hourly_measurements():
 
         data = KccaUtils.process_latest_data(data=data)
 
-        MessageBrokerUtils.update_latest_data_topic(data=data)
+        MessageBrokerUtils.update_hourly_data_topic(data=data)
 
     extracted_data = extract()
     transformed_data = transform(extracted_data)
