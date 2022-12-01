@@ -16,6 +16,28 @@ spec:
 
 ---
 apiVersion: k8s.nginx.org/v1
+kind: VirtualServerRoute
+metadata:
+  name: argocd
+  namespace: cicd
+spec:
+  host: platform.airqo.net
+  upstreams:
+    - name: argocd
+      service: argocd-server
+      port: 443
+  subroutes:
+    - path: /argocd
+      action:
+        pass: argocd
+    - path: /argocd/(.*)
+      action:
+        proxy:
+          upstream: argocd
+          rewritePath: /$1
+
+---
+apiVersion: k8s.nginx.org/v1
 kind: VirtualServer
 metadata:
   name: production-virtual-server
@@ -24,7 +46,7 @@ spec:
   host: platform.airqo.net
   upstreams:
     - name: platform-ui
-      service: airqo-platform-svc
+      service: airqo-platform-frontend-svc
       port: 80
     - name: auth-service
       service: airqo-auth-api-svc
@@ -74,6 +96,8 @@ spec:
         pass: platform-ui
     - path: /airflow
       route: pipeline/airflow
+    - path: /argocd
+      route: cicd/argocd
     - path: ~ /api\/v[1-2]\/users
       action:
         proxy:

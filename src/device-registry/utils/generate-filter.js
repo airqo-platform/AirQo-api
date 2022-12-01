@@ -537,8 +537,10 @@ const generateFilter = {
         id,
         device_name,
         device_id,
+        device_codes,
         device_number,
         category,
+        network,
       } = req.query;
 
       if (name) {
@@ -563,6 +565,10 @@ const generateFilter = {
         filter["category"] = category;
       }
 
+      if (network) {
+        filter["network"] = network;
+      }
+
       if (device_number) {
         filter["device_number"] = parseInt(device_number);
       }
@@ -573,6 +579,12 @@ const generateFilter = {
 
       if (device_id) {
         filter["name"] = device_id;
+      }
+
+      if (device_codes) {
+        let deviceCodesArray = device_codes.split(",");
+        filter["device_codes"] = {};
+        filter["device_codes"]["$in"] = deviceCodesArray;
       }
 
       if (chid) {
@@ -655,7 +667,9 @@ const generateFilter = {
       county,
       parish,
       name,
+      site_codes,
       _id,
+      network,
       google_place_id,
     } = req.query;
     let filter = {};
@@ -668,6 +682,10 @@ const generateFilter = {
       filter["county"] = county;
     }
 
+    if (network) {
+      filter["network"] = network;
+    }
+
     if (lat_long) {
       filter["lat_long"] = lat_long;
     }
@@ -678,6 +696,12 @@ const generateFilter = {
 
     if (_id) {
       filter["_id"] = ObjectId(_id);
+    }
+
+    if (site_codes) {
+      let siteCodesArray = site_codes.split(",");
+      filter["site_codes"] = {};
+      filter["site_codes"]["$in"] = siteCodesArray;
     }
 
     if (google_place_id) {
@@ -715,11 +739,25 @@ const generateFilter = {
     return filter;
   },
   airqlouds: (req) => {
-    let { id, name, admin_level, summary } = req.query;
+    let {
+      id,
+      name,
+      admin_level,
+      summary,
+      airqloud_id,
+      network,
+      airqloud,
+    } = req.query;
     let filter = {};
 
     if (name) {
       filter["name"] = name;
+    } else if (airqloud) {
+      filter["name"] = airqloud;
+    }
+
+    if (network) {
+      filter["network"] = network;
     }
 
     if (summary === "yes") {
@@ -728,6 +766,10 @@ const generateFilter = {
 
     if (id) {
       filter["_id"] = ObjectId(id);
+    }
+
+    if (airqloud_id) {
+      filter["_id"] = ObjectId(airqloud_id);
     }
 
     if (admin_level) {
@@ -738,7 +780,7 @@ const generateFilter = {
   },
 
   locations: (req) => {
-    let { id, name, admin_level, summary } = req.query;
+    let { id, name, admin_level, summary, network } = req.query;
     let filter = {};
 
     if (id) {
@@ -751,6 +793,10 @@ const generateFilter = {
 
     if (name) {
       filter["name"] = name;
+    }
+
+    if (network) {
+      filter["network"] = network;
     }
 
     if (admin_level) {
@@ -770,6 +816,7 @@ const generateFilter = {
       maintenance_type,
       startTime,
       endTime,
+      network,
       generated_name,
     } = req.query;
     let oneMonthBack = monthsInfront(-1);
@@ -791,6 +838,10 @@ const generateFilter = {
 
     if (generated_name) {
       filter["generated_name"] = generated_name;
+    }
+
+    if (network) {
+      filter["network"] = network;
     }
 
     if (maintenance_type) {
@@ -878,6 +929,7 @@ const generateFilter = {
       activity_tags,
       maintenance_type,
       site_id,
+      network,
     } = req.query;
 
     let filter = {
@@ -893,6 +945,10 @@ const generateFilter = {
     if (site_id) {
       filter["site_id"] = ObjectId(site_id);
     }
+    if (network) {
+      filter["network"] = network;
+    }
+
     if (activity_tags) {
       filter["tags"]["$in"] = activity_tags;
     }
@@ -912,7 +968,7 @@ const generateFilter = {
   },
 
   photos: (request) => {
-    let { id, device_id, device_number, device_name } = request.query;
+    let { id, device_id, device_number, device_name, network } = request.query;
     let filter = {};
     if (id) {
       filter["_id"] = ObjectId(id);
@@ -928,6 +984,10 @@ const generateFilter = {
 
     if (device_name) {
       filter["device_name"] = device_name;
+    }
+
+    if (network) {
+      filter["network"] = network;
     }
 
     return filter;

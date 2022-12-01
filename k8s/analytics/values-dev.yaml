@@ -30,6 +30,5 @@ resources: {}
 affinity: {}
 torelations: {}
 
-
-## Application level settings  
+## Application level settings
 appMode: development

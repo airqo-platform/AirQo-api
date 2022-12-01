@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    app.kubernetes.io/name: argocd-rbac-cm
+    app.kubernetes.io/part-of: argocd
+  name: argocd-rbac-cm
+data:
+  policy.csv: |
+    p, role:developer, *, get, *, allow
+    p, role:developer, logs, *, development/*, allow
+    p, role:developer, applications, *, development/*, allow
+    p, role:developer, applicationsets, *, development/*, allow
+    p, role:guest, projects, get, development, allow
+    p, role:guest, logs, get, development/*, allow
+    p, role:guest, applications, get, development/*, allow
+    p, role:guest, applicationsets, get, development/*, allow
+
+    g, airqo-platform:devops, role:admin
+    g, airqo-platform:engineering, role:developer
+    g, guest, role:guest
+  policy.default: role:''

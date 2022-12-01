@@ -1,60 +1,65 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Values.env.deployment_name }}
-  namespace: {{ .Values.appMode }}
+  name: {{ .Values.app.name }}
+  namespace: {{ .Values.app.namespace }}
   labels:
-{{ include "airqo-device-registry-api.labels" . | indent 4 }}
+    {{- include "airqo-device-registry-api.labels" . | nindent 4 }}
 spec:
+  selector:
+    matchLabels:
+        app: {{ .Values.app.label }}
   replicas: {{ .Values.replicaCount }}
+  revisionHistoryLimit: 2
   strategy:
     type: RollingUpdate
     rollingUpdate:
       maxSurge: 1
       maxUnavailable: 1
   minReadySeconds: 5
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: {{ .Values.env.labels }}
-      app.kubernetes.io/instance: {{ .Release.Name }}
   template:
     metadata:
-      labels:
-        app.kubernetes.io/name: {{ .Values.env.labels }}
-        app.kubernetes.io/instance: {{ .Release.Name }}
-    spec:
-
-      containers:
-        - name: {{ .Values.env.labels }}
-          securityContext:
-            {{- toYaml .Values.securityContext | nindent 12 }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
-          ports:
-            - name: {{ .Values.env.labels }}
-              containerPort: {{ .Values.service.targetPort }}
-          # livenessProbe:
-          #   httpGet:
-          #     path: /
-          #     port: http
-          # readinessProbe:
-          #   httpGet:
-          #     path: /
-          #     port: http
-          envFrom:
-            - configMapRef:
-                name: {{ .Values.env.secret }}
-          resources:
-            {{- toYaml .Values.resources | nindent 12 }}
-      {{- with .Values.nodeSelector }}
-      nodeSelector:
+      {{- with .Values.podAnnotations }}
+      annotations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-    {{- with .Values.affinity }}
+      labels:
+        app: {{ .Values.app.label }}
+    spec:
       affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 10
+              preference:
+                matchExpressions:
+                  - key: node-type
+                    operator: In
+                    values:
+                      - high-memory
+            - weight: 1
+              preference:
+                matchExpressions:
+                  - key: node-type
+                    operator: In
+                    values:
+                      - general-purpose
+      containers:
+        - name: {{ .Values.app.label }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: Always
+          ports:
+            - containerPort: {{ .Values.service.targetPort }}
+              name: {{ .Values.app.label }}
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.app.configmap }} 
+          {{- with .Values.volumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.volumes }}
+      volumes:
         {{- toYaml . | nindent 8 }}
-    {{- end }}
-    {{- with .Values.tolerations }}
-      tolerations:
-        {{- toYaml . | nindent 8 }}
-    {{- end }}
+      {{- end }}

@@ -1,0 +1,27 @@
+app:
+  name: stage-update-channel-data-job
+  namespace: staging
+  configmap: env-update-channel-data-staging
+image:
+  repository: gcr.io/airqo-250220/airqo-stage-update-channel-data-job
+  tag: latest
+
+nameOverride: ""
+fullnameOverride: ""
+resources:
+  limits:
+    cpu: 500m
+    memory: 500Mi
+  requests:
+    # Average usage was 0.02 vCPU and 100Mi over the last 30 days
+    cpu: 20m
+    memory: 200Mi
+
+volumeMounts:
+  - name: config-volume
+    mountPath: /etc/config
+
+volumes:
+  - name: config-volume
+    configMap:
+      name: env-update-channel-data-staging-files

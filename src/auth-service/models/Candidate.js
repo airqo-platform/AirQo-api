@@ -75,9 +75,6 @@ CandidateSchema.statics = {
         .skip(skip)
         .limit(limit)
         .exec();
-
-      logObject("candidates", candidates);
-
       if (!isEmpty(candidates)) {
         const data = candidates;
         return {

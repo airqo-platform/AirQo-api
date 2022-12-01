@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ include "calibrate-api.fullname" . }}-test-connection"
+  labels:
+{{ include "calibrate-api.labels" . | indent 4 }}
+  annotations:
+    "helm.sh/hook": test-success
+spec:
+  containers:
+    - name: wget
+      image: busybox
+      command: ['wget']
+      args:  ['{{ include "calibrate-api.fullname" . }}:{{ .Values.service.port }}']
+  restartPolicy: Never

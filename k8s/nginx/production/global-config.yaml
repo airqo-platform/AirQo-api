@@ -17,6 +17,10 @@ data:
     location @page_not_found { return 404 '{\"success\":false, \"message\":\"Resource not found :(\", \"error\":\"Not Found\"}'; }
     location @access_denied { return 403 '{\"success\":false, \"message\":\"Access denied :|\", \"error\":\"Insufficient Permissions\"}'; }
     location @unauthorized { return 401 '{\"success\":false, \"message\":\"Invalid authentication\", \"error\":\"Unauthorized.\"}'; }
+
+    location /airqo-rest-api-documentation { return 302 /#/api/; }
+    location /airqo-application-documentations { return 302 /#/mobile_app/privacy_policy; }
+    location /airqo-terms-and-conditions/HxYx3ysdA6k0ng6YJkU3 { return 302 /#/platform/terms_and_conditions; }
     
     location = /auth {
       if ($request_uri ~ '(/api/v1/users/emailAuth)|(/api/v2/users/emailAuth)') { return 200; }

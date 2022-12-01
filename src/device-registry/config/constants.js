@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
-const { generateDateFormatWithoutHrs } = require("../utils/date");
+const log4js = require("log4js");
+const logger = log4js.getLogger(`${this.ENVIRONMENT} -- constants-config`);
 
 const devConfig = {
   MONGO_URI: `mongodb://localhost/`,
@@ -51,7 +52,9 @@ const stageConfig = {
 };
 
 const defaultConfig = {
+  DEFAULT_NEAREST_SITE_RADIUS: process.env.DEFAULT_NEAREST_SITE_RADIUS,
   SLACK_TOKEN: process.env.SLACK_TOKEN,
+  KAFKA_CLIENT_ID: process.env.KAFKA_CLIENT_ID,
   SLACK_CHANNEL: process.env.SLACK_CHANNEL,
   SLACK_USERNAME: process.env.SLACK_USERNAME,
   DATAWAREHOUSE_RAW_DATA: process.env.DATAWAREHOUSE_RAW_DATA,
@@ -573,6 +576,25 @@ const defaultConfig = {
     }
   },
 };
+
+function generateDateFormatWithoutHrs(ISODate) {
+  try {
+    let date = new Date(ISODate);
+    let year = date.getFullYear();
+    let month = date.getMonth() + 1;
+    let day = date.getUTCDate();
+
+    if (day < 10) {
+      day = "0" + day;
+    }
+    if (month < 10) {
+      month = "0" + month;
+    }
+    return `${year}-${month}-${day}`;
+  } catch (e) {
+    logger.error(`internal server error -- ${e.message}`);
+  }
+}
 
 function envConfig(env) {
   switch (env) {

@@ -3205,6 +3205,14 @@ router.get(
         .optional()
         .notEmpty()
         .trim(),
+      query("lat_long")
+        .optional()
+        .notEmpty()
+        .trim(),
+      query("airqloud_id")
+        .optional()
+        .notEmpty()
+        .trim(),
       query("device_number")
         .optional()
         .notEmpty()

@@ -24,7 +24,7 @@ spec:
   host: staging-platform.airqo.net
   upstreams:
     - name: platform-ui
-      service: airqo-stage-platform-ui-svc
+      service: airqo-stage-platform-frontend-svc
       port: 80
     - name: auth-service
       service: airqo-stage-auth-api-svc

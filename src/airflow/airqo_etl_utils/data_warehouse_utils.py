@@ -183,6 +183,9 @@ class DataWarehouseUtils:
             del data["longitude"]
 
         sites_data = big_query_api.query_sites(tenant=tenant)
+        sites_data = (
+            sites_data if sites_data.empty else sites_data.dropna(subset=["id"])
+        )
         if not sites_data.empty:
             sites_data.rename(
                 columns={

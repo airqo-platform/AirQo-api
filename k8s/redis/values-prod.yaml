@@ -1,0 +1,9 @@
+app:
+  name: airqo-redis-server
+  namespace: production
+
+autoscaling:
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 70
+  # targetMemoryUtilizationPercentage: 70

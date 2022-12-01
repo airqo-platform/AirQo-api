@@ -5,6 +5,10 @@ on:
     branches:
       - staging
 
+env:
+  REGISTRY_URL: gcr.io
+  PROJECT_ID: airqo-250220
+
 jobs:
   branch-name:
     name: Format branch name string
@@ -151,8 +155,8 @@ jobs:
       - name: Build and Push Container
         run: |
           cd src/auth-service/
-          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} ./
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }}
+          docker build --target=staging --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} ./
+          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }}
 
       - name: Deploy to Cloud Run
         run: |-
@@ -161,7 +165,7 @@ jobs:
             --max-instances=10 \
             --timeout=60 \
             --concurrency=10 \
-            --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} \
+            --image=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} \
             --port=3000 \
             --cpu=1000m \
             --memory=256Mi \
@@ -229,8 +233,8 @@ jobs:
       - name: Build and Push Container
         run: |
           cd src/device-registry/
-          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/device-registry-pr-previews:${{ github.sha }} ./
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/device-registry-pr-previews:${{ github.sha }}
+          docker build --target=staging --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/device-registry-pr-previews:${{ github.sha }} ./
+          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/device-registry-pr-previews:${{ github.sha }}
 
       - name: Deploy to Cloud Run
         run: |-
@@ -239,7 +243,7 @@ jobs:
             --max-instances=10 \
             --timeout=60 \
             --concurrency=10 \
-            --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/device-registry-pr-previews:${{ github.sha }} \
+            --image=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/device-registry-pr-previews:${{ github.sha }} \
             --port=3000 \
             --cpu=1000m \
             --memory=256Mi \
@@ -307,8 +311,8 @@ jobs:
       - name: Build and Push Container
         run: |
           cd src/device-monitoring/
-          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/device-monitoring-pr-previews:${{ github.sha }} ./
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/device-monitoring-pr-previews:${{ github.sha }}
+          docker build --target=staging --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/device-monitoring-pr-previews:${{ github.sha }} ./
+          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/device-monitoring-pr-previews:${{ github.sha }}
 
       - name: Deploy to Cloud Run
         run: |-
@@ -317,7 +321,7 @@ jobs:
             --max-instances=10 \
             --timeout=60 \
             --concurrency=10 \
-            --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/device-monitoring-pr-previews:${{ github.sha }} \
+            --image=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/device-monitoring-pr-previews:${{ github.sha }} \
             --port=4001 \
             --cpu=1000m \
             --memory=256Mi \
@@ -385,8 +389,8 @@ jobs:
       - name: Build and Push Container
         run: |
           cd src/data-mgt/node/
-          docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/data-mgt-pr-previews:${{ github.sha }} ./
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/data-mgt-pr-previews:${{ github.sha }}
+          docker build --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/data-mgt-pr-previews:${{ github.sha }} ./
+          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/data-mgt-pr-previews:${{ github.sha }}
 
       - name: Deploy to Cloud Run
         run: |-
@@ -395,7 +399,7 @@ jobs:
             --max-instances=10 \
             --timeout=60 \
             --concurrency=10 \
-            --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/data-mgt-pr-previews:${{ github.sha }} \
+            --image=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/data-mgt-pr-previews:${{ github.sha }} \
             --port=3000 \
             --cpu=1000m \
             --memory=256Mi \
@@ -463,8 +467,8 @@ jobs:
       - name: Build and Push Container
         run: |
           cd src/analytics/
-          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/analytics-pr-previews:${{ github.sha }} ./
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/analytics-pr-previews:${{ github.sha }}
+          docker build --target=staging --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/analytics-pr-previews:${{ github.sha }} ./
+          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/analytics-pr-previews:${{ github.sha }}
 
       - name: Deploy to Cloud Run
         run: |-
@@ -473,7 +477,7 @@ jobs:
             --max-instances=10 \
             --timeout=60 \
             --concurrency=10 \
-            --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/analytics-pr-previews:${{ github.sha }} \
+            --image=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/analytics-pr-previews:${{ github.sha }} \
             --port=5000 \
             --cpu=1000m \
             --memory=256Mi \
@@ -541,8 +545,8 @@ jobs:
       - name: Build and Push Container
         run: |
           cd src/locate/
-          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/locate-pr-previews:${{ github.sha }} ./
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/locate-pr-previews:${{ github.sha }}
+          docker build --target=staging --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/locate-pr-previews:${{ github.sha }} ./
+          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/locate-pr-previews:${{ github.sha }}
 
       - name: Deploy to Cloud Run
         run: |-
@@ -551,7 +555,7 @@ jobs:
             --max-instances=10 \
             --timeout=60 \
             --concurrency=10 \
-            --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/locate-pr-previews:${{ github.sha }} \
+            --image=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/locate-pr-previews:${{ github.sha }} \
             --port=4001 \
             --cpu=1000m \
             --memory=256Mi \
@@ -619,8 +623,8 @@ jobs:
       - name: Build and Push Container
         run: |
           cd src/predict/api/
-          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/predict-service-pr-previews:${{ github.sha }} ./
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/predict-service-pr-previews:${{ github.sha }}
+          docker build --target=staging --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/predict-service-pr-previews:${{ github.sha }} ./
+          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/predict-service-pr-previews:${{ github.sha }}
 
       - name: Deploy to Cloud Run
         run: |-
@@ -629,7 +633,7 @@ jobs:
             --max-instances=10 \
             --timeout=60 \
             --concurrency=10 \
-            --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/predict-service-pr-previews:${{ github.sha }} \
+            --image=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/predict-service-pr-previews:${{ github.sha }} \
             --port=5000 \
             --cpu=1000m \
             --memory=256Mi \
@@ -697,8 +701,8 @@ jobs:
       - name: Build and Push Container
         run: |
           cd src/meta-data/
-          docker build --target=deployment --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/meta-data-pr-previews:${{ github.sha }} .
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/meta-data-pr-previews:${{ github.sha }}
+          docker build --target=deployment --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/meta-data-pr-previews:${{ github.sha }} .
+          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/meta-data-pr-previews:${{ github.sha }}
 
       - name: Deploy to Cloud Run
         run: |-
@@ -707,7 +711,7 @@ jobs:
             --max-instances=10 \
             --timeout=60 \
             --concurrency=10 \
-            --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/meta-data-pr-previews:${{ github.sha }} \
+            --image=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/meta-data-pr-previews:${{ github.sha }} \
             --port=4001 \
             --cpu=1000m \
             --memory=256Mi \
@@ -775,8 +779,8 @@ jobs:
       - name: Build and Push Container
         run: |
           cd src/view/
-          docker build --target=api --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/view-pr-previews:${{ github.sha }} ./
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/view-pr-previews:${{ github.sha }}
+          docker build --target=api --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/view-pr-previews:${{ github.sha }} ./
+          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/view-pr-previews:${{ github.sha }}
 
       - name: Deploy to Cloud Run
         run: |-
@@ -785,7 +789,7 @@ jobs:
             --max-instances=10 \
             --timeout=60 \
             --concurrency=10 \
-            --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/view-pr-previews:${{ github.sha }} \
+            --image=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/view-pr-previews:${{ github.sha }} \
             --port=8080 \
             --cpu=1000m \
             --memory=256Mi \
@@ -853,8 +857,8 @@ jobs:
       - name: Build and Push Container
         run: |
           cd src/calibrate/
-          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/calibrate-pr-previews:${{ github.sha }} ./
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/calibrate-pr-previews:${{ github.sha }}
+          docker build --target=staging --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/calibrate-pr-previews:${{ github.sha }} ./
+          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/calibrate-pr-previews:${{ github.sha }}
 
       - name: Deploy to Cloud Run
         run: |-
@@ -863,7 +867,7 @@ jobs:
             --max-instances=10 \
             --timeout=60 \
             --concurrency=10 \
-            --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/calibrate-pr-previews:${{ github.sha }} \
+            --image=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/calibrate-pr-previews:${{ github.sha }} \
             --port=4001 \
             --cpu=2000m \
             --memory=1024Mi \
@@ -931,8 +935,8 @@ jobs:
       - name: Build and Push Container
         run: |
           cd src/notifications/
-          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/notifications-pr-previews:${{ github.sha }} ./
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/notifications-pr-previews:${{ github.sha }}
+          docker build --target=staging --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/notifications-pr-previews:${{ github.sha }} ./
+          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/notifications-pr-previews:${{ github.sha }}
 
       - name: Deploy to Cloud Run
         run: |-
@@ -941,7 +945,7 @@ jobs:
             --max-instances=10 \
             --timeout=60 \
             --concurrency=10 \
-            --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/notifications-pr-previews:${{ github.sha }} \
+            --image=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/notifications-pr-previews:${{ github.sha }} \
             --port=8080 \
             --cpu=1000m \
             --memory=256Mi \
@@ -1009,8 +1013,8 @@ jobs:
       - name: Build and Push Container
         run: |
           cd src/network-uptime/
-          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/network-uptime-pr-previews:${{ github.sha }} .
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/network-uptimee-pr-previews:${{ github.sha }}
+          docker build --target=staging --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/network-uptime-pr-previews:${{ github.sha }} .
+          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/network-uptimee-pr-previews:${{ github.sha }}
 
       - name: Deploy to Cloud Run
         run: |-
@@ -1019,7 +1023,7 @@ jobs:
             --max-instances=10 \
             --timeout=60 \
             --concurrency=10 \
-            --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/network-uptime-pr-previews:${{ github.sha }} \
+            --image=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/network-uptime-pr-previews:${{ github.sha }} \
             --port=8501 \
             --cpu=1000m \
             --memory=256Mi \
