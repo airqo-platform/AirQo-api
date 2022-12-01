@@ -19,7 +19,7 @@ podAnnotations: {}
 
 resources:
   limits:
-    cpu: 500m
+    cpu: 1000m
     memory: 500Mi
   requests:
     # Average usage was 0.1 vCPU and 250Mi over the last 7 days
