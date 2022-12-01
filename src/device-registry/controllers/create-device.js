@@ -35,9 +35,8 @@ const device = {
       }
 
       let arrayOfEncryptedKeys = req.body;
-      let responseFromDecryptManyKeys = createDeviceUtil.decryptManyKeys(
-        arrayOfEncryptedKeys
-      );
+      let responseFromDecryptManyKeys =
+        createDeviceUtil.decryptManyKeys(arrayOfEncryptedKeys);
 
       if (responseFromDecryptManyKeys.success === true) {
         let status = responseFromDecryptManyKeys.status
@@ -377,83 +376,6 @@ const device = {
     }
   },
 
-  updateAccessCode: async (req, res) => {
-    try {
-      logger.info(`the device update access code operation starts....`);
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        try {
-          logger.error(
-            `input validation errors ${JSON.stringify(
-              errors.convertErrorArrayToObject(nestedErrors)
-            )}`
-          );
-        } catch (e) {
-          logger.error(`internal server error -- ${e.message}`);
-        }
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
-        );
-      }
-      const { tenant, device_number, id, name, device } = req.query;
-      const { body } = req;
-      let requestBody = {};
-      requestBody["query"] = {};
-      requestBody["query"]["tenant"] = tenant;
-      requestBody["query"]["device_number"] = device_number;
-      requestBody["query"]["id"] = id;
-      requestBody["query"]["name"] = name;
-      requestBody["query"]["device"] = device;
-      requestBody["body"] = {};
-      requestBody["body"]["access_code"] = "random";
-
-      let responseFromUpdateDeviceOnPlatform = await createDeviceUtil.updateOnPlatform(
-        requestBody
-      );
-
-      logger.info(
-        `responseFromUpdateDeviceOnPlatform ${JSON.stringify(
-          responseFromUpdateDeviceOnPlatform
-        )}`
-      );
-
-      if (responseFromUpdateDeviceOnPlatform.success === true) {
-        let status = responseFromUpdateDeviceOnPlatform.status
-          ? responseFromUpdateDeviceOnPlatform.status
-          : HTTPStatus.OK;
-        return res.status(status).json({
-          message: "access code successfully updated",
-          success: true,
-          updated_device: responseFromUpdateDeviceOnPlatform.data,
-        });
-      }
-
-      if (responseFromUpdateDeviceOnPlatform.success === false) {
-        let errors = responseFromUpdateDeviceOnPlatform.errors
-          ? responseFromUpdateDeviceOnPlatform.errors
-          : "";
-        let status = responseFromUpdateDeviceOnPlatform.status
-          ? responseFromUpdateDeviceOnPlatform.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          message: responseFromUpdateDeviceOnPlatform.message,
-          success: false,
-          errors,
-        });
-      }
-    } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: error.message,
-      });
-    }
-  },
-
   update: async (req, res) => {
     try {
       logger.info(`the device update operation starts....`);
@@ -661,15 +583,8 @@ const device = {
 
   listAllByNearestCoordinates: async (req, res) => {
     try {
-      const {
-        tenant,
-        latitude,
-        longitude,
-        radius,
-        name,
-        chid,
-        device_number,
-      } = req.query;
+      const { tenant, latitude, longitude, radius, name, chid, device_number } =
+        req.query;
       logText("list all devices by coordinates...");
       try {
         if (!(tenant && latitude && longitude && radius)) {
@@ -755,9 +670,8 @@ const device = {
       requestObject["body"] = body;
 
       logObject("we see", requestObject);
-      let responseFromUpdateDeviceOnPlatform = await createDeviceUtil.updateOnPlatform(
-        requestObject
-      );
+      let responseFromUpdateDeviceOnPlatform =
+        await createDeviceUtil.updateOnPlatform(requestObject);
 
       logger.info(
         `responseFromUpdateDeviceOnPlatform ${JSON.stringify(
@@ -901,9 +815,8 @@ const device = {
       requestBody["query"]["tenant"] = tenant;
       requestBody["body"] = body;
 
-      let responseFromCreateOnPlatform = await createDeviceUtil.createOnPlatform(
-        requestBody
-      );
+      let responseFromCreateOnPlatform =
+        await createDeviceUtil.createOnPlatform(requestBody);
       logger.info(
         `responseFromCreateOnPlatform -- ${JSON.stringify(
           responseFromCreateOnPlatform
