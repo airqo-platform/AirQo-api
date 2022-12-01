@@ -20,6 +20,7 @@ const siteSchema = new Schema(
     network: {
       type: String,
       trim: true,
+      required: [true, "network is required!"],
     },
     location_name: {
       type: String,

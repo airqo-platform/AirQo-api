@@ -46,6 +46,7 @@ const deviceSchema = new mongoose.Schema(
     network: {
       type: String,
       trim: true,
+      required: [true, "network is required!"],
     },
     access_code: {
       type: String,
@@ -187,7 +188,7 @@ deviceSchema.plugin(uniqueValidator, {
   message: `{VALUE} must be unique!`,
 });
 
-deviceSchema.pre("save", function(next) {
+deviceSchema.pre("save", function (next) {
   if (this.isModified("name")) {
     if (this.writeKey && this.readKey) {
       this.writeKey = this._encryptKey(this.writeKey);
@@ -198,14 +199,14 @@ deviceSchema.pre("save", function(next) {
   return next();
 });
 
-deviceSchema.pre("update", function(next) {
+deviceSchema.pre("update", function (next) {
   if (this.isModified("name")) {
     let n = this.name;
   }
   return next();
 });
 
-deviceSchema.pre("findByIdAndUpdate", function(next) {
+deviceSchema.pre("findByIdAndUpdate", function (next) {
   this.options.runValidators = true;
   if (this.isModified("name")) {
     let n = this.name;

@@ -10,7 +10,11 @@ const activitySchema = new Schema(
     site_id: { type: ObjectId },
     date: { type: Date },
     description: { type: String, trim: true },
-    network: { type: String, trim: true },
+    network: {
+      type: String,
+      trim: true,
+      required: [true, "network is required!"],
+    },
     activityType: { type: String, trim: true },
     tags: [{ type: String }],
     nextMaintenance: { type: Date },

@@ -1,3 +1,6 @@
+/*
+This Schema is not in use at the moment
+*/
 const { Schema, model } = require("mongoose");
 const uniqueValidator = require("mongoose-unique-validator");
 
@@ -19,7 +22,7 @@ const settingSchema = new Schema(
   }
 );
 
-settingSchema.pre("save", function() {
+settingSchema.pre("save", function () {
   const err = new Error("something went wrong");
   next(err);
 });
@@ -46,10 +49,7 @@ settingSchema.statics = {
     });
   },
   list({ skip = 0, limit = 5, filter = {} } = {}) {
-    return this.find(filter)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit);
+    return this.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit);
   },
 };
 

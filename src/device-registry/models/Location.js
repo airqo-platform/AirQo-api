@@ -74,7 +74,11 @@ const locationSchema = new Schema(
       default: false,
     },
     metadata: { type: metadataSchema },
-    network: { type: String },
+    network: {
+      type: String,
+      trim: true,
+      required: [true, "network is required!"],
+    },
     location_tags: {
       type: Array,
       default: [],
@@ -85,14 +89,14 @@ const locationSchema = new Schema(
   }
 );
 
-locationSchema.pre("save", function(next) {
+locationSchema.pre("save", function (next) {
   if (this.isModified("_id")) {
     delete this._id;
   }
   return next();
 });
 
-locationSchema.pre("update", function(next) {
+locationSchema.pre("update", function (next) {
   if (this.isModified("_id")) {
     delete this._id;
   }

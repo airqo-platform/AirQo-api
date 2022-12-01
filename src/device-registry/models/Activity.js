@@ -1,3 +1,6 @@
+/*
+This Schema is not in use at the moment
+*/
 const { Schema, model } = require("mongoose");
 function threeMonthsFromNow() {
   let d = new Date();
@@ -60,7 +63,7 @@ activitySchema.index(
 
 activitySchema.index({ day: 1 }, { unique: true });
 
-activitySchema.pre("save", function() {
+activitySchema.pre("save", function () {
   const err = new Error("something went wrong");
   next(err);
 });
