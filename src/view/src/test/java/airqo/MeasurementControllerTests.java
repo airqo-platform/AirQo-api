@@ -28,10 +28,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import static airqo.config.Constants.dateTimeFormat;
@@ -162,17 +159,33 @@ public class MeasurementControllerTests {
 
 		String siteId = Arrays.stream(siteIds.split(",")).toList().get(0);
 
+		HashMap<String, Date> params = Utils.getInsightsQueryDates();
+
 		// Testing start date parameter
+		when(insightsService.getInsights(params.get("startDateTime"), params.get("endDateTime"), siteId, 0)).thenReturn(insightData);
+
 		this.mockMvc.perform(get(v2UrlTemplate)
 				.param("endDateTime", endDateTime)
 				.param("siteId", siteId))
-			.andExpect(status().isBadRequest());
+			.andExpect(content().contentType(MediaType.APPLICATION_JSON));
 
 		// Testing end date parameter
+		when(insightsService.getInsights(params.get("startDateTime"), params.get("endDateTime"), siteId, 0)).thenReturn(insightData);
+
 		this.mockMvc.perform(get(v2UrlTemplate)
 				.param("startDateTime", startDateTime)
 				.param("siteId", siteId))
-			.andExpect(status().isBadRequest());
+			.andExpect(content().contentType(MediaType.APPLICATION_JSON));
+
+		// Testing utc offset, start date and end date parameters
+		when(insightsService.getInsights(simpleDateFormat.parse(startDateTime), simpleDateFormat.parse(endDateTime), siteId, 1)).thenReturn(insightData);
+
+		this.mockMvc.perform(get(v2UrlTemplate)
+				.param("startDateTime", startDateTime)
+				.param("endDateTime", endDateTime)
+				.param("utcOffset", "1")
+				.param("siteId", siteId))
+			.andExpect(content().contentType(MediaType.APPLICATION_JSON));
 
 		// Testing site id parameter
 		this.mockMvc.perform(get(v2UrlTemplate)
