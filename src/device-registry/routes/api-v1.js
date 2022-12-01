@@ -15,7 +15,8 @@ const createSiteUtil = require("../utils/create-site");
 const createAirQloudUtil = require("../utils/create-location");
 const { logElement, logText, logObject } = require("../utils/log");
 const { isBoolean, isEmpty } = require("underscore");
-const phoneUtil = require("google-libphonenumber").PhoneNumberUtil.getInstance();
+const phoneUtil =
+  require("google-libphonenumber").PhoneNumberUtil.getInstance();
 const decimalPlaces = require("decimal-places");
 const activityController = require("../controllers/create-activity");
 
@@ -50,11 +51,7 @@ router.post(
 
 router.post(
   "/decrypt/bulk",
-  oneOf([
-    body()
-      .isArray()
-      .withMessage("the request body should be an array"),
-  ]),
+  oneOf([body().isArray().withMessage("the request body should be an array")]),
   oneOf([
     [
       body("*.encrypted_key")
@@ -136,10 +133,7 @@ router.put(
         .trim()
         .isBoolean()
         .withMessage("visibility must be Boolean"),
-      body("long_name")
-        .optional()
-        .notEmpty()
-        .trim(),
+      body("long_name").optional().notEmpty().trim(),
       body("mountType")
         .optional()
         .notEmpty()
@@ -296,18 +290,9 @@ router.put(
         })
         .isDecimal({ decimal_digits: 5 })
         .withMessage("the longitude must have atleast 5 decimal places in it"),
-      body("description")
-        .optional()
-        .notEmpty()
-        .trim(),
-      body("product_name")
-        .optional()
-        .notEmpty()
-        .trim(),
-      body("device_manufacturer")
-        .optional()
-        .notEmpty()
-        .trim(),
+      body("description").optional().notEmpty().trim(),
+      body("product_name").optional().notEmpty().trim(),
+      body("device_manufacturer").optional().notEmpty().trim(),
     ],
   ]),
   deviceController.encryptKeys
@@ -387,10 +372,7 @@ router.get(
         .withMessage(
           "the category value is not among the expected ones which include: lowcost and bam"
         ),
-      query("name")
-        .optional()
-        .notEmpty()
-        .trim(),
+      query("name").optional().notEmpty().trim(),
     ],
   ]),
   deviceController.list
@@ -506,18 +488,9 @@ router.post(
         })
         .isDecimal({ decimal_digits: 5 })
         .withMessage("the longitude must have atleast 5 decimal places in it"),
-      body("description")
-        .optional()
-        .notEmpty()
-        .trim(),
-      body("product_name")
-        .optional()
-        .notEmpty()
-        .trim(),
-      body("device_manufacturer")
-        .optional()
-        .notEmpty()
-        .trim(),
+      body("description").optional().notEmpty().trim(),
+      body("product_name").optional().notEmpty().trim(),
+      body("device_manufacturer").optional().notEmpty().trim(),
       body("isActive")
         .optional()
         .notEmpty()
@@ -602,14 +575,8 @@ router.post(
         .withMessage("elevation must be a float")
         .bail()
         .toFloat(),
-      body("writeKey")
-        .optional()
-        .notEmpty()
-        .trim(),
-      body("readKey")
-        .optional()
-        .notEmpty()
-        .trim(),
+      body("writeKey").optional().notEmpty().trim(),
+      body("readKey").optional().notEmpty().trim(),
     ],
   ]),
   deviceController.create
@@ -777,10 +744,7 @@ router.put(
         .trim()
         .isBoolean()
         .withMessage("visibility must be Boolean"),
-      body("long_name")
-        .optional()
-        .notEmpty()
-        .trim(),
+      body("long_name").optional().notEmpty().trim(),
       body("mountType")
         .optional()
         .notEmpty()
@@ -912,14 +876,8 @@ router.put(
         .withMessage("elevation must be a float")
         .bail()
         .toFloat(),
-      body("writeKey")
-        .optional()
-        .notEmpty()
-        .trim(),
-      body("readKey")
-        .optional()
-        .notEmpty()
-        .trim(),
+      body("writeKey").optional().notEmpty().trim(),
+      body("readKey").optional().notEmpty().trim(),
       body("latitude")
         .optional()
         .notEmpty()
@@ -964,17 +922,9 @@ router.put(
         })
         .isDecimal({ decimal_digits: 5 })
         .withMessage("the longitude must have atleast 5 decimal places in it"),
-      body("description")
-        .optional()
-        .trim(),
-      body("product_name")
-        .optional()
-        .notEmpty()
-        .trim(),
-      body("device_manufacturer")
-        .optional()
-        .notEmpty()
-        .trim(),
+      body("description").optional().trim(),
+      body("product_name").optional().notEmpty().trim(),
+      body("device_manufacturer").optional().notEmpty().trim(),
     ],
   ]),
   deviceController.update
@@ -1171,10 +1121,7 @@ router.put(
         .trim()
         .isBoolean()
         .withMessage("visibility must be Boolean"),
-      body("long_name")
-        .optional()
-        .notEmpty()
-        .trim(),
+      body("long_name").optional().notEmpty().trim(),
       body("mountType")
         .optional()
         .notEmpty()
@@ -1287,14 +1234,8 @@ router.put(
         .withMessage("elevation must be a float")
         .bail()
         .toFloat(),
-      body("writeKey")
-        .optional()
-        .notEmpty()
-        .trim(),
-      body("readKey")
-        .optional()
-        .notEmpty()
-        .trim(),
+      body("writeKey").optional().notEmpty().trim(),
+      body("readKey").optional().notEmpty().trim(),
       body("latitude")
         .optional()
         .notEmpty()
@@ -1339,18 +1280,9 @@ router.put(
         })
         .isDecimal({ decimal_digits: 5 })
         .withMessage("the longitude must have atleast 5 decimal places in it"),
-      body("description")
-        .optional()
-        .notEmpty()
-        .trim(),
-      body("product_name")
-        .optional()
-        .notEmpty()
-        .trim(),
-      body("device_manufacturer")
-        .optional()
-        .notEmpty()
-        .trim(),
+      body("description").optional().notEmpty().trim(),
+      body("product_name").optional().notEmpty().trim(),
+      body("device_manufacturer").optional().notEmpty().trim(),
     ],
   ]),
   deviceController.updateOnPlatform
@@ -1874,12 +1806,8 @@ router.put(
         .bail()
         .isURL()
         .withMessage("the image_url is not a valid URL"),
-      body("description")
-        .optional()
-        .trim(),
-      body("image_code")
-        .optional()
-        .trim(),
+      body("description").optional().trim(),
+      body("image_code").optional().trim(),
       body("tags")
         .optional()
         .notEmpty()
@@ -1947,15 +1875,9 @@ router.put(
         .withMessage("the height should be a number")
         .bail()
         .trim(),
-      body("metadata.format")
-        .optional()
-        .trim(),
-      body("metadata.resource_type")
-        .optional()
-        .trim(),
-      body("metadata.created_at")
-        .optional()
-        .trim(),
+      body("metadata.format").optional().trim(),
+      body("metadata.resource_type").optional().trim(),
+      body("metadata.created_at").optional().trim(),
       body("metadata.bytes")
         .optional()
         .notEmpty()
@@ -1964,9 +1886,7 @@ router.put(
         .withMessage("the bytes should be a number")
         .bail()
         .trim(),
-      body("metadata.type")
-        .optional()
-        .trim(),
+      body("metadata.type").optional().trim(),
       body("metadata.secure_url")
         .optional()
         .notEmpty()
@@ -2527,6 +2447,19 @@ router.put(
         })
         .bail()
         .withMessage("the nearest_tahmo_station should be an object"),
+      body("land_use")
+        .optional()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the land_use should be an array")
+        .bail()
+        .notEmpty()
+        .withMessage("the land_use  should not be empty"),
+      body("land_use .*")
+        .optional()
+        .notEmpty()
+        .withMessage("land_use cannot be empty when provided"),
       body("createdAt")
         .optional()
         .notEmpty()
@@ -2682,14 +2615,8 @@ router.put(
         .withMessage("aspect must be a number")
         .bail()
         .toFloat(),
-      body("city")
-        .optional()
-        .notEmpty()
-        .trim(),
-      body("street")
-        .optional()
-        .notEmpty()
-        .trim(),
+      body("city").optional().notEmpty().trim(),
+      body("street").optional().notEmpty().trim(),
       body("latitude")
         .optional()
         .notEmpty()
@@ -2734,10 +2661,7 @@ router.put(
         })
         .isDecimal({ decimal_digits: 5 })
         .withMessage("the longitude must have atleast 5 decimal places in it"),
-      body("description")
-        .optional()
-        .notEmpty()
-        .trim(),
+      body("description").optional().notEmpty().trim(),
       body("airqlouds")
         .optional()
         .custom((value) => {
@@ -2971,11 +2895,7 @@ router.post(
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
-  oneOf([
-    body()
-      .isArray()
-      .withMessage("the request body should be an array"),
-  ]),
+  oneOf([body().isArray().withMessage("the request body should be an array")]),
   oneOf([
     [
       body("*.device_id")
@@ -3031,14 +2951,8 @@ router.post(
         .trim()
         .isBoolean()
         .withMessage("is_test_data should be boolean"),
-      body("*.device")
-        .optional()
-        .notEmpty()
-        .trim(),
-      body("*.site")
-        .optional()
-        .notEmpty()
-        .trim(),
+      body("*.device").optional().notEmpty().trim(),
+      body("*.site").optional().notEmpty().trim(),
       body("*.device_number")
         .optional()
         .notEmpty()
@@ -3053,11 +2967,7 @@ router.post(
 
 router.post(
   "/events/transform",
-  oneOf([
-    body()
-      .isArray()
-      .withMessage("the request body should be an array"),
-  ]),
+  oneOf([body().isArray().withMessage("the request body should be an array")]),
   oneOf([
     [
       body("*.device_id")
@@ -3112,14 +3022,8 @@ router.post(
         .trim()
         .isBoolean()
         .withMessage("is_test_data should be boolean"),
-      body("*.device")
-        .optional()
-        .notEmpty()
-        .trim(),
-      body("*.site")
-        .optional()
-        .notEmpty()
-        .trim(),
+      body("*.device").optional().notEmpty().trim(),
+      body("*.site").optional().notEmpty().trim(),
       body("*.device_number")
         .optional()
         .notEmpty()
@@ -3197,34 +3101,13 @@ router.get(
         .withMessage(
           "the recent value is not among the expected ones which include: no and yes"
         ),
-      query("device")
-        .optional()
-        .notEmpty()
-        .trim(),
-      query("device_id")
-        .optional()
-        .notEmpty()
-        .trim(),
-      query("lat_long")
-        .optional()
-        .notEmpty()
-        .trim(),
-      query("airqloud_id")
-        .optional()
-        .notEmpty()
-        .trim(),
-      query("device_number")
-        .optional()
-        .notEmpty()
-        .trim(),
-      query("site")
-        .optional()
-        .notEmpty()
-        .trim(),
-      query("site_id")
-        .optional()
-        .notEmpty()
-        .trim(),
+      query("device").optional().notEmpty().trim(),
+      query("device_id").optional().notEmpty().trim(),
+      query("lat_long").optional().notEmpty().trim(),
+      query("airqloud_id").optional().notEmpty().trim(),
+      query("device_number").optional().notEmpty().trim(),
+      query("site").optional().notEmpty().trim(),
+      query("site_id").optional().notEmpty().trim(),
       query("primary")
         .optional()
         .notEmpty()
@@ -3508,11 +3391,7 @@ router.post(
         "the device_number identifier is missing in request, consider using device_number"
       ),
   ]),
-  oneOf([
-    body()
-      .isArray()
-      .withMessage("the request body should be an array"),
-  ]),
+  oneOf([body().isArray().withMessage("the request body should be an array")]),
   oneOf([
     [
       body("*.time")
@@ -3817,10 +3696,7 @@ router.post(
           return !isEmpty(value);
         })
         .withMessage("the metadata should not be empty if provided"),
-      body("description")
-        .optional()
-        .notEmpty()
-        .trim(),
+      body("description").optional().notEmpty().trim(),
       body("location")
         .exists()
         .withMessage("the location is is missing in your request")
@@ -4067,9 +3943,7 @@ router.put(
         .withMessage(
           "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district"
         ),
-      body("description")
-        .optional()
-        .trim(),
+      body("description").optional().trim(),
       body("metadata")
         .optional()
         .custom((value) => {
@@ -4250,10 +4124,7 @@ router.post(
         .isBoolean()
         .withMessage("isCustom must be Boolean")
         .trim(),
-      body("description")
-        .optional()
-        .notEmpty()
-        .trim(),
+      body("description").optional().notEmpty().trim(),
       body("admin_level")
         .exists()
         .withMessage("admin_level is missing in your request")
@@ -4579,9 +4450,7 @@ router.put(
         .withMessage(
           "admin_level values include:province, state, village, county, subcounty, village, parish, country, division and district"
         ),
-      body("description")
-        .optional()
-        .trim(),
+      body("description").optional().trim(),
       body("sites")
         .optional()
         .custom((value) => {
