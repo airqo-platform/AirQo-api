@@ -38,7 +38,7 @@ spec:
                       - compute
       containers:
         - name: {{ .Values.app.label }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          image: "{{ .Values.images.repositories.api }}:{{ .Values.images.tag }}"
           imagePullPolicy: Always
           ports:
             - containerPort: {{ .Values.service.targetPort }}
@@ -62,8 +62,8 @@ spec:
           {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-        - name: {{ .Values.app.sitesConsumer }}
-          image: "{{ .Values.image.sites-consumer }}:{{ .Values.image.tag }}"
+        - name: sites-consumer
+          image: "{{ .Values.images.repositories.sites-consumer }}:{{ .Values.images.tag }}"
           imagePullPolicy: Always
           envFrom:
             - configMapRef:
