@@ -57,7 +57,28 @@ const mailer = {
       let bcc = "";
 
       if (tenant.toLowerCase() === "airqo") {
-        bcc = constants.REQUEST_ACCESS_EMAILS;
+        switch (category) {
+          case "partners":
+            bcc = constants.PARTNERS_EMAILS;
+            break;
+          case "policy":
+            bcc = constants.POLICY_EMAILS;
+            break;
+          case "champions":
+            bcc = constants.CHAMPIONS_EMAILS;
+            break;
+          case "researchers":
+            bcc = constants.RESEARCHERS_EMAILS;
+            break;
+          case "developers":
+            bcc = constants.DEVELOPERS_EMAILS;
+            break;
+          case "general":
+            bcc = constants.REQUEST_ACCESS_EMAILS;
+            break;
+          default:
+            bcc = constants.REQUEST_ACCESS_EMAILS;
+        }
       }
 
       const categoryNameWithFirstLetterCapital =
