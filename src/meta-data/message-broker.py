@@ -29,20 +29,20 @@ class MessageBroker:
             try:
                 site = msg.value
                 print(f"\nReceived site : {site}")
+                data_is_valid = True
 
-                site_latitude = site.get("latitude", None)
-                site_longitude = site.get("longitude", None)
-                site_network = site.get("network", None)
-                site_id = site.get("_id", None)
+                for field in ["latitude", "longitude", "network", "_id"]:
+                    if not site.get(field, None):
+                        print(f"Error : {field} is missing in site details")
+                        data_is_valid = False
 
-                if (
-                    not site_longitude
-                    or not site_latitude
-                    or not site_network
-                    or not site_id
-                ):
-                    print("missing required site details")
+                if not data_is_valid:
                     continue
+
+                site_latitude = site.get("latitude")
+                site_longitude = site.get("longitude")
+                site_network = site.get("network")
+                site_id = site.get("_id")
 
                 site_latitude = float(site_latitude)
                 site_longitude = float(site_longitude)
