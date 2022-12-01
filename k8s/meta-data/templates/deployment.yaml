@@ -63,7 +63,7 @@ spec:
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
         - name: sites-consumer
-          image: "{{ .Values.images.repositories.sites-consumer }}:{{ .Values.images.tag }}"
+          image: "{{ .Values.images.repositories.sitesConsumer }}:{{ .Values.images.tag }}"
           imagePullPolicy: Always
           envFrom:
             - configMapRef:
