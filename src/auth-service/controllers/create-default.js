@@ -8,6 +8,7 @@ const {
   convertErrorArrayToObject,
   tryCatchErrors,
 } = require("../utils/errors");
+const constants = require("../config/constants");
 
 const defaults = {
   update: async (req, res) => {
@@ -22,7 +23,10 @@ const defaults = {
         );
       }
 
-      const { tenant } = req.query;
+      let { tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT;
+      }
 
       const responseFromFilter = generateFilter.defaults(req);
       logObject("responseFromFilter", responseFromFilter);
@@ -135,7 +139,10 @@ const defaults = {
           convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { tenant } = req.query;
+      let { tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT;
+      }
       const limit = parseInt(req.query.limit, 0);
       const skip = parseInt(req.query.skip, 0);
 

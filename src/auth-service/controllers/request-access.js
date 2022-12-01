@@ -23,6 +23,9 @@ const requestAccess = {
         );
       }
       const { tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT;
+      }
       const {
         firstName,
         lastName,
@@ -91,7 +94,7 @@ const requestAccess = {
       }
       const { tenant } = req.query;
       if (isEmpty(tenant)) {
-        missingQueryParams(req, res);
+        tenant = constants.DEFAULT_TENANT;
       }
       const limit = parseInt(req.query.limit, 0);
       const skip = parseInt(req.query.skip, 0);
@@ -181,8 +184,8 @@ const requestAccess = {
       }
 
       const { tenant } = req.query;
-      if (!tenant) {
-        missingQueryParams(req, res);
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT;
       }
       let responseFromFilter = generateFilter.candidates(req);
       logObject("responseFromFilter", responseFromFilter);
@@ -269,8 +272,8 @@ const requestAccess = {
         );
       }
       const { tenant } = req.query;
-      if (!tenant) {
-        missingQueryParams(req, res);
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT;
       }
       const responseFromFilter = generateFilter.candidates(req);
 
@@ -336,8 +339,8 @@ const requestAccess = {
         );
       }
       const { tenant } = req.query;
-      if (!tenant) {
-        missingQueryParams(req, res);
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT;
       }
       const responseFromFilter = generateFilter.candidates(req);
       logObject("responseFromFilter", responseFromFilter);

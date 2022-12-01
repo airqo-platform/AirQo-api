@@ -23,6 +23,9 @@ const createUser = {
       logText(".....................................");
       logText("list all users by query params provided");
       const { tenant, id } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT;
+      }
       const limit = parseInt(req.query.limit, 0);
       const skip = parseInt(req.query.skip, 0);
 
@@ -218,9 +221,10 @@ const createUser = {
       }
       let { email } = req.body;
       let { tenant } = req.query;
-      if (!tenant && !email) {
-        missingQueryParams(req, res);
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT;
       }
+
       logElement("the email", email);
       const { error, isValid } = validations.forgot(email);
       if (!isValid) {
@@ -291,7 +295,10 @@ const createUser = {
         );
       }
       const { errors, isValid } = validations.register(req.body);
-      const { tenant } = req.query;
+      let { tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT;
+      }
       const {
         firstName,
         lastName,
@@ -362,9 +369,9 @@ const createUser = {
           convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { tenant, id } = req.query;
-      if (!tenant) {
-        missingQueryParams(req, res);
+      let { tenant, id } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT;
       }
       let responseFromFilter = generateFilter.users(req);
       logElement("responseFromFilter", responseFromFilter);
@@ -460,7 +467,7 @@ const createUser = {
       logText("inside delete user............");
       let { tenant, id } = req.query;
       if (isEmpty(tenant)) {
-        tenant = "airqo";
+        tenant = constants.DEFAULT_TENANT;
       }
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
@@ -674,11 +681,12 @@ const createUser = {
           convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { tenant } = req.query;
-      const { password, resetPasswordToken } = req.body;
-      if (!tenant && !resetPasswordToken && !password) {
-        return missingQueryParams(req, res);
+      let { tenant } = req.query;
+
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT;
       }
+      const { password, resetPasswordToken } = req.body;
       let responseFromFilter = generateFilter.users(req);
       // logObject("responseFromFilter", responseFromFilter);
       if (responseFromFilter.success === true) {
@@ -750,11 +758,11 @@ const createUser = {
       if (!isValid) {
         return res.status(400).json(errors);
       }
-      const { tenant, id } = req.query;
-      const { password, old_password } = req.body;
-      if (!tenant && !password && !old_password && id) {
-        return missingQueryParams(req, res);
+      let { tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT;
       }
+      const { password, old_password } = req.body;
 
       let responseFromFilter = generateFilter.users(req);
       logObject("responseFromFilter", responseFromFilter);

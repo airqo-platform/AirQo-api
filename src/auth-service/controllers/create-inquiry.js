@@ -6,6 +6,7 @@ const { validationResult } = require("express-validator");
 const { badRequest, convertErrorArrayToObject } = require("../utils/errors");
 const { logText, logElement, logObject, logError } = require("../utils/log");
 const isEmpty = require("is-empty");
+const constants = require("../config/constants");
 
 const inquire = {
   create: async (req, res) => {
@@ -20,7 +21,10 @@ const inquire = {
           convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { tenant } = req.query;
+      let { tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT;
+      }
       const { fullName, email, message, category } = req.body;
 
       const { errors, isValid } = validations.inquire(req.body);
@@ -77,9 +81,9 @@ const inquire = {
           convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { tenant } = req.query;
+      let { tenant } = req.query;
       if (isEmpty(tenant)) {
-        missingQueryParams(req, res);
+        tenant = constants.DEFAULT_TENANT;
       }
       const limit = parseInt(req.query.limit, 0);
       const skip = parseInt(req.query.skip, 0);
@@ -148,9 +152,9 @@ const inquire = {
           convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { tenant } = req.query;
-      if (!tenant) {
-        missingQueryParams(req, res);
+      let { tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT;
       }
       const responseFromFilter = generateFilter.inquiry(req);
 
@@ -215,9 +219,9 @@ const inquire = {
           convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { tenant } = req.query;
-      if (!tenant) {
-        missingQueryParams(req, res);
+      let { tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT;
       }
       const responseFromFilter = generateFilter.inquiry(req);
       logObject("responseFromFilter", responseFromFilter);

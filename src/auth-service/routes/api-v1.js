@@ -36,14 +36,17 @@ router.use(headers);
 router.get(
   "/roles/:role_id",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   setJWTAuth,
   authJWT,
@@ -53,14 +56,17 @@ router.get(
 router.post(
   "/roles",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   setJWTAuth,
   authJWT,
@@ -70,14 +76,17 @@ router.post(
 router.put(
   "/roles/:role_id",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   setJWTAuth,
   authJWT,
@@ -87,14 +96,17 @@ router.put(
 router.delete(
   "/roles/:role_id",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   setJWTAuth,
   authJWT,
@@ -104,14 +116,17 @@ router.delete(
 router.get(
   "/roles/:role_id/users",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   setJWTAuth,
   authJWT,
@@ -121,14 +136,17 @@ router.get(
 router.get(
   "/roles/:role_id/available_users",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   setJWTAuth,
   authJWT,
@@ -138,14 +156,17 @@ router.get(
 router.post(
   "/roles/:role_id/users",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   setJWTAuth,
   authJWT,
@@ -155,14 +176,17 @@ router.post(
 router.delete(
   "/roles/:role_id/users/user_id",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   setJWTAuth,
   authJWT,
@@ -172,14 +196,17 @@ router.delete(
 router.get(
   "/roles/:role_id/permissions",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   setJWTAuth,
   authJWT,
@@ -189,14 +216,17 @@ router.get(
 router.get(
   "/roles/:role_id/available_permissions",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   setJWTAuth,
   authJWT,
@@ -206,14 +236,17 @@ router.get(
 router.post(
   "/roles/:role_id/permissions",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   setJWTAuth,
   authJWT,
@@ -223,14 +256,17 @@ router.post(
 router.delete(
   "/roles/:role_id/permissions/perm_id",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   setJWTAuth,
   authJWT,
@@ -242,14 +278,17 @@ router.delete(
 router.get(
   "/permissions/:permission_id",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   setJWTAuth,
   authJWT,
@@ -259,14 +298,17 @@ router.get(
 router.post(
   "/permissions",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   setJWTAuth,
   authJWT,
@@ -276,14 +318,17 @@ router.post(
 router.put(
   "/permissions/:permission_id",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   setJWTAuth,
   authJWT,
@@ -293,14 +338,17 @@ router.put(
 router.delete(
   "/permissions/:permission_id",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   setJWTAuth,
   authJWT,
@@ -311,15 +359,17 @@ router.delete(
 router.post(
   "/loginUser",
   oneOf([
-    query("tenant")
-      .if(query("tenant").exists())
-      .notEmpty()
-      .withMessage("tenant cannot be empty if provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     [
@@ -426,11 +476,12 @@ router.get(
   "/",
   oneOf([
     query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
       .trim()
       .toLowerCase()
+      .bail()
       .isIn(["kcca", "airqo"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
@@ -442,14 +493,17 @@ router.get(
 router.get(
   "/:user_id",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     [
@@ -473,14 +527,17 @@ router.get(
 router.post(
   "/registerUser",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     [
@@ -523,14 +580,17 @@ router.post(
 router.get(
   "/email/confirm/",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   setJWTAuth,
   authJWT,
@@ -538,20 +598,64 @@ router.get(
 );
 router.put(
   "/updatePasswordViaEmail",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+      body("resetPasswordToken")
+        .exists()
+        .withMessage("the resetPasswordToken must be provided")
+        .trim(),
+      body("password")
+        .exists()
+        .withMessage("the password must be provided")
+        .trim(),
+    ],
+  ]),
+
   setJWTAuth,
   createUserController.updateForgottenPassword
 );
 router.put(
   "/updatePassword",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+      query("id")
+        .exists()
+        .withMessage("the user ID must be provided")
+        .trim()
+        .bail()
+        .isMongoId()
+        .withMessage("the user ID must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("old_password")
+        .exists()
+        .withMessage("the old_password must be provided")
+        .trim(),
+      body("password")
+        .exists()
+        .withMessage("the password must be provided")
+        .trim(),
+    ],
   ]),
   setJWTAuth,
   authJWT,
@@ -560,28 +664,41 @@ router.put(
 router.post(
   "/forgotPassword",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+      body("email")
+        .exists()
+        .withMessage("the email must be provided")
+        .bail()
+        .isEmail()
+        .withMessage("this is not a valid email address")
+        .trim(),
+    ],
   ]),
   createUserController.forgot
 );
 router.put(
   "/",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     query("id")
@@ -623,14 +740,17 @@ router.put(
 router.put(
   "/:user_id",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     param("user_id")
@@ -670,22 +790,22 @@ router.put(
 router.delete(
   "/",
   oneOf([
-    query("tenant")
-      .optional()
-      .notEmpty()
-      .withMessage("tenant should not be empty if provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     query("id")
       .exists()
-      .withMessage(
-        "the user identifier is missing in request, consider using id"
-      )
+      .withMessage("the user ID must be provided")
       .bail()
       .trim()
       .isMongoId()
@@ -703,15 +823,17 @@ router.delete(
 router.delete(
   "/:user_id",
   oneOf([
-    query("tenant")
-      .optional()
-      .notEmpty()
-      .withMessage("tenant should not be empty if provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     param("user_id")
@@ -734,15 +856,17 @@ router.delete(
 router.post(
   "/newsletter/subscribe",
   oneOf([
-    query("tenant")
-      .if(query("tenant").exists())
-      .notEmpty()
-      .withMessage("tenant cannot be empty if provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     [
@@ -771,14 +895,17 @@ router.post(
 router.put(
   "/defaults",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     query("id")
@@ -859,7 +986,7 @@ router.put(
         }),
       body("chartTitle").if(body("chartTitle").exists()).notEmpty().trim(),
       body("period")
-        .if(body("period").exists())
+        .optional()
         .notEmpty()
         .withMessage("period cannot be empty if provided")
         .bail()
@@ -903,14 +1030,17 @@ router.put(
 router.post(
   "/defaults",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     [
@@ -1040,14 +1170,17 @@ router.post(
 router.get(
   "/defaults",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     [
@@ -1101,14 +1234,17 @@ router.get(
 router.delete(
   "/defaults",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     query("id")
@@ -1134,14 +1270,16 @@ router.delete(
 router.post(
   "/candidates/register",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .exists()
+        .withMessage("tenant should be provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     [
@@ -1187,14 +1325,17 @@ router.post(
 router.get(
   "/candidates",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   setJWTAuth,
   authJWT,
@@ -1203,14 +1344,16 @@ router.get(
 router.post(
   "/candidates/confirm",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .exists()
+        .withMessage("tenant should be provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   setJWTAuth,
   authJWT,
@@ -1219,14 +1362,17 @@ router.post(
 router.delete(
   "/candidates",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     query("id")
@@ -1250,14 +1396,17 @@ router.delete(
 router.put(
   "/candidates",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     query("id")
@@ -1296,14 +1445,17 @@ router.put(
 router.post(
   "/inquiries/register",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     [
@@ -1351,14 +1503,17 @@ router.post(
 router.get(
   "/inquiries",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   setJWTAuth,
   authJWT,
@@ -1368,14 +1523,17 @@ router.get(
 router.delete(
   "/inquiries",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     query("id")
@@ -1399,14 +1557,17 @@ router.delete(
 router.put(
   "/inquiries",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     query("id")
@@ -1445,15 +1606,17 @@ router.put(
 router.delete(
   "/networks/:net_id",
   oneOf([
-    query("tenant")
-      .if(query("tenant").exists())
-      .notEmpty()
-      .withMessage("tenant cannot be empty if provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     param("net_id")
@@ -1478,15 +1641,17 @@ router.delete(
 router.put(
   "/networks/:net_id",
   oneOf([
-    query("tenant")
-      .if(query("tenant").exists())
-      .notEmpty()
-      .withMessage("tenant cannot be empty if provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     param("net_id")
@@ -1585,15 +1750,17 @@ router.put(
 router.put(
   "/networks/:net_id/assign-user/:user_id",
   oneOf([
-    query("tenant")
-      .if(query("tenant").exists())
-      .notEmpty()
-      .withMessage("tenant cannot be empty if provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     [
@@ -1629,15 +1796,17 @@ router.put(
 router.put(
   "/networks/:net_id/set-manager/:user_id",
   oneOf([
-    query("tenant")
-      .if(query("tenant").exists())
-      .notEmpty()
-      .withMessage("tenant cannot be empty if provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     [
@@ -1673,15 +1842,17 @@ router.put(
 router.get(
   "/networks/:net_id",
   oneOf([
-    query("tenant")
-      .if(query("tenant").exists())
-      .notEmpty()
-      .withMessage("tenant cannot be empty if provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     param("net_id")
@@ -1699,15 +1870,17 @@ router.get(
 router.get(
   "/networks",
   oneOf([
-    query("tenant")
-      .if(query("tenant").exists())
-      .notEmpty()
-      .withMessage("tenant cannot be empty if provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     param("net_id")
@@ -1725,15 +1898,17 @@ router.get(
 router.get(
   "/networks/:net_id/assigned-users",
   oneOf([
-    query("tenant")
-      .if(query("tenant").exists())
-      .notEmpty()
-      .withMessage("tenant cannot be empty if provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     param("net_id")
@@ -1751,15 +1926,17 @@ router.get(
 router.get(
   "/networks/:net_id/available-users",
   oneOf([
-    query("tenant")
-      .if(query("tenant").exists())
-      .notEmpty()
-      .withMessage("tenant cannot be empty if provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     param("net_id")
@@ -1777,15 +1954,17 @@ router.get(
 router.post(
   "/networks",
   oneOf([
-    query("tenant")
-      .if(query("tenant").exists())
-      .notEmpty()
-      .withMessage("tenant cannot be empty if provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     [
@@ -1853,15 +2032,17 @@ router.post(
 router.post(
   "/networks/:net_id/assign-user",
   oneOf([
-    query("tenant")
-      .if(query("tenant").exists())
-      .notEmpty()
-      .withMessage("tenant cannot be empty if provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     [
@@ -1900,15 +2081,17 @@ router.post(
 router.post(
   "/networks/find",
   oneOf([
-    query("tenant")
-      .if(query("tenant").exists())
-      .notEmpty()
-      .withMessage("tenant cannot be empty if provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     [
@@ -1929,15 +2112,17 @@ router.post(
 router.delete(
   "/networks/:net_id/unassign-user/:user_id",
   oneOf([
-    query("tenant")
-      .if(query("tenant").exists())
-      .notEmpty()
-      .withMessage("tenant cannot be empty if provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     [
@@ -1975,15 +2160,17 @@ router.delete(
 router.delete(
   "/groups/:grp_id",
   oneOf([
-    query("tenant")
-      .if(query("tenant").exists())
-      .notEmpty()
-      .withMessage("tenant cannot be empty if provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     param("grp_id")
@@ -2008,15 +2195,17 @@ router.delete(
 router.put(
   "/groups/:grp_id",
   oneOf([
-    query("tenant")
-      .if(query("tenant").exists())
-      .notEmpty()
-      .withMessage("tenant cannot be empty if provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     param("grp_id")
@@ -2103,15 +2292,17 @@ router.put(
 router.put(
   "/groups/:grp_id/assign-user/:user_id",
   oneOf([
-    query("tenant")
-      .if(query("tenant").exists())
-      .notEmpty()
-      .withMessage("tenant cannot be empty if provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     [
@@ -2145,17 +2336,19 @@ router.put(
 );
 
 router.get(
-  "/groupds/:grp_id",
+  "/groups/:grp_id",
   oneOf([
-    query("tenant")
-      .if(query("tenant").exists())
-      .notEmpty()
-      .withMessage("tenant cannot be empty if provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     param("grp_id")
@@ -2173,15 +2366,17 @@ router.get(
 router.get(
   "/groups",
   oneOf([
-    query("tenant")
-      .if(query("tenant").exists())
-      .notEmpty()
-      .withMessage("tenant cannot be empty if provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     param("grp_id")
@@ -2199,15 +2394,17 @@ router.get(
 router.get(
   "/groups/:grp_id/assigned-users",
   oneOf([
-    query("tenant")
-      .if(query("tenant").exists())
-      .notEmpty()
-      .withMessage("tenant cannot be empty if provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     param("grp_id")
@@ -2225,15 +2422,17 @@ router.get(
 router.get(
   "/groups/:grp_id/available-users",
   oneOf([
-    query("tenant")
-      .if(query("tenant").exists())
-      .notEmpty()
-      .withMessage("tenant cannot be empty if provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     param("grp_id")
@@ -2251,15 +2450,17 @@ router.get(
 router.post(
   "/groups",
   oneOf([
-    query("tenant")
-      .if(query("tenant").exists())
-      .notEmpty()
-      .withMessage("tenant cannot be empty if provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     [
@@ -2327,15 +2528,17 @@ router.post(
 router.post(
   "/groups/:grp_id/assign-user",
   oneOf([
-    query("tenant")
-      .if(query("tenant").exists())
-      .notEmpty()
-      .withMessage("tenant cannot be empty if provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     [
@@ -2374,15 +2577,17 @@ router.post(
 router.post(
   "/groups/find",
   oneOf([
-    query("tenant")
-      .if(query("tenant").exists())
-      .notEmpty()
-      .withMessage("tenant cannot be empty if provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     [
@@ -2403,15 +2608,17 @@ router.post(
 router.delete(
   "/groups/:grp_id/unassign-user/:user_id",
   oneOf([
-    query("tenant")
-      .if(query("tenant").exists())
-      .notEmpty()
-      .withMessage("tenant cannot be empty if provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
   ]),
   oneOf([
     [
