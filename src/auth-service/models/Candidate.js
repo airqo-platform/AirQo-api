@@ -5,45 +5,46 @@ const { logObject, logElement } = require("../utils/log");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 
-const CandidateSchema = new mongoose.Schema({
-  email: {
-    type: String,
-    required: [true, "Email is required"],
-    trim: true,
-    validate: {
-      validator(email) {
-        return validator.isEmail(email);
+const CandidateSchema = new mongoose.Schema(
+  {
+    email: {
+      type: String,
+      required: [true, "Email is required"],
+      trim: true,
+      validate: {
+        validator(email) {
+          return validator.isEmail(email);
+        },
+        message: "{VALUE} is not a valid email!",
       },
-      message: "{VALUE} is not a valid email!",
+    },
+    firstName: {
+      type: String,
+      required: [true, "FirstName is required!"],
+      trim: true,
+    },
+    lastName: {
+      type: String,
+      required: [true, "LastName is required"],
+      trim: true,
+    },
+    description: { type: String, required: [true, "description is required"] },
+    long_organization: {
+      type: String,
+      required: [true, "long_organization is required"],
+    },
+    jobTitle: { type: String, required: [true, "jobTitle is required"] },
+    category: { type: String, required: [true, "category is required"] },
+    website: { type: String, required: [true, "website is required"] },
+    isDenied: {
+      type: Boolean,
+    },
+    status: {
+      type: String,
+      default: "pending",
     },
   },
-  firstName: {
-    type: String,
-    required: [true, "FirstName is required!"],
-    trim: true,
-  },
-  lastName: {
-    type: String,
-    required: [true, "LastName is required"],
-    trim: true,
-  },
-  description: { type: String, required: [true, "description is required"] },
-  long_organization: {
-    type: String,
-    required: [true, "long_organization is required"],
-  },
-  jobTitle: { type: String, required: [true, "jobTitle is required"] },
-  category: { type: String, required: [true, "category is required"] },
-  website: { type: String, required: [true, "website is required"] },
-  isDenied: {
-    type: Boolean,
-  },
-  status: {
-    type: String,
-    default: "pending",
-  },
-},
-    { timestamps: true },
+  { timestamps: true }
 );
 
 CandidateSchema.statics = {
@@ -68,27 +69,31 @@ CandidateSchema.statics = {
   },
   async list({ skip = 0, limit = 5, filter = {} } = {}) {
     try {
+      logObject("filter for candidate", filter);
       let candidates = await this.find(filter)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .exec();
 
+      logObject("candidates", candidates);
+
       if (!isEmpty(candidates)) {
-        let data = candidates;
+        const data = candidates;
         return {
           success: true,
           data,
           message: "successfully listed the candidates",
         };
-      } else {
+      } else if (isEmpty(candidates)) {
         return {
           success: true,
           message: "no candidates exist",
-          data,
+          data: [],
         };
       }
     } catch (error) {
+      logObject("error", error);
       return {
         success: false,
         message: "unable to list the candidates",
