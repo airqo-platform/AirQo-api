@@ -954,14 +954,6 @@ router.post(
         .withMessage(
           "the category value is not among the expected ones which include: LOWCOST and BAM"
         ),
-      body("network")
-        .exists()
-        .withMessage("the network should be provided")
-        .bail()
-        .notEmpty()
-        .withMessage("the network should not be empty")
-        .trim()
-        .toLowerCase(),
       body("powerType")
         .optional()
         .notEmpty()
