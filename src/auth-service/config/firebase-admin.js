@@ -46,7 +46,8 @@ exports.userDeleted = functions.auth.user().onDelete(async (user) => {
       admin
         .firestore()
         .collection(`${constants.FIREBASE_COLLECTION_USERS}`)
-        .doc(uid).delete;
+        .doc(uid)
+        .delete();
     } catch (error) {
       logObject("error", error);
     }
