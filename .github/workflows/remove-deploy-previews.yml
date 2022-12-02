@@ -52,18 +52,18 @@ jobs:
           echo "========== check paths of modified files =========="
           git diff --name-only HEAD^ HEAD > files.txt
 
-          echo "remove_preview__auth_service >>$GITHUB_OUTPUT
-          echo "remove_preview__device_registry >>$GITHUB_OUTPUT  
-          echo "remove_preview__device_monitoring >>$GITHUB_OUTPUT 
-          echo "remove_preview__data_mgt >>$GITHUB_OUTPUT
-          echo "remove_preview__analytics >>$GITHUB_OUTPUT
-          echo "remove_preview__locate >>$GITHUB_OUTPUT
-          echo "remove_preview__predict >>$GITHUB_OUTPUT
-          echo "remove_preview__meta_data >>$GITHUB_OUTPUT
-          echo "remove_preview__view >>$GITHUB_OUTPUT
-          echo "remove_preview__calibrate >>$GITHUB_OUTPUT 
-          echo "remove_preview__notifications >>$GITHUB_OUTPUT
-          echo "remove_preview__network_uptime >>$GITHUB_OUTPUT
+          echo "remove_preview__auth_service=false" >>$GITHUB_OUTPUT
+          echo "remove_preview__device_registry=false" >>$GITHUB_OUTPUT  
+          echo "remove_preview__device_monitoring=false" >>$GITHUB_OUTPUT 
+          echo "remove_preview__data_mgt=false" >>$GITHUB_OUTPUT
+          echo "remove_preview__analytics=false" >>$GITHUB_OUTPUT
+          echo "remove_preview__locate=false" >>$GITHUB_OUTPUT
+          echo "remove_preview__predict=false" >>$GITHUB_OUTPUT
+          echo "remove_preview__meta_data=false" >>$GITHUB_OUTPUT
+          echo "remove_preview__view=false" >>$GITHUB_OUTPUT
+          echo "remove_preview__calibrate=false" >>$GITHUB_OUTPUT 
+          echo "remove_preview__notifications=false" >>$GITHUB_OUTPUT
+          echo "remove_preview__network_uptime=false" >>$GITHUB_OUTPUT
 
           while IFS= read -r file
           do

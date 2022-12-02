@@ -78,32 +78,32 @@ jobs:
           echo "========== check paths of modified files =========="
           git diff --name-only HEAD^ HEAD > files.txt
 
-          echo "run_auth_service >>$GITHUB_OUTPUT
-          echo "run_device_registry >>$GITHUB_OUTPUT  
-          echo "run_device_monitoring >>$GITHUB_OUTPUT 
-          echo "run_data_mgt >>$GITHUB_OUTPUT
-          echo "run_analytics >>$GITHUB_OUTPUT
-          echo "run_device_uptime >>$GITHUB_OUTPUT  
-          echo "run_device_status >>$GITHUB_OUTPUT 
-          echo "run_locate >>$GITHUB_OUTPUT
-          echo "run_predict >>$GITHUB_OUTPUT
-          echo "run_gp_model >>$GITHUB_OUTPUT
-          echo "run_exceedances >>$GITHUB_OUTPUT
-          echo "run_meta_data >>$GITHUB_OUTPUT
-          echo "run_view >>$GITHUB_OUTPUT
-          echo "run_calibrate >>$GITHUB_OUTPUT 
-          echo "run_average_jobs >>$GITHUB_OUTPUT
-          echo "run_events_check >>$GITHUB_OUTPUT
-          echo "run_notifications >>$GITHUB_OUTPUT
-          echo "run_kafka_cluster_operator >>$GITHUB_OUTPUT
-          echo "run_kafka_cluster >>$GITHUB_OUTPUT
-          echo "run_kafka_topics >>$GITHUB_OUTPUT
-          echo "run_airflow >>$GITHUB_OUTPUT
-          echo "run_network_uptime >>$GITHUB_OUTPUT
-          echo "run_channel_data >>$GITHUB_OUTPUT
-          echo "run_kafka_connectors >>$GITHUB_OUTPUT
-          echo "run_fault_detection >>$GITHUB_OUTPUT
-          echo "run_nginx >>$GITHUB_OUTPUT
+          echo "run_auth_service=false" >>$GITHUB_OUTPUT
+          echo "run_device_registry=false" >>$GITHUB_OUTPUT  
+          echo "run_device_monitoring=false" >>$GITHUB_OUTPUT 
+          echo "run_data_mgt=false" >>$GITHUB_OUTPUT
+          echo "run_analytics=false" >>$GITHUB_OUTPUT
+          echo "run_device_uptime=false" >>$GITHUB_OUTPUT  
+          echo "run_device_status=false" >>$GITHUB_OUTPUT 
+          echo "run_locate=false" >>$GITHUB_OUTPUT
+          echo "run_predict=false" >>$GITHUB_OUTPUT
+          echo "run_gp_model=false" >>$GITHUB_OUTPUT
+          echo "run_exceedances=false" >>$GITHUB_OUTPUT
+          echo "run_meta_data=false" >>$GITHUB_OUTPUT
+          echo "run_view=false" >>$GITHUB_OUTPUT
+          echo "run_calibrate=false" >>$GITHUB_OUTPUT 
+          echo "run_average_jobs=false" >>$GITHUB_OUTPUT
+          echo "run_events_check=false" >>$GITHUB_OUTPUT
+          echo "run_notifications=false" >>$GITHUB_OUTPUT
+          echo "run_kafka_cluster_operator=false" >>$GITHUB_OUTPUT
+          echo "run_kafka_cluster=false" >>$GITHUB_OUTPUT
+          echo "run_kafka_topics=false" >>$GITHUB_OUTPUT
+          echo "run_airflow=false" >>$GITHUB_OUTPUT
+          echo "run_network_uptime=false" >>$GITHUB_OUTPUT
+          echo "run_channel_data=false" >>$GITHUB_OUTPUT
+          echo "run_kafka_connectors=false" >>$GITHUB_OUTPUT
+          echo "run_fault_detection=false" >>$GITHUB_OUTPUT
+          echo "run_nginx=false" >>$GITHUB_OUTPUT
 
           while IFS= read -r file
           do

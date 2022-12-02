@@ -27,7 +27,7 @@ jobs:
           echo "========== check paths of modified files =========="
           git diff --name-only HEAD^ HEAD > files.txt
 
-          echo "test_view_api >>$GITHUB_OUTPUT
+          echo "test_view_api=false" >>$GITHUB_OUTPUT
 
           while IFS= read -r file
           do
