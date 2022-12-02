@@ -304,7 +304,7 @@ const mailer = {
 
       const mailOptions = {
         from: {
-          name: "AirQo Data Team",
+          name: constants.EMAIL_NAME,
           address: constants.EMAIL,
         },
         subject,
@@ -316,9 +316,7 @@ const mailer = {
 
       let response = transporter.sendMail(mailOptions);
 
-      logObject("response", response);
-
-      let data = await response;
+      let data = response;
       if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
         return {
           success: true,
@@ -334,7 +332,6 @@ const mailer = {
         };
       }
     } catch (error) {
-      logObject("error", error);
       return {
         message: "",
         status: httpStatus.INTERNAL_SERVER_ERROR,
