@@ -2,10 +2,8 @@ app:
   name: airqo-exceedance-job
   namespace: staging
   configmap: env-exceedance-staging
-
 image:
   repository: gcr.io/airqo-250220/stage-airqo-exceedance-job
-  tag: latest
-
-nameOverride: ""
-fullnameOverride: ""
+  tag: stage-4d15652e-1669978975
+nameOverride: ''
+fullnameOverride: ''
