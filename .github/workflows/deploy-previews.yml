@@ -40,7 +40,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           fetch-depth: 2
 
@@ -133,7 +133,7 @@ jobs:
       url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Google Auth
         id: auth
@@ -211,7 +211,7 @@ jobs:
       url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Google Auth
         id: auth
@@ -289,7 +289,7 @@ jobs:
       url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Google Auth
         id: auth
@@ -367,7 +367,7 @@ jobs:
       url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Google Auth
         id: auth
@@ -445,7 +445,7 @@ jobs:
       url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Google Auth
         id: auth
@@ -523,7 +523,7 @@ jobs:
       url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Google Auth
         id: auth
@@ -601,7 +601,7 @@ jobs:
       url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Google Auth
         id: auth
@@ -679,7 +679,7 @@ jobs:
       url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Google Auth
         id: auth
@@ -757,7 +757,7 @@ jobs:
       url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Google Auth
         id: auth
@@ -835,7 +835,7 @@ jobs:
       url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Google Auth
         id: auth
@@ -913,7 +913,7 @@ jobs:
       url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Google Auth
         id: auth
@@ -991,7 +991,7 @@ jobs:
       url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Google Auth
         id: auth
