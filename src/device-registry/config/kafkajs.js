@@ -1,7 +1,7 @@
 const { Kafka } = require("kafkajs");
 const constants = require("../config/constants");
 const { logText, logObject, logElement } = require("../utils/log");
-const createEvent= require("../utils/create-event");
+const createEvent = require("../utils/create-event");
 
 const kafka = new Kafka({
   clientId: "device-registry-kafkajs",
@@ -30,24 +30,27 @@ const runKafkaConsumer = async () => {
   try {
     await kafkaConsumer.connect();
     await kafkaConsumer.subscribe({
-        topic: constants.HOURLY_MEASUREMENTS_TOPIC,
-        fromBeginning: true,
-      });
+      topic: constants.HOURLY_MEASUREMENTS_TOPIC,
+      fromBeginning: true,
+    });
     await kafkaConsumer.run({
-        eachMessage: async ({ message }) => {
-          let measurements = message.value.toString().data;
-          logElement("received message", measurements);
+      eachMessage: async ({ message }) => {
+        let measurements = message.value.toString().data;
+        logElement("received message", measurements);
 
-          const responseFromInsertMeasurements = await createEvent.insertMeasurements(measurements);
-          return responseFromInsertMeasurements;
-        },
-      });
+        const responseFromInsertMeasurements = await createEvent.insertMeasurements(
+          measurements
+        );
+        return responseFromInsertMeasurements;
+      },
+    });
   } catch (error) {
     logElement("KAFKA CONSUMER RUN ERROR", error.message);
   }
 };
 
 module.exports = {
+  kafka,
   kafkaConsumer,
   kafkaProducer,
   runKafkaProducer,

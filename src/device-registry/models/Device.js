@@ -112,6 +112,13 @@ const deviceSchema = new mongoose.Schema(
       trim: true,
       lowercase: true,
     },
+    device_codes: [
+      {
+        type: String,
+        trim: true,
+      },
+    ],
+
     status: {
       type: String,
       default: "not deployed",
@@ -247,6 +254,7 @@ deviceSchema.methods = {
       pictures: this.pictures,
       site_id: this.site_id,
       height: this.height,
+      device_codes: this.device_codes,
       category: this.category,
       access_code: this.access_code,
     };
@@ -340,6 +348,7 @@ deviceSchema.statics = {
           readKey: 1,
           access_code: 1,
           pictures: 1,
+          device_codes: 1,
           height: 1,
           mobility: 1,
           status: 1,
@@ -415,6 +424,7 @@ deviceSchema.statics = {
   async modify({ filter = {}, update = {}, opts = {} } = {}) {
     try {
       let modifiedUpdate = update;
+      modifiedUpdate["$addToSet"] = {};
       delete modifiedUpdate.name;
       delete modifiedUpdate.device_number;
       delete modifiedUpdate._id;
@@ -428,6 +438,13 @@ deviceSchema.statics = {
           excludeSimilarCharacters: true,
         });
         modifiedUpdate.access_code = access_code.toUpperCase();
+      }
+
+      if (modifiedUpdate.device_codes) {
+        modifiedUpdate["$addToSet"]["device_codes"] = {};
+        modifiedUpdate["$addToSet"]["device_codes"]["$each"] =
+          modifiedUpdate.device_codes;
+        delete modifiedUpdate["device_codes"];
       }
 
       let updatedDevice = await this.findOneAndUpdate(
