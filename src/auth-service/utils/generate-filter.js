@@ -5,11 +5,14 @@ const ObjectId = mongoose.Types.ObjectId;
 const filter = {
   users: (req) => {
     try {
-      let { privilege, id, username, active } = req.query;
+      let { privilege, id, username, active, email_address } = req.query;
       let { email, resetPasswordToken } = req.body;
       let filter = {};
       if (email) {
         filter["email"] = email;
+      }
+      if (email_address) {
+        filter["email"] = email_address;
       }
       if (resetPasswordToken) {
         filter["resetPasswordToken"] = resetPasswordToken;
@@ -116,11 +119,14 @@ const filter = {
   },
   candidates: (req) => {
     try {
-      let { category, id } = req.query;
+      let { category, id, email_address } = req.query;
       let { email } = req.body;
       let filter = {};
       if (email) {
         filter["email"] = email;
+      }
+      if (email_address) {
+        filter["email"] = email_address;
       }
       if (category) {
         filter["category"] = category;

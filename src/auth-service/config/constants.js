@@ -34,6 +34,7 @@ const defaultConfig = {
   FIREBASE_COLLECTION_FAVORITE_PLACES:
     process.env.FIREBASE_COLLECTION_FAVORITE_PLACES,
   EMAIL_NAME: "AirQo Data Team",
+  DEFAULT_LIMIT: process.env.DEFAULT_LIMIT,
   PORT: process.env.PORT || 3000,
   CLIENT_ORIGIN: process.env.AIRQO_WEBSITE,
   BCRYPT_SALT_ROUNDS: 12,
@@ -41,6 +42,12 @@ const defaultConfig = {
   EMAIL: process.env.MAIL_USER,
   SUPPORT_EMAIL: process.env.SUPPORT_EMAIL,
   REQUEST_ACCESS_EMAILS: process.env.REQUEST_ACCESS_EMAILS,
+  COMMS_EMAILS: process.env.COMMS_EMAILS,
+  POLICY_EMAILS: process.env.POLICY_EMAILS,
+  CHAMPIONS_EMAILS: process.env.CHAMPIONS_EMAILS,
+  RESEARCHERS_EMAILS: process.env.RESEARCHERS_EMAILS,
+  DEVELOPERS_EMAILS: process.env.DEVELOPERS_EMAILS,
+  PARTNERS_EMAILS: process.env.PARTNERS_EMAILS,
   YOUTUBE_CHANNEL: process.env.AIRQO_YOUTUBE,
   ACCOUNT_UPDATED: "The AirQo Platform account has successfully been updated",
   RANDOM_PASSWORD_CONFIGURATION: (length) => {
