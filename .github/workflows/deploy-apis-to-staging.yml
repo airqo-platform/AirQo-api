@@ -6,7 +6,7 @@ on:
       - staging
 
 env:
-  REGISTRY_URL: us.gcr.io
+  REGISTRY_URL: gcr.io
   PROJECT_ID: airqo-250220
   DEPLOY_BRANCH: deployment/argocd
 
