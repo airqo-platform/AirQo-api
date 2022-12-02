@@ -4,7 +4,7 @@ app:
   namespace: production
   configmap: env-network-uptime-production
 
-replicaCount: 3
+replicaCount: 0
 
 image:
   repository: gcr.io/airqo-250220/airqo-network-uptime-api

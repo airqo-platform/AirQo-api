@@ -59,9 +59,7 @@ const inquire = {
             data: createdInquiry,
             status,
           });
-        }
-
-        if (responseFromSendEmail.success === false) {
+        } else if (responseFromSendEmail.success === false) {
           logObject("responseFromSendEmail", responseFromSendEmail);
           const errors = responseFromSendEmail.error
             ? responseFromSendEmail.error
@@ -77,9 +75,7 @@ const inquire = {
             status,
           });
         }
-      }
-
-      if (responseFromCreateInquiry.success === false) {
+      } else if (responseFromCreateInquiry.success === false) {
         const errors = responseFromCreateInquiry.errors
           ? responseFromCreateInquiry.errors
           : "";

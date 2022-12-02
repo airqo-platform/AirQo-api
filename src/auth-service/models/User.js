@@ -106,6 +106,14 @@ const UserSchema = new Schema(
         ref: "permission",
       },
     ],
+    organization: {
+      type: String,
+      required: [true, "the organization is required!"],
+    },
+    long_organization: {
+      type: String,
+      required: [true, "the long_organization is required!"],
+    },
     country: { type: String },
     phoneNumber: { type: Number },
     locationCount: { type: Number, default: 5 },
@@ -311,15 +319,16 @@ UserSchema.statics = {
           data,
           status: HTTPStatus.OK,
         };
-      } else {
+      } else if (isEmpty(users)) {
         return {
           success: true,
-          message: "user/s do not exist, please crosscheck",
-          status: HTTPStatus.NOT_FOUND,
+          message: "no users exist",
           data: [],
+          status: HTTPStatus.NOT_FOUND,
         };
       }
     } catch (error) {
+      logObject("error", error);
       return {
         success: false,
         message: "Internal Server Error",

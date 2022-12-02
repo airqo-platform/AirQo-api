@@ -51,14 +51,18 @@ const requestAccess = {
       await requestAccessUtil
         .create(request, (value) => {
           if (value.success === true) {
-            return res.status(value.status).json({
+            const status = value.status ? value.status : HTTPStatus.OK;
+            return res.status(status).json({
               success: true,
               message: value.message,
               candidate: value.data,
             });
           } else if (value.success === false) {
+            const status = value.status
+              ? value.status
+              : HTTPStatus.INTERNAL_SERVER_ERROR;
             const errors = value.errors ? value.errors : "";
-            return res.status(value.status).json({
+            return res.status(status).json({
               success: false,
               message: value.message,
               errors,
