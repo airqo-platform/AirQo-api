@@ -20,17 +20,14 @@ exports.newUserSignUp = functions.auth.user().onCreate(async (user) => {
     const phoneNumber = user.phoneNumber;
     const message = `Welcome to AirQo, ${firstName}`;
     const subject = "Welcome to AirQo!";
-    // admin.firestore().collection("users").doc(user.uid).set({
-    //   email: user.email,
-    // });
-    if (isEmpty(email)) {
-      email = constants.PRODUCTS_DEV_EMAIL;
+
+    if (!isEmpty(email)) {
+      return await joinUtil.sendFeedback({
+        email,
+        message,
+        subject,
+      });
     }
-    return await joinUtil.sendFeedback({
-      email,
-      message,
-      subject,
-    });
   } catch (error) {
     logObject("error", error);
   }
@@ -50,21 +47,40 @@ exports.userDeleted = functions.auth.user().onDelete(async (user) => {
         .firestore()
         .collection(`${constants.FIREBASE_COLLECTION_USERS}`)
         .doc(uid).delete;
+    } catch (error) {
+      logObject("error", error);
+    }
+    try {
       admin
         .firestore()
         .collection(`${constants.FIREBASE_COLLECTION_KYA}`)
         .doc(user.uid)
         .delete();
+    } catch (error) {
+      logObject("error", error);
+    }
+
+    try {
       admin
         .firestore()
         .collection(`${constants.FIREBASE_COLLECTION_ANALYTICS}`)
         .doc(user.uid)
         .delete();
+    } catch (error) {
+      logObject("error", error);
+    }
+
+    try {
       admin
         .firestore()
         .collection(`${constants.FIREBASE_COLLECTION_NOTIFICATIONS}`)
         .doc(user.uid)
         .delete();
+    } catch (error) {
+      logObject("error", error);
+    }
+
+    try {
       admin
         .firestore()
         .collection(`${constants.FIREBASE_COLLECTION_FAVORITE_PLACES}`)
@@ -74,15 +90,13 @@ exports.userDeleted = functions.auth.user().onDelete(async (user) => {
       logObject("error", error);
     }
 
-    if (isEmpty(email)) {
-      email = constants.PRODUCTS_DEV_EMAIL;
+    if (!isEmpty(email)) {
+      return await joinUtil.sendFeedback({
+        email,
+        message,
+        subject,
+      });
     }
-
-    return await joinUtil.sendFeedback({
-      email,
-      message,
-      subject,
-    });
   } catch (error) {
     logObject("error", error);
   }
