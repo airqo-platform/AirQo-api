@@ -1227,19 +1227,27 @@ jobs:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
 
-      - name: Build and Push Docker Image
-        run: |
-          cd src/meta-data/
-          docker build --target=deployment --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-meta-data-api:${{ needs.image-tag.outputs.build_id }} .
-          docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-meta-data-api:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-meta-data-api:latest
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-meta-data-api:${{ needs.image-tag.outputs.build_id }}
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-meta-data-api:latest
+      - name: Build and push  API
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          context: src/meta-data
+          target: api
+          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-meta-data-api:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-meta-data-api:latest
+
+      - name: Build and push sites consumer
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          context: src/meta-data
+          target: sites-consumer
+          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-meta-data-sites-consumer:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-meta-data-sites-consumer:latest
 
       - name: Update corresponding helm values file
         uses: fjogeleit/yaml-update-action@main
         with:
           valueFile: "k8s/meta-data/values-prod.yaml"
-          propertyPath: "image.tag"
+          propertyPath: "images.tag"
           value: ${{ needs.image-tag.outputs.build_id }}
           updateFile: true
           branch: ${{ env.DEPLOY_BRANCH }}
