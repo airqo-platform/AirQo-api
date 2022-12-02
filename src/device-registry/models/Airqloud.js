@@ -153,7 +153,6 @@ const airqloudSchema = new Schema(
     network: {
       type: String,
       trim: true,
-      required: [true, "network is required!"],
     },
     airqloud_tags: {
       type: Array,
@@ -165,14 +164,14 @@ const airqloudSchema = new Schema(
   }
 );
 
-airqloudSchema.pre("save", function (next) {
+airqloudSchema.pre("save", function(next) {
   if (this.isModified("_id")) {
     delete this._id;
   }
   return next();
 });
 
-airqloudSchema.pre("update", function (next) {
+airqloudSchema.pre("update", function(next) {
   if (this.isModified("_id")) {
     delete this._id;
   }

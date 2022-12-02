@@ -13,7 +13,6 @@ const activitySchema = new Schema(
     network: {
       type: String,
       trim: true,
-      required: [true, "network is required!"],
     },
     activityType: { type: String, trim: true },
     tags: [{ type: String }],

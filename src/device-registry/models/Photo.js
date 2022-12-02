@@ -13,7 +13,6 @@ const photoSchema = new Schema(
     network: {
       type: String,
       trim: true,
-      required: [true, "network is required!"],
     },
     device_id: {
       type: ObjectId,
@@ -58,7 +57,7 @@ const photoSchema = new Schema(
   }
 );
 
-photoSchema.pre("save", function (next) {
+photoSchema.pre("save", function(next) {
   next();
 });
 

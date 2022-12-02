@@ -20,7 +20,6 @@ const siteSchema = new Schema(
     network: {
       type: String,
       trim: true,
-      required: [true, "network is required!"],
     },
     location_name: {
       type: String,
@@ -284,7 +283,7 @@ const siteSchema = new Schema(
   }
 );
 
-siteSchema.pre("save", function (next) {
+siteSchema.pre("save", function(next) {
   if (this.isModified("latitude")) {
     delete this.latitude;
   }
@@ -300,7 +299,7 @@ siteSchema.pre("save", function (next) {
   return next();
 });
 
-siteSchema.pre("update", function (next) {
+siteSchema.pre("update", function(next) {
   if (this.isModified("latitude")) {
     delete this.latitude;
   }
@@ -363,15 +362,15 @@ siteSchema.methods = {
       status: this.status,
       distance_to_nearest_road: this.distance_to_nearest_road,
       distance_to_nearest_primary_road: this.distance_to_nearest_primary_road,
-      distance_to_nearest_secondary_road:
-        this.distance_to_nearest_secondary_road,
+      distance_to_nearest_secondary_road: this
+        .distance_to_nearest_secondary_road,
       distance_to_nearest_tertiary_road: this.distance_to_nearest_tertiary_road,
-      distance_to_nearest_unclassified_road:
-        this.distance_to_nearest_unclassified_road,
+      distance_to_nearest_unclassified_road: this
+        .distance_to_nearest_unclassified_road,
       bearing_to_kampala_center: this.bearing_to_kampala_center,
       distance_to_kampala_center: this.distance_to_kampala_center,
-      distance_to_nearest_residential_road:
-        this.distance_to_nearest_residential_road,
+      distance_to_nearest_residential_road: this
+        .distance_to_nearest_residential_road,
       nearest_tahmo_station: this.nearest_tahmo_station,
     };
   },

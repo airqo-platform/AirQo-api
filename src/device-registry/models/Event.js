@@ -42,7 +42,6 @@ const valueSchema = new Schema({
   network: {
     type: String,
     trim: true,
-    required: [true, "network is required!"],
   },
   is_device_primary: {
     type: Boolean,
@@ -369,7 +368,7 @@ eventSchema.index(
   }
 );
 
-eventSchema.pre("save", function () {
+eventSchema.pre("save", function() {
   const err = new Error("something went wrong");
   next(err);
 });
@@ -443,8 +442,15 @@ eventSchema.statics = {
   },
   async list({ skip = 0, limit = 100, filter = {}, page = 1 } = {}) {
     try {
-      const { metadata, frequency, external, tenant, network, device, recent } =
-        filter;
+      const {
+        metadata,
+        frequency,
+        external,
+        tenant,
+        network,
+        device,
+        recent,
+      } = filter;
       let search = filter;
       let groupId = "$device";
       let localField = "device";
