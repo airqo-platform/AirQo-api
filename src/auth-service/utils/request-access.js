@@ -5,7 +5,6 @@ const { logObject, logElement, logText } = require("./log");
 const mailer = require("./mailer");
 const generateFilter = require("./generate-filter");
 const generatePassword = require("./generate-password");
-var jsonify = require("./jsonify");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 constants = require("../config/constants");
