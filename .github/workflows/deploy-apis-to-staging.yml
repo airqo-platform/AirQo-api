@@ -342,7 +342,7 @@ jobs:
       - name: Login to GCR
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCR_CONFIG }}
 
@@ -411,7 +411,7 @@ jobs:
       - name: Login to GCR
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCR_CONFIG }}
 
@@ -454,7 +454,7 @@ jobs:
       - name: Login to GCR
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCR_CONFIG }}
 
@@ -540,7 +540,7 @@ jobs:
       - name: Login to GCR
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCR_CONFIG }}
 
@@ -604,7 +604,7 @@ jobs:
       - name: Login to GCR
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCR_CONFIG }}
 
@@ -782,7 +782,7 @@ jobs:
       - name: Login to GCR
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCR_CONFIG }}
 
@@ -847,7 +847,7 @@ jobs:
       - name: Login to GCR
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCR_CONFIG }}
 
@@ -908,7 +908,7 @@ jobs:
       - name: Login to GCR
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCR_CONFIG }}
 
@@ -970,7 +970,7 @@ jobs:
       - name: Login to GCR
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCR_CONFIG }}
 
@@ -1035,7 +1035,7 @@ jobs:
       - name: Login to GCR
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCR_CONFIG }}
 
@@ -1096,7 +1096,7 @@ jobs:
       - name: Login to GCR
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCR_CONFIG }}
 
@@ -1157,7 +1157,7 @@ jobs:
       - name: Login to GCR
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCR_CONFIG }}
 
@@ -1220,7 +1220,7 @@ jobs:
       - name: Login to GCR
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCR_CONFIG }}
 
@@ -1281,7 +1281,7 @@ jobs:
       - name: Login to GCR
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCR_CONFIG }}
 
@@ -1365,7 +1365,7 @@ jobs:
       - name: Login to GCR
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCR_CONFIG }}
 
@@ -1433,7 +1433,7 @@ jobs:
       - name: Login to GCR
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCR_CONFIG }}
 
@@ -1526,7 +1526,7 @@ jobs:
       - name: Login to GCR
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCR_CONFIG }}
 
@@ -1603,7 +1603,7 @@ jobs:
       - name: Login to GCR
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCR_CONFIG }}
 
@@ -1652,7 +1652,7 @@ jobs:
       - name: Login to GCR
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCR_CONFIG }}
 
@@ -1705,7 +1705,7 @@ jobs:
       - name: Login to GCR
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCR_CONFIG }}
 
@@ -1766,7 +1766,7 @@ jobs:
       - name: Login to GCR
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCR_CONFIG }}
 

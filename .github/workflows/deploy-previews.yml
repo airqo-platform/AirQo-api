@@ -148,7 +148,7 @@ jobs:
         id: docker-auth
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCP_SA_CREDENTIALS }}
 
@@ -226,7 +226,7 @@ jobs:
         id: docker-auth
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCP_SA_CREDENTIALS }}
 
@@ -304,7 +304,7 @@ jobs:
         id: docker-auth
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCP_SA_CREDENTIALS }}
 
@@ -382,7 +382,7 @@ jobs:
         id: docker-auth
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCP_SA_CREDENTIALS }}
 
@@ -460,7 +460,7 @@ jobs:
         id: docker-auth
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCP_SA_CREDENTIALS }}
 
@@ -538,7 +538,7 @@ jobs:
         id: docker-auth
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCP_SA_CREDENTIALS }}
 
@@ -616,7 +616,7 @@ jobs:
         id: docker-auth
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCP_SA_CREDENTIALS }}
 
@@ -694,7 +694,7 @@ jobs:
         id: docker-auth
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCP_SA_CREDENTIALS }}
 
@@ -772,7 +772,7 @@ jobs:
         id: docker-auth
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCP_SA_CREDENTIALS }}
 
@@ -850,7 +850,7 @@ jobs:
         id: docker-auth
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCP_SA_CREDENTIALS }}
 
@@ -928,7 +928,7 @@ jobs:
         id: docker-auth
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCP_SA_CREDENTIALS }}
 
@@ -1006,7 +1006,7 @@ jobs:
         id: docker-auth
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCP_SA_CREDENTIALS }}
 
