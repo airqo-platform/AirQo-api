@@ -4,8 +4,6 @@ on:
   pull_request:
     branches:
       - staging
-    types:
-      - closed
 
 env:
   REGISTRY_URL: gcr.io
@@ -14,7 +12,7 @@ env:
 
 jobs:
   image-tag:
-    if: github.event.pull_request.merged == true
+#     if: github.event.pull_request.merged == true
     name: create image tag
     runs-on: ubuntu-latest
     outputs:
@@ -31,7 +29,7 @@ jobs:
           echo "::set-output name=datetime::${datetime}"
 
   branch-name:
-    if: github.event.pull_request.merged == true
+#     if: github.event.pull_request.merged == true
     name: Format branch name string
     runs-on: ubuntu-latest
     outputs:
@@ -43,7 +41,7 @@ jobs:
           string: ${{ github.head_ref || github.ref_name }}
 
   check:
-    if: github.event.pull_request.merged == true
+#     if: github.event.pull_request.merged == true
     name: check changed microservice(s)
     outputs:
       run_auth_service: ${{ steps.check_files.outputs.run_auth_service }} # auth service
@@ -333,7 +331,7 @@ jobs:
   auth-service:
     name: build-push-deploy-auth
     needs: [check, image-tag]
-    if: needs.check.outputs.run_auth_service == 'true'
+#     if: needs.check.outputs.run_auth_service == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
