@@ -40,7 +40,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           fetch-depth: 2
 
@@ -54,68 +54,68 @@ jobs:
           echo "========== check paths of modified files =========="
           git diff --name-only HEAD^ HEAD > files.txt
 
-          echo "::set-output name=run_auth_service::false"
-          echo "::set-output name=run_device_registry::false"  
-          echo "::set-output name=run_device_monitoring::false" 
-          echo "::set-output name=run_data_mgt::false"
-          echo "::set-output name=run_analytics::false"
-          echo "::set-output name=run_locate::false"
-          echo "::set-output name=run_predict::false"
-          echo "::set-output name=run_meta_data::false"
-          echo "::set-output name=run_view::false"
-          echo "::set-output name=run_calibrate::false" 
-          echo "::set-output name=run_notifications::false"
-          echo "::set-output name=run_network_uptime::false" 
+          echo "run_auth_service=false" >>$GITHUB_OUTPUT
+          echo "run_device_registry=false" >>$GITHUB_OUTPUT  
+          echo "run_device_monitoring=false" >>$GITHUB_OUTPUT 
+          echo "run_data_mgt=false" >>$GITHUB_OUTPUT
+          echo "run_analytics=false" >>$GITHUB_OUTPUT
+          echo "run_locate=false" >>$GITHUB_OUTPUT
+          echo "run_predict=false" >>$GITHUB_OUTPUT
+          echo "run_meta_data=false" >>$GITHUB_OUTPUT
+          echo "run_view=false" >>$GITHUB_OUTPUT
+          echo "run_calibrate=false" >>$GITHUB_OUTPUT 
+          echo "run_notifications=false" >>$GITHUB_OUTPUT
+          echo "run_network_uptime=false" >>$GITHUB_OUTPUT 
 
           while IFS= read -r file
           do
             echo $file
             if [[ $file == src/auth-service/* ]]; then
-              echo "::set-output name=run_auth_service::true"
+              echo "run_auth_service=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == src/device-registry/* ]]; then
-              echo "::set-output name=run_device_registry::true"
+              echo "run_device_registry=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == src/device-monitoring/* ]]; then
-              echo "::set-output name=run_device_monitoring::true"
+              echo "run_device_monitoring=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == src/data-mgt/node/* ]]; then
-              echo "::set-output name=run_data_mgt::true"
+              echo "run_data_mgt=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == src/analytics/* ]]; then
-              echo "::set-output name=run_analytics::true"
+              echo "run_analytics=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == src/locate/* ]]; then
-              echo "::set-output name=run_locate::true"
+              echo "run_locate=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == src/predict/* ]]; then
-              echo "::set-output name=run_predict::true"
+              echo "run_predict=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == src/meta-data/* ]]; then
-              echo "::set-output name=run_meta_data::true"
+              echo "run_meta_data=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == src/view/* ]]; then
-              echo "::set-output name=run_view::true"
+              echo "run_view=true" >>$GITHUB_OUTPUT
             fi
             
             if [[ $file == src/calibrate/* ]]; then
-              echo "::set-output name=run_calibrate::true"
+              echo "run_calibrate=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == src/notifications/* ]]; then
-              echo "::set-output name=run_notifications::true"
+              echo "run_notifications=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == src/network-uptime/* ]]; then
-              echo "::set-output name=run_network_uptime::true"
+              echo "run_network_uptime=true" >>$GITHUB_OUTPUT
             fi
 
           done < files.txt
@@ -133,7 +133,7 @@ jobs:
       url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Google Auth
         id: auth
@@ -148,7 +148,7 @@ jobs:
         id: docker-auth
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCP_SA_CREDENTIALS }}
 
@@ -180,7 +180,7 @@ jobs:
             --format='value(status.url)' \
             --platform managed \
             --region ${{ secrets.REGION }})
-          echo "::set-output name=url::${service_url}"
+          echo "url=${service_url}" >>$GITHUB_OUTPUT
 
   auth-service-pr-comment:
     name: auth-service-preview-link-comment
@@ -211,7 +211,7 @@ jobs:
       url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Google Auth
         id: auth
@@ -226,7 +226,7 @@ jobs:
         id: docker-auth
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCP_SA_CREDENTIALS }}
 
@@ -258,7 +258,7 @@ jobs:
             --format='value(status.url)' \
             --platform managed \
             --region ${{ secrets.REGION }})
-          echo "::set-output name=url::${service_url}"
+          echo "url=${service_url}" >>$GITHUB_OUTPUT
 
   device-registry-pr-comment:
     name: device-registry-preview-link-comment
@@ -289,7 +289,7 @@ jobs:
       url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Google Auth
         id: auth
@@ -304,7 +304,7 @@ jobs:
         id: docker-auth
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCP_SA_CREDENTIALS }}
 
@@ -336,7 +336,7 @@ jobs:
             --format='value(status.url)' \
             --platform managed \
             --region ${{ secrets.REGION }})
-          echo "::set-output name=url::${service_url}"
+          echo "url=${service_url}" >>$GITHUB_OUTPUT
 
   device-monitoring-pr-comment:
     name: device-monitoring-preview-link-comment
@@ -367,7 +367,7 @@ jobs:
       url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Google Auth
         id: auth
@@ -382,7 +382,7 @@ jobs:
         id: docker-auth
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCP_SA_CREDENTIALS }}
 
@@ -414,7 +414,7 @@ jobs:
             --format='value(status.url)' \
             --platform managed \
             --region ${{ secrets.REGION }})
-          echo "::set-output name=url::${service_url}"
+          echo "url=${service_url}" >>$GITHUB_OUTPUT
 
   data-mgt-pr-comment:
     name: data-mgt-preview-link-comment
@@ -445,7 +445,7 @@ jobs:
       url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Google Auth
         id: auth
@@ -460,7 +460,7 @@ jobs:
         id: docker-auth
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCP_SA_CREDENTIALS }}
 
@@ -492,7 +492,7 @@ jobs:
             --format='value(status.url)' \
             --platform managed \
             --region ${{ secrets.REGION }})
-          echo "::set-output name=url::${service_url}"
+          echo "url=${service_url}" >>$GITHUB_OUTPUT
 
   analytics-pr-comment:
     name: analytics-preview-link-comment
@@ -523,7 +523,7 @@ jobs:
       url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Google Auth
         id: auth
@@ -538,7 +538,7 @@ jobs:
         id: docker-auth
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCP_SA_CREDENTIALS }}
 
@@ -570,7 +570,7 @@ jobs:
             --format='value(status.url)' \
             --platform managed \
             --region ${{ secrets.REGION }})
-          echo "::set-output name=url::${service_url}"
+          echo "url=${service_url}" >>$GITHUB_OUTPUT
 
   locate-pr-comment:
     name: locate-preview-link-comment
@@ -601,7 +601,7 @@ jobs:
       url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Google Auth
         id: auth
@@ -616,7 +616,7 @@ jobs:
         id: docker-auth
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCP_SA_CREDENTIALS }}
 
@@ -648,7 +648,7 @@ jobs:
             --format='value(status.url)' \
             --platform managed \
             --region ${{ secrets.REGION }})
-          echo "::set-output name=url::${service_url}"
+          echo "url=${service_url}" >>$GITHUB_OUTPUT
 
   predict-pr-comment:
     name: predict-service-preview-link-comment
@@ -679,7 +679,7 @@ jobs:
       url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Google Auth
         id: auth
@@ -694,7 +694,7 @@ jobs:
         id: docker-auth
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCP_SA_CREDENTIALS }}
 
@@ -726,7 +726,7 @@ jobs:
             --format='value(status.url)' \
             --platform managed \
             --region ${{ secrets.REGION }})
-          echo "::set-output name=url::${service_url}"
+          echo "url=${service_url}" >>$GITHUB_OUTPUT
 
   meta-data-pr-comment:
     name: meta-data-preview-link-comment
@@ -757,7 +757,7 @@ jobs:
       url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Google Auth
         id: auth
@@ -772,7 +772,7 @@ jobs:
         id: docker-auth
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCP_SA_CREDENTIALS }}
 
@@ -804,7 +804,7 @@ jobs:
             --format='value(status.url)' \
             --platform managed \
             --region ${{ secrets.REGION }})
-          echo "::set-output name=url::${service_url}"
+          echo "url=${service_url}" >>$GITHUB_OUTPUT
 
   view-pr-comment:
     name: view-preview-link-comment
@@ -835,7 +835,7 @@ jobs:
       url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Google Auth
         id: auth
@@ -850,7 +850,7 @@ jobs:
         id: docker-auth
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCP_SA_CREDENTIALS }}
 
@@ -882,7 +882,7 @@ jobs:
             --format='value(status.url)' \
             --platform managed \
             --region ${{ secrets.REGION }})
-          echo "::set-output name=url::${service_url}"
+          echo "url=${service_url}" >>$GITHUB_OUTPUT
 
   calibrate-pr-comment:
     name: calibrate-preview-link-comment
@@ -913,7 +913,7 @@ jobs:
       url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Google Auth
         id: auth
@@ -928,7 +928,7 @@ jobs:
         id: docker-auth
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCP_SA_CREDENTIALS }}
 
@@ -960,7 +960,7 @@ jobs:
             --format='value(status.url)' \
             --platform managed \
             --region ${{ secrets.REGION }})
-          echo "::set-output name=url::${service_url}"
+          echo "url=${service_url}" >>$GITHUB_OUTPUT
 
   notifications-pr-comment:
     name: notifications-preview-link-comment
@@ -991,7 +991,7 @@ jobs:
       url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Google Auth
         id: auth
@@ -1006,7 +1006,7 @@ jobs:
         id: docker-auth
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCP_SA_CREDENTIALS }}
 
@@ -1038,7 +1038,7 @@ jobs:
             --format='value(status.url)' \
             --platform managed \
             --region ${{ secrets.REGION }})
-          echo "::set-output name=url::${service_url}"
+          echo "url=${service_url}" >>$GITHUB_OUTPUT
 
   network-uptime-pr-comment:
     name: network-uptime-preview-link-comment
