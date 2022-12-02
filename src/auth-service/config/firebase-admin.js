@@ -17,7 +17,6 @@ exports.newUserSignUp = functions.auth.user().onCreate(async (user) => {
   try {
     let email = user.email;
     const firstName = user.firstName;
-    const phoneNumber = user.phoneNumber;
     const message = `Welcome to AirQo, ${firstName}`;
     const subject = "Welcome to AirQo!";
 
@@ -37,8 +36,6 @@ exports.userDeleted = functions.auth.user().onDelete(async (user) => {
   try {
     const email = user.email;
     const firstName = user.firstName;
-    const uid = user.uid;
-    const phoneNumber = user.phoneNumber;
     const message = `AirQo Account Deleted, ${firstName}`;
     const subject = "AirQo Account Successfully Deleted!";
 
@@ -46,7 +43,7 @@ exports.userDeleted = functions.auth.user().onDelete(async (user) => {
       admin
         .firestore()
         .collection(`${constants.FIREBASE_COLLECTION_USERS}`)
-        .doc(uid)
+        .doc(user.uid)
         .delete();
     } catch (error) {
       logObject("error", error);
