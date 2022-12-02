@@ -52,68 +52,68 @@ jobs:
           echo "========== check paths of modified files =========="
           git diff --name-only HEAD^ HEAD > files.txt
 
-          echo "::set-output name=remove_preview__auth_service::false"
-          echo "::set-output name=remove_preview__device_registry::false"  
-          echo "::set-output name=remove_preview__device_monitoring::false" 
-          echo "::set-output name=remove_preview__data_mgt::false"
-          echo "::set-output name=remove_preview__analytics::false"
-          echo "::set-output name=remove_preview__locate::false"
-          echo "::set-output name=remove_preview__predict::false"
-          echo "::set-output name=remove_preview__meta_data::false"
-          echo "::set-output name=remove_preview__view::false"
-          echo "::set-output name=remove_preview__calibrate::false" 
-          echo "::set-output name=remove_preview__notifications::false"
-          echo "::set-output name=remove_preview__network_uptime::false"
+          echo "remove_preview__auth_service >>$GITHUB_OUTPUT
+          echo "remove_preview__device_registry >>$GITHUB_OUTPUT  
+          echo "remove_preview__device_monitoring >>$GITHUB_OUTPUT 
+          echo "remove_preview__data_mgt >>$GITHUB_OUTPUT
+          echo "remove_preview__analytics >>$GITHUB_OUTPUT
+          echo "remove_preview__locate >>$GITHUB_OUTPUT
+          echo "remove_preview__predict >>$GITHUB_OUTPUT
+          echo "remove_preview__meta_data >>$GITHUB_OUTPUT
+          echo "remove_preview__view >>$GITHUB_OUTPUT
+          echo "remove_preview__calibrate >>$GITHUB_OUTPUT 
+          echo "remove_preview__notifications >>$GITHUB_OUTPUT
+          echo "remove_preview__network_uptime >>$GITHUB_OUTPUT
 
           while IFS= read -r file
           do
             echo $file
             if [[ $file == src/auth-service/* ]]; then
-              echo "::set-output name=remove_preview__auth_service::true"
+              echo "remove_preview__auth_service=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == src/device-registry/* ]]; then
-              echo "::set-output name=remove_preview__device_registry::true"
+              echo "remove_preview__device_registry=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == src/device-monitoring/* ]]; then
-              echo "::set-output name=remove_preview__device_monitoring::true"
+              echo "remove_preview__device_monitoring=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == src/data-mgt/node/* ]]; then
-              echo "::set-output name=remove_preview__data_mgt::true"
+              echo "remove_preview__data_mgt=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == src/analytics/* ]]; then
-              echo "::set-output name=remove_preview__analytics::true"
+              echo "remove_preview__analytics=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == src/locate/* ]]; then
-              echo "::set-output name=remove_preview__locate::true"
+              echo "remove_preview__locate=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == src/predict/* ]]; then
-              echo "::set-output name=remove_preview__predict::true"
+              echo "remove_preview__predict=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == src/meta-data/* ]]; then
-              echo "::set-output name=remove_preview__meta_data::true"
+              echo "remove_preview__meta_data=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == src/view/* ]]; then
-              echo "::set-output name=remove_preview__view::true"
+              echo "remove_preview__view=true" >>$GITHUB_OUTPUT
             fi
             
             if [[ $file == src/calibrate/* ]]; then
-              echo "::set-output name=remove_preview__calibrate::true"
+              echo "remove_preview__calibrate=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == src/notifications/* ]]; then
-              echo "::set-output name=remove_preview__notifications::true"
+              echo "remove_preview__notifications=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == src/network-uptime/* ]]; then
-              echo "::set-output name=remove_preview__network_uptime::true"
+              echo "remove_preview__network_uptime=true" >>$GITHUB_OUTPUT
             fi
 
           done < files.txt
