@@ -22,86 +22,87 @@ function oneMonthFromNow() {
   return d;
 }
 
-const UserSchema = new Schema({
-  email: {
-    type: String,
-    unique: true,
-    required: [true, "Email is required"],
-    trim: true,
-    validate: {
-      validator(email) {
-        return validator.isEmail(email);
+const UserSchema = new Schema(
+  {
+    email: {
+      type: String,
+      unique: true,
+      required: [true, "Email is required"],
+      trim: true,
+      validate: {
+        validator(email) {
+          return validator.isEmail(email);
+        },
+        message: "{VALUE} is not a valid email!",
       },
-      message: "{VALUE} is not a valid email!",
+    },
+    emailConfirmed: {
+      type: Boolean,
+      default: false,
+    },
+    firstName: {
+      type: String,
+      required: [true, "FirstName is required!"],
+      trim: true,
+    },
+    lastName: {
+      type: String,
+      required: [true, "LastName is required"],
+      trim: true,
+    },
+    userName: {
+      type: String,
+      required: [true, "UserName is required!"],
+      trim: true,
+      unique: true,
+    },
+    password: {
+      type: String,
+      required: [true, "Password is required!"],
+      trim: true,
+      minlength: [6, "Password is required"],
+      validate: {
+        validator(password) {
+          return validations.passwordReg.test(password);
+        },
+        message: "{VALUE} is not a valid password, please check documentation!",
+      },
+    },
+    privilege: { type: String, required: [true, "the role is required!"] },
+    isActive: { type: Boolean },
+    duration: { type: Date, default: oneMonthFromNow },
+    organization: {
+      type: String,
+      required: [true, "the organization is required!"],
+    },
+    long_organization: {
+      type: String,
+      required: [true, "the long_organization is required!"],
+    },
+    country: { type: String },
+    phoneNumber: { type: Number },
+    locationCount: { type: Number, default: 5 },
+    resetPasswordToken: { type: String },
+    resetPasswordExpires: { type: Date },
+    jobTitle: {
+      type: String,
+    },
+    website: { type: String },
+    description: { type: String },
+    category: {
+      type: String,
+    },
+    notifications: {
+      email: { type: Boolean, default: false },
+      push: { type: Boolean, default: false },
+      text: { type: Boolean, default: false },
+      phone: { type: Boolean, default: false },
+    },
+    profilePicture: {
+      type: String,
     },
   },
-  emailConfirmed: {
-    type: Boolean,
-    default: false,
-  },
-  firstName: {
-    type: String,
-    required: [true, "FirstName is required!"],
-    trim: true,
-  },
-  lastName: {
-    type: String,
-    required: [true, "LastName is required"],
-    trim: true,
-  },
-  userName: {
-    type: String,
-    required: [true, "UserName is required!"],
-    trim: true,
-    unique: true,
-  },
-  password: {
-    type: String,
-    required: [true, "Password is required!"],
-    trim: true,
-    minlength: [6, "Password is required"],
-    validate: {
-      validator(password) {
-        return validations.passwordReg.test(password);
-      },
-      message: "{VALUE} is not a valid password, please check documentation!",
-    },
-  },
-  privilege: { type: String, required: [true, "the role is required!"] },
-  isActive: { type: Boolean },
-  duration: { type: Date, default: oneMonthFromNow },
-  organization: {
-    type: String,
-    required: [true, "the organization is required!"],
-  },
-  long_organization: {
-    type: String,
-    required: [true, "the long_organization is required!"],
-  },
-  country: { type: String },
-  phoneNumber: { type: Number },
-  locationCount: { type: Number, default: 5 },
-  resetPasswordToken: { type: String },
-  resetPasswordExpires: { type: Date },
-  jobTitle: {
-    type: String,
-  },
-  website: { type: String },
-  description: { type: String },
-  category: {
-    type: String,
-  },
-  notifications: {
-    email: { type: Boolean, default: false },
-    push: { type: Boolean, default: false },
-    text: { type: Boolean, default: false },
-    phone: { type: Boolean, default: false },
-  },
-  profilePicture: {
-    type: String,
-  },
-},
-   { timestamps: true },
+  { timestamps: true }
 );
 
 UserSchema.pre("save", function (next) {
@@ -185,19 +186,17 @@ UserSchema.statics = {
         .limit(limit)
         .exec();
       if (!isEmpty(users)) {
-        let data = users;
+        const data = users;
         return {
           success: true,
           data,
           message: "successfully listed the users",
         };
-      }
-
-      if (isEmpty(data)) {
+      } else if (isEmpty(users)) {
         return {
           success: true,
           message: "no users exist",
-          data,
+          data: [],
         };
       }
       return {
@@ -206,6 +205,7 @@ UserSchema.statics = {
         data,
       };
     } catch (error) {
+      logObject("error", error);
       return {
         success: false,
         message: "User model server error - list",

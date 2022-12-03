@@ -7,6 +7,7 @@ metadata:
   name: {{ $job.name }}
   namespace: {{ .Values.namespace }}
 spec:
+  suspend: true
   failedJobsHistoryLimit: {{ .Values.failedJobsHistoryLimit }}
   schedule: {{ $job.schedule }}
   successfulJobsHistoryLimit: {{ .Values.successfulJobsHistoryLimit }}

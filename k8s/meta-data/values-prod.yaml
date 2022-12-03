@@ -6,8 +6,10 @@ app:
 
 replicaCount: 3
 
-image:
-  repository: gcr.io/airqo-250220/airqo-meta-data-api
+images:
+  repositories:
+    api: gcr.io/airqo-250220/airqo-meta-data-api
+    sitesConsumer: gcr.io/airqo-250220/airqo-meta-data-sites-consumer
   tag: latest
 
 nameOverride: ""
@@ -17,7 +19,7 @@ podAnnotations: {}
 
 resources:
   limits:
-    cpu: 500m
+    cpu: 1000m
     memory: 500Mi
   requests:
     # Average usage was 0.1 vCPU and 250Mi over the last 7 days
