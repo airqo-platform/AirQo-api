@@ -1,0 +1,24 @@
+app:
+  name: airqo-view-message-broker
+  label: view-msg-brokr
+  namespace: staging
+  configmap: prod-view-message-broker-config
+replicaCount: 2
+image:
+  repository: gcr.io/airqo-250220/airqo-view-message-broker
+  tag: prod-22673412-1670078934
+nameOverride: ''
+fullnameOverride: ''
+podAnnotations:
+  sidecar.istio.io/inject: 'false'
+resources:
+  limits:
+    cpu: 100m
+    memory: 400Mi
+  requests:
+    cpu: 10m
+    memory: 200Mi
+autoscaling:
+  minReplicas: 1
+  maxReplicas: 3
+  targetMemoryUtilizationPercentage: 80
