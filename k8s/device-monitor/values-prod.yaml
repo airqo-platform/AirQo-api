@@ -3,39 +3,29 @@ app:
   label: device-monitor
   namespace: production
   configmap: env-device-monitoring-production
-
 replicaCount: 3
-
 image:
   repository: gcr.io/airqo-250220/airqo-device-monitor-api
-  tag: latest
-
-nameOverride: ""
-fullnameOverride: ""
-
+  tag: prod-22673412-1670078934
+nameOverride: ''
+fullnameOverride: ''
 podAnnotations: {}
-
 resources:
   limits:
     cpu: 50m
     memory: 100Mi
   requests:
-    # Average usage was 0.0005 vCPU and 1Gi over the last 30 days
     cpu: 5m
     memory: 50Mi
-
 ingress:
   enabled: false
-
 service:
   type: NodePort
   port: 4001
   protocol: TCP
   targetPort: 4001
   nodePort: 30006
-
 autoscaling:
   minReplicas: 1
   maxReplicas: 3
-  # targetCPUUtilizationPercentage: 70
   targetMemoryUtilizationPercentage: 70
