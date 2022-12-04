@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           fetch-depth: 2
 
@@ -27,13 +27,13 @@ jobs:
           echo "========== check paths of modified files =========="
           git diff --name-only HEAD^ HEAD > files.txt
 
-          echo "::set-output name=test_view_api::false"
+          echo "test_view_api=false" >>$GITHUB_OUTPUT
 
           while IFS= read -r file
           do
             echo $file
             if [[ $file == src/view/* ]]; then
-              echo "::set-output name=test_view_api::true"
+              echo "test_view_api=true" >>$GITHUB_OUTPUT
             fi
           done < files.txt
 
@@ -48,7 +48,7 @@ jobs:
       checks: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Set up JDK 17
         uses: actions/setup-java@v3

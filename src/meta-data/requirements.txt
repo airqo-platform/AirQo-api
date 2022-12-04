@@ -10,3 +10,4 @@ marshmallow
 gunicorn
 flasgger
 osmnx
+kafka-python
