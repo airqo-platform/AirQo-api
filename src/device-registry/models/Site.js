@@ -389,6 +389,10 @@ siteSchema.statics = {
 
       logObject("modifiedArgs", modifiedArgs);
 
+      if (modifiedArgs.site_codes) {
+        delete modifiedArgs.site_codes;
+      }
+
       let createdSite = await this.create({
         ...modifiedArgs,
       });

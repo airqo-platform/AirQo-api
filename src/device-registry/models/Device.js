@@ -268,6 +268,9 @@ deviceSchema.statics = {
       logger.info("in the register static fn of the Device model...");
       let modifiedArgs = args;
       modifiedArgs.name = `aq_g${args.generation_version}_${args.generation_count}`;
+      if (modifiedArgs.device_codes) {
+        delete modifiedArgs.device_codes;
+      }
       let createdDevice = await this.create({
         ...modifiedArgs,
       });
