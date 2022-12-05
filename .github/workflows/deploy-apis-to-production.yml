@@ -700,7 +700,7 @@ jobs:
   ### data-mgt ###
   data-mgt:
     name: build-push-deploy-data-mgt
-    needs: check
+    needs: [check, image-tag]
     if: needs.check.outputs.run_data_mgt == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -825,7 +825,7 @@ jobs:
   ### device uptime ###
   device-uptime:
     name: build-push-deploy-device-uptime
-    needs: check
+    needs: [check, image-tag]
     if: needs.check.outputs.run_device_uptime == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -886,7 +886,7 @@ jobs:
   ### device status ###
   device-status:
     name: build-push-deploy-device-status
-    needs: check
+    needs: [check, image-tag]
     if: needs.check.outputs.run_device_status == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -1078,7 +1078,7 @@ jobs:
   ### gp model ###
   gp-model:
     name: build-push-deploy-gp-model
-    needs: check
+    needs: [check, image-tag]
     if: needs.check.outputs.run_gp_model == 'true'
     runs-on: ubuntu-latest
     steps:
