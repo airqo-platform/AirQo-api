@@ -344,7 +344,7 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           push: true
-          context: src/kafka/connectors/measurements-source-connector
+          context: src/kafka-connectors/measurements-source-connector
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/measurements-connect:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/measurements-connect:latest
 
       - name: Login to k8s cluster
