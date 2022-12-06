@@ -1233,7 +1233,7 @@ jobs:
           push: true
           context: src/meta-data
           target: api
-          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-meta-data-api:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-meta-data-api:latest
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-meta-data-api:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-meta-data-api:latest
 
       - name: Build and push sites consumer
         uses: docker/build-push-action@v2
@@ -1241,7 +1241,7 @@ jobs:
           push: true
           context: src/meta-data
           target: sites-consumer
-          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-meta-data-sites-consumer:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-meta-data-sites-consumer:latest
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-meta-data-sites-consumer:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-meta-data-sites-consumer:latest
 
       - name: Update corresponding helm values file
         uses: fjogeleit/yaml-update-action@main
