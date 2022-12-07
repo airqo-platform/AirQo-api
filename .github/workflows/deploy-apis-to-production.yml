@@ -397,7 +397,6 @@ jobs:
           valueFile: "k8s/auth-service/values-prod.yaml"
           propertyPath: "image.tag"
           value: ${{ needs.image-tag.outputs.build_id }}
-          updateFile: true
           branch: ${{ env.DEPLOY_BRANCH }}
           message: "Update auth service production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
@@ -474,7 +473,6 @@ jobs:
         uses: fjogeleit/yaml-update-action@main
         with:
           valueFile: "k8s/fault-detection/values-prod.yaml"
-          updateFile: true
           branch: ${{ env.DEPLOY_BRANCH }}
           message: "Update fault detection production tags to ${{ needs.image-tag.outputs.build_id }}"
           changes: |
@@ -610,7 +608,6 @@ jobs:
           valueFile: "k8s/device-registry/values-prod.yaml"
           propertyPath: "image.tag"
           value: ${{ needs.image-tag.outputs.build_id }}
-          updateFile: true
           branch: ${{ env.DEPLOY_BRANCH }}
           message: "Update device registry production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
@@ -673,7 +670,6 @@ jobs:
           valueFile: "k8s/device-monitor/values-prod.yaml"
           propertyPath: "image.tag"
           value: ${{ needs.image-tag.outputs.build_id }}
-          updateFile: true
           branch: ${{ env.DEPLOY_BRANCH }}
           message: "Update device monitor production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
@@ -734,7 +730,6 @@ jobs:
           valueFile: "k8s/data-mgt/values-prod.yaml"
           propertyPath: "image.tag"
           value: ${{ needs.image-tag.outputs.build_id }}
-          updateFile: true
           branch: ${{ env.DEPLOY_BRANCH }}
           message: "Update data mgt production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
@@ -796,7 +791,6 @@ jobs:
           valueFile: "k8s/analytics/api/values-prod.yaml"
           propertyPath: "image.tag"
           value: ${{ needs.image-tag.outputs.build_id }}
-          updateFile: true
           branch: ${{ env.DEPLOY_BRANCH }}
           message: "Update analytics production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
@@ -861,7 +855,6 @@ jobs:
           valueFile: "k8s/device-uptime/values-prod.yaml"
           propertyPath: "image.tag"
           value: ${{ needs.image-tag.outputs.build_id }}
-          updateFile: true
           branch: ${{ env.DEPLOY_BRANCH }}
           message: "Update device uptime production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
@@ -922,7 +915,6 @@ jobs:
           valueFile: "k8s/device-status/values-prod.yaml"
           propertyPath: "image.tag"
           value: ${{ needs.image-tag.outputs.build_id }}
-          updateFile: true
           branch: ${{ env.DEPLOY_BRANCH }}
           message: "Update device uptime production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
@@ -1051,7 +1043,6 @@ jobs:
           valueFile: "k8s/locate/values-prod.yaml"
           propertyPath: "image.tag"
           value: ${{ needs.image-tag.outputs.build_id }}
-          updateFile: true
           branch: ${{ env.DEPLOY_BRANCH }}
           message: "Update locate production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
@@ -1114,7 +1105,6 @@ jobs:
           valueFile: "k8s/gp-model/values-prod.yaml"
           propertyPath: "image.tag"
           value: ${{ needs.image-tag.outputs.build_id }}
-          updateFile: true
           branch: ${{ env.DEPLOY_BRANCH }}
           message: "Update gp-model production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
@@ -1175,7 +1165,6 @@ jobs:
           valueFile: "k8s/exceedance/values-prod-airqo.yaml"
           propertyPath: "image.tag"
           value: ${{ needs.image-tag.outputs.build_id }}
-          updateFile: true
           branch: ${{ env.DEPLOY_BRANCH }}
           message: "Update AirQo exceedance production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
@@ -1193,7 +1182,6 @@ jobs:
           valueFile: "k8s/exceedance/values-prod-kcca.yaml"
           propertyPath: "image.tag"
           value: ${{ needs.image-tag.outputs.build_id }}
-          updateFile: true
           branch: ${{ env.DEPLOY_BRANCH }}
           message: "Update KCCA exceedance production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
@@ -1249,7 +1237,6 @@ jobs:
           valueFile: "k8s/meta-data/values-prod.yaml"
           propertyPath: "images.tag"
           value: ${{ needs.image-tag.outputs.build_id }}
-          updateFile: true
           branch: ${{ env.DEPLOY_BRANCH }}
           message: "Update meta-data production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
@@ -1331,7 +1318,6 @@ jobs:
           valueFile: "k8s/view/api/values-prod.yaml"
           propertyPath: "image.tag"
           value: ${{ needs.image-tag.outputs.build_id }}
-          updateFile: true
           branch: ${{ env.DEPLOY_BRANCH }}
           message: "Update view api production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
@@ -1349,7 +1335,6 @@ jobs:
           valueFile: "k8s/view/message-broker/values-prod.yaml"
           propertyPath: "image.tag"
           value: ${{ needs.image-tag.outputs.build_id }}
-          updateFile: true
           branch: ${{ env.DEPLOY_BRANCH }}
           message: "Update view message broker production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
@@ -1424,7 +1409,6 @@ jobs:
         uses: fjogeleit/yaml-update-action@main
         with:
           valueFile: "k8s/calibrate/values-prod.yaml"
-          updateFile: true
           branch: ${{ env.DEPLOY_BRANCH }}
           message: "Update calibrate production tags to ${{ needs.image-tag.outputs.build_id }}"
           changes: |
@@ -1609,7 +1593,6 @@ jobs:
           valueFile: "k8s/predict/api/values-prod.yaml"
           propertyPath: "image.tag"
           value: ${{ needs.image-tag.outputs.build_id }}
-          updateFile: true
           branch: ${{ env.DEPLOY_BRANCH }}
           message: "Update predict API production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
@@ -1627,7 +1610,6 @@ jobs:
           valueFile: "k8s/predict/job/values-prod.yaml"
           propertyPath: "image.tag"
           value: ${{ needs.image-tag.outputs.build_id }}
-          updateFile: true
           branch: ${{ env.DEPLOY_BRANCH }}
           message: "Update predict job production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
@@ -1645,7 +1627,6 @@ jobs:
           valueFile: "k8s/predict/train-job/values-prod.yaml"
           propertyPath: "image.tag"
           value: ${{ needs.image-tag.outputs.build_id }}
-          updateFile: true
           branch: ${{ env.DEPLOY_BRANCH }}
           message: "Update predict train job production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
@@ -1718,7 +1699,6 @@ jobs:
           valueFile: "k8s/network-uptime/values-prod.yaml"
           propertyPath: "image.tag"
           value: ${{ needs.image-tag.outputs.build_id }}
-          updateFile: true
           branch: ${{ env.DEPLOY_BRANCH }}
           message: "Update network-uptime production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
@@ -1779,7 +1759,6 @@ jobs:
           valueFile: "k8s/channel-data/values-prod.yaml"
           propertyPath: "image.tag"
           value: ${{ needs.image-tag.outputs.build_id }}
-          updateFile: true
           branch: ${{ env.DEPLOY_BRANCH }}
           message: "Update channel-data production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
