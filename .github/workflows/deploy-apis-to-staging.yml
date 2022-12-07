@@ -335,7 +335,7 @@ jobs:
           password: ${{ secrets.GCR_CONFIG }}
 
       - name: Login to K8S
-        uses: azure/k8s-set-context@v1
+        uses: azure/k8s-set-context@v2
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
@@ -410,7 +410,7 @@ jobs:
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-measurements-connect:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-measurements-connect:latest
 
       - name: Login to k8s cluster
-        uses: azure/k8s-set-context@v1
+        uses: azure/k8s-set-context@v2
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
@@ -483,7 +483,7 @@ jobs:
             }
 
       - name: Login to k8s cluster
-        uses: azure/k8s-set-context@v1
+        uses: azure/k8s-set-context@v2
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
@@ -531,7 +531,7 @@ jobs:
           password: ${{ secrets.GCR_CONFIG }}
 
       - name: Login to K8S
-        uses: azure/k8s-set-context@v1
+        uses: azure/k8s-set-context@v2
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
@@ -595,7 +595,7 @@ jobs:
           password: ${{ secrets.GCR_CONFIG }}
 
       - name: Login to K8S
-        uses: azure/k8s-set-context@v1
+        uses: azure/k8s-set-context@v2
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
@@ -694,7 +694,7 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Login to K8S
-        uses: azure/k8s-set-context@v1
+        uses: azure/k8s-set-context@v2
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
@@ -715,7 +715,7 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Login to K8S
-        uses: azure/k8s-set-context@v1
+        uses: azure/k8s-set-context@v2
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
@@ -743,7 +743,7 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Login to K8S
-        uses: azure/k8s-set-context@v1
+        uses: azure/k8s-set-context@v2
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
@@ -770,7 +770,7 @@ jobs:
           password: ${{ secrets.GCR_CONFIG }}
 
       - name: Login to K8S
-        uses: azure/k8s-set-context@v1
+        uses: azure/k8s-set-context@v2
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
@@ -834,7 +834,7 @@ jobs:
           password: ${{ secrets.GCR_CONFIG }}
 
       - name: Login to K8S
-        uses: azure/k8s-set-context@v1
+        uses: azure/k8s-set-context@v2
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
@@ -894,7 +894,7 @@ jobs:
           password: ${{ secrets.GCR_CONFIG }}
 
       - name: Login to K8S
-        uses: azure/k8s-set-context@v1
+        uses: azure/k8s-set-context@v2
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
@@ -955,7 +955,7 @@ jobs:
           password: ${{ secrets.GCR_CONFIG }}
 
       - name: Login to K8S
-        uses: azure/k8s-set-context@v1
+        uses: azure/k8s-set-context@v2
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
@@ -1019,7 +1019,7 @@ jobs:
           password: ${{ secrets.GCR_CONFIG }}
 
       - name: Login to K8S
-        uses: azure/k8s-set-context@v1
+        uses: azure/k8s-set-context@v2
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
@@ -1079,7 +1079,7 @@ jobs:
           password: ${{ secrets.GCR_CONFIG }}
 
       - name: Login to K8S
-        uses: azure/k8s-set-context@v1
+        uses: azure/k8s-set-context@v2
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
@@ -1139,7 +1139,7 @@ jobs:
           password: ${{ secrets.GCR_CONFIG }}
 
       - name: Login to K8S
-        uses: azure/k8s-set-context@v1
+        uses: azure/k8s-set-context@v2
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
@@ -1201,7 +1201,7 @@ jobs:
           password: ${{ secrets.GCR_CONFIG }}
 
       - name: Login to K8S
-        uses: azure/k8s-set-context@v1
+        uses: azure/k8s-set-context@v2
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
@@ -1261,7 +1261,7 @@ jobs:
           password: ${{ secrets.GCR_CONFIG }}
 
       - name: Login to K8S
-        uses: azure/k8s-set-context@v1
+        uses: azure/k8s-set-context@v2
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
@@ -1343,7 +1343,7 @@ jobs:
           password: ${{ secrets.GCR_CONFIG }}
 
       - name: Login to K8S
-        uses: azure/k8s-set-context@v1
+        uses: azure/k8s-set-context@v2
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
@@ -1418,7 +1418,7 @@ jobs:
           password: ${{ secrets.GCR_CONFIG }}
 
       - name: Login to K8S
-        uses: azure/k8s-set-context@v1
+        uses: azure/k8s-set-context@v2
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
@@ -1537,7 +1537,7 @@ jobs:
             }
 
       - name: Login to Main k8s cluster
-        uses: azure/k8s-set-context@v1
+        uses: azure/k8s-set-context@v2
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
@@ -1585,7 +1585,7 @@ jobs:
           password: ${{ secrets.GCR_CONFIG }}
 
       - name: Login to K8S
-        uses: azure/k8s-set-context@v1
+        uses: azure/k8s-set-context@v2
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
@@ -1634,7 +1634,7 @@ jobs:
           password: ${{ secrets.GCR_CONFIG }}
 
       - name: Login to K8S
-        uses: azure/k8s-set-context@v1
+        uses: azure/k8s-set-context@v2
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
@@ -1687,7 +1687,7 @@ jobs:
           password: ${{ secrets.GCR_CONFIG }}
 
       - name: Login to K8S
-        uses: azure/k8s-set-context@v1
+        uses: azure/k8s-set-context@v2
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
@@ -1747,7 +1747,7 @@ jobs:
           password: ${{ secrets.GCR_CONFIG }}
 
       - name: Login to K8S
-        uses: azure/k8s-set-context@v1
+        uses: azure/k8s-set-context@v2
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
@@ -1800,7 +1800,7 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Login to K8S
-        uses: azure/k8s-set-context@v1
+        uses: azure/k8s-set-context@v2
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
