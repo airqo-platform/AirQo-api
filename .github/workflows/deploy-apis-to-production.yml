@@ -341,7 +341,7 @@ jobs:
           password: ${{ secrets.GCR_CONFIG }}
 
       - name: Build and push measurements source connectors
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v3
         with:
           push: true
           context: src/kafka-connectors/measurements-source-connector
@@ -447,7 +447,7 @@ jobs:
           password: ${{ secrets.GCR_CONFIG }}
 
       - name: Build and push train catboost model
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v3
         with:
           push: true
           context: src/fault-detection
@@ -455,7 +455,7 @@ jobs:
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/prod-train-catboost-model:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/prod-train-catboost-model:latest
 
       - name: Build and push train lstm model
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v3
         with:
           push: true
           context: src/fault-detection
@@ -463,7 +463,7 @@ jobs:
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/prod-train-lstm-model:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/prod-train-lstm-model:latest
 
       - name: Build and push fault detection API
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v3
         with:
           push: true
           context: src/fault-detection
@@ -539,7 +539,7 @@ jobs:
           kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
 
       - name: Build and push app
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v3
         with:
           push: true
           context: src/airflow
@@ -547,7 +547,7 @@ jobs:
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-apache-airflow:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-apache-airflow:latest
 
       - name: Build and push XCom
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v3
         with:
           push: true
           context: src/airflow
@@ -1162,7 +1162,7 @@ jobs:
           kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
 
       - name: Build and push AirQo Docker image
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v3
         with:
           push: true
           context: src/exceedances
@@ -1180,7 +1180,7 @@ jobs:
           message: "Update AirQo exceedance production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Build and push KCCA Docker image
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v3
         with:
           push: true
           context: src/exceedances
@@ -1228,7 +1228,7 @@ jobs:
           kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
 
       - name: Build and push  API
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v3
         with:
           push: true
           context: src/meta-data
@@ -1236,7 +1236,7 @@ jobs:
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-meta-data-api:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-meta-data-api:latest
 
       - name: Build and push sites consumer
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v3
         with:
           push: true
           context: src/meta-data
@@ -1318,7 +1318,7 @@ jobs:
           kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
 
       - name: Build and push API
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v3
         with:
           push: true
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-view-api:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-view-api:latest
@@ -1336,7 +1336,7 @@ jobs:
           message: "Update view api production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Build and push Message Broker
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v3
         with:
           push: true
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-view-message-broker:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-view-message-broker:latest
@@ -1405,7 +1405,7 @@ jobs:
           password: ${{ secrets.GCR_CONFIG }}
 
       - name: Build and push calibrate API
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v3
         with:
           push: true
           context: src/calibrate
@@ -1413,7 +1413,7 @@ jobs:
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-calibrate-api:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-calibrate-api:latest
 
       - name: Build and push calibrate pickle file
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v3
         with:
           push: true
           context: src/calibrate
@@ -1596,7 +1596,7 @@ jobs:
           kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
 
       - name: Build and push API Docker Image
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v3
         with:
           push: true
           context: src/predict/api
@@ -1614,7 +1614,7 @@ jobs:
           message: "Update predict API production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Build and push predict Job Docker Image
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v3
         with:
           push: true
           context: src/predict/jobs/predict
@@ -1632,7 +1632,7 @@ jobs:
           message: "Update predict job production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Build and push train Job Docker Image
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v3
         with:
           push: true
           context: src/predict/jobs/train
