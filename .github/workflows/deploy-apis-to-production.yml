@@ -1768,7 +1768,7 @@ jobs:
       - name: Build and Push Docker Image
         run: |
           cd src/channel-data/
-          docker build --target=production --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/prod-update-channel-data-job:latest .
+          docker build --target=production --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/prod-update-channel-data-job:${{ needs.image-tag.outputs.build_id }} .
           docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/prod-update-channel-data-job:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/prod-update-channel-data-job:latest
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/prod-update-channel-data-job:${{ needs.image-tag.outputs.build_id }}
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/prod-update-channel-data-job:latest

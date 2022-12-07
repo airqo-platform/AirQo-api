@@ -1775,7 +1775,7 @@ jobs:
       - name: Build and Push Docker Image
         run: |
           cd src/channel-data/
-          docker build --target=staging --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-update-channel-data-job:latest .
+          docker build --target=staging --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-update-channel-data-job:${{ needs.image-tag.outputs.build_id }} .
           docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-update-channel-data-job:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-update-channel-data-job:latest
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-update-channel-data-job:${{ needs.image-tag.outputs.build_id }}
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-update-channel-data-job:latest
