@@ -4,8 +4,8 @@ on:
   pull_request:
     branches:
       - staging
-    types:
-      - closed
+    # types:
+    #   - closed
 
 env:
   REGISTRY_URL: gcr.io
@@ -14,7 +14,7 @@ env:
 
 jobs:
   image-tag:
-    if: github.event.pull_request.merged == true
+    # if: github.event.pull_request.merged == true
     name: create image tag
     runs-on: ubuntu-latest
     outputs:
@@ -31,7 +31,7 @@ jobs:
           echo "datetime=${datetime}" >>$GITHUB_OUTPUT
 
   check:
-    if: github.event.pull_request.merged == true
+    # if: github.event.pull_request.merged == true
     name: check changed microservice(s)
     outputs:
       run_auth_service: ${{ steps.check_files.outputs.run_auth_service }} # auth service
@@ -349,13 +349,15 @@ jobs:
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-auth-api:latest
 
       - name: Update corresponding helm values file
-        uses: fjogeleit/yaml-update-action@main
+        uses: Wandalen/wretry.action@master
         with:
-          valueFile: "k8s/auth-service/values-stage.yaml"
-          propertyPath: "image.tag"
-          value: ${{ needs.image-tag.outputs.build_id }}
-          branch: ${{ env.DEPLOY_BRANCH }}
-          message: "Update auth service staging image tag to ${{ needs.image-tag.outputs.build_id }}"
+          action: fjogeleit/yaml-update-action@main
+          with: |
+            valueFile: "k8s/auth-service/values-stage.yaml"
+            propertyPath: "image.tag"
+            value: ${{ needs.image-tag.outputs.build_id }}
+            branch: ${{ env.DEPLOY_BRANCH }}
+            message: "Update auth service staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
         uses: google-github-actions/auth@v0
@@ -470,17 +472,19 @@ jobs:
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-fault-detection-api:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-fault-detection-api:latest
 
       - name: Update corresponding helm values file
-        uses: fjogeleit/yaml-update-action@main
+        uses: Wandalen/wretry.action@master
         with:
-          valueFile: "k8s/fault-detection/values-stage.yaml"
-          branch: ${{ env.DEPLOY_BRANCH }}
-          message: "Update fault detection staging tags to ${{ needs.image-tag.outputs.build_id }}"
-          changes: |
-            {
-              "image.tag": "${{ needs.image-tag.outputs.build_id }}",
-              "initContainers.container1.image.tag": "${{ needs.image-tag.outputs.build_id }}",
-              "initContainers.container2.image.tag": "${{ needs.image-tag.outputs.build_id }}"
-            }
+          action: fjogeleit/yaml-update-action@main
+          with: |
+            valueFile: "k8s/fault-detection/values-stage.yaml"
+            branch: ${{ env.DEPLOY_BRANCH }}
+            message: "Update fault detection staging tags to ${{ needs.image-tag.outputs.build_id }}"
+            changes: |
+              {
+                "image.tag": "${{ needs.image-tag.outputs.build_id }}",
+                "initContainers.container1.image.tag": "${{ needs.image-tag.outputs.build_id }}",
+                "initContainers.container2.image.tag": "${{ needs.image-tag.outputs.build_id }}"
+              }
 
       - name: Login to k8s cluster
         uses: azure/k8s-set-context@v2
@@ -609,13 +613,15 @@ jobs:
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-prediction-api:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-prediction-api:latest
 
       - name: Update corresponding helm values file
-        uses: fjogeleit/yaml-update-action@main
+        uses: Wandalen/wretry.action@master
         with:
-          valueFile: "k8s/predict/api/values-stage.yaml"
-          propertyPath: "image.tag"
-          value: ${{ needs.image-tag.outputs.build_id }}
-          branch: ${{ env.DEPLOY_BRANCH }}
-          message: "Update predict API staging image tag to ${{ needs.image-tag.outputs.build_id }}"
+          action: fjogeleit/yaml-update-action@main
+          with: |
+            valueFile: "k8s/predict/api/values-stage.yaml"
+            propertyPath: "image.tag"
+            value: ${{ needs.image-tag.outputs.build_id }}
+            branch: ${{ env.DEPLOY_BRANCH }}
+            message: "Update predict API staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Build and push predict Job Docker Image
         uses: docker/build-push-action@v3
@@ -626,13 +632,15 @@ jobs:
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-airqo-predict-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-airqo-predict-job:latest
 
       - name: Update corresponding helm values file
-        uses: fjogeleit/yaml-update-action@main
+        uses: Wandalen/wretry.action@master
         with:
-          valueFile: "k8s/predict/job/values-stage.yaml"
-          propertyPath: "image.tag"
-          value: ${{ needs.image-tag.outputs.build_id }}
-          branch: ${{ env.DEPLOY_BRANCH }}
-          message: "Update predict job staging image tag to ${{ needs.image-tag.outputs.build_id }}"
+          action: fjogeleit/yaml-update-action@main
+          with: |
+            valueFile: "k8s/predict/job/values-stage.yaml"
+            propertyPath: "image.tag"
+            value: ${{ needs.image-tag.outputs.build_id }}
+            branch: ${{ env.DEPLOY_BRANCH }}
+            message: "Update predict job staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Build and push train Job Docker Image
         uses: docker/build-push-action@v3
@@ -643,13 +651,15 @@ jobs:
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-airqo-train-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-airqo-train-job:latest
 
       - name: Update corresponding helm values file
-        uses: fjogeleit/yaml-update-action@main
+        uses: Wandalen/wretry.action@master
         with:
-          valueFile: "k8s/predict/train-job/values-stage.yaml"
-          propertyPath: "image.tag"
-          value: ${{ needs.image-tag.outputs.build_id }}
-          branch: ${{ env.DEPLOY_BRANCH }}
-          message: "Update predict train job staging image tag to ${{ needs.image-tag.outputs.build_id }}"
+          action: fjogeleit/yaml-update-action@main
+          with: |
+            valueFile: "k8s/predict/train-job/values-stage.yaml"
+            propertyPath: "image.tag"
+            value: ${{ needs.image-tag.outputs.build_id }}
+            branch: ${{ env.DEPLOY_BRANCH }}
+            message: "Update predict train job staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
         uses: google-github-actions/auth@v0
@@ -784,13 +794,15 @@ jobs:
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-registry-api:latest
 
       - name: Update corresponding helm values file
-        uses: fjogeleit/yaml-update-action@main
+        uses: Wandalen/wretry.action@master
         with:
-          valueFile: "k8s/device-registry/values-stage.yaml"
-          propertyPath: "image.tag"
-          value: ${{ needs.image-tag.outputs.build_id }}
-          branch: ${{ env.DEPLOY_BRANCH }}
-          message: "Update device registry staging image tag to ${{ needs.image-tag.outputs.build_id }}"
+          action: fjogeleit/yaml-update-action@main
+          with: |
+            valueFile: "k8s/device-registry/values-stage.yaml"
+            propertyPath: "image.tag"
+            value: ${{ needs.image-tag.outputs.build_id }}
+            branch: ${{ env.DEPLOY_BRANCH }}
+            message: "Update device registry staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
         uses: google-github-actions/auth@v0
@@ -848,13 +860,15 @@ jobs:
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-monitor-api:latest
 
       - name: Update corresponding helm values file
-        uses: fjogeleit/yaml-update-action@main
+        uses: Wandalen/wretry.action@master
         with:
-          valueFile: "k8s/device-monitor/values-stage.yaml"
-          propertyPath: "image.tag"
-          value: ${{ needs.image-tag.outputs.build_id }}
-          branch: ${{ env.DEPLOY_BRANCH }}
-          message: "Update device monitor staging image tag to ${{ needs.image-tag.outputs.build_id }}"
+          action: fjogeleit/yaml-update-action@main
+          with: |
+            valueFile: "k8s/device-monitor/values-stage.yaml"
+            propertyPath: "image.tag"
+            value: ${{ needs.image-tag.outputs.build_id }}
+            branch: ${{ env.DEPLOY_BRANCH }}
+            message: "Update device monitor staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
         uses: google-github-actions/auth@v0
@@ -908,13 +922,15 @@ jobs:
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-data-mgt-api:latest
 
       - name: Update corresponding helm values file
-        uses: fjogeleit/yaml-update-action@main
+        uses: Wandalen/wretry.action@master
         with:
-          valueFile: "k8s/data-mgt/values-stage.yaml"
-          propertyPath: "image.tag"
-          value: ${{ needs.image-tag.outputs.build_id }}
-          branch: ${{ env.DEPLOY_BRANCH }}
-          message: "Update data mgt staging image tag to ${{ needs.image-tag.outputs.build_id }}"
+          action: fjogeleit/yaml-update-action@main
+          with: |
+            valueFile: "k8s/data-mgt/values-stage.yaml"
+            propertyPath: "image.tag"
+            value: ${{ needs.image-tag.outputs.build_id }}
+            branch: ${{ env.DEPLOY_BRANCH }}
+            message: "Update data mgt staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
         uses: google-github-actions/auth@v0
@@ -969,13 +985,15 @@ jobs:
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-api:latest
 
       - name: Update corresponding helm values file
-        uses: fjogeleit/yaml-update-action@main
+        uses: Wandalen/wretry.action@master
         with:
-          valueFile: "k8s/analytics/api/values-stage.yaml"
-          propertyPath: "image.tag"
-          value: ${{ needs.image-tag.outputs.build_id }}
-          branch: ${{ env.DEPLOY_BRANCH }}
-          message: "Update analytics staging image tag to ${{ needs.image-tag.outputs.build_id }}"
+          action: fjogeleit/yaml-update-action@main
+          with: |
+            valueFile: "k8s/analytics/api/values-stage.yaml"
+            propertyPath: "image.tag"
+            value: ${{ needs.image-tag.outputs.build_id }}
+            branch: ${{ env.DEPLOY_BRANCH }}
+            message: "Update analytics staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
         uses: google-github-actions/auth@v0
@@ -1033,13 +1051,15 @@ jobs:
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-uptime-job:latest
 
       - name: Update corresponding helm values file
-        uses: fjogeleit/yaml-update-action@main
+        uses: Wandalen/wretry.action@master
         with:
-          valueFile: "k8s/device-uptime/values-stage.yaml"
-          propertyPath: "image.tag"
-          value: ${{ needs.image-tag.outputs.build_id }}
-          branch: ${{ env.DEPLOY_BRANCH }}
-          message: "Update device uptime staging image tag to ${{ needs.image-tag.outputs.build_id }}"
+          action: fjogeleit/yaml-update-action@main
+          with: |
+            valueFile: "k8s/device-uptime/values-stage.yaml"
+            propertyPath: "image.tag"
+            value: ${{ needs.image-tag.outputs.build_id }}
+            branch: ${{ env.DEPLOY_BRANCH }}
+            message: "Update device uptime staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
         uses: google-github-actions/auth@v0
@@ -1093,13 +1113,15 @@ jobs:
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-status-job:latest
 
       - name: Update corresponding helm values file
-        uses: fjogeleit/yaml-update-action@main
+        uses: Wandalen/wretry.action@master
         with:
-          valueFile: "k8s/device-status/values-stage.yaml"
-          propertyPath: "image.tag"
-          value: ${{ needs.image-tag.outputs.build_id }}
-          branch: ${{ env.DEPLOY_BRANCH }}
-          message: "Update device uptime staging image tag to ${{ needs.image-tag.outputs.build_id }}"
+          action: fjogeleit/yaml-update-action@main
+          with: |
+            valueFile: "k8s/device-status/values-stage.yaml"
+            propertyPath: "image.tag"
+            value: ${{ needs.image-tag.outputs.build_id }}
+            branch: ${{ env.DEPLOY_BRANCH }}
+            message: "Update device uptime staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
         uses: google-github-actions/auth@v0
@@ -1153,13 +1175,15 @@ jobs:
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-locate-api:latest
 
       - name: Update corresponding helm values file
-        uses: fjogeleit/yaml-update-action@main
+        uses: Wandalen/wretry.action@master
         with:
-          valueFile: "k8s/locate/values-stage.yaml"
-          propertyPath: "image.tag"
-          value: ${{ needs.image-tag.outputs.build_id }}
-          branch: ${{ env.DEPLOY_BRANCH }}
-          message: "Update locate staging image tag to ${{ needs.image-tag.outputs.build_id }}"
+          action: fjogeleit/yaml-update-action@main
+          with: |
+            valueFile: "k8s/locate/values-stage.yaml"
+            propertyPath: "image.tag"
+            value: ${{ needs.image-tag.outputs.build_id }}
+            branch: ${{ env.DEPLOY_BRANCH }}
+            message: "Update locate staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
         uses: google-github-actions/auth@v0
@@ -1215,13 +1239,15 @@ jobs:
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-gp-model-job:latest
 
       - name: Update corresponding helm values file
-        uses: fjogeleit/yaml-update-action@main
+        uses: Wandalen/wretry.action@master
         with:
-          valueFile: "k8s/gp-model/values-stage.yaml"
-          propertyPath: "image.tag"
-          value: ${{ needs.image-tag.outputs.build_id }}
-          branch: ${{ env.DEPLOY_BRANCH }}
-          message: "Update gp-model staging image tag to ${{ needs.image-tag.outputs.build_id }}"
+          action: fjogeleit/yaml-update-action@main
+          with: |
+            valueFile: "k8s/gp-model/values-stage.yaml"
+            propertyPath: "image.tag"
+            value: ${{ needs.image-tag.outputs.build_id }}
+            branch: ${{ env.DEPLOY_BRANCH }}
+            message: "Update gp-model staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
         uses: google-github-actions/auth@v0
@@ -1275,13 +1301,15 @@ jobs:
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-airqo-exceedance-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-airqo-exceedance-job:latest
 
       - name: Update corresponding helm values file
-        uses: fjogeleit/yaml-update-action@main
+        uses: Wandalen/wretry.action@master
         with:
-          valueFile: "k8s/exceedance/values-stage-airqo.yaml"
-          propertyPath: "image.tag"
-          value: ${{ needs.image-tag.outputs.build_id }}
-          branch: ${{ env.DEPLOY_BRANCH }}
-          message: "Update AirQo exceedance staging image tag to ${{ needs.image-tag.outputs.build_id }}"
+          action: fjogeleit/yaml-update-action@main
+          with: |
+            valueFile: "k8s/exceedance/values-stage-airqo.yaml"
+            propertyPath: "image.tag"
+            value: ${{ needs.image-tag.outputs.build_id }}
+            branch: ${{ env.DEPLOY_BRANCH }}
+            message: "Update AirQo exceedance staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Build and push KCCA Docker image
         uses: docker/build-push-action@v3
@@ -1292,13 +1320,15 @@ jobs:
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-kcca-exceedance-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-kcca-exceedance-job:latest
 
       - name: Update corresponding helm values file
-        uses: fjogeleit/yaml-update-action@main
+        uses: Wandalen/wretry.action@master
         with:
-          valueFile: "k8s/exceedance/values-stage-kcca.yaml"
-          propertyPath: "image.tag"
-          value: ${{ needs.image-tag.outputs.build_id }}
-          branch: ${{ env.DEPLOY_BRANCH }}
-          message: "Update KCCA exceedance staging image tag to ${{ needs.image-tag.outputs.build_id }}"
+          action: fjogeleit/yaml-update-action@main
+          with: |
+            valueFile: "k8s/exceedance/values-stage-kcca.yaml"
+            propertyPath: "image.tag"
+            value: ${{ needs.image-tag.outputs.build_id }}
+            branch: ${{ env.DEPLOY_BRANCH }}
+            message: "Update KCCA exceedance staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
         uses: google-github-actions/auth@v0
@@ -1365,13 +1395,15 @@ jobs:
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-meta-data-sites-consumer:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-meta-data-sites-consumer:latest
 
       - name: Update corresponding helm values file
-        uses: fjogeleit/yaml-update-action@main
+        uses: Wandalen/wretry.action@master
         with:
-          valueFile: "k8s/meta-data/values-stage.yaml"
-          propertyPath: "images.tag"
-          value: ${{ needs.image-tag.outputs.build_id }}
-          branch: ${{ env.DEPLOY_BRANCH }}
-          message: "Update meta-data staging image tag to ${{ needs.image-tag.outputs.build_id }}"
+          action: fjogeleit/yaml-update-action@main
+          with: |
+            valueFile: "k8s/meta-data/values-stage.yaml"
+            propertyPath: "images.tag"
+            value: ${{ needs.image-tag.outputs.build_id }}
+            branch: ${{ env.DEPLOY_BRANCH }}
+            message: "Update meta-data staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
         uses: google-github-actions/auth@v0
@@ -1432,13 +1464,15 @@ jobs:
           context: src/view
 
       - name: Update corresponding helm values file
-        uses: fjogeleit/yaml-update-action@main
+        uses: Wandalen/wretry.action@master
         with:
-          valueFile: "k8s/view/api/values-stage.yaml"
-          propertyPath: "image.tag"
-          value: ${{ needs.image-tag.outputs.build_id }}
-          branch: ${{ env.DEPLOY_BRANCH }}
-          message: "Update view api staging image tag to ${{ needs.image-tag.outputs.build_id }}"
+          action: fjogeleit/yaml-update-action@main
+          with: |
+            valueFile: "k8s/view/api/values-stage.yaml"
+            propertyPath: "image.tag"
+            value: ${{ needs.image-tag.outputs.build_id }}
+            branch: ${{ env.DEPLOY_BRANCH }}
+            message: "Update view api staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Build and push Message Broker
         uses: docker/build-push-action@v3
@@ -1449,13 +1483,15 @@ jobs:
           context: src/view
 
       - name: Update corresponding helm values file
-        uses: fjogeleit/yaml-update-action@main
+        uses: Wandalen/wretry.action@master
         with:
-          valueFile: "k8s/view/message-broker/values-stage.yaml"
-          propertyPath: "image.tag"
-          value: ${{ needs.image-tag.outputs.build_id }}
-          branch: ${{ env.DEPLOY_BRANCH }}
-          message: "Update view message broker staging image tag to ${{ needs.image-tag.outputs.build_id }}"
+          action: fjogeleit/yaml-update-action@main
+          with: |
+            valueFile: "k8s/view/message-broker/values-stage.yaml"
+            propertyPath: "image.tag"
+            value: ${{ needs.image-tag.outputs.build_id }}
+            branch: ${{ env.DEPLOY_BRANCH }}
+            message: "Update view message broker staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
         uses: google-github-actions/auth@v0
@@ -1525,16 +1561,18 @@ jobs:
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-calibrate-pickle-file:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-calibrate-pickle-file:latest
 
       - name: Update corresponding helm values file
-        uses: fjogeleit/yaml-update-action@main
+        uses: Wandalen/wretry.action@master
         with:
-          valueFile: "k8s/calibrate/values-stage.yaml"
-          branch: ${{ env.DEPLOY_BRANCH }}
-          message: "Update calibrate staging tags to ${{ needs.image-tag.outputs.build_id }}"
-          changes: |
-            {
-              "image.tag": "${{ needs.image-tag.outputs.build_id }}",
-              "initContainer.image.tag": "${{ needs.image-tag.outputs.build_id }}"
-            }
+          action: fjogeleit/yaml-update-action@main
+          with: |
+            valueFile: "k8s/calibrate/values-stage.yaml"
+            branch: ${{ env.DEPLOY_BRANCH }}
+            message: "Update calibrate staging tags to ${{ needs.image-tag.outputs.build_id }}"
+            changes: |
+              {
+                "image.tag": "${{ needs.image-tag.outputs.build_id }}",
+                "initContainer.image.tag": "${{ needs.image-tag.outputs.build_id }}"
+              }
 
       - name: Login to Main k8s cluster
         uses: azure/k8s-set-context@v2
@@ -1701,13 +1739,15 @@ jobs:
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-network-uptime-api:latest
 
       - name: Update corresponding helm values file
-        uses: fjogeleit/yaml-update-action@main
+        uses: Wandalen/wretry.action@master
         with:
-          valueFile: "k8s/network-uptime/values-stage.yaml"
-          propertyPath: "image.tag"
-          value: ${{ needs.image-tag.outputs.build_id }}
-          branch: ${{ env.DEPLOY_BRANCH }}
-          message: "Update network-uptime staging image tag to ${{ needs.image-tag.outputs.build_id }}"
+          action: fjogeleit/yaml-update-action@main
+          with: |
+            valueFile: "k8s/network-uptime/values-stage.yaml"
+            propertyPath: "image.tag"
+            value: ${{ needs.image-tag.outputs.build_id }}
+            branch: ${{ env.DEPLOY_BRANCH }}
+            message: "Update network-uptime staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
         uses: google-github-actions/auth@v0
@@ -1761,13 +1801,15 @@ jobs:
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-update-channel-data-job:latest
 
       - name: Update corresponding helm values file
-        uses: fjogeleit/yaml-update-action@main
+        uses: Wandalen/wretry.action@master
         with:
-          valueFile: "k8s/channel-data/values-stage.yaml"
-          propertyPath: "image.tag"
-          value: ${{ needs.image-tag.outputs.build_id }}
-          branch: ${{ env.DEPLOY_BRANCH }}
-          message: "Update channel-data staging image tag to ${{ needs.image-tag.outputs.build_id }}"
+          action: fjogeleit/yaml-update-action@main
+          with: |
+            valueFile: "k8s/channel-data/values-stage.yaml"
+            propertyPath: "image.tag"
+            value: ${{ needs.image-tag.outputs.build_id }}
+            branch: ${{ env.DEPLOY_BRANCH }}
+            message: "Update channel-data staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
         uses: google-github-actions/auth@v0
