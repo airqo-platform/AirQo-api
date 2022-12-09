@@ -4,8 +4,8 @@ on:
   pull_request:
     branches:
       - staging
-    # types:
-    #   - closed
+    types:
+      - closed
 
 env:
   REGISTRY_URL: gcr.io
@@ -14,7 +14,7 @@ env:
 
 jobs:
   image-tag:
-    # if: github.event.pull_request.merged == true
+    if: github.event.pull_request.merged == true
     name: create image tag
     runs-on: ubuntu-latest
     outputs:
@@ -31,7 +31,7 @@ jobs:
           echo "datetime=${datetime}" >>$GITHUB_OUTPUT
 
   check:
-    # if: github.event.pull_request.merged == true
+    if: github.event.pull_request.merged == true
     name: check changed microservice(s)
     outputs:
       run_auth_service: ${{ steps.check_files.outputs.run_auth_service }} # auth service
@@ -348,10 +348,10 @@ jobs:
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-auth-api:${{ needs.image-tag.outputs.build_id }}
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-auth-api:latest
 
-      - name: Update corresponding helm values file
-        uses: Wandalen/wretry.action@master
+      - name: Update corresponding helm values file(with retry)
+        uses: Wandalen/wretry.action@master # Retries action on fail
         with:
-          action: fjogeleit/yaml-update-action@main
+          action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
             valueFile: "k8s/auth-service/values-stage.yaml"
             propertyPath: "image.tag"
@@ -471,10 +471,10 @@ jobs:
           target: staging
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-fault-detection-api:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-fault-detection-api:latest
 
-      - name: Update corresponding helm values file
-        uses: Wandalen/wretry.action@master
+      - name: Update corresponding helm values file(with retry)
+        uses: Wandalen/wretry.action@master # Retries action on fail
         with:
-          action: fjogeleit/yaml-update-action@main
+          action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
             valueFile: "k8s/fault-detection/values-stage.yaml"
             branch: ${{ env.DEPLOY_BRANCH }}
@@ -612,10 +612,10 @@ jobs:
           target: staging
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-prediction-api:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-prediction-api:latest
 
-      - name: Update corresponding helm values file
-        uses: Wandalen/wretry.action@master
+      - name: Update corresponding helm values file(with retry)
+        uses: Wandalen/wretry.action@master # Retries action on fail
         with:
-          action: fjogeleit/yaml-update-action@main
+          action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
             valueFile: "k8s/predict/api/values-stage.yaml"
             propertyPath: "image.tag"
@@ -631,10 +631,10 @@ jobs:
           target: staging
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-airqo-predict-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-airqo-predict-job:latest
 
-      - name: Update corresponding helm values file
-        uses: Wandalen/wretry.action@master
+      - name: Update corresponding helm values file(with retry)
+        uses: Wandalen/wretry.action@master # Retries action on fail
         with:
-          action: fjogeleit/yaml-update-action@main
+          action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
             valueFile: "k8s/predict/job/values-stage.yaml"
             propertyPath: "image.tag"
@@ -650,10 +650,10 @@ jobs:
           target: staging
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-airqo-train-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-airqo-train-job:latest
 
-      - name: Update corresponding helm values file
-        uses: Wandalen/wretry.action@master
+      - name: Update corresponding helm values file(with retry)
+        uses: Wandalen/wretry.action@master # Retries action on fail
         with:
-          action: fjogeleit/yaml-update-action@main
+          action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
             valueFile: "k8s/predict/train-job/values-stage.yaml"
             propertyPath: "image.tag"
@@ -793,10 +793,10 @@ jobs:
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-registry-api:${{ needs.image-tag.outputs.build_id }}
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-registry-api:latest
 
-      - name: Update corresponding helm values file
-        uses: Wandalen/wretry.action@master
+      - name: Update corresponding helm values file(with retry)
+        uses: Wandalen/wretry.action@master # Retries action on fail
         with:
-          action: fjogeleit/yaml-update-action@main
+          action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
             valueFile: "k8s/device-registry/values-stage.yaml"
             propertyPath: "image.tag"
@@ -859,10 +859,10 @@ jobs:
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-monitor-api:${{ needs.image-tag.outputs.build_id }}
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-monitor-api:latest
 
-      - name: Update corresponding helm values file
-        uses: Wandalen/wretry.action@master
+      - name: Update corresponding helm values file(with retry)
+        uses: Wandalen/wretry.action@master # Retries action on fail
         with:
-          action: fjogeleit/yaml-update-action@main
+          action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
             valueFile: "k8s/device-monitor/values-stage.yaml"
             propertyPath: "image.tag"
@@ -921,10 +921,10 @@ jobs:
           docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-data-mgt-api:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-data-mgt-api:latest
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-data-mgt-api:latest
 
-      - name: Update corresponding helm values file
-        uses: Wandalen/wretry.action@master
+      - name: Update corresponding helm values file(with retry)
+        uses: Wandalen/wretry.action@master # Retries action on fail
         with:
-          action: fjogeleit/yaml-update-action@main
+          action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
             valueFile: "k8s/data-mgt/values-stage.yaml"
             propertyPath: "image.tag"
@@ -984,10 +984,10 @@ jobs:
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-api:${{ needs.image-tag.outputs.build_id }}
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-api:latest
 
-      - name: Update corresponding helm values file
-        uses: Wandalen/wretry.action@master
+      - name: Update corresponding helm values file(with retry)
+        uses: Wandalen/wretry.action@master # Retries action on fail
         with:
-          action: fjogeleit/yaml-update-action@main
+          action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
             valueFile: "k8s/analytics/api/values-stage.yaml"
             propertyPath: "image.tag"
@@ -1050,10 +1050,10 @@ jobs:
           docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-uptime-job:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-uptime-job:latest
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-uptime-job:latest
 
-      - name: Update corresponding helm values file
-        uses: Wandalen/wretry.action@master
+      - name: Update corresponding helm values file(with retry)
+        uses: Wandalen/wretry.action@master # Retries action on fail
         with:
-          action: fjogeleit/yaml-update-action@main
+          action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
             valueFile: "k8s/device-uptime/values-stage.yaml"
             propertyPath: "image.tag"
@@ -1112,10 +1112,10 @@ jobs:
           docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-status-job:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-status-job:latest
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-status-job:latest
 
-      - name: Update corresponding helm values file
-        uses: Wandalen/wretry.action@master
+      - name: Update corresponding helm values file(with retry)
+        uses: Wandalen/wretry.action@master # Retries action on fail
         with:
-          action: fjogeleit/yaml-update-action@main
+          action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
             valueFile: "k8s/device-status/values-stage.yaml"
             propertyPath: "image.tag"
@@ -1174,10 +1174,10 @@ jobs:
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-locate-api:${{ needs.image-tag.outputs.build_id }}
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-locate-api:latest
 
-      - name: Update corresponding helm values file
-        uses: Wandalen/wretry.action@master
+      - name: Update corresponding helm values file(with retry)
+        uses: Wandalen/wretry.action@master # Retries action on fail
         with:
-          action: fjogeleit/yaml-update-action@main
+          action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
             valueFile: "k8s/locate/values-stage.yaml"
             propertyPath: "image.tag"
@@ -1238,10 +1238,10 @@ jobs:
           docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-gp-model-job:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-gp-model-job:latest
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-gp-model-job:latest
 
-      - name: Update corresponding helm values file
-        uses: Wandalen/wretry.action@master
+      - name: Update corresponding helm values file(with retry)
+        uses: Wandalen/wretry.action@master # Retries action on fail
         with:
-          action: fjogeleit/yaml-update-action@main
+          action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
             valueFile: "k8s/gp-model/values-stage.yaml"
             propertyPath: "image.tag"
@@ -1300,10 +1300,10 @@ jobs:
           target: airqo-staging
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-airqo-exceedance-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-airqo-exceedance-job:latest
 
-      - name: Update corresponding helm values file
-        uses: Wandalen/wretry.action@master
+      - name: Update corresponding helm values file(with retry)
+        uses: Wandalen/wretry.action@master # Retries action on fail
         with:
-          action: fjogeleit/yaml-update-action@main
+          action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
             valueFile: "k8s/exceedance/values-stage-airqo.yaml"
             propertyPath: "image.tag"
@@ -1319,10 +1319,10 @@ jobs:
           target: kcca-staging
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-kcca-exceedance-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-kcca-exceedance-job:latest
 
-      - name: Update corresponding helm values file
-        uses: Wandalen/wretry.action@master
+      - name: Update corresponding helm values file(with retry)
+        uses: Wandalen/wretry.action@master # Retries action on fail
         with:
-          action: fjogeleit/yaml-update-action@main
+          action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
             valueFile: "k8s/exceedance/values-stage-kcca.yaml"
             propertyPath: "image.tag"
@@ -1394,10 +1394,10 @@ jobs:
           target: sites-consumer
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-meta-data-sites-consumer:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-meta-data-sites-consumer:latest
 
-      - name: Update corresponding helm values file
-        uses: Wandalen/wretry.action@master
+      - name: Update corresponding helm values file(with retry)
+        uses: Wandalen/wretry.action@master # Retries action on fail
         with:
-          action: fjogeleit/yaml-update-action@main
+          action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
             valueFile: "k8s/meta-data/values-stage.yaml"
             propertyPath: "images.tag"
@@ -1463,10 +1463,10 @@ jobs:
           target: api
           context: src/view
 
-      - name: Update corresponding helm values file
-        uses: Wandalen/wretry.action@master
+      - name: Update corresponding helm values file(with retry)
+        uses: Wandalen/wretry.action@master # Retries action on fail
         with:
-          action: fjogeleit/yaml-update-action@main
+          action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
             valueFile: "k8s/view/api/values-stage.yaml"
             propertyPath: "image.tag"
@@ -1482,10 +1482,10 @@ jobs:
           target: message-broker
           context: src/view
 
-      - name: Update corresponding helm values file
-        uses: Wandalen/wretry.action@master
+      - name: Update corresponding helm values file(with retry)
+        uses: Wandalen/wretry.action@master # Retries action on fail
         with:
-          action: fjogeleit/yaml-update-action@main
+          action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
             valueFile: "k8s/view/message-broker/values-stage.yaml"
             propertyPath: "image.tag"
@@ -1560,10 +1560,10 @@ jobs:
           target: pickle-file
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-calibrate-pickle-file:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-calibrate-pickle-file:latest
 
-      - name: Update corresponding helm values file
-        uses: Wandalen/wretry.action@master
+      - name: Update corresponding helm values file(with retry)
+        uses: Wandalen/wretry.action@master # Retries action on fail
         with:
-          action: fjogeleit/yaml-update-action@main
+          action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
             valueFile: "k8s/calibrate/values-stage.yaml"
             branch: ${{ env.DEPLOY_BRANCH }}
@@ -1738,10 +1738,10 @@ jobs:
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-network-uptime-api:${{ needs.image-tag.outputs.build_id }}
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-network-uptime-api:latest
 
-      - name: Update corresponding helm values file
-        uses: Wandalen/wretry.action@master
+      - name: Update corresponding helm values file(with retry)
+        uses: Wandalen/wretry.action@master # Retries action on fail
         with:
-          action: fjogeleit/yaml-update-action@main
+          action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
             valueFile: "k8s/network-uptime/values-stage.yaml"
             propertyPath: "image.tag"
@@ -1800,10 +1800,10 @@ jobs:
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-update-channel-data-job:${{ needs.image-tag.outputs.build_id }}
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-update-channel-data-job:latest
 
-      - name: Update corresponding helm values file
-        uses: Wandalen/wretry.action@master
+      - name: Update corresponding helm values file(with retry)
+        uses: Wandalen/wretry.action@master # Retries action on fail
         with:
-          action: fjogeleit/yaml-update-action@main
+          action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
             valueFile: "k8s/channel-data/values-stage.yaml"
             propertyPath: "image.tag"
