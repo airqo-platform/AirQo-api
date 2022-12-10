@@ -11,8 +11,96 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-device-controller`
 );
+const bulkUpdateUtil = require("../scripts/bulk-update");
+const bulkCreateUtil = require("../scripts/bulk-create");
+const httpStatus = require("http-status");
 
 const device = {
+  bulkCreate: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      const { network } = req.query;
+      const responseFromBulkUpdate = await bulkCreateUtil.runDeviceAdditions({
+        network,
+      });
+      logObject("responseFromBulkUpdate", responseFromBulkUpdate);
+      const message = responseFromBulkUpdate.message
+        ? responseFromBulkUpdate.message
+        : "";
+      const status = responseFromBulkUpdate.status
+        ? responseFromBulkUpdate.status
+        : httpStatus.OK;
+      res.status(status).json({
+        message,
+      });
+    } catch (error) {
+      logObject("error", error);
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "updating all the metadata",
+        errors: { message: error.message },
+      });
+    }
+  },
+  bulkUpdate: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      const { network } = req.query;
+      const responseFromBulkUpdate = await bulkUpdateUtil.runDeviceUpdates({
+        network,
+      });
+      const message = responseFromBulkUpdate.message
+        ? responseFromBulkUpdate.message
+        : "";
+      const status = responseFromBulkUpdate.status
+        ? responseFromBulkUpdate.status
+        : httpStatus.OK;
+      res.status(status).json({
+        message,
+      });
+    } catch (error) {
+      logObject("error", error);
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "updating all the metadata",
+        errors: { message: error.message },
+      });
+    }
+  },
   decryptManyKeys: (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -35,8 +123,9 @@ const device = {
       }
 
       let arrayOfEncryptedKeys = req.body;
-      let responseFromDecryptManyKeys =
-        createDeviceUtil.decryptManyKeys(arrayOfEncryptedKeys);
+      let responseFromDecryptManyKeys = createDeviceUtil.decryptManyKeys(
+        arrayOfEncryptedKeys
+      );
 
       if (responseFromDecryptManyKeys.success === true) {
         let status = responseFromDecryptManyKeys.status
@@ -284,8 +373,7 @@ const device = {
           message: responseFromGenerateQRCode.message,
           data: responseFromGenerateQRCode.data,
         });
-      }
-      if (responseFromGenerateQRCode.success === false) {
+      } else if (responseFromGenerateQRCode.success === false) {
         let error = responseFromGenerateQRCode.error
           ? responseFromGenerateQRCode.error
           : "";
@@ -583,8 +671,15 @@ const device = {
 
   listAllByNearestCoordinates: async (req, res) => {
     try {
-      const { tenant, latitude, longitude, radius, name, chid, device_number } =
-        req.query;
+      const {
+        tenant,
+        latitude,
+        longitude,
+        radius,
+        name,
+        chid,
+        device_number,
+      } = req.query;
       logText("list all devices by coordinates...");
       try {
         if (!(tenant && latitude && longitude && radius)) {
@@ -670,8 +765,9 @@ const device = {
       requestObject["body"] = body;
 
       logObject("we see", requestObject);
-      let responseFromUpdateDeviceOnPlatform =
-        await createDeviceUtil.updateOnPlatform(requestObject);
+      let responseFromUpdateDeviceOnPlatform = await createDeviceUtil.updateOnPlatform(
+        requestObject
+      );
 
       logger.info(
         `responseFromUpdateDeviceOnPlatform ${JSON.stringify(
@@ -815,8 +911,9 @@ const device = {
       requestBody["query"]["tenant"] = tenant;
       requestBody["body"] = body;
 
-      let responseFromCreateOnPlatform =
-        await createDeviceUtil.createOnPlatform(requestBody);
+      let responseFromCreateOnPlatform = await createDeviceUtil.createOnPlatform(
+        requestBody
+      );
       logger.info(
         `responseFromCreateOnPlatform -- ${JSON.stringify(
           responseFromCreateOnPlatform
