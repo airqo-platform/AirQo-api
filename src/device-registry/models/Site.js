@@ -388,34 +388,30 @@ siteSchema.statics = {
       modifiedArgs.description = modifiedArgs.name;
 
       logObject("modifiedArgs", modifiedArgs);
-
-      if (modifiedArgs.site_codes) {
-        delete modifiedArgs.site_codes;
-      }
-
       let createdSite = await this.create({
         ...modifiedArgs,
       });
-      let data = createdSite._doc;
-      delete data.geometry;
-      delete data.google_place_id;
-      delete data.updatedAt;
-      delete data.__v;
-      delete data.formatted_name;
-      delete data.airqlouds;
-      delete data.site_tags;
-      delete data.nearest_tahmo_station;
-      if (!isEmpty(data)) {
+
+      if (!isEmpty(createdSite)) {
+        let data = createdSite._doc;
+        delete data.geometry;
+        delete data.google_place_id;
+        delete data.updatedAt;
+        delete data.__v;
+        delete data.formatted_name;
+        delete data.airqlouds;
+        delete data.site_tags;
+        delete data.nearest_tahmo_station;
         return {
           success: true,
           data,
           message: "site created",
           status: HTTPStatus.CREATED,
         };
-      } else {
+      } else if (isEmpty(createdSite)) {
         return {
-          success: false,
-          message: "site not create despite successful operation",
+          success: true,
+          message: "site not created despite successful operation",
           status: HTTPStatus.ACCEPTED,
         };
       }
@@ -554,11 +550,12 @@ siteSchema.statics = {
           data,
           status: HTTPStatus.OK,
         };
-      } else {
+      } else if (isEmpty(response)) {
         return {
-          success: false,
-          message: "site does not exist, please crosscheck",
-          status: HTTPStatus.NOT_FOUND,
+          success: true,
+          message: "no sites match this search",
+          data: [],
+          status: HTTPStatus.OK,
         };
       }
     } catch (error) {
