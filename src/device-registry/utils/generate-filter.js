@@ -747,6 +747,7 @@ const generateFilter = {
       airqloud_id,
       network,
       airqloud,
+      airqloud_codes,
     } = req.query;
     let filter = {};
 
@@ -762,6 +763,12 @@ const generateFilter = {
 
     if (summary === "yes") {
       filter["summary"] = summary;
+    }
+
+    if (airqloud_codes) {
+      let airqloudCodesArray = airqloud_codes.split(",");
+      filter["airqloud_codes"] = {};
+      filter["airqloud_codes"]["$in"] = airqloudCodesArray;
     }
 
     if (id) {
