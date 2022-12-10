@@ -69,7 +69,6 @@ const deviceSchema = new mongoose.Schema(
     },
     long_name: {
       type: String,
-      required: [true, "the Device long name is required"],
       trim: true,
     },
     visibility: {
@@ -82,14 +81,9 @@ const deviceSchema = new mongoose.Schema(
     },
     generation_version: {
       type: Number,
-      required: [true, "the generation is required"],
     },
     generation_count: {
       type: Number,
-      required: [
-        true,
-        "the number of the device in the provided generation is required",
-      ],
     },
     tags: {
       type: Array,
@@ -162,13 +156,11 @@ const deviceSchema = new mongoose.Schema(
     },
     device_number: {
       type: Number,
-      required: [true, "device_number is required!"],
       trim: true,
       unique: true,
     },
     category: {
       type: String,
-      required: [true, "the category is required"],
       default: "lowcost",
       trim: true,
     },
@@ -267,10 +259,6 @@ deviceSchema.statics = {
       logObject("the args", args);
       logger.info("in the register static fn of the Device model...");
       let modifiedArgs = args;
-      modifiedArgs.name = `aq_g${args.generation_version}_${args.generation_count}`;
-      if (modifiedArgs.device_codes) {
-        delete modifiedArgs.device_codes;
-      }
       let createdDevice = await this.create({
         ...modifiedArgs,
       });
