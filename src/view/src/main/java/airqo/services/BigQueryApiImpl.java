@@ -115,14 +115,14 @@ public class BigQueryApiImpl implements BigQueryApi {
 	}
 
 	@Override
-	@Cacheable(value = "bigQueryInsightsCache", cacheNames = {"bigQueryInsightsCache"}, unless = "#result.isEmpty()")
+	@Cacheable(value = "bigQueryInsightsCache", unless = "#result.isEmpty()")
 	public List<GraphInsight> getInsights(Date startDateTime, Date endDateTime, String siteId) {
 		log.info(String.format("%s is not cached ", siteId));
 		return queryInsights(startDateTime, endDateTime, siteId);
 	}
 
 	@Override
-	@CachePut(value = "bigQueryInsightsCache", cacheNames = {"bigQueryInsightsCache"}, unless = "#result.isEmpty()")
+	@CachePut(value = "bigQueryInsightsCache", unless = "#result.isEmpty()")
 	public List<GraphInsight> cacheInsights(Date startDateTime, Date endDateTime, String siteId) {
 		log.info(String.format("Updating cache for site => %s, Start date time =>  %s, End date time =>  %s,", siteId, startDateTime, endDateTime));
 		return queryInsights(startDateTime, endDateTime, siteId);

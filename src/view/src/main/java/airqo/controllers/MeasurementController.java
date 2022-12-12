@@ -65,7 +65,7 @@ public class MeasurementController {
 	@GetMapping("/mobile-app/insights")
 	public ResponseEntity<ApiResponseBody> getAppInsights(@RequestParam(required = false) @DateTimeFormat(pattern = dateTimeFormat) Date startDateTime,
 														  @RequestParam(required = false) @DateTimeFormat(pattern = dateTimeFormat) Date endDateTime,
-														  @RequestParam(required = false) Integer utcOffset,
+														  @RequestParam(required = false, defaultValue = "0") Integer utcOffset,
 														  @RequestParam() String siteId) {
 
 		if (startDateTime == null || endDateTime == null) {

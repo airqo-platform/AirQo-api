@@ -167,7 +167,7 @@ public class InsightsServiceImpl implements InsightsService {
 	}
 
 	@Override
-	@Cacheable(value = "appInsightsApiCache", cacheNames = {"appInsightsApiCache"}, unless = "#result.forecast.isEmpty() && #result.historical.isEmpty()")
+	@Cacheable(value = "appInsightsApiCache", unless = "#result.forecast.isEmpty() && #result.historical.isEmpty()")
 	public InsightData getInsights(Date startDateTime, Date endDateTime, String siteId, int utcOffSet) {
 
 		try {
