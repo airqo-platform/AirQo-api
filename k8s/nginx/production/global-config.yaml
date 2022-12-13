@@ -18,7 +18,9 @@ data:
     location @access_denied { return 403 '{\"success\":false, \"message\":\"Access denied :|\", \"error\":\"Insufficient Permissions\"}'; }
     location @unauthorized { return 401 '{\"success\":false, \"message\":\"Invalid authentication\", \"error\":\"Unauthorized.\"}'; }
 
+    location /airqo-rest-api-documentation { return 302 /#/api/; }
     location /airqo-application-documentations { return 302 /#/mobile_app/privacy_policy; }
+    location /airqo-terms-and-conditions/HxYx3ysdA6k0ng6YJkU3 { return 302 /#/platform/terms_and_conditions; }
     
     location = /auth {
       if ($request_uri ~ '(/api/v1/users/emailAuth)|(/api/v2/users/emailAuth)') { return 200; }
@@ -27,12 +29,14 @@ data:
       if ($request_uri ~ '(/api/v1/users/forgotPassword)|(/api/v2/users/forgotPassword)') { return 200; }
       if ($request_uri ~ '(/api/v1/users/candidates/register)|(/api/v2/users/candidates/register)') { return 200; }
       if ($request_uri ~ '/airflow/api/v') { return 200; }    
+      if ($request_uri ~ '/argocd') { return 200; }    
       if ($request_uri !~ '/api/v') { return 200; } # All none api requests 
 
       # Mobile app specific exemptions. To be authenticated later
       if ($request_uri ~ '/api/v1/view/measurements/app/insights') { return 200; }
       if ($request_uri ~ '(/api/v1/devices/events)|(/api/v2/devices/events)') { return 200; }
       if ($request_uri ~ '(/api/v1/meta-data/mobile-carrier)|(/api/v1/meta-data/ip-geo-coordinates)') { return 200; }
+      
       
       internal;
       proxy_method            POST;

@@ -5,7 +5,6 @@ const { logObject, logElement, logText } = require("../utils/log");
 const mailer = require("../services/mailer");
 const generatePassword = require("./generate-password");
 var jsonify = require("./jsonify");
-const generateFilter = require("./generate-filter");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 constants = require("../config/constants");
@@ -24,21 +23,11 @@ const CandidateModel = (tenant) => {
 const request = {
   create: async (req, callback) => {
     try {
-      let {
-        firstName,
-        lastName,
-        email,
-        long_organization,
-        jobTitle,
-        website,
-        description,
-        category,
-        tenant,
-      } = req;
+      let { firstName, lastName, email, tenant } = req;
 
       // await validationsUtil.checkEmailExistenceUsingKickbox(email, (value) => {
       //   if (value.success == false) {
-      //     const errors = value.errors ? value.errors : "";
+      //     const errors = value.errors ? value.errors : { message: "Internal Server Error" };
       //     logObject("the validation checks results", {
       //       success: false,
       //       message: value.message,
@@ -54,40 +43,38 @@ const request = {
       //   }
       // });
 
-      let filterRequestBody = {};
-      filterRequestBody["body"] = {};
-      filterRequestBody["query"] = {};
-      filterRequestBody["body"] = req;
-      filterRequestBody["query"]["category"] = category;
+      let filter = { email };
 
-      const responseFromGenerateCandidateFilter =
-        generateFilter.candidates(filterRequestBody);
-
-      if (responseFromGenerateCandidateFilter.success === false) {
-        callback({
-          success: false,
-          message: "internal server error",
-          errors: { message: responseFromGenerateCandidateFilter.error },
-        });
-      }
-
-      let filter = responseFromGenerateCandidateFilter.data;
-      const responseFromListCandidates = await request.list({
-        tenant,
+      const responseFromListCandidates = await CandidateModel(
+        tenant.toLowerCase()
+      ).list({
         filter,
       });
 
-      if (responseFromListCandidates.success === true) {
-        if (
-          Array.isArray(responseFromListCandidates.data) &&
-          responseFromListCandidates.data.length === 1
-        ) {
+      logObject("responseFromListCandidates", responseFromListCandidates);
+
+      if (
+        responseFromListCandidates.message ===
+        "successfully listed the candidates"
+      ) {
+        callback({
+          success: true,
+          message: "candidate already exists",
+          status: httpStatus.OK,
+        });
+      } else if (responseFromListCandidates.message === "no candidates exist") {
+        const responseFromListUsers = await UserModel(
+          tenant.toLowerCase()
+        ).list({
+          filter,
+        });
+        if (responseFromListUsers.message === "successfully listed the users") {
           callback({
             success: true,
-            message: "candidate already exists or successfully created",
+            message: "candidate already exists as a user",
             status: httpStatus.OK,
           });
-        } else {
+        } else if (responseFromListUsers.message === "no users exist") {
           const responseFromCreateCandidate = await CandidateModel(
             tenant
           ).register(req);
@@ -103,24 +90,24 @@ const request = {
             if (responseFromSendEmail.success === true) {
               const status = responseFromSendEmail.status
                 ? responseFromSendEmail.status
-                : "";
+                : httpStatus.OK;
               callback({
                 success: true,
-                message: "candidate already exists or successfully created",
+                message: "candidate successfully created",
                 data: createdCandidate,
                 status,
               });
             } else if (responseFromSendEmail.success === false) {
               const errors = responseFromSendEmail.error
                 ? responseFromSendEmail.error
-                : "";
+                : { message: "Internal Server Error" };
               const status = responseFromSendEmail.status
                 ? responseFromSendEmail.status
-                : "";
+                : httpStatus.BAD_GATEWAY;
 
               callback({
                 success: false,
-                message: responseFromSendEmail.message,
+                message: responseFromCreateCandidate.message,
                 errors,
                 status,
               });
@@ -128,10 +115,10 @@ const request = {
           } else if (responseFromCreateCandidate.success === false) {
             const errors = responseFromCreateCandidate.errors
               ? responseFromCreateCandidate.errors
-              : "";
+              : { message: "Internal Server Error" };
             const status = responseFromCreateCandidate.status
               ? responseFromCreateCandidate.status
-              : "";
+              : httpStatus.INTERNAL_SERVER_ERROR;
             callback({
               success: false,
               message: responseFromCreateCandidate.message,
@@ -139,6 +126,19 @@ const request = {
               status,
             });
           }
+        } else if (responseFromListUsers.success === false) {
+          const errors = responseFromListUsers.error
+            ? responseFromListUsers.error
+            : { message: "Internal Server Error" };
+          const status = responseFromListUsers.status
+            ? responseFromListUsers.status
+            : httpStatus.INTERNAL_SERVER_ERROR;
+          callback({
+            success: false,
+            message: responseFromListUsers.message,
+            errors,
+            status,
+          });
         }
       } else if (responseFromListCandidates.success === false) {
         const errors = responseFromListCandidates.error
@@ -147,12 +147,9 @@ const request = {
         const status = responseFromListCandidates.status
           ? responseFromListCandidates.status
           : httpStatus.INTERNAL_SERVER_ERROR;
-        const message = responseFromListCandidates.message
-          ? responseFromListCandidates.message
-          : "Internal Server Error";
         callback({
           success: false,
-          message,
+          message: responseFromListCandidates.message,
           errors,
           status,
         });

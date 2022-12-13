@@ -27,6 +27,9 @@ FROM builder as development
 ENV FLASK_DEBUG=1
 CMD flask run --host=0.0.0.0
 
-FROM builder as deployment
+FROM builder as api
 ENV FLASK_DEBUG=0
 CMD gunicorn --bind=0.0.0.0:4001 app:app
+
+FROM builder as sites-consumer
+CMD ["python", "message-broker.py", "--target=sites-consumer"]
