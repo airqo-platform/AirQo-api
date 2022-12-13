@@ -35,9 +35,11 @@ public class UtilsTests {
 
 	@Test
 	@DisplayName("Testing filling missing data v1")
-	public void fillMissingDataV1() {
-		Date startDateTime = new Date();
-		Date endDateTime = new DateTime(new Date()).plusDays(1).toDate();
+	public void fillMissingDataV1() throws ParseException {
+		final SimpleDateFormat simpleDateFormat = new SimpleDateFormat(Frequency.DAILY.dateTimeFormat());
+
+		Date startDateTime = simpleDateFormat.parse(simpleDateFormat.format(new Date()));
+		Date endDateTime = new DateTime(startDateTime).plusDays(1).toDate();
 
 		List<Insight> insights = Utils.fillMissingInsights(new ArrayList<>(), startDateTime, endDateTime, "123", Frequency.DAILY);
 		Assertions.assertEquals(insights.size(), 1);
@@ -48,9 +50,11 @@ public class UtilsTests {
 
 	@Test
 	@DisplayName("Testing filling missing data v2")
-	public void fillMissingDataV2() {
-		Date startDateTime = new Date();
-		Date endDateTime = new DateTime(new Date()).plusDays(1).toDate();
+	public void fillMissingDataV2() throws ParseException {
+		final SimpleDateFormat simpleDateFormat = new SimpleDateFormat(Frequency.DAILY.dateTimeFormat());
+
+		Date startDateTime = simpleDateFormat.parse(simpleDateFormat.format(new Date()));
+		Date endDateTime = new DateTime(startDateTime).plusDays(1).toDate();
 
 		List<GraphInsight> insights = Utils.fillMissingInsights(new ArrayList<>(), startDateTime, endDateTime, "123", Frequency.DAILY, false);
 		Assertions.assertEquals(insights.size(), 1);
