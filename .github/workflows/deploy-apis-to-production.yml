@@ -611,11 +611,11 @@ jobs:
         with:
           action: fjogeleit/yaml-update-action@main
           with: |
-          valueFile: "k8s/device-registry/values-prod.yaml"
-          propertyPath: "image.tag"
-          value: ${{ needs.image-tag.outputs.build_id }}
-          branch: ${{ env.DEPLOY_BRANCH }}
-          message: "Update device registry production image tag to ${{ needs.image-tag.outputs.build_id }}"
+            valueFile: "k8s/device-registry/values-prod.yaml"
+            propertyPath: "image.tag"
+            value: ${{ needs.image-tag.outputs.build_id }}
+            branch: ${{ env.DEPLOY_BRANCH }}
+            message: "Update device registry production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
         uses: google-github-actions/auth@v0
@@ -727,7 +727,7 @@ jobs:
       - name: Build and Push Docker Image
         run: |
           cd src/data-mgt/node/
-          docker build --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-data-mgt-api:latest .
+          docker build --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-data-mgt-api:${{ needs.image-tag.outputs.build_id }} .
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-data-mgt-api:${{ needs.image-tag.outputs.build_id }}
           docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-data-mgt-api:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-data-mgt-api:latest
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-data-mgt-api:latest
@@ -856,7 +856,7 @@ jobs:
       - name: Build and Push Docker Image
         run: |
           cd src/device-uptime/
-          docker build --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-uptime-job:latest -f Dockerfile .
+          docker build --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-uptime-job:${{ needs.image-tag.outputs.build_id }} -f Dockerfile .
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-uptime-job:${{ needs.image-tag.outputs.build_id }}
           docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-uptime-job:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-uptime-job:latest
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-uptime-job:latest
@@ -918,7 +918,7 @@ jobs:
       - name: Build and Push Docker Image
         run: |
           cd src/device-status/
-          docker build --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-status-job:latest -f Dockerfile .
+          docker build --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-status-job:${{ needs.image-tag.outputs.build_id }} -f Dockerfile .
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-status-job:${{ needs.image-tag.outputs.build_id }}
           docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-status-job:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-status-job:latest
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-status-job:latest
@@ -1112,7 +1112,7 @@ jobs:
       - name: Build and Push Docker Image
         run: |
           cd src/gp-model/
-          docker build --target=production --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-gp-model-job:latest .
+          docker build --target=production --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-gp-model-job:${{ needs.image-tag.outputs.build_id }} .
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-gp-model-job:${{ needs.image-tag.outputs.build_id }}
           docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-gp-model-job:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-gp-model-job:latest
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-gp-model-job:latest
