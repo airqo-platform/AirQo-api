@@ -1,8 +1,8 @@
 package airqo.controllers;
 
-import airqo.Utils;
 import airqo.models.Measurement;
 import airqo.models.Message;
+import airqo.services.InsightsService;
 import com.fasterxml.jackson.core.json.JsonReadFeature;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -22,7 +22,7 @@ public class MessageBroker {
 	private final ObjectMapper objectMapper;
 
 	@Autowired
-	Utils utils;
+	InsightsService insightsService;
 
 	@Autowired
 	public MessageBroker(ObjectMapper objectMapper) {
@@ -40,7 +40,7 @@ public class MessageBroker {
 
 			log.info(String.format("Received sites : %s", siteIds));
 
-			utils.updateInsightsCache(siteIds);
+			insightsService.updateInsightsCache(siteIds);
 
 		} catch (Exception e) {
 			Sentry.captureException(e);

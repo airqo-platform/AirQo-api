@@ -28,7 +28,6 @@ public class CacheConfig {
 	RedisCacheManagerBuilderCustomizer redisCacheManagerBuilderCustomizer() {
 		return (builder) -> {
 			Map<String, RedisCacheConfiguration> configurationMap = new HashMap<>();
-			configurationMap.put("appInsightsCache", RedisCacheConfiguration.defaultCacheConfig().entryTtl(Duration.ofMinutes(5)));
 			configurationMap.put("appInsightsCacheV2", RedisCacheConfiguration.defaultCacheConfig().entryTtl(Duration.ofMinutes(5)));
 			configurationMap.put("bigQueryInsightsCache", RedisCacheConfiguration.defaultCacheConfig().entryTtl(Duration.ofMinutes(bigQueryInsightsCache)));
 			configurationMap.put("appInsightsApiCache", RedisCacheConfiguration.defaultCacheConfig().entryTtl(Duration.ofMinutes(appInsightsApiCache)));

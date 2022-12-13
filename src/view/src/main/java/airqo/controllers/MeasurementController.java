@@ -4,14 +4,10 @@ import airqo.Utils;
 import airqo.models.ApiResponseBody;
 import airqo.models.Insight;
 import airqo.models.InsightData;
-import airqo.predicate.InsightPredicate;
 import airqo.services.InsightsService;
-import airqo.services.MeasurementService;
-import com.querydsl.core.types.Predicate;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Profile;
-import org.springframework.data.querydsl.binding.QuerydslPredicate;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -35,20 +31,7 @@ import static airqo.config.Constants.dateTimeFormat;
 public class MeasurementController {
 
 	@Autowired
-	MeasurementService measurementService;
-
-	@Autowired
 	InsightsService insightsService;
-
-	@Deprecated
-	public ResponseEntity<ApiResponseBody> getInsights(
-		@QuerydslPredicate(root = Insight.class, bindings = InsightPredicate.class) Predicate predicate) {
-		log.info("{}", predicate);
-		List<Insight> insights = measurementService.apiGetInsights(predicate);
-
-		ApiResponseBody apiResponseBody = new ApiResponseBody("Operation Successful", insights);
-		return new ResponseEntity<>(apiResponseBody, new HttpHeaders(), HttpStatus.OK);
-	}
 
 	@GetMapping("/app/insights")
 	public ResponseEntity<ApiResponseBody> getInsightsData(@RequestParam() @DateTimeFormat(pattern = dateTimeFormat) Date startDateTime,
@@ -56,7 +39,7 @@ public class MeasurementController {
 														   @RequestParam() String siteId) {
 		List<String> siteIds = Arrays.stream(siteId.split(",")).toList();
 		log.info("\nStart Time: {} \nEnd time: {} \nSites: {}\n", startDateTime, endDateTime, siteIds);
-		List<Insight> insights = measurementService.apiGetInsights(startDateTime, endDateTime, siteIds);
+		List<Insight> insights = insightsService.getInsights(startDateTime, endDateTime, siteIds);
 
 		ApiResponseBody apiResponseBody = new ApiResponseBody("Operation Successful", insights);
 		return new ResponseEntity<>(apiResponseBody, new HttpHeaders(), HttpStatus.OK);
