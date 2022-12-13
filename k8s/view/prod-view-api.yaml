@@ -74,7 +74,7 @@ spec:
               path: api/v1/view/actuator/health/liveness
               port: 8080
               scheme: HTTP
-            initialDelaySeconds: 240
+            initialDelaySeconds: 60
             timeoutSeconds: 1
             periodSeconds: 20
             successThreshold: 1
