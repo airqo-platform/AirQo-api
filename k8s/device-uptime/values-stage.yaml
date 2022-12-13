@@ -4,7 +4,7 @@ app:
   configmap: env-device-uptime-staging
 image:
   repository: gcr.io/airqo-250220/airqo-stage-device-uptime-job
-  tag: stage-feaa5392-1670595503
+  tag: stage-7b514e52-1670925557
 nameOverride: ''
 fullnameOverride: ''
 resources:
