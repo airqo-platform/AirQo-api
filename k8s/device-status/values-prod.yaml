@@ -2,13 +2,11 @@ app:
   name: prod-device-status-job
   namespace: production
   configmap: env-device-status-production
-
 image:
   repository: gcr.io/airqo-250220/airqo-device-status-job
-  tag: latest
-
-nameOverride: ""
-fullnameOverride: ""
+  tag: prod-4bcf8ba0-1670941557
+nameOverride: ''
+fullnameOverride: ''
 resources:
   limits:
     cpu: 1000m
