@@ -7,6 +7,11 @@ on:
     types:
       - closed
 
+env:
+  REGISTRY_URL: gcr.io
+  PROJECT_ID: airqo-250220
+  DEPLOY_BRANCH: deployment/argocd
+
 jobs:
   image-tag:
     if: github.event.pull_request.merged == true
@@ -22,8 +27,8 @@ jobs:
           sha=${GITHUB_SHA::8}
           timestamp=$(date +%s)
           datetime=$(date)
-          echo "::set-output name=build_id::prod-${sha}-${timestamp}"
-          echo "::set-output name=datetime::${datetime}"
+          echo "build_id=prod-${sha}-${timestamp}" >>$GITHUB_OUTPUT
+          echo "datetime=${datetime}" >>$GITHUB_OUTPUT
 
   check:
     if: github.event.pull_request.merged == true
@@ -59,7 +64,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           fetch-depth: 2
 
@@ -73,241 +78,241 @@ jobs:
           echo "========== check paths of modified files =========="
           git diff --name-only HEAD^ HEAD > files.txt
 
-          echo "::set-output name=run_auth_service::false"
-          echo "::set-output name=run_device_registry::false"  
-          echo "::set-output name=run_device_monitoring::false" 
-          echo "::set-output name=run_data_mgt::false"
-          echo "::set-output name=run_analytics::false"
-          echo "::set-output name=run_device_uptime::false"  
-          echo "::set-output name=run_device_status::false" 
-          echo "::set-output name=run_locate::false"
-          echo "::set-output name=run_predict::false"
-          echo "::set-output name=run_gp_model::false"
-          echo "::set-output name=run_exceedances::false"
-          echo "::set-output name=run_meta_data::false"
-          echo "::set-output name=run_view::false"
-          echo "::set-output name=run_calibrate::false" 
-          echo "::set-output name=run_average_jobs::false"
-          echo "::set-output name=run_events_check::false"
-          echo "::set-output name=run_notifications::false"
-          echo "::set-output name=run_kafka_cluster_operator::false"
-          echo "::set-output name=run_kafka_cluster::false"
-          echo "::set-output name=run_kafka_topics::false"
-          echo "::set-output name=run_airflow::false"
-          echo "::set-output name=run_network_uptime::false"
-          echo "::set-output name=run_channel_data::false"
-          echo "::set-output name=run_kafka_connectors::false"
-          echo "::set-output name=run_fault_detection::false"
-          echo "::set-output name=run_nginx::false"
+          echo "run_auth_service=false" >>$GITHUB_OUTPUT
+          echo "run_device_registry=false" >>$GITHUB_OUTPUT  
+          echo "run_device_monitoring=false" >>$GITHUB_OUTPUT 
+          echo "run_data_mgt=false" >>$GITHUB_OUTPUT
+          echo "run_analytics=false" >>$GITHUB_OUTPUT
+          echo "run_device_uptime=false" >>$GITHUB_OUTPUT  
+          echo "run_device_status=false" >>$GITHUB_OUTPUT 
+          echo "run_locate=false" >>$GITHUB_OUTPUT
+          echo "run_predict=false" >>$GITHUB_OUTPUT
+          echo "run_gp_model=false" >>$GITHUB_OUTPUT
+          echo "run_exceedances=false" >>$GITHUB_OUTPUT
+          echo "run_meta_data=false" >>$GITHUB_OUTPUT
+          echo "run_view=false" >>$GITHUB_OUTPUT
+          echo "run_calibrate=false" >>$GITHUB_OUTPUT 
+          echo "run_average_jobs=false" >>$GITHUB_OUTPUT
+          echo "run_events_check=false" >>$GITHUB_OUTPUT
+          echo "run_notifications=false" >>$GITHUB_OUTPUT
+          echo "run_kafka_cluster_operator=false" >>$GITHUB_OUTPUT
+          echo "run_kafka_cluster=false" >>$GITHUB_OUTPUT
+          echo "run_kafka_topics=false" >>$GITHUB_OUTPUT
+          echo "run_airflow=false" >>$GITHUB_OUTPUT
+          echo "run_network_uptime=false" >>$GITHUB_OUTPUT
+          echo "run_channel_data=false" >>$GITHUB_OUTPUT
+          echo "run_kafka_connectors=false" >>$GITHUB_OUTPUT
+          echo "run_fault_detection=false" >>$GITHUB_OUTPUT
+          echo "run_nginx=false" >>$GITHUB_OUTPUT
 
           while IFS= read -r file
           do
             echo $file
             
             if [[ $file == src/auth-service/* ]]; then
-              echo "::set-output name=run_auth_service::true"
+              echo "run_auth_service=true" >>$GITHUB_OUTPUT
             fi
             
             if [[ $file == k8s/auth-service/* ]]; then
-              echo "::set-output name=run_auth_service::true"
+              echo "run_auth_service=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == src/device-registry/* ]]; then
-              echo "::set-output name=run_device_registry::true"
+              echo "run_device_registry=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == k8s/device-registry/* ]]; then
-              echo "::set-output name=run_device_registry::true"
+              echo "run_device_registry=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == src/device-monitoring/* ]]; then
-              echo "::set-output name=run_device_monitoring::true"
+              echo "run_device_monitoring=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == k8s/device-monitor/* ]]; then
-              echo "::set-output name=run_device_monitoring::true"
+              echo "run_device_monitoring=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == src/data-mgt/node/* ]]; then
-              echo "::set-output name=run_data_mgt::true"
+              echo "run_data_mgt=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == k8s/data-mgt/* ]]; then
-              echo "::set-output name=run_data_mgt::true"
+              echo "run_data_mgt=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == src/analytics/* ]]; then
-              echo "::set-output name=run_analytics::true"
+              echo "run_analytics=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == k8s/analytics/* ]]; then
-              echo "::set-output name=run_analytics::true"
+              echo "run_analytics=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == src/device-uptime/* ]]; then
-              echo "::set-output name=run_device_uptime::true"
+              echo "run_device_uptime=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == k8s/device-uptime/* ]]; then
-              echo "::set-output name=run_device_uptime::true"
+              echo "run_device_uptime=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == src/device-status/* ]]; then
-              echo "::set-output name=run_device_status::true"
+              echo "run_device_status=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == k8s/device-status/* ]]; then
-              echo "::set-output name=run_device_status::true"
+              echo "run_device_status=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == src/locate/* ]]; then
-              echo "::set-output name=run_locate::true"
+              echo "run_locate=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == k8s/locate/* ]]; then
-              echo "::set-output name=run_locate::true"
+              echo "run_locate=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == src/predict/* ]]; then
-              echo "::set-output name=run_predict::true"
+              echo "run_predict=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == k8s/predict/* ]]; then
-              echo "::set-output name=run_predict::true"
+              echo "run_predict=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == src/gp-model/* ]]; then
-              echo "::set-output name=run_gp_model::true"
+              echo "run_gp_model=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == k8s/gp-model/* ]]; then
-              echo "::set-output name=run_gp_model::true"
+              echo "run_gp_model=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == src/exceedances/* ]]; then
-              echo "::set-output name=run_exceedances::true"
+              echo "run_exceedances=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == k8s/exceedance/* ]]; then
-              echo "::set-output name=run_exceedances::true"
+              echo "run_exceedances=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == src/meta-data/* ]]; then
-              echo "::set-output name=run_meta_data::true"
+              echo "run_meta_data=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == k8s/meta-data/* ]]; then
-              echo "::set-output name=run_meta_data::true"
+              echo "run_meta_data=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == src/view/* ]]; then
-              echo "::set-output name=run_view::true"
+              echo "run_view=true" >>$GITHUB_OUTPUT
             fi
 
-            if [[ $file == k8s/view-api/* ]]; then
-              echo "::set-output name=run_view::true"
+            if [[ $file == k8s/view/* ]]; then
+              echo "run_view=true" >>$GITHUB_OUTPUT
             fi
             
             if [[ $file == src/calibrate/* ]]; then
-              echo "::set-output name=run_calibrate::true"
+              echo "run_calibrate=true" >>$GITHUB_OUTPUT
             fi
             
             if [[ $file == k8s/calibrate/* ]]; then
-              echo "::set-output name=run_calibrate::true"
+              echo "run_calibrate=true" >>$GITHUB_OUTPUT
             fi
             
             if [[ $file == src/data-mgt/python/cron-jobs/* ]]; then
-              echo "::set-output name=run_average_jobs::true"
+              echo "run_average_jobs=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == src/data-mgt/python/events-monitor/* ]]; then
-              echo "::set-output name=run_events_check::true"
+              echo "run_events_check=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == src/notifications/* ]]; then
-              echo "::set-output name=run_notifications::true"
+              echo "run_notifications=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == k8s/notification-service/* ]]; then
-              echo "::set-output name=run_notifications::true"
+              echo "run_notifications=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == k8s/kafka/clusters/* ]]; then
-              echo "::set-output name=run_kafka_cluster::true"
+              echo "run_kafka_cluster=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == k8s/kafka/operator/* ]]; then
-              echo "::set-output name=run_kafka_cluster_operator::true"
+              echo "run_kafka_cluster_operator=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == k8s/kafka/topics/* ]]; then
-              echo "::set-output name=run_kafka_topics::true"
+              echo "run_kafka_topics=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == src/kafka/connectors/* ]]; then
-              echo "::set-output name=run_kafka_connectors::true"
+              echo "run_kafka_connectors=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == src/airflow/* ]]; then
-              echo "::set-output name=run_airflow::true"
+              echo "run_airflow=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == k8s/airflow/* ]]; then
-              echo "::set-output name=run_airflow::true"
+              echo "run_airflow=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == src/network-uptime/* ]]; then
-              echo "::set-output name=run_network_uptime::true"
+              echo "run_network_uptime=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == k8s/network-uptime/* ]]; then
-              echo "::set-output name=run_network_uptime::true"
+              echo "run_network_uptime=true" >>$GITHUB_OUTPUT
             fi
             
             if [[ $file == src/channel-data/* ]]; then
-              echo "::set-output name=run_channel_data::true"
+              echo "run_channel_data=true" >>$GITHUB_OUTPUT
             fi
             
             if [[ $file == k8s/channel-data/* ]]; then
-              echo "::set-output name=run_channel_data::true"
+              echo "run_channel_data=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == src/fault-detection/* ]]; then
-              echo "::set-output name=run_fault_detection::true"
+              echo "run_fault_detection=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == k8s/fault-detection/* ]]; then
-              echo "::set-output name=run_fault_detection::true"
+              echo "run_fault_detection=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == k8s/nginx/production/* ]]; then
-              echo "::set-output name=run_nginx::true"
+              echo "run_nginx=true" >>$GITHUB_OUTPUT
             fi
 
             if [[ $file == workflow-trigger ]]; then
-              echo "::set-output name=run_notifications::true"
-              echo "::set-output name=run_events_check::true"
-              echo "::set-output name=run_calibrate::true"
-              echo "::set-output name=run_average_jobs::true"
-              echo "::set-output name=run_meta_data::true"
-              echo "::set-output name=run_exceedances::true"
-              echo "::set-output name=run_gp_model::true"
-              echo "::set-output name=run_predict::true"
-              echo "::set-output name=run_locate::true"
-              echo "::set-output name=run_device_status::true"
-              echo "::set-output name=run_device_uptime::true"
-              echo "::set-output name=run_analytics::true"
-              echo "::set-output name=run_data_mgt::true"
-              echo "::set-output name=run_device_monitoring::true"
-              echo "::set-output name=run_device_registry::true"
-              echo "::set-output name=run_auth_service::true"
-              echo "::set-output name=run_airflow::true"
-              echo "::set-output name=run_network_uptime::true"
-              echo "::set-output name=run_channel_data::true"
-              echo "::set-output name=run_fault_detection::true"
-              echo "::set-output name=run_view::true"
-              echo "::set-output name=run_kafka_connectors::true"
-              echo "::set-output name=run_nginx::true"
+              echo "run_notifications=true" >>$GITHUB_OUTPUT
+              echo "run_events_check=true" >>$GITHUB_OUTPUT
+              echo "run_calibrate=true" >>$GITHUB_OUTPUT
+              echo "run_average_jobs=true" >>$GITHUB_OUTPUT
+              echo "run_meta_data=true" >>$GITHUB_OUTPUT
+              echo "run_exceedances=true" >>$GITHUB_OUTPUT
+              echo "run_gp_model=true" >>$GITHUB_OUTPUT
+              echo "run_predict=true" >>$GITHUB_OUTPUT
+              echo "run_locate=true" >>$GITHUB_OUTPUT
+              echo "run_device_status=true" >>$GITHUB_OUTPUT
+              echo "run_device_uptime=true" >>$GITHUB_OUTPUT
+              echo "run_analytics=true" >>$GITHUB_OUTPUT
+              echo "run_data_mgt=true" >>$GITHUB_OUTPUT
+              echo "run_device_monitoring=true" >>$GITHUB_OUTPUT
+              echo "run_device_registry=true" >>$GITHUB_OUTPUT
+              echo "run_auth_service=true" >>$GITHUB_OUTPUT
+              echo "run_airflow=true" >>$GITHUB_OUTPUT
+              echo "run_network_uptime=true" >>$GITHUB_OUTPUT
+              echo "run_channel_data=true" >>$GITHUB_OUTPUT
+              echo "run_fault_detection=true" >>$GITHUB_OUTPUT
+              echo "run_view=true" >>$GITHUB_OUTPUT
+              echo "run_kafka_connectors=true" >>$GITHUB_OUTPUT
+              echo "run_nginx=true" >>$GITHUB_OUTPUT
             fi
 
           done < files.txt
@@ -320,7 +325,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v1
@@ -331,7 +336,7 @@ jobs:
       - name: Login to GCR
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCR_CONFIG }}
 
@@ -340,7 +345,7 @@ jobs:
         with:
           push: true
           context: src/kafka/connectors/measurements-source-connector
-          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/measurements-connect:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/measurements-connect:latest
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/measurements-connect:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/measurements-connect:latest
 
       - name: Login to k8s cluster
         uses: azure/k8s-set-context@v1
@@ -350,9 +355,9 @@ jobs:
 
       - name: Deploy to k8s cluster
         run: |
-          export MEASUREMENTS_CONNECT_IMAGE=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/measurements-connect:${{ needs.image-tag.outputs.build_id }}
-          export STAGE_KAFKA_CLUSTER=${{ secrets.STAGE_KAFKA_CLUSTER }}
-          cat k8s/kafka/connectors/measurements-connect.yaml | sed "s/{{MEASUREMENTS_CONNECT_IMAGE}}/$MEASUREMENTS_CONNECT_IMAGE/g" | sed "s/{{KAFKA_CLUSTER}}/$STAGE_KAFKA_CLUSTER/g" | kubectl apply -n message-broker -f-
+          export MEASUREMENTS_CONNECT_IMAGE=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/measurements-connect:${{ needs.image-tag.outputs.build_id }}
+          export PROD_KAFKA_CLUSTER=${{ secrets.PROD_KAFKA_CLUSTER }}
+          cat k8s/kafka/connectors/measurements-connect.yaml | sed "s/{{MEASUREMENTS_CONNECT_IMAGE}}/$MEASUREMENTS_CONNECT_IMAGE/g" | sed "s/{{KAFKA_CLUSTER}}/$PROD_KAFKA_CLUSTER/g" | kubectl apply -n message-broker -f-
           kubectl apply -f k8s/kafka/connectors/purple-air-connector.yaml -n message-broker
 
   ### auth service ###
@@ -363,12 +368,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Login to GCR
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCR_CONFIG }}
 
@@ -381,10 +386,20 @@ jobs:
       - name: Build and Push Docker Image
         run: |
           cd src/auth-service/
-          docker build --target=production --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-auth-api:${{ needs.image-tag.outputs.build_id }} .
-          docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-auth-api:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-auth-api:latest
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-auth-api:${{ needs.image-tag.outputs.build_id }}
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-auth-api:latest
+          docker build --target=production --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-auth-api:${{ needs.image-tag.outputs.build_id }} .
+          docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-auth-api:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-auth-api:latest
+          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-auth-api:${{ needs.image-tag.outputs.build_id }}
+          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-auth-api:latest
+
+      - name: Update corresponding helm values file
+        uses: fjogeleit/yaml-update-action@main
+        with:
+          valueFile: "k8s/auth-service/values-prod.yaml"
+          propertyPath: "image.tag"
+          value: ${{ needs.image-tag.outputs.build_id }}
+          updateFile: true
+          branch: ${{ env.DEPLOY_BRANCH }}
+          message: "Update auth service production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
         uses: google-github-actions/auth@v0
@@ -405,8 +420,8 @@ jobs:
       - name: Deploy to K8S
         run: |
           kubectl apply -f k8s/auth-service/prod-auth-api.yaml
-          kubectl set image deployment/airqo-auth-api auth-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-auth-api:${{ needs.image-tag.outputs.build_id }} -n production
-          kubectl annotate deployment/airqo-auth-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-auth-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
+          kubectl set image deployment/airqo-auth-api auth-api=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-auth-api:${{ needs.image-tag.outputs.build_id }} -n production
+          kubectl annotate deployment/airqo-auth-api kubernetes.io/change-cause="Image updated to ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-auth-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
 
   #### Fault Detection ######
   fault-detection:
@@ -416,7 +431,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v1
@@ -427,7 +442,7 @@ jobs:
       - name: Login to GCR
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCR_CONFIG }}
 
@@ -437,7 +452,7 @@ jobs:
           push: true
           context: src/fault-detection
           target: train-catboost-model
-          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/prod-train-catboost-model:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/prod-train-catboost-model:latest
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/prod-train-catboost-model:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/prod-train-catboost-model:latest
 
       - name: Build and push train lstm model
         uses: docker/build-push-action@v2
@@ -445,7 +460,7 @@ jobs:
           push: true
           context: src/fault-detection
           target: train-lstm-model
-          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/prod-train-lstm-model:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/prod-train-lstm-model:latest
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/prod-train-lstm-model:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/prod-train-lstm-model:latest
 
       - name: Build and push fault detection API
         uses: docker/build-push-action@v2
@@ -453,7 +468,21 @@ jobs:
           push: true
           context: src/fault-detection
           target: production
-          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/prod-fault-detection-api:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/prod-fault-detection-api:latest
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/prod-fault-detection-api:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/prod-fault-detection-api:latest
+
+      - name: Update corresponding helm values file
+        uses: fjogeleit/yaml-update-action@main
+        with:
+          valueFile: "k8s/fault-detection/values-prod.yaml"
+          updateFile: true
+          branch: ${{ env.DEPLOY_BRANCH }}
+          message: "Update fault detection production tags to ${{ needs.image-tag.outputs.build_id }}"
+          changes: |
+            {
+              "image.tag": "${{ needs.image-tag.outputs.build_id }}",
+              "initContainers.container1.image.tag": "${{ needs.image-tag.outputs.build_id }}",
+              "initContainers.container2.image.tag": "${{ needs.image-tag.outputs.build_id }}"
+            }
 
       - name: Login to k8s cluster
         uses: azure/k8s-set-context@v1
@@ -488,7 +517,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v1
@@ -499,7 +528,7 @@ jobs:
       - name: Login to GCR
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCR_CONFIG }}
 
@@ -515,7 +544,7 @@ jobs:
           push: true
           context: src/airflow
           target: deployment
-          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-apache-airflow:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-apache-airflow:latest
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-apache-airflow:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-apache-airflow:latest
 
       - name: Build and push XCom
         uses: docker/build-push-action@v2
@@ -523,7 +552,7 @@ jobs:
           push: true
           context: src/airflow
           target: xcom-setup
-          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-apache-airflow-xcom:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-apache-airflow-xcom:latest
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-apache-airflow-xcom:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-apache-airflow-xcom:latest
 
       - name: Login to GCP
         uses: google-github-actions/auth@v0
@@ -552,12 +581,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Login to GCR
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCR_CONFIG }}
 
@@ -570,10 +599,20 @@ jobs:
       - name: Build and Push Docker Image
         run: |
           cd src/device-registry/
-          docker build --target=production --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-registry-api:${{ needs.image-tag.outputs.build_id }} .
-          docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-registry-api:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-registry-api:latest
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-registry-api:${{ needs.image-tag.outputs.build_id }}
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-registry-api:latest
+          docker build --target=production --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-registry-api:${{ needs.image-tag.outputs.build_id }} .
+          docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-registry-api:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-registry-api:latest
+          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-registry-api:${{ needs.image-tag.outputs.build_id }}
+          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-registry-api:latest
+
+      - name: Update corresponding helm values file
+        uses: fjogeleit/yaml-update-action@main
+        with:
+          valueFile: "k8s/device-registry/values-prod.yaml"
+          propertyPath: "image.tag"
+          value: ${{ needs.image-tag.outputs.build_id }}
+          updateFile: true
+          branch: ${{ env.DEPLOY_BRANCH }}
+          message: "Update device registry production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
         uses: google-github-actions/auth@v0
@@ -594,8 +633,8 @@ jobs:
       - name: Deploy to K8S
         run: |
           kubectl apply -f k8s/device-registry/prod-device-registry-api.yaml -n production
-          kubectl set image deployment/airqo-device-registry-api device-reg-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-registry-api:${{ needs.image-tag.outputs.build_id }} -n production
-          kubectl annotate deployment/airqo-device-registry-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-registry-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
+          kubectl set image deployment/airqo-device-registry-api device-reg-api=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-registry-api:${{ needs.image-tag.outputs.build_id }} -n production
+          kubectl annotate deployment/airqo-device-registry-api kubernetes.io/change-cause="Image updated to ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-registry-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
 
   ### device monitoring ###
   device-monitoring:
@@ -605,12 +644,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Login to GCR
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCR_CONFIG }}
 
@@ -623,10 +662,20 @@ jobs:
       - name: Build and Push Docker Image
         run: |
           cd src/device-monitoring/
-          docker build --target=production --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-monitor-api:${{ needs.image-tag.outputs.build_id }} .
-          docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-monitor-api:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-monitor-api:latest
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-monitor-api:${{ needs.image-tag.outputs.build_id }}
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-monitor-api:latest
+          docker build --target=production --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-monitor-api:${{ needs.image-tag.outputs.build_id }} .
+          docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-monitor-api:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-monitor-api:latest
+          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-monitor-api:${{ needs.image-tag.outputs.build_id }}
+          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-monitor-api:latest
+
+      - name: Update corresponding helm values file
+        uses: fjogeleit/yaml-update-action@main
+        with:
+          valueFile: "k8s/device-monitor/values-prod.yaml"
+          propertyPath: "image.tag"
+          value: ${{ needs.image-tag.outputs.build_id }}
+          updateFile: true
+          branch: ${{ env.DEPLOY_BRANCH }}
+          message: "Update device monitor production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
         uses: google-github-actions/auth@v0
@@ -645,8 +694,8 @@ jobs:
       - name: Deploy to K8S
         run: |
           kubectl apply -f k8s/device-monitor/prod-device-monitor-api.yaml -n production
-          kubectl set image deployment/airqo-device-monitor-api dev-monitor-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-monitor-api:${{ needs.image-tag.outputs.build_id }} -n production
-          kubectl annotate deployment/airqo-device-monitor-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-monitor-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
+          kubectl set image deployment/airqo-device-monitor-api dev-monitor-api=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-monitor-api:${{ needs.image-tag.outputs.build_id }} -n production
+          kubectl annotate deployment/airqo-device-monitor-api kubernetes.io/change-cause="Image updated to ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-monitor-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
 
   ### data-mgt ###
   data-mgt:
@@ -656,12 +705,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Login to GCR
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCR_CONFIG }}
 
@@ -674,8 +723,20 @@ jobs:
       - name: Build and Push Docker Image
         run: |
           cd src/data-mgt/node/
-          docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-data-mgt-api:latest .
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-data-mgt-api:latest
+          docker build --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-data-mgt-api:latest .
+          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-data-mgt-api:${{ needs.image-tag.outputs.build_id }}
+          docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-data-mgt-api:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-data-mgt-api:latest
+          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-data-mgt-api:latest
+
+      - name: Update corresponding helm values file
+        uses: fjogeleit/yaml-update-action@main
+        with:
+          valueFile: "k8s/data-mgt/values-prod.yaml"
+          propertyPath: "image.tag"
+          value: ${{ needs.image-tag.outputs.build_id }}
+          updateFile: true
+          branch: ${{ env.DEPLOY_BRANCH }}
+          message: "Update data mgt production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
         uses: google-github-actions/auth@v0
@@ -704,14 +765,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       ### run unit tests ###
 
       - name: Login to GCR
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCR_CONFIG }}
 
@@ -724,10 +785,20 @@ jobs:
       - name: Build and Push Docker Image
         run: |
           cd src/analytics/
-          docker build --target=production --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-analytics-api:${{ needs.image-tag.outputs.build_id }} .
-          docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-analytics-api:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-analytics-api:latest
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-analytics-api:${{ needs.image-tag.outputs.build_id }}
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-analytics-api:latest
+          docker build --target=production --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-api:${{ needs.image-tag.outputs.build_id }} .
+          docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-api:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-api:latest
+          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-api:${{ needs.image-tag.outputs.build_id }}
+          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-api:latest
+
+      - name: Update corresponding helm values file
+        uses: fjogeleit/yaml-update-action@main
+        with:
+          valueFile: "k8s/analytics/api/values-prod.yaml"
+          propertyPath: "image.tag"
+          value: ${{ needs.image-tag.outputs.build_id }}
+          updateFile: true
+          branch: ${{ env.DEPLOY_BRANCH }}
+          message: "Update analytics production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
         uses: google-github-actions/auth@v0
@@ -748,8 +819,8 @@ jobs:
       - name: Deploy to K8S
         run: |
           kubectl apply -f k8s/analytics/prod-analytics-api.yaml -n production
-          kubectl set image deployment/airqo-analytics-api analytics-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-analytics-api:${{ needs.image-tag.outputs.build_id }} -n production
-          kubectl annotate deployment/airqo-analytics-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-analytics-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
+          kubectl set image deployment/airqo-analytics-api analytics-api=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-api:${{ needs.image-tag.outputs.build_id }} -n production
+          kubectl annotate deployment/airqo-analytics-api kubernetes.io/change-cause="Image updated to ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
 
   ### device uptime ###
   device-uptime:
@@ -759,14 +830,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       ### run unit tests ###
 
       - name: Login to GCR
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCR_CONFIG }}
 
@@ -779,8 +850,20 @@ jobs:
       - name: Build and Push Docker Image
         run: |
           cd src/device-uptime/
-          docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-uptime-job:latest -f Dockerfile .
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-uptime-job:latest
+          docker build --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-uptime-job:latest -f Dockerfile .
+          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-uptime-job:${{ needs.image-tag.outputs.build_id }}
+          docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-uptime-job:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-uptime-job:latest
+          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-uptime-job:latest
+
+      - name: Update corresponding helm values file
+        uses: fjogeleit/yaml-update-action@main
+        with:
+          valueFile: "k8s/device-uptime/values-prod.yaml"
+          propertyPath: "image.tag"
+          value: ${{ needs.image-tag.outputs.build_id }}
+          updateFile: true
+          branch: ${{ env.DEPLOY_BRANCH }}
+          message: "Update device uptime production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
         uses: google-github-actions/auth@v0
@@ -808,14 +891,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       ### run unit tests ###
 
       - name: Login to GCR
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCR_CONFIG }}
 
@@ -828,8 +911,20 @@ jobs:
       - name: Build and Push Docker Image
         run: |
           cd src/device-status/
-          docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-status-job:latest -f Dockerfile .
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-status-job:latest
+          docker build --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-status-job:latest -f Dockerfile .
+          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-status-job:${{ needs.image-tag.outputs.build_id }}
+          docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-status-job:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-status-job:latest
+          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-status-job:latest
+
+      - name: Update corresponding helm values file
+        uses: fjogeleit/yaml-update-action@main
+        with:
+          valueFile: "k8s/device-status/values-prod.yaml"
+          propertyPath: "image.tag"
+          value: ${{ needs.image-tag.outputs.build_id }}
+          updateFile: true
+          branch: ${{ env.DEPLOY_BRANCH }}
+          message: "Update device uptime production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
         uses: google-github-actions/auth@v0
@@ -857,7 +952,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Login to K8S
         uses: azure/k8s-set-context@v1
@@ -878,7 +973,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Login to K8S
         uses: azure/k8s-set-context@v1
@@ -905,7 +1000,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Login to K8S
         uses: azure/k8s-set-context@v1
@@ -925,14 +1020,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       ### run unit tests ###
 
       - name: Login to GCR
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCR_CONFIG }}
 
@@ -945,10 +1040,20 @@ jobs:
       - name: Build and Push Docker Image
         run: |
           cd src/locate/
-          docker build --target=production --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-locate-api:${{ needs.image-tag.outputs.build_id }} .
-          docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-locate-api:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-locate-api:latest
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-locate-api:${{ needs.image-tag.outputs.build_id }}
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-locate-api:latest
+          docker build --target=production --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-locate-api:${{ needs.image-tag.outputs.build_id }} .
+          docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-locate-api:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-locate-api:latest
+          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-locate-api:${{ needs.image-tag.outputs.build_id }}
+          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-locate-api:latest
+
+      - name: Update corresponding helm values file
+        uses: fjogeleit/yaml-update-action@main
+        with:
+          valueFile: "k8s/locate/values-prod.yaml"
+          propertyPath: "image.tag"
+          value: ${{ needs.image-tag.outputs.build_id }}
+          updateFile: true
+          branch: ${{ env.DEPLOY_BRANCH }}
+          message: "Update locate production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
         uses: google-github-actions/auth@v0
@@ -967,8 +1072,8 @@ jobs:
       - name: Deploy to K8S
         run: |
           kubectl apply -f k8s/locate/prod-locate-api.yaml -n production
-          kubectl set image deployment/airqo-locate-api locate-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-locate-api:${{ needs.image-tag.outputs.build_id }} -n production
-          kubectl annotate deployment/airqo-locate-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-locate-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
+          kubectl set image deployment/airqo-locate-api locate-api=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-locate-api:${{ needs.image-tag.outputs.build_id }} -n production
+          kubectl annotate deployment/airqo-locate-api kubernetes.io/change-cause="Image updated to ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-locate-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
 
   ### gp model ###
   gp-model:
@@ -978,14 +1083,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       ### run unit tests ###
 
       - name: Login to GCR
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCR_CONFIG }}
 
@@ -998,8 +1103,20 @@ jobs:
       - name: Build and Push Docker Image
         run: |
           cd src/gp-model/
-          docker build --target=production --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-gp-model-job:latest .
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-gp-model-job:latest
+          docker build --target=production --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-gp-model-job:latest .
+          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-gp-model-job:${{ needs.image-tag.outputs.build_id }}
+          docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-gp-model-job:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-gp-model-job:latest
+          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-gp-model-job:latest
+
+      - name: Update corresponding helm values file
+        uses: fjogeleit/yaml-update-action@main
+        with:
+          valueFile: "k8s/gp-model/values-prod.yaml"
+          propertyPath: "image.tag"
+          value: ${{ needs.image-tag.outputs.build_id }}
+          updateFile: true
+          branch: ${{ env.DEPLOY_BRANCH }}
+          message: "Update gp-model production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
         uses: google-github-actions/auth@v0
@@ -1027,14 +1144,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       ### run unit tests ###
 
       - name: Login to GCR
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCR_CONFIG }}
 
@@ -1050,7 +1167,17 @@ jobs:
           push: true
           context: src/exceedances
           target: airqo-production
-          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-exceedance-job:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-exceedance-job:latest
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-exceedance-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-exceedance-job:latest
+
+      - name: Update corresponding helm values file
+        uses: fjogeleit/yaml-update-action@main
+        with:
+          valueFile: "k8s/exceedance/values-prod-airqo.yaml"
+          propertyPath: "image.tag"
+          value: ${{ needs.image-tag.outputs.build_id }}
+          updateFile: true
+          branch: ${{ env.DEPLOY_BRANCH }}
+          message: "Update AirQo exceedance production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Build and push KCCA Docker image
         uses: docker/build-push-action@v2
@@ -1058,7 +1185,17 @@ jobs:
           push: true
           context: src/exceedances
           target: kcca-production
-          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/kcca-exceedance-job:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/kcca-exceedance-job:latest
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/kcca-exceedance-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/kcca-exceedance-job:latest
+
+      - name: Update corresponding helm values file
+        uses: fjogeleit/yaml-update-action@main
+        with:
+          valueFile: "k8s/exceedance/values-prod-kcca.yaml"
+          propertyPath: "image.tag"
+          value: ${{ needs.image-tag.outputs.build_id }}
+          updateFile: true
+          branch: ${{ env.DEPLOY_BRANCH }}
+          message: "Update KCCA exceedance production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Deploy to K8S
         run: |
@@ -1073,14 +1210,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       ### run unit tests ###
 
       - name: Login to GCR
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCR_CONFIG }}
 
@@ -1090,13 +1227,31 @@ jobs:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
 
-      - name: Build and Push Docker Image
-        run: |
-          cd src/meta-data/
-          docker build --target=deployment --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-meta-data-api:${{ needs.image-tag.outputs.build_id }} .
-          docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-meta-data-api:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-meta-data-api:latest
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-meta-data-api:${{ needs.image-tag.outputs.build_id }}
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-meta-data-api:latest
+      - name: Build and push  API
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          context: src/meta-data
+          target: api
+          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-meta-data-api:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-meta-data-api:latest
+
+      - name: Build and push sites consumer
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          context: src/meta-data
+          target: sites-consumer
+          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-meta-data-sites-consumer:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-meta-data-sites-consumer:latest
+
+      - name: Update corresponding helm values file
+        uses: fjogeleit/yaml-update-action@main
+        with:
+          valueFile: "k8s/meta-data/values-prod.yaml"
+          propertyPath: "images.tag"
+          value: ${{ needs.image-tag.outputs.build_id }}
+          updateFile: true
+          branch: ${{ env.DEPLOY_BRANCH }}
+          message: "Update meta-data production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
         uses: google-github-actions/auth@v0
@@ -1141,7 +1296,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v1
@@ -1152,7 +1307,7 @@ jobs:
       - name: Login to GCR
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCR_CONFIG }}
 
@@ -1166,17 +1321,37 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           push: true
-          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-view-api:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-view-api:latest
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-view-api:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-view-api:latest
           target: api
           context: src/view
+
+      - name: Update corresponding helm values file
+        uses: fjogeleit/yaml-update-action@main
+        with:
+          valueFile: "k8s/view/api/values-prod.yaml"
+          propertyPath: "image.tag"
+          value: ${{ needs.image-tag.outputs.build_id }}
+          updateFile: true
+          branch: ${{ env.DEPLOY_BRANCH }}
+          message: "Update view api production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Build and push Message Broker
         uses: docker/build-push-action@v2
         with:
           push: true
-          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-view-message-broker:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-view-message-broker:latest
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-view-message-broker:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-view-message-broker:latest
           target: message-broker
           context: src/view
+
+      - name: Update corresponding helm values file
+        uses: fjogeleit/yaml-update-action@main
+        with:
+          valueFile: "k8s/view/message-broker/values-prod.yaml"
+          propertyPath: "image.tag"
+          value: ${{ needs.image-tag.outputs.build_id }}
+          updateFile: true
+          branch: ${{ env.DEPLOY_BRANCH }}
+          message: "Update view message broker production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
         uses: google-github-actions/auth@v0
@@ -1198,12 +1373,12 @@ jobs:
 
       - name: Deploy API to K8S
         run: |
-          kubectl apply -f k8s/view-api/prod-view-api.yaml -n production
+          kubectl apply -f k8s/view/prod-view-api.yaml -n production
           kubectl rollout restart deployment airqo-view-api  -n production
 
       - name: Deploy Message Broker to K8S
         run: |
-          kubectl apply -f k8s/view-api/prod-view-message-broker.yaml -n production
+          kubectl apply -f k8s/view/prod-view-message-broker.yaml -n production
           kubectl rollout restart deployment airqo-view-message-broker  -n production
 
   #### Calibrate ######
@@ -1214,7 +1389,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v1
@@ -1225,7 +1400,7 @@ jobs:
       - name: Login to GCR
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCR_CONFIG }}
 
@@ -1235,7 +1410,7 @@ jobs:
           push: true
           context: src/calibrate
           target: production
-          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-api:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-api:latest
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-calibrate-api:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-calibrate-api:latest
 
       - name: Build and push calibrate pickle file
         uses: docker/build-push-action@v2
@@ -1243,7 +1418,20 @@ jobs:
           push: true
           context: src/calibrate
           target: pickle-file
-          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-pickle-file:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-pickle-file:latest
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-calibrate-pickle-file:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-calibrate-pickle-file:latest
+
+      - name: Update corresponding helm values file
+        uses: fjogeleit/yaml-update-action@main
+        with:
+          valueFile: "k8s/calibrate/values-prod.yaml"
+          updateFile: true
+          branch: ${{ env.DEPLOY_BRANCH }}
+          message: "Update calibrate production tags to ${{ needs.image-tag.outputs.build_id }}"
+          changes: |
+            {
+              "image.tag": "${{ needs.image-tag.outputs.build_id }}",
+              "initContainer.image.tag": "${{ needs.image-tag.outputs.build_id }}"
+            }
 
       - name: Login to Main k8s cluster
         uses: azure/k8s-set-context@v1
@@ -1270,9 +1458,9 @@ jobs:
       - name: Deploy to Main k8s cluster
         run: |
           kubectl apply -f k8s/calibrate/prod-calibrate-api.yaml -n production
-          kubectl set image deployment/airqo-calibrate-api calibrate-pickle=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-pickle-file:${{ needs.image-tag.outputs.build_id }} -n production
-          kubectl set image deployment/airqo-calibrate-api calibrate=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-api:${{ needs.image-tag.outputs.build_id }} -n production
-          kubectl annotate deployment/airqo-calibrate-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
+          kubectl set image deployment/airqo-calibrate-api calibrate-pickle=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-calibrate-pickle-file:${{ needs.image-tag.outputs.build_id }} -n production
+          kubectl set image deployment/airqo-calibrate-api calibrate=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-calibrate-api:${{ needs.image-tag.outputs.build_id }} -n production
+          kubectl annotate deployment/airqo-calibrate-api kubernetes.io/change-cause="Image updated to ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-calibrate-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
 
   ### events check ###
   events-check:
@@ -1282,14 +1470,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       ### run unit tests ###
 
       - name: Login to GCR
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCR_CONFIG }}
 
@@ -1302,8 +1490,8 @@ jobs:
       - name: Build and Push Docker Image
         run: |
           cd src/data-mgt/python/events-monitor/
-          docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-events-notifs-job:latest .
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-events-notifs-job:latest
+          docker build --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-events-notifs-job:latest .
+          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-events-notifs-job:latest
 
       - name: Login to GCP
         uses: google-github-actions/auth@v0
@@ -1331,14 +1519,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       ### run unit tests ###
 
       - name: Login to GCR
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCR_CONFIG }}
 
@@ -1351,10 +1539,10 @@ jobs:
       - name: Build and Push Docker Image
         run: |
           cd src/notifications/
-          docker build --target=production --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-notification-api:${{ needs.image-tag.outputs.build_id }} .
-          docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-notification-api:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-notification-api:latest
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-notification-api:${{ needs.image-tag.outputs.build_id }}
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-notification-api:latest
+          docker build --target=production --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-notification-api:${{ needs.image-tag.outputs.build_id }} .
+          docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-notification-api:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-notification-api:latest
+          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-notification-api:${{ needs.image-tag.outputs.build_id }}
+          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-notification-api:latest
 
       - name: Login to GCP
         uses: google-github-actions/auth@v0
@@ -1375,8 +1563,8 @@ jobs:
       - name: Deploy to K8S
         run: |
           kubectl apply -f k8s/notification-service/prod-notification-api.yaml
-          kubectl set image deployment/airqo-notification-api notification-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-notification-api:${{ needs.image-tag.outputs.build_id }} -n production
-          kubectl annotate deployment/airqo-notification-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-notification-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
+          kubectl set image deployment/airqo-notification-api notification-api=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-notification-api:${{ needs.image-tag.outputs.build_id }} -n production
+          kubectl annotate deployment/airqo-notification-api kubernetes.io/change-cause="Image updated to ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-notification-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
 
   ### predict api and jobs ###
   predict-service:
@@ -1386,7 +1574,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v1
@@ -1397,7 +1585,7 @@ jobs:
       - name: Login to GCR
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCR_CONFIG }}
 
@@ -1413,7 +1601,17 @@ jobs:
           push: true
           context: src/predict/api
           target: production
-          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-prediction-api:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-prediction-api:latest
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-prediction-api:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-prediction-api:latest
+
+      - name: Update corresponding helm values file
+        uses: fjogeleit/yaml-update-action@main
+        with:
+          valueFile: "k8s/predict/api/values-prod.yaml"
+          propertyPath: "image.tag"
+          value: ${{ needs.image-tag.outputs.build_id }}
+          updateFile: true
+          branch: ${{ env.DEPLOY_BRANCH }}
+          message: "Update predict API production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Build and push predict Job Docker Image
         uses: docker/build-push-action@v2
@@ -1421,7 +1619,17 @@ jobs:
           push: true
           context: src/predict/jobs/predict
           target: production
-          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-predict-job:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-predict-job:latest
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-predict-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-predict-job:latest
+
+      - name: Update corresponding helm values file
+        uses: fjogeleit/yaml-update-action@main
+        with:
+          valueFile: "k8s/predict/job/values-prod.yaml"
+          propertyPath: "image.tag"
+          value: ${{ needs.image-tag.outputs.build_id }}
+          updateFile: true
+          branch: ${{ env.DEPLOY_BRANCH }}
+          message: "Update predict job production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Build and push train Job Docker Image
         uses: docker/build-push-action@v2
@@ -1429,7 +1637,17 @@ jobs:
           push: true
           context: src/predict/jobs/train
           target: production
-          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-train-job:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-train-job:latest
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-train-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-train-job:latest
+
+      - name: Update corresponding helm values file
+        uses: fjogeleit/yaml-update-action@main
+        with:
+          valueFile: "k8s/predict/train-job/values-prod.yaml"
+          propertyPath: "image.tag"
+          value: ${{ needs.image-tag.outputs.build_id }}
+          updateFile: true
+          branch: ${{ env.DEPLOY_BRANCH }}
+          message: "Update predict train job production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
         uses: google-github-actions/auth@v0
@@ -1471,12 +1689,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Login to GCR
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCR_CONFIG }}
 
@@ -1489,10 +1707,20 @@ jobs:
       - name: Build and Push Docker Image
         run: |
           cd src/network-uptime/
-          docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-network-uptime-api:${{ needs.image-tag.outputs.build_id }} .
-          docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-network-uptime-api:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-network-uptime-api:latest
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-network-uptime-api:${{ needs.image-tag.outputs.build_id }}
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-network-uptime-api:latest
+          docker build --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-network-uptime-api:${{ needs.image-tag.outputs.build_id }} .
+          docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-network-uptime-api:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-network-uptime-api:latest
+          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-network-uptime-api:${{ needs.image-tag.outputs.build_id }}
+          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-network-uptime-api:latest
+
+      - name: Update corresponding helm values file
+        uses: fjogeleit/yaml-update-action@main
+        with:
+          valueFile: "k8s/network-uptime/values-prod.yaml"
+          propertyPath: "image.tag"
+          value: ${{ needs.image-tag.outputs.build_id }}
+          updateFile: true
+          branch: ${{ env.DEPLOY_BRANCH }}
+          message: "Update network-uptime production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
         uses: google-github-actions/auth@v0
@@ -1511,8 +1739,8 @@ jobs:
       - name: Deploy to K8S
         run: |
           kubectl apply -f k8s/network-uptime/prod-airqo-network-uptime-api.yaml -n production
-          kubectl set image deployment/airqo-network-uptime-api prod-network-uptime=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-network-uptime-api:${{ needs.image-tag.outputs.build_id }} -n production
-          kubectl annotate deployment/airqo-network-uptime-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-network-uptime-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
+          kubectl set image deployment/airqo-network-uptime-api prod-network-uptime=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-network-uptime-api:${{ needs.image-tag.outputs.build_id }} -n production
+          kubectl annotate deployment/airqo-network-uptime-api kubernetes.io/change-cause="Image updated to ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-network-uptime-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
 
   #### Channel data ######
   channel-data:
@@ -1522,12 +1750,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Login to GCR
         uses: docker/login-action@v1
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
+          registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCR_CONFIG }}
 
@@ -1540,8 +1768,20 @@ jobs:
       - name: Build and Push Docker Image
         run: |
           cd src/channel-data/
-          docker build --target=production --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/prod-update-channel-data-job:latest .
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/prod-update-channel-data-job:latest
+          docker build --target=production --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/prod-update-channel-data-job:latest .
+          docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/prod-update-channel-data-job:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/prod-update-channel-data-job:latest
+          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/prod-update-channel-data-job:${{ needs.image-tag.outputs.build_id }}
+          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/prod-update-channel-data-job:latest
+
+      - name: Update corresponding helm values file
+        uses: fjogeleit/yaml-update-action@main
+        with:
+          valueFile: "k8s/channel-data/values-prod.yaml"
+          propertyPath: "image.tag"
+          value: ${{ needs.image-tag.outputs.build_id }}
+          updateFile: true
+          branch: ${{ env.DEPLOY_BRANCH }}
+          message: "Update channel-data production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
         uses: google-github-actions/auth@v0
@@ -1571,7 +1811,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Login to K8S
         uses: azure/k8s-set-context@v1

@@ -30,6 +30,7 @@ data:
       if ($request_uri ~ '(/api/v1/users/forgotPassword)|(/api/v2/users/forgotPassword)') { return 200; }
       if ($request_uri ~ '(/api/v1/users/candidates/register)|(/api/v2/users/candidates/register)') { return 200; }
       if ($request_uri ~ '/airflow/api/v') { return 200; }    
+      if ($request_uri ~ '/argocd') { return 200; }    
       if ($request_uri !~ '/api/v') { return 200; } # All none api requests 
 
       # Mobile app specific exemptions. To be authenticated later

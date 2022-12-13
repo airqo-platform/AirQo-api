@@ -13,7 +13,8 @@ class DateUtils:
     @staticmethod
     def get_dag_date_time_values(days: int = None, hours: int = None, **kwargs):
         try:
-            dag_run = kwargs.get("dag_run")
+            args = kwargs.get("kwargs")
+            dag_run = args.get("dag_run", None)
             start_date_time = dag_run.conf["start_date_time"]
             end_date_time = dag_run.conf["end_date_time"]
         except Exception:
