@@ -1209,6 +1209,20 @@ jobs:
             branch: ${{ env.DEPLOY_BRANCH }}
             message: "Update KCCA exceedance production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
+      - name: Login to GCP
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
+
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
+
+      - name: Update the corresponding k8s configmap(s)
+        run: |
+          cd src/exceedances/
+          gcloud secrets versions access latest --secret="prod-env-exceedances" > .env
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-exceedance-production | kubectl replace -f - -n production
+
       - name: Deploy to K8S
         run: |
           kubectl apply -f k8s/exceedance/prod-airqo-exceedance-job.yaml
@@ -1281,20 +1295,6 @@ jobs:
           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env prod-meta-data-api-config | kubectl replace -f - -n production
           gcloud secrets versions access latest --secret="prod-key-metadata-service-account" > google_application_credentials.json
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json prod-meta-data-api-config-files | kubectl replace -f - -n production
-
-      - name: Login to GCP
-        uses: google-github-actions/auth@v0
-        with:
-          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
-
-      - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v0
-
-      - name: Update the corresponding k8s configmap(s)
-        run: |
-          cd src/exceedances/
-          gcloud secrets versions access latest --secret="prod-env-exceedances" > .env
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-exceedance-production | kubectl replace -f - -n production
 
       - name: Deploy to K8S
         run: |
