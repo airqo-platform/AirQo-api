@@ -187,6 +187,7 @@ const createActivity = {
         message: "Internal Server Error",
         errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
+        success: false,
       };
     }
   },
