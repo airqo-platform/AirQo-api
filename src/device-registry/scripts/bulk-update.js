@@ -11,14 +11,17 @@
 
 const getDevices = require("./data-devices");
 const getSites = require("./data-sites");
+const getActivities = require("./data-activities");
 const createDeviceUtil = require("../utils/create-device");
 const createSiteUtil = require("../utils/create-site");
-const { logObject, logElement } = require("../utils/log");
+const createActivitiesUtil = require("../utils/create-activity");
+const { logObject, logElement, logText } = require("../utils/log");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 
 const devices = getDevices();
 const sites = getSites();
+const activities = getActivities();
 const isEmpty = require("is-empty");
 
 /**
@@ -98,6 +101,7 @@ const runSiteUpdates = async ({ network = "" } = {}) => {
   sites.forEach(async (element) => {
     let request = {};
     request["query"] = {};
+    request["query"]["tenant"] = "airqo";
     request["body"] = {};
     request["body"]["network"] = network;
 
@@ -155,4 +159,71 @@ const runSiteUpdates = async ({ network = "" } = {}) => {
   });
 };
 
-module.exports = { runSiteUpdates, runDeviceUpdates };
+const runActivitiesUpdates = async ({ network = "" } = {}) => {
+  try {
+    const length = activities.length;
+    let successfulCount = 0;
+    let unsuccessfulCount = 0;
+    let message = "";
+
+    for (let count = 0; count < length; count++) {
+      let request = {};
+      request["query"] = {};
+      request["query"]["tenant"] = "airqo";
+      request["body"] = activities[count];
+      request["body"]["network"] = network;
+      let activity_codes = [];
+
+      if (!isEmpty(activities[count]._id)) {
+        request["query"]["_id"] = activities[count]._id;
+        activity_codes.push(activities[count]._id);
+      }
+
+      request["body"]["activity_codes"] = activity_codes;
+
+      logObject("request", request);
+
+      const responseFromUpdateActivity = await createActivitiesUtil.update(
+        request
+      );
+
+      if (responseFromUpdateActivity.success === true) {
+        logText("yeah");
+        successfulCount += 1;
+      } else if (responseFromUpdateActivity.success === false) {
+        logText("nah");
+        unsuccessfulCount += 1;
+      }
+    }
+
+    if (!isEmpty(unsuccessfulCount)) {
+      message = "operation successfully finished but with some internal errors";
+    } else {
+      message = "entire operation finished successfully";
+    }
+    logElement("unsuccessfulCount", unsuccessfulCount);
+    logElement("successfulCount", successfulCount);
+
+    if (unsuccessfulCount + successfulCount === length) {
+      return {
+        success: true,
+        message,
+        data: { unsuccessfulCount, successfulCount },
+      };
+    } else {
+      return {
+        success: true,
+        message,
+        data: { unsuccessfulCount, successfulCount },
+      };
+    }
+  } catch (error) {
+    return {
+      success: false,
+      message: "internal server error",
+      errors: { message: error.message },
+    };
+  }
+};
+
+module.exports = { runSiteUpdates, runDeviceUpdates, runActivitiesUpdates };
