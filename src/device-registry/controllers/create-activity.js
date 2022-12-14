@@ -9,6 +9,7 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-activity-controller`
 );
 const createActivityUtil = require("../utils/create-activity");
+const { runActivitiesUpdates } = require("../scripts/bulk-update");
 const errors = require("../utils/errors");
 
 const activity = {
@@ -222,6 +223,76 @@ const activity = {
       });
     }
   },
+
+  bulkUpdate: async (req, res) => {
+    try {
+      let request = {};
+      let { body } = req;
+      let { query } = req;
+      const { network } = query;
+      logText("updating activity................");
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      request["body"] = body;
+      request["query"] = query;
+      let responseFromBulkUpdateActivity = await runActivitiesUpdates({
+        network,
+      });
+      logObject(
+        "responseFromBulkUpdateActivity",
+        responseFromBulkUpdateActivity
+      );
+      if (responseFromBulkUpdateActivity.success === true) {
+        let status = responseFromBulkUpdateActivity.status
+          ? responseFromBulkUpdateActivity.status
+          : HTTPStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromBulkUpdateActivity.message,
+          updated_activities: responseFromBulkUpdateActivity.data,
+        });
+      } else if (responseFromBulkUpdateActivity.success === false) {
+        let errors = responseFromBulkUpdateActivity.errors
+          ? responseFromBulkUpdateActivity.errors
+          : "";
+
+        let status = responseFromBulkUpdateActivity.status
+          ? responseFromBulkUpdateActivity.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+
+        return res.status(status).json({
+          success: false,
+          message: responseFromBulkUpdateActivity.message,
+          errors,
+        });
+      }
+    } catch (error) {
+      logObject("error", error);
+      logger.error(`internal server error -- ${error.message}`);
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
   update: async (req, res) => {
     try {
       let request = {};
