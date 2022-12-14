@@ -15,6 +15,12 @@ const activitySchema = new Schema(
       trim: true,
     },
     activityType: { type: String, trim: true },
+    activity_codes: [
+      {
+        type: String,
+        trim: true,
+      },
+    ],
     tags: [{ type: String }],
     nextMaintenance: { type: Date },
     maintenanceType: { type: String },
@@ -36,6 +42,7 @@ activitySchema.methods = {
       date: this.date,
       description: this.description,
       activityType: this.activityType,
+      activity_codes: this.activity_codes,
       maintenanceType: this.maintenanceType,
       nextMaintenance: this.nextMaintenance,
       createdAt: this.createdAt,
@@ -104,6 +111,7 @@ activitySchema.statics = {
           nextMaintenance: 1,
           createdAt: 1,
           updatedAt: 1,
+          activity_codes: 1,
           tags: 1,
           site_id: 1,
         })
@@ -151,13 +159,11 @@ activitySchema.statics = {
           modifiedUpdateBody.tags;
         delete modifiedUpdateBody["tags"];
       }
-      logObject("modifiedUpdateBody", modifiedUpdateBody);
       let updatedActivity = await this.findOneAndUpdate(
         filter,
         modifiedUpdateBody,
         options
       );
-      logObject("updatedActivity", updatedActivity);
       if (!isEmpty(updatedActivity)) {
         let data = updatedActivity._doc;
         return {
@@ -194,6 +200,7 @@ activitySchema.statics = {
           date: 1,
           description: 1,
           activityType: 1,
+          activity_codes: 1,
         },
       };
       let removedActivity = await this.findOneAndRemove(filter, options).exec();
