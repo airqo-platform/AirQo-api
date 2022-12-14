@@ -11,6 +11,6 @@ public interface BigQueryApi {
 
 	List<GraphInsight> cacheInsights(Date startDateTime, Date endDateTime, String siteId);
 
-	List<Insight> getInsightsData(Date startDateTime, Date endDateTime, List<String> siteIds);
+	List<Insight> getInsights(Date startDateTime, Date endDateTime, List<String> siteIds);
 
 }

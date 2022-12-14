@@ -129,7 +129,7 @@ public class BigQueryApiImpl implements BigQueryApi {
 	}
 
 	@Override
-	public List<Insight> getInsightsData(Date startDateTime, Date endDateTime, List<String> siteIds) {
+	public List<Insight> getInsights(Date startDateTime, Date endDateTime, List<String> siteIds) {
 		final SimpleDateFormat simpleDateFormat = new SimpleDateFormat(dateTimeFormat);
 		List<Insight> insights = new ArrayList<>();
 		siteIds = siteIds.stream().map(s -> String.format("'%s'", s)).collect(Collectors.toList());

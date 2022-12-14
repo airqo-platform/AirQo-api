@@ -45,7 +45,7 @@ public class InsightsServiceImpl implements InsightsService {
 	@Cacheable(value = "appInsightsCacheV2", cacheNames = {"appInsightsCacheV2"}, unless = "#result.size() <= 0")
 	public List<Insight> getInsights(Date startDateTime, Date endDateTime, List<String> siteIds) {
 
-		List<Insight> insights = bigQueryApi.getInsightsData(startDateTime, endDateTime, siteIds);
+		List<Insight> insights = bigQueryApi.getInsights(startDateTime, endDateTime, siteIds);
 		List<Insight> sitesInsights = new ArrayList<>();
 
 		for (String siteId : siteIds) {
