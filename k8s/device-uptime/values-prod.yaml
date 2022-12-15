@@ -2,13 +2,11 @@ app:
   name: prod-device-uptime-job
   namespace: production
   configmap: env-device-uptime-production
-
 image:
   repository: gcr.io/airqo-250220/airqo-device-uptime-job
-  tag: latest
-
-nameOverride: ""
-fullnameOverride: ""
+  tag: prod-8d63c26e-1671113585
+nameOverride: ''
+fullnameOverride: ''
 resources:
   limits:
     cpu: 1000m
