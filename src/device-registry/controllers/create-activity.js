@@ -227,6 +227,11 @@ const activity = {
 
   bulkAdd: async (req, res) => {
     try {
+      return res.status(HTTPStatus.NOT_IMPLEMENTED).json({
+        success: false,
+        message: "NOT YET IMPLEMENTED",
+        errors: { message: "NOT YET IMPLEMENTED" },
+      });
       let request = {};
       let { body } = req;
       let { query } = req;
@@ -293,6 +298,11 @@ const activity = {
 
   bulkUpdate: async (req, res) => {
     try {
+      return res.status(HTTPStatus.NOT_IMPLEMENTED).json({
+        success: false,
+        message: "NOT YET IMPLEMENTED",
+        errors: { message: "NOT YET IMPLEMENTED" },
+      });
       let request = {};
       let { body } = req;
       let { query } = req;
