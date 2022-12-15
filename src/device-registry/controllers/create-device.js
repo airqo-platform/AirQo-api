@@ -11,8 +11,96 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-device-controller`
 );
+const bulkUpdateUtil = require("../scripts/bulk-update");
+const bulkCreateUtil = require("../scripts/bulk-create");
+const httpStatus = require("http-status");
 
 const device = {
+  bulkCreate: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      const { network } = req.query;
+      const responseFromBulkUpdate = await bulkCreateUtil.runDeviceAdditions({
+        network,
+      });
+      logObject("responseFromBulkUpdate", responseFromBulkUpdate);
+      const message = responseFromBulkUpdate.message
+        ? responseFromBulkUpdate.message
+        : "";
+      const status = responseFromBulkUpdate.status
+        ? responseFromBulkUpdate.status
+        : httpStatus.OK;
+      res.status(status).json({
+        message,
+      });
+    } catch (error) {
+      logObject("error", error);
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "updating all the metadata",
+        errors: { message: error.message },
+      });
+    }
+  },
+  bulkUpdate: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      const { network } = req.query;
+      const responseFromBulkUpdate = await bulkUpdateUtil.runDeviceUpdates({
+        network,
+      });
+      const message = responseFromBulkUpdate.message
+        ? responseFromBulkUpdate.message
+        : "";
+      const status = responseFromBulkUpdate.status
+        ? responseFromBulkUpdate.status
+        : httpStatus.OK;
+      res.status(status).json({
+        message,
+      });
+    } catch (error) {
+      logObject("error", error);
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "updating all the metadata",
+        errors: { message: error.message },
+      });
+    }
+  },
   decryptManyKeys: (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -285,8 +373,7 @@ const device = {
           message: responseFromGenerateQRCode.message,
           data: responseFromGenerateQRCode.data,
         });
-      }
-      if (responseFromGenerateQRCode.success === false) {
+      } else if (responseFromGenerateQRCode.success === false) {
         let error = responseFromGenerateQRCode.error
           ? responseFromGenerateQRCode.error
           : "";
@@ -374,83 +461,6 @@ const device = {
     } catch (e) {
       logger.error(`server error - delete device --- ${e.message}`);
       errors.logger_v2.errors.tryCatchErrors("server error", e.message);
-    }
-  },
-
-  updateAccessCode: async (req, res) => {
-    try {
-      logger.info(`the device update access code operation starts....`);
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        try {
-          logger.error(
-            `input validation errors ${JSON.stringify(
-              errors.convertErrorArrayToObject(nestedErrors)
-            )}`
-          );
-        } catch (e) {
-          logger.error(`internal server error -- ${e.message}`);
-        }
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
-        );
-      }
-      const { tenant, device_number, id, name, device } = req.query;
-      const { body } = req;
-      let requestBody = {};
-      requestBody["query"] = {};
-      requestBody["query"]["tenant"] = tenant;
-      requestBody["query"]["device_number"] = device_number;
-      requestBody["query"]["id"] = id;
-      requestBody["query"]["name"] = name;
-      requestBody["query"]["device"] = device;
-      requestBody["body"] = {};
-      requestBody["body"]["access_code"] = "random";
-
-      let responseFromUpdateDeviceOnPlatform = await createDeviceUtil.updateOnPlatform(
-        requestBody
-      );
-
-      logger.info(
-        `responseFromUpdateDeviceOnPlatform ${JSON.stringify(
-          responseFromUpdateDeviceOnPlatform
-        )}`
-      );
-
-      if (responseFromUpdateDeviceOnPlatform.success === true) {
-        let status = responseFromUpdateDeviceOnPlatform.status
-          ? responseFromUpdateDeviceOnPlatform.status
-          : HTTPStatus.OK;
-        return res.status(status).json({
-          message: "access code successfully updated",
-          success: true,
-          updated_device: responseFromUpdateDeviceOnPlatform.data,
-        });
-      }
-
-      if (responseFromUpdateDeviceOnPlatform.success === false) {
-        let errors = responseFromUpdateDeviceOnPlatform.errors
-          ? responseFromUpdateDeviceOnPlatform.errors
-          : "";
-        let status = responseFromUpdateDeviceOnPlatform.status
-          ? responseFromUpdateDeviceOnPlatform.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          message: responseFromUpdateDeviceOnPlatform.message,
-          success: false,
-          errors,
-        });
-      }
-    } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: error.message,
-      });
     }
   },
 

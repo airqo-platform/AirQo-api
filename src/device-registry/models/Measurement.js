@@ -1,8 +1,5 @@
 /*
-Changes made to `valueSchema` schema may affect the format of messages 
-received from the message broker (Kafka). Consider updating 
-the schema `AirQo-api/kafka/schemas/transformed-device-measurements.avsc`
-and following up on its deployment. :)
+This Schema is not in use at the moment
 */
 const { Schema, model } = require("mongoose");
 const uniqueValidator = require("mongoose-unique-validator");
@@ -344,7 +341,7 @@ measurementSchema.index(
   }
 );
 
-measurementSchema.pre("save", function() {
+measurementSchema.pre("save", function () {
   const err = new Error("something went wrong");
   next(err);
 });
