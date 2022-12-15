@@ -13,13 +13,18 @@ const httpStatus = require("http-status");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-site-controller`
 );
-const bulkUpdateUtil = require("../scripts/bulk-update");
-const bulkDeleteUtil = require("../scripts/bulk-delete");
-const bulkCreateUtil = require("../scripts/bulk-create");
+// const bulkUpdateUtil = require("../scripts/bulk-update");
+// const bulkDeleteUtil = require("../scripts/bulk-delete");
+// const bulkCreateUtil = require("../scripts/bulk-create");
 
 const manageSite = {
   bulkCreate: async (req, res) => {
     try {
+      return res.status(HTTPStatus.NOT_IMPLEMENTED).json({
+        success: false,
+        message: "NOT YET IMPLEMENTED",
+        errors: { message: "NOT YET IMPLEMENTED" },
+      });
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -59,6 +64,11 @@ const manageSite = {
   },
   bulkUpdate: async (req, res) => {
     try {
+      return res.status(HTTPStatus.NOT_IMPLEMENTED).json({
+        success: false,
+        message: "NOT YET IMPLEMENTED",
+        errors: { message: "NOT YET IMPLEMENTED" },
+      });
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -97,6 +107,11 @@ const manageSite = {
 
   bulkDelete: async (req, res) => {
     try {
+      return res.status(HTTPStatus.NOT_IMPLEMENTED).json({
+        success: false,
+        message: "NOT YET IMPLEMENTED",
+        errors: { message: "NOT YET IMPLEMENTED" },
+      });
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
