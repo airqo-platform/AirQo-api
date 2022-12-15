@@ -23,15 +23,6 @@ import java.text.ParseException;
 @Profile({"api"})
 @ControllerAdvice
 public class GlobalExceptionHandler {
-
-	@ExceptionHandler(CustomException.class)
-	public ResponseEntity<ApiResponseBody> handleCustomException(HttpServletRequest request, Exception exception) {
-		log.debug("CustomException {} {}", request.getRequestURI(), exception.getMessage());
-		return ResponseEntity
-			.status(HttpStatus.BAD_REQUEST)
-			.body(new ApiResponseBody("Error", exception.getLocalizedMessage()));
-	}
-
 	@ExceptionHandler(NumberFormatException.class)
 	public ResponseEntity<ApiResponseBody> handleNumberFormatException(HttpServletRequest request, Exception exception) {
 		log.debug("NumberFormatException {} {}", request.getRequestURI(), exception.getMessage());
