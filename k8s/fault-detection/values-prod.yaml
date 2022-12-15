@@ -14,10 +14,10 @@ initContainers:
       tag: prod-4bcf8ba0-1670941557
 replicaCount: 2
 image:
-  repository: gcr.io/airqo-250220/stage-fault-detection-api
+  repository: gcr.io/airqo-250220/prod-fault-detection-api
   tag: prod-4bcf8ba0-1670941557
-nameOverride: ''
-fullnameOverride: ''
+nameOverride: ""
+fullnameOverride: ""
 podAnnotations: {}
 resources:
   limits:
