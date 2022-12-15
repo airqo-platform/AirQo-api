@@ -125,8 +125,13 @@ const createAirqloud = {
       let requestForCalucaltionAirQloudCenter = {};
       requestForCalucaltionAirQloudCenter["body"] = {};
       requestForCalucaltionAirQloudCenter["query"] = {};
-      requestForCalucaltionAirQloudCenter["body"]["coordinates"] =
-        modifiedBody.location.coordinates[0];
+      if (
+        !isEmpty(modifiedBody.location) &&
+        !isEmpty(modifiedBody.location.coordinates[0])
+      ) {
+        requestForCalucaltionAirQloudCenter["body"]["coordinates"] =
+          modifiedBody.location.coordinates[0];
+      }
 
       const responseFromCalculateGeographicalCenter = await createAirqloud.calculateGeographicalCenter(
         requestForCalucaltionAirQloudCenter

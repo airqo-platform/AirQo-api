@@ -10,7 +10,10 @@ const HTTPStatus = require("http-status");
 const photoSchema = new Schema(
   {
     device_name: { type: String },
-    network: { type: String },
+    network: {
+      type: String,
+      trim: true,
+    },
     device_id: {
       type: ObjectId,
       required: [true, "the object ID is required!"],
