@@ -1,16 +1,16 @@
 app:
   name: airqo-view-message-broker
   label: view-msg-brokr
-  namespace: production
+  namespace: staging
   configmap: prod-view-message-broker-config
 replicaCount: 2
 image:
   repository: gcr.io/airqo-250220/airqo-view-message-broker
-  tag: prod-4bcf8ba0-1670941557
-nameOverride: ""
-fullnameOverride: ""
+  tag: prod-8d63c26e-1671113585
+nameOverride: ''
+fullnameOverride: ''
 podAnnotations:
-  sidecar.istio.io/inject: "false"
+  sidecar.istio.io/inject: 'false'
 resources:
   limits:
     cpu: 100m
