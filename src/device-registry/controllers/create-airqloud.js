@@ -9,7 +9,7 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-airqloud-controller`
 );
 const httpStatus = require("http-status");
-const bulkCreateUtil = require("../scripts/bulk-create");
+// const bulkCreateUtil = require("../scripts/bulk-create");
 
 const createAirqloud = {
   bulkCreate: async (req, res) => {

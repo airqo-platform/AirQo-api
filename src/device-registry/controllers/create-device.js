@@ -11,8 +11,8 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-device-controller`
 );
-const bulkUpdateUtil = require("../scripts/bulk-update");
-const bulkCreateUtil = require("../scripts/bulk-create");
+// const bulkUpdateUtil = require("../scripts/bulk-update");
+// const bulkCreateUtil = require("../scripts/bulk-create");
 const httpStatus = require("http-status");
 
 const device = {

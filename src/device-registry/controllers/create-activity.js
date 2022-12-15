@@ -9,8 +9,8 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-activity-controller`
 );
 const createActivityUtil = require("../utils/create-activity");
-const { runActivitiesUpdates } = require("../scripts/bulk-update");
-const { runActivitiesAdditions } = require("../scripts/bulk-create");
+// const { runActivitiesUpdates } = require("../scripts/bulk-update");
+// const { runActivitiesAdditions } = require("../scripts/bulk-create");
 const errors = require("../utils/errors");
 
 const activity = {

@@ -13,9 +13,9 @@ const httpStatus = require("http-status");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-site-controller`
 );
-const bulkUpdateUtil = require("../scripts/bulk-update");
-const bulkDeleteUtil = require("../scripts/bulk-delete");
-const bulkCreateUtil = require("../scripts/bulk-create");
+// const bulkUpdateUtil = require("../scripts/bulk-update");
+// const bulkDeleteUtil = require("../scripts/bulk-delete");
+// const bulkCreateUtil = require("../scripts/bulk-create");
 
 const manageSite = {
   bulkCreate: async (req, res) => {
