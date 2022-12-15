@@ -2,7 +2,7 @@ app:
   name: airqo-view-api
   label: view-api
   namespace: production
-  configmap: stage-view-api-config
+  configmap: prod-view-api-config
 replicaCount: 2
 image:
   repository: gcr.io/airqo-250220/airqo-view-api
