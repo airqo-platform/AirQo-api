@@ -51,7 +51,7 @@ const runDeviceUpdates = async ({ network = "" } = {}) => {
     let request = {};
     request["query"] = {};
     request["query"]["tenant"] = "airqo";
-    request["body"] = {};
+    request["body"] = element;
     request["body"]["network"] = network;
     let device_codes = [];
 
@@ -66,6 +66,10 @@ const runDeviceUpdates = async ({ network = "" } = {}) => {
     if (!isEmpty(element.name)) {
       request["query"]["name"] = element.name;
       device_codes.push(element.name);
+    }
+
+    if (!isEmpty(element.site) && !isEmpty(element.site._id)) {
+      request["body"]["site_id"] = ObjectId(element.site._id);
     }
 
     request["body"]["device_codes"] = device_codes;
@@ -102,10 +106,11 @@ const runSiteUpdates = async ({ network = "" } = {}) => {
     let request = {};
     request["query"] = {};
     request["query"]["tenant"] = "airqo";
-    request["body"] = {};
+    request["body"] = element;
     request["body"]["network"] = network;
 
     let site_codes = [];
+    let airqlouds = [];
     let filter = {};
 
     // if (!isEmpty(element.generated_name)) {
@@ -129,7 +134,14 @@ const runSiteUpdates = async ({ network = "" } = {}) => {
       filter["lat_long"] = element.lat_long;
     }
 
+    if (!isEmpty(element.airqlouds) && Array.isArray(element.airqlouds)) {
+      for (let a = 0; a < element.airqlouds.length; a++) {
+        airqlouds.push(ObjectId(element.airqlouds[a]._id));
+      }
+    }
+
     request["body"]["site_codes"] = site_codes;
+    request["body"]["airqlouds"] = airqlouds;
     let update = request.body;
 
     const responseFromUpdateSite = await createSiteUtil.update(

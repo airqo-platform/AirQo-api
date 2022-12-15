@@ -1,15 +1,18 @@
 const getDevices = require("./data-devices");
 const getSites = require("./data-sites");
+const getActivities = require("./data-activities");
 const getAirQlouds = require("./data-airqlouds");
 const createDeviceUtil = require("../utils/create-device");
 const createSiteUtil = require("../utils/create-site");
 const createAirQloudUtil = require("../utils/create-airqloud");
+const createActivitiesUtil = require("../utils/create-activity");
 const { logObject, logElement } = require("../utils/log");
 
 const devices = getDevices();
 const sites = getSites();
 const airqlouds = getAirQlouds();
 const isEmpty = require("is-empty");
+const activities = getActivities();
 
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
@@ -34,7 +37,7 @@ module.exports = () => {
 };
  */
 
-const runAirQloudcAdditions = async ({ network = "" } = {}) => {
+const runAirQloudAdditions = async ({ network = "" } = {}) => {
   const length = sites.length;
   let count = 0;
   airqlouds.forEach(async (element) => {
@@ -53,6 +56,7 @@ const runAirQloudcAdditions = async ({ network = "" } = {}) => {
 
     if (!isEmpty(element._id)) {
       request["query"]["_id"] = element._id;
+      request["body"]["_id"] = ObjectId(element._id);
       airqloud_codes.push(element._id);
       filter["_id"] = element._id;
     }
@@ -108,10 +112,15 @@ const runDeviceAdditions = async ({ network = "" } = {}) => {
     if (!isEmpty(element._id)) {
       request["query"]["_id"] = element._id;
       device_codes.push(element._id);
+      request["body"]["_id"] = ObjectId(element._id);
     }
     if (!isEmpty(element.name)) {
       request["query"]["name"] = element.name;
       device_codes.push(element.name);
+    }
+
+    if (!isEmpty(element.site) && !isEmpty(element.site._id)) {
+      request["body"]["site_id"] = ObjectId(element.site._id);
     }
 
     request["body"]["device_codes"] = device_codes;
@@ -173,6 +182,7 @@ const runSiteAdditions = async ({ network = "" } = {}) => {
     if (!isEmpty(element._id)) {
       request["query"]["_id"] = element._id;
       site_codes.push(element._id);
+      request["body"]["_id"] = ObjectId(element._id);
     }
     if (!isEmpty(element.name)) {
       request["query"]["name"] = element.name;
@@ -183,7 +193,14 @@ const runSiteAdditions = async ({ network = "" } = {}) => {
       site_codes.push(element.lat_long);
     }
 
+    if (!isEmpty(element.airqlouds) && Array.isArray(element.airqlouds)) {
+      for (let a = 0; a < element.airqlouds.length; a++) {
+        airqlouds.push(ObjectId(element.airqlouds[a]._id));
+      }
+    }
+
     request["body"]["site_codes"] = site_codes;
+    request["body"]["airqlouds"] = airqlouds;
 
     const responseFromAddSite = await createSiteUtil.create("airqo", request);
     if (responseFromAddSite.success === true) {
@@ -209,8 +226,76 @@ const runSiteAdditions = async ({ network = "" } = {}) => {
   }
 };
 
+const runActivitiesAdditions = async ({ network = "" } = {}) => {
+  try {
+    const length = activities.length;
+    let successfulCount = 0;
+    let unsuccessfulCount = 0;
+    let message = "";
+
+    for (let count = 0; count < length; count++) {
+      let request = {};
+      request["query"] = {};
+      request["query"]["tenant"] = "airqo";
+      request["body"] = activities[count];
+      request["body"]["network"] = network;
+      let activity_codes = [];
+
+      if (!isEmpty(activities[count]._id)) {
+        request["query"]["_id"] = activities[count]._id;
+        activity_codes.push(activities[count]._id);
+      }
+
+      request["body"]["activity_codes"] = activity_codes;
+
+      logObject("request", request);
+
+      const responseFromCreateActivity = await createActivitiesUtil.create(
+        request
+      );
+
+      if (responseFromCreateActivity.success === true) {
+        logText("yeah");
+        successfulCount += 1;
+      } else if (responseFromCreateActivity.success === false) {
+        logText("nah");
+        unsuccessfulCount += 1;
+      }
+    }
+
+    if (!isEmpty(unsuccessfulCount)) {
+      message = "operation successfully finished but with some internal errors";
+    } else {
+      message = "entire operation finished successfully";
+    }
+    logElement("unsuccessfulCount", unsuccessfulCount);
+    logElement("successfulCount", successfulCount);
+
+    if (unsuccessfulCount + successfulCount === length) {
+      return {
+        success: true,
+        message,
+        data: { unsuccessfulCount, successfulCount },
+      };
+    } else {
+      return {
+        success: true,
+        message,
+        data: { unsuccessfulCount, successfulCount },
+      };
+    }
+  } catch (error) {
+    return {
+      success: false,
+      message: "internal server error",
+      errors: { message: error.message },
+    };
+  }
+};
+
 module.exports = {
   runSiteAdditions,
   runDeviceAdditions,
-  runAirQloudcAdditions,
+  runAirQloudAdditions,
+  runActivitiesAdditions,
 };
