@@ -26,7 +26,7 @@ def get_all_devices(tenant):
     model = Device(tenant)
     results = model.get_devices()
     return [
-        device for device in results if device.get("isActive") or (device.get("mobility") and device.get("powerType"))
+        device for device in results if device.get("isActive") or (device.get("mobility") and device.get("powerType") and device.get("network", "") == "airqo")
     ]
 
 
@@ -44,12 +44,15 @@ def get_device_status(device):
 
     result = device_status.json()
 
-    device['latitude'] = device.get('latitude') or float(result.get('latitude'))
-    device['longitude'] = device.get('longitude') or float(result.get('longitude'))
+    device['latitude'] = device.get(
+        'latitude') or float(result.get('latitude'))
+    device['longitude'] = device.get(
+        'longitude') or float(result.get('longitude'))
 
     current_datetime = datetime.utcnow()
 
-    date_time_difference = current_datetime - datetime.strptime(result['created_at'], '%Y-%m-%dT%H:%M:%SZ')
+    date_time_difference = current_datetime - \
+        datetime.strptime(result['created_at'], '%Y-%m-%dT%H:%M:%SZ')
     time_difference = date_time_difference.total_seconds()
 
     if time_difference <= configuration.MAX_ONLINE_ACCEPTABLE_DURATION:
@@ -86,7 +89,8 @@ def compute_device_channel_status(tenant):
         device = device_status.device
 
         try:
-            last_maintained_duration = (datetime.utcnow() - device.get("nextMaintenance")).total_seconds()
+            last_maintained_duration = (
+                datetime.utcnow() - device.get("nextMaintenance")).total_seconds()
 
             if last_maintained_duration <= 0:
                 if abs(last_maintained_duration) <= configuration.DUE_FOR_MAINTENANCE_DURATION:
