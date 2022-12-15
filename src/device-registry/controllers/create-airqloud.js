@@ -33,7 +33,7 @@ const createAirqloud = {
         );
       }
       const { network } = req.query;
-      const responseFromUpdateAirQloudsMetadata = await bulkCreateUtil.runAirQloudcAdditions(
+      const responseFromUpdateAirQloudsMetadata = await bulkCreateUtil.runAirQloudAdditions(
         {
           network,
         }

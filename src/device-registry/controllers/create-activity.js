@@ -10,6 +10,7 @@ const logger = log4js.getLogger(
 );
 const createActivityUtil = require("../utils/create-activity");
 const { runActivitiesUpdates } = require("../scripts/bulk-update");
+const { runActivitiesAdditions } = require("../scripts/bulk-create");
 const errors = require("../utils/errors");
 
 const activity = {
@@ -224,6 +225,72 @@ const activity = {
     }
   },
 
+  bulkAdd: async (req, res) => {
+    try {
+      let request = {};
+      let { body } = req;
+      let { query } = req;
+      const { network } = query;
+      logText("adding activities................");
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      request["body"] = body;
+      request["query"] = query;
+      let responseFromCreateActivities = await runActivitiesAdditions({
+        network,
+      });
+      logObject("responseFromCreateActivities", responseFromCreateActivities);
+      if (responseFromCreateActivities.success === true) {
+        let status = responseFromCreateActivities.status
+          ? responseFromCreateActivities.status
+          : HTTPStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromCreateActivities.message,
+          updated_activities: responseFromCreateActivities.data,
+        });
+      } else if (responseFromCreateActivities.success === false) {
+        let errors = responseFromCreateActivities.errors
+          ? responseFromCreateActivities.errors
+          : "";
+
+        let status = responseFromCreateActivities.status
+          ? responseFromCreateActivities.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+
+        return res.status(status).json({
+          success: false,
+          message: responseFromCreateActivities.message,
+          errors,
+        });
+      }
+    } catch (error) {
+      logObject("error", error);
+      logger.error(`internal server error -- ${error.message}`);
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
   bulkUpdate: async (req, res) => {
     try {
       let request = {};
@@ -251,34 +318,30 @@ const activity = {
       }
       request["body"] = body;
       request["query"] = query;
-      let responseFromBulkUpdateActivity = await runActivitiesUpdates({
+      let responseFromUpdateActivities = await runActivitiesUpdates({
         network,
       });
-      logObject(
-        "responseFromBulkUpdateActivity",
-        responseFromBulkUpdateActivity
-      );
-      if (responseFromBulkUpdateActivity.success === true) {
-        let status = responseFromBulkUpdateActivity.status
-          ? responseFromBulkUpdateActivity.status
+      if (responseFromUpdateActivities.success === true) {
+        let status = responseFromUpdateActivities.status
+          ? responseFromUpdateActivities.status
           : HTTPStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromBulkUpdateActivity.message,
-          updated_activities: responseFromBulkUpdateActivity.data,
+          message: responseFromUpdateActivities.message,
+          updated_activities: responseFromUpdateActivities.data,
         });
-      } else if (responseFromBulkUpdateActivity.success === false) {
-        let errors = responseFromBulkUpdateActivity.errors
-          ? responseFromBulkUpdateActivity.errors
+      } else if (responseFromUpdateActivities.success === false) {
+        let errors = responseFromUpdateActivities.errors
+          ? responseFromUpdateActivities.errors
           : "";
 
-        let status = responseFromBulkUpdateActivity.status
-          ? responseFromBulkUpdateActivity.status
+        let status = responseFromUpdateActivities.status
+          ? responseFromUpdateActivities.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
 
         return res.status(status).json({
           success: false,
-          message: responseFromBulkUpdateActivity.message,
+          message: responseFromUpdateActivities.message,
           errors,
         });
       }
