@@ -9,7 +9,7 @@ nameOverride: ""
 fullnameOverride: ""
 resources:
   limits:
-    cpu: 500Mi
+    cpu: 500m
     memory: 500Mi
   requests:
     cpu: 20m
