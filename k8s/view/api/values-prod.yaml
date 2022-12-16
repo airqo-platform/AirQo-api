@@ -12,8 +12,8 @@ fullnameOverride: ""
 podAnnotations: {}
 resources:
   limits:
-    cpu: 100m
-    memory: 1500Mi
+    cpu: 2000m
+    memory: 3000Mi
   requests:
     cpu: 10m
     memory: 500Mi
