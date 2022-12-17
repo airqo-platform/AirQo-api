@@ -259,6 +259,25 @@ deviceSchema.statics = {
       logObject("the args", args);
       logger.info("in the register static fn of the Device model...");
       let modifiedArgs = args;
+
+      if (
+        isEmpty(modifiedArgs.name) &&
+        !isEmpty(args.generation_version) &&
+        !isEmpty(args.generation_count)
+      ) {
+        modifiedArgs.name = `aq_g${args.generation_version}_${args.generation_count}`;
+      } else {
+        try {
+          let nameWithoutWhiteSpaces = modifiedArgs.name.replace(/\s/g, "");
+          let shortenedName = nameWithoutWhiteSpaces.substring(0, 15);
+          modifiedArgs.name = shortenedName.trim().toLowerCase();
+        } catch (error) {
+          logger.error(
+            `internal server error -- sanitiseName-- ${error.message}`
+          );
+        }
+      }
+
       let createdDevice = await this.create({
         ...modifiedArgs,
       });
