@@ -34,7 +34,7 @@ const runKafkaConsumer = async () => {
     });
     await kafkaConsumer.run({
       eachMessage: async ({ message }) => {
-        let measurements = message.value.toString().data;
+        const measurements = JSON.parse(message.value).data;
         const responseFromInsertMeasurements = await createEvent.insert(
           "airqo",
           measurements

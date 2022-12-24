@@ -187,7 +187,7 @@ jobs:
   ### data-mgt ###
   data-mgt:
     name: remove-preview--data-mgt
-    needs: check
+    needs: [check, branch-name]
     if: needs.check.outputs.remove_preview__data_mgt == 'true'
     runs-on: ubuntu-latest
     steps:

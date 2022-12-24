@@ -7,9 +7,6 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.*;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.Transient;
-import org.springframework.data.mongodb.core.index.CompoundIndex;
-import org.springframework.data.mongodb.core.index.CompoundIndexes;
-import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 import org.springframework.format.annotation.DateTimeFormat;
 
@@ -24,10 +21,6 @@ import static airqo.config.Constants.dateTimeFormat;
 @AllArgsConstructor
 @NoArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
-@Document(collection = "insights_measurements")
-@CompoundIndexes({
-	@CompoundIndex(name = "Insights Measurements Compound Index", def = "{'time' : 1, 'frequency': 1, 'siteId': 1}", unique = true)
-})
 public class Insight implements Serializable {
 
 	@Id

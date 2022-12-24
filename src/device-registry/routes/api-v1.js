@@ -36,6 +36,36 @@ const headers = (req, res, next) => {
 router.use(headers);
 
 /******************* create device use-case ***************************/
+/** update metadata in bulk **/
+router.put(
+  "/bulk/update",
+  oneOf([
+    query("network")
+      .exists()
+      .withMessage("network should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "unep"])
+      .withMessage("the network value is not among the expected ones"),
+  ]),
+  deviceController.bulkUpdate
+);
+router.post(
+  "/bulk/add",
+  oneOf([
+    query("network")
+      .exists()
+      .withMessage("network should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "unep"])
+      .withMessage("the network value is not among the expected ones"),
+  ]),
+  deviceController.bulkCreate
+);
+
 /*** decrypt read and write keys */
 router.post(
   "/decrypt",
@@ -411,24 +441,34 @@ router.post(
       body("device_number")
         .optional()
         .notEmpty()
+        .withMessage("the device_number should not be empty if provided")
+        .bail()
         .trim()
         .isInt()
         .withMessage("the device_number should be an integer value"),
+      body("name")
+        .optional()
+        .notEmpty()
+        .withMessage("the name should not be empty if provided")
+        .trim(),
       body("long_name")
-        .exists()
-        .withMessage("the device long_name should be provided")
+        .optional()
+        .notEmpty()
+        .withMessage("the long_name should not be empty if provided")
         .trim(),
       body("generation_version")
-        .exists()
-        .withMessage("the generation_version number should be provided")
+        .optional()
+        .notEmpty()
+        .withMessage("the generation_version should not be empty if provided")
         .bail()
         .trim()
         .isInt()
         .withMessage("the generation_version should be an integer ")
         .toInt(),
       body("generation_count")
-        .exists()
-        .withMessage("the generation_count should be provided")
+        .optional()
+        .notEmpty()
+        .withMessage("the generation_count should not be empty if provided")
         .bail()
         .trim()
         .isInt()
@@ -437,6 +477,8 @@ router.post(
       body("mountType")
         .optional()
         .notEmpty()
+        .withMessage("the mountType should not be empty if provided")
+        .bail()
         .trim()
         .toLowerCase()
         .isIn(["pole", "wall", "faceboard", "rooftop", "suspended"])
@@ -444,8 +486,9 @@ router.post(
           "the mountType value is not among the expected ones which include: pole, wall, faceboard, suspended and rooftop "
         ),
       body("category")
-        .exists()
-        .withMessage("the category should be provided")
+        .optional()
+        .notEmpty()
+        .withMessage("the category should not be empty if provided")
         .bail()
         .trim()
         .toLowerCase()
@@ -456,6 +499,8 @@ router.post(
       body("powerType")
         .optional()
         .notEmpty()
+        .withMessage("the powerType should not be empty if provided")
+        .bail()
         .trim()
         .toLowerCase()
         .isIn(["solar", "mains", "alternator"])
@@ -465,6 +510,8 @@ router.post(
       body("latitude")
         .optional()
         .notEmpty()
+        .withMessage("the latitude should not be empty if provided")
+        .bail()
         .trim()
         .matches(constants.LATITUDE_REGEX, "i")
         .withMessage("please provide valid latitude value")
@@ -487,6 +534,8 @@ router.post(
       body("longitude")
         .optional()
         .notEmpty()
+        .withMessage("the longitude should not be empty if provided")
+        .bail()
         .trim()
         .matches(constants.LONGITUDE_REGEX, "i")
         .withMessage("please provide valid longitude value")
@@ -509,18 +558,26 @@ router.post(
       body("description")
         .optional()
         .notEmpty()
+        .withMessage("the description should not be empty if provided")
+        .bail()
         .trim(),
       body("product_name")
         .optional()
         .notEmpty()
+        .withMessage("the product_name should not be empty if provided")
+        .bail()
         .trim(),
       body("device_manufacturer")
         .optional()
         .notEmpty()
+        .withMessage("the device_manufacturer should not be empty if provided")
+        .bail()
         .trim(),
       body("isActive")
         .optional()
         .notEmpty()
+        .withMessage("the isActive should not be empty if provided")
+        .bail()
         .trim()
         .isBoolean()
         .withMessage("isActive must be Boolean"),
@@ -664,60 +721,6 @@ router.delete(
       .withMessage("the device names do not have spaces in them"),
   ]),
   deviceController.delete
-);
-
-/**
- * update device access code
- */
-router.put(
-  "/soft/access",
-  oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
-      .withMessage("the tenant value is not among the expected ones"),
-  ]),
-  oneOf([
-    query("device_number")
-      .exists()
-      .withMessage(
-        "the device identifier is missing in request, consider using the device_number"
-      )
-      .bail()
-      .trim()
-      .isInt()
-      .withMessage("the device_number should be an integer value"),
-    query("id")
-      .exists()
-      .withMessage(
-        "the device identifier is missing in request, consider using the device_id"
-      )
-      .bail()
-      .trim()
-      .isMongoId()
-      .withMessage("id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
-    query("name")
-      .exists()
-      .withMessage(
-        "the device identifier is missing in request, consider using the name"
-      )
-      .bail()
-      .trim()
-      .isLowercase()
-      .withMessage("device name should be lower case")
-      .bail()
-      .matches(constants.WHITE_SPACES_REGEX, "i")
-      .withMessage("the device names do not have spaces in them"),
-  ]),
-  deviceController.updateAccessCode
 );
 
 /*** update device */
@@ -975,6 +978,15 @@ router.put(
         .optional()
         .notEmpty()
         .trim(),
+      body("device_codes")
+        .optional()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the device_codes should be an array if provided")
+        .bail()
+        .notEmpty()
+        .withMessage("the device_codes should not be empty if provided"),
     ],
   ]),
   deviceController.update
@@ -998,8 +1010,9 @@ router.post(
         .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
         .withMessage("the tenant value is not among the expected ones"),
       body("visibility")
-        .exists()
-        .withMessage("visibility should be provided")
+        .optional()
+        .notEmpty()
+        .withMessage("the visibility should not be empty if provided")
         .bail()
         .trim()
         .isBoolean()
@@ -1007,24 +1020,37 @@ router.post(
       body("device_number")
         .optional()
         .notEmpty()
+        .withMessage("the device_number should not be empty if provided")
+        .bail()
         .trim()
         .isInt()
         .withMessage("the device_number should be an integer value"),
       body("long_name")
+        .optional()
+        .notEmpty()
+        .withMessage("the long_name should not be empty if provided")
+        .bail()
+        .trim(),
+      body("name")
         .exists()
-        .withMessage("the device long_name should be provided")
+        .withMessage("the name should be provided")
+        .bail()
+        .notEmpty()
+        .withMessage("the name should not be empty")
         .trim(),
       body("generation_version")
-        .exists()
-        .withMessage("the generation_version number should be provided")
+        .optional()
+        .notEmpty()
+        .withMessage("the generation_version should not be empty if provided")
         .bail()
         .trim()
         .isInt()
         .withMessage("the generation_version should be an integer ")
         .toInt(),
       body("generation_count")
-        .exists()
-        .withMessage("the generation_count should be provided")
+        .optional()
+        .notEmpty()
+        .withMessage("the generation_count should not be empty if provided")
         .bail()
         .trim()
         .isInt()
@@ -1033,6 +1059,8 @@ router.post(
       body("mountType")
         .optional()
         .notEmpty()
+        .withMessage("the mountType should not be empty if provided")
+        .bail()
         .trim()
         .toLowerCase()
         .isIn(["pole", "wall", "faceboard", "rooftop", "suspended"])
@@ -1040,8 +1068,9 @@ router.post(
           "the mountType value is not among the expected ones which include: pole, wall, faceboard, suspended and rooftop "
         ),
       body("category")
-        .exists()
-        .withMessage("the category should be provided")
+        .optional()
+        .notEmpty()
+        .withMessage("the category should not be empty if provided")
         .bail()
         .trim()
         .toLowerCase()
@@ -1052,6 +1081,8 @@ router.post(
       body("powerType")
         .optional()
         .notEmpty()
+        .withMessage("the powerType should not be empty if provided")
+        .bail()
         .trim()
         .toLowerCase()
         .isIn(["solar", "mains", "alternator"])
@@ -1351,6 +1382,15 @@ router.put(
         .optional()
         .notEmpty()
         .trim(),
+      body("device_codes")
+        .optional()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the device_codes should be an array if provided")
+        .bail()
+        .notEmpty()
+        .withMessage("the device_codes should not be empty if provided"),
     ],
   ]),
   deviceController.updateOnPlatform
@@ -2223,9 +2263,75 @@ router.post(
 );
 router.get("/activities", activityController.list);
 router.put("/activities", activityController.update);
+router.put(
+  "/bulk/activities",
+  oneOf([
+    [
+      query("network")
+        .exists()
+        .withMessage("tenant should be provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  activityController.bulkUpdate
+);
+router.post(
+  "/bulk/activities",
+  oneOf([
+    [
+      query("network")
+        .exists()
+        .withMessage("tenant should be provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  activityController.bulkAdd
+);
 router.delete("/activities", activityController.delete);
 
 /****************************** create sites usecase *************** */
+
+/** update metadata in bulk **/
+router.put(
+  "/sites/bulk/update",
+  oneOf([
+    query("network")
+      .exists()
+      .withMessage("network should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "unep"])
+      .withMessage("the network value is not among the expected ones"),
+  ]),
+  siteController.bulkUpdate
+);
+
+/** delete metadata in bulk **/
+router.delete("/sites/bulk/delete", siteController.bulkDelete);
+router.post(
+  "/sites/bulk/add",
+  oneOf([
+    query("network")
+      .exists()
+      .withMessage("network should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "unep"])
+      .withMessage("the network value is not among the expected ones"),
+  ]),
+  siteController.bulkCreate
+);
+
 router.get(
   "/sites",
   oneOf([
@@ -2527,6 +2633,15 @@ router.put(
         })
         .bail()
         .withMessage("the nearest_tahmo_station should be an object"),
+      body("land_use")
+        .optional()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the land_use should be an array")
+        .bail()
+        .notEmpty()
+        .withMessage("the land_use  should not be empty if provided"),
       body("createdAt")
         .optional()
         .notEmpty()
@@ -2751,6 +2866,15 @@ router.put(
         .optional()
         .isMongoId()
         .withMessage("each airqloud should be a mongo ID"),
+      body("site_codes")
+        .optional()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the site_codes should be an array if provided")
+        .bail()
+        .notEmpty()
+        .withMessage("the site_codes should not be empty if provided"),
     ],
   ]),
   siteController.update
@@ -4762,6 +4886,21 @@ router.get(
       ),
   ]),
   airqloudController.calculateGeographicalCenter
+);
+
+router.post(
+  "/airqlouds/bulk/add",
+  oneOf([
+    query("network")
+      .exists()
+      .withMessage("network should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "unep"])
+      .withMessage("the network value is not among the expected ones"),
+  ]),
+  airqloudController.bulkCreate
 );
 
 module.exports = router;

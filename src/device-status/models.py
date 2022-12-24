@@ -25,6 +25,7 @@ class Device:
                 'mobility': 1,
                 'powerType': 1,
                 'power': 1,
+                'network': 1
             }
         )
 
