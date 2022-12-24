@@ -55,6 +55,12 @@ const siteSchema = new Schema(
       type: String,
       trim: true,
     },
+    site_codes: [
+      {
+        type: String,
+        trim: true,
+      },
+    ],
     latitude: {
       type: Number,
       required: [true, "latitude is required!"],
@@ -130,10 +136,12 @@ const siteSchema = new Schema(
       type: String,
       trim: true,
     },
-    land_use: {
-      type: String,
-      trim: true,
-    },
+    land_use: [
+      {
+        type: String,
+        trim: true,
+      },
+    ],
     road_intensity: {
       type: Number,
     },
@@ -342,6 +350,7 @@ siteSchema.methods = {
       region: this.region,
       geometry: this.geometry,
       village: this.village,
+      site_codes: this.site_codes,
       city: this.city,
       street: this.street,
       county: this.county,
@@ -379,30 +388,30 @@ siteSchema.statics = {
       modifiedArgs.description = modifiedArgs.name;
 
       logObject("modifiedArgs", modifiedArgs);
-
       let createdSite = await this.create({
         ...modifiedArgs,
       });
-      let data = createdSite._doc;
-      delete data.geometry;
-      delete data.google_place_id;
-      delete data.updatedAt;
-      delete data.__v;
-      delete data.formatted_name;
-      delete data.airqlouds;
-      delete data.site_tags;
-      delete data.nearest_tahmo_station;
-      if (!isEmpty(data)) {
+
+      if (!isEmpty(createdSite)) {
+        let data = createdSite._doc;
+        delete data.geometry;
+        delete data.google_place_id;
+        delete data.updatedAt;
+        delete data.__v;
+        delete data.formatted_name;
+        delete data.airqlouds;
+        delete data.site_tags;
+        delete data.nearest_tahmo_station;
         return {
           success: true,
           data,
           message: "site created",
           status: HTTPStatus.CREATED,
         };
-      } else {
+      } else if (isEmpty(createdSite)) {
         return {
-          success: false,
-          message: "site not create despite successful operation",
+          success: true,
+          message: "site not created despite successful operation",
           status: HTTPStatus.ACCEPTED,
         };
       }
@@ -455,6 +464,7 @@ siteSchema.statics = {
           bearing_in_radians: 1,
           description: 1,
           site_tags: 1,
+          site_codes: 1,
           search_name: 1,
           location_name: 1,
           lat_long: 1,
@@ -540,11 +550,12 @@ siteSchema.statics = {
           data,
           status: HTTPStatus.OK,
         };
-      } else {
+      } else if (isEmpty(response)) {
         return {
-          success: false,
-          message: "site does not exist, please crosscheck",
-          status: HTTPStatus.NOT_FOUND,
+          success: true,
+          message: "no sites match this search",
+          data: [],
+          status: HTTPStatus.OK,
         };
       }
     } catch (error) {
@@ -583,6 +594,20 @@ siteSchema.statics = {
         modifiedUpdateBody["$addToSet"]["site_tags"]["$each"] =
           modifiedUpdateBody.site_tags;
         delete modifiedUpdateBody["site_tags"];
+      }
+
+      if (modifiedUpdateBody.land_use) {
+        modifiedUpdateBody["$addToSet"]["land_use"] = {};
+        modifiedUpdateBody["$addToSet"]["land_use"]["$each"] =
+          modifiedUpdateBody.land_use;
+        delete modifiedUpdateBody["land_use"];
+      }
+
+      if (modifiedUpdateBody.site_codes) {
+        modifiedUpdateBody["$addToSet"]["site_codes"] = {};
+        modifiedUpdateBody["$addToSet"]["site_codes"]["$each"] =
+          modifiedUpdateBody.site_codes;
+        delete modifiedUpdateBody["site_codes"];
       }
 
       if (modifiedUpdateBody.airqlouds) {

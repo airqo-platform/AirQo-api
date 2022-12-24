@@ -6,6 +6,8 @@ import airqo.models.Insight;
 import com.google.cloud.bigquery.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.CachePut;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.text.SimpleDateFormat;
@@ -30,8 +32,7 @@ public class BigQueryApiImpl implements BigQueryApi {
 	@Value("${forecast-data-table}")
 	private String forecastDataTable;
 
-	@Override
-	public List<GraphInsight> getInsights(Date startDateTime, Date endDateTime, String siteId) {
+	public List<GraphInsight> queryInsights(Date startDateTime, Date endDateTime, String siteId) {
 
 		final SimpleDateFormat simpleDateFormat = new SimpleDateFormat(dateTimeFormat);
 		List<GraphInsight> insights = new ArrayList<>();
@@ -114,7 +115,21 @@ public class BigQueryApiImpl implements BigQueryApi {
 	}
 
 	@Override
-	public List<Insight> getInsightsData(Date startDateTime, Date endDateTime, List<String> siteIds) {
+	@Cacheable(value = "bigQueryInsightsCache", unless = "#result.isEmpty()")
+	public List<GraphInsight> getInsights(Date startDateTime, Date endDateTime, String siteId) {
+		log.info(String.format("%s is not cached ", siteId));
+		return queryInsights(startDateTime, endDateTime, siteId);
+	}
+
+	@Override
+	@CachePut(value = "bigQueryInsightsCache", unless = "#result.isEmpty()")
+	public List<GraphInsight> cacheInsights(Date startDateTime, Date endDateTime, String siteId) {
+		log.info(String.format("Updating cache for site => %s, Start date time =>  %s, End date time =>  %s,", siteId, startDateTime, endDateTime));
+		return queryInsights(startDateTime, endDateTime, siteId);
+	}
+
+	@Override
+	public List<Insight> getInsights(Date startDateTime, Date endDateTime, List<String> siteIds) {
 		final SimpleDateFormat simpleDateFormat = new SimpleDateFormat(dateTimeFormat);
 		List<Insight> insights = new ArrayList<>();
 		siteIds = siteIds.stream().map(s -> String.format("'%s'", s)).collect(Collectors.toList());

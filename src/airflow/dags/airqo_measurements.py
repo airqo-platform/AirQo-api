@@ -414,17 +414,14 @@ def airqo_realtime_measurements():
 
     @task()
     def send_hourly_measurements_to_message_broker(data: pd.DataFrame):
-        from airqo_etl_utils.config import configuration
-        from airqo_etl_utils.message_broker import KafkaBrokerClient
+        from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
         from airqo_etl_utils.data_validator import DataValidationUtils
         from airqo_etl_utils.constants import Tenant
 
         data = DataValidationUtils.process_for_message_broker(
             data=data, tenant=Tenant.AIRQO
         )
-
-        kafka = KafkaBrokerClient()
-        kafka.send_data(data=data, topic=configuration.HOURLY_MEASUREMENTS_TOPIC)
+        MessageBrokerUtils.update_hourly_data_topic(data=data)
 
     @task()
     def send_hourly_measurements_to_bigquery(airqo_data: pd.DataFrame):
@@ -467,7 +464,7 @@ def airqo_realtime_measurements():
         data = AirQoDataUtils.process_latest_data(
             data=data, device_category=DeviceCategory.LOW_COST
         )
-        MessageBrokerUtils.update_latest_data_topic(data=data)
+        MessageBrokerUtils.update_hourly_data_topic(data=data)
 
     raw_data = extract_raw_data()
     clean_data = clean_data_raw_data(raw_data)

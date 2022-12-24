@@ -6,8 +6,10 @@ app:
 
 replicaCount: 2
 
-image:
-  repository: gcr.io/airqo-250220/airqo-stage-meta-data-api
+images:
+  repositories:
+    api: gcr.io/airqo-250220/airqo-stage-meta-data-api
+    sitesConsumer: gcr.io/airqo-250220/airqo-meta-data-sites-consumer
   tag: latest
 
 nameOverride: ""

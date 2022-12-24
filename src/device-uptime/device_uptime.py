@@ -10,7 +10,8 @@ _logger = logging.getLogger(__name__)
 
 
 def get_device_records(tenant, channel_id, device_name, is_active):
-    device_channel_records = DeviceChannelRecords(tenant, device_name, channel_id)
+    device_channel_records = DeviceChannelRecords(
+        tenant, device_name, channel_id)
     device_records = device_channel_records.get_sensor_readings()
     uptime, downtime = device_channel_records.calculate_uptime()
     sensor_one_pm2_5 = device_records.sensor_one_pm2_5
@@ -43,6 +44,8 @@ def save_device_uptime(tenant):
     active_device_count = 0
 
     for device in devices:
+        if device.get("network", "") != "airqo":
+            continue
         if device.get('isActive'):
             active_device_count += 1
 
@@ -78,8 +81,9 @@ def save_device_uptime(tenant):
     network_uptime = 0.0
     if records:
         network_uptime = (
-                sum(record.get("uptime", 0.0) for record in records if record.get('is_active'))
-                / active_device_count
+            sum(record.get("uptime", 0.0)
+                for record in records if record.get('is_active'))
+            / active_device_count
         )
 
     device_uptime_model = DeviceUptime(tenant)
@@ -97,6 +101,3 @@ def save_device_uptime(tenant):
     print("network uptime", network_uptime_record)
     network_uptime_model = NetworkUptime(tenant)
     network_uptime_model.save_network_uptime([network_uptime_record])
-
-
-

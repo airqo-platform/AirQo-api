@@ -149,7 +149,7 @@ def airqo_bam_realtime_measurements():
         data = AirQoDataUtils.process_latest_data(
             data=data, device_category=DeviceCategory.BAM
         )
-        MessageBrokerUtils.update_latest_data_topic(data=data)
+        MessageBrokerUtils.update_hourly_data_topic(data=data)
 
     unclean_data = extract_bam_data()
     save_unclean_data(unclean_data)
