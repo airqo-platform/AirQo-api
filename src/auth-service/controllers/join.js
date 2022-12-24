@@ -91,7 +91,7 @@ const join = {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         return badRequest(
           res,
-          "bad request errors",
+          "User does not exist",
           manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
         );
       }
@@ -125,6 +125,7 @@ const join = {
             success: true,
             message: result.message,
             user: result.data,
+            exists: true,
             status: "exists",
           });
         } else if (result.success === false) {
@@ -137,7 +138,8 @@ const join = {
 
           res.status(status).json({
             success: false,
-            message: result.message,
+            message: "User does not exist",
+            exists: false,
             errors,
           });
         }
