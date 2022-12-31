@@ -346,12 +346,13 @@ class MainClass:
         )
         bigquery_data.to_csv("airnow_bigquery_data.csv", index=False)
 
+        message_broker_data = DataValidationUtils.process_for_message_broker_v2(
+            processed_bam_data
+        )
+        message_broker_data.to_csv("airnow_message_broker_data.csv", index=False)
+
         latest_bam_data = AirnowDataUtils.process_latest_bam_data(processed_bam_data)
         latest_bam_data.to_csv("airnow_latest_bam_data.csv", index=False)
-
-        DataWarehouseUtils.update_latest_measurements(
-            data=latest_bam_data, tenant=Tenant.US_EMBASSY
-        )
 
     def airqo_bam_data(self):
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
@@ -938,7 +939,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--file",
-        required=True,
+        required=False,
         type=str.lower,
     )
     parser.add_argument(

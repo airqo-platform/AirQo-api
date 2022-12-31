@@ -17,31 +17,36 @@ class MessageBrokerUtils:
         self.__partitions = [0, 1, 2]
         self.bam_measurements_topic = configuration.BAM_MEASUREMENTS_TOPIC
 
-    def get_partition(self, current_partition) -> int:
+    def __get_partition(self, current_partition) -> int:
         current_partition = current_partition + 1
         if current_partition in self.__partitions:
             return current_partition
         return self.__partitions[0]
 
-    @staticmethod
-    def on_success(record_metadata):
+    @classmethod
+    def __on_success(cls, record_metadata):
         print("\nSuccessfully sent message")
         print(f"Topic : {record_metadata.topic}")
         print(f"Partition : {record_metadata.partition}")
         print(f"Offset : {record_metadata.offset}")
 
-    @staticmethod
-    def on_error(exception):
+    @classmethod
+    def __on_error(cls, exception):
         print("\nFailed to send message")
         print(exception)
 
-    def send_data(self, topic: str, data: pd.DataFrame, partition: int = None):
+    def __send_data(self, topic: str, data: pd.DataFrame, partition: int = None):
         producer = KafkaProducer(
             bootstrap_servers=self.__bootstrap_servers,
             api_version_auto_timeout_ms=300000,
             retries=5,
             request_timeout_ms=300000,
         )
+
+        print("Dataframe info : ")
+        print(data.info())
+        print("Dataframe description : ")
+        print(data.describe())
 
         chunks = int(len(data) / 50)
         dataframes = np.array_split(data, chunks)
@@ -52,14 +57,20 @@ class MessageBrokerUtils:
             current_partition = (
                 partition
                 if partition or partition == 0
-                else self.get_partition(current_partition=current_partition)
+                else self.__get_partition(current_partition=current_partition)
             )
 
             producer.send(
                 topic=topic,
                 value=json.dumps(message, allow_nan=True).encode("utf-8"),
                 partition=current_partition,
-            ).add_callback(self.on_success).add_errback(self.on_error)
+            ).add_callback(self.__on_success).add_errback(self.__on_error)
+
+    @staticmethod
+    def update_measurements_topic(data: pd.DataFrame):
+        MessageBrokerUtils().__send_data(
+            topic=configuration.MEASUREMENTS_TOPIC, data=data
+        )
 
     @staticmethod
     def update_hourly_data_topic(data: pd.DataFrame):
@@ -81,6 +92,6 @@ class MessageBrokerUtils:
         data["timestamp"] = pd.to_datetime(data["timestamp"])
         data["timestamp"] = data["timestamp"].apply(date_to_str)
 
-        MessageBrokerUtils().send_data(
+        MessageBrokerUtils().__send_data(
             topic=configuration.HOURLY_MEASUREMENTS_TOPIC, data=data
         )
