@@ -14,9 +14,5 @@ ansible_controller
 mlflow_server
 calibrate_server
 
-[dbservers]
-devops_db
-postgresql_db
-
 [all:vars]
 ansible_python_interpreter=/usr/bin/python3
