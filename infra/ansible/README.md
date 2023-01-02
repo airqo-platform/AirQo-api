@@ -28,5 +28,4 @@ This is the directory layout of this repository with explanation.
                               # Roles that are in roles_requirements.yml file will be downloaded into this directory
         internal/             # All the roles that are not public
 
-    extension/
-        setup/                 # All the setup files for updating roles and ansible dependencies
+    setup/                    # All the for setting up the ansible control node. Add this directory to the /etc/ansible path
