@@ -4,6 +4,12 @@ const createOrganizationUtil = require("../utils/create-organization");
 const { validationResult } = require("express-validator");
 const manipulateArraysUtil = require("../utils/manipulate-arrays");
 
+const constants = require("../config/constants");
+const log4js = require("log4js");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- create-organization-controller`
+);
+
 const createOrganization = {
   getTenantFromEmail: async (req, res) => {
     try {
