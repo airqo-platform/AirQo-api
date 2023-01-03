@@ -1,5 +1,5 @@
 - hosts: master
-  become: yes
+  become: true
   gather_facts: false
   tasks:
     - name: get join command
@@ -11,7 +11,7 @@
         join_command: "{{ join_command_raw.stdout_lines[0] }}"
 
 - hosts: workers
-  become: yes
+  become: true
   tasks:
     - name: join cluster
       shell: "{{ hostvars['master'].join_command }} >> node_joined.txt"
