@@ -4,6 +4,10 @@ resource "google_compute_instance" "ansible_controller" {
     source = "ansible-controller"
   }
 
+  labels  = {
+     "env" = "prod"
+  }
+
   machine_type = "e2-small"
 
   metadata = {

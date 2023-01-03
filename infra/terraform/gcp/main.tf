@@ -49,10 +49,3 @@ module "ComputeSubnetwork" {
   project-id = var.project-id
   region     = var.region
 }
-
-module "SecretManagerSecret" {
-  source = "./modules/SecretManagerSecret"
-
-  project-id     = var.project-id
-  project-number = var.project-number
-}
