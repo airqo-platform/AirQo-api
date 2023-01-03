@@ -335,7 +335,7 @@ const mailer = {
         bcc,
       };
 
-      let response = transporter.sendMail(mailOptions);
+      let response = await transporter.sendMail(mailOptions);
 
       let data = response;
       if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
