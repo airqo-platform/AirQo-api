@@ -13,7 +13,7 @@ const siteSchema = new Schema(
       trim: true,
       required: [true, "name is required!"],
     },
-    share_links: {
+    short_link: {
       preview: { type: String, trim: true },
       share: { type: String, trim: true },
     },
@@ -362,7 +362,7 @@ siteSchema.methods = {
       village: this.village,
       site_codes: this.site_codes,
       images: this.images,
-      share_links: this.share_links,
+      short_link: this.short_link,
       city: this.city,
       street: this.street,
       county: this.county,
@@ -498,7 +498,7 @@ siteSchema.statics = {
           aspect: 1,
           status: 1,
           images: 1,
-          share_links: 1,
+          short_link: 1,
           distance_to_nearest_road: 1,
           distance_to_nearest_primary_road: 1,
           distance_to_nearest_secondary_road: 1,
