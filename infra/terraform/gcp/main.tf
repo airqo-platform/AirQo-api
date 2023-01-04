@@ -12,12 +12,6 @@ module "ComputeDisk" {
   disk_size  = var.disk_size
 }
 
-module "ComputeFirewall" {
-  source = "./modules/ComputeFirewall"
-
-  project_id = var.project_id
-}
-
 module "ComputeInstance" {
   source = "./modules/ComputeInstance"
 
@@ -36,17 +30,4 @@ module "ComputeInstanceTemplate" {
   region         = var.region
   os             = var.os
   disk_size      = var.disk_size
-}
-
-module "ComputeNetwork" {
-  source = "./modules/ComputeNetwork"
-
-  project_id = var.project_id
-}
-
-module "ComputeSubnetwork" {
-  source = "./modules/ComputeSubnetwork"
-
-  project_id = var.project_id
-  region     = var.region
 }
