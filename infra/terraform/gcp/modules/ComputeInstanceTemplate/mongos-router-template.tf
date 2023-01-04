@@ -20,7 +20,7 @@ resource "google_compute_instance_template" "mongos_router_template" {
     managed-by-cnrm = "true"
   }
 
-  machine_type = "e2-standard"
+  machine_type = "e2-standard-2"
   name         = "mongos-router-template"
 
   network_interface {

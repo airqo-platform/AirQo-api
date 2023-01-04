@@ -9,7 +9,7 @@ resource "google_compute_instance" "mongos_router_prod" {
     "type" = "mongo-shard"
   }
 
-  machine_type = "e2-standard"
+  machine_type = "e2-standard-2"
 
   metadata = {
     startup-script = "sudo ufw allow ssh"
