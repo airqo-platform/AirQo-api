@@ -438,6 +438,14 @@ router.post(
         .toLowerCase()
         .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
         .withMessage("the tenant value is not among the expected ones"),
+      body("network")
+        .exists()
+        .withMessage("network should be provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
+        .withMessage("the network value is not among the expected ones"),
       body("device_number")
         .optional()
         .notEmpty()
@@ -1009,6 +1017,14 @@ router.post(
         .toLowerCase()
         .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
         .withMessage("the tenant value is not among the expected ones"),
+      body("network")
+        .exists()
+        .withMessage("network should be provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
+        .withMessage("the network value is not among the expected ones"),
       body("visibility")
         .optional()
         .notEmpty()
