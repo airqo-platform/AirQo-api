@@ -2,17 +2,28 @@
 
 [default_network]
 ansible_controller ansible_ssh_host=10.132.0.44
-devops_db          ansible_ssh_host=10.128.0.62
-postgresql_db      ansible_ssh_host=10.132.0.26
-mlflow_server      ansible_ssh_host=10.128.0.22
 calibrate_server   ansible_ssh_host=10.132.0.29
+cfgsvr_prods      ansible_ssh_host=10.132.0.[48:50]
+devops_db          ansible_ssh_host=10.128.0.62
+mlflow_server      ansible_ssh_host=10.128.0.22
+mongos_router_prod ansible_ssh_host=10.132.0.54
+postgresql_db      ansible_ssh_host=10.132.0.26
+shard_prods       ansible_ssh_host=10.132.0.[51:53]
 
 [control]
 ansible_controller
 
 [webservers]
-mlflow_server
 calibrate_server
+mlflow_server
+
+[mongo_cluster_prod]
+cfgsvr_prods
+mongos_router_prod
+shard_prods
+
+[mongo_clusters:children]
+mongo_cluster_prod
 
 [all:vars]
 ansible_python_interpreter=/usr/bin/python3

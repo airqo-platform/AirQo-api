@@ -23,7 +23,7 @@ resource "google_compute_instance" "shard_prod_2" {
     }
 
     network    = "default"
-    network_ip = "10.132.0.52"
+    network_ip = "10.132.0.51"
   }
 
   project = var.project_id
