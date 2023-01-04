@@ -29,7 +29,7 @@ resource "google_compute_instance_template" "shard_template" {
     network            = "default"
   }
 
-  project = var.project-id
+  project = var.project_id
   region  = "europe-west1"
 
   reservation_affinity {
@@ -42,7 +42,7 @@ resource "google_compute_instance_template" "shard_template" {
   }
 
   service_account {
-    email  = "${var.project-number}-compute@developer.gserviceaccount.com"
+    email  = "${var.project_number}-compute@developer.gserviceaccount.com"
     scopes = ["https://www.googleapis.com/auth/devstorage.read_only", "https://www.googleapis.com/auth/logging.write", "https://www.googleapis.com/auth/monitoring.write", "https://www.googleapis.com/auth/service.management.readonly", "https://www.googleapis.com/auth/servicecontrol", "https://www.googleapis.com/auth/trace.append"]
   }
 
@@ -53,4 +53,4 @@ resource "google_compute_instance_template" "shard_template" {
 
   tags = ["airqo-shard", "http-server", "https-server"]
 }
-# terraform import google_compute_instance_template.shard_template projects/${var.project-id}/global/instanceTemplates/shard-instance-template
+# terraform import google_compute_instance_template.shard_template projects/${var.project_id}/global/instanceTemplates/shard-instance-template

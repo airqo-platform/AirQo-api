@@ -1,9 +1,9 @@
-variable "project-id" {
+variable "project_id" {
   default = "airqo-250220"
   description = "GCP project ID"
 }
 
-variable "project-number" {
+variable "project_number" {
   default = "702081712633"
   description = "GCP project number"
 }

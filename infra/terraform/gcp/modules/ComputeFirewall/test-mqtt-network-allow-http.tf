@@ -8,8 +8,8 @@ resource "google_compute_firewall" "test_mqtt_network_allow_http" {
   name          = "test-mqtt-network-allow-http"
   network       = "test-mqtt-network"
   priority      = 1000
-  project       = var.project-id
+  project       = var.project_id
   source_ranges = ["0.0.0.0/0"]
   target_tags   = ["http-server"]
 }
-# terraform import google_compute_firewall.test_mqtt_network_allow_http projects/${var.project-id}/global/firewalls/test-mqtt-network-allow-http
+# terraform import google_compute_firewall.test_mqtt_network_allow_http projects/${var.project_id}/global/firewalls/test-mqtt-network-allow-http

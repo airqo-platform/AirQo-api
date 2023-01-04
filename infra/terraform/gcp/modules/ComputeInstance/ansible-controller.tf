@@ -24,7 +24,7 @@ resource "google_compute_instance" "ansible_controller" {
     network            = "default"
   }
 
-  project = var.project-id
+  project = var.project_id
 
   reservation_affinity {
     type = "ANY_RESERVATION"
@@ -37,11 +37,11 @@ resource "google_compute_instance" "ansible_controller" {
   }
 
   service_account {
-    email  = "${var.project-number}-compute@developer.gserviceaccount.com"
+    email  = "${var.project_number}-compute@developer.gserviceaccount.com"
     scopes = ["https://www.googleapis.com/auth/devstorage.read_only", "https://www.googleapis.com/auth/logging.write", "https://www.googleapis.com/auth/monitoring.write", "https://www.googleapis.com/auth/service.management.readonly", "https://www.googleapis.com/auth/servicecontrol", "https://www.googleapis.com/auth/trace.append"]
   }
 
   tags = ["http-server", "https-server"]
   zone = var.zone
 }
-# terraform import google_compute_instance.ansible_controller projects/${var.project-id}/zones/us-central1-a/instances/ansible-controller
+# terraform import google_compute_instance.ansible_controller projects/${var.project_id}/zones/us-central1-a/instances/ansible-controller
