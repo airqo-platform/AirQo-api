@@ -5,7 +5,7 @@ resource "google_compute_instance" "ansible_controller" {
   }
 
   labels  = {
-     "env" = "prod"
+    "env" = "prod"
   }
 
   machine_type = "e2-small"

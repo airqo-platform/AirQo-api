@@ -3,6 +3,8 @@ resource "google_compute_instance_template" "shard_template" {
     enable_confidential_compute = false
   }
 
+  description = "This template is used to shard instances for mongodb sharded clusters."
+
   disk {
     auto_delete  = true
     boot         = true
@@ -10,7 +12,7 @@ resource "google_compute_instance_template" "shard_template" {
     disk_size_gb  = var.disk_size["medium"]
     disk_type    = "pd-balanced"
     mode         = "READ_WRITE"
-    source_image = var.os["ubuntu-bionic"]
+    source_image = var.os["ubuntu-focal"]
     type         = "PERSISTENT"
   }
 
@@ -30,7 +32,7 @@ resource "google_compute_instance_template" "shard_template" {
   }
 
   project = var.project_id
-  region  = "europe-west1"
+  region  = var.region
 
   reservation_affinity {
     type = "ANY_RESERVATION"
