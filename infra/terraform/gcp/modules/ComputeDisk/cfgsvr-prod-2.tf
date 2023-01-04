@@ -3,7 +3,7 @@ resource "google_compute_disk" "cfgsvr_prod_2" {
   name                      = "cfgsvr-prod-2"
   physical_block_size_bytes = 4096
   project                   = var.project_id
-  size                      = var.disk_size["medium"]
+  size                      = var.disk_size["small"]
   type                      = "pd-standard"
   zone                      = var.zone
 }
