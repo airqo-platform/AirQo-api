@@ -16,14 +16,9 @@
         "test": "mocha ./**/test/ut_*.js --exit"
     },
     "dependencies": {
-        "@adminjs/express": "^5.0.0",
-        "@adminjs/mongoose": "^3.0.0",
-        "@adminjs/prisma": "^3.0.1",
-        "@adminjs/sequelize": "^3.0.0",
         "@google-cloud/datastore": "^5.1.0",
         "@google-cloud/debug-agent": "^4.0.4",
         "@mailchimp/mailchimp_marketing": "^3.0.75",
-        "adminjs": "^6.2.3",
         "app-module-path": "^2.2.0",
         "bcrypt": "^5.0.0",
         "body-parser": "~1.18.2",

@@ -1,5 +1,3 @@
-const AdminJS = require("adminjs");
-const AdminJSExpress = require("@adminjs/express");
 require("app-module-path").addPath(__dirname);
 const express = require("express");
 const path = require("path");
@@ -14,20 +12,7 @@ const mongodb = require("./config/dbConnection");
 mongodb;
 
 const app = express();
-const admin = new AdminJS({
-  databases: [],
-  rootPath: "/admin",
-});
 
-const AdminJSMongoose = require("@adminjs/mongoose");
-
-AdminJS.registerAdapter({
-  Resource: AdminJSMongoose.Resource,
-  Database: AdminJSMongoose.Database,
-});
-const adminRouter = AdminJSExpress.buildRouter(admin);
-
-app.use(admin.options.rootPath, adminRouter);
 app.use(logger("dev"));
 app.use(bodyParser.json());
 app.use(express.json());

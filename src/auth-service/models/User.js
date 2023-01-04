@@ -11,9 +11,6 @@ const isEmpty = require("is-empty");
 const { log } = require("debug");
 const saltRounds = constants.SALT_ROUNDS;
 const HTTPStatus = require("http-status");
-const AdminJS = require("adminjs");
-const AdminJSMongoose = require("@adminjs/mongoose");
-AdminJS.registerAdapter(AdminJSMongoose);
 const accessCodeGenerator = require("generate-password");
 const { getModelByTenant } = require("../utils/multitenancy");
 
