@@ -76,6 +76,14 @@ const defaultConfig = {
   TAHMO_API_CREDENTIALS_PASSWORD: process.env.TAHMO_API_CREDENTIALS_PASSWORD,
   UNIQUE_CONSUMER_GROUP: process.env.UNIQUE_CONSUMER_GROUP,
   UNIQUE_PRODUCER_GROUP: process.env.UNIQUE_PRODUCER_GROUP,
+  AQI_INDEX: {
+    good: [0, 50],
+    moderate: [51, 100],
+    u4sg: [101, 150],
+    unhealthy: [151, 200],
+    very_unhealthy: [201, 300],
+    hazardous: [301],
+  },
   GET_ROAD_METADATA_PATHS: {
     altitude: "altitude",
     greenness: "greenness",
