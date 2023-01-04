@@ -1,10 +1,10 @@
 resource "google_compute_instance" "ansible_controller" {
   boot_disk {
     auto_delete = true
-    source = "ansible-controller"
+    source      = "ansible-controller"
   }
 
-  labels  = {
+  labels = {
     "env" = "prod"
   }
 
@@ -21,7 +21,8 @@ resource "google_compute_instance" "ansible_controller" {
       network_tier = "PREMIUM"
     }
 
-    network            = "default"
+    network    = "default"
+    network_ip = "10.132.0.54"
   }
 
   project = var.project_id

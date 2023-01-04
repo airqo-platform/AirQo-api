@@ -23,6 +23,7 @@ resource "google_compute_instance" "mongos_router_prod" {
     }
 
     network    = "default"
+    network_ip = "10.132.0.54"
   }
 
   project = var.project_id
