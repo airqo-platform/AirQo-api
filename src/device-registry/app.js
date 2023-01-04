@@ -1,8 +1,6 @@
 const log4js = require("log4js");
 const express = require("express");
 const path = require("path");
-const logger = log4js.getLogger("app");
-
 const dotenv = require("dotenv");
 const bodyParser = require("body-parser");
 dotenv.config();
@@ -11,13 +9,52 @@ const cookieParser = require("cookie-parser");
 const apiV1 = require("./routes/api-v1");
 const apiV2 = require("./routes/api-v2");
 const constants = require("./config/constants");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- app entry`);
 const { mongodb } = require("./config/database");
-const { runKafkaConsumer, runKafkaProducer } = require("./config/kafkajs");
+const { logText, logObject, logElement } = require("./utils/log");
+const createEvent = require("./utils/create-event");
 
 mongodb;
 
-runKafkaProducer();
+const { Kafka } = require("kafkajs");
+const kafka = new Kafka({
+  clientId: constants.KAFKA_CLIENT_ID,
+  brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
+});
+
+const runKafkaConsumer = async () => {
+  try {
+    const kafkaConsumer = kafka.consumer({
+      groupId: constants.UNIQUE_CONSUMER_GROUP,
+    });
+    await kafkaConsumer.connect();
+    await kafkaConsumer.subscribe({
+      topic: constants.HOURLY_MEASUREMENTS_TOPIC,
+      fromBeginning: true,
+    });
+    await kafkaConsumer.run({
+      eachMessage: async ({ message }) => {
+        const measurements = JSON.parse(message.value).data;
+        const responseFromInsertMeasurements = await createEvent.insert(
+          "airqo",
+          measurements
+        );
+        if (responseFromInsertMeasurements.success === false) {
+          logger.error(
+            `responseFromInsertMeasurements --- ${JSON.stringify(
+              responseFromInsertMeasurements
+            )}`
+          );
+        }
+      },
+    });
+  } catch (error) {
+    logElement("KAFKA CONSUMER RUN ERROR", error.message);
+  }
+};
+
 runKafkaConsumer();
+
 const moesif = require("moesif-nodejs");
 const compression = require("compression");
 
@@ -56,7 +93,7 @@ app.use(function(req, res, next) {
 });
 
 app.use(function(err, req, res, next) {
-  logger.error(`${constants.ENVIRONMENT} -- ${err.message}`);
+  logger.error(` app error --- ${err.message}`);
   if (err.status === 404) {
     res.status(err.status).json({
       success: false,

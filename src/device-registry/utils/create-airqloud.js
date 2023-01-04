@@ -17,7 +17,12 @@ const logger = log4js.getLogger(
 const createLocationUtil = require("./create-location");
 const geolib = require("geolib");
 const httpStatus = require("http-status");
-const { kafkaProducer } = require("../config/kafkajs");
+
+const { Kafka } = require("kafkajs");
+const kafka = new Kafka({
+  clientId: constants.KAFKA_CLIENT_ID,
+  brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
+});
 
 const createAirqloud = {
   initialIsCapital: (word) => {
@@ -120,8 +125,13 @@ const createAirqloud = {
       let requestForCalucaltionAirQloudCenter = {};
       requestForCalucaltionAirQloudCenter["body"] = {};
       requestForCalucaltionAirQloudCenter["query"] = {};
-      requestForCalucaltionAirQloudCenter["body"]["coordinates"] =
-        modifiedBody.location.coordinates[0];
+      if (
+        !isEmpty(modifiedBody.location) &&
+        !isEmpty(modifiedBody.location.coordinates[0])
+      ) {
+        requestForCalucaltionAirQloudCenter["body"]["coordinates"] =
+          modifiedBody.location.coordinates[0];
+      }
 
       const responseFromCalculateGeographicalCenter = await createAirqloud.calculateGeographicalCenter(
         requestForCalucaltionAirQloudCenter
@@ -147,6 +157,10 @@ const createAirqloud = {
 
       if (responseFromRegisterAirQloud.success === true) {
         try {
+          const kafkaProducer = kafka.producer({
+            groupId: constants.UNIQUE_PRODUCER_GROUP,
+          });
+          await kafkaProducer.connect();
           await kafkaProducer.send({
             topic: constants.AIRQLOUDS_TOPIC,
             messages: [
@@ -156,6 +170,7 @@ const createAirqloud = {
               },
             ],
           });
+          await kafkaProducer.disconnect();
         } catch (error) {
           logger.error(`internal server error -- ${error.message}`);
         }

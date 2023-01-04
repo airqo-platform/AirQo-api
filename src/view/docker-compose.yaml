@@ -6,10 +6,6 @@ x-common-data: &common-data
     spring.redis.host: view-redis-cache
 
 services:
-  view-mongo-db:
-    container_name: view-mongo-db
-    image: mongo
-
   view-redis-cache:
     container_name: view-redis-cache
     image: redis
@@ -48,7 +44,6 @@ services:
   view-message-broker-connector:
     <<: *common-data
     container_name: view-message-broker-connector
-#    platform: linux/amd64
     build:
       context: .
       target: message-broker

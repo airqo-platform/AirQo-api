@@ -4,6 +4,7 @@ const ObjectId = mongoose.Schema.Types.ObjectId;
 const { logObject, logElement } = require("../utils/log");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
+const constants = require("../config/constants");
 
 const CandidateSchema = new mongoose.Schema(
   {
@@ -69,23 +70,68 @@ CandidateSchema.statics = {
   },
   async list({ skip = 0, limit = 5, filter = {} } = {}) {
     try {
-      let candidates = await this.find(filter)
+      const project = {
+        _id: 1,
+        firstName: 1,
+        lastName: 1,
+        email: 1,
+        description: 1,
+        category: 1,
+        long_organization: 1,
+        jobTitle: 1,
+        website: 1,
+        status: 1,
+        createdAt: 1,
+        updatedAt: 1,
+        existing_user: { $arrayElemAt: ["$user", 0] },
+      };
+
+      const data = await this.aggregate()
+        .match(filter)
+        .lookup({
+          from: "users",
+          localField: "email",
+          foreignField: "email",
+          as: "user",
+        })
         .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .exec();
-      if (!isEmpty(candidates)) {
-        let data = candidates;
+        .project(project)
+        .project({
+          "existing_user.locationCount": 0,
+          "existing_user.privilege": 0,
+          "existing_user.website": 0,
+          "existing_user.organization": 0,
+          "existing_user.long_organization": 0,
+          "existing_user.category": 0,
+          "existing_user.jobTitle": 0,
+          "existing_user.profilePicture": 0,
+          "existing_user. phoneNumber": 0,
+          "existing_user.description": 0,
+          "existing_user.createdAt": 0,
+          "existing_user.updatedAt": 0,
+          "existing_user.notifications": 0,
+          "existing_user.emailConfirmed": 0,
+          "existing_user.password": 0,
+          "existing_user.__v": 0,
+          "existing_user.duration": 0,
+        })
+        .skip(skip ? skip : 0)
+        .limit(limit ? limit : parseInt(constants.DEFAULT_LIMIT))
+        .allowDiskUse(true);
+
+      if (!isEmpty(data)) {
         return {
           success: true,
           data,
           message: "successfully listed the candidates",
+          status: httpStatus.OK,
         };
-      } else {
+      } else if (isEmpty(data)) {
         return {
           success: true,
           message: "no candidates exist",
-          data: [],
+          data,
+          status: httpStatus.OK,
         };
       }
     } catch (error) {
@@ -93,6 +139,7 @@ CandidateSchema.statics = {
         success: false,
         message: "unable to list the candidates",
         error: error.message,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },

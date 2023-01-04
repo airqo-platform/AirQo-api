@@ -18,7 +18,6 @@ const { getDevicesCount, list, decryptKey } = require("./create-monitor");
 const HTTPStatus = require("http-status");
 const redis = require("../config/redis");
 const axios = require("axios");
-const { kafkaConsumer } = require("../config/kafkajs");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const { BigQuery } = require("@google-cloud/bigquery");
@@ -399,6 +398,7 @@ const createEvent = {
       let filter = {};
 
       let airqloudSites = site_id ? site_id : "";
+
       if (query.airqloud_id) {
         let filter = generateFilter.airqlouds(request);
         let responseFromListAirQloud = await getModelByTenant(
@@ -453,9 +453,10 @@ const createEvent = {
           ? query.radius
           : constants.DEFAULT_NEAREST_SITE_RADIUS;
 
-        const responseFromFindNearestSiteByCoordinates = await createSiteUtil.findNearestSitesByCoordinates(
-          requestBodyForFindingNearestSite
-        );
+        const responseFromFindNearestSiteByCoordinates =
+          await createSiteUtil.findNearestSitesByCoordinates(
+            requestBodyForFindingNearestSite
+          );
 
         if (responseFromFindNearestSiteByCoordinates.success === true) {
           if (
@@ -534,7 +535,7 @@ const createEvent = {
               });
               if (responseFromListEvents.success === true) {
                 let data = responseFromListEvents.data;
-                data[0].data = missingDataMessage ? [] : data[0].data;
+                data[0].data = !isEmpty(missingDataMessage) ? [] : data[0].data;
                 createEvent.setCache(data, request, (result) => {
                   if (result.success === true) {
                     logText(result.message);
@@ -550,7 +551,7 @@ const createEvent = {
                 try {
                   callback({
                     success: true,
-                    message: missingDataMessage
+                    message: !isEmpty(missingDataMessage)
                       ? missingDataMessage
                       : responseFromListEvents.message,
                     data,
@@ -872,9 +873,10 @@ const createEvent = {
         requestBodyForCreateThingsSpeakBody
       );
 
-      const responseFromCreateRequestBody = createEvent.createThingSpeakRequestBody(
-        requestBodyForCreateThingsSpeakBody
-      );
+      const responseFromCreateRequestBody =
+        createEvent.createThingSpeakRequestBody(
+          requestBodyForCreateThingsSpeakBody
+        );
 
       if (responseFromCreateRequestBody.success === true) {
         requestBody = responseFromCreateRequestBody.data;
@@ -896,7 +898,7 @@ const createEvent = {
       requestBody.api_key = api_key;
       return await axios
         .post(constants.ADD_VALUE_JSON, requestBody)
-        .then(function(response) {
+        .then(function (response) {
           let resp = {};
           if (isEmpty(response.data)) {
             return {
@@ -919,7 +921,7 @@ const createEvent = {
             };
           }
         })
-        .catch(function(error) {
+        .catch(function (error) {
           try {
             logger.error(
               `internal server error -- ${JSON.stringify(
@@ -1001,9 +1003,8 @@ const createEvent = {
         enrichedBody.push(value);
       });
 
-      let responseFromTransformMeasurements = await createEvent.transformMeasurementFields(
-        enrichedBody
-      );
+      let responseFromTransformMeasurements =
+        await createEvent.transformMeasurementFields(enrichedBody);
 
       let transformedUpdates = {};
       if (responseFromTransformMeasurements.success === true) {
@@ -1017,7 +1018,7 @@ const createEvent = {
       requestObject.updates = transformedUpdates;
       return await axios
         .post(constants.BULK_ADD_VALUES_JSON(channel), requestObject)
-        .then(function(response) {
+        .then(function (response) {
           if (isEmpty(response)) {
             return {
               success: false,
@@ -1037,7 +1038,7 @@ const createEvent = {
             };
           }
         })
-        .catch(function(error) {
+        .catch(function (error) {
           try {
             logger.error(
               `internal server error -- ${JSON.stringify(
@@ -1088,6 +1089,7 @@ const createEvent = {
       metadata,
       external,
       recent,
+      lat_long,
     } = request.query;
     const currentTime = new Date().toISOString();
     const day = generateDateFormatWithoutHrs(currentTime);
@@ -1105,7 +1107,7 @@ const createEvent = {
       external ? external : "noExternal"
     }_${airqloud ? airqloud : "noAirQloud"}_${
       airqloud_id ? airqloud_id : "noAirQloudID"
-    }`;
+    }_${lat_long ? lat_long : "noLatLong"}`;
   },
   getEventsCount: async (request) => {},
   setCache: (data, request, callback) => {
@@ -1407,10 +1409,11 @@ const createEvent = {
         };
       } else if (responseFromTransformEvents.success === true) {
         let transformedMeasurements = responseFromTransformEvents.data;
-        let responseFromInsertEvents = await createEvent.insertTransformedEvents(
-          tenant,
-          transformedMeasurements
-        );
+        let responseFromInsertEvents =
+          await createEvent.insertTransformedEvents(
+            tenant,
+            transformedMeasurements
+          );
 
         if (responseFromInsertEvents.success) {
           return {
@@ -1777,9 +1780,8 @@ const createEvent = {
     let eventsRejected = [];
     let errors = [];
 
-    const responseFromTransformMeasurements = await createEvent.transformMeasurements_v2(
-      measurements
-    );
+    const responseFromTransformMeasurements =
+      await createEvent.transformMeasurements_v2(measurements);
 
     if (!responseFromTransformMeasurements.success) {
       logger.error(
@@ -1872,8 +1874,7 @@ const createEvent = {
         logger.error(`internal server serror -- ${e.message}`);
         eventsRejected.push(measurement);
         let errMsg = {
-          msg:
-            "there is a system conflict, most likely a cast error or duplicate record",
+          msg: "there is a system conflict, most likely a cast error or duplicate record",
           more: e.message,
           record: {
             ...(measurement.device ? { device: measurement.device } : {}),
@@ -2015,9 +2016,8 @@ const createEvent = {
       let request = {};
       for (const measurement of measurements) {
         request["body"] = measurement;
-        let responseFromCreateThingSpeakBody = createEvent.createThingSpeakRequestBody(
-          request
-        );
+        let responseFromCreateThingSpeakBody =
+          createEvent.createThingSpeakRequestBody(request);
 
         if (responseFromCreateThingSpeakBody.success === true) {
           transformed.push(responseFromCreateThingSpeakBody.data);
@@ -2092,7 +2092,7 @@ const createEvent = {
               updatedDevice,
             };
           })
-          .catch(function(error) {
+          .catch(function (error) {
             logger.error(`internal server error -- ${error.message}`);
             return {
               message: `unable to clear the device data, device ${device} does not exist`,

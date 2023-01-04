@@ -67,3 +67,11 @@ class Config:
             lambda: request.environ.get("HTTP_X_SCRIPT_NAME", "")
         ),
     }
+
+    # AirQo
+    AIRQO_BASE_URL = os.getenv("AIRQO_BASE_URL")
+    AIRQO_API_KEY = os.getenv("AIRQO_API_KEY")
+
+    # Message broker configurations
+    SITES_TOPIC = os.getenv("SITES_TOPIC")
+    BOOTSTRAP_SERVERS = os.getenv("BOOTSTRAP_SERVERS")

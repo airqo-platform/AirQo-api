@@ -8,7 +8,6 @@ const createDeviceUtil = require("./create-device");
 const createSiteUtil = require("./create-site");
 const httpStatus = require("http-status");
 const { addMonthsToProvideDateTime } = require("./date");
-const { kafkaProducer } = require("../config/kafkajs");
 const generateFilter = require("./generate-filter");
 const constants = require("../config/constants");
 const distance = require("./distance");
@@ -16,6 +15,12 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-activity-util`
 );
+
+const { Kafka } = require("kafkajs");
+const kafka = new Kafka({
+  clientId: constants.KAFKA_CLIENT_ID,
+  brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
+});
 
 const createActivity = {
   create: async (request) => {
@@ -182,6 +187,7 @@ const createActivity = {
         message: "Internal Server Error",
         errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
+        success: false,
       };
     }
   },
@@ -324,6 +330,10 @@ const createActivity = {
               const updatedDevice = responseFromUpdateDevice.data;
               const data = { createdActivity, updatedDevice };
               try {
+                const kafkaProducer = kafka.producer({
+                  groupId: constants.UNIQUE_PRODUCER_GROUP,
+                });
+                await kafkaProducer.connect();
                 await kafkaProducer.send({
                   topic: constants.ACTIVITIES_TOPIC,
                   messages: [
@@ -333,6 +343,7 @@ const createActivity = {
                     },
                   ],
                 });
+                await kafkaProducer.disconnect();
               } catch (error) {
                 logger.error(`internal server error -- ${error.message}`);
               }
@@ -410,6 +421,9 @@ const createActivity = {
           const updatedDevice = responseFromUpdateDevice.data;
           const data = { createdActivity, updatedDevice };
           try {
+            const kafkaProducer = kafka.producer({
+              groupId: constants.UNIQUE_PRODUCER_GROUP,
+            });
             await kafkaProducer.connect();
             await kafkaProducer.send({
               topic: "activities-topic",
@@ -493,6 +507,9 @@ const createActivity = {
           const updatedDevice = responseFromUpdateDevice.data;
           const data = { createdActivity, updatedDevice };
           try {
+            const kafkaProducer = kafka.producer({
+              groupId: constants.UNIQUE_PRODUCER_GROUP,
+            });
             await kafkaProducer.connect();
             await kafkaProducer.send({
               topic: "activities-topic",

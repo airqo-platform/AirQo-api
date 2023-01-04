@@ -16,11 +16,16 @@ const logger = log4js.getLogger(
 );
 const qs = require("qs");
 const QRCode = require("qrcode");
-const { kafkaProducer } = require("../config/kafkajs");
 const httpStatus = require("http-status");
 let devicesModel = (tenant) => {
   return getModelByTenant(tenant, "device", DeviceSchema);
 };
+
+const { Kafka } = require("kafkajs");
+const kafka = new Kafka({
+  clientId: constants.KAFKA_CLIENT_ID,
+  brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
+});
 
 const createDevice = {
   doesDeviceSearchExist: async (request) => {
@@ -99,8 +104,17 @@ const createDevice = {
       let responseFromListDevice = await createDevice.list(request);
       if (responseFromListDevice.success) {
         let deviceBody = responseFromListDevice.data;
+        if (isEmpty(deviceBody)) {
+          return {
+            success: false,
+            message: "device does not exist",
+          };
+        }
         if (!isEmpty(include_site) && include_site === "no") {
           logger.info(`the site details have been removed from the data`);
+          delete deviceBody[0].site;
+        }
+        if (isEmpty(include_site)) {
           delete deviceBody[0].site;
         }
         logger.info(`deviceBody -- ${deviceBody}`);
@@ -116,9 +130,7 @@ const createDevice = {
             data: responseFromQRCode,
             status: HTTPStatus.OK,
           };
-        }
-
-        if (isEmpty(responseFromQRCode)) {
+        } else if (isEmpty(responseFromQRCode)) {
           logObject("responseFromQRCode", responseFromQRCode);
           return {
             success: false,
@@ -126,9 +138,7 @@ const createDevice = {
             status: HTTPStatus.INTERNAL_SERVER_ERROR,
           };
         }
-      }
-
-      if (responseFromListDevice.success === false) {
+      } else if (responseFromListDevice.success === false) {
         let errors = responseFromListDevice.errors
           ? responseFromListDevice.errors
           : "";
@@ -344,8 +354,7 @@ const createDevice = {
             data: responseFromUpdateDeviceOnPlatform.data,
             status,
           };
-        }
-        if (responseFromUpdateDeviceOnPlatform.success === false) {
+        } else if (responseFromUpdateDeviceOnPlatform.success === false) {
           let errors = responseFromUpdateDeviceOnPlatform.errors
             ? responseFromUpdateDeviceOnPlatform.errors
             : "";
@@ -359,9 +368,7 @@ const createDevice = {
             status,
           };
         }
-      }
-
-      if (responseFromUpdateDeviceOnThingspeak.success === false) {
+      } else if (responseFromUpdateDeviceOnThingspeak.success === false) {
         let errors = responseFromUpdateDeviceOnThingspeak.errors
           ? responseFromUpdateDeviceOnThingspeak.errors
           : "";
@@ -688,6 +695,10 @@ const createDevice = {
 
       if (responseFromRegisterDevice.success === true) {
         try {
+          const kafkaProducer = kafka.producer({
+            groupId: constants.UNIQUE_PRODUCER_GROUP,
+          });
+          await kafkaProducer.connect();
           await kafkaProducer.send({
             topic: constants.DEVICES_TOPIC,
             messages: [
@@ -697,6 +708,7 @@ const createDevice = {
               },
             ],
           });
+          await kafkaProducer.disconnect();
         } catch (error) {
           logObject("error on kafka", error);
         }
@@ -876,9 +888,7 @@ const createDevice = {
       logger.info(`the filter ${responseFromFilter.data}`);
       if (responseFromFilter.success === true) {
         filter = responseFromFilter.data;
-      }
-
-      if (responseFromFilter.success === false) {
+      } else if (responseFromFilter.success === false) {
         let errors = responseFromFilter.errors ? responseFromFilter.errors : "";
         try {
           logger.error(
