@@ -43,7 +43,7 @@ resource "google_compute_instance" "cfgsvr_prod_1" {
     scopes = ["https://www.googleapis.com/auth/devstorage.read_only", "https://www.googleapis.com/auth/logging.write", "https://www.googleapis.com/auth/monitoring.write", "https://www.googleapis.com/auth/service.management.readonly", "https://www.googleapis.com/auth/servicecontrol", "https://www.googleapis.com/auth/trace.append"]
   }
 
-  tags = ["http-server", "https-server"]
+  tags = [""]
   zone = var.zone
 }
 # terraform import google_compute_instance.cfgsvr_prod_1 projects/${var.project_id}/zones/us-central1-a/instances/cfgsvr-prod-1

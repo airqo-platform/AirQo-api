@@ -3,13 +3,13 @@ resource "google_compute_instance_template" "cfgsvr_template" {
     enable_confidential_compute = false
   }
 
-  description = "This template is used to config server instances for mongodb sharded clusters."
+  description = "This template is used to create config server instances for mongodb sharded clusters."
 
   disk {
     auto_delete  = true
     boot         = true
     device_name  = "cfgsvr-template"
-    disk_size_gb  = var.disk_size["small"]
+    disk_size_gb = var.disk_size["small"]
     disk_type    = "pd-balanced"
     mode         = "READ_WRITE"
     source_image = var.os["ubuntu-focal"]
@@ -28,7 +28,7 @@ resource "google_compute_instance_template" "cfgsvr_template" {
       network_tier = "PREMIUM"
     }
 
-    network            = "default"
+    network = "default"
   }
 
   project = var.project_id

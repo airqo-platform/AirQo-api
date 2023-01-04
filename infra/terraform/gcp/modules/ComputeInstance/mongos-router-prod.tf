@@ -1,7 +1,7 @@
-resource "google_compute_instance" "shard_prod_3" {
+resource "google_compute_instance" "mongos_router_prod" {
   boot_disk {
     auto_delete = true
-    source      = "shard-prod-3"
+    source      = "mongos-router-prod"
   }
 
   labels = {
@@ -9,13 +9,13 @@ resource "google_compute_instance" "shard_prod_3" {
     "type" = "mongo-shard"
   }
 
-  machine_type = "e2-custom-4-8192"
+  machine_type = "e2-standard"
 
   metadata = {
     startup-script = "sudo ufw allow ssh"
   }
 
-  name = "shard-prod-3"
+  name = "mongos-router-prod"
 
   network_interface {
     access_config {
@@ -23,7 +23,6 @@ resource "google_compute_instance" "shard_prod_3" {
     }
 
     network    = "default"
-    network_ip = "10.132.0.53"
   }
 
   project = var.project_id
@@ -43,7 +42,7 @@ resource "google_compute_instance" "shard_prod_3" {
     scopes = ["https://www.googleapis.com/auth/devstorage.read_only", "https://www.googleapis.com/auth/logging.write", "https://www.googleapis.com/auth/monitoring.write", "https://www.googleapis.com/auth/service.management.readonly", "https://www.googleapis.com/auth/servicecontrol", "https://www.googleapis.com/auth/trace.append"]
   }
 
-  tags = [""]
+  tags = ["http-server", "https-server"]
   zone = var.zone
 }
-# terraform import google_compute_instance.shard_prod_3 projects/${var.project_id}/zones/us-central1-a/instances/shard-prod-3
+# terraform import google_compute_instance.mongos_router_prod projects/${var.project_id}/zones/us-central1-a/instances/mongos-router-prod

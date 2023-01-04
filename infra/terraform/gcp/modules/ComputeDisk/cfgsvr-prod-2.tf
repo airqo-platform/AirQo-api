@@ -6,5 +6,6 @@ resource "google_compute_disk" "cfgsvr_prod_2" {
   size                      = var.disk_size["small"]
   type                      = "pd-standard"
   zone                      = var.zone
+  description               = "Disk for a production mongodb sharded cluster config server"
 }
 # terraform import google_compute_disk.cfgsvr_prod_2 projects/${var.project_id}/zones/europe-west1-b/disks/cfgsvr-prod-2

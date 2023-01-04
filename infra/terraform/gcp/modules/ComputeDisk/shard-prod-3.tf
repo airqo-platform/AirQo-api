@@ -6,5 +6,6 @@ resource "google_compute_disk" "shard_prod_3" {
   size                      = var.disk_size["medium"]
   type                      = "pd-standard"
   zone                      = var.zone
+  description               = "Disk for a production mongodb sharded cluster shard instance"
 }
 # terraform import google_compute_disk.shard_prod_3 projects/${var.project_id}/zones/europe-west1-b/disks/shard-prod-3

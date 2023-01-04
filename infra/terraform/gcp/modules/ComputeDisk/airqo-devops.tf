@@ -6,5 +6,6 @@ resource "google_compute_disk" "airqo_devops" {
   size                      = var.disk_size["large"]
   type                      = "pd-standard"
   zone                      = var.zone
+  description               = "Disk for the devops instance"
 }
 # terraform import google_compute_disk.airqo_devops projects/${var.project_id}/zones/us-central1-a/disks/airqo-devops
