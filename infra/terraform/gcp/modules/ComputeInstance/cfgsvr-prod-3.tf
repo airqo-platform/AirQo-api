@@ -23,6 +23,7 @@ resource "google_compute_instance" "cfgsvr_prod_3" {
     }
 
     network = "default"
+    network_ip = "10.132.0.50"
   }
 
   project = var.project_id

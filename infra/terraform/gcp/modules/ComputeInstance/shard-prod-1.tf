@@ -1,12 +1,12 @@
-resource "google_compute_instance" "cfgsvr_prod_1" {
+resource "google_compute_instance" "shard_prod_1" {
   boot_disk {
     auto_delete = true
-    source      = "cfgsvr-prod-1"
+    source      = "shard-prod-1"
   }
 
   labels = {
     "env"  = "prod"
-    "type" = "mongo-config-server"
+    "type" = "mongo-shard"
   }
 
   machine_type = "e2-custom-4-8192"
@@ -15,15 +15,15 @@ resource "google_compute_instance" "cfgsvr_prod_1" {
     startup-script = "sudo ufw allow ssh"
   }
 
-  name = "cfgsvr-prod-1"
+  name = "shard-prod-1"
 
   network_interface {
     access_config {
       network_tier = "PREMIUM"
     }
 
-    network = "default"
-    network_ip = "10.132.0.48"
+    network    = "default"
+    network_ip = "10.132.0.51"
   }
 
   project = var.project_id
@@ -46,4 +46,4 @@ resource "google_compute_instance" "cfgsvr_prod_1" {
   tags = ["http-server", "https-server"]
   zone = var.zone
 }
-# terraform import google_compute_instance.cfgsvr_prod_1 projects/${var.project_id}/zones/us-central1-a/instances/cfgsvr-prod-1
+# terraform import google_compute_instance.shard_prod_1 projects/${var.project_id}/zones/us-central1-a/instances/shard-prod-1
