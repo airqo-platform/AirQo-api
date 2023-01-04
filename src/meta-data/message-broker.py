@@ -41,7 +41,6 @@ class MessageBroker:
 
                 site_latitude = site.get("latitude")
                 site_longitude = site.get("longitude")
-                site_network = site.get("network")
                 site_id = site.get("_id")
 
                 site_latitude = float(site_latitude)
@@ -53,7 +52,6 @@ class MessageBroker:
                 continue
 
             site_meta_data = {
-                "network": site_network,
                 "id": site_id,
             }
 
