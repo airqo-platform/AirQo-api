@@ -53,6 +53,26 @@ router.get(
   createRoleController.list
 );
 
+router.get(
+  "/roles",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  createRoleController.list
+);
+
 router.post(
   "/roles",
   oneOf([
