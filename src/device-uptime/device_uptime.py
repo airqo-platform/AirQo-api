@@ -10,8 +10,7 @@ _logger = logging.getLogger(__name__)
 
 
 def get_device_records(tenant, channel_id, device_name, is_active):
-    device_channel_records = DeviceChannelRecords(
-        tenant, device_name, channel_id)
+    device_channel_records = DeviceChannelRecords(tenant, device_name, channel_id)
     device_records = device_channel_records.get_sensor_readings()
     uptime, downtime = device_channel_records.calculate_uptime()
     sensor_one_pm2_5 = device_records.sensor_one_pm2_5
@@ -35,7 +34,32 @@ def get_device_records(tenant, channel_id, device_name, is_active):
     return record
 
 
-def save_device_uptime(tenant):
+def save_device_uptime(tenant, number_of_data_points):
+
+    """
+    TODO
+
+    Get all the AirQo devices from the API
+        => devices = https://platform.airqo.net/api/v1/devices?tenant=airqo&network=airqo
+
+    Filter out the active devices
+        => isActive=True
+
+    Get all the cleaned raw measurements recorded in the last 60 minutes
+        => end_date_time = Datetime.now()
+        => start_date_time = end_date_time - timedelta(minutes=60)
+        => data = SELECT timestamp, s1_pm2_5, s2_pm2_5, device_number
+            FROM `airqo-250220.raw_data.device_measurements`
+            WHERE timestamp >= f'{start_date_time}'
+            and timestamp < f'{start_date_time}'
+            and tenant = f'{tenant}'
+
+    Count the number of data points
+        => device_number_groups = data.groupby(by="device_number")
+        => for each device number group, count the number of records.
+        => compute uptime for each device number => (number_of_records/number_of_data_points)*100
+
+    """
     device_model = Device(tenant)
     devices = device_model.get_all_devices()
     records = []
@@ -46,7 +70,7 @@ def save_device_uptime(tenant):
     for device in devices:
         if device.get("network", "") != "airqo":
             continue
-        if device.get('isActive'):
+        if device.get("isActive"):
             active_device_count += 1
 
         channel_id = device["device_number"]
@@ -61,7 +85,7 @@ def save_device_uptime(tenant):
                 tenant,
                 channel_id,
                 device_name,
-                device.get('isActive')
+                device.get("isActive"),
             )
         )
     for future in futures:
@@ -71,8 +95,9 @@ def save_device_uptime(tenant):
             import sys
             from traceback import print_tb, print_exc
             from colored import fg, attr
-            color_warning = fg('#FF6600')
-            reset = attr('reset')
+
+            color_warning = fg("#FF6600")
+            reset = attr("reset")
             print("error occurred while fetching data -", e)
             print(color_warning)
             print_exc(file=sys.stdout)
@@ -81,8 +106,11 @@ def save_device_uptime(tenant):
     network_uptime = 0.0
     if records:
         network_uptime = (
-            sum(record.get("uptime", 0.0)
-                for record in records if record.get('is_active'))
+            sum(
+                record.get("uptime", 0.0)
+                for record in records
+                if record.get("is_active")
+            )
             / active_device_count
         )
 
@@ -95,7 +123,7 @@ def save_device_uptime(tenant):
     network_uptime_record = {
         "network_name": tenant,
         "uptime": network_uptime,
-        "created_at": created_at
+        "created_at": created_at,
     }
 
     print("network uptime", network_uptime_record)
