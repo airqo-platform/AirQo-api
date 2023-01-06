@@ -22,7 +22,7 @@ resource "google_compute_instance" "ansible_controller" {
     }
 
     network    = "default"
-    network_ip = "10.132.0.54"
+    network_ip = "10.132.0.44"
   }
 
   project = var.project_id
