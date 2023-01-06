@@ -3,12 +3,12 @@
 [default_network]
 ansible_controller ansible_ssh_host=10.132.0.44
 calibrate_server   ansible_ssh_host=10.132.0.29
-cfgsvr_prods      ansible_ssh_host=10.132.0.[48:50]
+cfgsvr_prods       ansible_ssh_host=10.132.0.[48:50]
 devops_db          ansible_ssh_host=10.128.0.62
 mlflow_server      ansible_ssh_host=10.128.0.22
 mongos_router_prod ansible_ssh_host=10.132.0.54
 postgresql_db      ansible_ssh_host=10.132.0.26
-shard_prods       ansible_ssh_host=10.132.0.[51:53]
+shard_prods        ansible_ssh_host=10.132.0.[51:53]
 
 [control]
 ansible_controller

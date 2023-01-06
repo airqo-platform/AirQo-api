@@ -4,7 +4,7 @@ resource "google_compute_disk" "cfgsvr_prod_3" {
   physical_block_size_bytes = 4096
   project                   = var.project_id
   size                      = var.disk_size["small"]
-  type                      = "pd-standard"
+  type                      = "pd-balanced"
   zone                      = var.zone
   description               = "Disk for a production mongodb sharded cluster config server"
 }
