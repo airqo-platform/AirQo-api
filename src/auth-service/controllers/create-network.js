@@ -362,7 +362,6 @@ const createNetwork = {
         let status = responseFromListNetworks.status
           ? responseFromListNetworks.status
           : HTTPStatus.OK;
-
         return res.status(status).json({
           success: true,
           message: "successfully retrieved the users for this network",

@@ -1,24 +1,34 @@
 const mongoose = require("mongoose").set("debug", true);
-const { logObject } = require("../utils/log");
+const { logObject, logText } = require("../utils/log");
 const isEmpty = require("is-empty");
 const HTTPStatus = require("http-status");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 
 const RoleSchema = new mongoose.Schema(
   {
-    name: {
+    role_name: {
       type: String,
       required: [true, "name is required"],
     },
-    network_id: {
-      type: ObjectId,
-      ref: "network",
-      required: [true, "network ID is required"],
+    role_status: {
+      type: String,
+      required: [true, "name is required"],
+      default: "ACTIVE",
     },
-    permissions: [
+    role_code: {
+      type: String,
+      trim: true,
+    },
+    role_permissions: [
       {
         type: ObjectId,
         ref: "permission",
+      },
+    ],
+    role_users: [
+      {
+        type: ObjectId,
+        ref: "user",
       },
     ],
   },
@@ -52,26 +62,28 @@ RoleSchema.pre("update", function (next) {
   return next();
 });
 
-RoleSchema.index({ name: 1 }, { unique: true });
+RoleSchema.index({ role_name: 1 }, { unique: true });
 
 RoleSchema.statics = {
   async register(args) {
     try {
-      data = await this.create({
+      logText("we are in the role model creating things");
+      const newRole = await this.create({
         ...args,
       });
-      if (data) {
+      if (!isEmpty(newRole)) {
         return {
           success: true,
-          data,
+          data: newRole._doc,
           message: "Role created",
         };
+      } else if (isEmpty(newRole)) {
+        return {
+          success: true,
+          data: [],
+          message: "operation successful but Role NOT successfully created",
+        };
       }
-      return {
-        success: true,
-        data,
-        message: "operation successful but Role NOT successfully created",
-      };
     } catch (err) {
       logObject("the error", err);
       let response = {};
@@ -94,7 +106,7 @@ RoleSchema.statics = {
 
   async list({ skip = 0, limit = 5, filter = {} } = {}) {
     try {
-      let roles = await this.aggregate()
+      const roles = await this.aggregate()
         .match(filter)
         .lookup({
           from: "networks",
@@ -111,26 +123,23 @@ RoleSchema.statics = {
         .allowDiskUse(true);
 
       if (!isEmpty(roles)) {
-        let data = roles;
         return {
           success: true,
-          data,
+          data: roles,
           message: "successfully listed the roles",
         };
-      }
-
-      if (isEmpty(data)) {
+      } else if (isEmpty(roles)) {
         return {
           success: true,
           message: "no roles exist",
-          data,
+          data: [],
+        };
+      } else {
+        return {
+          success: false,
+          message: "unable to retrieve roles",
         };
       }
-      return {
-        success: false,
-        message: "unable to retrieve roles",
-        data,
-      };
     } catch (error) {
       return {
         success: false,
@@ -181,11 +190,12 @@ RoleSchema.statics = {
   async remove({ filter = {} } = {}) {
     try {
       let options = {
-        projection: { _id: 0, name: 1 },
+        projection: { _id: 0, role_name: 1, role_code: 1, role_status: 1 },
       };
       let removedRole = await this.findOneAndRemove(filter, options).exec();
 
       if (!isEmpty(removedRole)) {
+        logObject("removed roleee", removedRole);
         let data = removedRole._doc;
         return {
           success: true,

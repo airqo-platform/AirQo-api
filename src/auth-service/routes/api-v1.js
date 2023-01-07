@@ -48,6 +48,22 @@ router.get(
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
+
+  oneOf([
+    [
+      param("role_id")
+        .exists()
+        .withMessage("the role ID param is missing in the request")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the role ID must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+    ],
+  ]),
   setJWTAuth,
   authJWT,
   createRoleController.list
@@ -86,6 +102,30 @@ router.post(
         .bail()
         .isIn(["kcca", "airqo"])
         .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      body("role_code")
+        .exists()
+        .withMessage("role_code is missing in your request")
+        .bail()
+        .trim(),
+      body("role_name")
+        .exists()
+        .withMessage("role_name is missing in your request")
+        .bail()
+        .trim(),
+      body("role_status")
+        .optional()
+        .notEmpty()
+        .withMessage("role_status must not be empty if provided")
+        .bail()
+        .isIn(["ACTIVE", "INACTIVE"])
+        .withMessage(
+          "the role_status value is not among the expected ones: ACTIVE or INACTIVE"
+        )
+        .trim(),
     ],
   ]),
   setJWTAuth,
@@ -108,6 +148,21 @@ router.put(
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
+  oneOf([
+    [
+      param("role_id")
+        .exists()
+        .withMessage("the role ID param is missing in the request")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the role ID must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+    ],
+  ]),
   setJWTAuth,
   authJWT,
   createRoleController.update
@@ -126,6 +181,21 @@ router.delete(
         .bail()
         .isIn(["kcca", "airqo"])
         .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      param("role_id")
+        .exists()
+        .withMessage("the role ID param is missing in the request")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the role ID must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
     ],
   ]),
   setJWTAuth,
@@ -148,9 +218,24 @@ router.get(
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
+  oneOf([
+    [
+      param("role_id")
+        .exists()
+        .withMessage("the role ID param is missing in the request")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the role ID must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+    ],
+  ]),
   setJWTAuth,
   authJWT,
-  createRoleController.listUserWithRole
+  createRoleController.listUsersWithRole
 );
 
 router.get(
@@ -168,13 +253,28 @@ router.get(
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
+  oneOf([
+    [
+      param("role_id")
+        .exists()
+        .withMessage("the role ID param is missing in the request")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the role ID must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+    ],
+  ]),
   setJWTAuth,
   authJWT,
   createRoleController.listAvailableUsersForRole
 );
 
 router.post(
-  "/roles/:role_id/users",
+  "/roles/:role_id/user",
   oneOf([
     [
       query("tenant")
@@ -188,13 +288,28 @@ router.post(
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
+  oneOf([
+    [
+      param("role_id")
+        .exists()
+        .withMessage("the role ID param is missing in the request")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the role ID must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+    ],
+  ]),
   setJWTAuth,
   authJWT,
   createRoleController.assignUserToRole
 );
 
 router.delete(
-  "/roles/:role_id/users/user_id",
+  "/roles/:role_id/user/:user_id",
   oneOf([
     [
       query("tenant")
@@ -206,6 +321,58 @@ router.delete(
         .bail()
         .isIn(["kcca", "airqo"])
         .withMessage("the tenant value is not among the expected ones"),
+    ],
+    oneOf([
+      [
+        param("role_id")
+          .exists()
+          .withMessage("the role ID param is missing in the request")
+          .bail()
+          .trim()
+          .isMongoId()
+          .withMessage("the role ID must be an object ID")
+          .bail()
+          .customSanitizer((value) => {
+            return ObjectId(value);
+          }),
+        param("user_id")
+          .exists()
+          .withMessage("the user ID param is missing in the request")
+          .bail()
+          .trim()
+          .isMongoId()
+          .withMessage("the user ID must be an object ID")
+          .bail()
+          .customSanitizer((value) => {
+            return ObjectId(value);
+          }),
+      ],
+    ]),
+  ]),
+  oneOf([
+    [
+      param("role_id")
+        .exists()
+        .withMessage("the role ID param is missing in the request")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the role ID must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      param("user_id")
+        .exists()
+        .withMessage("the user ID param is missing in the request")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the user ID must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
     ],
   ]),
   setJWTAuth,
@@ -228,6 +395,22 @@ router.get(
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
+  oneOf([
+    [
+      param("role_id")
+        .exists()
+        .withMessage("the role ID param is missing in the request")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the role ID must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+    ],
+  ]),
+
   setJWTAuth,
   authJWT,
   createRoleController.listPermissionsForRole
@@ -246,6 +429,21 @@ router.get(
         .bail()
         .isIn(["kcca", "airqo"])
         .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      param("role_id")
+        .exists()
+        .withMessage("the role ID param is missing in the request")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the role ID must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
     ],
   ]),
   setJWTAuth,
@@ -268,13 +466,28 @@ router.post(
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
+  oneOf([
+    [
+      param("role_id")
+        .exists()
+        .withMessage("the role ID param is missing in the request")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the role ID must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+    ],
+  ]),
   setJWTAuth,
   authJWT,
   createRoleController.assignPermissionToRole
 );
 
 router.delete(
-  "/roles/:role_id/permissions/perm_id",
+  "/roles/:role_id/permissions/:perm_id",
   oneOf([
     [
       query("tenant")
@@ -286,6 +499,32 @@ router.delete(
         .bail()
         .isIn(["kcca", "airqo"])
         .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      param("role_id")
+        .exists()
+        .withMessage("the role ID param is missing in the request")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the role ID must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      param("perm_id")
+        .exists()
+        .withMessage("the perm ID param is missing in the request")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the perm ID must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
     ],
   ]),
   setJWTAuth,
@@ -492,6 +731,9 @@ router.post(
 );
 
 router.post("/verify", setJWTAuth, authJWT, createUserController.verify);
+
+router.get("/verify/:user_id/:token", createUserController.verifyEmail);
+
 router.get(
   "/",
   oneOf([
@@ -596,6 +838,60 @@ router.post(
     ],
   ]),
   createUserController.register
+);
+
+router.post(
+  "/",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      body("firstName")
+        .exists()
+        .withMessage("firstName is missing in your request")
+        .bail()
+        .trim(),
+      body("lastName")
+        .exists()
+        .withMessage("lastName is missing in your request")
+        .bail()
+        .trim(),
+      body("email")
+        .exists()
+        .withMessage("email is missing in your request")
+        .bail()
+        .isEmail()
+        .withMessage("this is not a valid email address")
+        .trim(),
+      body("organization")
+        .exists()
+        .withMessage("organization is missing in your request")
+        .bail()
+        .trim(),
+      body("long_organization")
+        .exists()
+        .withMessage("long_organization is missing in your request")
+        .bail()
+        .trim(),
+      body("privilege")
+        .exists()
+        .withMessage("privilege is missing in your request")
+        .bail()
+        .trim(),
+    ],
+  ]),
+  createUserController.create
 );
 router.get(
   "/email/confirm/",
