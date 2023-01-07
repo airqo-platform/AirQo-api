@@ -1,5 +1,9 @@
 const mongodb = require("../config/dbConnection");
 const constants = require("../config/constants");
+const log4js = require("log4js");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- multitenancy-util`
+);
 
 /****
  * creating a new mongoDB connection by switching tenant

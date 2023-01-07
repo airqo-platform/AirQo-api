@@ -6,6 +6,11 @@ const generateFilter = require("../utils/generate-filter");
 const { validationResult } = require("express-validator");
 const manipulateArraysUtil = require("../utils/manipulate-arrays");
 const { badRequest } = require("../utils/errors");
+const constants = require("../config/constants");
+const log4js = require("log4js");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- defaults-controller`
+);
 
 const defaults = {
   update: async (req, res) => {
