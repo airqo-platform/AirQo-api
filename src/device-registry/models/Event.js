@@ -476,9 +476,14 @@ eventSchema.statics = {
           },
         },
         pages: {
-          $ceil: {
-            $divide: [{ $arrayElemAt: ["$total.device", 0] }, limit],
-          },
+          $ifNull: [
+            {
+              $ceil: {
+                $divide: [{ $arrayElemAt: ["$total.device", 0] }, limit],
+              },
+            },
+            1,
+          ],
         },
       };
       let siteProjection = {};
@@ -492,6 +497,12 @@ eventSchema.statics = {
       delete search["recent"];
       delete search["page"];
 
+      /**
+       * The Alternative Flows present in this Events entity:
+       * 1. Based on tenant, which PM values should we showcase?
+       * 2. Which metadata should we show? Sites or Devices? etc....
+       * 3. Should we show recent or historical measurements?
+       */
       if (tenant !== "airqo") {
         pm2_5 = "$pm2_5";
         pm10 = "$pm10";
