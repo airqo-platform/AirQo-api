@@ -175,6 +175,104 @@ const mailer = {
       };
     }
   },
+
+  verifyEmail: async ({
+    user_id = "",
+    token = "",
+    email = "",
+    firstName = "",
+  } = {}) => {
+    try {
+      let bcc = constants.REQUEST_ACCESS_EMAILS;
+      let mailOptions = {};
+      mailOptions = {
+        from: {
+          name: constants.EMAIL_NAME,
+          address: constants.EMAIL,
+        },
+        to: `${email}`,
+        subject: "Verify Email",
+        html: msgTemplates.emailVerification(firstName, user_id, token),
+        bcc,
+      };
+
+      let response = transporter.sendMail(mailOptions);
+      let data = await response;
+      if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
+        return {
+          success: true,
+          message: "email successfully sent",
+          data,
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: false,
+          message: "email not sent",
+          errors: { message: data },
+          status: httpStatus.BAD_GATEWAY,
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "mailer server error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  afterEmailVerification: async ({
+    firstName = "",
+    username = "",
+    email = "",
+    password = "",
+  } = {}) => {
+    try {
+      let bcc = constants.REQUEST_ACCESS_EMAILS;
+      let mailOptions = {};
+      mailOptions = {
+        from: {
+          name: constants.EMAIL_NAME,
+          address: constants.EMAIL,
+        },
+        to: `${email}`,
+        subject: "Welcome to AirQo!",
+        html: msgTemplates.afterEmailVerification(
+          firstName,
+          username,
+          password
+        ),
+        bcc,
+      };
+
+      let response = transporter.sendMail(mailOptions);
+      let data = await response;
+      if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
+        return {
+          success: true,
+          message: "email successfully sent",
+          data,
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: false,
+          message: "email not sent",
+          errors: { message: data },
+          status: httpStatus.BAD_GATEWAY,
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "mailer server error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
   forgot: async (email, token, tenant) => {
     try {
       const mailOptions = {

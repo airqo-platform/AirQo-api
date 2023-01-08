@@ -3,6 +3,7 @@ const { logObject, logElement, logText } = require("../utils/log");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 const isEmpty = require("is-empty");
 const HTTPStatus = require("http-status");
+const httpStatus = require("http-status");
 
 /**
  * belongs to a user
@@ -161,11 +162,11 @@ AccessTokenSchema.statics = {
           data,
           status: HTTPStatus.OK,
         };
-      } else {
+      } else if (isEmpty(response)) {
         return {
           success: true,
           message: "token/s do not exist, please crosscheck",
-          status: HTTPStatus.NOT_FOUND,
+          status: HTTPStatus.NO_CONTENT,
           data: [],
         };
       }
@@ -220,7 +221,10 @@ AccessTokenSchema.statics = {
           expires_in: 1,
         },
       };
+
       let removedToken = await this.findOneAndRemove(filter, options).exec();
+
+      logObject("removedToken", removedToken);
 
       if (!isEmpty(removedToken)) {
         let data = removedToken._doc;
@@ -228,18 +232,27 @@ AccessTokenSchema.statics = {
           success: true,
           message: "successfully removed the Token",
           data,
+          status: httpStatus.OK,
+        };
+      } else if (isEmpty(removedToken)) {
+        return {
+          success: true,
+          message: "Token does not exist, please crosscheck",
+          status: httpStatus.NO_CONTENT,
         };
       } else {
         return {
           success: false,
-          message: "Token does not exist, please crosscheck",
+          message: "no response from deletion operation",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
         };
       }
     } catch (error) {
       return {
         success: false,
         message: "Token model server error - remove",
-        error: error.message,
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },

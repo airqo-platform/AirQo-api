@@ -7,6 +7,8 @@ const generateFilter = require("../utils/generate-filter");
 const { validationResult } = require("express-validator");
 const { badRequest, convertErrorArrayToObject } = require("../utils/errors");
 const isEmpty = require("is-empty");
+const httpStatus = require("http-status");
+const controlAccessUtil = require("../utils/control-access");
 
 const createUser = {
   list: async (req, res) => {
@@ -33,6 +35,7 @@ const createUser = {
       logObject("responseFromFilter", responseFromFilter);
       if (responseFromFilter.success === true) {
         let filter = responseFromFilter.data;
+        logObject("Zi filter", filter);
         let responseFromListUsers = await createUserUtil.list(
           tenant,
           filter,
@@ -84,6 +87,60 @@ const createUser = {
       message: "this token is valid",
       response: "valid token",
     });
+  },
+  verifyEmail: async (req, res) => {
+    try {
+      const { query, body } = req;
+      const { tenant } = query;
+      logText("we are verifying the email.....");
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      let request = req;
+      if (isEmpty(tenant)) {
+        request.query.tenant = "airqo";
+      }
+
+      const responseFromVerifyEmail = await controlAccessUtil.verifyEmail(
+        request
+      );
+
+      logObject("responseFromVerifyEmail", responseFromVerifyEmail);
+
+      if (responseFromVerifyEmail.success === true) {
+        const status = responseFromVerifyEmail.status
+          ? responseFromVerifyEmail.status
+          : httpStatus.OK;
+        res.status(status).json({
+          success: true,
+          message: "email verified sucessfully",
+        });
+      } else if (responseFromVerifyEmail.success === false) {
+        const status = responseFromVerifyEmail.status
+          ? responseFromVerifyEmail.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromVerifyEmail.message,
+          errors: responseFromVerifyEmail.errors
+            ? responseFromVerifyEmail.errors
+            : { message: "internal server errors" },
+        });
+      }
+    } catch (error) {
+      logObject("error", error);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "internal server error",
+        errors: { message: error.message },
+      });
+    }
   },
   lookUpFirebaseUser: async (req, res) => {
     try {
@@ -327,7 +384,7 @@ const createUser = {
       request["privilege"] = privilege;
       request["network_id"] = network_id;
 
-      let responseFromCreateUser = await createUserUtil.create(request);
+      let responseFromCreateUser = await createUserUtil.register(request);
       logObject("responseFromCreateUser in controller", responseFromCreateUser);
       if (responseFromCreateUser.success === true) {
         const status = responseFromCreateUser.status
@@ -355,6 +412,61 @@ const createUser = {
       }
     } catch (error) {
       tryCatchErrors(res, error, "createUser controller");
+    }
+  },
+
+  create: async (req, res) => {
+    logText("..................................................");
+    logText("create user.............");
+    try {
+      const { query, body, params } = req;
+      let { tenant } = query;
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT;
+      }
+
+      let request = req.body;
+      request["tenant"] = tenant.toLowerCase();
+
+      let responseFromCreateUser = await createUserUtil.create(request);
+      logObject("responseFromCreateUser in controller", responseFromCreateUser);
+      if (responseFromCreateUser.success === true) {
+        const status = responseFromCreateUser.status
+          ? responseFromCreateUser.status
+          : HTTPStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromCreateUser.message,
+          user: responseFromCreateUser.data,
+        });
+      } else if (responseFromCreateUser.success === false) {
+        const status = responseFromCreateUser.status
+          ? responseFromCreateUser.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+
+        return res.status(status).json({
+          success: false,
+          message: responseFromCreateUser.message,
+          errors: responseFromCreateUser.errors
+            ? responseFromCreateUser.errors
+            : "",
+        });
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "internal server errors",
+        errors: { message: error.message },
+      };
     }
   },
 

@@ -732,7 +732,44 @@ router.post(
 
 router.post("/verify", setJWTAuth, authJWT, createUserController.verify);
 
-router.get("/verify/:user_id/:token", createUserController.verifyEmail);
+router.get(
+  "/verify/:user_id/:token",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+
+  oneOf([
+    [
+      param("user_id")
+        .exists()
+        .withMessage("the user ID param is missing in the request")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the user ID must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      param("token")
+        .exists()
+        .withMessage("the token param is missing in the request")
+        .bail()
+        .trim(),
+    ],
+  ]),
+  createUserController.verifyEmail
+);
 
 router.get(
   "/",

@@ -26,6 +26,7 @@ const stageConfig = {
 
 const defaultConfig = {
   DEFAULT_TENANT: "airqo",
+  TWITTER_ACCOUNT: "https://twitter.com/AirQoProject",
   PRODUCTS_DEV_EMAIL: process.env.PRODUCTS_DEV_EMAIL,
   FIREBASE_COLLECTION_USERS: process.env.FIREBASE_COLLECTION_USERS,
   FIREBASE_COLLECTION_KYA: process.env.FIREBASE_COLLECTION_KYA,

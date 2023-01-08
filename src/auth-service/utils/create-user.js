@@ -398,6 +398,100 @@ const join = {
 
   create: async (request) => {
     try {
+      const { tenant, firstName, email, network_id } = request;
+      const password = accessCodeGenerator.generate(
+        constants.RANDOM_PASSWORD_CONFIGURATION(10)
+      );
+
+      const newRequest = Object.assign({ userName: email, password }, request);
+
+      const responseFromCreateUser = await UserModel(tenant).register(
+        newRequest
+      );
+      if (responseFromCreateUser.success === true) {
+        if (responseFromCreateUser.status === httpStatus.NO_CONTENT) {
+          return responseFromCreateUser;
+        }
+        const token = accessCodeGenerator
+          .generate(constants.RANDOM_PASSWORD_CONFIGURATION(16))
+          .toUpperCase();
+        const responseFromSaveToken = await AccessTokenModel(tenant).register({
+          token,
+          network_id,
+          user_id: responseFromCreateUser.data._id,
+        });
+
+        if (responseFromSaveToken.success === true) {
+          let createdUser = await responseFromCreateUser.data;
+          logObject("created user in util", createdUser._doc);
+          const user_id = createdUser._doc._id;
+
+          let responseFromSendEmail = await mailer.verifyEmail({
+            user_id,
+            token,
+            email,
+            firstName,
+          });
+
+          logObject("responseFromSendEmail", responseFromSendEmail);
+          if (responseFromSendEmail.success === true) {
+            return {
+              success: true,
+              message: "An Email sent to your account please verify",
+              data: createdUser._doc,
+              status: responseFromSendEmail.status
+                ? responseFromSendEmail.status
+                : "",
+            };
+          } else if (responseFromSendEmail.success === false) {
+            return {
+              success: false,
+              message: responseFromSendEmail.message,
+              errors: responseFromSendEmail.errors
+                ? responseFromSendEmail.errors
+                : "",
+              status: responseFromSendEmail.status
+                ? responseFromSendEmail.status
+                : "",
+            };
+          }
+        } else if (responseFromSaveToken.success === false) {
+          return {
+            success: false,
+            message: responseFromSaveToken.message,
+            status: responseFromSaveToken.status
+              ? responseFromSaveToken.status
+              : "",
+            errors: responseFromSaveToken.errors
+              ? responseFromSaveToken.errors
+              : "",
+          };
+        }
+      } else if (responseFromCreateUser.success === false) {
+        return {
+          success: false,
+          message: responseFromCreateUser.message,
+          errors: responseFromCreateUser.error
+            ? responseFromCreateUser.error
+            : "",
+          status: responseFromCreateUser.status
+            ? responseFromCreateUser.status
+            : "",
+        };
+      }
+    } catch (e) {
+      logObject("e", e);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: e.message },
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  register: async (request) => {
+    try {
       let {
         tenant,
         firstName,
@@ -430,78 +524,48 @@ const join = {
       );
 
       if (responseFromCreateUser.success === true) {
-        const token = accessCodeGenerator
-          .generate(constants.RANDOM_PASSWORD_CONFIGURATION(16))
-          .toUpperCase();
-
-        let requestBodyForAccessToken = {};
-        requestBodyForAccessToken["token"] = token;
-        requestBodyForAccessToken["network_id"] = network_id;
-        requestBodyForAccessToken["user_id"] = responseFromCreateUser.data._id;
-
-        const responseFromSaveToken = await AccessTokenModel(tenant).register(
-          requestBodyForAccessToken
+        const createdUser = await responseFromCreateUser.data;
+        logObject("created user in util", createdUser._doc);
+        let responseFromSendEmail = await mailer.user(
+          firstName,
+          lastName,
+          email,
+          password,
+          tenant,
+          "user"
         );
-
-        if (responseFromSaveToken.success === true) {
-          let createdUser = await responseFromCreateUser.data;
-          logObject("created user in util", createdUser._doc);
-          let responseFromSendEmail = await mailer.user(
-            firstName,
-            lastName,
-            email,
-            password,
-            tenant,
-            "user"
-          );
-          logObject("responseFromSendEmail", responseFromSendEmail);
-          if (responseFromSendEmail.success === true) {
-            return {
-              success: true,
-              message: "user successfully created",
-              data: createdUser._doc,
-            };
-          } else if (responseFromSendEmail.success === false) {
-            let status = responseFromSendEmail.status
+        logObject("responseFromSendEmail", responseFromSendEmail);
+        if (responseFromSendEmail.success === true) {
+          return {
+            success: true,
+            message: "user successfully created",
+            data: createdUser._doc,
+            status: responseFromSendEmail.status
               ? responseFromSendEmail.status
-              : "";
-            let error = responseFromSendEmail.error
-              ? responseFromSendEmail.error
-              : "";
-            return {
-              success: false,
-              message: responseFromSendEmail.message,
-              error,
-              status,
-            };
-          }
-        } else if (responseFromSaveToken.success === false) {
-          let errors = responseFromSaveToken.errors
-            ? responseFromSaveToken.errors
-            : { message: "Internal Server Error" };
-          let status = responseFromSaveToken.status
-            ? responseFromSaveToken.status
-            : HTTPStatus.INTERNAL_SERVER_ERROR;
+              : "",
+          };
+        } else if (responseFromSendEmail.success === false) {
           return {
             success: false,
-            message: responseFromSaveToken.message,
-            status,
-            errors,
+            message: responseFromSendEmail.message,
+            error: responseFromSendEmail.error
+              ? responseFromSendEmail.error
+              : "",
+            status: responseFromSendEmail.status
+              ? responseFromSendEmail.status
+              : "",
           };
         }
       } else if (responseFromCreateUser.success === false) {
-        let error = responseFromCreateUser.error
-          ? responseFromCreateUser.error
-          : "";
-        let status = responseFromCreateUser.status
-          ? responseFromCreateUser.status
-          : "";
-        logObject("the error from the model", error);
         return {
           success: false,
           message: responseFromCreateUser.message,
-          error,
-          status,
+          error: responseFromCreateUser.error
+            ? responseFromCreateUser.error
+            : "",
+          status: responseFromCreateUser.status
+            ? responseFromCreateUser.status
+            : "",
         };
       }
     } catch (e) {

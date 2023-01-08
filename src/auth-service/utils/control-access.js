@@ -2,11 +2,17 @@ const PermissionSchema = require("../models/Permission");
 const AccessTokenSchema = require("../models/AccessToken");
 const UserSchema = require("../models/User");
 const RoleSchema = require("../models/Role");
-const HTTPStatus = require("http-status");
+const httpStatus = require("http-status");
 const generateFilter = require("./generate-filter");
+const mongoose = require("mongoose").set("debug", true);
+const ObjectId = mongoose.Types.ObjectId;
+const createUserUtil = require("./create-user");
+const msgTemplates = require("./email.templates");
+const accessCodeGenerator = require("generate-password");
 
 const { getModelByTenant } = require("../utils/multitenancy");
 const { logObject, logElement, logText } = require("../utils/log");
+const mailer = require("./mailer");
 
 const UserModel = (tenant) => {
   try {
@@ -49,6 +55,148 @@ const RoleModel = (tenant) => {
 };
 
 const controlAccess = {
+  verifyEmail: async (request) => {
+    try {
+      const { query, params } = request;
+      const { tenant } = query;
+      const { user_id, token } = params;
+      const limit = parseInt(request.query.limit, 0);
+      const skip = parseInt(request.query.skip, 0);
+
+      let filter = { _id: user_id };
+
+      let responseFromListUsers = await UserModel(tenant).list({
+        filter,
+        limit,
+        skip,
+      });
+
+      logObject("responseFromListUsers", responseFromListUsers);
+
+      if (responseFromListUsers.success === true) {
+        if (responseFromListUsers.status === httpStatus.NO_CONTENT) {
+          return {
+            success: false,
+            message: "invalid link",
+            status: httpStatus.BAD_REQUEST,
+            errors: { message: "this is a bad request" },
+          };
+        } else if (responseFromListUsers.status === httpStatus.OK) {
+          const user = responseFromListUsers.data[0];
+          filter = { token };
+          const responseFromListAccessToken = await AccessTokenModel(
+            tenant
+          ).list({ skip, limit, filter });
+
+          logObject("responseFromListAccessToken", responseFromListAccessToken);
+
+          if (responseFromListAccessToken.success === true) {
+            if (responseFromListAccessToken.status === httpStatus.NO_CONTENT) {
+              return {
+                success: false,
+                status: httpStatus.BAD_REQUEST,
+                message: "Invalid link",
+                errors: { message: "this is a bad request" },
+              };
+            } else if (responseFromListAccessToken.status === httpStatus.OK) {
+              const password = accessCodeGenerator.generate(
+                constants.RANDOM_PASSWORD_CONFIGURATION(10)
+              );
+              let update = { verified: true, password };
+              filter = { _id: user_id };
+              const responseFromUpdateUser = await UserModel(tenant).modify({
+                filter,
+                update,
+              });
+
+              logObject("responseFromUpdateUser", responseFromUpdateUser);
+              if (responseFromUpdateUser.success === true) {
+                filter = { token };
+                logObject("the deletion of the token filter", filter);
+                const responseFromDeleteToken = await AccessTokenModel(
+                  tenant
+                ).remove(filter);
+
+                logObject("responseFromDeleteToken", responseFromDeleteToken);
+
+                if (responseFromDeleteToken.success === true) {
+                  const responseFromSendEmail =
+                    await mailer.afterEmailVerification({
+                      firstName: user.firstName,
+                      username: user.userName,
+                      password,
+                      email: user.email,
+                    });
+
+                  if (responseFromSendEmail.success === true) {
+                    return {
+                      success: true,
+                      message: "email verified sucessfully",
+                      status: httpStatus.OK,
+                    };
+                  } else if (responseFromSendEmail.success === false) {
+                    return responseFromSendEmail;
+                  }
+                } else if (responseFromDeleteToken.success === false) {
+                  return {
+                    success: false,
+                    message: "unable to verify user",
+                    status: responseFromDeleteToken.status
+                      ? responseFromDeleteToken.status
+                      : httpStatus.INTERNAL_SERVER_ERROR,
+                    errors: responseFromDeleteToken.errors
+                      ? responseFromDeleteToken.errors
+                      : { message: "internal server errors" },
+                  };
+                }
+              } else if (responseFromUpdateUser.success === false) {
+                return {
+                  success: false,
+                  message: "unable to verify user",
+                  status: responseFromUpdateUser.status
+                    ? responseFromUpdateUser.status
+                    : httpStatus.INTERNAL_SERVER_ERROR,
+                  errors: responseFromUpdateUser.errors
+                    ? responseFromUpdateUser.errors
+                    : { message: "internal server errors" },
+                };
+              }
+            }
+          } else if (responseFromListAccessToken.success === false) {
+            return {
+              success: false,
+              message: responseFromListAccessToken.message,
+              errors: responseFromListAccessToken.errors
+                ? responseFromListAccessToken.errors
+                : httpStatus.INTERNAL_SERVER_ERROR,
+              status: responseFromListAccessToken.status
+                ? responseFromListAccessToken.status
+                : httpStatus.OK,
+            };
+          }
+        }
+      } else if (responseFromListUsers.success === false) {
+        return {
+          success: false,
+          message: responseFromListUsers.message,
+          errors: responseFromListUsers.errors
+            ? responseFromListUsers.errors
+            : { message: "INTERNAL SERVER ERROR" },
+          status: responseFromListUsers.status
+            ? responseFromListUsers.status
+            : httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+    } catch (error) {
+      logObject("erroring in util", error);
+      return {
+        success: false,
+        message: "internal server error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
   /***hashing */
   hash: (string) => {
     try {
@@ -63,6 +211,7 @@ const controlAccess = {
   /**access tokens */
   updateAccessToken: async (request) => {
     try {
+      const { query, body } = request;
       const responseFromUpdateToken = await AccessTokenModel(
         tenant.toLowerCase()
       ).modify({ filter, update });
@@ -71,26 +220,35 @@ const controlAccess = {
 
   deleteAccessToken: async (request) => {
     try {
-      const responseFromUpdateToken = await AccessTokenModel(
+      const { query, body } = request;
+      const responseFromDeleteToken = await AccessTokenModel(
         tenant.toLowerCase()
-      ).modify({ filter, update });
-    } catch (error) {}
-  },
-
-  verifyAccessToken: async (request) => {
-    try {
-      const responseFromUpdateToken = await AccessTokenModel(
-        tenant.toLowerCase()
-      ).modify({ filter, update });
+      ).delete({ filter });
     } catch (error) {}
   },
 
   listAccessTokens: async (request) => {
     try {
-      const responseFromUpdateToken = await AccessTokenModel(
+      const { query, body } = request;
+      const responseFromListToken = await AccessTokenModel(
         tenant.toLowerCase()
-      ).modify({ filter, update });
+      ).list({ skip, limit, filter });
     } catch (error) {}
+  },
+
+  createAccessTokens: async (request) => {
+    try {
+      const { query, body } = request;
+      const responseFromCreateToken = await AccessTokenModel(
+        tenant.toLowerCase()
+      ).register(body);
+    } catch (error) {
+      return {
+        success: false,
+        message: "internal server error",
+        errors: { message: error.message },
+      };
+    }
   },
 
   /** roles */
@@ -126,6 +284,7 @@ const controlAccess = {
       const responseFromDeleteRole = await RoleModel(
         tenant.toLowerCase()
       ).remove({ filter });
+      logObject("responseFromDeleteRole", responseFromDeleteRole);
       return responseFromDeleteRole;
     } catch (error) {
       return {
@@ -165,6 +324,7 @@ const controlAccess = {
       const responseFromCreateRole = await RoleModel(
         tenant.toLowerCase()
       ).register(body);
+      logObject("been able to create the damn role", responseFromCreateRole);
       return responseFromCreateRole;
     } catch (error) {
       return {
@@ -173,7 +333,7 @@ const controlAccess = {
         errors: {
           message: error.message,
         },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -184,7 +344,7 @@ const controlAccess = {
   listUserWithRole: async (req, res) => {
     try {
     } catch (error) {
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -195,7 +355,7 @@ const controlAccess = {
   listAvailableUsersForRole: async (req, res) => {
     try {
     } catch (error) {
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -206,7 +366,7 @@ const controlAccess = {
   assignUserToRole: async (req, res) => {
     try {
     } catch (error) {
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -217,7 +377,7 @@ const controlAccess = {
   unAssignUserFromRole: async (req, res) => {
     try {
     } catch (error) {
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -228,7 +388,7 @@ const controlAccess = {
   listPermissionsForRole: async (req, res) => {
     try {
     } catch (error) {
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -239,7 +399,7 @@ const controlAccess = {
   listAvailablePermissionsForRole: async (req, res) => {
     try {
     } catch (error) {
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -250,7 +410,7 @@ const controlAccess = {
   assignPermissionToRole: async (req, res) => {
     try {
     } catch (error) {
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -261,7 +421,7 @@ const controlAccess = {
   unAssignPermissionFromRole: async (request) => {
     try {
     } catch (error) {
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -291,7 +451,7 @@ const controlAccess = {
         errors: {
           message: error.message,
         },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -315,7 +475,7 @@ const controlAccess = {
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -338,7 +498,7 @@ const controlAccess = {
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -356,7 +516,7 @@ const controlAccess = {
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },

@@ -13,6 +13,7 @@ const saltRounds = constants.SALT_ROUNDS;
 const HTTPStatus = require("http-status");
 const accessCodeGenerator = require("generate-password");
 const { getModelByTenant } = require("../utils/multitenancy");
+const httpStatus = require("http-status");
 
 function oneMonthFromNow() {
   var d = new Date();
@@ -43,7 +44,7 @@ const UserSchema = new Schema(
         message: "{VALUE} is not a valid email!",
       },
     },
-    emailConfirmed: {
+    verified: {
       type: Boolean,
       default: false,
     },
@@ -97,6 +98,10 @@ const UserSchema = new Schema(
         ref: "role",
       },
     ],
+    role: {
+      type: ObjectId,
+      ref: "role",
+    },
     permissions: [
       {
         type: ObjectId,
@@ -179,18 +184,21 @@ UserSchema.statics = {
       data = await this.create({
         ...args,
       });
-      if (data) {
+      if (!isEmpty(data)) {
         return {
           success: true,
           data,
           message: "user created",
+          status: httpStatus.OK,
+        };
+      } else if (isEmpty(data)) {
+        return {
+          success: true,
+          data,
+          message: "operation successful but user NOT successfully created",
+          status: httpStatus.NO_CONTENT,
         };
       }
-      return {
-        success: true,
-        data,
-        message: "operation successful but user NOT successfully created",
-      };
     } catch (err) {
       logObject("the error", err);
       let response = {};
@@ -212,15 +220,18 @@ UserSchema.statics = {
   },
   async list({ skip = 0, limit = 5, filter = {} } = {}) {
     try {
+      logObject("the filteres", filter);
       const projectAll = {
         _id: 1,
         firstName: 1,
         lastName: 1,
         userName: 1,
         email: 1,
+        verified: 1,
         privilege: 1,
         profilePicture: 1,
         phoneNumber: 1,
+        role: 1,
         networks: "$networks",
         access_tokens: "$access_tokens",
         permissions: "$permissions",
@@ -282,7 +293,6 @@ UserSchema.statics = {
         })
         .project({
           "access_tokens.__v": 0,
-          "access_tokens._id": 0,
           "access_tokens.user_id": 0,
           "access_tokens.createdAt": 0,
           "access_tokens.updatedAt": 0,
@@ -308,6 +318,9 @@ UserSchema.statics = {
         .skip(skip ? skip : 0)
         .limit(limit ? limit : 100)
         .allowDiskUse(true);
+
+      logObject("the responser", response);
+
       if (!isEmpty(response)) {
         let data = response;
         return {
@@ -316,12 +329,12 @@ UserSchema.statics = {
           data,
           status: HTTPStatus.OK,
         };
-      } else if (isEmpty(users)) {
+      } else if (isEmpty(response)) {
         return {
           success: true,
           message: "no users exist",
           data: [],
-          status: HTTPStatus.NOT_FOUND,
+          status: HTTPStatus.NO_CONTENT,
         };
       }
     } catch (error) {
@@ -489,6 +502,8 @@ UserSchema.methods = {
       description: this.description,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
+      role: this.role,
+      verified: this.verified,
     };
   },
 };
