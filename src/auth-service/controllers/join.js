@@ -9,6 +9,10 @@ const manipulateArraysUtil = require("../utils/manipulate-arrays");
 const { badRequest } = require("../utils/errors");
 const isEmpty = require("is-empty");
 
+const constants = require("../config/constants");
+const log4js = require("log4js");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- join-controller`);
+
 const join = {
   list: async (req, res) => {
     try {
@@ -287,6 +291,11 @@ const join = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        logger.error(
+          `input validation errors ${JSON.stringify(
+            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          )}`
+        );
         return badRequest(
           res,
           "bad request errors",

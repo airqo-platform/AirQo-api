@@ -13,6 +13,9 @@ const InquiryModel = (tenant) => {
   return getModelByTenant(tenant, "inquiry", InquirySchema);
 };
 
+const log4js = require("log4js");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- inquire-util`);
+
 const inquire = {
   create: async (inquire, callback) => {
     try {

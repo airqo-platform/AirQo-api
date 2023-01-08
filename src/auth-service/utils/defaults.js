@@ -4,6 +4,10 @@ const { logElement, logText, logObject } = require("./log");
 const generateFilter = require("./generate-filter");
 const HTTPStatus = require("http-status");
 
+const constants = require("../config/constants");
+const log4js = require("log4js");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- defaults-util`);
+
 const defaults = {
   list: async (tenant, filter, limit, skip) => {
     try {
