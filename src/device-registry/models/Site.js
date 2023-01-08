@@ -13,9 +13,9 @@ const siteSchema = new Schema(
       trim: true,
       required: [true, "name is required!"],
     },
-    short_link: {
+    share_links: {
       preview: { type: String, trim: true },
-      share: { type: String, trim: true },
+      short_link: { type: String, trim: true },
     },
     images: [
       {
