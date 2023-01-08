@@ -6,6 +6,9 @@ const msgs = require("../utils/email.msgs");
 const msgTemplates = require("../utils/email.templates");
 const httpStatus = require("http-status");
 
+const log4js = require("log4js");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- mailer-service`);
+
 const mailer = {
   candidate: async (firstName, lastName, email, tenant) => {
     try {
@@ -335,7 +338,7 @@ const mailer = {
         bcc,
       };
 
-      let response = transporter.sendMail(mailOptions);
+      let response = await transporter.sendMail(mailOptions);
 
       let data = response;
       if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
