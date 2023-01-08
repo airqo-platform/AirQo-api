@@ -16,6 +16,9 @@ const md5 = require("md5");
 const accessCodeGenerator = require("generate-password");
 const generateFilter = require("./generate-filter");
 
+const log4js = require("log4js");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- join-util`);
+
 const UserModel = (tenant) => {
   try {
     let users = mongoose.model("users");

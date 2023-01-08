@@ -3,6 +3,11 @@ const { logElement, logText, logObject } = require("../utils/log");
 const createDefaultUtil = require("../utils/create-default");
 const generateFilter = require("../utils/generate-filter");
 const { validationResult } = require("express-validator");
+const constants = require("../config/constants");
+const log4js = require("log4js");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- defaults-controller`
+);
 const {
   badRequest,
   convertErrorArrayToObject,

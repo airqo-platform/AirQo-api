@@ -21,6 +21,9 @@ const AccessTokenModel = (tenant) => {
 const { validationResult } = require("express-validator");
 const { badRequest, convertErrorArrayToObject } = require("../utils/errors");
 
+const log4js = require("log4js");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- auth-service`);
+
 const setLocalOptions = (req) => {
   try {
     let authenticationFields = {};

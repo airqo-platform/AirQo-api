@@ -5,6 +5,7 @@ const devConfig = {
   LOGIN_PAGE: `${process.env.PLATFORM_DEV_BASE_URL}/login`,
   FORGOT_PAGE: `${process.env.PLATFORM_DEV_BASE_URL}/forgot`,
   PLATFORM_BASE_URL: process.env.PLATFORM_DEV_BASE_URL,
+  ENVIRONMENT: "DEVELOPMENT ENVIRONMENT",
 };
 const prodConfig = {
   MONGO_URI: process.env.MONGO_PROD_URI,
@@ -13,6 +14,7 @@ const prodConfig = {
   LOGIN_PAGE: `${process.env.PLATFORM_PRODUCTION_BASE_URL}/login`,
   FORGOT_PAGE: `${process.env.PLATFORM_PRODUCTION_BASE_URL}/forgot`,
   PLATFORM_BASE_URL: process.env.PLATFORM_PRODUCTION_BASE_URL,
+  ENVIRONMENT: "PRODUCTION ENVIRONMENT",
 };
 
 const stageConfig = {
@@ -22,11 +24,15 @@ const stageConfig = {
   LOGIN_PAGE: `${process.env.PLATFORM_STAGING_BASE_URL}/login`,
   FORGOT_PAGE: `${process.env.PLATFORM_STAGING_BASE_URL}/forgot`,
   PLATFORM_BASE_URL: process.env.PLATFORM_STAGING_BASE_URL,
+  ENVIRONMENT: "STAGING ENVIRONMENT",
 };
 
 const defaultConfig = {
   DEFAULT_TENANT: "airqo",
   TWITTER_ACCOUNT: "https://twitter.com/AirQoProject",
+  SLACK_TOKEN: process.env.SLACK_TOKEN,
+  SLACK_CHANNEL: process.env.SLACK_CHANNEL,
+  SLACK_USERNAME: process.env.SLACK_USERNAME,
   PRODUCTS_DEV_EMAIL: process.env.PRODUCTS_DEV_EMAIL,
   FIREBASE_COLLECTION_USERS: process.env.FIREBASE_COLLECTION_USERS,
   FIREBASE_COLLECTION_KYA: process.env.FIREBASE_COLLECTION_KYA,
