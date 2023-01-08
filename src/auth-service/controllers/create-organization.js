@@ -4,6 +4,12 @@ const createOrganizationUtil = require("../utils/create-organization");
 const { validationResult } = require("express-validator");
 const manipulateArraysUtil = require("../utils/manipulate-arrays");
 
+const constants = require("../config/constants");
+const log4js = require("log4js");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- create-organization-controller`
+);
+
 const createOrganization = {
   getTenantFromEmail: async (req, res) => {
     try {
@@ -51,6 +57,11 @@ const createOrganization = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        logger.error(
+          `input validation errors ${JSON.stringify(
+            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          )}`
+        );
         return badRequest(
           res,
           "bad request errors",

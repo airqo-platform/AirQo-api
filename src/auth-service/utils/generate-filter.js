@@ -2,6 +2,12 @@ const { logElement, logObject } = require("./log");
 const mongoose = require("mongoose").set("debug", true);
 const ObjectId = mongoose.Types.ObjectId;
 
+const constants = require("../config/constants");
+const log4js = require("log4js");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- generate-filter-util`
+);
+
 const filter = {
   users: (req) => {
     try {
