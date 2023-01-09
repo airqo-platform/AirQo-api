@@ -2,7 +2,7 @@ terraform {
   cloud {
     organization = "AirQo"
     workspaces {
-      name = "airqo"
+      name = "airqo-250220"
     }
   }
 }
