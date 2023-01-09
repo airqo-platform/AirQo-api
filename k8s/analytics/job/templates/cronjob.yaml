@@ -37,6 +37,14 @@ spec:
               terminationMessagePolicy: File
               envFrom:
                 - configMapRef:
-                    name: {{ .Values.app.configmap }}
+                    name: {{ .Values.app.configmap }} 
+              {{- with .Values.volumeMounts }}
+              volumeMounts:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
               resources:
                 {{- toYaml .Values.resources | nindent 16 }}
+          {{- with .Values.volumes }}
+          volumes:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
