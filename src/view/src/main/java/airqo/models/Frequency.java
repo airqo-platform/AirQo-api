@@ -1,6 +1,9 @@
 package airqo.models;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 public enum Frequency {
+	@JsonProperty("hourly")
 	HOURLY {
 		@Override
 		public String toString() {
@@ -12,6 +15,7 @@ public enum Frequency {
 			return "yyyy-MM-dd'T'HH:00:00'Z'";
 		}
 	},
+	@JsonProperty("daily")
 	DAILY {
 		@Override
 		public String toString() {
