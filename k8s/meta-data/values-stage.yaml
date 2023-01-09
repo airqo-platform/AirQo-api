@@ -7,7 +7,7 @@ replicaCount: 2
 images:
   repositories:
     api: gcr.io/airqo-250220/airqo-stage-meta-data-api
-    sitesConsumer: gcr.io/airqo-250220/airqo-meta-data-sites-consumer
+    sitesConsumer: gcr.io/airqo-250220/airqo-stage-meta-data-sites-consumer
   tag: stage-d1212623-1673015270
 nameOverride: ''
 fullnameOverride: ''
