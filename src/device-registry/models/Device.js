@@ -69,7 +69,6 @@ const deviceSchema = new mongoose.Schema(
     },
     long_name: {
       type: String,
-      required: [true, "the Device long name is required"],
       trim: true,
     },
     visibility: {
@@ -82,14 +81,9 @@ const deviceSchema = new mongoose.Schema(
     },
     generation_version: {
       type: Number,
-      required: [true, "the generation is required"],
     },
     generation_count: {
       type: Number,
-      required: [
-        true,
-        "the number of the device in the provided generation is required",
-      ],
     },
     tags: {
       type: Array,
@@ -112,6 +106,13 @@ const deviceSchema = new mongoose.Schema(
       trim: true,
       lowercase: true,
     },
+    device_codes: [
+      {
+        type: String,
+        trim: true,
+      },
+    ],
+
     status: {
       type: String,
       default: "not deployed",
@@ -155,13 +156,11 @@ const deviceSchema = new mongoose.Schema(
     },
     device_number: {
       type: Number,
-      required: [true, "device_number is required!"],
       trim: true,
       unique: true,
     },
     category: {
       type: String,
-      required: [true, "the category is required"],
       default: "lowcost",
       trim: true,
     },
@@ -247,6 +246,7 @@ deviceSchema.methods = {
       pictures: this.pictures,
       site_id: this.site_id,
       height: this.height,
+      device_codes: this.device_codes,
       category: this.category,
       access_code: this.access_code,
     };
@@ -259,7 +259,25 @@ deviceSchema.statics = {
       logObject("the args", args);
       logger.info("in the register static fn of the Device model...");
       let modifiedArgs = args;
-      modifiedArgs.name = `aq_g${args.generation_version}_${args.generation_count}`;
+
+      if (
+        isEmpty(modifiedArgs.name) &&
+        !isEmpty(args.generation_version) &&
+        !isEmpty(args.generation_count)
+      ) {
+        modifiedArgs.name = `aq_g${args.generation_version}_${args.generation_count}`;
+      } else {
+        try {
+          let nameWithoutWhiteSpaces = modifiedArgs.name.replace(/\s/g, "");
+          let shortenedName = nameWithoutWhiteSpaces.substring(0, 15);
+          modifiedArgs.name = shortenedName.trim().toLowerCase();
+        } catch (error) {
+          logger.error(
+            `internal server error -- sanitiseName-- ${error.message}`
+          );
+        }
+      }
+
       let createdDevice = await this.create({
         ...modifiedArgs,
       });
@@ -340,6 +358,7 @@ deviceSchema.statics = {
           readKey: 1,
           access_code: 1,
           pictures: 1,
+          device_codes: 1,
           height: 1,
           mobility: 1,
           status: 1,
@@ -415,6 +434,7 @@ deviceSchema.statics = {
   async modify({ filter = {}, update = {}, opts = {} } = {}) {
     try {
       let modifiedUpdate = update;
+      modifiedUpdate["$addToSet"] = {};
       delete modifiedUpdate.name;
       delete modifiedUpdate.device_number;
       delete modifiedUpdate._id;
@@ -428,6 +448,13 @@ deviceSchema.statics = {
           excludeSimilarCharacters: true,
         });
         modifiedUpdate.access_code = access_code.toUpperCase();
+      }
+
+      if (modifiedUpdate.device_codes) {
+        modifiedUpdate["$addToSet"]["device_codes"] = {};
+        modifiedUpdate["$addToSet"]["device_codes"]["$each"] =
+          modifiedUpdate.device_codes;
+        delete modifiedUpdate["device_codes"];
       }
 
       let updatedDevice = await this.findOneAndUpdate(

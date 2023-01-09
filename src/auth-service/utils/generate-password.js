@@ -1,5 +1,9 @@
 const generatePassword = require("generate-password");
 const constants = require("../config/constants");
+const log4js = require("log4js");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- generate-password-util`
+);
 
 const createPassword = (length) => {
   try {

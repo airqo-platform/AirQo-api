@@ -74,7 +74,10 @@ const locationSchema = new Schema(
       default: false,
     },
     metadata: { type: metadataSchema },
-    network: { type: String },
+    network: {
+      type: String,
+      trim: true,
+    },
     location_tags: {
       type: Array,
       default: [],

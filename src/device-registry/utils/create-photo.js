@@ -11,7 +11,12 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-photo-util`
 );
-const { kafkaProducer } = require("../config/kafkajs");
+
+const { Kafka } = require("kafkajs");
+const kafka = new Kafka({
+  clientId: constants.KAFKA_CLIENT_ID,
+  brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
+});
 
 const createPhoto = {
   /*************** general ****************************** */
@@ -785,6 +790,10 @@ const createPhoto = {
         let data = responseFromRegisterPhoto.data;
 
         try {
+          const kafkaProducer = kafka.producer({
+            groupId: constants.UNIQUE_PRODUCER_GROUP,
+          });
+          await kafkaProducer.connect();
           await kafkaProducer.send({
             topic: constants.PHOTOS_TOPIC,
             messages: [
@@ -794,6 +803,7 @@ const createPhoto = {
               },
             ],
           });
+          await kafkaProducer.disconnect();
         } catch (error) {
           logger.error(`internal server error -- ${error.message}`);
         }

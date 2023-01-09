@@ -6,6 +6,9 @@ const msgs = require("../utils/email.msgs");
 const msgTemplates = require("../utils/email.templates");
 const httpStatus = require("http-status");
 
+const log4js = require("log4js");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- mailer-service`);
+
 const mailer = {
   candidate: async (firstName, lastName, email, tenant) => {
     try {
@@ -57,7 +60,28 @@ const mailer = {
       let bcc = "";
 
       if (tenant.toLowerCase() === "airqo") {
-        bcc = constants.REQUEST_ACCESS_EMAILS;
+        switch (category) {
+          case "partners":
+            bcc = constants.PARTNERS_EMAILS;
+            break;
+          case "policy":
+            bcc = constants.POLICY_EMAILS;
+            break;
+          case "champions":
+            bcc = constants.CHAMPIONS_EMAILS;
+            break;
+          case "researchers":
+            bcc = constants.RESEARCHERS_EMAILS;
+            break;
+          case "developers":
+            bcc = constants.DEVELOPERS_EMAILS;
+            break;
+          case "general":
+            bcc = constants.REQUEST_ACCESS_EMAILS;
+            break;
+          default:
+            bcc = constants.REQUEST_ACCESS_EMAILS;
+        }
       }
 
       const categoryNameWithFirstLetterCapital =
@@ -304,7 +328,7 @@ const mailer = {
 
       const mailOptions = {
         from: {
-          name: "AirQo Data Team",
+          name: constants.EMAIL_NAME,
           address: constants.EMAIL,
         },
         subject,
@@ -314,11 +338,9 @@ const mailer = {
         bcc,
       };
 
-      let response = transporter.sendMail(mailOptions);
+      let response = await transporter.sendMail(mailOptions);
 
-      logObject("response", response);
-
-      let data = await response;
+      let data = response;
       if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
         return {
           success: true,
@@ -334,7 +356,6 @@ const mailer = {
         };
       }
     } catch (error) {
-      logObject("error", error);
       return {
         message: "",
         status: httpStatus.INTERNAL_SERVER_ERROR,

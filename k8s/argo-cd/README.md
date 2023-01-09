@@ -4,10 +4,11 @@ Find the default setup guide in the ArgoCD [Getting Started](https://argo-cd.rea
 
 #### Installation
 
-Our installation is a custom one to a `cicd` namespace instead of the "default" argocd namespace. Run the command below to create all the required resources.
+Run the commands below to create the necessary resources.
 
 ```
-kubectl create -n cicd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+kubectl create namespace cicd
+kubectl create -n cicd -f https://raw.githubusercontent.com/argoproj/argo-cd/v2.5.4/manifests/install.yaml
 ```
 
 ArgoCD is by default installed in a namesapce called `argocd`. This means that all resources are assumed to be in that namespace including all the service accounts. We however install ours in the `cicd` namespace and thus the cluster role bindings [argocd-application-controller](https://github.com/argoproj/argo-cd/blob/9353328eb8ae7357538146269d41aa692d99c4cf/manifests/install.yaml#L9673) and [argocd-server](https://github.com/argoproj/argo-cd/blob/9353328eb8ae7357538146269d41aa692d99c4cf/manifests/install.yaml#L9690) configurations need to be updated to reference the respective service accounts in the `cicd` namespace. Therefore, you need to take care of this change by creating the [required clusterrolebingings](./cluster-role-bindings.yaml) in the `cicd` namespace

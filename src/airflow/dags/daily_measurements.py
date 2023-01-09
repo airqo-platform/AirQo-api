@@ -50,11 +50,10 @@ def realtime_daily_measurements():
     def extract():
         from airqo_etl_utils.daily_data_utils import DailyDataUtils
         from airqo_etl_utils.date import date_to_str_days
-        from datetime import datetime, timedelta
+        from datetime import datetime
 
-        hour_of_day = datetime.utcnow() - timedelta(days=2)
-        start_date_time = date_to_str_days(hour_of_day)
-        end_date_time = datetime.strftime(hour_of_day, "%Y-%m-%dT23:00:00Z")
+        start_date_time = date_to_str_days(datetime.utcnow())
+        end_date_time = datetime.strftime(datetime.utcnow(), "%Y-%m-%dT23:00:00Z")
 
         return DailyDataUtils.query_hourly_data(
             start_date_time=start_date_time,

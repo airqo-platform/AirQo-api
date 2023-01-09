@@ -9,6 +9,10 @@ const manipulateArraysUtil = require("../utils/manipulate-arrays");
 const { badRequest } = require("../utils/errors");
 const isEmpty = require("is-empty");
 
+const constants = require("../config/constants");
+const log4js = require("log4js");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- join-controller`);
+
 const join = {
   list: async (req, res) => {
     try {
@@ -91,7 +95,7 @@ const join = {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         return badRequest(
           res,
-          "bad request errors",
+          "User does not exist",
           manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
         );
       }
@@ -125,6 +129,7 @@ const join = {
             success: true,
             message: result.message,
             user: result.data,
+            exists: true,
             status: "exists",
           });
         } else if (result.success === false) {
@@ -137,7 +142,8 @@ const join = {
 
           res.status(status).json({
             success: false,
-            message: result.message,
+            message: "User does not exist",
+            exists: false,
             errors,
           });
         }
@@ -285,6 +291,11 @@ const join = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        logger.error(
+          `input validation errors ${JSON.stringify(
+            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          )}`
+        );
         return badRequest(
           res,
           "bad request errors",

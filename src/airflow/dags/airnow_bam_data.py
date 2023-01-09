@@ -114,14 +114,14 @@ def airnow_bam_realtime_data():
         from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
 
         data = AirnowDataUtils.process_latest_bam_data(data)
-        MessageBrokerUtils.update_latest_data_topic(data=data)
+        MessageBrokerUtils.update_hourly_data_topic(data=data)
 
     extracted_bam_data = extract_bam_data()
     processed_bam_data = process_data(extracted_bam_data)
     send_to_bigquery(processed_bam_data)
-    update_latest_data_table(processed_bam_data)
-    update_latest_data_topic(processed_bam_data)
-    send_measurements_to_api(processed_bam_data)
+    # update_latest_data_table(processed_bam_data)
+    # update_latest_data_topic(processed_bam_data)
+    # send_measurements_to_api(processed_bam_data)
 
 
 airnow_bam_realtime_data()

@@ -1,0 +1,127 @@
+###########################################################
+# Start deployment of view api - production
+###########################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airqo-view-api
+  namespace: production
+spec:
+  selector:
+    matchLabels:
+      app: view-api
+  replicas: 2
+  minReadySeconds: 90
+  revisionHistoryLimit: 2
+  progressDeadlineSeconds: 600
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: view-api
+    spec:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 10
+              preference:
+                matchExpressions:
+                  - key: node-type
+                    operator: In
+                    values:
+                      - high-memory
+            - weight: 1
+              preference:
+                matchExpressions:
+                  - key: node-type
+                    operator: In
+                    values:
+                      - general-purpose
+      containers:
+        - name: view-api
+          image: us.gcr.io/airqo-250220/airqo-view-api:latest
+          imagePullPolicy: Always
+          resources:
+            requests:
+              # Average usage was 0.01 vCPU and 500Mi over the last 30 days
+              cpu: 10m
+              memory: 500Mi
+            limits:
+              cpu: 100m
+              memory: 1500Mi
+          ports:
+            - containerPort: 8080
+              name: view-api
+          envFrom:
+            - configMapRef:
+                name: prod-view-api-config
+          readinessProbe:
+            httpGet:
+              path: api/v1/view/actuator/health/readiness
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 60
+            timeoutSeconds: 1
+            periodSeconds: 10
+            successThreshold: 1
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: api/v1/view/actuator/health/liveness
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 60
+            timeoutSeconds: 1
+            periodSeconds: 20
+            successThreshold: 1
+            failureThreshold: 3
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sh", "-c", "sleep 10"]
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/config
+      volumes:
+        - name: config-volume
+          configMap:
+            name: view-api-config-files
+
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: airqo-view-api-svc
+  namespace: production
+spec:
+  selector:
+    app: view-api
+  ports:
+    - protocol: TCP
+      name: view-api
+      port: 8080
+      targetPort: 8080
+
+---
+kind: HorizontalPodAutoscaler
+apiVersion: autoscaling/v2
+metadata:
+  name: airqo-view-api-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: airqo-view-api
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70

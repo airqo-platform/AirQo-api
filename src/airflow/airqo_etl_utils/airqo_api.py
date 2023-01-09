@@ -21,6 +21,12 @@ class AirQoApi:
         self.AIRQO_API_KEY = f"JWT {configuration.AIRQO_API_KEY}"
 
     def save_events(self, measurements: list, tenant: str) -> None:
+        #  Temporarily disabling usage of the API to store measurements.
+        if (
+            "staging" in self.AIRQO_BASE_URL.lower()
+            or "staging" in self.AIRQO_BASE_URL_V2.lower()
+        ):
+            return
 
         for i in range(0, len(measurements), int(configuration.POST_EVENTS_BODY_SIZE)):
             data = measurements[i : i + int(configuration.POST_EVENTS_BODY_SIZE)]

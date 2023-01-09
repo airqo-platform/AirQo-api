@@ -126,6 +126,12 @@ const airqloudSchema = new Schema(
       required: [true, "name is required!"],
       unique: true,
     },
+    airqloud_codes: [
+      {
+        type: String,
+        trim: true,
+      },
+    ],
     sites: [
       {
         type: ObjectId,
@@ -150,7 +156,10 @@ const airqloudSchema = new Schema(
       required: [true, "isCustom is required!"],
     },
     metadata: { type: metadataSchema },
-    network: { type: String },
+    network: {
+      type: String,
+      trim: true,
+    },
     airqloud_tags: {
       type: Array,
       default: [],
@@ -161,14 +170,14 @@ const airqloudSchema = new Schema(
   }
 );
 
-airqloudSchema.pre("save", function(next) {
+airqloudSchema.pre("save", function (next) {
   if (this.isModified("_id")) {
     delete this._id;
   }
   return next();
 });
 
-airqloudSchema.pre("update", function(next) {
+airqloudSchema.pre("update", function (next) {
   if (this.isModified("_id")) {
     delete this._id;
   }
@@ -192,6 +201,7 @@ airqloudSchema.methods = {
       location: this.location,
       metadata: this.metadata,
       sites: this.sites,
+      airqloud_codes: this.airqloud_codes,
       center_point: this.center_point,
     };
   },
@@ -271,6 +281,7 @@ airqloudSchema.statics = {
         isCustom: 1,
         metadata: 1,
         center_point: 1,
+        airqloud_codes: 1,
         sites: "$sites",
       };
 
@@ -279,6 +290,7 @@ airqloudSchema.statics = {
         name: 1,
         long_name: 1,
         admin_level: 1,
+        airqloud_codes: 1,
         numberOfSites: {
           $cond: {
             if: { $isArray: "$sites" },

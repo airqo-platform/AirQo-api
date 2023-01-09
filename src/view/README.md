@@ -13,7 +13,7 @@ Generate the API docs
 Spin up the API
 
 ```bash
-./mvnw spring-boot:run -Dspring.profiles.active=api
+./mvnw spring-boot:run -Dspring-boot.run.arguments="--spring.profiles.active=api --spring.devtools.restart.enabled=false"
 ```
 
 [Link to API Docs](http://localhost:8080/api/v1/view/docs/index.html)

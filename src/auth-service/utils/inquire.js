@@ -13,6 +13,9 @@ const InquiryModel = (tenant) => {
   return getModelByTenant(tenant, "inquiry", InquirySchema);
 };
 
+const log4js = require("log4js");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- inquire-util`);
+
 const inquire = {
   create: async (inquire, callback) => {
     try {
@@ -59,9 +62,7 @@ const inquire = {
             data: createdInquiry,
             status,
           });
-        }
-
-        if (responseFromSendEmail.success === false) {
+        } else if (responseFromSendEmail.success === false) {
           logObject("responseFromSendEmail", responseFromSendEmail);
           const errors = responseFromSendEmail.error
             ? responseFromSendEmail.error
@@ -77,9 +78,7 @@ const inquire = {
             status,
           });
         }
-      }
-
-      if (responseFromCreateInquiry.success === false) {
+      } else if (responseFromCreateInquiry.success === false) {
         const errors = responseFromCreateInquiry.errors
           ? responseFromCreateInquiry.errors
           : "";
