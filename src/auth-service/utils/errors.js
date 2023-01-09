@@ -1,5 +1,9 @@
 const HTTPStatus = require("http-status");
 
+const constants = require("../config/constants");
+const log4js = require("log4js");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- errors-util`);
+
 const axiosError = (error, req, res) => {
   if (error.response) {
     // that falls out of the range of 2xx

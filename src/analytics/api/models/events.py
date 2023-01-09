@@ -79,6 +79,9 @@ class EventsModel(BasePyMongoModel):
             ["site", "datetime", "device"], ascending=True, inplace=True
         )
 
+        dataframe.drop_duplicates(
+            subset=["datetime", "device"], inplace=True, keep="first"
+        )
         return dataframe.to_dict(orient="records")
 
     @classmethod

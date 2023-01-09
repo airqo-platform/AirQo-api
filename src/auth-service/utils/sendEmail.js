@@ -1,6 +1,10 @@
 const transporter = require("../services/mailer");
 const HTTPStatus = require("http-status");
 
+const constants = require("../config/constants");
+const log4js = require("log4js");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- sendEmail-util`);
+
 const sendEmail = (req, res, mailOptions, message) => {
   transporter.sendMail(mailOptions, (err, response) => {
     if (err) {

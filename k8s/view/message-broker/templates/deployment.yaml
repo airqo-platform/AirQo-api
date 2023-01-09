@@ -51,4 +51,10 @@ spec:
                 name: {{ .Values.app.configmap }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/config        
+      volumes:
+        - name: config-volume
+          configMap:
+            name: view-api-config-files

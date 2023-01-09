@@ -1,4 +1,5 @@
 import json
+import traceback
 
 import requests
 
@@ -31,36 +32,41 @@ class AirQoApi:
 
     def __request(self, endpoint, params=None, body=None, method=None):
 
-        headers = {"Authorization": f"JWT {self.AIRQO_API_KEY}"}
-        if method == "put":
-            headers["Content-Type"] = "application/json"
-            api_request = requests.put(
-                "%s/%s" % (self.AIRQO_BASE_URL, endpoint),
-                params=params,
-                headers=headers,
-                data=json.dumps(body),
-                verify=False,
-            )
-        elif method == "post":
-            headers["Content-Type"] = "application/json"
-            api_request = requests.post(
-                "%s/%s" % (self.AIRQO_BASE_URL, endpoint),
-                params=params,
-                headers=headers,
-                data=json.dumps(body),
-                verify=False,
-            )
-        else:
-            handle_api_error("Invalid")
-            return None
+        try:
+            headers = {"Authorization": f"JWT {self.AIRQO_API_KEY}"}
+            if method == "put":
+                headers["Content-Type"] = "application/json"
+                api_request = requests.put(
+                    "%s/%s" % (self.AIRQO_BASE_URL, endpoint),
+                    params=params,
+                    headers=headers,
+                    data=json.dumps(body),
+                    verify=False,
+                )
+            elif method == "post":
+                headers["Content-Type"] = "application/json"
+                api_request = requests.post(
+                    "%s/%s" % (self.AIRQO_BASE_URL, endpoint),
+                    params=params,
+                    headers=headers,
+                    data=json.dumps(body),
+                    verify=False,
+                )
+            else:
+                handle_api_error("Invalid")
+                return None
 
-        print(f"Request Url : {api_request.request.url}")
-        print(f"Request Body : {api_request.request.body}")
+            print(f"Request Url : {api_request.request.url}")
+            print(f"Request Body : {api_request.request.body}")
 
-        if api_request.status_code == 200 or api_request.status_code == 201:
-            print(f"Request Response : {api_request.json()}")
-        else:
-            handle_api_error(api_request)
+            if api_request.status_code == 200 or api_request.status_code == 201:
+                print(f"Request Response : {api_request.json()}")
+            else:
+                handle_api_error(api_request)
+                return None
+        except Exception as ex:
+            print(ex)
+            traceback.print_exc()
             return None
 
 

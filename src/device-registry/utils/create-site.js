@@ -377,13 +377,8 @@ const createSite = {
       } = body;
 
       let request = {};
-      request["body"] = {};
+      request["body"] = body;
       request["query"] = {};
-      request["body"]["latitude"] = latitude;
-      request["body"]["longitude"] = longitude;
-      request["body"]["network"] = network;
-      request["body"]["airqlouds"] = airqlouds;
-      request["body"]["name"] = name;
       request["query"]["tenant"] = tenant;
 
       const responseFromApproximateCoordinates = createSite.createApproximateCoordinates(
@@ -499,9 +494,7 @@ const createSite = {
           data: createdSite,
           status,
         };
-      }
-
-      if (responseFromCreateSite.success === false) {
+      } else if (responseFromCreateSite.success === false) {
         let errors = responseFromCreateSite.errors
           ? responseFromCreateSite.errors
           : "";
@@ -977,9 +970,7 @@ const createSite = {
           message: responseFromRemoveSite.message,
           data: responseFromRemoveSite.data,
         };
-      }
-
-      if (responseFromRemoveSite.success === false) {
+      } else if (responseFromRemoveSite.success === false) {
         let errors = responseFromRemoveSite.errors
           ? responseFromRemoveSite.errors
           : "";

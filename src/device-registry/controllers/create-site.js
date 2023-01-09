@@ -13,8 +13,137 @@ const httpStatus = require("http-status");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-site-controller`
 );
+// const bulkUpdateUtil = require("../scripts/bulk-update");
+// const bulkDeleteUtil = require("../scripts/bulk-delete");
+// const bulkCreateUtil = require("../scripts/bulk-create");
 
 const manageSite = {
+  bulkCreate: async (req, res) => {
+    try {
+      return res.status(HTTPStatus.NOT_IMPLEMENTED).json({
+        success: false,
+        message: "NOT YET IMPLEMENTED",
+        errors: { message: "NOT YET IMPLEMENTED" },
+      });
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      const { network } = req.query;
+      const responseFromAddSiteMetadata = await bulkCreateUtil.runSiteAdditions(
+        {
+          network,
+        }
+      );
+      if (responseFromAddSiteMetadata.success === true) {
+        return res.status(httpStatus.OK).json({ message: "update site" });
+      } else if (responseFromAddSiteMetadata.success === false) {
+        return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+          message: "unable to update the sites",
+        });
+      }
+    } catch (error) {
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        message: "internal server error",
+      });
+    }
+  },
+  bulkUpdate: async (req, res) => {
+    try {
+      return res.status(HTTPStatus.NOT_IMPLEMENTED).json({
+        success: false,
+        message: "NOT YET IMPLEMENTED",
+        errors: { message: "NOT YET IMPLEMENTED" },
+      });
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      const { network } = req.query;
+      const responseFromUpdateSiteMetadata = await bulkUpdateUtil.runSiteUpdates(
+        { network }
+      );
+      if (responseFromUpdateSiteMetadata.success === true) {
+        return res.status(httpStatus.OK).json({ message: "update site" });
+      } else if (responseFromUpdateSiteMetadata.success === false) {
+        return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+          message: "unable to update the sites",
+        });
+      }
+    } catch (error) {
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        message: "internal server error",
+      });
+    }
+  },
+
+  bulkDelete: async (req, res) => {
+    try {
+      return res.status(HTTPStatus.NOT_IMPLEMENTED).json({
+        success: false,
+        message: "NOT YET IMPLEMENTED",
+        errors: { message: "NOT YET IMPLEMENTED" },
+      });
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      const responseFromDeleteSiteMetadata = await bulkDeleteUtil.runSiteDeletions();
+      if (responseFromDeleteSiteMetadata.success === true) {
+        return res.status(httpStatus.OK).json(responseFromDeleteSiteMetadata);
+      } else if (responseFromDeleteSiteMetadata.success === false) {
+        return res
+          .status(httpStatus.INTERNAL_SERVER_ERROR)
+          .json(responseFromDeleteSiteMetadata);
+      }
+    } catch (error) {
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        message: "internal server error",
+      });
+    }
+  },
   register: async (req, res) => {
     logText("registering site.............");
     try {

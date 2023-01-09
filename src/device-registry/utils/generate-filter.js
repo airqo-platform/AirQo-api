@@ -747,6 +747,7 @@ const generateFilter = {
       airqloud_id,
       network,
       airqloud,
+      airqloud_codes,
     } = req.query;
     let filter = {};
 
@@ -762,6 +763,12 @@ const generateFilter = {
 
     if (summary === "yes") {
       filter["summary"] = summary;
+    }
+
+    if (airqloud_codes) {
+      let airqloudCodesArray = airqloud_codes.split(",");
+      filter["airqloud_codes"] = {};
+      filter["airqloud_codes"]["$in"] = airqloudCodesArray;
     }
 
     if (id) {
@@ -930,6 +937,8 @@ const generateFilter = {
       maintenance_type,
       site_id,
       network,
+      activity_codes,
+      _id,
     } = req.query;
 
     let filter = {
@@ -949,6 +958,12 @@ const generateFilter = {
       filter["network"] = network;
     }
 
+    if (activity_codes) {
+      let activityCodesArray = activity_codes.split(",");
+      filter["activity_codes"] = {};
+      filter["activity_codes"]["$in"] = activityCodesArray;
+    }
+
     if (activity_tags) {
       filter["tags"]["$in"] = activity_tags;
     }
@@ -958,6 +973,10 @@ const generateFilter = {
 
     if (id) {
       filter["_id"] = ObjectId(id);
+    }
+
+    if (_id) {
+      filter["_id"] = ObjectId(_id);
     }
 
     if (device) {

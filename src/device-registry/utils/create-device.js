@@ -104,8 +104,17 @@ const createDevice = {
       let responseFromListDevice = await createDevice.list(request);
       if (responseFromListDevice.success) {
         let deviceBody = responseFromListDevice.data;
+        if (isEmpty(deviceBody)) {
+          return {
+            success: false,
+            message: "device does not exist",
+          };
+        }
         if (!isEmpty(include_site) && include_site === "no") {
           logger.info(`the site details have been removed from the data`);
+          delete deviceBody[0].site;
+        }
+        if (isEmpty(include_site)) {
           delete deviceBody[0].site;
         }
         logger.info(`deviceBody -- ${deviceBody}`);
@@ -121,9 +130,7 @@ const createDevice = {
             data: responseFromQRCode,
             status: HTTPStatus.OK,
           };
-        }
-
-        if (isEmpty(responseFromQRCode)) {
+        } else if (isEmpty(responseFromQRCode)) {
           logObject("responseFromQRCode", responseFromQRCode);
           return {
             success: false,
@@ -131,9 +138,7 @@ const createDevice = {
             status: HTTPStatus.INTERNAL_SERVER_ERROR,
           };
         }
-      }
-
-      if (responseFromListDevice.success === false) {
+      } else if (responseFromListDevice.success === false) {
         let errors = responseFromListDevice.errors
           ? responseFromListDevice.errors
           : "";
