@@ -49,6 +49,7 @@ class MessageBrokerUtils:
         print(data.describe())
 
         chunks = int(len(data) / 50)
+        chunks = chunks if chunks > 0 else 1
         dataframes = np.array_split(data, chunks)
         current_partition = -1
         for dataframe in dataframes:
@@ -69,7 +70,7 @@ class MessageBrokerUtils:
     @staticmethod
     def update_measurements_topic(data: pd.DataFrame):
         MessageBrokerUtils().__send_data(
-            topic=configuration.MEASUREMENTS_TOPIC, data=data
+            topic=configuration.HOURLY_MEASUREMENTS_TOPIC, data=data
         )
 
     @staticmethod
