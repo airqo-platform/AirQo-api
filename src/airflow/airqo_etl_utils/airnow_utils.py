@@ -91,9 +91,16 @@ class AirnowDataUtils:
                         "frequency": str(Frequency.HOURLY),
                         "latitude": row["Latitude"],
                         "longitude": row["Longitude"],
+                        "device_category": str(DeviceCategory.BAM),
                         "pm2_5": pollutant_value["pm2_5"],
+                        "pm2_5_calibrated_value": pollutant_value["pm2_5"],
+                        "pm2_5_raw_value": pollutant_value["pm2_5"],
                         "pm10": pollutant_value["pm10"],
+                        "pm10_calibrated_value": pollutant_value["pm10"],
+                        "pm10_raw_value": pollutant_value["pm10"],
                         "no2": pollutant_value["no2"],
+                        "no2_calibrated_value": pollutant_value["no2"],
+                        "no2_raw_value": pollutant_value["no2"],
                     }
                 )
             except Exception as ex:

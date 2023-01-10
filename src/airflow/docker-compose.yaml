@@ -19,7 +19,7 @@ x-common-data: &common-data
     AIRFLOW__CORE__KILLED_TASK_CLEANUP_TIME: 604800
     AIRFLOW__WEBSERVER__BASE_URL: http://localhost:8080
     AIRFLOW_UID: 50000
-    BOOTSTRAP_SERVERS: message-broker:9092
+#    BOOTSTRAP_SERVERS: message-broker:9092
     GOOGLE_APPLICATION_CREDENTIALS: /etc/config/google_application_credentials.json
     PLUME_LABS_ORGANISATIONS_CRED: /etc/config/plume_labs_metadata.json
     AIRFLOW__CORE__XCOM_BACKEND: gcs_xcom_backend.GCSXComBackend
