@@ -9,6 +9,9 @@ const kickbox = require("kickbox")
   .kickbox();
 const emailExistence = require("email-existence");
 
+const log4js = require("log4js");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- validations-util`);
+
 const validation = {
   candidate: (data) => {
     let errors = {};

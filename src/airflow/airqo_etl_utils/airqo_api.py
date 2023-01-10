@@ -102,6 +102,55 @@ class AirQoApi:
             print(ex)
             return []
 
+    def get_tenant_devices(
+        self,
+        tenant: Tenant = Tenant.ALL,
+        device_category: DeviceCategory = DeviceCategory.NONE,
+    ) -> list:
+
+        params = {"tenant": "airqo"}
+        if tenant != Tenant.ALL:
+            params["network"] = str(tenant)
+
+        response = self.__request("devices", params)
+
+        devices = [
+            {
+                **device,
+                **{
+                    "device_number": device.get("device_number", None),
+                    "approximate_latitude": device.get(
+                        "approximate_latitude", device.get("latitude", None)
+                    ),
+                    "approximate_longitude": device.get(
+                        "approximate_longitude", device.get("longitude", None)
+                    ),
+                    "device_id": device.get("name", None),
+                    "device_codes": [
+                        str(code) for code in device.get("device_codes", [])
+                    ],
+                    "mongo_id": device.get("_id", None),
+                    "site_id": device.get("site", {}).get("_id", None),
+                    "device_category": str(
+                        DeviceCategory.from_str(device.get("category", ""))
+                    ),
+                    "tenant": device.get("network"),
+                    "device_manufacturer": device.get(
+                        "device_manufacturer",
+                        Tenant.from_str(device.get("network")).device_manufacturer(),
+                    ),
+                },
+            }
+            for device in response.get("devices", [])
+        ]
+
+        if device_category != DeviceCategory.NONE:
+            devices = list(
+                filter(lambda y: y["device_category"] == str(device_category), devices)
+            )
+
+        return devices
+
     def get_devices(
         self,
         tenant: Tenant = Tenant.ALL,

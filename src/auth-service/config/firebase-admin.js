@@ -13,6 +13,11 @@ initializeApp({
   databaseURL: constants.FIREBASE_DATABASE_URL,
 });
 
+const log4js = require("log4js");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- firebase-admin-config`
+);
+
 exports.newUserSignUp = functions.auth.user().onCreate(async (user) => {
   try {
     let email = user.email;
@@ -29,6 +34,7 @@ exports.newUserSignUp = functions.auth.user().onCreate(async (user) => {
     }
   } catch (error) {
     logObject("error", error);
+    logger.error(`internal server error -- ${error.message}`);
   }
 });
 
@@ -47,6 +53,7 @@ exports.userDeleted = functions.auth.user().onDelete(async (user) => {
         .delete();
     } catch (error) {
       logObject("error", error);
+      logger.error(`internal server error -- ${error.message}`);
     }
     try {
       admin
@@ -56,6 +63,7 @@ exports.userDeleted = functions.auth.user().onDelete(async (user) => {
         .delete();
     } catch (error) {
       logObject("error", error);
+      logger.error(`internal server error -- ${error.message}`);
     }
 
     try {
@@ -66,6 +74,7 @@ exports.userDeleted = functions.auth.user().onDelete(async (user) => {
         .delete();
     } catch (error) {
       logObject("error", error);
+      logger.error(`internal server error -- ${error.message}`);
     }
 
     try {
@@ -76,6 +85,7 @@ exports.userDeleted = functions.auth.user().onDelete(async (user) => {
         .delete();
     } catch (error) {
       logObject("error", error);
+      logger.error(`internal server error -- ${error.message}`);
     }
 
     try {
@@ -86,6 +96,7 @@ exports.userDeleted = functions.auth.user().onDelete(async (user) => {
         .delete();
     } catch (error) {
       logObject("error", error);
+      logger.error(`internal server error -- ${error.message}`);
     }
 
     if (!isEmpty(email)) {
@@ -97,5 +108,6 @@ exports.userDeleted = functions.auth.user().onDelete(async (user) => {
     }
   } catch (error) {
     logObject("error", error);
+    logger.error(`internal server error -- ${error.message}`);
   }
 });

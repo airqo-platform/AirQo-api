@@ -1,21 +1,30 @@
+const log4js = require("log4js");
 require("app-module-path").addPath(__dirname);
 const express = require("express");
 const path = require("path");
-const logger = require("morgan");
 const dotenv = require("dotenv");
 dotenv.config();
 const cookieParser = require("cookie-parser");
 const bodyParser = require("body-parser");
 const apiV1 = require("./routes/api-v1");
 const apiV2 = require("./routes/api-v2");
+const constants = require("./config/constants");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- app entry`);
 const mongodb = require("./config/dbConnection");
 mongodb;
 
 const app = express();
 
-app.use(logger("dev"));
-app.use(bodyParser.json());
+app.use(log4js.connectLogger(log4js.getLogger("http"), { level: "auto" }));
+app.use(bodyParser.json({ limit: "50mb" }));
 app.use(express.json());
+app.use(
+  bodyParser.urlencoded({
+    extended: true,
+    limit: "50mb",
+    parameterLimit: 50000,
+  })
+);
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, "public")));
@@ -34,6 +43,7 @@ app.use(function (req, res, next) {
 });
 
 app.use(function (err, req, res, next) {
+  logger.error(`${constants.ENVIRONMENT} -- ${err.message}`);
   if (err.status === 404) {
     res.status(err.status).json({
       success: false,
