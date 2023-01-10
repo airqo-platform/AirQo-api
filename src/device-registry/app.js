@@ -22,6 +22,31 @@ const kafka = new Kafka({
   brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
 });
 
+/**
+ * Expected body from Kafka...
+ *         {
+            "timestamp": "2023-01-10T06:00:00Z",
+            "network": "us_embassy",
+            "site_id": NaN,
+            "device_name": "us-dos-bamako",
+            "device_id": "63b4226cd426a6002a75962a",
+            "device_number": -1,
+            "frequency": "hourly",
+            "latitude": 12.632524,
+            "longitude": -8.036911,
+            "device_category": "bam",
+            "pm2_5": 23.5,
+            "pm2_5_calibrated_value": 23.5,
+            "pm2_5_raw_value": 23.5,
+            "pm10": NaN,
+            "pm10_calibrated_value": NaN,
+            "pm10_raw_value": NaN,
+            "no2": NaN,
+            "no2_calibrated_value": NaN,
+            "no2_raw_value": NaN
+        }
+ */
+
 const runKafkaConsumer = async () => {
   try {
     const kafkaConsumer = kafka.consumer({
