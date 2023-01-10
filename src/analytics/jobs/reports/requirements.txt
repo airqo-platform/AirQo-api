@@ -1,0 +1,16 @@
+google-api-core
+google-auth
+#google-cloud-bigquery
+google-cloud-bigquery[pandas]==2.34.3 
+google-cloud
+numpy
+pandas
+python-dateutil
+python-dotenv
+gcsfs
+pyarrow
+joblib
+requests
+docx==0.2.4
+python-docx==0.8.11
+seaborn==0.12.0
