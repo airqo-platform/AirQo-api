@@ -92,6 +92,7 @@ const mailer = {
       }
 
       /**
+       *
        * const categoryNameWithFirstLetterCapital = category.charAt(0).toUpperCase() + category.slice(1);
        * const subject = `Welcome to AirQo, for ${categoryNameWithFirstLetterCapital}`
        */
