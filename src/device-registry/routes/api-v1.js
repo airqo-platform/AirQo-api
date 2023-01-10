@@ -455,9 +455,11 @@ router.post(
         .isInt()
         .withMessage("the device_number should be an integer value"),
       body("name")
-        .optional()
+        .exists()
+        .withMessage("the name should be provided")
+        .bail()
         .notEmpty()
-        .withMessage("the name should not be empty if provided")
+        .withMessage("the name should not be empty")
         .trim(),
       body("long_name")
         .optional()
