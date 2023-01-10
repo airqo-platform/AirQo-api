@@ -19,6 +19,11 @@ const join = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        logger.error(
+          `input validation errors ${JSON.stringify(
+            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          )}`
+        );
         return badRequest(
           res,
           "bad request errors",
@@ -91,6 +96,11 @@ const join = {
     try {
       const { email, phoneNumber, uid, providerId, providerUid } = req.body;
       const hasErrors = !validationResult(req).isEmpty();
+      logger.error(
+        `input validation errors ${JSON.stringify(
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        )}`
+      );
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         return badRequest(
@@ -164,6 +174,11 @@ const join = {
 
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        logger.error(
+          `input validation errors ${JSON.stringify(
+            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          )}`
+        );
         return badRequest(
           res,
           "bad request errors",
@@ -217,6 +232,11 @@ const join = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        logger.error(
+          `input validation errors ${JSON.stringify(
+            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          )}`
+        );
         return badRequest(
           res,
           "bad request errors",
@@ -368,6 +388,11 @@ const join = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        logger.error(
+          `input validation errors ${JSON.stringify(
+            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          )}`
+        );
         return badRequest(
           res,
           "bad request errors",
@@ -436,6 +461,11 @@ const join = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        logger.error(
+          `input validation errors ${JSON.stringify(
+            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          )}`
+        );
         return badRequest(
           res,
           "bad request errors",
@@ -470,6 +500,20 @@ const join = {
     try {
       logText(".................................................");
       logText("inside delete user............");
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        logger.error(
+          `input validation errors ${JSON.stringify(
+            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          )}`
+        );
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
       const { tenant, id } = req.query;
       if (!tenant && !id) {
         return missingQueryParams(req, res);
@@ -525,6 +569,11 @@ const join = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        logger.error(
+          `input validation errors ${JSON.stringify(
+            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          )}`
+        );
         return badRequest(
           res,
           "bad request errors",
@@ -592,6 +641,11 @@ const join = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        logger.error(
+          `input validation errors ${JSON.stringify(
+            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          )}`
+        );
         return badRequest(
           res,
           "bad request errors",
@@ -644,6 +698,11 @@ const join = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        logger.error(
+          `input validation errors ${JSON.stringify(
+            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          )}`
+        );
         return badRequest(
           res,
           "bad request errors",
@@ -696,6 +755,11 @@ const join = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        logger.error(
+          `input validation errors ${JSON.stringify(
+            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          )}`
+        );
         return badRequest(
           res,
           "bad request errors",
@@ -768,6 +832,11 @@ const join = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        logger.error(
+          `input validation errors ${JSON.stringify(
+            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          )}`
+        );
         return badRequest(
           res,
           "bad request errors",
@@ -837,6 +906,11 @@ const join = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        logger.error(
+          `input validation errors ${JSON.stringify(
+            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          )}`
+        );
         return badRequest(
           res,
           "bad request errors",
