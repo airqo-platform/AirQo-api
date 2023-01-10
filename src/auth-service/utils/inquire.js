@@ -13,10 +13,13 @@ const InquiryModel = (tenant) => {
   return getModelByTenant(tenant, "inquiry", InquirySchema);
 };
 
+const log4js = require("log4js");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- inquire-util`);
+
 const inquire = {
   create: async (inquire, callback) => {
     try {
-      let { fullName, email, message, category, tenant } = inquire;
+      const { fullName, email, message, category, tenant } = inquire;
 
       // await validationsUtil.checkEmailExistenceUsingKickbox(email, (value) => {
       //   if (value.success === false) {
@@ -41,7 +44,7 @@ const inquire = {
       );
 
       if (responseFromCreateInquiry.success === true) {
-        let createdInquiry = await responseFromCreateInquiry.data;
+        const createdInquiry = await responseFromCreateInquiry.data;
         let responseFromSendEmail = await mailer.inquiry(
           fullName,
           email,

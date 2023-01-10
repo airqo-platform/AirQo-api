@@ -5,6 +5,12 @@ const generateFilter = require("./generate-filter");
 const HTTPStatus = require("http-status");
 const companyEmailValidator = require("company-email-validator");
 
+const constants = require("../config/constants");
+const log4js = require("log4js");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- create-organization-util`
+);
+
 const createOrganization = {
   getTenantFromEmail: async (request) => {
     try {

@@ -40,6 +40,56 @@ module.exports = {
     );
     // return `${message} \n\n` + `https://airqo.net/`;
   },
+
+  partner_inquiry: (fullName) => {
+    return (
+      `Hi ${fullName}, \n\n` +
+      "Thank you for getting in touch with us and for your interest in \n" +
+      "supporting our work in closing the air quality data gaps in \n" +
+      "African Cities. We are happy to foster partnerships to advance \n" +
+      "air quality monitoring and management in African Cities. \n\n" +
+      "Please get in touch with our project lead Professor Engineer at baino@airqo.net\n" +
+      "or Programme Manager Deo Okure at deo@airqo.net for further support"
+    );
+  },
+  policy_inquiry: (fullName) => {
+    return (
+      `Hi ${fullName}, \n\n` +
+      "Thank you for getting in touch with us and for your interest in our work. \n" +
+      "Kindly let us know how you would like to partner with us and we will get back to you.\n" +
+      "alternatively, you can get in touch with our Policy Engagement Officer \n" +
+      "Angela Nshimye at angela@airqo.net who will be of further support"
+    );
+  },
+  community_inquiry: (fullName) => {
+    return (
+      `Hi ${fullName}, \n\n` +
+      "Thank you for getting in touch with us and for your interest in being an air quality champion in your community. \n" +
+      "As an air quality champion, you are key in advocating for clean air \n" +
+      "practices in your community and urging community members to take action against air pollution \n" +
+      "Please get in touch with our Marketing and Communications Lead at maclina@airqo.net for further support. "
+    );
+  },
+  researcher_inquiry: (fullName) => {
+    return (
+      `Hi ${fullName}, \n\n` +
+      "Thank you for your interest in accessing our air quality data to  \n" +
+      "further research in air quality monitoring and management.\n" +
+      "You can visit our website at airqo.net and navigate to \n" +
+      "https://airqo.net/explore-data or click here to access data. If \n" +
+      "you still need further support, please contact our Data Scientists  \n" +
+      "Richard Sserujogi at Richard@airqo.net or Wabinyai Fidel Raja at raja@airqo.net for further support."
+    );
+  },
+  developer_inquiry: (fullName) => {
+    return (
+      `Hi ${fullName}, \n\n` +
+      "Thank you for your interest in our work. Please get in touch \n" +
+      "with our Software Engineering Lead \n" +
+      "Martin Bbaale at martin@airqo.net for further support"
+    );
+  },
+
   welcome_kcca: (firstName, lastName, password, username) => {
     return (
       `Dear ${firstName + " " + lastName} \n\n` +

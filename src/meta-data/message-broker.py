@@ -31,7 +31,7 @@ class MessageBroker:
                 print(f"\nReceived site : {site}")
                 data_is_valid = True
 
-                for field in ["latitude", "longitude", "network", "_id"]:
+                for field in ["latitude", "longitude", "_id"]:
                     if not site.get(field, None):
                         print(f"Error : {field} is missing in site details")
                         data_is_valid = False
@@ -41,7 +41,6 @@ class MessageBroker:
 
                 site_latitude = site.get("latitude")
                 site_longitude = site.get("longitude")
-                site_network = site.get("network")
                 site_id = site.get("_id")
 
                 site_latitude = float(site_latitude)
@@ -53,27 +52,26 @@ class MessageBroker:
                 continue
 
             site_meta_data = {
-                "network": site_network,
                 "id": site_id,
             }
 
-            print("Computing altitude.....")
+            print(f"Computing altitude for site {site_id} .....")
             altitude = model.get_altitude(site_latitude, site_longitude)
-            print("Computing aspect.....")
+            print(f"Computing aspect for site {site_id} .....")
             aspect = model.get_aspect_270(site_latitude, site_longitude)
-            print("Computing landform 90.....")
+            print(f"Computing landform 90 for site {site_id} .....")
             landform_90 = model.get_landform90(site_latitude, site_longitude)
-            print("Computing landform 270.....")
+            print(f"Computing landform 270 for site {site_id} .....")
             landform_270 = model.get_landform270(site_latitude, site_longitude)
-            print("Computing bearing from kampala.....")
+            print(f"Computing bearing from kampala for site {site_id} .....")
             bearing_from_kampala = model.get_bearing_from_kampala(
                 site_latitude, site_longitude
             )
-            print("Computing weather stations.....")
+            print(f"Computing weather stations for site {site_id} .....")
             weather_stations = model.get_nearest_weather_stations(
                 site_latitude, site_longitude
             )
-            print("Saving site information.....")
+            print(f"Saving site information for site {site_id} .....")
             airqo_api.update_site_meta_data(
                 {
                     **site_meta_data,
@@ -88,53 +86,63 @@ class MessageBroker:
                 }
             )
 
-            print("Computing distance from kampala.....")
+            print(f"Computing distance from kampala for site {site_id} .....")
             distance_from_kampala = model.get_distance_from_kampala(
                 site_latitude, site_longitude
             )
-            print("Computing distance to closest road.....")
+            print(f"Computing distance to closest road for site {site_id} .....")
             distance_to_closest_road = model.get_distance_to_closest_road(
                 site_latitude, site_longitude
             )
-            print("Computing distance to closest primary road.....")
+            print(
+                f"Computing distance to closest primary road for site {site_id} ....."
+            )
             distance_to_closest_primary_road = (
                 model.get_distance_to_closest_primary_road(
                     site_latitude, site_longitude
                 )
             )
-            print("Computing distance to closest secondary road.....")
+            print(
+                f"Computing distance to closest secondary road for site {site_id} ....."
+            )
             distance_to_closest_secondary_road = (
                 model.get_distance_to_closest_secondary_road(
                     site_latitude, site_longitude
                 )
             )
-            print("Computing distance to closest residential road.....")
+            print(
+                f"Computing distance to closest residential road for site {site_id} ....."
+            )
             distance_to_closest_residential_road = (
                 model.get_distance_to_closest_residential_road(
                     site_latitude, site_longitude
                 )
             )
-            print("Computing distance to closest tertiary road.....")
+            print(
+                f"Computing distance to closest tertiary road for site {site_id} ....."
+            )
             distance_to_closest_tertiary_road = (
                 model.get_distance_to_closest_tertiary_road(
                     site_latitude, site_longitude
                 )
             )
-            print("Computing distance to closest trunk.....")
+            print(f"Computing distance to closest trunk for site {site_id} .....")
             distance_to_closest_trunk = model.get_distance_to_closest_trunk(
                 site_latitude, site_longitude
             )
-            print("Computing distance to closest unclassified road.....")
+            print(
+                f"Computing distance to closest unclassified road for site {site_id} ....."
+            )
             distance_to_closest_unclassified_road = (
                 model.get_distance_to_closest_unclassified_road(
                     site_latitude, site_longitude
                 )
             )
-            print("Computing distance to closest motorway.....")
+            print(f"Computing distance to closest motorway for site {site_id} .....")
             distance_to_closest_motorway = model.get_distance_to_closest_motorway(
                 site_latitude, site_longitude
             )
-            print("Saving distances.....")
+            print(f"Saving distances for site {site_id} .....")
             airqo_api.update_site_meta_data(
                 {
                     **site_meta_data,
@@ -152,9 +160,9 @@ class MessageBroker:
                 }
             )
 
-            print("Computing land use.....")
+            print(f"Computing land use for site {site_id} .....")
             land_use = model.get_landuse(site_latitude, site_longitude)
-            print("Saving land use.....")
+            print(f"Saving land use for site {site_id} .....")
             airqo_api.update_site_meta_data(
                 {
                     **site_meta_data,

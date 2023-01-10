@@ -21,6 +21,12 @@ class AirQoApi:
         self.AIRQO_API_KEY = f"JWT {configuration.AIRQO_API_KEY}"
 
     def save_events(self, measurements: list, tenant: str) -> None:
+        #  Temporarily disabling usage of the API to store measurements.
+        if (
+            "staging" in self.AIRQO_BASE_URL.lower()
+            or "staging" in self.AIRQO_BASE_URL_V2.lower()
+        ):
+            return
 
         for i in range(0, len(measurements), int(configuration.POST_EVENTS_BODY_SIZE)):
             data = measurements[i : i + int(configuration.POST_EVENTS_BODY_SIZE)]
@@ -95,6 +101,55 @@ class AirQoApi:
             traceback.print_exc()
             print(ex)
             return []
+
+    def get_tenant_devices(
+        self,
+        tenant: Tenant = Tenant.ALL,
+        device_category: DeviceCategory = DeviceCategory.NONE,
+    ) -> list:
+
+        params = {"tenant": "airqo"}
+        if tenant != Tenant.ALL:
+            params["network"] = str(tenant)
+
+        response = self.__request("devices", params)
+
+        devices = [
+            {
+                **device,
+                **{
+                    "device_number": device.get("device_number", None),
+                    "approximate_latitude": device.get(
+                        "approximate_latitude", device.get("latitude", None)
+                    ),
+                    "approximate_longitude": device.get(
+                        "approximate_longitude", device.get("longitude", None)
+                    ),
+                    "device_id": device.get("name", None),
+                    "device_codes": [
+                        str(code) for code in device.get("device_codes", [])
+                    ],
+                    "mongo_id": device.get("_id", None),
+                    "site_id": device.get("site", {}).get("_id", None),
+                    "device_category": str(
+                        DeviceCategory.from_str(device.get("category", ""))
+                    ),
+                    "tenant": device.get("network"),
+                    "device_manufacturer": device.get(
+                        "device_manufacturer",
+                        Tenant.from_str(device.get("network")).device_manufacturer(),
+                    ),
+                },
+            }
+            for device in response.get("devices", [])
+        ]
+
+        if device_category != DeviceCategory.NONE:
+            devices = list(
+                filter(lambda y: y["device_category"] == str(device_category), devices)
+            )
+
+        return devices
 
     def get_devices(
         self,
