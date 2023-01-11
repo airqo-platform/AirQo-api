@@ -139,6 +139,7 @@ class EventsModel(BasePyMongoModel):
             ["site_id", "datetime", "device_name"], ascending=True, inplace=True
         )
         dataframe["frequency"] = frequency
+        dataframe = dataframe.replace(np.nan, None)
         return dataframe
 
     @classmethod
