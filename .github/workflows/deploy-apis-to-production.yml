@@ -828,6 +828,33 @@ jobs:
           kubectl set image deployment/airqo-analytics-api analytics-api=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-api:${{ needs.image-tag.outputs.build_id }} -n production
           kubectl annotate deployment/airqo-analytics-api kubernetes.io/change-cause="Image updated to ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
 
+      ######################### Analytics report job CI ##################################
+      - name: Build and Push Job's Docker Image
+        run: |
+          cd src/analytics/jobs/reports
+          docker build --target=production --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-analytics-report-job:${{ needs.image-tag.outputs.build_id }} .
+          docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-analytics-report-job:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-analytics-report-job:latest
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-analytics-report-job:${{ needs.image-tag.outputs.build_id }}
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-analytics-report-job:latest
+
+      - name: Update corresponding helm values file
+        uses: fjogeleit/yaml-update-action@main
+        with:
+          valueFile: "k8s/analytics/job/values-prod.yaml"
+          propertyPath: "image.tag"
+          value: ${{ needs.image-tag.outputs.build_id }}
+          updateFile: true
+          branch: deployment/argocd
+          message: "Update analytics report job production image tag to ${{ needs.image-tag.outputs.build_id }}"
+
+      - name: Update the corresponding k8s configmap(s)
+        run: |
+          cd src/analytics/jobs/reports
+          gcloud secrets versions access latest --secret="prod-env-analytics-report-job" > .env
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-analytics-report-production | kubectl replace -f - -n production
+          gcloud secrets versions access latest --secret="prod-key-analytics-report-job-service-account" > google_application_credentials.json
+          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json env-analytics-report-production-files | kubectl replace -f - -n production
+
   ### device uptime ###
   device-uptime:
     name: build-push-deploy-device-uptime

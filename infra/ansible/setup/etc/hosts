@@ -1,0 +1,18 @@
+# Dynamic hosts source at /opt/ansible/inventory/gcp.yaml
+
+[default_network]
+ansible_controller ansible_ssh_host=10.132.0.44
+devops_db          ansible_ssh_host=10.128.0.62
+postgresql_db      ansible_ssh_host=10.132.0.26
+mlflow_server      ansible_ssh_host=10.128.0.22
+calibrate_server   ansible_ssh_host=10.132.0.29
+
+[control]
+ansible_controller
+
+[webservers]
+mlflow_server
+calibrate_server
+
+[all:vars]
+ansible_python_interpreter=/usr/bin/python3
