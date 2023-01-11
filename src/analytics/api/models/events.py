@@ -8,19 +8,137 @@ from google.cloud import bigquery
 from api.models.base.base_model import BasePyMongoModel
 from api.utils.data_formatters import tenant_to_str, device_category_to_str
 from api.utils.dates import date_to_str
-from api.utils.pollutants.pm_25 import POLLUTANT_BIGQUERY_MAPPER
+from api.utils.pollutants.pm_25 import (
+    POLLUTANT_BIGQUERY_MAPPER,
+    BIGQUERY_FREQUENCY_MAPPER,
+)
 from main import cache, CONFIGURATIONS
 
 
 class EventsModel(BasePyMongoModel):
-    BIGQUERY_SITES = CONFIGURATIONS.BIGQUERY_SITES
+    BIGQUERY_SITES = f"`{CONFIGURATIONS.BIGQUERY_SITES}`"
+    BIGQUERY_DEVICES = f"`{CONFIGURATIONS.BIGQUERY_DEVICES}`"
+
     BIGQUERY_EVENTS = CONFIGURATIONS.BIGQUERY_EVENTS
     BIGQUERY_MOBILE_EVENTS = CONFIGURATIONS.BIGQUERY_MOBILE_EVENTS
     BIGQUERY_LATEST_EVENTS = CONFIGURATIONS.BIGQUERY_LATEST_EVENTS
 
+    BIGQUERY_RAW_DATA = f"`{CONFIGURATIONS.BIGQUERY_RAW_DATA}`"
+    BIGQUERY_HOURLY_DATA = f"`{CONFIGURATIONS.BIGQUERY_HOURLY_DATA}`"
+    BIGQUERY_DAILY_DATA = f"`{CONFIGURATIONS.BIGQUERY_DAILY_DATA}`"
+
     def __init__(self, tenant):
         self.limit_mapper = {"pm2_5": 500.5, "pm10": 604.5, "no2": 2049}
         super().__init__(tenant, collection_name="events")
+
+    @classmethod
+    # @cache.memoize()
+    def download_from_bigquery(
+        cls,
+        devices,
+        sites,
+        start_date,
+        end_date,
+        frequency,
+        pollutants,
+    ) -> pd.DataFrame:
+
+        decimal_places = 2
+
+        # Data sources
+        sites_table = cls.BIGQUERY_SITES
+        devices_table = cls.BIGQUERY_DEVICES
+
+        if frequency == "raw":
+            data_table = cls.BIGQUERY_RAW_DATA
+        elif frequency == "daily":
+            data_table = cls.BIGQUERY_DAILY_DATA
+        else:
+            data_table = cls.BIGQUERY_HOURLY_DATA
+
+        pollutant_columns = []
+
+        for pollutant in pollutants:
+            pollutant_mapping = BIGQUERY_FREQUENCY_MAPPER.get(frequency).get(
+                pollutant, []
+            )
+            pollutant_columns.extend(
+                [
+                    f"ROUND({data_table}.{mapping}, {decimal_places}) AS {mapping}"
+                    for mapping in pollutant_mapping
+                ]
+            )
+
+        query = (
+            f" SELECT {', '.join(map(str, set(pollutant_columns)))} ,"
+            f" FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', {data_table}.timestamp) AS datetime "
+        )
+
+        if len(devices) != 0:
+            query = (
+                f" {query} , "
+                f" {devices_table}.device_id AS device_name , "
+                f" {devices_table}.site_id AS site_id , "
+                f" {devices_table}.approximate_latitude AS device_latitude , "
+                f" {devices_table}.approximate_longitude  AS device_longitude , "
+                f" FROM {data_table} "
+                f" JOIN {devices_table} ON {devices_table}.device_id = {data_table}.device_id "
+                f" WHERE {data_table}.timestamp >= '{start_date}' "
+                f" AND {data_table}.timestamp <= '{end_date}' "
+                f" AND {devices_table}.device_id IN UNNEST({devices}) "
+            )
+
+            query = (
+                f"SELECT "
+                f" {sites_table}.tenant AS tenant , "
+                f" {sites_table}.name AS site_name , "
+                f" {sites_table}.approximate_latitude AS site_latitude , "
+                f" {sites_table}.approximate_longitude  AS site_longitude , "
+                f" data.* "
+                f" FROM {sites_table} "
+                f" RIGHT JOIN ({query}) data ON data.site_id = {sites_table}.id "
+            )
+
+        else:
+            query = (
+                f" {query} , "
+                f" {sites_table}.tenant AS tenant , "
+                f" {sites_table}.id AS site_id , "
+                f" {sites_table}.name AS site_name , "
+                f" {sites_table}.approximate_latitude AS site_latitude , "
+                f" {sites_table}.approximate_longitude  AS site_longitude , "
+                f" {data_table}.device_id AS device_name , "
+                f" FROM {data_table} "
+                f" JOIN {sites_table} ON {sites_table}.id = {data_table}.site_id "
+                f" WHERE {data_table}.timestamp >= '{start_date}' "
+                f" AND {data_table}.timestamp <= '{end_date}' "
+                f" AND {sites_table}.id IN UNNEST({sites}) "
+            )
+
+            query = (
+                f"SELECT "
+                f" {devices_table}.approximate_latitude AS device_latitude , "
+                f" {devices_table}.approximate_longitude  AS device_longitude , "
+                f" data.* "
+                f" FROM {devices_table} "
+                f" RIGHT JOIN ({query}) data ON data.device_name = {devices_table}.device_id "
+            )
+
+        job_config = bigquery.QueryJobConfig()
+        job_config.use_query_cache = True
+
+        dataframe = bigquery.Client().query(query, job_config).result().to_dataframe()
+
+        if len(dataframe) == 0:
+            return dataframe
+
+        dataframe.drop_duplicates(
+            subset=["datetime", "device_name"], inplace=True, keep="first"
+        )
+        dataframe.sort_values(
+            ["site_id", "datetime", "device_name"], ascending=True, inplace=True
+        )
+        return dataframe
 
     @classmethod
     @cache.memoize()
