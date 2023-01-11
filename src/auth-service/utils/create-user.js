@@ -96,15 +96,13 @@ const join = {
       if (responseFromGenerateFilter.success === true) {
         filter = responseFromGenerateFilter.data;
       } else if (responseFromGenerateFilter.success === false) {
-        let status = responseFromGenerateFilter.status
-          ? responseFromGenerateFilter.status
-          : "";
-        let error = responseFromGenerateFilter.error
-          ? responseFromGenerateFilter.error
-          : "";
         return {
-          status,
-          error,
+          status: responseFromGenerateFilter.status
+            ? responseFromGenerateFilter.status
+            : "",
+          error: responseFromGenerateFilter.error
+            ? responseFromGenerateFilter.error
+            : "",
           message: responseFromGenerateFilter.message,
         };
       }
@@ -139,13 +137,12 @@ const join = {
           };
         }
       } else if (responseFromModifyUser.success === false) {
-        const error = responseFromModifyUser.error
-          ? responseFromModifyUser.error
-          : "";
         return {
           success: false,
           message: responseFromModifyUser.message,
-          error,
+          error: responseFromModifyUser.error
+            ? responseFromModifyUser.error
+            : "",
         };
       }
     } catch (e) {

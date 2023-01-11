@@ -8,7 +8,6 @@ const { logText, logElement, logObject, logError } = require("../utils/log");
 const isEmpty = require("is-empty");
 const constants = require("../config/constants");
 
-const constants = require("../config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- inquire-controller`

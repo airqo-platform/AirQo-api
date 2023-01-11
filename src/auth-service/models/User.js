@@ -319,8 +319,6 @@ UserSchema.statics = {
         .limit(limit ? limit : 100)
         .allowDiskUse(true);
 
-      logObject("the responser", response);
-
       if (!isEmpty(response)) {
         let data = response;
         return {

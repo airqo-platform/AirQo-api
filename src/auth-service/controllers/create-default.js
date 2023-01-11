@@ -13,7 +13,6 @@ const {
   convertErrorArrayToObject,
   tryCatchErrors,
 } = require("../utils/errors");
-const constants = require("../config/constants");
 
 const defaults = {
   update: async (req, res) => {

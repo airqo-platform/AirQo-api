@@ -8,6 +8,7 @@ const { badRequest, convertErrorArrayToObject } = require("../utils/errors");
 const createNetwork = {
   getNetworkFromEmail: async (req, res) => {
     try {
+      logText("getNetworkFromEmail....");
       let { body, query } = req;
       let request = {};
       request["body"] = body;
@@ -107,6 +108,7 @@ const createNetwork = {
 
   assignUser: async (req, res) => {
     try {
+      logText("assign user....");
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -162,6 +164,7 @@ const createNetwork = {
 
   update: async (req, res) => {
     try {
+      logText("update user....");
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -216,6 +219,7 @@ const createNetwork = {
   },
   delete: async (req, res) => {
     try {
+      logText("delete user....");
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -280,6 +284,8 @@ const createNetwork = {
   },
   list: async (req, res) => {
     try {
+      logText("listing users....");
+
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -336,6 +342,7 @@ const createNetwork = {
   },
   listAssignedUsers: async (req, res) => {
     try {
+      logText("listing assigned users....");
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -392,6 +399,7 @@ const createNetwork = {
 
   listAvailableUsers: async (req, res) => {
     try {
+      logText("listing available users....");
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
