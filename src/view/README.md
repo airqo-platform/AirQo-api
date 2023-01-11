@@ -31,7 +31,7 @@ bin/kafka-topics.sh --create --topic app-insights-measurements-topic --partition
 ### Consume data from the message broker
 
 ```bash
-./mvnw springboot:run -Dspring.profiles.active=messageBroker
+./mvnw spring-boot:run -Dspring.profiles.active=messageBroker
 ```
 
 ### Creating dummy data
