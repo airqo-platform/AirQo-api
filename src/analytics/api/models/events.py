@@ -32,7 +32,7 @@ class EventsModel(BasePyMongoModel):
         super().__init__(tenant, collection_name="events")
 
     @classmethod
-    # @cache.memoize()
+    @cache.memoize()
     def download_from_bigquery(
         cls,
         devices,
@@ -138,6 +138,7 @@ class EventsModel(BasePyMongoModel):
         dataframe.sort_values(
             ["site_id", "datetime", "device_name"], ascending=True, inplace=True
         )
+        dataframe["frequency"] = frequency
         return dataframe
 
     @classmethod
