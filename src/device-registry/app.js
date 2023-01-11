@@ -14,6 +14,12 @@ const { mongodb } = require("./config/database");
 const { logText, logObject, logElement } = require("./utils/log");
 const createEvent = require("./utils/create-event");
 
+/**
+ * dummy data of an anonymous function that returns an array
+ * of sample Kafka data.
+ */
+const kafkaData = require("./kafka-data");
+
 mongodb;
 
 const { Kafka } = require("kafkajs");
@@ -22,63 +28,61 @@ const kafka = new Kafka({
   brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
 });
 
-/**
- * Expected body from Kafka...
- *         {
-            "timestamp": "2023-01-10T06:00:00Z",
-            "network": "us_embassy",
-            "site_id": NaN,
-            "device_name": "us-dos-bamako",
-            "device_id": "63b4226cd426a6002a75962a",
-            "device_number": -1,
-            "frequency": "hourly",
-            "latitude": 12.632524,
-            "longitude": -8.036911,
-            "device_category": "bam",
-            "pm2_5": 23.5,
-            "pm2_5_calibrated_value": 23.5,
-            "pm2_5_raw_value": 23.5,
-            "pm10": NaN,
-            "pm10_calibrated_value": NaN,
-            "pm10_raw_value": NaN,
-            "no2": NaN,
-            "no2_calibrated_value": NaN,
-            "no2_raw_value": NaN
-        }
- */
-
-const runKafkaConsumer = async () => {
+const runKafkaTests = async () => {
   try {
-    const kafkaConsumer = kafka.consumer({
-      groupId: constants.UNIQUE_CONSUMER_GROUP,
-    });
-    await kafkaConsumer.connect();
-    await kafkaConsumer.subscribe({
-      topic: constants.HOURLY_MEASUREMENTS_TOPIC,
-      fromBeginning: true,
-    });
-    await kafkaConsumer.run({
-      eachMessage: async ({ message }) => {
-        const measurements = JSON.parse(message.value).data;
-        const responseFromInsertMeasurements = await createEvent.insert(
-          "airqo",
-          measurements
-        );
-        if (responseFromInsertMeasurements.success === false) {
-          logger.error(
-            `responseFromInsertMeasurements --- ${JSON.stringify(
-              responseFromInsertMeasurements
-            )}`
-          );
-        }
-      },
-    });
-  } catch (error) {
-    logElement("KAFKA CONSUMER RUN ERROR", error.message);
+    // logObject("kafkaData", kafkaData());
+    const measurements = kafkaData();
+
+    const responseFromInsertMeasurements = await createEvent.insert(
+      "airqo",
+      measurements
+    );
+    if (responseFromInsertMeasurements.success === false) {
+      logger.error(
+        `responseFromInsertMeasurements --- ${JSON.stringify(
+          responseFromInsertMeasurements
+        )}`
+      );
+    }
+  } catch (errors) {
+    logElement("KAFKA CONSUMER RUN ERROR", errors.message);
   }
 };
 
-runKafkaConsumer();
+// const runKafkaConsumer = async () => {
+//   try {
+//     const kafkaConsumer = kafka.consumer({
+//       groupId: constants.UNIQUE_CONSUMER_GROUP,
+//     });
+//     await kafkaConsumer.connect();
+//     await kafkaConsumer.subscribe({
+//       topic: constants.HOURLY_MEASUREMENTS_TOPIC,
+//       fromBeginning: true,
+//     });
+//     await kafkaConsumer.run({
+//       eachMessage: async ({ message }) => {
+//         const measurements = JSON.parse(message.value).data;
+//         const responseFromInsertMeasurements = await createEvent.insert(
+//           "airqo",
+//           measurements
+//         );
+//         if (responseFromInsertMeasurements.success === false) {
+//           logger.error(
+//             `responseFromInsertMeasurements --- ${JSON.stringify(
+//               responseFromInsertMeasurements
+//             )}`
+//           );
+//         }
+//       },
+//     });
+//   } catch (error) {
+//     logElement("KAFKA CONSUMER RUN ERROR", error.message);
+//   }
+// };
+
+// runKafkaConsumer();
+
+runKafkaTests();
 
 const moesif = require("moesif-nodejs");
 const compression = require("compression");
