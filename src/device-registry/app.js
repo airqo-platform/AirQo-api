@@ -14,12 +14,6 @@ const { mongodb } = require("./config/database");
 const { logText, logObject, logElement } = require("./utils/log");
 const createEvent = require("./utils/create-event");
 
-/**
- * dummy data of an anonymous function that returns an array
- * of sample Kafka data.
- */
-const kafkaData = require("./kafka-data");
-
 mongodb;
 
 const { Kafka } = require("kafkajs");
@@ -28,61 +22,47 @@ const kafka = new Kafka({
   brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
 });
 
-const runKafkaTests = async () => {
+const runKafkaConsumer = async () => {
   try {
-    // logObject("kafkaData", kafkaData());
-    const measurements = kafkaData();
-
-    const responseFromInsertMeasurements = await createEvent.insert(
-      "airqo",
-      measurements
-    );
-    if (responseFromInsertMeasurements.success === false) {
-      logger.error(
-        `responseFromInsertMeasurements --- ${JSON.stringify(
-          responseFromInsertMeasurements
-        )}`
-      );
-    }
-  } catch (errors) {
-    logElement("KAFKA CONSUMER RUN ERROR", errors.message);
+    const kafkaConsumer = kafka.consumer({
+      groupId: constants.UNIQUE_CONSUMER_GROUP,
+    });
+    await kafkaConsumer.connect();
+    await kafkaConsumer.subscribe({
+      topic: constants.HOURLY_MEASUREMENTS_TOPIC,
+      fromBeginning: true,
+    });
+    await kafkaConsumer.run({
+      eachMessage: async ({ message }) => {
+        const measurements = JSON.parse(message.value).data;
+        if (!Array.isArray(measurements) && measurements.length > 0) {
+          logger.error(
+            `KAFKA entry point: the sent measurements are not an array or they are just empty --- ${JSON.stringify(
+              measurements
+            )}`
+          );
+        }
+        const responseFromInsertMeasurements = await createEvent.insert(
+          "airqo",
+          measurements
+        );
+        if (responseFromInsertMeasurements.success === false) {
+          logger.error(
+            `responseFromInsertMeasurements --- ${JSON.stringify(
+              responseFromInsertMeasurements
+            )}`
+          );
+        }
+      },
+    });
+  } catch (error) {
+    logger.error("internal server error", error.message);
   }
 };
 
-// const runKafkaConsumer = async () => {
-//   try {
-//     const kafkaConsumer = kafka.consumer({
-//       groupId: constants.UNIQUE_CONSUMER_GROUP,
-//     });
-//     await kafkaConsumer.connect();
-//     await kafkaConsumer.subscribe({
-//       topic: constants.HOURLY_MEASUREMENTS_TOPIC,
-//       fromBeginning: true,
-//     });
-//     await kafkaConsumer.run({
-//       eachMessage: async ({ message }) => {
-//         const measurements = JSON.parse(message.value).data;
-//         const responseFromInsertMeasurements = await createEvent.insert(
-//           "airqo",
-//           measurements
-//         );
-//         if (responseFromInsertMeasurements.success === false) {
-//           logger.error(
-//             `responseFromInsertMeasurements --- ${JSON.stringify(
-//               responseFromInsertMeasurements
-//             )}`
-//           );
-//         }
-//       },
-//     });
-//   } catch (error) {
-//     logElement("KAFKA CONSUMER RUN ERROR", error.message);
-//   }
-// };
-
-// runKafkaConsumer();
-
-runKafkaTests();
+if (constants.ENVIRONMENT === "STAGING ENVIRONMENT") {
+  runKafkaConsumer();
+}
 
 const moesif = require("moesif-nodejs");
 const compression = require("compression");
@@ -122,7 +102,9 @@ app.use(function(req, res, next) {
 });
 
 app.use(function(err, req, res, next) {
-  logger.error(` app error --- ${err.message}`);
+  logger.error(
+    ` app error --- "this endpoint does not exist" --- ${err.message}`
+  );
   if (err.status === 404) {
     res.status(err.status).json({
       success: false,
