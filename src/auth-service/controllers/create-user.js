@@ -32,7 +32,7 @@ const createUser = {
       }
       logText(".....................................");
       logText("list all users by query params provided");
-      const { tenant, id } = req.query;
+      let { tenant, id } = req.query;
       if (isEmpty(tenant)) {
         tenant = constants.DEFAULT_TENANT;
       }
