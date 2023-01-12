@@ -13,6 +13,7 @@ const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- app entry`);
 const { mongodb } = require("./config/database");
 const { logText, logObject, logElement } = require("./utils/log");
 const createEvent = require("./utils/create-event");
+const isEmpty = require("is-empty");
 
 mongodb;
 
@@ -35,9 +36,9 @@ const runKafkaConsumer = async () => {
     await kafkaConsumer.run({
       eachMessage: async ({ message }) => {
         const measurements = JSON.parse(message.value).data;
-        if (!Array.isArray(measurements) && measurements.length > 0) {
+        if (!Array.isArray(measurements) || isEmpty(measurements)) {
           logger.error(
-            `KAFKA: the sent measurements are not an array or they are just empty --- ${JSON.stringify(
+            `KAFKA: the sent measurements are not an array or they are just empty (undefined) --- ${JSON.stringify(
               measurements
             )}`
           );
@@ -66,6 +67,7 @@ if (constants.ENVIRONMENT === "STAGING ENVIRONMENT") {
 
 const moesif = require("moesif-nodejs");
 const compression = require("compression");
+const { isEmpty } = require("underscore");
 
 const app = express();
 app.use(compression());
