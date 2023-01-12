@@ -37,7 +37,7 @@ const runKafkaConsumer = async () => {
         const measurements = JSON.parse(message.value).data;
         if (!Array.isArray(measurements) && measurements.length > 0) {
           logger.error(
-            `KAFKA entry point: the sent measurements are not an array or they are just empty --- ${JSON.stringify(
+            `KAFKA: the sent measurements are not an array or they are just empty --- ${JSON.stringify(
               measurements
             )}`
           );
@@ -56,7 +56,7 @@ const runKafkaConsumer = async () => {
       },
     });
   } catch (error) {
-    logger.error("internal server error", error.message);
+    logger.error("KAFKA: internal server error", error.message);
   }
 };
 
