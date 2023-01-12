@@ -2,18 +2,18 @@ app:
   name: airqo-view-api
   label: view-api
   namespace: production
-  configmap: prod-view-api-config
+  configmap: stage-view-api-config
 replicaCount: 2
 image:
   repository: gcr.io/airqo-250220/airqo-view-api
-  tag: prod-8d63c26e-1671113585
-nameOverride: ""
-fullnameOverride: ""
+  tag: prod-fc2d06b7-1673528314
+nameOverride: ''
+fullnameOverride: ''
 podAnnotations: {}
 resources:
   limits:
-    cpu: 2000m
-    memory: 3000Mi
+    cpu: 100m
+    memory: 1500Mi
   requests:
     cpu: 10m
     memory: 500Mi
