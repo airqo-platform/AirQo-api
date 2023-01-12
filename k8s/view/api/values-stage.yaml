@@ -6,14 +6,14 @@ app:
 replicaCount: 2
 image:
   repository: gcr.io/airqo-250220/airqo-stage-view-api
-  tag: stage-5e8c0aeb-1673372988
+  tag: stage-f7b4dfc9-1673512005
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
 resources:
   limits:
-    cpu: 200m
-    memory: 1000Mi
+    cpu: 50m
+    memory: 700Mi
   requests:
     cpu: 5m
     memory: 420Mi
