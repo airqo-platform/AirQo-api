@@ -7,7 +7,6 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.*;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.Transient;
-import org.springframework.data.mongodb.core.mapping.Field;
 import org.springframework.format.annotation.DateTimeFormat;
 
 import java.io.Serializable;
@@ -24,7 +23,6 @@ import static airqo.config.Constants.dateTimeFormat;
 public class Insight implements Serializable {
 
 	@Id
-	@Field("_id")
 	@JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
 	private String id;
 
