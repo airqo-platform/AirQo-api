@@ -146,6 +146,20 @@ class DataValidationUtils:
         return dataframe[columns]
 
     @staticmethod
+    def process_for_message_broker_v2(data: pd.DataFrame) -> pd.DataFrame:
+        data["timestamp"] = pd.to_datetime(data["timestamp"])
+        data["timestamp"] = data["timestamp"].apply(date_to_str)
+        data.rename(
+            columns={
+                "mongo_id": "device_id",
+                "device_id": "device_name",
+                "tenant": "network",
+            },
+            inplace=True,
+        )
+        return data
+
+    @staticmethod
     def process_for_message_broker(
         data: pd.DataFrame, tenant: Tenant, frequency: Frequency = Frequency.HOURLY
     ) -> pd.DataFrame:

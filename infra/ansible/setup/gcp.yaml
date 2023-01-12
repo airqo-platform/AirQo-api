@@ -1,0 +1,11 @@
+---
+plugin: gcp_compute
+projects:
+  - airqo-250220
+auth_kind: serviceaccount
+service_account_file: /opt/ansible/inventory/iac-provisioning.json
+keyed_groups:
+  - key: labels
+    prefix: label
+groups:
+  db_servers: "'db' in name"
