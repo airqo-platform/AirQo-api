@@ -1,4 +1,4 @@
-resource "google_compute_instance_template" "mongos_router_template" {
+resource "google_compute_instance_template" "mongos_template" {
   confidential_instance_config {
     enable_confidential_compute = false
   }
@@ -8,7 +8,7 @@ resource "google_compute_instance_template" "mongos_router_template" {
   disk {
     auto_delete  = true
     boot         = true
-    device_name  = "mongos-router-template"
+    device_name  = "mongos-template"
     disk_size_gb = var.disk_size["small"]
     disk_type    = "pd-balanced"
     mode         = "READ_WRITE"
@@ -21,7 +21,7 @@ resource "google_compute_instance_template" "mongos_router_template" {
   }
 
   machine_type = "e2-standard-2"
-  name         = "mongos-router-template"
+  name         = "mongos-template"
 
   network_interface {
     access_config {
@@ -55,4 +55,4 @@ resource "google_compute_instance_template" "mongos_router_template" {
 
   tags = ["airqo-shard", "http-server", "https-server"]
 }
-# terraform import google_compute_instance_template.mongos_router_template projects/${var.project_id}/global/instanceTemplates/mongos-router-template
+# terraform import google_compute_instance_template.mongos_template projects/${var.project_id}/global/instanceTemplates/mongos-template
