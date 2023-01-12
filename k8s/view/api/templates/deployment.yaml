@@ -56,26 +56,6 @@ spec:
                 name: {{ .Values.app.configmap }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-          readinessProbe:
-            httpGet:
-              path: api/v1/view/actuator/health/readiness
-              port: 8080
-              scheme: HTTP
-            initialDelaySeconds: 60
-            timeoutSeconds: 1
-            periodSeconds: 10
-            successThreshold: 1
-            failureThreshold: 3
-          livenessProbe:
-            httpGet:
-              path: api/v1/view/actuator/health/liveness
-              port: 8080
-              scheme: HTTP
-            initialDelaySeconds: 240
-            timeoutSeconds: 1
-            periodSeconds: 20
-            successThreshold: 1
-            failureThreshold: 3
           lifecycle:
             preStop:
               exec:
