@@ -11,7 +11,6 @@ const apiV2 = require("./routes/api-v2");
 const constants = require("./config/constants");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- app entry`);
 const { mongodb } = require("./config/database");
-const { logText, logObject, logElement } = require("./utils/log");
 const createEvent = require("./utils/create-event");
 const isEmpty = require("is-empty");
 
