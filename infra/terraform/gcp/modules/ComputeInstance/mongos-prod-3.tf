@@ -23,7 +23,7 @@ resource "google_compute_instance" "mongos_prod_3" {
     }
 
     network    = "default"
-    network_ip = "10.132.0.54"
+    network_ip = "10.132.0.56"
   }
 
   project = var.project_id
