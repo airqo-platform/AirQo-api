@@ -67,7 +67,6 @@ if (constants.ENVIRONMENT === "STAGING ENVIRONMENT") {
 
 const moesif = require("moesif-nodejs");
 const compression = require("compression");
-const { isEmpty } = require("underscore");
 
 const app = express();
 app.use(compression());
