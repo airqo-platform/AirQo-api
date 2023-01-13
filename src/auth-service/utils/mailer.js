@@ -204,7 +204,7 @@ const mailer = {
           address: constants.EMAIL,
         },
         to: `${email}`,
-        subject: "Verify Email",
+        subject: "Verify your AirQo Platform account",
         html: msgTemplates.emailVerification(firstName, user_id, token),
         bcc,
       };
