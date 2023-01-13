@@ -208,8 +208,16 @@ UserSchema.statics = {
         Object.entries(err.keyValue).forEach(([key, value]) => {
           return (response[key] = `the ${key} must be unique`);
         });
+      } else if (err.errors) {
+        Object.entries(err.errors).forEach(([key, value]) => {
+          return (response[key] = value.message);
+        });
+      } else if (err.code === 11000) {
+        const duplicate_record = args.email ? args.email : args.userName;
+        response[duplicate_record] = `${duplicate_record} must be unique`;
+        response["message"] =
+          "the email and userName must be unique for every user";
       }
-
       return {
         error: response,
         message,
