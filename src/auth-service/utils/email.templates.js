@@ -71,7 +71,7 @@ module.exports = {
 
   partnerInquiry: (fullName) => {
     return `
-    <p> Dear ${fullName} </p>,
+    <p> Dear ${fullName} </p>
     <p>Thank you for getting in touch with us and for your interest in supporting our work in closing the air quality data gaps in African Cities.</p>
     <p> We are happy to foster partnerships to advance air quality monitoring and management in African Cities.</p>
     <p> Please get in touch with our project lead Professor Engineer at baino@airqo.net or Programme Manager Deo Okure at deo@airqo.net for further support.</p>`;
