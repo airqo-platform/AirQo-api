@@ -82,12 +82,12 @@ const mailer = {
             html = msgTemplates.developerInquiry(fullName);
             break;
           case "general":
-            bcc = constants.REQUEST_ACCESS_EMAILS;
-            html = msgTemplates.inquiryTemplate(fullName);
+            bcc = constants.PARTNERS_EMAILS;
+            html = msgTemplates.partnerInquiry(fullName);
             break;
           default:
-            bcc = constants.REQUEST_ACCESS_EMAILS;
-            html = msgTemplates.inquiryTemplate(fullName);
+            bcc = constants.PARTNERS_EMAILS;
+            html = msgTemplates.partnerInquiry(fullName);
         }
       }
 

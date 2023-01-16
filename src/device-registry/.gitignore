@@ -7,3 +7,4 @@ scripts/data-airqlouds.js
 scripts/data-sites.js
 scripts/data-devices.js
 scripts/data-activities.js
+kafka-data.js

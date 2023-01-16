@@ -43,76 +43,73 @@ app.use(function (req, res, next) {
 });
 
 app.use(function (err, req, res, next) {
-  logger.error(`${constants.ENVIRONMENT} -- ${err.message}`);
   if (err.status === 404) {
+    logger.error(
+      `this endpoint does not exist --- ${err.message} --- path: ${
+        req.originalUrl ? req.originalUrl : ""
+      }`
+    );
     res.status(err.status).json({
       success: false,
       message: "this endpoint does not exist",
       error: err.message,
     });
-  }
-
-  if (err.status === 400) {
+  } else if (err.status === 400) {
+    logger.error(`bad request error --- ${err.message}`);
     res.status(err.status).json({
       success: false,
       message: "bad request error",
       error: err.message,
     });
-  }
-
-  if (err.status === 401) {
+  } else if (err.status === 401) {
+    logger.error(`Unauthorized --- ${err.message}`);
     res.status(err.status).json({
       success: false,
       message: "Unauthorized",
       error: err.message,
     });
-  }
-
-  if (err.status === 403) {
+  } else if (err.status === 403) {
+    logger.error(`Forbidden --- ${err.message}`);
     res.status(err.status).json({
       success: false,
       message: "Forbidden",
       error: err.message,
     });
-  }
-
-  if (err.status === 500) {
+  } else if (err.status === 500) {
+    logger.error(`Internal Server Error --- ${err.message}`);
     res.status(err.status).json({
       success: false,
       message: "Internal Server Error",
       error: err.message,
     });
-  }
-
-  if (err.status === 502) {
+  } else if (err.status === 502) {
+    logger.error(`Bad Gateway --- ${err.message}`);
     res.status(err.status).json({
       success: false,
       message: "Bad Gateway",
       error: err.message,
     });
-  }
-
-  if (err.status === 503) {
+  } else if (err.status === 503) {
+    logger.error(`Service Unavailable --- ${err.message}`);
     res.status(err.status).json({
       success: false,
       message: "Service Unavailable",
       error: err.message,
     });
-  }
-
-  if (err.status === 504) {
+  } else if (err.status === 504) {
+    logger.error(`Gateway Timeout. --- ${err.message}`);
     res.status(err.status).json({
       success: false,
       message: " Gateway Timeout.",
       error: err.message,
     });
+  } else {
+    res.status(err.status || 500).json({
+      success: false,
+      message: "server side error",
+      error: err.message,
+    });
   }
-
-  res.status(err.status || 500).json({
-    success: false,
-    message: "server side error",
-    error: err.message,
-  });
 });
 
 module.exports = app;
