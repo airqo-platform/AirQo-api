@@ -1,12 +1,6 @@
 const express = require("express");
 const router = express.Router();
 const createUserController = require("@controllers/create-user");
-const requestAccessController = require("@controllers/request-access");
-const createInquiryController = require("@controllers/create-inquiry");
-const createDefaultController = require("@controllers/create-default");
-const createNetworkController = require("@controllers/create-network");
-const createRoleController = require("@controllers/create-role");
-const createPermissionController = require("@controllers/create-permission");
 const { check, oneOf, query, body, param } = require("express-validator");
 
 const {

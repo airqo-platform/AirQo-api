@@ -8,8 +8,6 @@ const requests = require("@routes/v2/requests");
 const roles = require("@routes/v2/roles");
 const users = require("@routes/v2/users");
 const tokens = require("@routes/v2/tokens");
-const express = require("express");
-const router = express.Router();
 
 module.exports = {
   defaults,
@@ -21,4 +19,5 @@ module.exports = {
   requests,
   roles,
   users,
+  tokens,
 };

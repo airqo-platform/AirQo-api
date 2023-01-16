@@ -19,4 +19,5 @@ module.exports = {
   requests,
   roles,
   users,
+  tokens,
 };

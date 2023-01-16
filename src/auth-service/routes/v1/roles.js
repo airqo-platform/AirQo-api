@@ -2,15 +2,7 @@ const express = require("express");
 const router = express.Router();
 const createRoleController = require("@controllers/create-role");
 const { check, oneOf, query, body, param } = require("express-validator");
-
-const {
-  setJWTAuth,
-  authJWT,
-  setLocalAuth,
-  authLocal,
-  authToken,
-  setAuthToken,
-} = require("@middleware/passport");
+const { setJWTAuth, authJWT } = require("@middleware/passport");
 
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
