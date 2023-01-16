@@ -34,6 +34,9 @@ app.use("/api/v1/users", apiV1);
 app.use("/api/v2/users", apiV2);
 
 require("./config/firebase-admin");
+const firebaseFuncs = require("./config/firebase-admin");
+firebaseFuncs.newUserSignUp();
+firebaseFuncs.userDeleted();
 
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {
