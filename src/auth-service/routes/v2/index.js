@@ -1,30 +1,24 @@
-const defaultsRouter = require("./defaults");
-const departmentsRouter = require("./departments");
-const groupsRouter = require("./groups");
-const inquiriesRouter = require("./inquiries");
-const networksRouter = require("./networks");
-const permissionsRouter = require("./permissions");
-const requestsRouter = require("./requests");
-const rolesRouter = require("./roles");
-const usersRouter = require("./users");
-
-const route = "extract route/path from request";
-
-switch (route) {
-  case "defaults":
-    route = defaultsRouter;
-  case "departments":
-    route = departmentsRouter;
-}
+const defaults = require("@routes/v2/defaults");
+const departments = require("@routes/v2/departments");
+const groups = require("@routes/v2/groups");
+const inquiries = require("@routes/v2/inquiries");
+const networks = require("@routes/v2/networks");
+const permissions = require("@routes/v2/permissions");
+const requests = require("@routes/v2/requests");
+const roles = require("@routes/v2/roles");
+const users = require("@routes/v2/users");
+const tokens = require("@routes/v2/tokens");
+const express = require("express");
+const router = express.Router();
 
 module.exports = {
-  ...defaultsRouter,
-  ...departmentsRouter,
-  ...groupsRouter,
-  ...inquiriesRouter,
-  ...networksRouter,
-  ...permissionsRouter,
-  ...requestsRouter,
-  ...rolesRouter,
-  ...usersRouter,
+  defaults,
+  departments,
+  groups,
+  inquiries,
+  networks,
+  permissions,
+  requests,
+  roles,
+  users,
 };

@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const createDefaultController = require("../controllers/create-default");
+const createDefaultController = require("@controllers/create-default");
 const { check, oneOf, query, body, param } = require("express-validator");
 
 const {
@@ -10,7 +10,7 @@ const {
   authLocal,
   authToken,
   setAuthToken,
-} = require("../middleware/passport");
+} = require("@middleware/passport");
 
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
@@ -26,9 +26,9 @@ const headers = (req, res, next) => {
 };
 router.use(headers);
 
-/************************* settings/defaults **********************************/
+/************************* settings/ **********************************/
 router.put(
-  "/defaults",
+  "/",
   oneOf([
     [
       query("tenant")
@@ -163,7 +163,7 @@ router.put(
 );
 
 router.post(
-  "/defaults",
+  "/",
   oneOf([
     [
       query("tenant")
@@ -303,7 +303,7 @@ router.post(
 );
 
 router.get(
-  "/defaults",
+  "/",
   oneOf([
     [
       query("tenant")
@@ -367,7 +367,7 @@ router.get(
 );
 
 router.delete(
-  "/defaults",
+  "/",
   oneOf([
     [
       query("tenant")

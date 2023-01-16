@@ -406,6 +406,7 @@ UserSchema.statics = {
         return {
           success: false,
           message: "user does not exist, please crosscheck",
+          status: httpStatus.NOT_FOUND,
         };
       }
     } catch (error) {
