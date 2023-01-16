@@ -7,6 +7,7 @@ const joinUtil = require("../utils/join");
 const { logObject, logText } = require("../utils/log");
 const { default: isEmail } = require("validator/lib/isEmail");
 const isEmpty = require("is-empty");
+const emailMessages = require("../utils/email.msgs");
 
 initializeApp({
   credential: admin.credential.cert(serviceAccount),
@@ -101,7 +102,7 @@ const firebaseFuncs = {
       logObject("new mobile app user created", user);
       let email = user.email;
       const firstName = user.firstName;
-      const message = `Welcome to AirQo, ${firstName}`;
+      const message = emailMessages.mobileAppWelcome();
       const subject = "Welcome to AirQo!";
 
       if (!isEmpty(email)) {
