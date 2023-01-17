@@ -1,19 +1,19 @@
 # Dynamic hosts source at /opt/ansible/inventory/gcp.yaml
 
-mongos_router_prod ansible_ssh_host=10.132.0.54
+mongos_prod_1 ansible_ssh_host=mongos-prod-1.europe-west1-b.c.airqo-250220.internal
 
-[cfgsvr_prods]
-10.132.0.[48:50]
-
-[shard_prods]
-10.132.0.[51:53]
+[cfgsvrs_prod]
+cfgsvr-prod-[1:3].europe-west1-b.c.airqo-250220.internal
 
 [mongo_cluster_prod]
-mongos_router_prod
+mongos_prod_1
+
+[shards_prod]
+shard-prod-[1:3].europe-west1-b.c.airqo-250220.internal
 
 [mongo_cluster_prod:children]
-cfgsvr_prods
-shard_prods
+cfgsvrs_prod
+shards_prod
 
 [all:vars]
 ansible_python_interpreter=/usr/bin/python3
