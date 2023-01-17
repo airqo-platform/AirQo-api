@@ -1,5 +1,0 @@
-cluster_role: "shard"
-
-replica_set:
-  name: "shd01"
-  group: "shard_prods"
