@@ -20,6 +20,9 @@ const CandidateModel = (tenant) => {
   return getModelByTenant(tenant, "candidate", CandidateSchema);
 };
 
+const log4js = require("log4js");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- request-util`);
+
 const request = {
   create: async (req, callback) => {
     try {

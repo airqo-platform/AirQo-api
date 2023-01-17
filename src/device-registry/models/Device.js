@@ -46,6 +46,7 @@ const deviceSchema = new mongoose.Schema(
     network: {
       type: String,
       trim: true,
+      required: [true, "the network name is required!"],
     },
     access_code: {
       type: String,

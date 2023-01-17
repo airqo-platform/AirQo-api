@@ -9,7 +9,6 @@ from dotenv import load_dotenv
 from airqo_etl_utils.airnow_utils import AirnowDataUtils
 from airqo_etl_utils.airqo_api import AirQoApi
 from airqo_etl_utils.airqo_utils import AirQoDataUtils
-from airqo_etl_utils.app_insights_utils import AirQoAppUtils
 from airqo_etl_utils.arg_parse_validator import valid_datetime_format
 from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.calibration_utils import CalibrationUtils
@@ -21,7 +20,6 @@ from airqo_etl_utils.constants import (
 )
 from airqo_etl_utils.data_validator import DataValidationUtils
 from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
-from airqo_etl_utils.date import date_to_str_hours
 from airqo_etl_utils.kcca_utils import KccaUtils
 from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
 from airqo_etl_utils.utils import Utils
@@ -286,11 +284,6 @@ class MainClass:
             dataframe=bigquery_data, file_name="calibrated_bigquery_data"
         )
 
-        insights_data = AirQoAppUtils.format_data_to_insights(
-            data=calibrated_data, frequency=Frequency.HOURLY
-        )
-        self.export_dataframe(dataframe=insights_data, file_name="insights_data")
-
         message_broker_data = AirQoDataUtils.process_data_for_message_broker(
             data=calibrated_data, frequency=Frequency.HOURLY
         )
@@ -346,12 +339,13 @@ class MainClass:
         )
         bigquery_data.to_csv("airnow_bigquery_data.csv", index=False)
 
+        message_broker_data = DataValidationUtils.process_for_message_broker_v2(
+            processed_bam_data
+        )
+        message_broker_data.to_csv("airnow_message_broker_data.csv", index=False)
+
         latest_bam_data = AirnowDataUtils.process_latest_bam_data(processed_bam_data)
         latest_bam_data.to_csv("airnow_latest_bam_data.csv", index=False)
-
-        DataWarehouseUtils.update_latest_measurements(
-            data=latest_bam_data, tenant=Tenant.US_EMBASSY
-        )
 
     def airqo_bam_data(self):
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
@@ -497,72 +491,6 @@ def airqo_historical_raw_data():
 
     bigquery_data = AirQoDataUtils.process_raw_data_for_bigquery(data=historical_data)
     bigquery_data.to_csv(path_or_buf="bigquery_data.csv", index=False)
-
-
-def insights_forecast():
-    from airqo_etl_utils.app_insights_utils import AirQoAppUtils
-
-    from airqo_etl_utils.date import date_to_str, first_day_of_week, first_day_of_month
-
-    now = datetime.now()
-    start_date_time = date_to_str(first_day_of_week(first_day_of_month(date_time=now)))
-    end_date_time = date_to_str(now)
-
-    old_forecast = AirQoAppUtils.transform_old_forecast(
-        start_date_time=start_date_time, end_date_time=end_date_time
-    )
-    pd.DataFrame(old_forecast).to_csv(path_or_buf="old_forecast_data.csv", index=False)
-
-    forecast_data = AirQoAppUtils.extract_forecast_data()
-    pd.DataFrame(forecast_data).to_csv(path_or_buf="forecast_data.csv", index=False)
-
-    insights_data = AirQoAppUtils.create_insights(data=forecast_data)
-    pd.DataFrame(insights_data).to_csv(
-        path_or_buf="insights_forecast_data.csv", index=False
-    )
-
-
-def app_notifications():
-    from airqo_etl_utils.app_notification_utils import (
-        get_notification_recipients,
-        get_notification_templates,
-        create_notification_messages,
-        NOTIFICATION_TEMPLATE_MAPPER,
-    )
-
-    recipients = get_notification_recipients(16)
-    recipients.to_csv(path_or_buf="recipients.csv", index=False)
-
-    templates = get_notification_templates(
-        NOTIFICATION_TEMPLATE_MAPPER["monday_morning"]
-    )
-    pd.DataFrame(templates).to_csv(path_or_buf="templates.csv", index=False)
-
-    notification_messages = create_notification_messages(
-        templates=templates, recipients=recipients
-    )
-    notification_messages.to_csv(path_or_buf="notification_messages.csv", index=False)
-
-
-def daily_insights(start_date_time: str, end_date_time: str):
-    from airqo_etl_utils.app_insights_utils import AirQoAppUtils
-
-    hourly_insights_data = AirQoAppUtils.extract_insights(
-        freq="hourly", start_date_time=start_date_time, end_date_time=end_date_time
-    )
-    pd.DataFrame(hourly_insights_data).to_csv(
-        path_or_buf="hourly_insights_airqo_data.csv", index=False
-    )
-
-    daily_insights_data = AirQoAppUtils.average_insights(
-        frequency="daily", data=hourly_insights_data
-    )
-    pd.DataFrame(daily_insights_data).to_csv(
-        path_or_buf="daily_insights_airqo_data.csv", index=False
-    )
-
-    insights_data = AirQoAppUtils.create_insights(daily_insights_data)
-    pd.DataFrame(insights_data).to_csv(path_or_buf="insights_data.csv", index=False)
 
 
 def weather_data(start_date_time, end_date_time, file):
@@ -938,7 +866,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--file",
-        required=True,
+        required=False,
         type=str.lower,
     )
     parser.add_argument(
@@ -959,10 +887,7 @@ if __name__ == "__main__":
             "weather_data",
             "data_warehouse",
             "kcca_hourly_data",
-            "daily_insights_data",
-            "forecast_insights_data",
             "meta_data",
-            "app_notifications",
             "calibrate_historical_airqo_data",
             "airnow_bam_data",
             "urban_better_data_plume_labs",
@@ -996,15 +921,6 @@ if __name__ == "__main__":
 
     elif args.action == "kcca_hourly_data":
         main_class.kcca_realtime_data()
-
-    elif args.action == "daily_insights_data":
-        daily_insights(start_date_time=args.start, end_date_time=args.end)
-
-    elif args.action == "forecast_insights_data":
-        insights_forecast()
-
-    elif args.action == "app_notifications":
-        app_notifications()
 
     elif args.action == "meta_data":
         main_class.meta_data()

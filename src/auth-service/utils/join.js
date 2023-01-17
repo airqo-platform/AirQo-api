@@ -15,6 +15,9 @@ const constants = require("../config/constants");
 const mailchimp = require("../config/mailchimp");
 const md5 = require("md5");
 
+const log4js = require("log4js");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- join-util`);
+
 const UserModel = (tenant) => {
   try {
     let users = mongoose.model("users");

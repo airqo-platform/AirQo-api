@@ -8,8 +8,18 @@ Add the `.env` & `google_application_credentials.json` files to this directory. 
 ```bash
 python -m venv venv
 source venv/bin/activate
+
 pip install -r requirements.txt
+```
+## To run the API
+```bash
 flask run
+```
+
+## To run the Message broker connector
+
+```bash
+python message-broker.py --target=sites-consumer
 ```
 
 ## To build and run with docker 

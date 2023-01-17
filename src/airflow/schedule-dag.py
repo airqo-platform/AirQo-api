@@ -87,17 +87,6 @@ class ScheduleDag:
                     "data_source": DataSource.BIGQUERY,
                     "dag_duration": 5,
                 },
-                # Mobile App Data
-                "app_historical_daily_insights": {
-                    "name": "App-Historical-Daily-Insights",
-                    "data_source": DataSource.AIRQO,
-                    "dag_duration": 5,
-                },
-                "app_historical_hourly_insights": {
-                    "name": "App-Historical-Hourly-Insights",
-                    "data_source": DataSource.AIRQO,
-                    "dag_duration": 5,
-                },
                 # Mobile devices data
                 "historical_urban_better_plume_labs": {
                     "name": "Urban-Better-Plume-Labs-Historical-Raw-Measurements",

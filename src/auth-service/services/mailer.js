@@ -6,6 +6,9 @@ const msgs = require("../utils/email.msgs");
 const msgTemplates = require("../utils/email.templates");
 const httpStatus = require("http-status");
 
+const log4js = require("log4js");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- mailer-service`);
+
 const mailer = {
   candidate: async (firstName, lastName, email, tenant) => {
     try {
@@ -55,34 +58,44 @@ const mailer = {
   inquiry: async (fullName, email, category, message, tenant) => {
     try {
       let bcc = "";
-
+      let html = "";
       if (tenant.toLowerCase() === "airqo") {
         switch (category) {
           case "partners":
             bcc = constants.PARTNERS_EMAILS;
+            html = msgTemplates.partnerInquiry(fullName);
             break;
           case "policy":
             bcc = constants.POLICY_EMAILS;
+            html = msgTemplates.policyInquiry(fullName);
             break;
           case "champions":
             bcc = constants.CHAMPIONS_EMAILS;
+            html = msgTemplates.championInquiry(fullName);
             break;
           case "researchers":
             bcc = constants.RESEARCHERS_EMAILS;
+            html = msgTemplates.researcherInquiry(fullName);
             break;
           case "developers":
             bcc = constants.DEVELOPERS_EMAILS;
+            html = msgTemplates.developerInquiry(fullName);
             break;
           case "general":
-            bcc = constants.REQUEST_ACCESS_EMAILS;
+            bcc = constants.PARTNERS_EMAILS;
+            html = msgTemplates.partnerInquiry(fullName);
             break;
           default:
-            bcc = constants.REQUEST_ACCESS_EMAILS;
+            bcc = constants.PARTNERS_EMAILS;
+            html = msgTemplates.partnerInquiry(fullName);
         }
       }
 
-      const categoryNameWithFirstLetterCapital =
-        category.charAt(0).toUpperCase() + category.slice(1);
+      /**
+       *
+       * const categoryNameWithFirstLetterCapital = category.charAt(0).toUpperCase() + category.slice(1);
+       * const subject = `Welcome to AirQo, for ${categoryNameWithFirstLetterCapital}`
+       */
 
       const mailOptionsForAirQo = {
         to: `${email}`,
@@ -90,8 +103,8 @@ const mailer = {
           name: constants.EMAIL_NAME,
           address: constants.EMAIL,
         },
-        subject: `Welcome to AirQo, for ${categoryNameWithFirstLetterCapital}`,
-        html: msgTemplates.inquiryTemplate(fullName),
+        subject: `Welcome to AirQo`,
+        html,
         bcc,
       };
 
