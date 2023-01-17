@@ -1,4 +1,4 @@
-- hosts: all
+- hosts: k8s_cluster
   become: true
   tasks:
     - name: install Docker
@@ -25,13 +25,13 @@
 
     - name: install kubelet
       apt:
-        name: kubelet=1.19.0-00
+        name: kubelet=1.23.6-00
         state: present
         update_cache: true
 
     - name: install kubeadm
       apt:
-        name: kubeadm=1.19.0-00
+        name: kubeadm=1.23.6-00
         state: present
 
 - hosts: master
