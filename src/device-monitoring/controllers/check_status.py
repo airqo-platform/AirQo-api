@@ -12,52 +12,6 @@ _logger = logging.getLogger(__name__)
 device_status_bp = Blueprint('device_status', __name__)
 
 
-def compute_intra_sensor_correlation(device) -> pd.Dataframe:
-    # pm2_5, pm10 both sensors
-    pass
-
-
-def compute_differences(device_1, device_2) -> pd.Dataframe:
-    # use statistics data
-    pass
-
-
-def compute_inter_sensor_correlation(device_1, device_2, statistics) -> pd.Dataframe:
-    #
-    pass
-
-def compute_statistics(data) -> pd.Dataframe:
-    # for each device, calculate the mean, median,  etc
-    # columns => device, mean, median etc
-    # https://docs.google.com/document/d/14Lli_xCeCq1a1JM2JkbCuF2FSqX3BtqkacxQWs9HCPc/edit#heading=h.3jnb6ajjwl2
-    pass
-
-def get_data(devices, start_date, end_date) -> pd.Dataframe:
-
-    # remove duplicates,
-    # hourly data
-    pass
-
-
-def data_completeness_report(data: pd.Dataframe) -> pd.Dataframe:
-    """
-    Device, Completeness, Missing
-    """
-    # https://docs.google.com/document/d/1RrHfHmRrxYGFtkMFyeBlbba8jmqmsFGI1QYsEaJcMLk/edit
-    # https://docs.google.com/document/d/14Lli_xCeCq1a1JM2JkbCuF2FSqX3BtqkacxQWs9HCPc/edit#heading=h.u4gc75oggn5c
-    # remove duplicates,
-    # hourly data
-
-    group_by_device = data.groupby("device")
-    for _,device_group in group_by_device:
-
-
-    completeness = calculate_device_uptime(expected_total_records_count=number_of_days * 24,
-                                           actual_valid_records_count=len(data))
-
-    pass
-
-
 @device_status_bp.route(routes.DEVICE_COLLOCATION, methods=['POST'])
 def get_collocation():
     json_data = request.get_json()
@@ -67,49 +21,8 @@ def get_collocation():
     completeness_value = json_data.get("completeness_value", 80)
     correlation_value = json_data.get("correlation_value", 90)
     differences_value = json_data.get("differences_value", 5)
+    pollutants = json_data.get("pollutants", ["pm2_5", "pm10"])
 
-    data = []
-
-    for device in devices:
-        data += get_data(device, start_date, end_time)
-
-    # calculate completeness
-    completeness_report = data_completeness_report(data, completeness_value)
-    failed_devices_data = completeness_report["completeness" < completeness_value]
-    passed_devices_data = completeness_report["completeness" >= completeness_value]
-
-    # intra sensor correlation
-    intra_sensor_correlation = []
-    for device in devices:
-        intra_sensor_correlation[device] = compute_intra_sensor_correlation(device)
-
-    # remove devices that fail intra sensor correlation
-    passed_devices_data = passed_devices_data["correlation" < correlation_value]
-
-    # inter sensor correlation
-    inter_sensor_correlation = {}
-    for device_1 in devices:
-        for device_2 in devices:
-            if device_2 == device_1:
-                continue
-            inter_sensor_correlation[f"{device_1}-{device_2}"] = compute_inter_sensor_correlation(device_1, device_2)
-
-    # calculate statistics
-    statistics = compute_statistics(passed_devices_data)
-
-    # compute differences
-    differences = {}
-    for device_1 in devices:
-        for device_2 in devices:
-            if device_2 == device_1:
-                continue
-            differences[f"{device_1}-{device_2}"] = compute_differences(device_1, device_2, statistics)
-
-    # remove devices that fail inter sensor correlation
-    passed_devices_data = passed_devices_data["correlation" < correlation_value]
-
-    # remove devices with a huge difference
-    differences = differences["difference" > differences_value]
 
     response = dict(message="devices collocation successful",
                     data={"failed_devices": failed_devices_data, "passed_devices": passed_devices_data, "report": {
