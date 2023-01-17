@@ -1,4 +1,4 @@
-- hosts: master
+- hosts: k8s_master
   become: true
   gather_facts: false
   tasks:
@@ -10,11 +10,11 @@
       set_fact:
         join_command: "{{ join_command_raw.stdout_lines[0] }}"
 
-- hosts: workers
+- hosts: k8s_workers
   become: true
   tasks:
     - name: join cluster
-      shell: "{{ hostvars['master'].join_command }} >> node_joined.txt"
+      shell: "{{ hostvars[groups['k8s_master'].0].join_command }} >> node_joined.txt"
       args:
         chdir: $HOME
         creates: node_joined.txt

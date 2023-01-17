@@ -1,4 +1,4 @@
-- hosts: master
+- hosts: k8s_master
   become: true
   tasks:
     - name: initialize the cluster
