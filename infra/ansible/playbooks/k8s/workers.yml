@@ -2,18 +2,18 @@
   become: true
   gather_facts: false
   tasks:
-    - name: get join command
+    - name: Get join command
       shell: kubeadm token create --print-join-command
       register: join_command_raw
 
-    - name: set join command
+    - name: Set join command
       set_fact:
         join_command: "{{ join_command_raw.stdout_lines[0] }}"
 
 - hosts: k8s_workers
   become: true
   tasks:
-    - name: join cluster
+    - name: Join cluster
       shell: "{{ hostvars[groups['k8s_master'].0].join_command }} >> node_joined.txt"
       args:
         chdir: $HOME
