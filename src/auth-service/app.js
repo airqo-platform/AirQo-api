@@ -36,7 +36,6 @@ app.use(express.static(path.join(__dirname, "public")));
 // app.use("/api/v2/users", apiV2);
 
 /****** the V1 endpoints ****************/
-app.use("/api/v1/users", routes.v1.users);
 app.use("/api/v1/users/networks", routes.v1.networks);
 app.use("/api/v1/user/groups", routes.v1.groups);
 app.use("/api/v1/users/permissions", routes.v1.permissions);
@@ -44,11 +43,11 @@ app.use("/api/v1/users/roles", routes.v1.roles);
 app.use("/api/v1/users/inquiries", routes.v1.inquiries);
 app.use("/api/v1/users/requests", routes.v1.requests);
 app.use("/api/v1/users/defaults", routes.v1.defaults);
-// app.use("/api/v1/users/tokens", routes.v1.tokens);
+app.use("/api/v1/users/tokens", routes.v1.tokens);
 // app.use("/api/v1/users/departments", routes.v1.departments);
+app.use("/api/v1/users", routes.v1.users);
 
 /****** the V2 endpoints ****************/
-app.use("/api/v2/users", routes.v2.users);
 app.use("/api/v2/users/networks", routes.v2.networks);
 app.use("/api/v2/user/groups", routes.v2.groups);
 app.use("/api/v2/users/permissions", routes.v2.permissions);
@@ -58,6 +57,7 @@ app.use("/api/v2/users/requests", routes.v2.requests);
 app.use("/api/v2/users/defaults", routes.v2.defaults);
 // app.use("/api/v2/users/tokens", routes.v2.tokens);
 // app.use("/api/v2/users/departments", routes.v2.departments);
+app.use("/api/v2/users", routes.v2.users);
 
 require("./config/firebase-admin");
 

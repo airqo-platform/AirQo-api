@@ -228,7 +228,6 @@ UserSchema.statics = {
   },
   async list({ skip = 0, limit = 5, filter = {} } = {}) {
     try {
-      logObject("the filteres", filter);
       const projectAll = {
         _id: 1,
         firstName: 1,

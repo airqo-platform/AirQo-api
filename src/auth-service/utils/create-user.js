@@ -333,18 +333,29 @@ const join = {
           success: true,
           message: responseFromRemoveUser.message,
           data: responseFromRemoveUser.data,
+          status: responseFromRemoveUser.status
+            ? responseFromRemoveUser.status
+            : "",
         };
       } else if (responseFromRemoveUser.success == false) {
         if (responseFromRemoveUser.error) {
           return {
             success: false,
             message: responseFromRemoveUser.message,
-            error: responseFromRemoveUser.error,
+            error: responseFromRemoveUser.error
+              ? responseFromRemoveUser.error
+              : "",
+            status: responseFromRemoveUser.status
+              ? responseFromRemoveUser.status
+              : "",
           };
         } else {
           return {
             success: false,
             message: responseFromRemoveUser.message,
+            status: responseFromRemoveUser.status
+              ? responseFromRemoveUser.status
+              : "",
           };
         }
       }
@@ -354,6 +365,7 @@ const join = {
         success: false,
         message: "util server error",
         error: e.message,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -415,10 +427,19 @@ const join = {
         const token = accessCodeGenerator
           .generate(constants.RANDOM_PASSWORD_CONFIGURATION(16))
           .toUpperCase();
+
+        const toMilliseconds = (hrs, min, sec) =>
+          (hrs * 60 * 60 + min * 60 + sec) * 1000;
+
+        const hrs = constants.EMAIL_VERIFICATION_HOURS;
+        const min = constants.EMAIL_VERIFICATION_MIN;
+        const sec = constants.EMAIL_VERIFICATION_SEC;
+
         const responseFromSaveToken = await AccessTokenModel(tenant).register({
           token,
           network_id,
           user_id: responseFromCreateUser.data._id,
+          expires: Date.now() + toMilliseconds(hrs, min, sec),
         });
 
         if (responseFromSaveToken.success === true) {
@@ -723,7 +744,7 @@ const join = {
         "responseFromCheckTokenValidity",
         responseFromCheckTokenValidity
       );
-      if (responseFromCheckTokenValidity.success == true) {
+      if (responseFromCheckTokenValidity.success === true) {
         let modifiedUpdate = {
           ...update,
           resetPasswordToken: null,
@@ -738,39 +759,39 @@ const join = {
           "responseFromUpdateUser in update forgotten password",
           responseFromUpdateUser
         );
-        if (responseFromUpdateUser.success == true) {
+        if (responseFromUpdateUser.success === true) {
           return {
             success: true,
             message: responseFromUpdateUser.message,
             data: responseFromUpdateUser.data,
           };
-        } else if (responseFromUpdateUser == false) {
-          if (responseFromUpdateUser.error) {
-            return {
-              success: false,
-              message: responseFromUpdateUser.message,
-              error: responseFromUpdateUser.error,
-            };
-          } else {
-            return {
-              success: true,
-              message: responseFromUpdateUser.message,
-            };
-          }
-        }
-      } else if (responseFromCheckTokenValidity.success == false) {
-        if (responseFromCheckTokenValidity.error) {
+        } else if (responseFromUpdateUser === false) {
           return {
             success: false,
-            message: responseFromCheckTokenValidity.message,
-            error: responseFromCheckTokenValidity.error,
-          };
-        } else {
-          return {
-            success: false,
-            message: responseFromCheckTokenValidity.message,
+            status: responseFromUpdateUser.status
+              ? responseFromUpdateUser.status
+              : "",
+            message: responseFromUpdateUser.message
+              ? responseFromUpdateUser.message
+              : "",
+            error: responseFromUpdateUser.error
+              ? responseFromUpdateUser.error
+              : "",
           };
         }
+      } else if (responseFromCheckTokenValidity.success === false) {
+        return {
+          success: false,
+          status: responseFromCheckTokenValidity.status
+            ? responseFromCheckTokenValidity.status
+            : "",
+          message: responseFromCheckTokenValidity.message
+            ? responseFromCheckTokenValidity.message
+            : "",
+          error: responseFromCheckTokenValidity.error
+            ? responseFromCheckTokenValidity.error
+            : "",
+        };
       }
     } catch (error) {
       logElement("update forgotten password", error.message);
@@ -778,6 +799,7 @@ const join = {
         success: false,
         message: "util server error",
         error: error.message,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },

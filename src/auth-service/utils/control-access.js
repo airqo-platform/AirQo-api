@@ -3,16 +3,12 @@ const AccessTokenSchema = require("../models/AccessToken");
 const UserSchema = require("../models/User");
 const RoleSchema = require("../models/Role");
 const httpStatus = require("http-status");
-const generateFilter = require("./generate-filter");
 const mongoose = require("mongoose").set("debug", true);
-const ObjectId = mongoose.Types.ObjectId;
-const createUserUtil = require("./create-user");
-const msgTemplates = require("./email.templates");
 const accessCodeGenerator = require("generate-password");
-
 const { getModelByTenant } = require("../utils/multitenancy");
 const { logObject, logElement, logText } = require("../utils/log");
 const mailer = require("./mailer");
+const generateFilter = require("@utils/generate-filter");
 
 const UserModel = (tenant) => {
   try {
@@ -55,6 +51,7 @@ const RoleModel = (tenant) => {
 };
 
 const controlAccess = {
+  /*** email verification *******************************************/
   verifyEmail: async (request) => {
     try {
       const { query, params } = request;
@@ -83,7 +80,12 @@ const controlAccess = {
           };
         } else if (responseFromListUsers.status === httpStatus.OK) {
           const user = responseFromListUsers.data[0];
-          filter = { token };
+          filter = {
+            token,
+            expires: {
+              $gt: Date.now(),
+            },
+          };
           const responseFromListAccessToken = await AccessTokenModel(
             tenant
           ).list({ skip, limit, filter });
@@ -102,8 +104,13 @@ const controlAccess = {
               const password = accessCodeGenerator.generate(
                 constants.RANDOM_PASSWORD_CONFIGURATION(10)
               );
-              let update = { verified: true, password };
+              let update = {
+                verified: true,
+                password,
+                $pull: { tokens: { $in: [token] } },
+              };
               filter = { _id: user_id };
+
               const responseFromUpdateUser = await UserModel(tenant).modify({
                 filter,
                 update,
@@ -112,6 +119,7 @@ const controlAccess = {
               logObject("responseFromUpdateUser", responseFromUpdateUser);
               if (responseFromUpdateUser.success === true) {
                 filter = { token };
+
                 logObject("the deletion of the token filter", filter);
                 const responseFromDeleteToken = await AccessTokenModel(
                   tenant
@@ -197,7 +205,8 @@ const controlAccess = {
       };
     }
   },
-  /***hashing */
+
+  /******* hashing ******************************************/
   hash: (string) => {
     try {
       crypto.createHash("sha256").update(string).digest("base64");
@@ -208,14 +217,28 @@ const controlAccess = {
       Object.is(first_item, second_item);
     } catch (error) {}
   },
-  /**access tokens */
+
+  /******** access tokens ******************************************/
   updateAccessToken: async (request) => {
     try {
       const { query, body } = request;
       const responseFromUpdateToken = await AccessTokenModel(
         tenant.toLowerCase()
       ).modify({ filter, update });
-    } catch (error) {}
+
+      if (responseFromUpdateToken.success === true) {
+        return responseFromUpdateToken;
+      } else if (responseFromUpdateToken.success === false) {
+        return responseFromUpdateToken;
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
   },
 
   deleteAccessToken: async (request) => {
@@ -224,34 +247,77 @@ const controlAccess = {
       const responseFromDeleteToken = await AccessTokenModel(
         tenant.toLowerCase()
       ).delete({ filter });
-    } catch (error) {}
+
+      if (responseFromDeleteToken.success === true) {
+        return responseFromDeleteToken;
+      } else if (responseFromDeleteToken.success == false) {
+        return responseFromDeleteToken;
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
   },
 
-  listAccessTokens: async (request) => {
+  listAccessToken: async (request) => {
     try {
-      const { query, body } = request;
+      const { query } = request;
+      const { tenant } = query;
+      const limit = parseInt(request.query.limit, 0);
+      const skip = parseInt(request.query.skip, 0);
+      let filter = {};
+      const responseFromGenerateFilter = generateFilter.tokens(request);
+      if (responseFromGenerateFilter.success === false) {
+        return responseFromGenerateFilter;
+      } else {
+        filter = responseFromGenerateFilter;
+      }
+      logObject("the filter man!", filter);
       const responseFromListToken = await AccessTokenModel(
         tenant.toLowerCase()
       ).list({ skip, limit, filter });
-    } catch (error) {}
+      if (responseFromListToken.success === true) {
+        return responseFromListToken;
+      } else if (responseFromListToken.success === false) {
+        return responseFromListToken;
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
   },
 
-  createAccessTokens: async (request) => {
+  createAccessToken: async (request) => {
     try {
       const { query, body } = request;
       const responseFromCreateToken = await AccessTokenModel(
         tenant.toLowerCase()
       ).register(body);
+
+      if (responseFromCreateToken.success === true) {
+        return responseFromCreateToken;
+      } else if (responseFromCreateToken.success === false) {
+        return responseFromCreateToken;
+      }
     } catch (error) {
       return {
         success: false,
-        message: "internal server error",
+        message: "Internal Server Error",
         errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
 
-  /** roles */
+  /******* roles *******************************************/
   listRole: async (request) => {
     try {
       const { query, params } = request;
@@ -338,9 +404,6 @@ const controlAccess = {
     }
   },
 
-  /***
-   * others for role.....
-   */
   listUserWithRole: async (req, res) => {
     try {
     } catch (error) {
@@ -429,7 +492,7 @@ const controlAccess = {
     }
   },
 
-  /** permissions */
+  /******* permissions *******************************************/
   listPermission: async (request) => {
     try {
       const { query } = request;

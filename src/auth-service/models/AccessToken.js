@@ -30,6 +30,7 @@ const AccessTokenSchema = new mongoose.Schema(
     last_used_at: { type: Date },
     last_ip_address: { type: Date },
     expires_in: { type: Number },
+    expires: { type: Date, required: [true, "expiry date is required!"] },
   },
   { timestamps: true }
 );
@@ -65,33 +66,37 @@ AccessTokenSchema.index({ token: 1 }, { unique: true });
 
 AccessTokenSchema.statics = {
   async findToken(authorizationToken) {
-    if (authorizationToken) {
-      let accessToken;
-      if (!authorizationToken.includes("|")) {
-        accessToken = await this.findOne({
-          where: { token: hash(authorizationToken) },
-          include: "owner",
-        });
-      } else {
-        const [id, kToken] = authorizationToken.split("|", 2);
-        const instance = await this.findByPk(id, { include: "owner" });
-        if (instance) {
-          accessToken = hash_compare(instance.token, hash(kToken))
-            ? instance
-            : null;
-        }
-      }
-
-      if (!accessToken) return { user: null, currentAccessToken: null };
-
-      accessToken.last_used_at = new Date(Date.now());
-      await accessToken.save();
-      return { user: accessToken.owner, currentAccessToken: accessToken.token };
-    }
-
-    return { user: null, currentAccessToken: null };
     try {
-    } catch (error) {}
+      if (authorizationToken) {
+        let accessToken;
+        if (!authorizationToken.includes("|")) {
+          accessToken = await this.findOne({
+            where: { token: hash(authorizationToken) },
+            include: "owner",
+          });
+        } else {
+          const [id, kToken] = authorizationToken.split("|", 2);
+          const instance = await this.findByPk(id, { include: "owner" });
+          if (instance) {
+            accessToken = hash_compare(instance.token, hash(kToken))
+              ? instance
+              : null;
+          }
+        }
+
+        if (!accessToken) return { user: null, currentAccessToken: null };
+
+        accessToken.last_used_at = new Date(Date.now());
+        await accessToken.save();
+        return {
+          user: accessToken.owner,
+          currentAccessToken: accessToken.token,
+        };
+      }
+      return { user: null, currentAccessToken: null };
+    } catch (error) {
+      logObject("an error", error);
+    }
   },
   async register(args) {
     try {
@@ -120,7 +125,6 @@ AccessTokenSchema.statics = {
           return (response[key] = `the ${key} must be unique`);
         });
       }
-
       return {
         error: response,
         message,
@@ -132,6 +136,8 @@ AccessTokenSchema.statics = {
 
   async list({ skip = 0, limit = 5, filter = {} } = {}) {
     try {
+      logObject("filtering here", filter);
+
       const response = await this.aggregate()
         .match(filter)
         .lookup({
@@ -151,9 +157,31 @@ AccessTokenSchema.statics = {
           last_ip_address: 1,
           user: { $arrayElemAt: ["$users", 0] },
         })
+        .project({
+          "user._id": 0,
+          "user.notifications": 0,
+          "user.verified": 0,
+          "user.networks": 0,
+          "user.groups": 0,
+          "user.roles": 0,
+          "user.permissions": 0,
+          "user.locationCount": 0,
+          "user.userName": 0,
+          "user.password": 0,
+          "user.long_organization": 0,
+          "user.privilege": 0,
+          "user.duration": 0,
+          "user.createdAt": 0,
+          "user.updatedAt": 0,
+          "user.__v": 0,
+          "user.resetPasswordExpires": 0,
+          "user.resetPasswordToken": 0,
+        })
         .skip(skip ? skip : 0)
         .limit(limit ? limit : 100)
         .allowDiskUse(true);
+
+      logObject("the response", response);
       if (!isEmpty(response)) {
         let data = response;
         return {
@@ -206,7 +234,7 @@ AccessTokenSchema.statics = {
       return {
         success: false,
         message: "Token model server error - modify",
-        error: error.message,
+        error: { message: error.message },
       };
     }
   },

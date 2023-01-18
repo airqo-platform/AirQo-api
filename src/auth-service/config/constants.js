@@ -28,6 +28,9 @@ const stageConfig = {
 };
 
 const defaultConfig = {
+  EMAIL_VERIFICATION_HOURS: 0.5,
+  EMAIL_VERIFICATION_MIN: 0,
+  EMAIL_VERIFICATION_SEC: 0,
   DEFAULT_TENANT: "airqo",
   TWITTER_ACCOUNT: "https://twitter.com/AirQoProject",
   SLACK_TOKEN: process.env.SLACK_TOKEN,

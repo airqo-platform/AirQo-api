@@ -640,41 +640,45 @@ const createUser = {
           filter
         );
         if (responseFromRemoveUser.success === true) {
-          return res.status(HTTPStatus.OK).json({
+          const status = responseFromRemoveUser.status
+            ? responseFromRemoveUser.status
+            : HTTPStatus.OK;
+          return res.status(status).json({
             success: true,
-            message: responseFromRemoveUser.message,
+            message: responseFromRemoveUser.message
+              ? responseFromRemoveUser.message
+              : "",
             user: responseFromRemoveUser.data,
           });
         } else if (responseFromRemoveUser.success === false) {
-          if (responseFromRemoveUser.error) {
-            return res.status(HTTPStatus.BAD_GATEWAY).json({
-              success: false,
-              message: responseFromRemoveUser.message,
-              error: responseFromRemoveUser.error,
-            });
-          } else {
-            return res.status(HTTPStatus.BAD_GATEWAY).json({
-              success: false,
-              message: responseFromRemoveUser.message,
-            });
-          }
+          const status = responseFromRemoveUser.status
+            ? responseFromRemoveUser.status
+            : HTTPStatus.INTERNAL_SERVER_ERROR;
+          return res.status(status).json({
+            success: false,
+            message: responseFromRemoveUser.message
+              ? responseFromRemoveUser.message
+              : "",
+            error: responseFromRemoveUser.error
+              ? responseFromRemoveUser.error
+              : "",
+          });
         }
       } else if (responseFromFilter.success === false) {
-        if (responseFromFilter.error) {
-          res.status(HTTPStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromFilter.message,
-            error: responseFromFilter.error,
-          });
-        } else {
-          res.status(HTTPStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromFilter.message,
-          });
-        }
+        const status = responseFromFilter.status
+          ? responseFromFilter.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        res.status(status).json({
+          success: false,
+          message: responseFromFilter.message ? responseFromFilter.message : "",
+          error: responseFromFilter.error ? responseFromFilter.error : "",
+        });
       }
     } catch (error) {
-      tryCatchErrors(res, error, "createUser controller");
+      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        message: "Internal Server Error",
+        error: error.message,
+      });
     }
   },
 

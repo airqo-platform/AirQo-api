@@ -347,7 +347,6 @@ router.put(
         .trim(),
     ],
   ]),
-
   setJWTAuth,
   createUserController.updateForgottenPassword
 );

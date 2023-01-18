@@ -1,7 +1,7 @@
 const { logElement, logObject } = require("./log");
 const mongoose = require("mongoose").set("debug", true);
 const ObjectId = mongoose.Types.ObjectId;
-
+const httpStatus = require("http-status");
 const constants = require("../config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
@@ -346,6 +346,40 @@ const filter = {
         success: false,
         message: "Internal Server Error",
         errors: { message: e.message },
+      };
+    }
+  },
+
+  tokens: (req) => {
+    try {
+      const { query, params } = req;
+      const { id } = query;
+      const { token_id, user_id, network_id } = params;
+      let filter = {};
+
+      if (id) {
+        filter["_id"] = ObjectId(id);
+      }
+
+      if (token_id) {
+        filter["_id"] = ObjectId(token_id);
+      }
+
+      if (network_id) {
+        filter["network_id"] = ObjectId(network_id);
+      }
+
+      if (user_id) {
+        filter[" user_id"] = ObjectId(user_id);
+      }
+
+      return filter;
+    } catch (e) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: e.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
