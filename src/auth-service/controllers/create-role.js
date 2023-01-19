@@ -5,12 +5,13 @@ const controlAccessUtil = require("../utils/control-access");
 const { logText, logElement, logObject, logError } = require("../utils/log");
 const httpStatus = require("http-status");
 const isEmpty = require("is-empty");
+const constants = require("../config/constants");
 
 const createRole = {
   list: async (req, res) => {
     try {
       const { query } = req;
-      let { tenant } = query;
+      const { tenant } = query;
       const hasErrors = !validationResult(req).isEmpty();
       logObject("hasErrors", hasErrors);
       if (hasErrors) {
@@ -25,7 +26,7 @@ const createRole = {
       let request = req;
 
       if (isEmpty(tenant)) {
-        request.query.tenant = "airqo";
+        request.query.tenant = constants.DEFAULT_TENANT;
       }
 
       const responseFromListRole = await controlAccessUtil.listRole(request);
@@ -82,7 +83,7 @@ const createRole = {
 
       let request = req;
       if (isEmpty(tenant)) {
-        request.query.tenant = "airqo";
+        request.query.tenant = constants.DEFAULT_TENANT;
       }
       const responseFromCreateRole = await controlAccessUtil.createRole(
         request
@@ -104,6 +105,9 @@ const createRole = {
         return res.status(status).json({
           success: false,
           message: responseFromCreateRole.message,
+          errors: responseFromCreateRole.errors
+            ? responseFromCreateRole.errors
+            : { message: "" },
         });
       }
     } catch (error) {
@@ -133,7 +137,7 @@ const createRole = {
 
       let request = req;
       if (isEmpty(tenant)) {
-        request.query.tenant = "airqo";
+        request.query.tenant = constants.DEFAULT_TENANT;
       }
 
       const responseFromUpdateRole = await controlAccessUtil.updateRole(
@@ -187,7 +191,7 @@ const createRole = {
 
       let request = req;
       if (isEmpty(tenant)) {
-        request.query.tenant = "airqo";
+        request.query.tenant = constants.DEFAULT_TENANT;
       }
       const responseFromDeleteRole = await controlAccessUtil.deleteRole(
         request
@@ -228,6 +232,8 @@ const createRole = {
 
   listUsersWithRole: async (req, res) => {
     try {
+      const { query } = req;
+      const { tenant } = query;
       const hasErrors = !validationResult(req).isEmpty();
       logObject("hasErrors", hasErrors);
       if (hasErrors) {
@@ -238,11 +244,17 @@ const createRole = {
           convertErrorArrayToObject(nestedErrors)
         );
       }
-      const responseFromGetUsers = {
-        message: "users successfully retrieved",
-        success: true,
-        data: [{ firstName: "yeah one" }, { firstName: "yeah two" }],
-      };
+
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT;
+      }
+
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
+
+      const responseFromGetUsers = await controlAccessUtil.listUsersWithRole(
+        request
+      );
 
       if (responseFromGetUsers.success === true) {
         const status = responseFromGetUsers.status
@@ -279,6 +291,8 @@ const createRole = {
 
   listAvailableUsersForRole: async (req, res) => {
     try {
+      const { query, body } = req;
+      const { tenant } = query;
       const hasErrors = !validationResult(req).isEmpty();
       logObject("hasErrors", hasErrors);
       if (hasErrors) {
@@ -295,12 +309,14 @@ const createRole = {
        * use an appropriate Mongo DB filter for this
        */
 
-      const responseFromGetUsers = {
-        success: true,
-        message: "successfully listed the users",
-        data: [{ firstName: "me too" }, { firstName: "me three" }],
-        status: httpStatus.OK,
-      };
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT;
+      }
+      let request = Object({}, req);
+      request["query"]["tenant"] = tenant;
+
+      const responseFromGetUsers =
+        await controlAccessUtil.listAvailableUsersForRole(request);
 
       if (responseFromGetUsers.success === true) {
         const status = responseFromGetUsers.status
@@ -335,6 +351,8 @@ const createRole = {
 
   assignUserToRole: async (req, res) => {
     try {
+      const { query, body } = req;
+      const { tenant } = query;
       const hasErrors = !validationResult(req).isEmpty();
       logObject("hasErrors", hasErrors);
       if (hasErrors) {
@@ -349,12 +367,16 @@ const createRole = {
        * just update the user's role
        * Note that the "admin" user may not be reassigned to a different role
        */
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT;
+      }
 
-      const responseFromUpdateUser = {
-        success: true,
-        message: "successfully updated user",
-        data: [{ firstName: "yeah" }],
-      };
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
+
+      const responseFromUpdateUser = await controlAccessUtil.assignUserToRole(
+        request
+      );
 
       if (responseFromUpdateUser.success === true) {
         const status = responseFromUpdateUser.status
@@ -389,6 +411,8 @@ const createRole = {
 
   unAssignUserFromRole: async (req, res) => {
     try {
+      const { query, body } = req;
+      const { tenant } = query;
       const hasErrors = !validationResult(req).isEmpty();
       logObject("hasErrors", hasErrors);
       if (hasErrors) {
@@ -406,11 +430,13 @@ const createRole = {
        * send error message of 400 in case user was not assigned to that role
        */
 
-      const responseFromUpdateUser = {
-        success: true,
-        message: "successfully updated the user",
-        data: [{ firstName: "yokana" }],
-      };
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT;
+      }
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
+      const responseFromUpdateUser =
+        await controlAccessUtil.unAssignUserFromRole(request);
 
       if (responseFromUpdateUser.success === true) {
         const status = responseFromUpdateUser.status
@@ -446,6 +472,8 @@ const createRole = {
 
   listPermissionsForRole: async (req, res) => {
     try {
+      const { query, body } = req;
+      const { tenant } = query;
       const hasErrors = !validationResult(req).isEmpty();
       logObject("hasErrors", hasErrors);
       if (hasErrors) {
@@ -456,23 +484,14 @@ const createRole = {
           convertErrorArrayToObject(nestedErrors)
         );
       }
-      const responseFromListPermissions = {
-        success: true,
-        message: "successfully listed the permissions",
-        status: httpStatus.OK,
-        data: [
-          {
-            per_uid: "00000000000000000000000000000001",
-            per_code: "AIRQO_LOGIN",
-            per_name: "sfsfsf",
-          },
-          {
-            per_uid: "00000000000000000000000000000005",
-            per_code: "AIRQO_CASES",
-            per_name: "afasfa",
-          },
-        ],
-      };
+
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT;
+      }
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
+      const responseFromListPermissions =
+        await controlAccessUtil.listPermissionsForRole(request);
 
       if (responseFromListPermissions.success === true) {
         const status = responseFromListPermissions.status
@@ -509,6 +528,8 @@ const createRole = {
 
   listAvailablePermissionsForRole: async (req, res) => {
     try {
+      const { query, body } = req;
+      const { tenant } = query;
       const hasErrors = !validationResult(req).isEmpty();
       logObject("hasErrors", hasErrors);
       if (hasErrors) {
@@ -519,27 +540,13 @@ const createRole = {
           convertErrorArrayToObject(nestedErrors)
         );
       }
-      /**
-       * Get a list of the available permissions,
-       * which can be assigned to a specified role.
-       */
-      const responseForListOfPermissions = {
-        success: true,
-        message: "successfully listed the permissions",
-        status: httpStatus.OK,
-        data: [
-          {
-            per_uid: "00000000000000000000000000000006",
-            per_code: "AIRQO_ALLCASES",
-            per_name: "sfsgsgsgs",
-          },
-          {
-            per_uid: "00000000000000000000000000000018",
-            per_code: "AIRQO_CANCELCASE",
-            per_name: "sfvbshs",
-          },
-        ],
-      };
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT;
+      }
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
+      const responseForListOfPermissions =
+        await controlAccessUtil.listAvailablePermissionsForRole(request);
 
       if (responseForListOfPermissions.success === true) {
         const status = responseForListOfPermissions.status
@@ -574,6 +581,8 @@ const createRole = {
 
   assignPermissionToRole: async (req, res) => {
     try {
+      const { query, body } = req;
+      const { tenant } = query;
       const hasErrors = !validationResult(req).isEmpty();
       logObject("hasErrors", hasErrors);
       if (hasErrors) {
@@ -584,28 +593,15 @@ const createRole = {
           convertErrorArrayToObject(nestedErrors)
         );
       }
-      const responseFromUpdateRole = {
-        success: true,
-        message: "successfully updated role",
-        status: httpStatus.OK,
-        data: [
-          {
-            role_name: "",
-            role_permissions: [
-              {
-                per_uid: "00000000000000000000000000000006",
-                per_code: "AIRQO_ALLCASES",
-                per_name: "sfsgsgsgs",
-              },
-              {
-                per_uid: "00000000000000000000000000000018",
-                per_code: "AIRQO_CANCELCASE",
-                per_name: "sfvbshs",
-              },
-            ],
-          },
-        ],
-      };
+
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT;
+      }
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
+
+      const responseFromUpdateRole =
+        await controlAccessUtil.assignPermissionToRole(request);
 
       if (responseFromUpdateRole.success === true) {
         const status = responseFromUpdateRole.status
@@ -641,6 +637,8 @@ const createRole = {
 
   unAssignPermissionFromRole: async (req, res) => {
     try {
+      const { query, body } = req;
+      const { tenant } = query;
       const hasErrors = !validationResult(req).isEmpty();
       logObject("hasErrors", hasErrors);
       if (hasErrors) {
@@ -652,24 +650,14 @@ const createRole = {
         );
       }
 
-      const responseFromUnAssignPermissionFromRole = {
-        success: true,
-        message: "successfully updated the role",
-        status: httpStatus.OK,
-        data: [
-          {
-            role_name: "qwfwww",
-            role_code: "wfwww",
-            role_permissions: [
-              {
-                per_uid: "00000000000000000000000000000006",
-                per_code: "AIRQO_ALLCASES",
-                per_name: "sfsgsgsgs",
-              },
-            ],
-          },
-        ],
-      };
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT;
+      }
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
+
+      const responseFromUnAssignPermissionFromRole =
+        await controlAccessUtil.unAssignPermissionFromRole(request);
 
       if (responseFromUnAssignPermissionFromRole.success === true) {
         const status = responseFromUnAssignPermissionFromRole.status
