@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const createNetworkController = require("@controllers/create-network");
+const createGroupController = require("@controllers/create-group");
 const { check, oneOf, query, body, param } = require("express-validator");
 const { setJWTAuth, authJWT } = require("@middleware/passport");
 
@@ -50,7 +50,7 @@ router.delete(
   ]),
   setJWTAuth,
   authJWT,
-  createNetworkController.delete
+  createGroupController.delete
 );
 
 router.put(
@@ -147,7 +147,7 @@ router.put(
   ]),
   setJWTAuth,
   authJWT,
-  createNetworkController.update
+  createGroupController.update
 );
 
 router.put(
@@ -193,7 +193,7 @@ router.put(
   ]),
   setJWTAuth,
   authJWT,
-  createNetworkController.update
+  createGroupController.update
 );
 
 router.get(
@@ -221,7 +221,7 @@ router.get(
         return ObjectId(value);
       }),
   ]),
-  createNetworkController.list
+  createGroupController.list
 );
 
 router.get(
@@ -249,7 +249,7 @@ router.get(
         return ObjectId(value);
       }),
   ]),
-  createNetworkController.list
+  createGroupController.list
 );
 
 router.get(
@@ -277,7 +277,7 @@ router.get(
         return ObjectId(value);
       }),
   ]),
-  createNetworkController.listAssignedUsers
+  createGroupController.listUsersWithGroup
 );
 
 router.get(
@@ -305,7 +305,7 @@ router.get(
         return ObjectId(value);
       }),
   ]),
-  createNetworkController.listAvailableUsers
+  createGroupController.listAvailableUsersForGroup
 );
 
 router.post(
@@ -383,7 +383,7 @@ router.post(
   ]),
   setJWTAuth,
   authJWT,
-  createNetworkController.create
+  createGroupController.create
 );
 
 router.post(
@@ -432,38 +432,7 @@ router.post(
   ]),
   setJWTAuth,
   authJWT,
-  createNetworkController.update
-);
-
-router.post(
-  "/find",
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant cannot be empty if provided")
-        .bail()
-        .trim()
-        .toLowerCase()
-        .isIn(["kcca", "airqo"])
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-  oneOf([
-    [
-      body("email")
-        .exists()
-        .withMessage("the organization's email address is required")
-        .bail()
-        .isEmail()
-        .withMessage("This is not a valid email address")
-        .trim(),
-    ],
-  ]),
-  setJWTAuth,
-  authJWT,
-  createNetworkController.getNetworkFromEmail
+  createGroupController.update
 );
 
 router.delete(
@@ -509,7 +478,7 @@ router.delete(
   ]),
   setJWTAuth,
   authJWT,
-  createNetworkController.update
+  createGroupController.update
 );
 
 module.exports = router;

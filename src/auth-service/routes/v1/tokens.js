@@ -55,37 +55,29 @@ router.post(
   ]),
   oneOf([
     [
-      body("firstName")
+      body("user_id")
         .exists()
-        .withMessage("firstName is missing in your request")
+        .withMessage("the user ID is missing in request")
         .bail()
-        .trim(),
-      body("lastName")
+        .notEmpty()
+        .withMessage("this user ID cannot be empty")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("user_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("expires")
         .exists()
-        .withMessage("lastName is missing in your request")
+        .withMessage("expires is missing")
         .bail()
-        .trim(),
-      body("email")
-        .exists()
-        .withMessage("email is missing in your request")
+        .notEmpty()
+        .withMessage("expires cannot be empty")
         .bail()
-        .isEmail()
-        .withMessage("this is not a valid email address")
-        .trim(),
-      body("organization")
-        .exists()
-        .withMessage("organization is missing in your request")
-        .bail()
-        .trim(),
-      body("long_organization")
-        .exists()
-        .withMessage("long_organization is missing in your request")
-        .bail()
-        .trim(),
-      body("privilege")
-        .exists()
-        .withMessage("privilege is missing in your request")
-        .bail()
+        .isISO8601({ strict: true, strictSeparator: true })
+        .withMessage("expires must be a valid datetime.")
         .trim(),
     ],
   ]),
@@ -110,11 +102,11 @@ router.put(
   oneOf([
     param("token_id")
       .exists()
-      .withMessage("the user ID parameter is missing in the request")
+      .withMessage("the token ID parameter is missing in the request")
       .bail()
       .trim()
       .isMongoId()
-      .withMessage("id must be an object ID")
+      .withMessage("token_id must be an object ID")
       .bail()
       .customSanitizer((value) => {
         return ObjectId(value);
@@ -122,19 +114,28 @@ router.put(
   ]),
   oneOf([
     [
-      body("networks")
+      body("user_id")
         .optional()
-        .custom((value) => {
-          return Array.isArray(value);
-        })
-        .withMessage("the networks should be an array")
-        .bail()
+        .trim()
         .notEmpty()
-        .withMessage("the networks should not be empty"),
-      body("networks.*")
-        .optional()
+        .withMessage("this user ID cannot be empty if provideds")
+        .bail()
+        .trim()
         .isMongoId()
-        .withMessage("each network should be an object ID"),
+        .withMessage("user_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("expires")
+        .optional()
+        .trim()
+        .notEmpty()
+        .withMessage("expires cannot be empty if provided")
+        .bail()
+        .isISO8601({ strict: true, strictSeparator: true })
+        .withMessage("expires must be a valid datetime.")
+        .trim(),
     ],
   ]),
   setJWTAuth,

@@ -148,6 +148,32 @@ router.put(
         }),
     ],
   ]),
+  oneOf([
+    [
+      body("role_name")
+        .optional()
+        .trim()
+        .notEmpty()
+        .withMessage("this role_name cannot be empty if provided")
+        .trim(),
+      body("role_code")
+        .optional()
+        .trim()
+        .notEmpty()
+        .withMessage("this role_code cannot be empty if provided")
+        .trim(),
+      body("role_status")
+        .optional()
+        .notEmpty()
+        .withMessage("role_status should not be empty if provided")
+        .bail()
+        .isIn(["ACTIVE", "INACTIVE"])
+        .withMessage(
+          "the role_status value is not among the expected ones: ACTIVE or INACTIVE"
+        )
+        .trim(),
+    ],
+  ]),
   setJWTAuth,
   authJWT,
   createRoleController.update
@@ -224,7 +250,7 @@ router.get(
 );
 
 router.get(
-  "/:role_id/available_users",
+  "/:role_id/available-users",
   oneOf([
     [
       query("tenant")
@@ -402,7 +428,7 @@ router.get(
 );
 
 router.get(
-  "/:role_id/available_permissions",
+  "/:role_id/available-permissions",
   oneOf([
     [
       query("tenant")
