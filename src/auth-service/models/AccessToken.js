@@ -194,7 +194,7 @@ AccessTokenSchema.statics = {
         return {
           success: true,
           message: "token/s do not exist, please crosscheck",
-          status: HTTPStatus.NO_CONTENT,
+          status: HTTPStatus.NOT_FOUND,
           data: [],
         };
       }
@@ -212,6 +212,11 @@ AccessTokenSchema.statics = {
     try {
       let options = { new: true };
       let modifiedUpdate = update;
+      /**
+       * We could delete the userID from here
+       * Should the user ID be deleted?
+       */
+      delete modifiedUpdate.user_id;
       let updatedToken = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,
@@ -266,7 +271,8 @@ AccessTokenSchema.statics = {
         return {
           success: true,
           message: "Token does not exist, please crosscheck",
-          status: httpStatus.NO_CONTENT,
+          status: httpStatus.NOT_FOUND,
+          data: [],
         };
       } else {
         return {
@@ -298,6 +304,7 @@ AccessTokenSchema.methods = {
       name: this.name,
       last_used_at: this.last_used_at,
       last_ip_address: this.last_ip_address,
+      expires: this.expires,
     };
   },
 };

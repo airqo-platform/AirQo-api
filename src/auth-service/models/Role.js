@@ -2,6 +2,7 @@ const mongoose = require("mongoose").set("debug", true);
 const { logObject, logText } = require("../utils/log");
 const isEmpty = require("is-empty");
 const HTTPStatus = require("http-status");
+const httpStatus = require("http-status");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 
 const RoleSchema = new mongoose.Schema(
@@ -9,6 +10,7 @@ const RoleSchema = new mongoose.Schema(
     role_name: {
       type: String,
       required: [true, "name is required"],
+      unique: true,
     },
     role_status: {
       type: String,
@@ -18,6 +20,7 @@ const RoleSchema = new mongoose.Schema(
     role_code: {
       type: String,
       trim: true,
+      unique: true,
     },
     role_permissions: [
       {
@@ -62,7 +65,7 @@ RoleSchema.pre("update", function (next) {
   return next();
 });
 
-RoleSchema.index({ role_name: 1 }, { unique: true });
+RoleSchema.index({ role_name: 1, role_code: 1 }, { unique: true });
 
 RoleSchema.statics = {
   async register(args) {
@@ -93,10 +96,23 @@ RoleSchema.statics = {
         Object.entries(err.keyValue).forEach(([key, value]) => {
           return (response[key] = `the ${key} must be unique`);
         });
+      } else if (err.errors) {
+        Object.entries(err.errors).forEach(([key, value]) => {
+          return (response[key] = value.message);
+        });
+      } else if (err.code === 11000) {
+        logObject("JSON.parse(err)", JSON.parse(err));
+        const duplicate_record = args.role_name
+          ? args.role_name
+          : args.role_code;
+        response[duplicate_record] = `${duplicate_record} must be unique`;
+        response["message"] =
+          "the role_name and role_code must be unique for every role";
       }
 
       return {
         error: response,
+        errors: response,
         message,
         success: false,
         status,
@@ -201,11 +217,15 @@ RoleSchema.statics = {
           success: true,
           message: "successfully removed the Role",
           data,
+          status: httpStatus.OK,
         };
       } else {
         return {
           success: false,
           message: "Role does not exist, please crosscheck",
+          data: [],
+          status: httpStatus.NOT_FOUND,
+          errors: { message: "Role does not exist, please crosscheck" },
         };
       }
     } catch (error) {
@@ -213,6 +233,8 @@ RoleSchema.statics = {
         success: false,
         message: "Role model server error - remove",
         error: error.message,
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },

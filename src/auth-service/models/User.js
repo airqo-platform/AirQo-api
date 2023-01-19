@@ -32,6 +32,13 @@ const UserSchema = new Schema(
     address: { type: String },
     country: { type: String },
     city: { type: String },
+    department_id: {
+      type: ObjectId,
+      ref: "department",
+    },
+    birthday: { type: Date },
+    reports_to: { type: ObjectId, ref: "user" },
+    replaced_by: { type: ObjectId, ref: "user" },
     email: {
       type: String,
       unique: true,
@@ -90,12 +97,6 @@ const UserSchema = new Schema(
       {
         type: ObjectId,
         ref: "group",
-      },
-    ],
-    roles: [
-      {
-        type: ObjectId,
-        ref: "role",
       },
     ],
     role: {
@@ -196,7 +197,7 @@ UserSchema.statics = {
           success: true,
           data,
           message: "operation successful but user NOT successfully created",
-          status: httpStatus.NO_CONTENT,
+          status: httpStatus.NOT_FOUND,
         };
       }
     } catch (err) {
@@ -242,7 +243,6 @@ UserSchema.statics = {
         networks: "$networks",
         access_tokens: "$access_tokens",
         permissions: "$permissions",
-        roles: "$roles",
       };
 
       const projectSummary = {};
@@ -275,9 +275,9 @@ UserSchema.statics = {
         })
         .lookup({
           from: "roles",
-          localField: "roles",
+          localField: "role",
           foreignField: "_id",
-          as: "roles",
+          as: "role",
         })
         .sort({ createdAt: -1 })
         .project(projectAll)
@@ -311,10 +311,10 @@ UserSchema.statics = {
           "permissions.updatedAt": 0,
         })
         .project({
-          "roles.__v": 0,
-          "roles._id": 0,
-          "roles.createdAt": 0,
-          "roles.updatedAt": 0,
+          "role.__v": 0,
+          "role._id": 0,
+          "role.createdAt": 0,
+          "role.updatedAt": 0,
         })
         .project({
           "groups.__v": 0,
@@ -339,7 +339,7 @@ UserSchema.statics = {
           success: true,
           message: "no users exist",
           data: [],
-          status: HTTPStatus.NO_CONTENT,
+          status: HTTPStatus.NOT_FOUND,
         };
       }
     } catch (error) {
