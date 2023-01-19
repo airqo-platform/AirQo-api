@@ -8,8 +8,6 @@ dotenv.config();
 const cookieParser = require("cookie-parser");
 const bodyParser = require("body-parser");
 const routes = require("./routes/index");
-// const apiV1 = require("./routes/api-v1");
-// const apiV2 = require("./routes/api-v2");
 const constants = require("./config/constants");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- app entry`);
 const mongodb = require("./config/dbConnection");
@@ -31,9 +29,6 @@ app.use(bodyParser.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, "public")));
 // app.use(bindCurrentNamespace);
-
-// app.use("/api/v1/users", apiV1);
-// app.use("/api/v2/users", apiV2);
 
 /****** the V1 endpoints ****************/
 app.use("/api/v1/users/networks", routes.v1.networks);
