@@ -1,6 +1,8 @@
 from airflow.decorators import dag, task
 
 from airqo_etl_utils.airflow_custom_utils import AirflowUtils
+from airqo_etl_utils.airqo_api import AirQoApi
+from airqo_etl_utils.constants import Tenant
 
 
 @dag(
@@ -97,6 +99,14 @@ def airnow_bam_realtime_data():
         big_query_api.load_data(data, table=table)
 
     @task()
+    def send_to_api(data: pd.DataFrame):
+        from airqo_etl_utils.data_validator import DataValidationUtils
+
+        data = DataValidationUtils.process_data_for_api(data)
+        airqo_api = AirQoApi()
+        airqo_api.save_events(measurements=data)
+
+    @task()
     def update_latest_data_table(data: pd.DataFrame):
         from airqo_etl_utils.airnow_utils import AirnowDataUtils
         from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
@@ -111,6 +121,7 @@ def airnow_bam_realtime_data():
     processed_bam_data = process_data(extracted_bam_data)
     send_to_bigquery(processed_bam_data)
     send_to_message_broker(processed_bam_data)
+    send_to_api(processed_bam_data)
     update_latest_data_table(processed_bam_data)
 
 
