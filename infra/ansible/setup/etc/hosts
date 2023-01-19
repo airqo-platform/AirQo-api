@@ -15,13 +15,5 @@ shard-prod-[1:3].europe-west1-b.c.airqo-250220.internal
 cfgsvrs_prod
 shards_prod
 
-########## k8s cluster #######
-[k8s_master]
-10.240.0.100
-
-[k8s_workers]
-35.241.196.7
-
-[k8s_cluster:children]
-k8s_master
-k8s_workers
+[all:vars]
+ansible_python_interpreter=/usr/bin/python3
