@@ -9,6 +9,7 @@ const { getModelByTenant } = require("../utils/multitenancy");
 const { logObject, logElement, logText } = require("../utils/log");
 const mailer = require("./mailer");
 const generateFilter = require("@utils/generate-filter");
+const { compareSync } = require("bcrypt");
 
 const UserModel = (tenant) => {
   try {
@@ -222,6 +223,22 @@ const controlAccess = {
   updateAccessToken: async (request) => {
     try {
       const { query, body } = request;
+      const { tenant } = query;
+      let filter = {};
+      const responseFromFilter = generateFilter.tokens(request);
+      if (responseFromFilter.success === false) {
+        return responseFromFilter;
+      } else {
+        filter = responseFromFilter;
+      }
+
+      const token = accessCodeGenerator
+        .generate(constants.RANDOM_PASSWORD_CONFIGURATION(16))
+        .toUpperCase();
+
+      let update = Object.assign({}, body);
+      update["token"] = token;
+
       const responseFromUpdateToken = await AccessTokenModel(
         tenant.toLowerCase()
       ).modify({ filter, update });
@@ -243,10 +260,18 @@ const controlAccess = {
 
   deleteAccessToken: async (request) => {
     try {
-      const { query, body } = request;
+      const { query } = request;
+      const { tenant } = query;
+      let filter = {};
+      const responseFromFilter = generateFilter.tokens(request);
+      if (responseFromFilter.success === false) {
+        return responseFromFilter;
+      } else {
+        filter = responseFromFilter;
+      }
       const responseFromDeleteToken = await AccessTokenModel(
         tenant.toLowerCase()
-      ).delete({ filter });
+      ).remove({ filter });
 
       if (responseFromDeleteToken.success === true) {
         return responseFromDeleteToken;
@@ -298,9 +323,17 @@ const controlAccess = {
   createAccessToken: async (request) => {
     try {
       const { query, body } = request;
+      const { tenant } = query;
+      const token = accessCodeGenerator
+        .generate(constants.RANDOM_PASSWORD_CONFIGURATION(16))
+        .toUpperCase();
+
+      let modifiedBody = Object.assign({}, body);
+      modifiedBody["token"] = token;
+
       const responseFromCreateToken = await AccessTokenModel(
         tenant.toLowerCase()
-      ).register(body);
+      ).register(modifiedBody);
 
       if (responseFromCreateToken.success === true) {
         return responseFromCreateToken;
@@ -417,6 +450,16 @@ const controlAccess = {
 
   listAvailableUsersForRole: async (req, res) => {
     try {
+      /**
+       * list users who are not assigned that role
+       * use an appropriate Mongo DB filter for this
+       */
+      const responseFromListAvailableUsersForRole = {};
+      if (responseFromListAvailableUsersForRole.success === true) {
+        return responseFromListAvailableUsersForRole;
+      } else if (responseFromListAvailableUsersForRole.success === false) {
+        return responseFromListAvailableUsersForRole;
+      }
     } catch (error) {
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
@@ -426,19 +469,71 @@ const controlAccess = {
     }
   },
 
-  assignUserToRole: async (req, res) => {
+  assignUserToRole: async (request) => {
     try {
+      /**
+       * just update the user's role
+       * Note that the "admin" user may not be reassigned to a different role
+       */
+      const responseFromUpdateUser = {};
+      if (responseFromUpdateUser.success === true) {
+        return responseFromUpdateUser;
+      } else if (responseFromUpdateUser.success === false) {
+        return responseFromUpdateUser;
+      }
     } catch (error) {
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
       });
+    }
+  },
+
+  sample: async (request) => {
+    try {
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: "Internal Server Error" },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  listUsersWithRole: async (request) => {
+    try {
+      const responseFromListUsersWithRole = {};
+      if (responseFromListUsersWithRole.success === true) {
+        return responseFromListUsersWithRole;
+      } else if (responseFromListUsersWithRole.success === false) {
+        return responseFromListUsersWithRole;
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: "Internal Server Error" },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
     }
   },
 
   unAssignUserFromRole: async (req, res) => {
     try {
+      /**
+       * logged in user needs to have the right permission to perform this
+       * action
+       *
+       * send error message of 400 in case user was not assigned to that role
+       */
+      const responseFromunAssignUserFromRole = {};
+      if (responseFromunAssignUserFromRole.success === true) {
+        return responseFromunAssignUserFromRole;
+      } else if (responseFromunAssignUserFromRole.success === false) {
+        return responseFromunAssignUserFromRole;
+      }
     } catch (error) {
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
@@ -450,6 +545,12 @@ const controlAccess = {
 
   listPermissionsForRole: async (req, res) => {
     try {
+      const responseFromlistPermissionsForRole = {};
+      if (responseFromlistPermissionsForRole.success === true) {
+        return responseFromlistPermissionsForRole;
+      } else if (responseFromlistPermissionsForRole.success === false) {
+        return responseFromlistPermissionsForRole;
+      }
     } catch (error) {
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
@@ -461,6 +562,14 @@ const controlAccess = {
 
   listAvailablePermissionsForRole: async (req, res) => {
     try {
+      const responseFromListAvailablePermissionsForRole = {};
+      if (responseFromListAvailablePermissionsForRole.success === true) {
+        return responseFromListAvailablePermissionsForRole;
+      } else if (
+        responseFromListAvailablePermissionsForRole.success === false
+      ) {
+        return responseFromListAvailablePermissionsForRole;
+      }
     } catch (error) {
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
@@ -472,6 +581,12 @@ const controlAccess = {
 
   assignPermissionToRole: async (req, res) => {
     try {
+      const responseFromAssignPermissionToRole = {};
+      if (responseFromAssignPermissionToRole.success === true) {
+        return responseFromAssignPermissionToRole;
+      } else if (responseFromAssignPermissionToRole.success === false) {
+        return responseFromAssignPermissionToRole;
+      }
     } catch (error) {
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
@@ -483,6 +598,12 @@ const controlAccess = {
 
   unAssignPermissionFromRole: async (request) => {
     try {
+      const responseFromUnAssignPermissionFromRole = {};
+      if (responseFromUnAssignPermissionFromRole.success === true) {
+        return responseFromUnAssignPermissionFromRole;
+      } else if (responseFromUnAssignPermissionFromRole.success === false) {
+        return responseFromUnAssignPermissionFromRole;
+      }
     } catch (error) {
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
@@ -506,7 +627,11 @@ const controlAccess = {
       ).list({
         filter,
       });
-      return responseFromListPermissions;
+      if (responseFromListPermissions.success === true) {
+        return responseFromListPermissions;
+      } else if (responseFromListPermissions.success === false) {
+        return responseFromListPermissions;
+      }
     } catch (error) {
       return {
         success: false,
@@ -527,12 +652,16 @@ const controlAccess = {
       if (filter.success === false) {
         return filter;
       }
-      const responseFromListPermissions = await PermissionModel(
+      const responseFromDeletePermission = await PermissionModel(
         tenant.toLowerCase()
       ).remove({
         filter,
       });
-      return responseFromListPermissions;
+      if (responseFromDeletePermission.success === true) {
+        return responseFromDeletePermission;
+      } else if (responseFromDeletePermission.success === false) {
+        return responseFromDeletePermission;
+      }
     } catch (error) {
       return {
         success: false,
@@ -552,10 +681,14 @@ const controlAccess = {
       if (filter.success === false) {
         return filter;
       }
-      const responseFromUpdateRole = await PermissionModel(
+      const responseFromUpdatePermission = await PermissionModel(
         tenant.toLowerCase()
       ).modify({ filter, update });
-      return responseFromUpdateRole;
+      if (responseFromUpdatePermission.success === true) {
+        return responseFromUpdatePermission;
+      } else if (responseFromUpdatePermission.success === false) {
+        return responseFromUpdatePermission;
+      }
     } catch (error) {
       return {
         success: false,
@@ -573,7 +706,11 @@ const controlAccess = {
       const responseFromCreatePermission = await PermissionModel(
         tenant.toLowerCase()
       ).register(body);
-      return responseFromCreatePermission;
+      if (responseFromCreatePermission.success === true) {
+        return responseFromCreatePermission;
+      } else if (responseFromCreatePermission.success === false) {
+        return responseFromCreatePermission;
+      }
     } catch (error) {
       return {
         success: false,

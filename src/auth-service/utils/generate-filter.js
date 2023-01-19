@@ -383,6 +383,45 @@ const filter = {
       };
     }
   },
+
+  departments: (req) => {
+    try {
+      const {
+        dep_email,
+        dep_title,
+        dep_network_id,
+        dep_parent,
+        dep_manager,
+        has_children,
+        dep_acronym,
+        dep_children,
+      } = req.query;
+
+      const { dep_id, usr_id } = req.params;
+
+      let filter = {};
+
+      if (dep_id) {
+        filter["_id"] = ObjectId(dep_id);
+      }
+
+      if (dep_status) {
+        filter["net_status"] = net_status;
+      }
+
+      return {
+        success: true,
+        message: "successfully created the filter",
+        data: filter,
+      };
+    } catch (err) {
+      return {
+        success: false,
+        message: "filter util server error",
+        errors: { message: err.message },
+      };
+    }
+  },
 };
 
 module.exports = filter;
