@@ -7,6 +7,11 @@
         state: present
         update_cache: true
 
+    - name: Enable Docker service
+      systemd:
+        name: docker.service
+        enabled: yes
+
     - name: Install APT Transport HTTPS
       apt:
         name: apt-transport-https
