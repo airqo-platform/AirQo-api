@@ -312,6 +312,20 @@ router.post(
         .customSanitizer((value) => {
           return ObjectId(value);
         }),
+      body("user")
+        .exists()
+        .withMessage("the user ID is missing in the request body")
+        .bail()
+        .notEmpty()
+        .withMessage("the user ID cannot be empty")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the user ID must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
     ],
   ]),
   setJWTAuth,

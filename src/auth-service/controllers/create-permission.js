@@ -10,7 +10,7 @@ const createPermission = {
   create: async (req, res) => {
     try {
       const { query } = req;
-      const { tenant } = query;
+      let { tenant } = query;
       const hasErrors = !validationResult(req).isEmpty();
       logObject("hasErrors", hasErrors);
       if (hasErrors) {
@@ -69,7 +69,7 @@ const createPermission = {
   list: async (req, res) => {
     try {
       const { query } = req;
-      const { tenant } = query;
+      let { tenant } = query;
       const hasErrors = !validationResult(req).isEmpty();
       logObject("hasErrors", hasErrors);
       if (hasErrors) {
@@ -126,7 +126,7 @@ const createPermission = {
   delete: async (req, res) => {
     try {
       const { query } = req;
-      const { tenant } = query;
+      let { tenant } = query;
       const hasErrors = !validationResult(req).isEmpty();
       logObject("hasErrors", hasErrors);
       if (hasErrors) {
@@ -184,7 +184,7 @@ const createPermission = {
   update: async (req, res) => {
     try {
       const { query } = req;
-      const { tenant } = query;
+      let { tenant } = query;
       s;
       const hasErrors = !validationResult(req).isEmpty();
       logObject("hasErrors", hasErrors);

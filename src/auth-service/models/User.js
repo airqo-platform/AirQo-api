@@ -229,6 +229,7 @@ UserSchema.statics = {
   },
   async list({ skip = 0, limit = 5, filter = {} } = {}) {
     try {
+      logText("we are inside the model/collection....");
       const projectAll = {
         _id: 1,
         firstName: 1,
@@ -239,7 +240,7 @@ UserSchema.statics = {
         privilege: 1,
         profilePicture: 1,
         phoneNumber: 1,
-        role: 1,
+        role: { $arrayElemAt: ["$role", 0] },
         networks: "$networks",
         access_tokens: "$access_tokens",
         permissions: "$permissions",
@@ -310,6 +311,7 @@ UserSchema.statics = {
           "permissions.createdAt": 0,
           "permissions.updatedAt": 0,
         })
+
         .project({
           "role.__v": 0,
           "role._id": 0,
@@ -394,25 +396,29 @@ UserSchema.statics = {
         modifiedUpdate,
         options
       ).exec();
+
       if (!isEmpty(updatedUser)) {
         let data = updatedUser._doc;
         return {
           success: true,
           message: "successfully modified the user",
           data,
+          status: httpStatus.OK,
         };
       } else {
         return {
-          success: false,
+          success: true,
           message: "user does not exist, please crosscheck",
           status: httpStatus.NOT_FOUND,
+          data: [],
         };
       }
     } catch (error) {
       return {
         success: false,
-        message: "User model server error - modify",
+        message: "INTERNAL SERVER ERROR",
         error: error.message,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },

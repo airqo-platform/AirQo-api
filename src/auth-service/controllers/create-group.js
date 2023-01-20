@@ -8,7 +8,7 @@ const createGroup = {
   list: async (req, res) => {
     try {
       const { query } = req;
-      const { tenant } = query;
+      let { tenant } = query;
       const hasErrors = !validationResult(req).isEmpty();
       logObject("hasErrors", hasErrors);
       if (hasErrors) {
@@ -64,7 +64,7 @@ const createGroup = {
   create: async (req, res) => {
     try {
       const { query } = req;
-      const { tenant } = query;
+      let { tenant } = query;
       const hasErrors = !validationResult(req).isEmpty();
       logObject("hasErrors", hasErrors);
       if (hasErrors) {
@@ -123,7 +123,7 @@ const createGroup = {
   update: async (req, res) => {
     try {
       const { query } = req;
-      const { tenant } = query;
+      let { tenant } = query;
       const hasErrors = !validationResult(req).isEmpty();
       logObject("hasErrors", hasErrors);
       if (hasErrors) {
@@ -181,7 +181,7 @@ const createGroup = {
   delete: async (req, res) => {
     try {
       const { query } = req;
-      const { tenant } = query;
+      let { tenant } = query;
       const hasErrors = !validationResult(req).isEmpty();
       logObject("hasErrors", hasErrors);
       if (hasErrors) {
@@ -238,7 +238,7 @@ const createGroup = {
   listUsersWithGroup: async (req, res) => {
     try {
       const { query } = req;
-      const { tenant } = query;
+      let { tenant } = query;
       const hasErrors = !validationResult(req).isEmpty();
       logObject("hasErrors", hasErrors);
       if (hasErrors) {
@@ -297,7 +297,7 @@ const createGroup = {
   listAvailableUsersForGroup: async (req, res) => {
     try {
       const { query } = req;
-      const { tenant } = query;
+      let { tenant } = query;
       const hasErrors = !validationResult(req).isEmpty();
       logObject("hasErrors", hasErrors);
       if (hasErrors) {
@@ -354,7 +354,7 @@ const createGroup = {
   assignUserToGroup: async (req, res) => {
     try {
       const { query } = req;
-      const { tenant } = query;
+      let { tenant } = query;
       const hasErrors = !validationResult(req).isEmpty();
       logObject("hasErrors", hasErrors);
       if (hasErrors) {
@@ -412,7 +412,7 @@ const createGroup = {
   unAssignUserFromGroup: async (req, res) => {
     try {
       const { query } = req;
-      const { tenant } = query;
+      let { tenant } = query;
       const hasErrors = !validationResult(req).isEmpty();
       logObject("hasErrors", hasErrors);
       if (hasErrors) {
@@ -469,7 +469,7 @@ const createGroup = {
   batchAssignUsersToGroup: async (req, res) => {
     try {
       const { query } = req;
-      const { tenant } = query;
+      let { tenant } = query;
       const hasErrors = !validationResult(req).isEmpty();
       logObject("hasErrors", hasErrors);
       if (hasErrors) {

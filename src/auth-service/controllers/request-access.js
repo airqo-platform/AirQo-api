@@ -27,7 +27,7 @@ const requestAccess = {
           convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { tenant } = req.query;
+      let { tenant } = req.query;
       if (isEmpty(tenant)) {
         tenant = constants.DEFAULT_TENANT;
       }
@@ -101,7 +101,7 @@ const requestAccess = {
           convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { tenant } = req.query;
+      let { tenant } = req.query;
       if (isEmpty(tenant)) {
         tenant = constants.DEFAULT_TENANT;
       }
@@ -192,7 +192,7 @@ const requestAccess = {
           .json({ success: false, errors, message: "validation error" });
       }
 
-      const { tenant } = req.query;
+      let { tenant } = req.query;
       if (isEmpty(tenant)) {
         tenant = constants.DEFAULT_TENANT;
       }
@@ -280,7 +280,7 @@ const requestAccess = {
           convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { tenant } = req.query;
+      let { tenant } = req.query;
       if (isEmpty(tenant)) {
         tenant = constants.DEFAULT_TENANT;
       }
@@ -347,7 +347,7 @@ const requestAccess = {
           convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { tenant } = req.query;
+      let { tenant } = req.query;
       if (isEmpty(tenant)) {
         tenant = constants.DEFAULT_TENANT;
       }

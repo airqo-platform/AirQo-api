@@ -1,17 +1,21 @@
 const HTTPStatus = require("http-status");
 const { validationResult } = require("express-validator");
-const { badRequest, convertErrorArrayToObject } = require("../utils/errors");
-const controlAccessUtil = require("../utils/control-access");
-const { logText, logElement, logObject, logError } = require("../utils/log");
+const { badRequest, convertErrorArrayToObject } = require("@utils/errors");
+const controlAccessUtil = require("@utils/control-access");
+const { logText, logElement, logObject, logError } = require("@utils/log");
 const httpStatus = require("http-status");
 const isEmpty = require("is-empty");
-const constants = require("../config/constants");
+const constants = require("@config/constants");
+const log4js = require("log4js");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- create-role-controller`
+);
 
 const createRole = {
   list: async (req, res) => {
     try {
       const { query } = req;
-      const { tenant } = query;
+      let { tenant } = query;
       const hasErrors = !validationResult(req).isEmpty();
       logObject("hasErrors", hasErrors);
       if (hasErrors) {
@@ -57,6 +61,7 @@ const createRole = {
         });
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -68,7 +73,7 @@ const createRole = {
   create: async (req, res) => {
     try {
       const { query, body } = req;
-      const { tenant } = query;
+      let { tenant } = query;
 
       const hasErrors = !validationResult(req).isEmpty();
       logObject("hasErrors", hasErrors);
@@ -111,7 +116,7 @@ const createRole = {
         });
       }
     } catch (error) {
-      logObject("error", error);
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -123,7 +128,7 @@ const createRole = {
   update: async (req, res) => {
     try {
       const { query } = req;
-      const { tenant } = query;
+      let { tenant } = query;
       const hasErrors = !validationResult(req).isEmpty();
       logObject("hasErrors", hasErrors);
       if (hasErrors) {
@@ -166,6 +171,7 @@ const createRole = {
         });
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -177,7 +183,7 @@ const createRole = {
   delete: async (req, res) => {
     try {
       const { query, body } = req;
-      const { tenant } = query;
+      let { tenant } = query;
       const hasErrors = !validationResult(req).isEmpty();
       logObject("hasErrors", hasErrors);
       if (hasErrors) {
@@ -222,6 +228,7 @@ const createRole = {
         });
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -233,7 +240,7 @@ const createRole = {
   listUsersWithRole: async (req, res) => {
     try {
       const { query } = req;
-      const { tenant } = query;
+      let { tenant } = query;
       const hasErrors = !validationResult(req).isEmpty();
       logObject("hasErrors", hasErrors);
       if (hasErrors) {
@@ -252,35 +259,37 @@ const createRole = {
       let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
 
-      const responseFromGetUsers = await controlAccessUtil.listUsersWithRole(
-        request
-      );
+      const responseFromListUsersWithRole =
+        await controlAccessUtil.listUsersWithRole(request);
 
-      if (responseFromGetUsers.success === true) {
-        const status = responseFromGetUsers.status
-          ? responseFromGetUsers.status
+      logObject("responseFromListUsersWithRole", responseFromListUsersWithRole);
+
+      if (responseFromListUsersWithRole.success === true) {
+        const status = responseFromListUsersWithRole.status
+          ? responseFromListUsersWithRole.status
           : httpStatus.OK;
 
         return res.status(status).json({
           success: true,
-          message: "successfully retrieved the users with the role",
-          users_with_role: responseFromGetUsers.data,
+          message: responseFromListUsersWithRole.message,
+          users_with_role: responseFromListUsersWithRole.data,
         });
-      } else if (responseFromGetUsers.success === false) {
-        const status = responseFromGetUsers.status
-          ? responseFromGetUsers.status
+      } else if (responseFromListUsersWithRole.success === false) {
+        const status = responseFromListUsersWithRole.status
+          ? responseFromListUsersWithRole.status
           : httpStatus.INTERNAL_SERVER_ERROR;
-        const errors = responseFromGetUsers.errors
-          ? responseFromGetUsers.errors
+        const errors = responseFromListUsersWithRole.errors
+          ? responseFromListUsersWithRole.errors
           : { message: "INTERNAL SERVER ERROR" };
 
         res.status(status).json({
           success: false,
-          message: responseFromGetUsers.message,
+          message: responseFromListUsersWithRole.message,
           errors,
         });
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -292,7 +301,7 @@ const createRole = {
   listAvailableUsersForRole: async (req, res) => {
     try {
       const { query, body } = req;
-      const { tenant } = query;
+      let { tenant } = query;
       const hasErrors = !validationResult(req).isEmpty();
       logObject("hasErrors", hasErrors);
       if (hasErrors) {
@@ -303,16 +312,10 @@ const createRole = {
           convertErrorArrayToObject(nestedErrors)
         );
       }
-
-      /**
-       * list users who are not assigned that role
-       * use an appropriate Mongo DB filter for this
-       */
-
       if (isEmpty(tenant)) {
         tenant = constants.DEFAULT_TENANT;
       }
-      let request = Object({}, req);
+      let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
 
       const responseFromGetUsers =
@@ -341,6 +344,8 @@ const createRole = {
         });
       }
     } catch (error) {
+      logObject("error", error);
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -351,8 +356,9 @@ const createRole = {
 
   assignUserToRole: async (req, res) => {
     try {
+      logText("assignUserToRole...");
       const { query, body } = req;
-      const { tenant } = query;
+      let { tenant } = query;
       const hasErrors = !validationResult(req).isEmpty();
       logObject("hasErrors", hasErrors);
       if (hasErrors) {
@@ -363,10 +369,7 @@ const createRole = {
           convertErrorArrayToObject(nestedErrors)
         );
       }
-      /**
-       * just update the user's role
-       * Note that the "admin" user may not be reassigned to a different role
-       */
+
       if (isEmpty(tenant)) {
         tenant = constants.DEFAULT_TENANT;
       }
@@ -374,33 +377,36 @@ const createRole = {
       let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
 
-      const responseFromUpdateUser = await controlAccessUtil.assignUserToRole(
-        request
-      );
+      const responseFromAssignUserToRole =
+        await controlAccessUtil.assignUserToRole(request);
 
-      if (responseFromUpdateUser.success === true) {
-        const status = responseFromUpdateUser.status
-          ? responseFromUpdateUser.status
+      // logObject("responseFromAssignUserToRole", responseFromAssignUserToRole);
+
+      if (responseFromAssignUserToRole.success === true) {
+        const status = responseFromAssignUserToRole.status
+          ? responseFromAssignUserToRole.status
           : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: "successfully assigned user to role",
-          assigned_user: responseFromUpdateUser.data,
+          message: responseFromAssignUserToRole.message,
+          assigned_user: responseFromAssignUserToRole.data,
         });
-      } else if (responseFromUpdateUser.success === false) {
-        const status = responseFromUpdateUser.status
-          ? responseFromUpdateUser.status
+      } else if (responseFromAssignUserToRole.success === false) {
+        const status = responseFromAssignUserToRole.status
+          ? responseFromAssignUserToRole.status
           : httpStatus.INTERNAL_SERVER_ERROR;
-        const errors = responseFromUpdateUser.errors
-          ? responseFromUpdateUser.errors
+        const errors = responseFromAssignUserToRole.errors
+          ? responseFromAssignUserToRole.errors
           : { message: "INTERNAL SERVER ERROR" };
         return res.status(status).json({
           success: false,
-          message: responseFromUpdateUser.message,
+          message: responseFromAssignUserToRole.message,
           errors,
         });
       }
     } catch (error) {
+      logObject("error", error);
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -412,7 +418,7 @@ const createRole = {
   unAssignUserFromRole: async (req, res) => {
     try {
       const { query, body } = req;
-      const { tenant } = query;
+      let { tenant } = query;
       const hasErrors = !validationResult(req).isEmpty();
       logObject("hasErrors", hasErrors);
       if (hasErrors) {
@@ -427,7 +433,7 @@ const createRole = {
        * logged in user needs to have the right permission to perform this
        * action
        *
-       * send error message of 400 in case user was not assigned to that role
+       * send error message of 400,bad request in case user was not assigned to that role
        */
 
       if (isEmpty(tenant)) {
@@ -435,33 +441,37 @@ const createRole = {
       }
       let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
-      const responseFromUpdateUser =
+      const responseFromUnAssignUserFromRole =
         await controlAccessUtil.unAssignUserFromRole(request);
+      logObject(
+        "responseFromUnAssignUserFromRole",
+        responseFromUnAssignUserFromRole
+      );
 
-      if (responseFromUpdateUser.success === true) {
-        const status = responseFromUpdateUser.status
-          ? responseFromUpdateUser.status
+      if (responseFromUnAssignUserFromRole.success === true) {
+        const status = responseFromUnAssignUserFromRole.status
+          ? responseFromUnAssignUserFromRole.status
           : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: "successfully unassigned user from role",
-          user_unassigned: responseFromUpdateUser.data,
+          message: responseFromUnAssignUserFromRole.message,
+          user_unassigned: responseFromUnAssignUserFromRole.data,
         });
-      } else if (responseFromUpdateUser.success === false) {
-        const status = responseFromUpdateUser.status
-          ? responseFromUpdateUser.status
+      } else if (responseFromUnAssignUserFromRole.success === false) {
+        const status = responseFromUnAssignUserFromRole.status
+          ? responseFromUnAssignUserFromRole.status
           : httpStatus.INTERNAL_SERVER_ERROR;
-        const errors = responseFromUpdateUser.errors
-          ? responseFromUpdateUser.errors
-          : { message: "INTERNAL SERVER ERRORS" };
-
         return res.status(status).json({
           success: false,
-          message: responseFromUpdateUser.message,
-          errors,
+          message: responseFromUnAssignUserFromRole.message,
+          errors: responseFromUnAssignUserFromRole.errors
+            ? responseFromUnAssignUserFromRole.errors
+            : { message: "INTERNAL SERVER ERRORS" },
         });
       }
     } catch (error) {
+      logObject("zi error", error);
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -473,7 +483,7 @@ const createRole = {
   listPermissionsForRole: async (req, res) => {
     try {
       const { query, body } = req;
-      const { tenant } = query;
+      let { tenant } = query;
       const hasErrors = !validationResult(req).isEmpty();
       logObject("hasErrors", hasErrors);
       if (hasErrors) {
@@ -518,6 +528,7 @@ const createRole = {
         });
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -529,7 +540,7 @@ const createRole = {
   listAvailablePermissionsForRole: async (req, res) => {
     try {
       const { query, body } = req;
-      const { tenant } = query;
+      let { tenant } = query;
       const hasErrors = !validationResult(req).isEmpty();
       logObject("hasErrors", hasErrors);
       if (hasErrors) {
@@ -571,6 +582,7 @@ const createRole = {
         });
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -582,7 +594,7 @@ const createRole = {
   assignPermissionToRole: async (req, res) => {
     try {
       const { query, body } = req;
-      const { tenant } = query;
+      let { tenant } = query;
       const hasErrors = !validationResult(req).isEmpty();
       logObject("hasErrors", hasErrors);
       if (hasErrors) {
@@ -627,6 +639,7 @@ const createRole = {
         });
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -638,7 +651,7 @@ const createRole = {
   unAssignPermissionFromRole: async (req, res) => {
     try {
       const { query, body } = req;
-      const { tenant } = query;
+      let { tenant } = query;
       const hasErrors = !validationResult(req).isEmpty();
       logObject("hasErrors", hasErrors);
       if (hasErrors) {
@@ -684,6 +697,7 @@ const createRole = {
         });
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",

@@ -4,6 +4,7 @@ const ObjectId = mongoose.Types.ObjectId;
 const httpStatus = require("http-status");
 const constants = require("../config/constants");
 const log4js = require("log4js");
+const { logText } = require("../../device-registry/utils/log");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- generate-filter-util`
 );
@@ -11,13 +12,19 @@ const logger = log4js.getLogger(
 const filter = {
   users: (req) => {
     try {
-      let { privilege, id, username, active, email_address } = req.query;
-      let { email, resetPasswordToken } = req.body;
+      let { privilege, id, username, active, email_address, role_id } =
+        req.query;
+      let { email, resetPasswordToken, user } = req.body;
       const { user_id } = req.params;
       let filter = {};
       if (email) {
         filter["email"] = email;
       }
+
+      if (role_id) {
+        filter["role"] = ObjectId(role_id);
+      }
+
       if (email_address) {
         filter["email"] = email_address;
       }
@@ -35,6 +42,9 @@ const filter = {
       }
       if (user_id) {
         filter["_id"] = ObjectId(user_id);
+      }
+      if (user) {
+        filter["_id"] = ObjectId(user);
       }
       if (active) {
         if (active === "yes") {
@@ -300,6 +310,7 @@ const filter = {
       }
 
       if (role_id) {
+        logText("we have the role ID");
         filter["_id"] = ObjectId(role_id);
       }
 

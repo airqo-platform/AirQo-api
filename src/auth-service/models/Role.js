@@ -143,17 +143,20 @@ RoleSchema.statics = {
           success: true,
           data: roles,
           message: "successfully listed the roles",
+          status: httpStatus.OK,
         };
       } else if (isEmpty(roles)) {
         return {
           success: true,
-          message: "no roles exist",
+          message: "role(s) not found for this operation",
           data: [],
+          status: httpStatus.NOT_FOUND,
         };
       } else {
         return {
           success: false,
           message: "unable to retrieve roles",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
         };
       }
     } catch (error) {

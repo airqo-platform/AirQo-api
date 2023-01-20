@@ -99,7 +99,7 @@ const createUser = {
   verifyEmail: async (req, res) => {
     try {
       const { query, body } = req;
-      const { tenant } = query;
+      let { tenant } = query;
       logText("we are verifying the email.....");
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {

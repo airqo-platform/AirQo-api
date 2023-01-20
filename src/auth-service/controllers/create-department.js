@@ -8,7 +8,7 @@ const createDepartment = {
   list: async (req, res) => {
     try {
       const { query } = req;
-      const { tenant } = query;
+      let { tenant } = query;
       const hasErrors = !validationResult(req).isEmpty();
       logObject("hasErrors", hasErrors);
       if (hasErrors) {
@@ -68,7 +68,7 @@ const createDepartment = {
   create: async (req, res) => {
     try {
       const { query } = req;
-      const { tenant } = query;
+      let { tenant } = query;
       const hasErrors = !validationResult(req).isEmpty();
       logObject("hasErrors", hasErrors);
       if (hasErrors) {
@@ -125,7 +125,7 @@ const createDepartment = {
   update: async (req, res) => {
     try {
       const { query } = req;
-      const { tenant } = query;
+      let { tenant } = query;
       const hasErrors = !validationResult(req).isEmpty();
       logObject("hasErrors", hasErrors);
       if (hasErrors) {
@@ -181,7 +181,7 @@ const createDepartment = {
   delete: async (req, res) => {
     try {
       const { query } = req;
-      const { tenant } = query;
+      let { tenant } = query;
       const hasErrors = !validationResult(req).isEmpty();
       logObject("hasErrors", hasErrors);
       if (hasErrors) {
@@ -237,7 +237,7 @@ const createDepartment = {
   listUsersWithDepartment: async (req, res) => {
     try {
       const { query } = req;
-      const { tenant } = query;
+      let { tenant } = query;
       const hasErrors = !validationResult(req).isEmpty();
       logObject("hasErrors", hasErrors);
       if (hasErrors) {
@@ -296,7 +296,7 @@ const createDepartment = {
   listAvailableUsersForDepartment: async (req, res) => {
     try {
       const { query } = req;
-      const { tenant } = query;
+      let { tenant } = query;
       const hasErrors = !validationResult(req).isEmpty();
       logObject("hasErrors", hasErrors);
       if (hasErrors) {
@@ -358,7 +358,7 @@ const createDepartment = {
   assignUserToDepartment: async (req, res) => {
     try {
       const { query } = req;
-      const { tenant } = query;
+      let { tenant } = query;
       const hasErrors = !validationResult(req).isEmpty();
       logObject("hasErrors", hasErrors);
       if (hasErrors) {
@@ -416,7 +416,7 @@ const createDepartment = {
   unAssignUserFromDepartment: async (req, res) => {
     try {
       const { query } = req;
-      const { tenant } = query;
+      let { tenant } = query;
       const hasErrors = !validationResult(req).isEmpty();
       logObject("hasErrors", hasErrors);
       if (hasErrors) {

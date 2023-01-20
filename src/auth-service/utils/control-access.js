@@ -1,15 +1,16 @@
-const PermissionSchema = require("../models/Permission");
-const AccessTokenSchema = require("../models/AccessToken");
-const UserSchema = require("../models/User");
-const RoleSchema = require("../models/Role");
+const PermissionSchema = require("@models/Permission");
+const AccessTokenSchema = require("@models/AccessToken");
+const UserSchema = require("@models/User");
+const RoleSchema = require("@models/Role");
 const httpStatus = require("http-status");
 const mongoose = require("mongoose").set("debug", true);
 const accessCodeGenerator = require("generate-password");
-const { getModelByTenant } = require("../utils/multitenancy");
+const { getModelByTenant } = require("@utils/multitenancy");
 const { logObject, logElement, logText } = require("../utils/log");
-const mailer = require("./mailer");
+const mailer = require("@utils/mailer");
 const generateFilter = require("@utils/generate-filter");
 const { compareSync } = require("bcrypt");
+const isEmpty = require("is-empty");
 
 const UserModel = (tenant) => {
   try {
@@ -448,13 +449,48 @@ const controlAccess = {
     }
   },
 
-  listAvailableUsersForRole: async (req, res) => {
+  listAvailableUsersForRole: async (request) => {
     try {
-      /**
-       * list users who are not assigned that role
-       * use an appropriate Mongo DB filter for this
-       */
-      const responseFromListAvailableUsersForRole = {};
+      logText("listAvailableUsersForRole...");
+      let filter = {};
+      const limit = parseInt(request.query.limit, 0);
+      const skip = parseInt(request.query.skip, 0);
+      const { query, params } = request;
+      const { role_id } = params;
+      const { tenant } = query;
+      let newRequest = Object.assign({}, request);
+      newRequest["query"]["role_id"] = role_id;
+
+      function manipulateFilter(obj) {
+        const newObj = {};
+        for (var key in obj) {
+          newObj[key] = { $ne: obj[key] };
+        }
+        return newObj;
+      }
+
+      const filterResponse = generateFilter.users(newRequest);
+      if (filterResponse.success === false) {
+        return filter;
+      } else {
+        filter = manipulateFilter(filterResponse.data);
+      }
+
+      logObject("filter", filter);
+
+      const responseFromListAvailableUsersForRole = await UserModel(
+        tenant
+      ).list({
+        skip,
+        limit,
+        filter,
+      });
+
+      logObject(
+        "responseFromListAvailableUsersForRole",
+        responseFromListAvailableUsersForRole
+      );
+
       if (responseFromListAvailableUsersForRole.success === true) {
         return responseFromListAvailableUsersForRole;
       } else if (responseFromListAvailableUsersForRole.success === false) {
@@ -471,22 +507,85 @@ const controlAccess = {
 
   assignUserToRole: async (request) => {
     try {
-      /**
-       * just update the user's role
-       * Note that the "admin" user may not be reassigned to a different role
-       */
-      const responseFromUpdateUser = {};
+      logText("assignUserToRole...");
+      let filter = {};
+      const limit = parseInt(request.query.limit, 0);
+      const skip = parseInt(request.query.skip, 0);
+      const { query, params, body } = request;
+      const { role_id } = params;
+      const { tenant } = query;
+      const { user } = body;
+      let newRequest = Object.assign({}, request);
+      newRequest["query"]["role_id"] = role_id;
+
+      filter = { _id: role_id };
+      const responseFromListRole = await RoleModel(tenant.toLowerCase()).list({
+        filter,
+        skip,
+        limit,
+      });
+
+      logObject("responseFromListRole", responseFromListRole);
+      if (responseFromListRole.success === true) {
+        if (responseFromListRole.status === httpStatus.NOT_FOUND) {
+          return responseFromListRole;
+        }
+      } else if (responseFromListRole.success === false) {
+        return responseFromListRole;
+      }
+
+      filter = { _id: user };
+      const responseFromListUser = await UserModel(tenant).list({
+        skip,
+        limit,
+        filter,
+      });
+      if (responseFromListUser.success === true) {
+        const user = responseFromListUser.data[0];
+        logObject("user", user);
+
+        if (!isEmpty(user.role) && user.role.role_name === "admin") {
+          logObject("user.role.role_name", user.role.role_name);
+          return {
+            success: false,
+            message: "admin user may not be reassigned to a different role",
+            status: httpStatus.BAD_REQUEST,
+            errors: {
+              message: "admin user may not be reassigned to a different role",
+            },
+          };
+        }
+      } else if (responseFromListUser.success === false) {
+        return responseFromListUser;
+      }
+
+      const update = {
+        role: role_id,
+      };
+
+      const responseFromUpdateUser = await UserModel(tenant).modify({
+        update,
+        filter,
+      });
+
       if (responseFromUpdateUser.success === true) {
-        return responseFromUpdateUser;
+        if (responseFromUpdateUser.status === httpStatus.NOT_FOUND) {
+          return responseFromUpdateUser;
+        }
+        let newResponse = Object.assign({}, responseFromUpdateUser);
+        newResponse.message = "successfully assigned user to role";
+        return newResponse;
       } else if (responseFromUpdateUser.success === false) {
         return responseFromUpdateUser;
       }
     } catch (error) {
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+      logObject("error", error);
+      return {
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
-      });
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
     }
   },
 
@@ -504,13 +603,38 @@ const controlAccess = {
 
   listUsersWithRole: async (request) => {
     try {
-      const responseFromListUsersWithRole = {};
+      logText("listUsersWithRole...");
+      let filter = {};
+      const limit = parseInt(request.query.limit, 0);
+      const skip = parseInt(request.query.skip, 0);
+      const { query, body, params } = request;
+      const { role_id } = params;
+      const { tenant } = query;
+      let newRequest = Object.assign({}, request);
+      newRequest["query"]["role_id"] = role_id;
+      const filterResponse = generateFilter.users(newRequest);
+      if (filterResponse.success === false) {
+        return filter;
+      } else {
+        filter = filterResponse.data;
+      }
+      logObject("the filter", filter);
+
+      const responseFromListUsersWithRole = await UserModel(tenant).list({
+        skip,
+        limit,
+        filter,
+      });
+
+      logObject("responseFromListUsersWithRole", responseFromListUsersWithRole);
+
       if (responseFromListUsersWithRole.success === true) {
         return responseFromListUsersWithRole;
       } else if (responseFromListUsersWithRole.success === false) {
         return responseFromListUsersWithRole;
       }
     } catch (error) {
+      logObject("error", error);
       return {
         success: false,
         message: "Internal Server Error",
@@ -520,7 +644,7 @@ const controlAccess = {
     }
   },
 
-  unAssignUserFromRole: async (req, res) => {
+  unAssignUserFromRole: async (request) => {
     try {
       /**
        * logged in user needs to have the right permission to perform this
@@ -528,18 +652,64 @@ const controlAccess = {
        *
        * send error message of 400 in case user was not assigned to that role
        */
-      const responseFromunAssignUserFromRole = {};
-      if (responseFromunAssignUserFromRole.success === true) {
-        return responseFromunAssignUserFromRole;
-      } else if (responseFromunAssignUserFromRole.success === false) {
-        return responseFromunAssignUserFromRole;
+
+      logText("the util for unAssignUserFromRole...");
+      let filter = {};
+      const limit = parseInt(request.query.limit, 0);
+      const skip = parseInt(request.query.skip, 0);
+      const { query, params } = request;
+      const { role_id, user_id } = params;
+      const { tenant } = query;
+      let newRequest = Object.assign({}, request);
+      newRequest["query"]["role_id"] = role_id;
+
+      filter = { _id: role_id };
+      const responseFromListRole = await RoleModel(tenant.toLowerCase()).list({
+        filter,
+        skip,
+        limit,
+      });
+
+      logObject("responseFromListRole", responseFromListRole);
+
+      if (responseFromListRole.success === true) {
+        if (responseFromListRole.status === httpStatus.NOT_FOUND) {
+          return responseFromListRole;
+        }
+      } else if (responseFromListRole.success === false) {
+        return responseFromListRole;
+      }
+
+      filter = { _id: user_id };
+      const update = { $unset: { role: "" } };
+      const responseFromUnAssignUserFromRole = await UserModel(tenant).modify({
+        filter,
+        update,
+      });
+
+      logObject(
+        "responseFromUnAssignUserFromRole",
+        responseFromUnAssignUserFromRole
+      );
+
+      if (responseFromUnAssignUserFromRole.success === true) {
+        if (responseFromUnAssignUserFromRole.status === httpStatus.NOT_FOUND) {
+          return responseFromUnAssignUserFromRole;
+        }
+        newResponse = Object.assign({}, responseFromUnAssignUserFromRole);
+        newResponse.message = "successfully unassigned user from role";
+        return newResponse;
+      } else if (responseFromUnAssignUserFromRole.success === false) {
+        return responseFromUnAssignUserFromRole;
       }
     } catch (error) {
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+      logObject("zi error", error);
+      return {
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
-      });
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
     }
   },
 
