@@ -228,18 +228,22 @@ AccessTokenSchema.statics = {
           success: true,
           message: "successfully modified the Token",
           data,
+          status: httpStatus.OK,
         };
-      } else {
+      } else if (isEmpty(updatedToken)) {
         return {
-          success: false,
+          success: true,
           message: "Token does not exist, please crosscheck",
+          status: httpStatus.NOT_FOUND,
         };
       }
     } catch (error) {
       return {
         success: false,
-        message: "Token model server error - modify",
+        message: "internal server error",
         error: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: "internal server error" },
       };
     }
   },

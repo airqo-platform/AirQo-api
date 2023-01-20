@@ -28,7 +28,7 @@ const stageConfig = {
 };
 
 const defaultConfig = {
-  EMAIL_VERIFICATION_HOURS: 0.1,
+  EMAIL_VERIFICATION_HOURS: 1,
   EMAIL_VERIFICATION_MIN: 0,
   EMAIL_VERIFICATION_SEC: 0,
   DEFAULT_TENANT: "airqo",

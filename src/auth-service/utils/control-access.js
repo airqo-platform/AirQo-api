@@ -62,140 +62,112 @@ const controlAccess = {
       const limit = parseInt(request.query.limit, 0);
       const skip = parseInt(request.query.skip, 0);
 
-      let filter = { _id: user_id };
+      let filter = {
+        token,
+        user_id,
+      };
+      /**
+       * for some reason, this version is now working as expected
+       */
+      let filter_2 = {
+        token,
+        user_id,
+        expires: { $gt: Date.now() },
+      };
 
-      let responseFromListUsers = await UserModel(tenant).list({
-        filter,
-        limit,
+      const responseFromListAccessToken = await AccessTokenModel(tenant).list({
         skip,
+        limit,
+        filter,
       });
 
-      logObject("responseFromListUsers", responseFromListUsers);
+      logObject("responseFromListAccessToken", responseFromListAccessToken);
 
-      if (responseFromListUsers.success === true) {
-        if (responseFromListUsers.status === httpStatus.NO_CONTENT) {
+      if (responseFromListAccessToken.success === true) {
+        if (responseFromListAccessToken.status === httpStatus.NOT_FOUND) {
           return {
             success: false,
-            message: "invalid link",
             status: httpStatus.BAD_REQUEST,
+            message: "Invalid link",
             errors: { message: "this is a bad request" },
           };
-        } else if (responseFromListUsers.status === httpStatus.OK) {
-          const user = responseFromListUsers.data[0];
-          filter = {
-            token,
-            expires: {
-              $gt: Date.now(),
-            },
+        } else if (responseFromListAccessToken.status === httpStatus.OK) {
+          const password = accessCodeGenerator.generate(
+            constants.RANDOM_PASSWORD_CONFIGURATION(10)
+          );
+          let update = {
+            verified: true,
+            password,
+            $pull: { tokens: { $in: [token] } },
           };
-          const responseFromListAccessToken = await AccessTokenModel(
-            tenant
-          ).list({ skip, limit, filter });
+          filter = { _id: user_id };
 
-          logObject("responseFromListAccessToken", responseFromListAccessToken);
+          const responseFromUpdateUser = await UserModel(tenant).modify({
+            filter,
+            update,
+          });
+          logObject("responseFromUpdateUser", responseFromUpdateUser);
 
-          if (responseFromListAccessToken.success === true) {
-            if (responseFromListAccessToken.status === httpStatus.NO_CONTENT) {
+          if (responseFromUpdateUser.success === true) {
+            /**
+             * we shall also need to handle case where there was no update
+             * later...cases where the user never existed in the first place
+             */
+            let user = responseFromUpdateUser.data;
+            filter = { token };
+            logObject("the deletion of the token filter", filter);
+            const responseFromDeleteToken = await AccessTokenModel(
+              tenant
+            ).remove({ filter });
+
+            logObject("responseFromDeleteToken", responseFromDeleteToken);
+
+            if (responseFromDeleteToken.success === true) {
+              const responseFromSendEmail = await mailer.afterEmailVerification(
+                {
+                  firstName: user.firstName,
+                  username: user.userName,
+                  password,
+                  email: user.email,
+                }
+              );
+
+              if (responseFromSendEmail.success === true) {
+                return {
+                  success: true,
+                  message: "email verified sucessfully",
+                  status: httpStatus.OK,
+                };
+              } else if (responseFromSendEmail.success === false) {
+                return responseFromSendEmail;
+              }
+            } else if (responseFromDeleteToken.success === false) {
               return {
                 success: false,
-                status: httpStatus.BAD_REQUEST,
-                message: "Invalid link",
-                errors: { message: "this is a bad request" },
+                message: "unable to verify user",
+                status: responseFromDeleteToken.status
+                  ? responseFromDeleteToken.status
+                  : httpStatus.INTERNAL_SERVER_ERROR,
+                errors: responseFromDeleteToken.errors
+                  ? responseFromDeleteToken.errors
+                  : { message: "internal server errors" },
               };
-            } else if (responseFromListAccessToken.status === httpStatus.OK) {
-              const password = accessCodeGenerator.generate(
-                constants.RANDOM_PASSWORD_CONFIGURATION(10)
-              );
-              let update = {
-                verified: true,
-                password,
-                $pull: { tokens: { $in: [token] } },
-              };
-              filter = { _id: user_id };
-
-              const responseFromUpdateUser = await UserModel(tenant).modify({
-                filter,
-                update,
-              });
-
-              logObject("responseFromUpdateUser", responseFromUpdateUser);
-              if (responseFromUpdateUser.success === true) {
-                filter = { token };
-
-                logObject("the deletion of the token filter", filter);
-                const responseFromDeleteToken = await AccessTokenModel(
-                  tenant
-                ).remove(filter);
-
-                logObject("responseFromDeleteToken", responseFromDeleteToken);
-
-                if (responseFromDeleteToken.success === true) {
-                  const responseFromSendEmail =
-                    await mailer.afterEmailVerification({
-                      firstName: user.firstName,
-                      username: user.userName,
-                      password,
-                      email: user.email,
-                    });
-
-                  if (responseFromSendEmail.success === true) {
-                    return {
-                      success: true,
-                      message: "email verified sucessfully",
-                      status: httpStatus.OK,
-                    };
-                  } else if (responseFromSendEmail.success === false) {
-                    return responseFromSendEmail;
-                  }
-                } else if (responseFromDeleteToken.success === false) {
-                  return {
-                    success: false,
-                    message: "unable to verify user",
-                    status: responseFromDeleteToken.status
-                      ? responseFromDeleteToken.status
-                      : httpStatus.INTERNAL_SERVER_ERROR,
-                    errors: responseFromDeleteToken.errors
-                      ? responseFromDeleteToken.errors
-                      : { message: "internal server errors" },
-                  };
-                }
-              } else if (responseFromUpdateUser.success === false) {
-                return {
-                  success: false,
-                  message: "unable to verify user",
-                  status: responseFromUpdateUser.status
-                    ? responseFromUpdateUser.status
-                    : httpStatus.INTERNAL_SERVER_ERROR,
-                  errors: responseFromUpdateUser.errors
-                    ? responseFromUpdateUser.errors
-                    : { message: "internal server errors" },
-                };
-              }
             }
-          } else if (responseFromListAccessToken.success === false) {
+          } else if (responseFromUpdateUser.success === false) {
             return {
               success: false,
-              message: responseFromListAccessToken.message,
-              errors: responseFromListAccessToken.errors
-                ? responseFromListAccessToken.errors
+              message: "unable to verify user",
+              status: responseFromUpdateUser.status
+                ? responseFromUpdateUser.status
                 : httpStatus.INTERNAL_SERVER_ERROR,
-              status: responseFromListAccessToken.status
-                ? responseFromListAccessToken.status
-                : httpStatus.OK,
+              errors: responseFromUpdateUser.errors
+                ? responseFromUpdateUser.errors
+                : { message: "internal server errors" },
             };
           }
         }
-      } else if (responseFromListUsers.success === false) {
-        return {
-          success: false,
-          message: responseFromListUsers.message,
-          errors: responseFromListUsers.errors
-            ? responseFromListUsers.errors
-            : { message: "INTERNAL SERVER ERROR" },
-          status: responseFromListUsers.status
-            ? responseFromListUsers.status
-            : httpStatus.INTERNAL_SERVER_ERROR,
-        };
+      } else if (responseFromListAccessToken.success === false) {
+        return responseFromListAccessToken;
       }
     } catch (error) {
       logObject("erroring in util", error);
