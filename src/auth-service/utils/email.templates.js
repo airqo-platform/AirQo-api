@@ -66,6 +66,20 @@ module.exports = {
 `;
   },
 
+  v2_emailVerification: (firstName, user_id, token) => {
+    return `
+<h3>Dear ${firstName}</h3>
+<p> Thank you for signing up to join the AirQo data platform! We are excited to have you on board</p>
+<p> To complete your account setup, please verify that this is your email address by <a href=${constants.PLATFORM_BASE_URL}/api/v1/users/verify/${user_id}/${token}>clicking on this verification link</a></p>
+<p> This link will be valid for ${constants.EMAIL_VERIFICATION_HOURS} hour(s). If you did not initiate this request, please disregard this email!</p>
+<p> For help, please contact our support team: support@airqo.net.</p>
+<br>
+<p> See you in the platform,</p>
+<br>
+<p> The AirQo Data Team</p>
+`;
+  },
+
   afterEmailVerification: (firstName, username, password) => {
     return `
 <h3>Dear ${firstName}</h3>
