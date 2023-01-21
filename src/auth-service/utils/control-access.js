@@ -65,14 +65,7 @@ const controlAccess = {
       let filter = {
         token,
         user_id,
-      };
-      /**
-       * for some reason, this version is now working as expected
-       */
-      let filter_2 = {
-        token,
-        user_id,
-        expires: { $gt: Date.now() },
+        expires: { $gt: new Date().toISOString() },
       };
 
       const responseFromListAccessToken = await AccessTokenModel(tenant).list({

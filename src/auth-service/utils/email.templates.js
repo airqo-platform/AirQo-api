@@ -55,7 +55,7 @@ module.exports = {
 <p> This is a quick and easy process that helps us ensure the security and privacy of our users. </p>
 <br>
 <p> To verify your account, please click on the following link: <a href=${constants.PLATFORM_BASE_URL}/api/v1/users/verify/${user_id}/${token}>verification link</a></p>
-<p> This verification link will be valid for ${constants.EMAIL_VERIFICATION_HOURS} hours. If you do not verify your email within this time, you will need to request a new verification email.</p>
+<p> This verification link will be valid for ${constants.EMAIL_VERIFICATION_HOURS} hour(s). If you do not verify your email within this time, you will need to request a new verification email.</p>
 <br>
 <p> If you have any questions or need assistance with the verification process, please don't hesitate to reach out to our support team: support@airqo.net.</p>
 <br>

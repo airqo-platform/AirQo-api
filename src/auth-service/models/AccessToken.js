@@ -154,6 +154,7 @@ AccessTokenSchema.statics = {
           token: 1,
           network_id: 1,
           last_used_at: 1,
+          expires: 1,
           last_ip_address: 1,
           user: { $arrayElemAt: ["$users", 0] },
         })
