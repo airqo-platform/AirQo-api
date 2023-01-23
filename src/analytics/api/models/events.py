@@ -16,8 +16,11 @@ from main import cache, CONFIGURATIONS
 
 
 class EventsModel(BasePyMongoModel):
+    BIGQUERY_AIRQLOUDS_SITES = f"`{CONFIGURATIONS.BIGQUERY_AIRQLOUDS_SITES}`"
+    BIGQUERY_AIRQLOUDS = f"`{CONFIGURATIONS.BIGQUERY_AIRQLOUDS}`"
     BIGQUERY_SITES = f"`{CONFIGURATIONS.BIGQUERY_SITES}`"
     BIGQUERY_DEVICES = f"`{CONFIGURATIONS.BIGQUERY_DEVICES}`"
+    DATA_EXPORT_DECIMAL_PLACES = CONFIGURATIONS.DATA_EXPORT_DECIMAL_PLACES
 
     BIGQUERY_EVENTS = CONFIGURATIONS.BIGQUERY_EVENTS
     BIGQUERY_MOBILE_EVENTS = CONFIGURATIONS.BIGQUERY_MOBILE_EVENTS
@@ -37,24 +40,31 @@ class EventsModel(BasePyMongoModel):
         cls,
         devices,
         sites,
+        airqlouds,
         start_date,
         end_date,
         frequency,
         pollutants,
     ) -> pd.DataFrame:
 
-        decimal_places = 2
+        decimal_places = cls.DATA_EXPORT_DECIMAL_PLACES
 
         # Data sources
         sites_table = cls.BIGQUERY_SITES
+        airqlouds_sites_table = cls.BIGQUERY_AIRQLOUDS_SITES
         devices_table = cls.BIGQUERY_DEVICES
+        airqlouds_table = cls.BIGQUERY_AIRQLOUDS
+
+        sorting_cols = ["site_id", "datetime", "device_name"]
 
         if frequency == "raw":
             data_table = cls.BIGQUERY_RAW_DATA
         elif frequency == "daily":
             data_table = cls.BIGQUERY_DAILY_DATA
-        else:
+        elif frequency == "hourly":
             data_table = cls.BIGQUERY_HOURLY_DATA
+        else:
+            raise Exception("Invalid frequency")
 
         pollutant_columns = []
 
@@ -69,14 +79,14 @@ class EventsModel(BasePyMongoModel):
                 ]
             )
 
-        query = (
+        pollutants_query = (
             f" SELECT {', '.join(map(str, set(pollutant_columns)))} ,"
             f" FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', {data_table}.timestamp) AS datetime "
         )
 
         if len(devices) != 0:
             query = (
-                f" {query} , "
+                f" {pollutants_query} , "
                 f" {devices_table}.device_id AS device_name , "
                 f" {devices_table}.site_id AS site_id , "
                 f" {devices_table}.approximate_latitude AS device_latitude , "
@@ -89,7 +99,7 @@ class EventsModel(BasePyMongoModel):
             )
 
             query = (
-                f"SELECT "
+                f" SELECT "
                 f" {sites_table}.tenant AS tenant , "
                 f" {sites_table}.name AS site_name , "
                 f" {sites_table}.approximate_latitude AS site_latitude , "
@@ -99,9 +109,9 @@ class EventsModel(BasePyMongoModel):
                 f" RIGHT JOIN ({query}) data ON data.site_id = {sites_table}.id "
             )
 
-        else:
+        elif len(sites) != 0:
             query = (
-                f" {query} , "
+                f" {pollutants_query} , "
                 f" {sites_table}.tenant AS tenant , "
                 f" {sites_table}.id AS site_id , "
                 f" {sites_table}.name AS site_name , "
@@ -116,12 +126,60 @@ class EventsModel(BasePyMongoModel):
             )
 
             query = (
-                f"SELECT "
+                f" SELECT "
                 f" {devices_table}.approximate_latitude AS device_latitude , "
                 f" {devices_table}.approximate_longitude  AS device_longitude , "
+                f" {devices_table}.device_id AS device_name , "
                 f" data.* "
                 f" FROM {devices_table} "
                 f" RIGHT JOIN ({query}) data ON data.device_name = {devices_table}.device_id "
+            )
+        else:
+            sorting_cols = ["airqloud_id", "site_id", "datetime", "device_name"]
+
+            meta_data_query = (
+                f" SELECT {airqlouds_sites_table}.tenant , "
+                f" {airqlouds_sites_table}.airqloud_id , "
+                f" {airqlouds_sites_table}.site_id , "
+                f" FROM {airqlouds_sites_table} "
+                f" WHERE {airqlouds_sites_table}.airqloud_id IN UNNEST({airqlouds}) "
+            )
+
+            meta_data_query = (
+                f" SELECT "
+                f" {airqlouds_table}.name  AS airqloud_name , "
+                f" meta_data.* "
+                f" FROM {airqlouds_table} "
+                f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.airqloud_id = {airqlouds_table}.id "
+            )
+
+            meta_data_query = (
+                f" SELECT "
+                f" {sites_table}.approximate_latitude AS site_latitude , "
+                f" {sites_table}.approximate_longitude  AS site_longitude , "
+                f" {sites_table}.name  AS site_name , "
+                f" meta_data.* "
+                f" FROM {sites_table} "
+                f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.site_id = {sites_table}.id "
+            )
+
+            meta_data_query = (
+                f" SELECT "
+                f" {devices_table}.approximate_latitude AS device_latitude , "
+                f" {devices_table}.approximate_longitude  AS device_longitude , "
+                f" {devices_table}.device_id AS device_name , "
+                f" meta_data.* "
+                f" FROM {devices_table} "
+                f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.site_id = {devices_table}.site_id "
+            )
+
+            query = (
+                f" {pollutants_query} , "
+                f" meta_data.* "
+                f" FROM {data_table} "
+                f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.site_id = {data_table}.site_id "
+                f" WHERE {data_table}.timestamp >= '{start_date}' "
+                f" AND {data_table}.timestamp <= '{end_date}' "
             )
 
         job_config = bigquery.QueryJobConfig()
@@ -135,9 +193,7 @@ class EventsModel(BasePyMongoModel):
         dataframe.drop_duplicates(
             subset=["datetime", "device_name"], inplace=True, keep="first"
         )
-        dataframe.sort_values(
-            ["site_id", "datetime", "device_name"], ascending=True, inplace=True
-        )
+        dataframe.sort_values(sorting_cols, ascending=True, inplace=True)
         dataframe["frequency"] = frequency
         dataframe = dataframe.replace(np.nan, None)
         return dataframe

@@ -49,6 +49,7 @@ class DownloadDataResource(Resource):
         end_date = json_data["endDateTime"]
         sites = json_data.get("sites", [])
         devices = json_data.get("devices", [])
+        airqlouds = json_data.get("airqlouds", [])
         pollutants = json_data.get("pollutants", valid_pollutants)
         frequency = f"{json_data.get('frequency', valid_frequencies[0])}".lower()
         download_type = (
@@ -58,19 +59,20 @@ class DownloadDataResource(Resource):
             f"{json_data.get('outputFormat', valid_output_formats[0])}".lower()
         )
 
-        if len(sites) == 0 and len(devices) == 0:
+        if sum([len(sites) == 0, len(devices) == 0, len(airqlouds) == 0]) == 3:
             return (
                 create_response(
-                    f"Specify either a list of sites or devices in the request body",
+                    f"Specify either a list of airqlouds, sites or devices in the request body",
                     success=False,
                 ),
                 Status.HTTP_400_BAD_REQUEST,
             )
 
-        if len(sites) != 0 and len(devices) != 0:
+        if sum([len(sites) != 0, len(devices) != 0, len(airqlouds) != 0]) != 1:
             return (
                 create_response(
-                    f"You cannot specify both sites and devices", success=False
+                    f"You cannot specify airqlouds, sites and devices in one go",
+                    success=False,
                 ),
                 Status.HTTP_400_BAD_REQUEST,
             )
@@ -117,6 +119,7 @@ class DownloadDataResource(Resource):
         data_frame = EventsModel.download_from_bigquery(
             sites=sites,
             devices=devices,
+            airqlouds=airqlouds,
             start_date=start_date,
             end_date=end_date,
             frequency=frequency,

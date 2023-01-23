@@ -1,3 +1,5 @@
+import os
+
 from datetime import datetime
 from pathlib import Path
 from dotenv import load_dotenv
@@ -34,6 +36,9 @@ class Config:
 
     BIGQUERY_DEVICES = env_var("BIGQUERY_DEVICES")
     BIGQUERY_SITES = env_var("BIGQUERY_SITES")
+    BIGQUERY_AIRQLOUDS_SITES = env_var("BIGQUERY_AIRQLOUDS_SITES")
+    BIGQUERY_AIRQLOUDS = env_var("BIGQUERY_AIRQLOUDS")
+    DATA_EXPORT_DECIMAL_PLACES = os.getenv("DATA_EXPORT_DECIMAL_PLACES", 2)
 
     BIGQUERY_RAW_DATA = env_var("BIGQUERY_RAW_DATA")
     BIGQUERY_HOURLY_DATA = env_var("BIGQUERY_HOURLY_DATA")
