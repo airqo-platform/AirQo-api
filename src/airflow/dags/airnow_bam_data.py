@@ -97,22 +97,19 @@ def airnow_bam_realtime_data():
         big_query_api.load_data(data, table=table)
 
     @task()
-    def update_latest_data_table(data: pd.DataFrame):
-        from airqo_etl_utils.airnow_utils import AirnowDataUtils
-        from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
-        from airqo_etl_utils.constants import Tenant
+    def send_to_api(data: pd.DataFrame):
+        from airqo_etl_utils.data_validator import DataValidationUtils
+        from airqo_etl_utils.airqo_api import AirQoApi
 
-        data = AirnowDataUtils.process_latest_bam_data(data)
-        DataWarehouseUtils.update_latest_measurements(
-            data=data, tenant=Tenant.US_EMBASSY
-        )
+        data = DataValidationUtils.process_data_for_api(data)
+        airqo_api = AirQoApi()
+        airqo_api.save_events(measurements=data)
 
     extracted_bam_data = extract_bam_data()
     processed_bam_data = process_data(extracted_bam_data)
     send_to_bigquery(processed_bam_data)
     send_to_message_broker(processed_bam_data)
-    update_latest_data_table(processed_bam_data)
-
+    send_to_api(processed_bam_data)
 
 airnow_bam_realtime_data()
 airnow_bam_historical_data()
