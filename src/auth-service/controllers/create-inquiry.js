@@ -1,7 +1,6 @@
 const HTTPStatus = require("http-status");
 const createInquiryUtil = require("../utils/create-inquiry");
 const generateFilter = require("../utils/generate-filter");
-const validations = require("../utils/validations");
 const { validationResult } = require("express-validator");
 const { badRequest, convertErrorArrayToObject } = require("../utils/errors");
 const { logText, logElement, logObject, logError } = require("../utils/log");
@@ -31,13 +30,6 @@ const inquire = {
         tenant = constants.DEFAULT_TENANT;
       }
       const { fullName, email, message, category } = req.body;
-
-      const { errors, isValid } = validations.inquire(req.body);
-      if (!isValid) {
-        return res
-          .status(HTTPStatus.BAD_REQUEST)
-          .json({ success: false, errors, message: "validation error" });
-      }
 
       let request = {};
       request["tenant"] = tenant.toLowerCase();

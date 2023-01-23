@@ -1,7 +1,7 @@
 const { validationResult } = require("express-validator");
-const controlAccessUtil = require("../utils/control-access");
-const { badRequest, convertErrorArrayToObject } = require("../utils/errors");
-const { logText, logElement, logObject, logError } = require("../utils/log");
+const controlAccessUtil = require("@utils/control-access");
+const { badRequest, convertErrorArrayToObject } = require("@utils/errors");
+const { logText, logElement, logObject, logError } = require("@utils/log");
 const constants = require("@config/constants");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");

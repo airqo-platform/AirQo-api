@@ -1,12 +1,8 @@
 const HTTPStatus = require("http-status");
 const requestAccessUtil = require("../utils/request-access");
 const generateFilter = require("../utils/generate-filter");
-const validations = require("../utils/validations");
-
 const { validationResult } = require("express-validator");
 const { badRequest, convertErrorArrayToObject } = require("../utils/errors");
-
-const { missingQueryParams } = require("utils/errors");
 const { logObject } = require("../utils/log");
 const isEmpty = require("is-empty");
 const constants = require("../config/constants");
@@ -184,13 +180,6 @@ const requestAccess = {
         category,
         description,
       } = req.body;
-
-      const { errors, isValid } = validations.candidate(req.body);
-      if (!isValid) {
-        return res
-          .status(HTTPStatus.BAD_REQUEST)
-          .json({ success: false, errors, message: "validation error" });
-      }
 
       let { tenant } = req.query;
       if (isEmpty(tenant)) {

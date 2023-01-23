@@ -1,7 +1,5 @@
 import { logElement } from "../utils/log";
 const HTTPStatus = require("http-status");
-
-const sendResponseUtil = require("../utils/sendResponse");
 const RoleSchema = "../models/Role";
 const PermissionSchema = "../models/Permission";
 const { getModelByTenant } = require("../utils/multitenancy");

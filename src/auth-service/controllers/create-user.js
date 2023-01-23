@@ -1,5 +1,4 @@
 const HTTPStatus = require("http-status");
-const validations = require("../utils/validations");
 const { logElement, logText, logObject } = require("../utils/log");
 const { tryCatchErrors, missingQueryParams } = require("../utils/errors");
 const createUserUtil = require("../utils/create-user");
@@ -307,11 +306,6 @@ const createUser = {
         tenant = constants.DEFAULT_TENANT;
       }
 
-      logElement("the email", email);
-      const { error, isValid } = validations.forgot(email);
-      if (!isValid) {
-        return res.status(HTTPStatus.BAD_REQUEST).json(errors);
-      }
       let responseFromFilter = generateFilter.users(req);
       logObject("responseFromFilter", responseFromFilter);
       if (responseFromFilter.success === true) {
@@ -381,7 +375,7 @@ const createUser = {
           convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { errors, isValid } = validations.register(req.body);
+      s;
       let { tenant } = req.query;
       if (isEmpty(tenant)) {
         tenant = constants.DEFAULT_TENANT;
@@ -395,12 +389,6 @@ const createUser = {
         privilege,
         network_id,
       } = req.body;
-
-      if (!isValid) {
-        return res
-          .status(HTTPStatus.BAD_REQUEST)
-          .json({ success: false, errors, message: "validation error" });
-      }
 
       let request = {};
       request["tenant"] = tenant.toLowerCase();
@@ -589,10 +577,7 @@ const createUser = {
           convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { errors, isValid } = validations.login(req.body);
-      if (!isValid) {
-        return res.status(HTTPStatus.BAD_REQUEST).json(errors);
-      }
+
       if (req.auth.success === true) {
         res.status(HTTPStatus.OK).json(req.user.toAuthJSON());
       } else {
@@ -935,10 +920,7 @@ const createUser = {
           convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { errors, isValid } = validations.updateKnownPassword(req.body);
-      if (!isValid) {
-        return res.status(400).json(errors);
-      }
+
       let { tenant } = req.query;
       if (isEmpty(tenant)) {
         tenant = constants.DEFAULT_TENANT;

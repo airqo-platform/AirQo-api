@@ -1,5 +1,6 @@
 const UserSchema = require("../models/User");
-const AccessTokenSchema = require("../models/AccessToken");
+const AccessTokenSchema = require("@models/AccessToken");
+const ClientSchema = require("@models/Client");
 const { getModelByTenant } = require("./multitenancy");
 const { logObject, logElement, logText } = require("./log");
 const mailer = require("./mailer");
@@ -31,11 +32,21 @@ const UserModel = (tenant) => {
 
 const AccessTokenModel = (tenant) => {
   try {
-    let tokens = mongoose.model("access_token");
+    let tokens = mongoose.model("access_tokens");
     return tokens;
   } catch (error) {
     let tokens = getModelByTenant(tenant, "access_token", AccessTokenSchema);
     return tokens;
+  }
+};
+
+const ClientModel = (tenant) => {
+  try {
+    let clients = mongoose.model("clients");
+    return clients;
+  } catch (error) {
+    let clients = getModelByTenant(tenant, "client", ClientSchema);
+    return clients;
   }
 };
 
@@ -232,27 +243,6 @@ const join = {
           const indexOfCode = indexBeforeCode + 1;
           let emailLinkCode = linkSegments[indexOfCode].substring(2);
 
-          // await validationsUtil.checkEmailExistenceUsingKickbox(
-          //   email,
-          //   (value) => {
-          //     if (value.success === false) {
-          //       const errors = value.errors ? value.errors : "";
-          //       logObject("the validation checks results", {
-          //         success: false,
-          //         message: value.message,
-          //         errors,
-          //         status: value.status,
-          //       });
-          //       callback({
-          //         success: false,
-          //         message: value.message,
-          //         errors,
-          //         status: value.status,
-          //       });
-          //     }
-          //   }
-          // );
-
           let responseFromSendEmail = {};
           let token = 100000;
           if (email !== constants.EMAIL) {
@@ -323,11 +313,21 @@ const join = {
   },
   delete: async (tenant, filter) => {
     try {
-      let responseFromRemoveUser = await UserModel(tenant.toLowerCase()).remove(
-        {
-          filter,
-        }
-      );
+      // let responseFromRemoveUser = await UserModel(tenant.toLowerCase()).remove(
+      //   {
+      //     filter,
+      //   }
+      // );
+
+      /**
+       * cascase delete of user details...
+       */
+      let responseFromRemoveUser = await UserModel(
+        tenant.toLowerCase()
+      ).v2_remove({
+        filter,
+      });
+
       if (responseFromRemoveUser.success == true) {
         return {
           success: true,
@@ -425,8 +425,32 @@ const join = {
           return responseFromCreateUser;
         }
         const token = accessCodeGenerator
-          .generate(constants.RANDOM_PASSWORD_CONFIGURATION(16))
+          .generate(
+            constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH)
+          )
           .toUpperCase();
+
+        const client_id = accessCodeGenerator
+          .generate(
+            constants.RANDOM_PASSWORD_CONFIGURATION(constants.CLIENT_ID_LENGTH)
+          )
+          .toUpperCase();
+
+        const client_secret = accessCodeGenerator.generate(
+          constants.RANDOM_PASSWORD_CONFIGURATION(31)
+        );
+
+        const responseFromSaveClient = await ClientModel(tenant).register({
+          client_id,
+          client_secret,
+          name: responseFromCreateUser.data.email,
+        });
+        if (
+          responseFromSaveClient.success === false ||
+          responseFromSaveClient.status === httpStatus.ACCEPTED
+        ) {
+          return responseFromSaveClient;
+        }
 
         const toMilliseconds = (hrs, min, sec) =>
           (hrs * 60 * 60 + min * 60 + sec) * 1000;
@@ -438,6 +462,7 @@ const join = {
         const responseFromSaveToken = await AccessTokenModel(tenant).register({
           token,
           network_id,
+          client_id: responseFromSaveClient.data._id,
           user_id: responseFromCreateUser.data._id,
           expires: Date.now() + toMilliseconds(hrs, min, sec),
         });

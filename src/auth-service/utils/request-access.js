@@ -3,14 +3,9 @@ const CandidateSchema = require("../models/Candidate");
 const { getModelByTenant } = require("./multitenancy");
 const { logObject, logElement, logText } = require("./log");
 const mailer = require("./mailer");
-const generateFilter = require("./generate-filter");
-const generatePassword = require("./generate-password");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 constants = require("../config/constants");
-const kickbox = require("kickbox")
-  .client(`${constants.KICKBOX_API_KEY}`)
-  .kickbox();
 
 const UserModel = (tenant) => {
   return getModelByTenant(tenant, "user", UserSchema);

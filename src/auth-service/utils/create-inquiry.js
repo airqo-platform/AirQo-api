@@ -3,11 +3,7 @@ const { getModelByTenant } = require("./multitenancy");
 const { logObject, logElement, logText } = require("./log");
 const mailer = require("./mailer");
 const httpStatus = require("http-status");
-const validationsUtil = require("./validations");
 constants = require("../config/constants");
-const kickbox = require("kickbox")
-  .client(`${constants.KICKBOX_API_KEY}`)
-  .kickbox();
 
 const InquiryModel = (tenant) => {
   return getModelByTenant(tenant, "inquiry", InquirySchema);
@@ -20,24 +16,6 @@ const inquire = {
   create: async (inquire, callback) => {
     try {
       const { fullName, email, message, category, tenant } = inquire;
-
-      // await validationsUtil.checkEmailExistenceUsingKickbox(email, (value) => {
-      //   if (value.success === false) {
-      //     const errors = value.errors ? value.errors : "";
-      //     logObject("the validation checks results", {
-      //       success: false,
-      //       message: value.message,
-      //       errors,
-      //       status: value.status,
-      //     });
-      //     callback({
-      //       success: false,
-      //       message: value.message,
-      //       errors,
-      //       status: value.status,
-      //     });
-      //   }
-      // });
 
       const responseFromCreateInquiry = await InquiryModel(tenant).register(
         inquire
