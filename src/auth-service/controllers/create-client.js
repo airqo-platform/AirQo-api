@@ -40,7 +40,7 @@ const createClient = {
           message: responseFromCreateClient.message
             ? responseFromCreateClient.message
             : "",
-          created_Client: responseFromCreateClient.data
+          created_client: responseFromCreateClient.data
             ? responseFromCreateClient.data
             : [],
         });
@@ -59,7 +59,7 @@ const createClient = {
         });
       }
     } catch (error) {
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -98,7 +98,7 @@ const createClient = {
           message: responseFromListClients.message
             ? responseFromListClients.message
             : "",
-          Clients: responseFromListClients.data
+          clients: responseFromListClients.data
             ? responseFromListClients.data
             : [],
         });
@@ -117,7 +117,7 @@ const createClient = {
         });
       }
     } catch (error) {
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -157,7 +157,7 @@ const createClient = {
           message: responseFromDeleteClient.message
             ? responseFromDeleteClient.message
             : "",
-          deleted_Client: responseFromDeleteClient.data
+          deleted_client: responseFromDeleteClient.data
             ? responseFromDeleteClient.data
             : [],
         });
@@ -176,7 +176,7 @@ const createClient = {
         });
       }
     } catch (error) {
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -217,7 +217,7 @@ const createClient = {
           message: responseFromUpdateClient.message
             ? responseFromUpdateClient.message
             : "",
-          updated_Client: responseFromUpdateClient.data
+          updated_client: responseFromUpdateClient.data
             ? responseFromUpdateClient.data
             : [],
         });
@@ -236,7 +236,7 @@ const createClient = {
         });
       }
     } catch (error) {
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },

@@ -1,7 +1,7 @@
 const { validationResult } = require("express-validator");
-const controlAccessUtil = require("../utils/control-access");
-const { badRequest, convertErrorArrayToObject } = require("../utils/errors");
-const { logText, logElement, logObject, logError } = require("../utils/log");
+const controlAccessUtil = require("@utils/control-access");
+const { badRequest, convertErrorArrayToObject } = require("@utils/errors");
+const { logText, logElement, logObject, logError } = require("@utils/log");
 const constants = require("@config/constants");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
@@ -40,7 +40,7 @@ const createScope = {
           message: responseFromCreateScope.message
             ? responseFromCreateScope.message
             : "",
-          created_Scope: responseFromCreateScope.data
+          created_scope: responseFromCreateScope.data
             ? responseFromCreateScope.data
             : [],
         });
@@ -96,7 +96,7 @@ const createScope = {
           message: responseFromListScopes.message
             ? responseFromListScopes.message
             : "",
-          Scopes: responseFromListScopes.data
+          scopes: responseFromListScopes.data
             ? responseFromListScopes.data
             : [],
         });
@@ -115,7 +115,7 @@ const createScope = {
         });
       }
     } catch (error) {
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -155,7 +155,7 @@ const createScope = {
           message: responseFromDeleteScope.message
             ? responseFromDeleteScope.message
             : "",
-          deleted_Scope: responseFromDeleteScope.data
+          deleted_scope: responseFromDeleteScope.data
             ? responseFromDeleteScope.data
             : [],
         });
@@ -174,7 +174,7 @@ const createScope = {
         });
       }
     } catch (error) {
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -215,7 +215,7 @@ const createScope = {
           message: responseFromUpdateScope.message
             ? responseFromUpdateScope.message
             : "",
-          updated_Scope: responseFromUpdateScope.data
+          updated_scope: responseFromUpdateScope.data
             ? responseFromUpdateScope.data
             : [],
         });
@@ -234,7 +234,7 @@ const createScope = {
         });
       }
     } catch (error) {
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },

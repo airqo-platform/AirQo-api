@@ -1,9 +1,8 @@
-const HTTPStatus = require("http-status");
+const httpStatus = require("http-status");
 const { validationResult } = require("express-validator");
 const { badRequest, convertErrorArrayToObject } = require("@utils/errors");
 const controlAccessUtil = require("@utils/control-access");
 const { logText, logElement, logObject, logError } = require("@utils/log");
-const httpStatus = require("http-status");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const log4js = require("log4js");
@@ -51,18 +50,17 @@ const createRole = {
         const status = responseFromListRole.status
           ? responseFromListRole.status
           : httpStatus.INTERNAL_SERVER_ERROR;
-        const errors = responseFromListRole.errors
-          ? responseFromListRole.errors
-          : { message: "" };
         res.status(status).json({
           success: false,
           message: responseFromListRole.message,
-          errors,
+          errors: responseFromListRole.errors
+            ? responseFromListRole.errors
+            : { message: "" },
         });
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -117,7 +115,7 @@ const createRole = {
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -161,18 +159,17 @@ const createRole = {
         const status = responseFromUpdateRole.status
           ? responseFromUpdateRole.status
           : httpStatus.INTERNAL_SERVER_ERROR;
-        const errors = responseFromUpdateRole.errors
-          ? responseFromUpdateRole.errors
-          : { message: "" };
         res.status(status).json({
           message: responseFromUpdateRole.message,
-          errors,
+          errors: responseFromUpdateRole.errors
+            ? responseFromUpdateRole.errors
+            : { message: "" },
           success: false,
         });
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -217,19 +214,17 @@ const createRole = {
           ? responseFromDeleteRole.status
           : httpStatus.INTERNAL_SERVER_ERROR;
 
-        const errors = responseFromDeleteRole.errors
-          ? responseFromDeleteRole.errors
-          : { message: "INTERNAL SERVER ERROR" };
-
         res.status(status).json({
           message: responseFromDeleteRole.message,
           success: false,
-          errors,
+          errors: responseFromDeleteRole.errors
+            ? responseFromDeleteRole.errors
+            : { message: "INTERNAL SERVER ERROR" },
         });
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -278,19 +273,18 @@ const createRole = {
         const status = responseFromListUsersWithRole.status
           ? responseFromListUsersWithRole.status
           : httpStatus.INTERNAL_SERVER_ERROR;
-        const errors = responseFromListUsersWithRole.errors
-          ? responseFromListUsersWithRole.errors
-          : { message: "INTERNAL SERVER ERROR" };
 
         res.status(status).json({
           success: false,
           message: responseFromListUsersWithRole.message,
-          errors,
+          errors: responseFromListUsersWithRole.errors
+            ? responseFromListUsersWithRole.errors
+            : { message: "INTERNAL SERVER ERROR" },
         });
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -334,19 +328,18 @@ const createRole = {
         const status = responseFromGetUsers.status
           ? responseFromGetUsers.status
           : httpStatus.INTERNAL_SERVER_ERROR;
-        const errors = responseFromGetUsers.errors
-          ? responseFromGetUsers.errors
-          : { message: "" };
         return res.status(status).json({
           success: false,
           message: responseFromGetUsers.message,
-          errors,
+          errors: responseFromGetUsers.errors
+            ? responseFromGetUsers.errors
+            : { message: "" },
         });
       }
     } catch (error) {
       logObject("error", error);
       logger.error(`internal server error -- ${error.message}`);
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -395,19 +388,18 @@ const createRole = {
         const status = responseFromAssignUserToRole.status
           ? responseFromAssignUserToRole.status
           : httpStatus.INTERNAL_SERVER_ERROR;
-        const errors = responseFromAssignUserToRole.errors
-          ? responseFromAssignUserToRole.errors
-          : { message: "INTERNAL SERVER ERROR" };
         return res.status(status).json({
           success: false,
           message: responseFromAssignUserToRole.message,
-          errors,
+          errors: responseFromAssignUserToRole.errors
+            ? responseFromAssignUserToRole.errors
+            : { message: "INTERNAL SERVER ERROR" },
         });
       }
     } catch (error) {
       logObject("error", error);
       logger.error(`internal server error -- ${error.message}`);
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -472,7 +464,7 @@ const createRole = {
     } catch (error) {
       logObject("zi error", error);
       logger.error(`internal server error -- ${error.message}`);
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -517,19 +509,17 @@ const createRole = {
           ? responseFromListPermissions.status
           : httpStatus.INTERNAL_SERVER_ERROR;
 
-        const errors = responseFromListPermissions.errors
-          ? responseFromListPermissions.errors
-          : { message: "internal server error" };
-
         return res.status(status).json({
           success: false,
           message: responseFromListPermissions.message,
-          errors,
+          errors: responseFromListPermissions.errors
+            ? responseFromListPermissions.errors
+            : { message: "internal server error" },
         });
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -572,18 +562,17 @@ const createRole = {
         const status = responseForListOfPermissions.status
           ? responseForListOfPermissions.status
           : httpStatus.OK;
-        const errors = responseForListOfPermissions.errors
-          ? responseForListOfPermissions.errors
-          : { message: "INTERNAL SERVER ERROR" };
         return res.status(status).json({
           success: false,
           message: responseForListOfPermissions.message,
-          errors,
+          errors: responseForListOfPermissions.errors
+            ? responseForListOfPermissions.errors
+            : { message: "INTERNAL SERVER ERROR" },
         });
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -628,19 +617,18 @@ const createRole = {
         const status = responseFromUpdateRole.status
           ? responseFromUpdateRole.status
           : httpStatus.INTERNAL_SERVER_ERROR;
-        const errors = responseFromUpdateRole.errors
-          ? responseFromUpdateRole.errors
-          : { message: "INTERNAL SERVER ERROR" };
 
         return res.status(status).json({
           success: false,
           message: responseFromUpdateRole.message,
-          errors,
+          errors: responseFromUpdateRole.errors
+            ? responseFromUpdateRole.errors
+            : { message: "INTERNAL SERVER ERROR" },
         });
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -686,19 +674,17 @@ const createRole = {
           ? responseFromUnAssignPermissionFromRole.status
           : httpStatus.INTERNAL_SERVER_ERROR;
 
-        const errors = responseFromUnAssignPermissionFromRole.errors
-          ? responseFromUnAssignPermissionFromRole.errors
-          : { message: "" };
-
         return res.status(status).json({
           success: true,
           message: responseFromUnAssignPermissionFromRole.message,
-          errors,
+          errors: responseFromUnAssignPermissionFromRole.errors
+            ? responseFromUnAssignPermissionFromRole.errors
+            : { message: "" },
         });
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
