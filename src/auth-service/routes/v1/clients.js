@@ -1,10 +1,8 @@
 const express = require("express");
 const router = express.Router();
-const createPermissionController = require("@controllers/create-permission");
+const createClientController = require("@controllers/create-client");
 const { check, oneOf, query, body, param } = require("express-validator");
-
 const { setJWTAuth, authJWT } = require("@middleware/passport");
-
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 
@@ -36,7 +34,7 @@ router.get(
   ]),
   setJWTAuth,
   authJWT,
-  createPermissionController.list
+  createClientController.list
 );
 
 router.post(
@@ -56,35 +54,41 @@ router.post(
   ]),
   oneOf([
     [
-      body("permission")
+      body("client_id")
         .exists()
-        .withMessage("permission is missing in your request")
+        .withMessage("client_id is missing in your request")
         .bail()
         .trim(),
-      body("network_id")
+      body("client_secret")
         .exists()
-        .withMessage("network_id is missing in your request")
+        .withMessage("client_secret is missing in your request")
+        .bail()
+        .trim(),
+      body("name")
+        .exists()
+        .withMessage("name is missing in your request")
+        .bail()
+        .trim(),
+      body("redirect_url")
+        .exists()
+        .withMessage("the redirect_url is missing in request")
         .bail()
         .trim()
-        .isMongoId()
-        .withMessage("network_id must be an object ID")
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
-      body("description")
-        .exists()
-        .withMessage("description is missing in your request")
+        .matches(constants.WHITE_SPACES_REGEX, "i")
+        .withMessage("the redirect_url cannot have spaces in it")
         .bail()
+        .isURL()
+        .withMessage("the redirect_url is not a valid URL")
         .trim(),
     ],
   ]),
   setJWTAuth,
   authJWT,
-  createPermissionController.create
+  createClientController.create
 );
 
 router.put(
-  "/:permission_id",
+  "/:client_id",
   oneOf([
     [
       query("tenant")
@@ -100,45 +104,50 @@ router.put(
   ]),
   oneOf([
     [
-      param("permission_id")
+      param("client_id")
         .exists()
-        .withMessage("the permission_id param is missing in the request")
+        .withMessage("the client_id param is missing in the request")
         .bail()
         .trim(),
     ],
   ]),
   oneOf([
     [
-      body("permission")
+      body("client_id")
         .optional()
         .notEmpty()
-        .withMessage("permission should not be empty if provided")
+        .withMessage("client_id should not be empty if provided")
         .trim(),
-      body("network_id")
+      body("client_secret")
         .optional()
         .notEmpty()
-        .withMessage("network_id should not be empty if provided")
-        .bail()
+        .withMessage("client_secret should not be empty if provided")
+        .trim(),
+      body("name")
+        .optional()
+        .notEmpty()
+        .withMessage("name should not be empty if provided")
+        .trim(),
+      body("redirect_url")
+        .optional()
+        .notEmpty()
+        .withMessage("redirect_url should not be empty if provided")
         .trim()
-        .isMongoId()
-        .withMessage("network_id must be an object ID")
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
-      body("description")
-        .optional()
-        .notEmpty()
-        .withMessage("description should not be empty if provided")
+        .matches(constants.WHITE_SPACES_REGEX, "i")
+        .withMessage("the redirect_url cannot have spaces in it")
+        .bail()
+        .isURL()
+        .withMessage("the redirect_url is not a valid URL")
         .trim(),
     ],
   ]),
   setJWTAuth,
   authJWT,
-  createPermissionController.update
+  createClientController.update
 );
 
 router.delete(
-  "/:permission_id",
+  "/:client_id",
   oneOf([
     [
       query("tenant")
@@ -152,13 +161,22 @@ router.delete(
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
+  oneOf([
+    [
+      param("client_id")
+        .exists()
+        .withMessage("the client_id param is missing in the request")
+        .bail()
+        .trim(),
+    ],
+  ]),
   setJWTAuth,
   authJWT,
-  createPermissionController.delete
+  createClientController.delete
 );
 
 router.get(
-  "/:permission_id",
+  "/:client_id",
   oneOf([
     [
       query("tenant")
@@ -172,9 +190,18 @@ router.get(
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
+  oneOf([
+    [
+      param("client_id")
+        .exists()
+        .withMessage("the client_id param is missing in the request")
+        .bail()
+        .trim(),
+    ],
+  ]),
   setJWTAuth,
   authJWT,
-  createPermissionController.list
+  createClientController.list
 );
 
 module.exports = router;
