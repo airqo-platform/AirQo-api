@@ -1,14 +1,23 @@
 const mongoose = require("mongoose").set("debug", true);
-const { logObject, logElement, logText } = require("../utils/log");
+const { logObject, logElement, logText } = require("@utils/log");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 const isEmpty = require("is-empty");
-const HTTPStatus = require("http-status");
 const httpStatus = require("http-status");
+const constants = require("@config/constants");
+// const saltRounds = constants.SALT_ROUNDS;
+// const bcrypt = require("bcrypt");
 
 /**
  * belongs to a user
  * a User has many access tokens
  */
+
+const toMilliseconds = (hrs, min, sec) =>
+  (hrs * 60 * 60 + min * 60 + sec) * 1000;
+
+const hrs = parseInt(constants.EMAIL_VERIFICATION_HOURS);
+const min = parseInt(constants.EMAIL_VERIFICATION_MIN);
+const sec = parseInt(constants.EMAIL_VERIFICATION_SEC);
 
 const AccessTokenSchema = new mongoose.Schema(
   {
@@ -17,6 +26,12 @@ const AccessTokenSchema = new mongoose.Schema(
       ref: "user",
       required: [true, "user is required!"],
     },
+    client_id: {
+      type: String,
+      required: [true, "client_id is required!"],
+    },
+    permissions: [{ type: ObjectId, ref: "permission" }],
+    scopes: [{ type: ObjectId, ref: "scope" }],
     network_id: {
       type: ObjectId,
       ref: "network",
@@ -29,13 +44,20 @@ const AccessTokenSchema = new mongoose.Schema(
     },
     last_used_at: { type: Date },
     last_ip_address: { type: Date },
-    expires_in: { type: Number },
-    expires: { type: Date, required: [true, "expiry date is required!"] },
+    expires_in: { type: Number, default: hrs },
+    expires: {
+      type: Date,
+      required: [true, "expiry date is required!"],
+      default: Date.now() + toMilliseconds(hrs, min, sec),
+    },
   },
   { timestamps: true }
 );
 
 AccessTokenSchema.pre("save", function (next) {
+  // if (this.isModified("token")) {
+  //   this.token = bcrypt.hashSync(this.token, saltRounds);
+  // }
   return next();
 });
 
@@ -59,6 +81,9 @@ AccessTokenSchema.pre("findOneAndUpdate", function () {
 });
 
 AccessTokenSchema.pre("update", function (next) {
+  // if (this.isModified("token")) {
+  //   this.token = bcrypt.hashSync(this.token, saltRounds);
+  // }
   return next();
 });
 
@@ -103,23 +128,24 @@ AccessTokenSchema.statics = {
       data = await this.create({
         ...args,
       });
-      if (data) {
+      if (!isEmpty(data)) {
         return {
           success: true,
           data,
           message: "Token created",
+          status: httpStatus.OK,
+        };
+      } else if (isEmpty(data)) {
+        return {
+          success: true,
+          data: [],
+          message: "operation successful but Token NOT successfully created",
+          status: httpStatus.ACCEPTED,
         };
       }
-      return {
-        success: true,
-        data,
-        message: "operation successful but Token NOT successfully created",
-      };
     } catch (err) {
       logObject("the error", err);
       let response = {};
-      let message = "validation errors for some of the provided fields";
-      let status = HTTPStatus.CONFLICT;
       if (err.keyValue) {
         Object.entries(err.keyValue).forEach(([key, value]) => {
           return (response[key] = `the ${key} must be unique`);
@@ -127,9 +153,10 @@ AccessTokenSchema.statics = {
       }
       return {
         error: response,
-        message,
+        errors: response,
+        message: "validation errors for some of the provided fields",
         success: false,
-        status,
+        status: httpStatus.CONFLICT,
       };
     }
   },
@@ -137,6 +164,11 @@ AccessTokenSchema.statics = {
   async list({ skip = 0, limit = 5, filter = {} } = {}) {
     try {
       logObject("filtering here", filter);
+      /**
+       * if the filter has a token in it
+       * then just use hashcompare from here accordinglys
+       * or just hash it the same way in order to make the comparisons
+       */
 
       const response = await this.aggregate()
         .match(filter)
@@ -145,6 +177,18 @@ AccessTokenSchema.statics = {
           localField: "user_id",
           foreignField: "_id",
           as: "users",
+        })
+        .lookup({
+          from: "permissions",
+          localField: "permissions",
+          foreignField: "_id",
+          as: "permissions",
+        })
+        .lookup({
+          from: "scopes",
+          localField: "scopes",
+          foreignField: "_id",
+          as: "scopes",
         })
         .sort({ createdAt: -1 })
         .project({
@@ -189,13 +233,13 @@ AccessTokenSchema.statics = {
           success: true,
           message: "successfully retrieved the token details",
           data,
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       } else if (isEmpty(response)) {
         return {
           success: true,
-          message: "token/s do not exist, please crosscheck",
-          status: HTTPStatus.NOT_FOUND,
+          message: "not found, please crosscheck provided details",
+          status: httpStatus.NOT_FOUND,
           data: [],
         };
       }
@@ -204,7 +248,7 @@ AccessTokenSchema.statics = {
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -212,23 +256,24 @@ AccessTokenSchema.statics = {
   async modify({ filter = {}, update = {} } = {}) {
     try {
       let options = { new: true };
-      let modifiedUpdate = update;
-      /**
-       * We could delete the userID from here
-       * Should the user ID be deleted?
-       */
+      let modifiedUpdate = Object.assign({}, update);
       delete modifiedUpdate.user_id;
+      // if (modifiedUpdate.token) {
+      //   modifiedUpdate.token = bcrypt.hashSync(
+      //     modifiedUpdate.token,
+      //     saltRounds
+      //   );
+      // }
       let updatedToken = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,
         options
       ).exec();
       if (!isEmpty(updatedToken)) {
-        let data = updatedToken._doc;
         return {
           success: true,
           message: "successfully modified the Token",
-          data,
+          data: updatedToken._doc,
           status: httpStatus.OK,
         };
       } else if (isEmpty(updatedToken)) {
@@ -236,6 +281,7 @@ AccessTokenSchema.statics = {
           success: true,
           message: "Token does not exist, please crosscheck",
           status: httpStatus.NOT_FOUND,
+          data: [],
         };
       }
     } catch (error) {
@@ -265,11 +311,10 @@ AccessTokenSchema.statics = {
       logObject("removedToken", removedToken);
 
       if (!isEmpty(removedToken)) {
-        let data = removedToken._doc;
         return {
           success: true,
           message: "successfully removed the Token",
-          data,
+          data: removedToken._doc,
           status: httpStatus.OK,
         };
       } else if (isEmpty(removedToken)) {
@@ -279,18 +324,12 @@ AccessTokenSchema.statics = {
           status: httpStatus.NOT_FOUND,
           data: [],
         };
-      } else {
-        return {
-          success: false,
-          message: "no response from deletion operation",
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-        };
       }
     } catch (error) {
       return {
         success: false,
-        message: "Token model server error - remove",
-        errors: { message: error.message },
+        message: "internal server error",
+        errors: { message: "internal server error", error: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -304,6 +343,9 @@ AccessTokenSchema.methods = {
       token: this.token,
       user_id: this.user_id,
       network_id: this.network_id,
+      client_id: this.client_id,
+      permissions: this.permissions,
+      scopes: this.scopes,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
       name: this.name,

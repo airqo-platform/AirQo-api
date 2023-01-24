@@ -1,11 +1,8 @@
 const express = require("express");
 const router = express.Router();
 const createTokenController = require("@controllers/create-token");
-
 const { check, oneOf, query, body, param } = require("express-validator");
-
 const { setJWTAuth, authJWT } = require("@middleware/passport");
-
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 
@@ -69,12 +66,24 @@ router.post(
         .customSanitizer((value) => {
           return ObjectId(value);
         }),
-      body("expires")
+      body("user_id")
         .exists()
-        .withMessage("expires is missing")
+        .withMessage("the user ID is missing in request")
         .bail()
         .notEmpty()
-        .withMessage("expires cannot be empty")
+        .withMessage("this user ID cannot be empty")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("user_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("expires")
+        .optional()
+        .notEmpty()
+        .withMessage("expires cannot be empty if provided")
         .bail()
         .isISO8601({ strict: true, strictSeparator: true })
         .withMessage("expires must be a valid datetime.")
@@ -85,7 +94,7 @@ router.post(
 );
 
 router.put(
-  "/:token_id",
+  "/:token",
   oneOf([
     [
       query("tenant")
@@ -100,17 +109,13 @@ router.put(
     ],
   ]),
   oneOf([
-    param("token_id")
+    param("token")
       .exists()
-      .withMessage("the token ID parameter is missing in the request")
+      .withMessage("the token parameter is missing in the request")
       .bail()
-      .trim()
-      .isMongoId()
-      .withMessage("token_id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
+      .notEmpty()
+      .withMessage("token must not be empty")
+      .trim(),
   ]),
   oneOf([
     [
@@ -144,7 +149,7 @@ router.put(
 );
 
 router.delete(
-  "/:token_id",
+  "/:token",
   oneOf([
     [
       query("tenant")
@@ -159,17 +164,13 @@ router.delete(
     ],
   ]),
   oneOf([
-    param("token_id")
+    param("token")
       .exists()
-      .withMessage("the user ID parameter is missing in the request")
+      .withMessage("the token parameter is missing in the request")
       .bail()
       .trim()
-      .isMongoId()
-      .withMessage("id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
+      .notEmpty()
+      .withMessage("the token must not be empty"),
   ]),
   setJWTAuth,
   authJWT,
@@ -177,7 +178,7 @@ router.delete(
 );
 
 router.get(
-  "/:token_id",
+  "/:token/verify",
   oneOf([
     [
       query("tenant")
@@ -193,17 +194,41 @@ router.get(
   ]),
   oneOf([
     [
-      param("token_id")
+      param("token")
         .exists()
-        .withMessage("the user ID param is missing in the request")
+        .withMessage("the token param is missing in the request")
         .bail()
         .trim()
-        .isMongoId()
-        .withMessage("the user ID must be an object ID")
+        .notEmpty()
+        .withMessage("the token must not be empty"),
+    ],
+  ]),
+  createTokenController.verify
+);
+router.get(
+  "/:token",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
         .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      param("token")
+        .exists()
+        .withMessage("the token param is missing in the request")
+        .bail()
+        .trim()
+        .notEmpty()
+        .withMessage("the token must not be empty"),
     ],
   ]),
   setJWTAuth,

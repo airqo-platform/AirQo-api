@@ -122,6 +122,68 @@ const createAccessToken = {
     }
   },
 
+  verify: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      logObject("hasErrors", hasErrors);
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      logText("we are in baby");
+      let { tenant, id } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT;
+      }
+      logElement("tenant", tenant);
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
+      const responseFromListAccessToken = await controlAccessUtil.verifyToken(
+        request
+      );
+
+      if (responseFromListAccessToken.success === true) {
+        let tokenDetails = {};
+        const status = responseFromListAccessToken.status
+          ? responseFromListAccessToken.status
+          : HTTPStatus.OK;
+        if (responseFromListAccessToken.status === HTTPStatus.BAD_REQUEST) {
+          tokenDetails = {};
+        } else if (responseFromListAccessToken.status === HTTPStatus.OK) {
+          tokenDetails = responseFromListAccessToken.data
+            ? responseFromListAccessToken.data
+            : {};
+        }
+        return res.status(status).json({
+          message: responseFromListAccessToken.message
+            ? responseFromListAccessToken.message
+            : "",
+          token: tokenDetails,
+        });
+      } else if (responseFromListAccessToken.success === false) {
+        const status = responseFromListAccessToken.status
+          ? responseFromListAccessToken.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          message: responseFromListAccessToken.message,
+          errors: responseFromListAccessToken.errors
+            ? responseFromListAccessToken.errors
+            : { message: "" },
+        });
+      }
+    } catch (error) {
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
   delete: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();

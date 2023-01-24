@@ -1,10 +1,9 @@
-const { logElement, logObject } = require("./log");
+const { logElement, logObject, logText } = require("@utils/log");
 const mongoose = require("mongoose").set("debug", true);
 const ObjectId = mongoose.Types.ObjectId;
 const httpStatus = require("http-status");
-const constants = require("../config/constants");
+const constants = require("@config/constants");
 const log4js = require("log4js");
-const { logText } = require("../../device-registry/utils/log");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- generate-filter-util`
 );
@@ -333,8 +332,8 @@ const filter = {
   permissions: (req) => {
     try {
       const { query, params } = req;
-      const { id, name, network } = query;
-      const { perm_id } = params;
+      const { id, network, permission } = query;
+      const { perm_id, network_id, perm } = params;
       let filter = {};
 
       if (id) {
@@ -346,11 +345,21 @@ const filter = {
       }
 
       if (network) {
-        filter["network_id"] = network;
+        filter["network_id"] = ObjectId(network);
       }
-      if (name) {
-        filter["name"] = name;
+
+      if (network_id) {
+        filter["network_id"] = ObjectId(network_id);
       }
+
+      if (perm) {
+        filter["permission"] = perm;
+      }
+
+      if (permission) {
+        filter["permission"] = permission;
+      }
+
       return filter;
     } catch (e) {
       return {
@@ -365,15 +374,19 @@ const filter = {
     try {
       const { query, params } = req;
       const { id } = query;
-      const { token_id, user_id, network_id } = params;
+      const { token, user_id, network_id, client_id } = params;
       let filter = {};
 
       if (id) {
         filter["_id"] = ObjectId(id);
       }
 
-      if (token_id) {
-        filter["_id"] = ObjectId(token_id);
+      if (token) {
+        filter["token"] = token;
+      }
+
+      if (client_id) {
+        filter["client_id"] = client_id;
       }
 
       if (network_id) {
@@ -383,7 +396,82 @@ const filter = {
       if (user_id) {
         filter[" user_id"] = ObjectId(user_id);
       }
+      return filter;
+    } catch (e) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: e.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
 
+  clients: (req) => {
+    try {
+      const { query, params } = req;
+      const { id } = query;
+      const { client_id, client_name, network_id, client_secret } = params;
+      let filter = {};
+
+      if (id) {
+        filter["_id"] = ObjectId(id);
+      }
+
+      if (client_id) {
+        filter["client_id"] = client_id;
+      }
+
+      if (client_secret) {
+        filter["client_secret"] = client_secret;
+      }
+
+      if (client_name) {
+        filter["name"] = client_name;
+      }
+
+      if (network_id) {
+        const networksArray = network_id.split(",");
+        const arrayOfNetworkObjects = networksArray.map((value) => {
+          ObjectId(value);
+        });
+        filter["networks"] = {};
+        filter["networks"]["$in"] = arrayOfNetworkObjects;
+      }
+
+      return filter;
+    } catch (e) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: e.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  scopes: (req) => {
+    try {
+      const { query, params } = req;
+      const { id } = query;
+      const { scope_id, network_id, scope } = params;
+      let filter = {};
+
+      if (id) {
+        filter["_id"] = ObjectId(id);
+      }
+
+      if (scope_id) {
+        filter["_id"] = ObjectId(scope_id);
+      }
+
+      if (scope) {
+        filter["scope"] = scope;
+      }
+
+      if (network_id) {
+        filter["network_id"] = ObjectId(network_id);
+      }
       return filter;
     } catch (e) {
       return {
