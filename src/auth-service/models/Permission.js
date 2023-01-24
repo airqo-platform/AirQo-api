@@ -1,23 +1,24 @@
 const mongoose = require("mongoose").set("debug", true);
 const { logObject } = require("../utils/log");
 const isEmpty = require("is-empty");
-const HTTPStatus = require("http-status");
+const httpStatus = require("http-status");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 
 const PermissionSchema = new mongoose.Schema(
   {
-    name: {
+    permission: {
       type: String,
       unique: true,
-      required: [true, "Name is required"],
+      required: [true, "permission is required"],
     },
     network_id: {
       type: ObjectId,
       ref: "network",
       required: [true, "network ID is required"],
     },
+    description: { type: String, required: [true, "description is required"] },
   },
-  { timestamps: false }
+  { timestamps: true }
 );
 
 PermissionSchema.pre("save", function (next) {
@@ -47,7 +48,7 @@ PermissionSchema.pre("update", function (next) {
   return next();
 });
 
-PermissionSchema.index({ name: 1, network_id: 1 }, { unique: true });
+PermissionSchema.index({ permission: 1 }, { unique: true });
 
 PermissionSchema.statics = {
   async register(args) {
@@ -55,41 +56,42 @@ PermissionSchema.statics = {
       data = await this.create({
         ...args,
       });
-      if (data) {
+      if (!isEmpty(data)) {
         return {
           success: true,
           data,
           message: "Permission created",
+          status: httpStatus.OK,
+        };
+      } else if (isEmpty(data)) {
+        return {
+          success: true,
+          data: [],
+          message:
+            "operation successful but Permission NOT successfully created",
+          status: httpStatus.ACCEPTED,
         };
       }
-      return {
-        success: true,
-        data,
-        message: "operation successful but Permission NOT successfully created",
-      };
     } catch (err) {
       logObject("the error", err);
       let response = {};
-      let message = "validation errors for some of the provided fields";
-      let status = HTTPStatus.CONFLICT;
       if (err.keyValue) {
         Object.entries(err.keyValue).forEach(([key, value]) => {
           return (response[key] = `the ${key} must be unique`);
         });
       }
-
       return {
-        error: response,
-        message,
         success: false,
-        status,
+        error: response,
+        errors: response,
+        message: "validation errors for some of the provided fields",
+        status: httpStatus.CONFLICT,
       };
     }
   },
 
   async list({ skip = 0, limit = 5, filter = {} } = {}) {
     try {
-      // network: { $arrayElemAt: ["$network", 0] },
       let permissions = await this.aggregate()
         .match(filter)
         .sort({ createdAt: -1 })
@@ -101,7 +103,8 @@ PermissionSchema.statics = {
         })
         .project({
           _id: 1,
-          name: 1,
+          permission: 1,
+          description: 1,
           network: { $arrayElemAt: ["$network", 0] },
         })
         .project({
@@ -118,26 +121,23 @@ PermissionSchema.statics = {
           success: true,
           data,
           message: "successfully listed the permissions",
+          status: httpStatus.OK,
         };
-      }
-
-      if (isEmpty(data)) {
+      } else if (isEmpty(permissions)) {
         return {
           success: true,
           message: "no permissions exist",
-          data,
+          data: [],
+          status: httpStatus.NOT_FOUND,
         };
       }
-      return {
-        success: false,
-        message: "unable to retrieve permissions",
-        data,
-      };
     } catch (error) {
       return {
         success: false,
-        message: "Permission model server error - list",
+        message: "internal server error",
         error: error.message,
+        errors: { message: "internal server error" },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -153,30 +153,34 @@ PermissionSchema.statics = {
       ).exec();
 
       if (!isEmpty(updatedPermission)) {
-        let data = updatedPermission._doc;
         return {
           success: true,
           message: "successfully modified the Permission",
-          data,
+          data: updatedPermission._doc,
+          status: httpStatus.OK,
         };
-      } else {
+      } else if (isEmpty(updatedPermission)) {
         return {
-          success: false,
+          success: true,
           message: "Permission does not exist, please crosscheck",
+          data: [],
+          status: httpStatus.NOT_FOUND,
         };
       }
     } catch (error) {
       return {
         success: false,
-        message: "Permission model server error - modify",
+        message: "internal server error",
         error: error.message,
+        errors: { message: "internal server error", error: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
   async remove({ filter = {} } = {}) {
     try {
       let options = {
-        projection: { _id: 0, name: 1 },
+        projection: { _id: 0, permission: 1, description: 1 },
       };
       let removedPermission = await this.findOneAndRemove(
         filter,
@@ -184,23 +188,27 @@ PermissionSchema.statics = {
       ).exec();
 
       if (!isEmpty(removedPermission)) {
-        let data = removedPermission._doc;
         return {
           success: true,
           message: "successfully removed the Permission",
-          data,
+          data: removedPermission._doc,
+          status: httpStatus.OK,
         };
-      } else {
+      } else if (isEmpty(removedPermission)) {
         return {
-          success: false,
+          success: true,
           message: "Permission does not exist, please crosscheck",
+          data: [],
+          status: httpStatus.NOT_FOUND,
         };
       }
     } catch (error) {
       return {
         success: false,
-        message: "Permission model server error - remove",
+        message: "internal server error",
         error: error.message,
+        errors: { message: "internal server error", error: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -210,7 +218,8 @@ PermissionSchema.methods = {
   toJSON() {
     return {
       _id: this._id,
-      name: this.name,
+      permission: this.permission,
+      description: this.description,
     };
   },
 };

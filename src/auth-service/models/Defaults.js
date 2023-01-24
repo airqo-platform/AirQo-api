@@ -1,7 +1,7 @@
 const mongoose = require("mongoose").set("debug", true);
 const ObjectId = mongoose.Types.ObjectId;
 var uniqueValidator = require("mongoose-unique-validator");
-const { logElement, logText, logObject } = require("../utils/log");
+const { logElement, logText, logObject } = require("@utils/log");
 const isEmpty = require("is-empty");
 const HTTPStatus = require("http-status");
 

@@ -9,6 +9,7 @@ const httpStatus = require("http-status");
 const createPermission = {
   create: async (req, res) => {
     try {
+      logText("creating permission.....");
       const { query } = req;
       let { tenant } = query;
       const hasErrors = !validationResult(req).isEmpty();
@@ -58,6 +59,7 @@ const createPermission = {
         });
       }
     } catch (error) {
+      logObject("error", error);
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",

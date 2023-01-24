@@ -3,17 +3,13 @@ const Schema = mongoose.Schema;
 const validator = require("validator");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
-const constants = require("../config/constants");
-const { logObject, logElement, logText } = require("../utils/log");
+const constants = require("@config/constants");
+const { logObject, slogText } = require("@utils/log");
 const ObjectId = mongoose.Schema.Types.ObjectId;
-const validations = require("../utils/validations");
 const isEmpty = require("is-empty");
-const { log } = require("debug");
 const saltRounds = constants.SALT_ROUNDS;
-const HTTPStatus = require("http-status");
-const accessCodeGenerator = require("generate-password");
-const { getModelByTenant } = require("../utils/multitenancy");
 const httpStatus = require("http-status");
+const accessCodeGenerator = require("generate-password");
 
 function oneMonthFromNow() {
   var d = new Date();
@@ -24,6 +20,7 @@ function oneMonthFromNow() {
   }
   return d;
 }
+const passwordReg = /(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{6,}/;
 
 const UserSchema = new Schema(
   {
@@ -78,7 +75,7 @@ const UserSchema = new Schema(
       minlength: [6, "Password is required"],
       validate: {
         validator(password) {
-          return validations.passwordReg.test(password);
+          return passwordReg.test(password);
         },
         message: "{VALUE} is not a valid password, please check documentation!",
       },
@@ -204,7 +201,7 @@ UserSchema.statics = {
       logObject("the error", err);
       let response = {};
       let message = "validation errors for some of the provided fields";
-      let status = HTTPStatus.CONFLICT;
+      let status = httpStatus.CONFLICT;
       if (err.keyValue) {
         Object.entries(err.keyValue).forEach(([key, value]) => {
           return (response[key] = `the ${key} must be unique`);
@@ -334,14 +331,14 @@ UserSchema.statics = {
           success: true,
           message: "successfully retrieved the user details",
           data,
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       } else if (isEmpty(response)) {
         return {
           success: true,
           message: "no users exist",
           data: [],
-          status: HTTPStatus.NOT_FOUND,
+          status: httpStatus.NOT_FOUND,
         };
       }
     } catch (error) {
@@ -350,7 +347,7 @@ UserSchema.statics = {
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -430,18 +427,18 @@ UserSchema.statics = {
       let removedUser = await this.findOneAndRemove(filter, options).exec();
 
       if (!isEmpty(removedUser)) {
-        let data = removedUser._doc;
         return {
           success: true,
           message: "successfully removed the user",
-          data,
-          status: HTTPStatus.OK,
+          data: removedUser._doc,
+          status: httpStatus.OK,
         };
-      } else {
+      } else if (isEmpty(removedUser)) {
         return {
-          success: false,
+          success: true,
           message: "user does not exist, please crosscheck",
-          status: HTTPStatus.NOT_FOUND,
+          status: httpStatus.NOT_FOUND,
+          data: [],
         };
       }
     } catch (error) {
@@ -449,7 +446,63 @@ UserSchema.statics = {
         success: false,
         message: "User model server error - remove",
         error: error.message,
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  async v2_remove({ filter = {} } = {}) {
+    try {
+      const response = await this.aggregate()
+        .lookup({
+          from: "access_tokens",
+          localField: "_id",
+          foreignField: "user_id",
+          as: "access_tokens",
+        })
+        .unwind("$access_tokens")
+        .lookup({
+          from: "scopes",
+          localField: "access_tokens.scopes",
+          foreignField: "_id",
+          as: "scopes",
+        })
+        .unwind("scopes")
+        .match(filter)
+        .delete({
+          filter: { _id: "$access_tokens._id" },
+          delete: "access_tokens",
+        })
+        .delete({
+          filter: { _id: "$scopes._id" },
+          delete: "scopes",
+        })
+        .allowDiskUse(true);
+
+      if (!isEmpty(response)) {
+        let data = response;
+        return {
+          success: true,
+          message: "successfully deleted the user",
+          data,
+          status: httpStatus.OK,
+        };
+      } else if (isEmpty(response)) {
+        return {
+          success: true,
+          message: "no users exist",
+          data: [],
+          status: httpStatus.NOT_FOUND,
+        };
+      }
+    } catch (error) {
+      logObject("error", error);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
