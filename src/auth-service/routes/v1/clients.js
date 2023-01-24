@@ -54,24 +54,15 @@ router.post(
   ]),
   oneOf([
     [
-      body("client_id")
-        .exists()
-        .withMessage("client_id is missing in your request")
-        .bail()
-        .trim(),
-      body("client_secret")
-        .exists()
-        .withMessage("client_secret is missing in your request")
-        .bail()
-        .trim(),
       body("name")
         .exists()
         .withMessage("name is missing in your request")
         .bail()
         .trim(),
       body("redirect_url")
-        .exists()
-        .withMessage("the redirect_url is missing in request")
+        .optional()
+        .notEmpty()
+        .withMessage("the redirect_url cannot be empty if provided")
         .bail()
         .trim()
         .matches(constants.WHITE_SPACES_REGEX, "i")

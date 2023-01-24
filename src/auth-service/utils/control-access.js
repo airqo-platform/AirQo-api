@@ -526,16 +526,22 @@ const controlAccess = {
 
   createClient: async (request) => {
     try {
-      const { query, body } = request;
+      const { query, body, params } = request;
       const { tenant } = query;
+
       const client_id = accessCodeGenerator
         .generate(
           constants.RANDOM_PASSWORD_CONFIGURATION(constants.CLIENT_ID_LENGTH)
         )
         .toUpperCase();
-      const client_secret = accessCodeGenerator.generate(
-        constants.RANDOM_PASSWORD_CONFIGURATION(constants.CLIENT_SECRET_LENGTH)
-      );
+      const client_secret = accessCodeGenerator
+        .generate(
+          constants.RANDOM_PASSWORD_CONFIGURATION(
+            constants.CLIENT_SECRET_LENGTH
+          )
+        )
+        .toUpperCase();
+
       let modifiedBody = Object.assign({}, body);
       modifiedBody["client_secret"] = client_secret;
       modifiedBody["client_id"] = client_id;
