@@ -25,7 +25,7 @@ def convert_to_date(gmt_datetime):
     return datetime.strftime(gmt_datetime, '%Y-%m-%d')
 
 
-def validate_datetime(value):
+def validate_datetime(value) -> datetime:
     try:
         return datetime.strptime(value, '%Y-%m-%dT%H:%M:%S.%fZ')
     except Exception:

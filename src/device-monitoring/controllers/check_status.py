@@ -1,39 +1,15 @@
-from flask import Blueprint, request, jsonify
 import logging
+
+from flask import Blueprint, request, jsonify
+
+import routes
 from helpers.convert_dates import validate_datetime
 from helpers.convert_object_ids import convert_model_ids
-from helpers.utils import str_to_bool
-from jobs.calculate_devices_uptime import calculate_device_uptime
 from models import DeviceStatus, NetworkUptime, DeviceUptime
-import routes
-import pandas as pd
+
 _logger = logging.getLogger(__name__)
 
 device_status_bp = Blueprint('device_status', __name__)
-
-
-@device_status_bp.route(routes.DEVICE_COLLOCATION, methods=['POST'])
-def get_collocation():
-    json_data = request.get_json()
-    devices = json_data.get("devices", [])
-    start_date = json_data.get("startDate", "")
-    end_time = json_data.get("endDate", "")
-    completeness_value = json_data.get("completeness_value", 80)
-    correlation_value = json_data.get("correlation_value", 90)
-    differences_value = json_data.get("differences_value", 5)
-    pollutants = json_data.get("pollutants", ["pm2_5", "pm10"])
-
-
-    response = dict(message="devices collocation successful",
-                    data={"failed_devices": failed_devices_data, "passed_devices": passed_devices_data, "report": {
-                        "statistics": statistics,
-                        "differences": differences,
-                        "inter_sensor_correlation": inter_sensor_correlation,
-                        "intra_sensor_correlation": intra_sensor_correlation,
-                        "completeness_report": completeness_report
-                    }}
-                    )
-    return jsonify(response), 200
 
 
 @device_status_bp.route(routes.DEVICE_STATUS, methods=['GET'])
