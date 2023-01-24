@@ -8,6 +8,8 @@ const requests = require("@routes/v1/requests");
 const roles = require("@routes/v1/roles");
 const users = require("@routes/v1/users");
 const tokens = require("@routes/v1/tokens");
+const clients = require("@routes/v1/clients");
+const scopes = require("@routes/v1/scopes");
 
 module.exports = {
   defaults,
@@ -20,4 +22,6 @@ module.exports = {
   roles,
   users,
   tokens,
+  scopes,
+  clients,
 };
