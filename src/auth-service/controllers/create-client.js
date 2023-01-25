@@ -188,7 +188,6 @@ const createClient = {
     try {
       const { query } = req;
       let { tenant } = query;
-      s;
       const hasErrors = !validationResult(req).isEmpty();
       logObject("hasErrors", hasErrors);
       if (hasErrors) {

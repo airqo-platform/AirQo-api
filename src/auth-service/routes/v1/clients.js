@@ -78,6 +78,172 @@ router.post(
   createClientController.create
 );
 
+router.patch(
+  "secret/:client_id",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      param("client_id")
+        .exists()
+        .withMessage("the client_id param is missing in the request")
+        .trim(),
+    ],
+  ]),
+  oneOf([
+    [
+      body("client_id")
+        .not()
+        .exists()
+        .withMessage("the client_id should not exist in the request body"),
+      body("name")
+        .not()
+        .exists()
+        .withMessage("the name should not exist in the request body")
+        .trim(),
+      body("client_secret")
+        .exists()
+        .withMessage("client_secret should be provided")
+        .notEmpty()
+        .withMessage("the client_secret cannot be empty")
+        .trim(),
+      body("redirect_url")
+        .not()
+        .exists()
+        .withMessage("redirect_url should not exist in the request body"),
+      body("description")
+        .not()
+        .exists()
+        .withMessage("description should not exist in the request body"),
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  createClientController.update
+);
+
+router.patch(
+  "name/:client_id",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      param("client_id")
+        .exists()
+        .withMessage("the client_id param is missing in the request")
+        .trim(),
+    ],
+  ]),
+  oneOf([
+    [
+      body("client_id")
+        .not()
+        .exists()
+        .withMessage("the client_id should not exist in the request body"),
+      body("client_secret")
+        .not()
+        .exists()
+        .withMessage("the client_secret should not exist in the request body"),
+      body("name")
+        .exists()
+        .withMessage("the name should be provided")
+        .bail()
+        .notEmpty()
+        .withMessage("name should not be empty")
+        .trim(),
+      body("redirect_url")
+        .not()
+        .exists()
+        .withMessage("redirect_url should not exist in the request body"),
+      body("description")
+        .not()
+        .exists()
+        .withMessage("description should not exist in the request body"),
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  createClientController.update
+);
+
+router.patch(
+  "id/:client_id",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      param("client_id")
+        .exists()
+        .withMessage("the client_id param is missing in the request")
+        .bail()
+        .trim(),
+    ],
+  ]),
+  oneOf([
+    [
+      body("name")
+        .not()
+        .exists()
+        .withMessage("the name should not exist in the request body"),
+      body("client_secret")
+        .not()
+        .exists()
+        .withMessage("the client_secret should not exist in the request body"),
+      body("client_id")
+        .exists()
+        .withMessage("client_id should be provided")
+        .bail()
+        .notEmpty()
+        .withMessage("client_id should not be empty")
+        .trim(),
+      body("redirect_url")
+        .not()
+        .exists()
+        .withMessage("redirect_url should not exist in the request body"),
+      body("description")
+        .not()
+        .exists()
+        .withMessage("description should not exist in the request body"),
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  createClientController.update
+);
+
 router.put(
   "/:client_id",
   oneOf([
@@ -105,15 +271,13 @@ router.put(
   oneOf([
     [
       body("client_id")
-        .optional()
-        .notEmpty()
-        .withMessage("client_id should not be empty if provided")
-        .trim(),
+        .not()
+        .exists()
+        .withMessage("the client_id should not exist in the request body"),
       body("client_secret")
-        .optional()
-        .notEmpty()
-        .withMessage("client_secret should not be empty if provided")
-        .trim(),
+        .not()
+        .exists()
+        .withMessage("the client_secret should not exist in the request body"),
       body("name")
         .optional()
         .notEmpty()
