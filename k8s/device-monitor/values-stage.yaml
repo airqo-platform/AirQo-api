@@ -24,6 +24,15 @@ resources:
     cpu: 5m
     memory: 40Mi
 
+volumeMounts:
+  - name: config-volume
+    mountPath: /etc/config
+
+volumes:
+  - name: config-volume
+    configMap:
+      name: device-monitor-config-files
+
 ingress:
   enabled: false
 

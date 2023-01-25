@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 from google.cloud import bigquery
 
 import math
@@ -31,7 +31,9 @@ class Collocation:
         end_date: datetime,
         correlation_threshold: float,
         completeness_threshold: float,
-        parameters=None,
+        expected_records_per_day: int,
+        verbose: bool = False,
+        parameters: list = None,
     ):
 
         if parameters is None:
@@ -41,9 +43,11 @@ class Collocation:
         self.__devices = devices
         self.__correlation_threshold = correlation_threshold / 100
         self.__completeness_threshold = completeness_threshold / 100
+        self.__expected_records_per_day = expected_records_per_day
         self.__parameters = parameters
         self.__start_date = start_date
         self.__end_date = end_date
+        self.__verbose = verbose
 
         self.__data = pd.DataFrame()
         self.__intra_sensor_correlation = pd.DataFrame()
@@ -51,6 +55,7 @@ class Collocation:
         self.__data_completeness = pd.DataFrame()
         self.__statistics = pd.DataFrame()
         self.__differences = pd.DataFrame()
+        self.__data_query = ""
         self.__results = {}
 
     def results(self):
@@ -84,6 +89,9 @@ class Collocation:
             ),
             "errors": errors,
         }
+
+        if self.__verbose:
+            self.__results["data_source"] = self.__data_query
 
         return self.__results
 
@@ -140,6 +148,8 @@ class Collocation:
             f" AND Date({self.__raw_data_table}.timestamp) <= '{date_to_str(self.__end_date, str_format='%Y-%m-%d')}' "
             f" AND device_id IN UNNEST({self.__devices}) "
         )
+
+        self.__data_query = query
 
         dataframe = self.__client.query(query=query).result().to_dataframe()
 
@@ -230,24 +240,31 @@ class Collocation:
         completeness_report = []
         data = self.__data.drop_duplicates(subset=["device_id", "timestamp"])
         date_diff = (self.__end_date - self.__start_date).days
-        expected_records = 24 if date_diff <= 0 else 24 * date_diff
+        expected_records = (
+            self.__expected_records_per_day
+            if date_diff <= 0
+            else self.__expected_records_per_day * date_diff
+        )
 
         device_groups = data.groupby("device_id")
         for _, group in device_groups:
+
             actual_number_of_records = len(group.index)
-            completeness = actual_number_of_records / expected_records
-            missing = 1 - completeness
-            passed = completeness > self.__completeness_threshold
-            device_id = group.iloc[0].device_id
+            completeness = 1
+            missing = 0
+
+            if actual_number_of_records < expected_records:
+                completeness = actual_number_of_records / expected_records
+                missing = 1 - completeness
 
             completeness_report.append(
                 {
-                    "device_id": device_id,
+                    "device_id": group.iloc[0].device_id,
                     "expected_number_of_records": expected_records,
                     "actual_number_of_records": actual_number_of_records,
                     "completeness": completeness,
                     "missing": missing,
-                    "passed": passed,
+                    "passed": completeness > self.__completeness_threshold,
                 }
             )
         self.__data_completeness = pd.DataFrame(completeness_report)

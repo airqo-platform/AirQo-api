@@ -18,28 +18,40 @@ def get_device_collocation():
     start_date = json_data.get("startDate", None)
     end_date = json_data.get("endDate", None)
     completeness_threshold = json_data.get("completenessThreshold", 90)
+    expected_records_per_day = json_data.get("expectedRecordsPerDay", 24)
     correlation_threshold = json_data.get("correlationThreshold", 80)
-    parameters = json_data.get("parameters", None)
+    verbose = json_data.get("verbose", False)
+    # parameters = json_data.get("parameters", None)  # Temporarily disabled parameters
 
     errors = {}
 
-    try:
-        if parameters and not set(parameters).issubset(Collocation.valid_parameters()):
-            raise Exception
-    except Exception:
-        errors["parameters"] = f"Accepted parameters are {parameters}"
+    # Temporarily disabled parameters
+    # try:
+    #     if parameters and not set(parameters).issubset(Collocation.valid_parameters()):
+    #         raise Exception
+    # except Exception:
+    #     errors["parameters"] = f"Accepted parameters are {Collocation.valid_parameters()}"
+
+    if not isinstance(verbose, bool):
+        verbose = False
 
     try:
-        if completeness_threshold and not (1 <= completeness_threshold <= 100):
+        if not (1 <= completeness_threshold <= 100):
             raise Exception
     except Exception:
         errors["completenessThreshold"] = f"Must be a value between 1 and 100"
 
     try:
-        if correlation_threshold and not (1 <= correlation_threshold <= 100):
+        if not (1 <= correlation_threshold <= 100):
             raise Exception
     except Exception:
         errors["correlationThreshold"] = f"Must be a value between 1 and 100"
+
+    try:
+        if not (1 <= expected_records_per_day <= 24):
+            raise Exception
+    except Exception:
+        errors["expectedRecordsPerDay"] = f"Must be a value between 1 and 24"
 
     try:
         if not devices or not isinstance(devices, list):
@@ -92,7 +104,9 @@ def get_device_collocation():
         end_date=end_date,
         correlation_threshold=correlation_threshold,
         completeness_threshold=completeness_threshold,
-        parameters=parameters,
+        parameters=None,  # Temporarily disabled parameters
+        expected_records_per_day=expected_records_per_day,
+        verbose=verbose,
     )
     collocation.compute_correlation()
     results = collocation.results()
