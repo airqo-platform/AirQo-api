@@ -129,10 +129,9 @@ router.put(
   oneOf([
     [
       body("permission")
-        .optional()
-        .notEmpty()
-        .withMessage("permission should not be empty if provided")
-        .trim(),
+        .not()
+        .exists()
+        .withMessage("permission should not exist in the request body"),
       body("network_id")
         .optional()
         .notEmpty()
