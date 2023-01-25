@@ -87,6 +87,9 @@ router.post(
         .bail()
         .isISO8601({ strict: true, strictSeparator: true })
         .withMessage("expires must be a valid datetime.")
+        .bail()
+        .isAfter(new Date().toISOString().slice(0, 10))
+        .withMessage("the date should not be before the current date")
         .trim(),
     ],
   ]),
@@ -140,6 +143,9 @@ router.put(
         .bail()
         .isISO8601({ strict: true, strictSeparator: true })
         .withMessage("expires must be a valid datetime.")
+        .bail()
+        .isAfter(new Date().toISOString().slice(0, 10))
+        .withMessage("the date should not be before the current date")
         .trim(),
     ],
   ]),
