@@ -8,11 +8,11 @@ def str_to_date(st):
     return datetime.strptime(st, '%Y-%m-%dT%H:%M:%S.%fZ')
 
 
-def date_to_str(date):
+def date_to_str(date, str_format='%Y-%m-%dT%H:%M:%S.%fZ'):
     """
     Converts datetime to a string
     """
-    return datetime.strftime(date, '%Y-%m-%dT%H:%M:%S.%fZ')
+    return datetime.strftime(date, str_format)
 
 
 def convert_GMT_time_to_EAT_local_time(gmt_datetime):
@@ -30,3 +30,10 @@ def validate_datetime(value) -> datetime:
         return datetime.strptime(value, '%Y-%m-%dT%H:%M:%S.%fZ')
     except Exception:
         raise TypeError("cannot convert {} to datetime type".format(value))
+
+
+def validate_date(value) -> datetime:
+    try:
+        return datetime.strptime(value, '%Y-%m-%d')
+    except Exception:
+        raise TypeError(f"cannot convert {value} to datetime type")
