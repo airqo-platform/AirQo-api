@@ -449,8 +449,8 @@ const filter = {
   scopes: (req) => {
     try {
       const { query, params } = req;
-      const { id } = query;
-      const { scope_id, network_id, scope } = params;
+      const { id, scope } = query;
+      const { scope_id, network_id } = params;
       let filter = {};
 
       if (id) {
@@ -458,7 +458,7 @@ const filter = {
       }
 
       if (scope_id) {
-        filter["_id"] = ObjectId(scope_id);
+        filter["scope"] = scope_id;
       }
 
       if (scope) {

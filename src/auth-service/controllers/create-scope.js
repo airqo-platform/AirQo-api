@@ -186,7 +186,6 @@ const createScope = {
     try {
       const { query } = req;
       let { tenant } = query;
-      s;
       const hasErrors = !validationResult(req).isEmpty();
       logObject("hasErrors", hasErrors);
       if (hasErrors) {
@@ -234,6 +233,7 @@ const createScope = {
         });
       }
     } catch (error) {
+      logObject("error", error);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",

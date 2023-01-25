@@ -59,14 +59,22 @@ router.post(
         .exists()
         .withMessage("scope is missing in your request")
         .bail()
-        .trim(),
+        .notEmpty()
+        .withMessage("the scope must not be empty")
+        .bail()
+        .trim()
+        .escape()
+        .customSanitizer((value) => {
+          return value.replace(/ /g, "_").toUpperCase();
+        }),
       body("network_id")
         .exists()
-        .withMessage("network_id is missing in your request")
+        .withMessage("network_id should be provided")
         .bail()
         .trim()
         .isMongoId()
         .withMessage("network_id must be an object ID")
+        .bail()
         .customSanitizer((value) => {
           return ObjectId(value);
         }),
@@ -84,6 +92,12 @@ router.post(
 
 router.put(
   "/:scope_id",
+  (req, res, next) => {
+    if (!Object.keys(req.body).length) {
+      return res.status(400).json({ errors: "request body is empty" });
+    }
+    next();
+  },
   oneOf([
     [
       query("tenant")
@@ -109,10 +123,9 @@ router.put(
   oneOf([
     [
       body("scope")
-        .optional()
-        .notEmpty()
-        .withMessage("scope should not be empty if provided")
-        .trim(),
+        .not()
+        .exists()
+        .withMessage("scope should not exist in the request body"),
       body("network_id")
         .optional()
         .notEmpty()
@@ -121,6 +134,7 @@ router.put(
         .trim()
         .isMongoId()
         .withMessage("network_id must be an object ID")
+        .bail()
         .customSanitizer((value) => {
           return ObjectId(value);
         }),
