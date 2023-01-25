@@ -98,8 +98,9 @@ const controlAccess = {
       let filter = {
         token,
         user_id,
-        expires: { $gt: new Date().toISOString() },
       };
+
+      // expires: { $gt: new Date().toISOString() },
 
       const responseFromListAccessToken = await AccessTokenModel(tenant).list({
         skip,
@@ -292,7 +293,7 @@ const controlAccess = {
         return filterResponse;
       } else {
         filter = Object.assign({}, filterResponse);
-        filter.expires = { $gt: new Date().toISOString() };
+        // filter.expires = { $gt: new Date().toISOString() };
       }
 
       const responseFromListAccessToken = await AccessTokenModel(tenant).list({
