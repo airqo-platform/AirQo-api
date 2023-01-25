@@ -333,15 +333,15 @@ const filter = {
     try {
       const { query, params } = req;
       const { id, network, permission } = query;
-      const { perm_id, network_id, perm } = params;
+      const { permission_id, network_id } = params;
       let filter = {};
 
       if (id) {
         filter["_id"] = ObjectId(id);
       }
 
-      if (perm_id) {
-        filter["_id"] = ObjectId(perm_id);
+      if (permission_id) {
+        filter["permission"] = permission_id;
       }
 
       if (network) {
@@ -350,10 +350,6 @@ const filter = {
 
       if (network_id) {
         filter["network_id"] = ObjectId(network_id);
-      }
-
-      if (perm) {
-        filter["permission"] = perm;
       }
 
       if (permission) {

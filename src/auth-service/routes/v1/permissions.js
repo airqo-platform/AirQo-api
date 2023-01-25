@@ -60,14 +60,25 @@ router.post(
         .exists()
         .withMessage("permission is missing in your request")
         .bail()
-        .trim(),
+        .notEmpty()
+        .withMessage("the permission must not be empty")
+        .bail()
+        .trim()
+        .escape()
+        .customSanitizer((value) => {
+          return value.replace(/ /g, "_").toUpperCase();
+        }),
       body("network_id")
         .exists()
         .withMessage("network_id is missing in your request")
         .bail()
+        .notEmpty()
+        .withMessage("the network_id must not be empty")
+        .bail()
         .trim()
         .isMongoId()
         .withMessage("network_id must be an object ID")
+        .bail()
         .customSanitizer((value) => {
           return ObjectId(value);
         }),
@@ -75,6 +86,8 @@ router.post(
         .exists()
         .withMessage("description is missing in your request")
         .bail()
+        .notEmpty()
+        .withMessage("the description must not be empty")
         .trim(),
     ],
   ]),
@@ -85,6 +98,12 @@ router.post(
 
 router.put(
   "/:permission_id",
+  (req, res, next) => {
+    if (!Object.keys(req.body).length) {
+      return res.status(400).json({ errors: "request body is empty" });
+    }
+    next();
+  },
   oneOf([
     [
       query("tenant")
