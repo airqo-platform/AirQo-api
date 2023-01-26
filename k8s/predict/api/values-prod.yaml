@@ -7,7 +7,7 @@ app:
 replicaCount: 3
 
 image:
-  repository: gcr.io/airqo-250220/airqo-prediction-api
+  repository: eu.gcr.io/airqo-250220/airqo-prediction-api
   tag: latest
 
 nameOverride: ""
