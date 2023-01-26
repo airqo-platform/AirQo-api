@@ -36,16 +36,16 @@ def get_device_collocation():
         verbose = False
 
     try:
-        if not (1 <= completeness_threshold <= 100):
+        if not (0 <= completeness_threshold <= 1):
             raise Exception
     except Exception:
-        errors["completenessThreshold"] = f"Must be a value between 1 and 100"
+        errors["completenessThreshold"] = f"Must be a value between 0 and 1"
 
     try:
-        if not (1 <= correlation_threshold <= 100):
+        if not (0 <= correlation_threshold <= 1):
             raise Exception
     except Exception:
-        errors["correlationThreshold"] = f"Must be a value between 1 and 100"
+        errors["correlationThreshold"] = f"Must be a value between 0 and 1"
 
     try:
         if not (1 <= expected_records_per_day <= 24):
@@ -54,7 +54,9 @@ def get_device_collocation():
         errors["expectedRecordsPerDay"] = f"Must be a value between 1 and 24"
 
     try:
-        if not devices or not isinstance(devices, list):
+        if not devices or not isinstance(
+            devices, list
+        ):  # TODO add device restrictions e.g not more that 3 devices
             raise Exception
     except Exception:
         errors["devices"] = "Provide a list of devices"
@@ -86,7 +88,9 @@ def get_device_collocation():
             400,
         )
 
-    if start_date > end_date:
+    if (
+        start_date > end_date
+    ):  # TODO add interval restrictions e.g not more that 10 days
         errors["dates"] = "endDate must be greater or equal to the startDate"
         return (
             jsonify(
@@ -99,7 +103,7 @@ def get_device_collocation():
         )
 
     collocation = Collocation(
-        devices=devices,
+        devices=list(set(devices)),
         start_date=start_date,
         end_date=end_date,
         correlation_threshold=correlation_threshold,

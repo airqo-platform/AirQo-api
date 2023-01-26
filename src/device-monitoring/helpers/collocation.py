@@ -41,8 +41,8 @@ class Collocation:
         self.__client = bigquery.Client()
         self.__raw_data_table = f"`{Config.BIGQUERY_RAW_DATA}`"
         self.__devices = devices
-        self.__correlation_threshold = correlation_threshold / 100
-        self.__completeness_threshold = completeness_threshold / 100
+        self.__correlation_threshold = correlation_threshold
+        self.__completeness_threshold = completeness_threshold
         self.__expected_records_per_day = expected_records_per_day
         self.__parameters = parameters
         self.__start_date = start_date
@@ -360,7 +360,7 @@ class Collocation:
             correlation.append(
                 {
                     **{
-                        "devices": "_and_".join(device_pair),
+                        "devices": device_pair,
                     },
                     **device_pair_correlation,
                     **{
@@ -428,12 +428,12 @@ class Collocation:
                     device_pair_data[cols[0]] - device_pair_data[cols[1]]
                 )
 
-                differences_map[col] = device_pair_data.iloc[0][col]
+                differences_map[col] = abs(device_pair_data.iloc[0][col])
 
             differences.append(
                 {
                     **{
-                        "devices": "_and_".join([str(s) for s in device_pair]),
+                        "devices": device_pair,
                     },
                     **differences_map,
                 }
