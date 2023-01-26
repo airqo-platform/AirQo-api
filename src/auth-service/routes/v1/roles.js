@@ -3,7 +3,7 @@ const router = express.Router();
 const createRoleController = require("@controllers/create-role");
 const { check, oneOf, query, body, param } = require("express-validator");
 const { setJWTAuth, authJWT } = require("@middleware/passport");
-
+const httpStatus = require("http-status");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 
@@ -95,12 +95,26 @@ router.post(
         .exists()
         .withMessage("role_code is missing in your request")
         .bail()
-        .trim(),
+        .notEmpty()
+        .withMessage("the role_code must not be empty")
+        .bail()
+        .trim()
+        .escape()
+        .customSanitizer((value) => {
+          return value.replace(/ /g, "_").toUpperCase();
+        }),
       body("role_name")
         .exists()
         .withMessage("role_name is missing in your request")
         .bail()
-        .trim(),
+        .notEmpty()
+        .withMessage("the role_name must not be empty")
+        .bail()
+        .trim()
+        .escape()
+        .customSanitizer((value) => {
+          return value.replace(/ /g, "_").toUpperCase();
+        }),
       body("role_status")
         .optional()
         .notEmpty()
@@ -118,7 +132,7 @@ router.post(
   createRoleController.create
 );
 
-router.put(
+router.patch(
   "/:role_id",
   oneOf([
     [
@@ -151,21 +165,16 @@ router.put(
   oneOf([
     [
       body("role_name")
-        .optional()
-        .trim()
-        .notEmpty()
-        .withMessage("this role_name cannot be empty if provided")
-        .trim(),
+        .not()
+        .exists()
+        .withMessage("role_name should not exist in the request body"),
       body("role_code")
-        .optional()
-        .trim()
-        .notEmpty()
-        .withMessage("this role_code cannot be empty if provided")
-        .trim(),
+        .not()
+        .exists()
+        .withMessage("role_code should not exist in the request body"),
       body("role_status")
-        .optional()
-        .notEmpty()
-        .withMessage("role_status should not be empty if provided")
+        .exists()
+        .withMessage("role_status should be provided")
         .bail()
         .isIn(["ACTIVE", "INACTIVE"])
         .withMessage(
@@ -478,6 +487,14 @@ router.get(
 
 router.post(
   "/:role_id/permissions",
+  (req, res, next) => {
+    if (!Object.keys(req.body).length) {
+      return res
+        .status(httpStatus.BAD_REQUEST)
+        .json({ success: false, errors: "request body is empty" });
+    }
+    next();
+  },
   oneOf([
     [
       query("tenant")
@@ -504,6 +521,17 @@ router.post(
         .customSanitizer((value) => {
           return ObjectId(value);
         }),
+      body("permissions")
+        .exists()
+        .withMessage("the permission ID is missing in the request body")
+        .bail()
+        .notEmpty()
+        .withMessage("the permission_id should not be empty")
+        .bail()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the permissions should be an array"),
     ],
   ]),
   setJWTAuth,
@@ -512,7 +540,7 @@ router.post(
 );
 
 router.delete(
-  "/:role_id/permissions/:perm_id",
+  "/:role_id/permissions/:permission_id",
   oneOf([
     [
       query("tenant")
@@ -532,6 +560,9 @@ router.delete(
         .exists()
         .withMessage("the role ID param is missing in the request")
         .bail()
+        .notEmpty()
+        .withMessage("the role ID param cannot be empty")
+        .bail()
         .trim()
         .isMongoId()
         .withMessage("the role ID must be an object ID")
@@ -539,17 +570,13 @@ router.delete(
         .customSanitizer((value) => {
           return ObjectId(value);
         }),
-      param("perm_id")
+      param("permission_id")
         .exists()
-        .withMessage("the perm ID param is missing in the request")
+        .withMessage("the permission ID param is missing in the request")
         .bail()
-        .trim()
-        .isMongoId()
-        .withMessage("the perm ID must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
+        .notEmpty()
+        .withMessage("the permission ID param cannot be empty")
+        .trim(),
     ],
   ]),
   setJWTAuth,

@@ -8,10 +8,9 @@ const httpStatus = require("http-status");
 const mongoose = require("mongoose").set("debug", true);
 const accessCodeGenerator = require("generate-password");
 const { getModelByTenant } = require("@utils/multitenancy");
-const { logObject, logElement, logText } = require("../utils/log");
+const { logObject, logElement, logText } = require("@utils/log");
 const mailer = require("@utils/mailer");
 const generateFilter = require("@utils/generate-filter");
-const { compareSync } = require("bcrypt");
 const isEmpty = require("is-empty");
 
 const UserModel = (tenant) => {
@@ -1046,64 +1045,130 @@ const controlAccess = {
     }
   },
 
-  listPermissionsForRole: async (req, res) => {
+  listPermissionsForRole: async (request) => {
     try {
-      const responseFromlistPermissionsForRole = {};
+      logText("listPermissionsForRole...");
+      let filter = {};
+      const limit = parseInt(request.query.limit, 0);
+      const skip = parseInt(request.query.skip, 0);
+      const { query, params } = request;
+      const { role_id } = params;
+      const { tenant } = query;
+      let newRequest = Object.assign({}, request);
+      newRequest["query"]["role_id"] = role_id;
+
+      let responseFromlistPermissionsForRole = await PermissionModel(
+        tenant
+      ).list({
+        skip,
+        limit,
+        filter,
+      });
+
       if (responseFromlistPermissionsForRole.success === true) {
+        if (responseFromlistPermissionsForRole.status === httpStatus.OK) {
+          const permissionsArray = responseFromlistPermissionsForRole.data.map(
+            (obj) => obj.permission
+          );
+          responseFromlistPermissionsForRole.data = permissionsArray;
+          return responseFromlistPermissionsForRole;
+        }
         return responseFromlistPermissionsForRole;
       } else if (responseFromlistPermissionsForRole.success === false) {
         return responseFromlistPermissionsForRole;
       }
     } catch (error) {
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+      return {
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
-      });
+      };
     }
   },
 
-  listAvailablePermissionsForRole: async (req, res) => {
+  listAvailablePermissionsForRole: async (request) => {
     try {
-      const responseFromListAvailablePermissionsForRole = {};
+      logText("listAvailablePermissionsForRole...");
+      let filter = {};
+      const limit = parseInt(request.query.limit, 0);
+      const skip = parseInt(request.query.skip, 0);
+      const { query, params } = request;
+      const { role_id } = params;
+      const { tenant } = query;
+      let newRequest = Object.assign({}, request);
+      newRequest["query"]["role_id"] = role_id;
+
+      const filterResponse = generateFilter.roles(newRequest);
+      if (filterResponse.success === false) {
+        return filter;
+      } else {
+        filter = filterResponse;
+      }
+
+      const responseFromListAvailablePermissionsForRole = await RoleModel(
+        tenant
+      ).list({
+        skip,
+        limit,
+        filter,
+      });
+
       if (responseFromListAvailablePermissionsForRole.success === true) {
-        return responseFromListAvailablePermissionsForRole;
+        if (
+          responseFromListAvailablePermissionsForRole.status === httpStatus.OK
+        ) {
+          const permissions =
+            responseFromListAvailablePermissionsForRole.data[0]
+              .role_permissions;
+          const permissionsArray = permissions.map((obj) => obj.permission);
+          filter = { permission: { $nin: permissionsArray } };
+          let responseFromListPermissions = await PermissionModel(tenant).list({
+            skip,
+            limit,
+            filter,
+          });
+          return responseFromListPermissions;
+        } else if (
+          responseFromListAvailablePermissionsForRole.status ===
+          httpStatus.NOT_FOUND
+        ) {
+          return responseFromListAvailablePermissionsForRole;
+        }
       } else if (
         responseFromListAvailablePermissionsForRole.success === false
       ) {
         return responseFromListAvailablePermissionsForRole;
       }
     } catch (error) {
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+      return {
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
-      });
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
     }
   },
 
-  assignPermissionToRole: async (req, res) => {
+  assignPermissionToRole: async (request) => {
     try {
       logText("assignPermissionToRole...");
       let filter = {};
-      const limit = parseInt(request.query.limit, 0);
-      const skip = parseInt(request.query.skip, 0);
+      let update = {};
       const { query, params, body } = request;
       const { role_id } = params;
       const { tenant } = query;
-      const { user } = body;
+      const { permissions } = body;
 
-      let newRequest = Object.assign({}, request);
-      newRequest["query"]["role_id"] = role_id;
+      update.permissions = permissions;
+      filter._id = role_id;
 
-      filter = { _id: role_id };
-      const responseFromListRole = await RoleModel(tenant.toLowerCase()).list({
+      const responseFromAssignPermissionToRole = await RoleModel(
+        tenant.toLowerCase()
+      ).modify({
         filter,
-        skip,
-        limit,
+        update,
       });
 
-      const responseFromAssignPermissionToRole = {};
       if (responseFromAssignPermissionToRole.success === true) {
         return responseFromAssignPermissionToRole;
       } else if (responseFromAssignPermissionToRole.success === false) {
@@ -1120,18 +1185,33 @@ const controlAccess = {
 
   unAssignPermissionFromRole: async (request) => {
     try {
-      const responseFromUnAssignPermissionFromRole = {};
+      let filter = {};
+
+      const { query, params } = request;
+      const { role_id, permission_id } = params;
+      const { tenant } = query;
+
+      filter = { _id: role_id };
+      const update = { $pull: { role_permissions: permission_id } };
+
+      const responseFromUnAssignPermissionFromRole = await RoleModel(
+        tenant
+      ).modify({
+        filter,
+        update,
+      });
+
       if (responseFromUnAssignPermissionFromRole.success === true) {
         return responseFromUnAssignPermissionFromRole;
       } else if (responseFromUnAssignPermissionFromRole.success === false) {
         return responseFromUnAssignPermissionFromRole;
       }
     } catch (error) {
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+      return {
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
-      });
+      };
     }
   },
 

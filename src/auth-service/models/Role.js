@@ -1,5 +1,5 @@
 const mongoose = require("mongoose").set("debug", true);
-const { logObject, logText } = require("../utils/log");
+const { logObject, logText } = require("@utils/log");
 const isEmpty = require("is-empty");
 const HTTPStatus = require("http-status");
 const httpStatus = require("http-status");
@@ -22,12 +22,10 @@ const RoleSchema = new mongoose.Schema(
       trim: true,
       unique: true,
     },
-    role_permissions: [
-      {
-        type: ObjectId,
-        ref: "permission",
-      },
-    ],
+    role_permissions: {
+      type: Array,
+      default: [],
+    },
     role_users: [
       {
         type: ObjectId,
@@ -130,6 +128,12 @@ RoleSchema.statics = {
           foreignField: "_id",
           as: "network",
         })
+        .lookup({
+          from: "permissions",
+          localField: "role_permissions",
+          foreignField: "permission",
+          as: "role_permissions",
+        })
         .sort({ createdAt: -1 })
         .project({
           "network.__v": 0,
@@ -148,15 +152,9 @@ RoleSchema.statics = {
       } else if (isEmpty(roles)) {
         return {
           success: true,
-          message: "role(s) not found for this operation",
+          message: "roles not found for this operation",
           data: [],
           status: httpStatus.NOT_FOUND,
-        };
-      } else {
-        return {
-          success: false,
-          message: "unable to retrieve roles",
-          status: httpStatus.INTERNAL_SERVER_ERROR,
         };
       }
     } catch (error) {
@@ -164,45 +162,50 @@ RoleSchema.statics = {
         success: false,
         message: "Role model server error - list",
         error: error.message,
+        errors: { message: error.message },
       };
     }
   },
   async modify({ filter = {}, update = {} } = {}) {
     try {
-      let options = { new: true };
-      let modifiedUpdate = update;
+      const options = { new: true };
+      let modifiedUpdate = Object.assign({}, update);
       modifiedUpdate["$addToSet"] = {};
 
       if (modifiedUpdate.permissions) {
-        modifiedUpdate["$addToSet"]["permissions"] = {};
-        modifiedUpdate["$addToSet"]["permissions"]["$each"] =
+        modifiedUpdate["$addToSet"]["role_permissions"] = {};
+        modifiedUpdate["$addToSet"]["role_permissions"]["$each"] =
           modifiedUpdate.permissions;
-        delete modifiedUpdate["permissions"];
+        delete modifiedUpdate.permissions;
       }
-
-      let updatedRole = await this.findOneAndUpdate(
+      const updatedRole = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,
         options
       ).exec();
+
       if (!isEmpty(updatedRole)) {
-        let data = updatedRole._doc;
         return {
           success: true,
           message: "successfully modified the Role",
-          data,
+          data: updatedRole._doc,
+          status: httpStatus.OK,
         };
-      } else {
+      } else if (isEmpty(updatedRole)) {
         return {
-          success: false,
-          message: "Role does not exist, please crosscheck",
+          success: true,
+          message: "role not found",
+          data: [],
+          status: httpStatus.NOT_FOUND,
         };
       }
     } catch (error) {
       return {
         success: false,
-        message: "Role model server error - modify",
+        message: "internal server errors",
         error: error.message,
+        errors: { message: "internal server errors" },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -234,7 +237,7 @@ RoleSchema.statics = {
     } catch (error) {
       return {
         success: false,
-        message: "Role model server error - remove",
+        message: "internal server errors",
         error: error.message,
         errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
@@ -247,7 +250,10 @@ RoleSchema.methods = {
   toJSON() {
     return {
       _id: this._id,
-      name: this.name,
+      role_name: this.role_name,
+      role_code: this.role_code,
+      role_status: this.role_status,
+      role_permissions: this.role_permissions,
     };
   },
 };

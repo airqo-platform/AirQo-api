@@ -373,8 +373,6 @@ const createRole = {
       const responseFromAssignUserToRole =
         await controlAccessUtil.assignUserToRole(request);
 
-      // logObject("responseFromAssignUserToRole", responseFromAssignUserToRole);
-
       if (responseFromAssignUserToRole.success === true) {
         const status = responseFromAssignUserToRole.status
           ? responseFromAssignUserToRole.status
@@ -555,7 +553,7 @@ const createRole = {
           : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: "available permissions, which can be assigned to the role.",
+          message: responseForListOfPermissions.message,
           available_permissions: responseForListOfPermissions.data,
         });
       } else if (responseForListOfPermissions.success === false) {
@@ -582,6 +580,7 @@ const createRole = {
 
   assignPermissionToRole: async (req, res) => {
     try {
+      logText("assignPermissionToRole....");
       const { query, body } = req;
       let { tenant } = query;
       const hasErrors = !validationResult(req).isEmpty();
@@ -638,6 +637,7 @@ const createRole = {
 
   unAssignPermissionFromRole: async (req, res) => {
     try {
+      logText("unAssignPermissionFromRole....");
       const { query, body } = req;
       let { tenant } = query;
       const hasErrors = !validationResult(req).isEmpty();

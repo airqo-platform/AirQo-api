@@ -300,24 +300,27 @@ const filter = {
   roles: (req) => {
     try {
       const { query, params } = req;
-      const { id, name, network } = query;
+      const { id, role_name, role_code, network, role_status } = query;
       const { role_id } = params;
       let filter = {};
 
       if (id) {
         filter["_id"] = ObjectId(id);
       }
-
       if (role_id) {
-        logText("we have the role ID");
         filter["_id"] = ObjectId(role_id);
       }
-
       if (network) {
         filter["network_id"] = network;
       }
-      if (name) {
-        filter["name"] = name;
+      if (role_name) {
+        filter["role_name"] = role_name;
+      }
+      if (role_code) {
+        filter["role_code"] = role_code;
+      }
+      if (role_status) {
+        filter["role_status"] = role_status;
       }
       return filter;
     } catch (e) {
