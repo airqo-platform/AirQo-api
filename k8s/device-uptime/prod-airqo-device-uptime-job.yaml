@@ -34,7 +34,7 @@ spec:
                           - compute
           containers:
             - name: prod-device-uptime-job
-              image: us.gcr.io/airqo-250220/airqo-device-uptime-job:latest
+              image: eu.gcr.io/airqo-250220/airqo-device-uptime-job:latest
               imagePullPolicy: Always
               envFrom:
                 - configMapRef:

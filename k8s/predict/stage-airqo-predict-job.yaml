@@ -27,7 +27,7 @@ spec:
                           - compute
           containers:
             - name: stage-airqo-predict-job
-              image: us.gcr.io/airqo-250220/stage-airqo-predict-job:latest
+              image: eu.gcr.io/airqo-250220/stage-airqo-predict-job:latest
               imagePullPolicy: Always
               envFrom:
                 - configMapRef:
