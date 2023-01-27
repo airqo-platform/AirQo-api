@@ -45,4 +45,4 @@ resource "google_compute_instance" "shard_prod_2" {
 
   zone = var.zone
 }
-# terraform import google_compute_instance.shard_prod_2 projects/${var.project_id}/zones/us-central1-a/instances/shard-prod-2
+# terraform import google_compute_instance.shard_prod_2 projects/${var.project_id}/zones/${var.zone}/instances/shard-prod-2

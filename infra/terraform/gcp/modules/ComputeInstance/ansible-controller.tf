@@ -44,4 +44,4 @@ resource "google_compute_instance" "ansible_controller" {
 
   zone = var.zone
 }
-# terraform import google_compute_instance.ansible_controller projects/${var.project_id}/zones/us-central1-a/instances/ansible-controller
+# terraform import google_compute_instance.ansible_controller projects/${var.project_id}/zones/${var.zone}/instances/ansible-controller

@@ -45,4 +45,4 @@ resource "google_compute_instance" "cfgsvr_prod_1" {
 
   zone = var.zone
 }
-# terraform import google_compute_instance.cfgsvr_prod_1 projects/${var.project_id}/zones/us-central1-a/instances/cfgsvr-prod-1
+# terraform import google_compute_instance.cfgsvr_prod_1 projects/${var.project_id}/zones/${var.zone}/instances/cfgsvr-prod-1

@@ -1,4 +1,3 @@
-### Imported resource
 resource "google_compute_instance" "airqo_k8s_worker_0" {
   name    = "airqo-k8s-worker-0"
   project = var.project_id
@@ -8,7 +7,7 @@ resource "google_compute_instance" "airqo_k8s_worker_0" {
 
   boot_disk {
     auto_delete = true
-    source      = "airqo-k8s-worker-0"
+    source      = "https://www.googleapis.com/compute/v1/projects/airqo-250220/zones/europe-west1-b/disks/airqo-k8s-worker-0"
   }
 
   metadata = {
@@ -45,6 +44,9 @@ resource "google_compute_instance" "airqo_k8s_worker_0" {
       "https://www.googleapis.com/auth/devstorage.read_only",
     ]
   }
-  resource_policies = ["hourly-k8s-runners"]
+
+  resource_policies = [
+    "https://www.googleapis.com/compute/v1/projects/airqo-250220/regions/europe-west1/resourcePolicies/hourly-k8s-runners"
+  ]
 }
 # terraform import google_compute_instance.airqo_k8s_worker_0 projects/${var.project_id}/zones/${var.zone}/instances/airqo-k8s-worker-0

@@ -8,4 +8,4 @@ resource "google_compute_disk" "mongos_prod_1" {
   zone                      = var.zone
   description               = "Disk for the production mongodb sharded cluster mongos query router"
 }
-# terraform import google_compute_disk.mongos_prod_1 projects/${var.project_id}/zones/europe-west1-b/disks/mongos-prod-1
+# terraform import google_compute_disk.mongos_prod_1 projects/${var.project_id}/zones/${var.zone}/disks/mongos-prod-1
