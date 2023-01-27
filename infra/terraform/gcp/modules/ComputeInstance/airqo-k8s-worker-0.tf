@@ -19,6 +19,7 @@ resource "google_compute_instance" "airqo_k8s_worker_0" {
       network_tier = "PREMIUM"
     }
     network    = "airqo-k8s-cluster"
+    subnetwork = "k8s-nodes"
     network_ip = "10.240.0.20"
   }
   tags = ["airqo-k8s", "worker"]

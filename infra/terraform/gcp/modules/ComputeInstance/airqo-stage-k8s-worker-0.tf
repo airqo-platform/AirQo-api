@@ -20,6 +20,7 @@ resource "google_compute_instance" "airqo_stage_k8s_worker_0" {
       network_tier = "PREMIUM"
     }
     network    = "airqo-k8s-cluster"
+    subnetwork = "k8s-nodes"
     network_ip = "10.240.0.36"
   }
   tags = ["airqo-k8s-cluster", "worker"]
@@ -45,7 +46,7 @@ resource "google_compute_instance" "airqo_stage_k8s_worker_0" {
       "https://www.googleapis.com/auth/devstorage.read_only",
     ]
   }
-  
+
   resource_policies = [
     "https://www.googleapis.com/compute/v1/projects/airqo-250220/regions/europe-west1/resourcePolicies/hourly-k8s-runners"
   ]
