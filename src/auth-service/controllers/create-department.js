@@ -1,8 +1,9 @@
 const httpStatus = require("http-status");
 const { validationResult } = require("express-validator");
 const { badRequest, convertErrorArrayToObject } = require("../utils/errors");
-const controlAccessUtil = require("../utils/control-access");
+const controlAccessUtil = require("@utils/control-access");
 const { logText, logElement, logObject, logError } = require("../utils/log");
+const isEmpty = require("is-empty");
 
 const createDepartment = {
   list: async (req, res) => {
@@ -38,9 +39,7 @@ const createDepartment = {
           message: responseFromListDepartment.message
             ? responseFromListDepartment.message
             : "",
-          departments: responseFromListDepartment.data
-            ? responseFromListDepartment.data
-            : [],
+          departments: responseFromListDepartment.data,
         });
       } else if (responseFromListDepartment.success === false) {
         const status = responseFromListDepartment.status

@@ -4,7 +4,7 @@ const { Schema } = mongoose;
 var uniqueValidator = require("mongoose-unique-validator");
 const { logObject, logElement, logText } = require("../utils/log");
 const isEmpty = require("is-empty");
-const HTTPStatus = require("http-status");
+const httpStatus = require("http-status");
 
 const DepartmentSchema = new Schema(
   {
@@ -45,7 +45,7 @@ DepartmentSchema.plugin(uniqueValidator, {
   message: `{VALUE} should be unique!`,
 });
 
-DepartmentSchema.index({ dep_title: 1, dep_network_id }, { unique: true });
+DepartmentSchema.index({ dep_title: 1, dep_network_id: 1 }, { unique: true });
 
 DepartmentSchema.methods = {
   toJSON() {
@@ -53,6 +53,7 @@ DepartmentSchema.methods = {
       _id: this._id,
       dep_parent: this.dep_parent,
       dep_title: this.dep_title,
+      dep_network_id: this.dep_network_id,
       dep_status: this.dep_status,
       dep_manager: this.dep_manager,
       dep_last: this.dep_last,
@@ -95,32 +96,32 @@ DepartmentSchema.statics = {
           success: true,
           data,
           message: "department created",
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
-      } else {
+      } else if (isEmpty(data)) {
         return {
           success: true,
-          data,
+          data: [],
           message:
             "department NOT successfully created but operation successful",
-          status: HTTPStatus.NO_CONTENT,
+          status: httpStatus.NO_CONTENT,
         };
       }
     } catch (err) {
       let response = {};
       let errors = {};
       let message = "Internal Server Error";
-      let status = HTTPStatus.INTERNAL_SERVER_ERROR;
+      let status = httpStatus.INTERNAL_SERVER_ERROR;
       if (err.code === 11000 || err.code === 11001) {
         errors = err.keyValue;
         message = "duplicate values provided";
-        status = HTTPStatus.CONFLICT;
+        status = httpStatus.CONFLICT;
         Object.entries(errors).forEach(([key, value]) => {
           return (response[key] = value);
         });
       } else {
         message = "validation errors for some of the provided fields";
-        status = HTTPStatus.CONFLICT;
+        status = httpStatus.CONFLICT;
         errors = err.errors;
         Object.entries(errors).forEach(([key, value]) => {
           return (response[key] = value.message);
@@ -204,38 +205,37 @@ DepartmentSchema.statics = {
         .allowDiskUse(true);
 
       if (!isEmpty(response)) {
-        let data = response;
         return {
           success: true,
           message: "successfully retrieved the departments",
-          data,
-          status: HTTPStatus.OK,
+          data: response,
+          status: httpStatus.OK,
         };
       } else if (isEmpty(response)) {
         return {
-          success: false,
-          message: "department/s do not exist, please crosscheck",
-          status: HTTPStatus.NOT_FOUND,
+          success: true,
+          message: "departments do not exist, please crosscheck",
+          status: httpStatus.NOT_FOUND,
           data: [],
-          errors: { message: "unable to retrieve departments" },
         };
       }
     } catch (err) {
+      logObject("err", err);
       let response = {};
       let errors = {};
-      let message = "Internal Server Error";
-      let status = HTTPStatus.INTERNAL_SERVER_ERROR;
+      let message = "internal server error";
+      let status = httpStatus.INTERNAL_SERVER_ERROR;
       if (err.code === 11000 || err.code === 11001) {
         errors = err.keyValue;
         message = "duplicate values provided";
-        status = HTTPStatus.CONFLICT;
+        status = httpStatus.CONFLICT;
         Object.entries(errors).forEach(([key, value]) => {
           return (response[key] = value);
         });
       } else {
         message = "validation errors for some of the provided fields";
-        status = HTTPStatus.CONFLICT;
         errors = err.errors;
+        status = httpStatus.CONFLICT;
         Object.entries(errors).forEach(([key, value]) => {
           return (response[key] = value.message);
         });
@@ -280,36 +280,35 @@ DepartmentSchema.statics = {
       ).exec();
 
       if (!isEmpty(updatedDepartment)) {
-        let data = updatedDepartment._doc;
         return {
           success: true,
           message: "successfully modified the department",
-          data,
-          status: HTTPStatus.OK,
+          data: updatedDepartment._doc,
+          status: httpStatus.OK,
         };
-      } else {
+      } else if (isEmpty(updatedDepartment)) {
         return {
-          success: false,
+          success: true,
           message: "department does not exist, please crosscheck",
-          status: HTTPStatus.NOT_FOUND,
-          errors: "Not Found",
+          status: httpStatus.NOT_FOUND,
+          data: [],
         };
       }
     } catch (err) {
       let response = {};
       let errors = {};
       let message = "Internal Server Error";
-      let status = HTTPStatus.INTERNAL_SERVER_ERROR;
+      let status = httpStatus.INTERNAL_SERVER_ERROR;
       if (err.code === 11000 || err.code === 11001) {
         errors = err.keyValue;
         message = "duplicate values provided";
-        status = HTTPStatus.CONFLICT;
+        status = httpStatus.CONFLICT;
         Object.entries(errors).forEach(([key, value]) => {
           return (response[key] = value);
         });
       } else {
         message = "validation errors for some of the provided fields";
-        status = HTTPStatus.CONFLICT;
+        status = httpStatus.CONFLICT;
         errors = err.errors;
         Object.entries(errors).forEach(([key, value]) => {
           return (response[key] = value.message);
@@ -338,36 +337,35 @@ DepartmentSchema.statics = {
       ).exec();
 
       if (!isEmpty(removedDepartment)) {
-        let data = removedDepartment._doc;
         return {
           success: true,
           message: "successfully removed the department",
-          data,
-          status: HTTPStatus.OK,
+          data: removedDepartment._doc,
+          status: httpStatus.OK,
         };
-      } else {
+      } else if (isEmpty(removedDepartment)) {
         return {
-          success: false,
+          success: true,
           message: "department does not exist, please crosscheck",
-          status: HTTPStatus.NOT_FOUND,
-          errors: "Not Found",
+          status: httpStatus.NOT_FOUND,
+          data: [],
         };
       }
     } catch (err) {
       let response = {};
       let errors = {};
       let message = "Internal Server Error";
-      let status = HTTPStatus.INTERNAL_SERVER_ERROR;
+      let status = httpStatus.INTERNAL_SERVER_ERROR;
       if (err.code === 11000 || err.code === 11001) {
         errors = err.keyValue;
         message = "duplicate values provided";
-        status = HTTPStatus.CONFLICT;
+        status = httpStatus.CONFLICT;
         Object.entries(errors).forEach(([key, value]) => {
           return (response[key] = value);
         });
       } else {
         message = "validation errors for some of the provided fields";
-        status = HTTPStatus.CONFLICT;
+        status = httpStatus.CONFLICT;
         errors = err.errors;
         Object.entries(errors).forEach(([key, value]) => {
           return (response[key] = value.message);

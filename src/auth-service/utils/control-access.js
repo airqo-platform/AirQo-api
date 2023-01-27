@@ -4,6 +4,7 @@ const ClientSchema = require("@models/Client");
 const AccessTokenSchema = require("@models/AccessToken");
 const UserSchema = require("@models/User");
 const RoleSchema = require("@models/Role");
+const DepartmentSchema = require("@models/Department");
 const httpStatus = require("http-status");
 const mongoose = require("mongoose").set("debug", true);
 const accessCodeGenerator = require("generate-password");
@@ -70,6 +71,16 @@ const RoleModel = (tenant) => {
   } catch (error) {
     let roles = getModelByTenant(tenant, "role", RoleSchema);
     return roles;
+  }
+};
+
+const DepartmentModel = (tenant) => {
+  try {
+    let departments = mongoose.model("departments");
+    return departments;
+  } catch (error) {
+    let departments = getModelByTenant(tenant, "department", DepartmentSchema);
+    return departments;
   }
 };
 
@@ -1328,6 +1339,293 @@ const controlAccess = {
         message: "Internal Server Error",
         errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  /********* departments  ******************************************/
+  createDepartment: async (request) => {
+    try {
+      let { body } = request;
+      let modifiedBody = body;
+
+      const responseFromExtractNetworkName =
+        createNetwork.extractOneAcronym(request);
+
+      logObject(
+        "responseFromExtractNetworkName",
+        responseFromExtractNetworkName
+      );
+
+      if (responseFromExtractNetworkName.success === true) {
+        modifiedBody["net_name"] = responseFromExtractNetworkName.data;
+        modifiedBody["net_acronym"] = responseFromExtractNetworkName.data;
+      } else if (responseFromExtractNetworkName.success === false) {
+        return responseFromExtractNetworkName;
+      }
+
+      logObject("modifiedBody", modifiedBody);
+      let responseFromRegisterNetwork = await getModelByTenant(
+        "airqo",
+        "network",
+        NetworkSchema
+      ).register(modifiedBody);
+
+      logObject("responseFromRegisterNetwork", responseFromRegisterNetwork);
+
+      if (responseFromRegisterNetwork.success === true) {
+        let status = responseFromRegisterNetwork.status
+          ? responseFromRegisterNetwork.status
+          : "";
+        return {
+          success: true,
+          message: responseFromRegisterNetwork.message,
+          data: responseFromRegisterNetwork.data,
+          status,
+        };
+      } else if (responseFromRegisterNetwork.success === false) {
+        let errors = responseFromRegisterNetwork.errors
+          ? responseFromRegisterNetwork.errors
+          : "";
+
+        let status = responseFromRegisterNetwork.status
+          ? responseFromRegisterNetwork.status
+          : "";
+
+        return {
+          success: false,
+          message: responseFromRegisterNetwork.message,
+          errors,
+          status,
+        };
+      }
+    } catch (err) {
+      return {
+        success: false,
+        message: "network util server errors",
+        errors: err.message,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  updateDepartment: async (request) => {
+    try {
+      let { body, query, params } = request;
+      let tenant = "airqo";
+      let update = body;
+      const action = request.path.split("/")[3];
+      logElement("action", action);
+      update["action"] = action;
+      let filter = {};
+      let responseFromGeneratefilter = generateFilter.networks(request);
+
+      if (!isEmpty(params.user_id)) {
+        logElement("params.user_id", params.user_id);
+        let usersArray = params.user_id.toString().split(",");
+        let modifiedUsersArray = usersArray.map((user_id) => {
+          return ObjectId(user_id);
+        });
+        update.net_users = modifiedUsersArray;
+      } else if (!isEmpty(update.user_ids)) {
+        let usersArray = update.user_ids.toString().split(",");
+        let modifiedUsersArray = usersArray.map((user_id) => {
+          return ObjectId(user_id);
+        });
+        update.net_users = modifiedUsersArray;
+      }
+
+      if (responseFromGeneratefilter.success === true) {
+        filter = responseFromGeneratefilter.data;
+        if (
+          !isEmpty(params.user_id) &&
+          !isEmpty(action) &&
+          action === "unassign-user"
+        ) {
+          filter["net_users"] = ObjectId(params.user_id);
+        }
+      } else if (responseFromGeneratefilter.success === false) {
+        let status = responseFromGeneratefilter.status
+          ? responseFromGeneratefilter.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        let errors = responseFromGeneratefilter.errors
+          ? responseFromGeneratefilter.errors
+          : "";
+        return {
+          message: "Internal Server Error",
+          errors,
+          status,
+          success: false,
+        };
+      }
+
+      let responseFromModifyNetwork = await getModelByTenant(
+        "airqo",
+        "network",
+        NetworkSchema
+      ).modify({ update, filter });
+
+      if (responseFromModifyNetwork.success === true) {
+        let status = responseFromModifyNetwork.status
+          ? responseFromModifyNetwork.status
+          : "";
+        return {
+          message: responseFromModifyNetwork.message,
+          status,
+          data: responseFromModifyNetwork.data,
+          success: true,
+        };
+      } else if (responseFromModifyNetwork.success === false) {
+        let status = responseFromModifyNetwork.status
+          ? responseFromModifyNetwork.status
+          : "";
+        let errors = responseFromModifyNetwork.errors
+          ? responseFromModifyNetwork.errors
+          : "";
+        return {
+          success: false,
+          message: responseFromModifyNetwork.message,
+          errors,
+          status,
+        };
+      }
+    } catch (error) {
+      logObject("error", error);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: error,
+      };
+    }
+  },
+  deleteDepartment: async (request) => {
+    try {
+      logText("the delete operation.....");
+      let { query, body } = request;
+      let tenant = "airqo";
+      let filter = {};
+
+      const responseFromGenerateFilter = generateFilter.networks(request);
+
+      logObject("responseFromGenerateFilter", responseFromGenerateFilter);
+
+      if (responseFromGenerateFilter.success === true) {
+        filter = responseFromGenerateFilter.data;
+      } else if (responseFromGenerateFilter.success === false) {
+        let status = responseFromGenerateFilter.status
+          ? responseFromGenerateFilter.status
+          : "";
+        let errors = responseFromGenerateFilter.errors
+          ? responseFromGenerateFilter.errors
+          : "";
+        return {
+          status,
+          errors,
+          message: responseFromGenerateFilter.message,
+        };
+      }
+
+      logObject("the filter", filter);
+
+      let responseFromRemoveNetwork = await getModelByTenant(
+        "airqo",
+        "network",
+        NetworkSchema
+      ).remove({ filter });
+
+      logObject("responseFromRemoveNetwork", responseFromRemoveNetwork);
+
+      if (responseFromRemoveNetwork.success === true) {
+        let status = responseFromRemoveNetwork.status
+          ? responseFromRemoveNetwork.status
+          : "";
+
+        return {
+          status,
+          message: responseFromRemoveNetwork.message,
+          data: responseFromRemoveNetwork.data,
+          success: true,
+        };
+      } else if (responseFromRemoveNetwork.success === false) {
+        let status = responseFromRemoveNetwork.status
+          ? responseFromRemoveNetwork.status
+          : "";
+        let errors = responseFromRemoveNetwork.errors
+          ? responseFromRemoveNetwork.errors
+          : "";
+
+        return {
+          message: responseFromRemoveNetwork.message,
+          errors,
+          status,
+          success: false,
+        };
+      }
+    } catch (error) {
+      return {
+        message: "Internal Server Error",
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        errors: error.message,
+        success: false,
+      };
+    }
+  },
+  listDepartment: async (request) => {
+    try {
+      const { query } = request;
+      const { tenant } = query;
+      const limit = parseInt(request.query.limit, 0);
+      const skip = parseInt(request.query.skip, 0);
+      let filter = {};
+
+      let responseFromGenerateFilter = generateFilter.departments(request);
+      if (responseFromGenerateFilter.success === true) {
+        filter = responseFromGenerateFilter.data;
+        logObject("filter", filter);
+      }
+
+      if (responseFromGenerateFilter.success === false) {
+        let errors = responseFromGenerateFilter.errors
+          ? responseFromGenerateFilter.errors
+          : "";
+        return {
+          success: false,
+          message: responseFromGenerateFilter.message,
+          errors,
+        };
+      }
+
+      const responseFromListDepartments = await DepartmentModel(
+        tenant.toLowerCase()
+      ).list({ filter, limit, skip });
+
+      if (responseFromListDepartments.success === true) {
+        return {
+          success: true,
+          status: responseFromListDepartments.status
+            ? responseFromListDepartments.status
+            : "",
+          message: responseFromListDepartments.message,
+          data: responseFromListDepartments.data,
+        };
+      } else if (responseFromListDepartments.success === false) {
+        return {
+          success: false,
+          status: responseFromListDepartments.status
+            ? responseFromListDepartments.status
+            : "",
+          errors: responseFromListDepartments.errors
+            ? responseFromListDepartments.errors
+            : "",
+          message: responseFromListDepartments.message,
+        };
+      }
+    } catch (error) {
+      logElement("internal server error", error.message);
+      return {
+        success: false,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        message: "Internal Server Error",
+        errors: { message: error.message },
       };
     }
   },

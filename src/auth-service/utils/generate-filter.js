@@ -61,6 +61,7 @@ const filter = {
         data: filter,
       };
     } catch (e) {
+      logger.error(`internal server error, ${JSON.stringifys(e)}`);
       return {
         success: false,
         message: "filter util server error",
@@ -117,6 +118,7 @@ const filter = {
         data: filter,
       };
     } catch (err) {
+      logger.error(`internal server error, ${JSON.stringifys(err)}`);
       return {
         success: false,
         message: "filter util server error",
@@ -147,6 +149,7 @@ const filter = {
         data: filter,
       };
     } catch (e) {
+      logger.error(`internal server error, ${JSON.stringifys(e)}`);
       return {
         success: false,
         message: "filter util server error",
@@ -179,6 +182,7 @@ const filter = {
         data: filter,
       };
     } catch (e) {
+      logger.error(`internal server error, ${JSON.stringifys(e)}`);
       return {
         success: false,
         message: "filter util server error",
@@ -207,6 +211,7 @@ const filter = {
         data: filter,
       };
     } catch (e) {
+      logger.error(`internal server error, ${JSON.stringifys(e)}`);
       return {
         success: false,
         message: "filter util server error",
@@ -289,6 +294,7 @@ const filter = {
         data: filter,
       };
     } catch (e) {
+      logger.error(`internal server error, ${JSON.stringifys(e)}`);
       return {
         success: false,
         message: "filter util server error",
@@ -324,6 +330,7 @@ const filter = {
       }
       return filter;
     } catch (e) {
+      logger.error(`internal server error, ${JSON.stringifys(e)}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -361,6 +368,7 @@ const filter = {
 
       return filter;
     } catch (e) {
+      logger.error(`internal server error, ${JSON.stringifys(e)}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -397,6 +405,7 @@ const filter = {
       }
       return filter;
     } catch (e) {
+      logger.error(`internal server error, ${JSON.stringifys(e)}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -440,6 +449,7 @@ const filter = {
 
       return filter;
     } catch (e) {
+      logger.error(`internal server error, ${JSON.stringifys(e)}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -473,6 +483,7 @@ const filter = {
       }
       return filter;
     } catch (e) {
+      logger.error(`internal server error, ${JSON.stringifys(e)}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -493,9 +504,10 @@ const filter = {
         has_children,
         dep_acronym,
         dep_children,
+        dep_status,
       } = req.query;
 
-      const { dep_id, usr_id } = req.params;
+      const { dep_id, user_id } = req.params;
 
       let filter = {};
 
@@ -504,19 +516,24 @@ const filter = {
       }
 
       if (dep_status) {
-        filter["net_status"] = net_status;
+        filter["net_status"] = dep_status;
       }
 
-      return {
-        success: true,
-        message: "successfully created the filter",
-        data: filter,
-      };
+      if (dep_network_id) {
+        filter["dep_network_id"] = ObjectId(dep_network_id);
+      }
+
+      if (dep_children) {
+        filter["dep_children"] = dep_children;
+      }
+      return filter;
     } catch (err) {
+      logger.error(`internal server error, ${JSON.stringifys(err)}`);
       return {
         success: false,
-        message: "filter util server error",
+        message: "internal server error",
         errors: { message: err.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
