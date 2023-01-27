@@ -666,7 +666,7 @@ const createRole = {
           : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: "permission has been unassigned from role",
+          message: responseFromUnAssignPermissionFromRole.message,
           modified_role: responseFromUnAssignPermissionFromRole.data,
         });
       } else if (responseFromUnAssignPermissionFromRole.success === false) {

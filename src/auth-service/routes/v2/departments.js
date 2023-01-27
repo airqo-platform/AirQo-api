@@ -8,8 +8,6 @@ const {
   authJWT,
   setLocalAuth,
   authLocal,
-  authToken,
-  setAuthToken,
 } = require("@middleware/passport");
 
 const mongoose = require("mongoose");

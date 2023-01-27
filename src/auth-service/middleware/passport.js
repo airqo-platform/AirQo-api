@@ -8,6 +8,7 @@ const constants = require("../config/constants");
 const { logElement, logText, logObject } = require("../utils/log");
 const { Strategy: JwtStrategy, ExtractJwt } = require("passport-jwt");
 const AuthTokenStrategy = require("passport-auth-token");
+const jwt = require("jsonwebtoken");
 
 const { getModelByTenant } = require("../utils/multitenancy");
 const UserModel = (tenant) => {
@@ -81,19 +82,19 @@ const jwtOpts = {
 const useLocalStrategy = (tenant, req, res, next) => {
   let localOptions = setLocalOptions(req);
   logObject("the localOptions", localOptions);
-  if (localOptions.success == true) {
+  if (localOptions.success === true) {
     logText("success state is true");
     let { usernameField } = localOptions.authenticationFields;
     logElement("the username field", usernameField);
-    if (usernameField == "email") {
+    if (usernameField === "email") {
       req.body.email = req.body.userName;
       logText("we are using email");
       return useEmailWithLocalStrategy(tenant, req, res, next);
-    } else if (usernameField == "userName") {
+    } else if (usernameField === "userName") {
       logText("we are using username");
       return useUsernameWithLocalStrategy(tenant, req, res, next);
     }
-  } else if (localOptions.success == false) {
+  } else if (localOptions.success === false) {
     logText("success state is false");
     return localOptions;
   }
@@ -272,51 +273,40 @@ function setJWTAuth(req, res, next) {
   }
 }
 
-function setAuthToken(req, res, next) {
-  try {
-    const hasErrors = !validationResult(req).isEmpty();
-    if (hasErrors) {
-      let nestedErrors = validationResult(req).errors[0].nestedErrors;
-      logObject("nestedErrors", nestedErrors);
-      return badRequest(
-        res,
-        "bad request errors",
-        convertErrorArrayToObject(nestedErrors)
-      );
-    }
-    let tenant = "airqo";
-    if (req.query.tenant) {
-      tenant = req.query.tenant;
-    }
-    setAuthTokenStrategy(tenant, req, res, next);
-    next();
-  } catch (e) {
-    console.log("the error in setAuthToken is: ", e.message);
-    res
-      .status(HTTPStatus.INTERNAL_SERVER_ERROR)
-      .json({ success: false, message: e.message });
-  }
-}
-
 const authLocal = passport.authenticate("user-local", {
   session: false,
   failureFlash: true,
 });
 
+const authGuest = (req, res, next) => {
+  try {
+    const user = jwt.verify(req.headers.authorization, constants.JWT_SECRET);
+    if (user.role === "guest" || user.role === "authenticated") {
+      req.user = user;
+      return next();
+    } else {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+  } catch (err) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+};
+
+const setGuestToken = (req, res) => {
+  const guest = { guest: true, role: "guest" };
+  const token = jwt.sign(guest, constants.JWT_SECRET);
+  res.json({ token });
+};
+
 const authJWT = passport.authenticate("jwt", {
   session: false,
 });
 
-const authToken = passport.authenticate("authtoken", {
-  session: false,
-  optional: false,
-});
-
 module.exports = {
-  setLocalAuth: setLocalAuth,
-  setJWTAuth: setJWTAuth,
-  setAuthToken: setAuthToken,
-  authLocal: authLocal,
-  authJWT: authJWT,
-  authToken: authToken,
+  setLocalAuth,
+  setJWTAuth,
+  setGuestToken,
+  authLocal,
+  authJWT,
+  authGuest,
 };

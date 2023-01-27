@@ -598,6 +598,46 @@ const createUser = {
     }
   },
 
+  guest: (req, res) => {
+    logText("..................................");
+    logText("user guest login......");
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        logger.error(
+          `input validation errors ${JSON.stringify(
+            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          )}`
+        );
+        return badRequest(
+          res,
+          "bad request errors",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+
+      req.session.guest = true;
+      req.session.save((err) => {
+        if (err) {
+          return res
+            .status(httpStatus.INTERNAL_SERVER_ERROR)
+            .json({ success: false, message: "Error creating guest session" });
+        }
+        // Return the guest id to the client
+        return res.json({ success: true, guestId: req.user.guestId });
+      });
+    } catch (error) {
+      logObject("error", error);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "internal server errors",
+        errors: { message: error.message },
+        error: "",
+      });
+    }
+  },
+
   delete: async (req, res) => {
     try {
       logText(".................................................");

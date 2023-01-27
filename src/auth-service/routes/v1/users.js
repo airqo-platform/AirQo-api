@@ -8,6 +8,8 @@ const {
   authJWT,
   setLocalAuth,
   authLocal,
+  setGuestAuth,
+  authGuest,
 } = require("@middleware/passport");
 
 const mongoose = require("mongoose");
@@ -48,6 +50,26 @@ router.post(
   setLocalAuth,
   authLocal,
   createUserController.login
+);
+
+router.post(
+  "/guest",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  setGuestAuth,
+  authGuest,
+  createUserController.guest
 );
 
 router.post(
