@@ -1,0 +1,4 @@
+#!/bin/bash
+kubectl cordon {{ node_name }} --kubeconfig=/etc/kubernetes/kubelet.conf
+kubectl delete node {{ node_name }} --kubeconfig=/etc/kubernetes/kubelet.conf
+kubeadm reset -f

@@ -1,0 +1,36 @@
+- hosts: k8s_master
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Get join command
+      shell: kubeadm token create --print-join-command
+      register: join_command_raw
+
+    - name: Set join command
+      set_fact:
+        join_command: "{{ join_command_raw.stdout_lines[0] }}"
+
+- hosts: preemptive_workers
+  become: true
+
+  tasks:
+    - name: Save the add node and remove node scripts as executables
+      template:
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"
+        mode: a+x
+      with_items:
+        - { src: templates/add_node.sh.j2, dest: /root/add_node.sh }
+        - { src: templates/remove_node.sh.j2, dest: /root/remove_node.sh }
+
+    - name: Create cronjob to run the add_node script at minute 57 of every hour
+      cron:
+        name: "Add node to k8s cluster"
+        minute: "57"
+        job: "/bin/bash  /root/add_node.sh"
+
+    - name: Create cronjob to run the remove_node script at minute 8 of every hour
+      cron:
+        name: "Remove node from k8s cluster"
+        minute: "8"
+        job: "/bin/bash  /root/remove_node.sh"
