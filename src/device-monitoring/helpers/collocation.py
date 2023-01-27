@@ -144,8 +144,8 @@ class Collocation:
         query = (
             f" SELECT timestamp, device_id, {', '.join(map(str, set(cols)))} "
             f" FROM {self.__raw_data_table} "
-            f" WHERE Date({self.__raw_data_table}.timestamp) >= '{date_to_str(self.__start_date, str_format='%Y-%m-%d')}' "
-            f" AND Date({self.__raw_data_table}.timestamp) <= '{date_to_str(self.__end_date, str_format='%Y-%m-%d')}' "
+            f" WHERE {self.__raw_data_table}.timestamp >= '{date_to_str(self.__start_date, str_format='%Y-%m-%d')}' "
+            f" AND {self.__raw_data_table}.timestamp <= '{date_to_str(self.__end_date, str_format='%Y-%m-%d')}' "
             f" AND device_id IN UNNEST({self.__devices}) "
         )
 
