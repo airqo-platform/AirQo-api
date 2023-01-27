@@ -1,7 +1,7 @@
 const mongoose = require("mongoose").set("debug", true);
 const ObjectId = mongoose.Types.ObjectId;
 var uniqueValidator = require("mongoose-unique-validator");
-const { logElement, logText, logObject } = require("../utils/log");
+const { logElement, logText, logObject } = require("@utils/log");
 const isEmpty = require("is-empty");
 const HTTPStatus = require("http-status");
 
@@ -48,14 +48,22 @@ const DefaultsSchema = new mongoose.Schema(
     },
     airqloud: {
       type: ObjectId,
+      ref: "airqloud",
+    },
+    network_id: {
+      type: ObjectId,
+      ref: "network",
+      required: [true, "network_id is required!"],
     },
     user: {
       type: ObjectId,
       required: [true, "user is required"],
+      ref: "user",
     },
     sites: [
       {
         type: ObjectId,
+        ref: "site",
       },
     ],
     period: { type: periodSchema, required: [true, "period is required!"] },
@@ -83,6 +91,7 @@ DefaultsSchema.methods = {
       chartTitle: this.chartTitle,
       chartSubTitle: this.chartSubTitle,
       sites: this.sites,
+      network_id: this.network_id,
       period: this.period,
       createdAt: this.createdAt,
     };
