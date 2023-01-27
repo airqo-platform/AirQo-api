@@ -1202,7 +1202,15 @@ const controlAccess = {
       });
 
       if (responseFromUnAssignPermissionFromRole.success === true) {
-        return responseFromUnAssignPermissionFromRole;
+        let modifiedResponse = Object.assign(
+          {},
+          responseFromUnAssignPermissionFromRole
+        );
+        if (responseFromUnAssignPermissionFromRole.status === httpStatus.OK) {
+          modifiedResponse.message = "permission has been unassigned from role";
+          return modifiedResponse;
+        }
+        return modifiedResponse;
       } else if (responseFromUnAssignPermissionFromRole.success === false) {
         return responseFromUnAssignPermissionFromRole;
       }
