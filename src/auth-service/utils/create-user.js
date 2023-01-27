@@ -313,20 +313,20 @@ const join = {
   },
   delete: async (tenant, filter) => {
     try {
-      // let responseFromRemoveUser = await UserModel(tenant.toLowerCase()).remove(
-      //   {
-      //     filter,
-      //   }
-      // );
+      let responseFromRemoveUser = await UserModel(tenant.toLowerCase()).remove(
+        {
+          filter,
+        }
+      );
 
       /**
        * cascase delete of user details...
        */
-      let responseFromRemoveUser = await UserModel(
-        tenant.toLowerCase()
-      ).v2_remove({
-        filter,
-      });
+      // let responseFromRemoveUser = await UserModel(
+      //   tenant.toLowerCase()
+      // ).v2_remove({
+      //   filter,
+      // });
 
       if (responseFromRemoveUser.success == true) {
         return {
