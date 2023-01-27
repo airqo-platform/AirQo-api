@@ -8,7 +8,7 @@ const {
   authJWT,
   setLocalAuth,
   authLocal,
-  setGuestAuth,
+  setGuestToken,
   authGuest,
 } = require("@middleware/passport");
 
@@ -67,7 +67,7 @@ router.post(
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
-  setGuestAuth,
+  setGuestToken,
   authGuest,
   createUserController.guest
 );

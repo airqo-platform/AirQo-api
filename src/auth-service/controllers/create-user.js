@@ -616,7 +616,6 @@ const createUser = {
           convertErrorArrayToObject(nestedErrors)
         );
       }
-
       req.session.guest = true;
       req.session.save((err) => {
         if (err) {
@@ -625,7 +624,9 @@ const createUser = {
             .json({ success: false, message: "Error creating guest session" });
         }
         // Return the guest id to the client
-        return res.json({ success: true, guestId: req.user.guestId });
+        return res
+          .status(httpStatus.OK)
+          .json({ success: true, guestId: req.user.guestId });
       });
     } catch (error) {
       logObject("error", error);
