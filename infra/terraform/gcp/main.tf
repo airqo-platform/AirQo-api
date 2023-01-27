@@ -31,3 +31,10 @@ module "ComputeInstanceTemplate" {
   os             = var.os
   disk_size      = var.disk_size
 }
+
+module "ComputeResourcePolicy" {
+  source = "./modules/ComputeResourcePolicy"
+
+  project_id     = var.project_id
+  region         = var.region
+}

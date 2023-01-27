@@ -46,4 +46,4 @@ resource "google_compute_instance" "mongos_prod_1" {
   tags = ["http-server", "https-server"]
   zone = var.zone
 }
-# terraform import google_compute_instance.mongos_prod_1 projects/${var.project_id}/zones/us-central1-a/instances/mongos-prod-1
+# terraform import google_compute_instance.mongos_prod_1 projects/${var.project_id}/zones/${var.zone}/instances/mongos-prod-1
