@@ -30,8 +30,6 @@
         src: "{{ item.src }}"
         dest: "{{ item.dest }}"
         mode: a+x
-        vars:
-          join_command: "{{ hostvars[groups['k8s_master'].0].join_command }}"
       with_items:
         - {
             src: templates/join_k8s_cluster.sh.j2,

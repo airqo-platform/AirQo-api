@@ -1,2 +1,2 @@
 #!/bin/bash
-{{ join_command }} > node_joined.txt
+{{ hostvars[groups['k8s_master'].0].join_command }} > node_joined.txt
