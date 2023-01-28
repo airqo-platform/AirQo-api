@@ -2,35 +2,54 @@
   become: true
   gather_facts: false
   tasks:
-    - name: Get join command
-      shell: kubeadm token create --print-join-command
+    - name: Create the remove node script on master
+      template:
+        src: templates/remove_preemptive_node.sh.j2
+        dest: /root/remove_preemptive_node.sh
+        mode: a+x
+
+    - name: Create cronjob to run the remove_preemptive_node script at minute 8 of every hour
+      cron:
+        name: "Remove preemptive k8s node from cluster"
+        minute: "8"
+        job: "/bin/bash /root/remove_preemptive_node.sh"
+
+    - name: Get join command with a token that expires in 1 hour
+      shell: kubeadm token create --print-join-command --ttl 1h
       register: join_command_raw
 
     - name: Set join command
       set_fact:
         join_command: "{{ join_command_raw.stdout_lines[0] }}"
 
-- hosts: preemptive_workers
+- hosts: preemptive_node
   become: true
-
   tasks:
-    - name: Save the add node and remove node scripts as executables
+    - name: Create the add node and reset node scripts on preemptive worker
       template:
         src: "{{ item.src }}"
         dest: "{{ item.dest }}"
         mode: a+x
+        vars:
+          join_command: "{{ hostvars[groups['k8s_master'].0].join_command }}"
       with_items:
-        - { src: templates/add_node.sh.j2, dest: /root/add_node.sh }
-        - { src: templates/remove_node.sh.j2, dest: /root/remove_node.sh }
+        - {
+            src: templates/join_k8s_cluster.sh.j2,
+            dest: /root/join_k8s_cluster.sh,
+          }
+        - {
+            src: templates/leave_k8s_cluster.sh.j2,
+            dest: /root/leave_k8s_cluster.sh,
+          }
 
-    - name: Create cronjob to run the add_node script at minute 57 of every hour
+    - name: Create cronjob to run the join_k8s_cluster script at minute 57 of every hour
       cron:
         name: "Add node to k8s cluster"
         minute: "57"
-        job: "/bin/bash  /root/add_node.sh"
+        job: "/bin/bash /root/join_k8s_cluster.sh"
 
-    - name: Create cronjob to run the remove_node script at minute 8 of every hour
+    - name: Create cronjob to run the leave_k8s_cluster script at minute 9 of every hour
       cron:
-        name: "Remove node from k8s cluster"
-        minute: "8"
-        job: "/bin/bash  /root/remove_node.sh"
+        name: "Reset k8s node"
+        minute: "9"
+        job: "/bin/bash /root/leave_k8s_cluster.sh"
