@@ -44,7 +44,7 @@
       cron:
         name: "Add node to k8s cluster"
         minute: "57"
-        job: "/bin/bash /root/join_k8s_cluster.sh"
+        job: "sudo /bin/bash /root/join_k8s_cluster.sh"
 
     - name: Create cronjob to run the leave_k8s_cluster script at minute 9 of every hour
       cron:
