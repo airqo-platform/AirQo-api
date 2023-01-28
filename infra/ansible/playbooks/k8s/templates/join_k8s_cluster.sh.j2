@@ -1,4 +1,2 @@
 #!/bin/bash
-kubeadm join {{ master_node }}:6443 \
-    --token {{ join_token }} \
-    --discovery-token-ca-cert-hash {{ join_token_hash }}
+{{ join_command }} > node_joined.txt
