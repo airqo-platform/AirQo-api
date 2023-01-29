@@ -7,7 +7,6 @@ const mailer = require("./mailer");
 const bcrypt = require("bcrypt");
 const crypto = require("crypto");
 const isEmpty = require("is-empty");
-const HTTPStatus = require("http-status");
 const { getAuth, sendSignInLinkToEmail } = require("firebase-admin/auth");
 const actionCodeSettings = require("../config/firebase-settings");
 const httpStatus = require("http-status");
@@ -61,7 +60,7 @@ const join = {
       if (responseFromListUser.success === true) {
         const status = responseFromListUser.status
           ? responseFromListUser.status
-          : HTTPStatus.OK;
+          : httpStatus.OK;
         return {
           success: true,
           message: responseFromListUser.message,
@@ -71,7 +70,7 @@ const join = {
       } else if (responseFromListUser.success === false) {
         const status = responseFromListUser.status
           ? responseFromListUser.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+          : httpStatus.INTERNAL_SERVER_ERROR;
         const errors = responseFromListUser.errors
           ? responseFromListUser.errors
           : { message: "Internal Server Error" };
@@ -531,7 +530,7 @@ const join = {
         success: false,
         message: "Internal Server Error",
         errors: { message: e.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -619,7 +618,7 @@ const join = {
         success: false,
         message: "Internal Server Error",
         error: e.message,
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -824,7 +823,7 @@ const join = {
         success: false,
         message: "util server error",
         error: error.message,
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -1023,14 +1022,14 @@ const join = {
       if (responseFromUpdateSubscriberTags === null) {
         return {
           success: true,
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
           message:
             "successfully subscribed the email address to the AirQo newsletter",
         };
       } else {
         return {
           success: false,
-          status: HTTPStatus.BAD_GATEWAY,
+          status: httpStatus.BAD_GATEWAY,
           message: "unable to subscribe user to the AirQo newsletter",
           errors: {
             message:
@@ -1043,7 +1042,7 @@ const join = {
       const text = errorResponse ? errorResponse.text : "";
       const status = errorResponse
         ? errorResponse.status
-        : HTTPStatus.INTERNAL_SERVER_ERROR;
+        : httpStatus.INTERNAL_SERVER_ERROR;
       return {
         success: false,
         message: "Internal Server Error",

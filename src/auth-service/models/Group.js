@@ -6,7 +6,7 @@ var uniqueValidator = require("mongoose-unique-validator");
 const { logObject, logElement, logText } = require("../utils/log");
 const isEmpty = require("is-empty");
 const { getModelByTenant } = require("../utils/multitenancy");
-const HTTPStatus = require("http-status");
+const httpStatus = require("http-status");
 
 const GroupSchema = new Schema(
   {
@@ -84,31 +84,31 @@ GroupSchema.statics = {
           success: true,
           data,
           message: "group created",
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       } else if (isEmpty(data)) {
         return {
           success: true,
           data,
           message: "group NOT successfully created but operation successful",
-          status: HTTPStatus.ACCEPTED,
+          status: httpStatus.ACCEPTED,
         };
       }
     } catch (err) {
       let response = {};
       let errors = {};
       let message = "Internal Server Error";
-      let status = HTTPStatus.INTERNAL_SERVER_ERROR;
+      let status = httpStatus.INTERNAL_SERVER_ERROR;
       if (err.code === 11000 || err.code === 11001) {
         errors = err.keyValue;
         message = "duplicate values provided";
-        status = HTTPStatus.CONFLICT;
+        status = httpStatus.CONFLICT;
         Object.entries(errors).forEach(([key, value]) => {
           return (response[key] = value);
         });
       } else {
         message = "validation errors for some of the provided fields";
-        status = HTTPStatus.CONFLICT;
+        status = httpStatus.CONFLICT;
         errors = err.errors;
         Object.entries(errors).forEach(([key, value]) => {
           return (response[key] = value.message);
@@ -178,13 +178,13 @@ GroupSchema.statics = {
           success: true,
           message: "successfully retrieved the groups",
           data: response,
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       } else if (isEmpty(response)) {
         return {
           success: true,
           message: "groups do not exist, please crosscheck",
-          status: HTTPStatus.NOT_FOUND,
+          status: httpStatus.NOT_FOUND,
           data: [],
           errors: { message: "unable to retrieve groups" },
         };
@@ -193,17 +193,17 @@ GroupSchema.statics = {
       let response = {};
       let errors = {};
       let message = "Internal Server Error";
-      let status = HTTPStatus.INTERNAL_SERVER_ERROR;
+      let status = httpStatus.INTERNAL_SERVER_ERROR;
       if (err.code === 11000 || err.code === 11001) {
         errors = err.keyValue;
         message = "duplicate values provided";
-        status = HTTPStatus.CONFLICT;
+        status = httpStatus.CONFLICT;
         Object.entries(errors).forEach(([key, value]) => {
           return (response[key] = value);
         });
       } else {
         message = "validation errors for some of the provided fields";
-        status = HTTPStatus.CONFLICT;
+        status = httpStatus.CONFLICT;
         errors = err.errors;
         Object.entries(errors).forEach(([key, value]) => {
           return (response[key] = value.message);
@@ -246,13 +246,13 @@ GroupSchema.statics = {
           success: true,
           message: "successfully modified the group",
           data: updatedOrganization._doc,
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       } else if (isEmpty(updatedOrganization)) {
         return {
           success: true,
           message: "group does not exist, please crosscheck",
-          status: HTTPStatus.NOT_FOUND,
+          status: httpStatus.NOT_FOUND,
           errors: { message: "Not Found" },
           data: [],
         };
@@ -261,17 +261,17 @@ GroupSchema.statics = {
       let response = {};
       let errors = {};
       let message = "Internal Server Error";
-      let status = HTTPStatus.INTERNAL_SERVER_ERROR;
+      let status = httpStatus.INTERNAL_SERVER_ERROR;
       if (err.code === 11000 || err.code === 11001) {
         errors = err.keyValue;
         message = "duplicate values provided";
-        status = HTTPStatus.CONFLICT;
+        status = httpStatus.CONFLICT;
         Object.entries(errors).forEach(([key, value]) => {
           return (response[key] = value);
         });
       } else {
         message = "validation errors for some of the provided fields";
-        status = HTTPStatus.CONFLICT;
+        status = httpStatus.CONFLICT;
         errors = err.errors;
         Object.entries(errors).forEach(([key, value]) => {
           return (response[key] = value.message);
@@ -306,13 +306,13 @@ GroupSchema.statics = {
           success: true,
           message: "successfully removed the group",
           data: removedOrganization._doc,
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       } else if (isEmpty(removedOrganization)) {
         return {
           success: true,
           message: "group does not exist, please crosscheck",
-          status: HTTPStatus.NOT_FOUND,
+          status: httpStatus.NOT_FOUND,
           errors: { message: "Not Found" },
           data: [],
         };
@@ -321,17 +321,17 @@ GroupSchema.statics = {
       let response = {};
       let errors = {};
       let message = "Internal Server Error";
-      let status = HTTPStatus.INTERNAL_SERVER_ERROR;
+      let status = httpStatus.INTERNAL_SERVER_ERROR;
       if (err.code === 11000 || err.code === 11001) {
         errors = err.keyValue;
         message = "duplicate values provided";
-        status = HTTPStatus.CONFLICT;
+        status = httpStatus.CONFLICT;
         Object.entries(errors).forEach(([key, value]) => {
           return (response[key] = value);
         });
       } else {
         message = "validation errors for some of the provided fields";
-        status = HTTPStatus.CONFLICT;
+        status = httpStatus.CONFLICT;
         errors = err.errors;
         Object.entries(errors).forEach(([key, value]) => {
           return (response[key] = value.message);

@@ -1,4 +1,4 @@
-const HTTPStatus = require("http-status");
+const httpStatus = require("http-status");
 const { logElement, logText, logObject } = require("../utils/log");
 const createDefaultUtil = require("../utils/create-default");
 const generateFilter = require("../utils/generate-filter");
@@ -47,7 +47,7 @@ const defaults = {
         if (responseFromUpdateDefault.success === true) {
           let status = responseFromUpdateDefault.status
             ? responseFromUpdateDefault.status
-            : HTTPStatus.OK;
+            : httpStatus.OK;
           res.status(status).json({
             success: true,
             message: responseFromUpdateDefault.message,
@@ -59,7 +59,7 @@ const defaults = {
             : "";
           let status = responseFromUpdateDefault.status
             ? responseFromUpdateDefault.status
-            : HTTPStatus.INTERNAL_SERVER_ERROR;
+            : httpStatus.INTERNAL_SERVER_ERROR;
           res.status(status).json({
             success: false,
             message: responseFromUpdateDefault.message,
@@ -71,7 +71,7 @@ const defaults = {
         let errors = responseFromFilter.errors ? responseFromFilter.errors : "";
         let status = responseFromFilter.status
           ? responseFromFilter.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+          : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
           message: responseFromFilter.message,
@@ -105,7 +105,7 @@ const defaults = {
       if (responseFromCreateDefault.success === true) {
         let status = responseFromCreateDefault.status
           ? responseFromCreateDefault.status
-          : HTTPStatus.OK;
+          : httpStatus.OK;
         res.status(status).json({
           success: true,
           message: responseFromCreateDefault.message,
@@ -117,7 +117,7 @@ const defaults = {
           : "";
         let status = responseFromCreateDefault.status
           ? responseFromCreateDefault.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+          : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
           message: responseFromCreateDefault.message,
@@ -166,7 +166,7 @@ const defaults = {
         if (responseFromListDefaults.success === true) {
           let status = responseFromListDefaults.status
             ? responseFromListDefaults.status
-            : HTTPStatus.OK;
+            : httpStatus.OK;
           res.status(status).json({
             success: true,
             message: responseFromListDefaults.message,
@@ -179,7 +179,7 @@ const defaults = {
 
           let status = responseFromListDefaults.status
             ? responseFromListDefaults.status
-            : HTTPStatus.INTERNAL_SERVER_ERROR;
+            : httpStatus.INTERNAL_SERVER_ERROR;
 
           return res.status(status).json({
             success: false,
@@ -191,7 +191,7 @@ const defaults = {
         let errors = responseFromFilter.errors ? responseFromFilter.errors : "";
         let status = responseFromFilter.status
           ? responseFromFilter.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+          : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
           message: responseFromFilter.message,
@@ -224,7 +224,7 @@ const defaults = {
       if (responseFromDeleteDefault.success === true) {
         let status = responseFromDeleteDefault.status
           ? responseFromDeleteDefault.status
-          : HTTPStatus.OK;
+          : httpStatus.OK;
         res.status(status).json({
           success: true,
           message: responseFromDeleteDefault.message,
@@ -237,7 +237,7 @@ const defaults = {
 
         let status = responseFromDeleteDefault.status
           ? responseFromDeleteDefault.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+          : httpStatus.INTERNAL_SERVER_ERROR;
 
         res.status(status).json({
           success: false,

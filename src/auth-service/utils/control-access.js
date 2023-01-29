@@ -1454,7 +1454,7 @@ const controlAccess = {
         success: false,
         message: "network util server errors",
         errors: err.message,
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -1496,7 +1496,7 @@ const controlAccess = {
       } else if (responseFromGeneratefilter.success === false) {
         let status = responseFromGeneratefilter.status
           ? responseFromGeneratefilter.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+          : httpStatus.INTERNAL_SERVER_ERROR;
         let errors = responseFromGeneratefilter.errors
           ? responseFromGeneratefilter.errors
           : "";
@@ -1615,7 +1615,7 @@ const controlAccess = {
       logger.error(`internal server error -- ${error.message}`);
       return {
         message: "Internal Server Error",
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
         errors: error.message,
         success: false,
       };
@@ -1676,7 +1676,7 @@ const controlAccess = {
       logElement("internal server error", error.message);
       return {
         success: false,
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
         message: "Internal Server Error",
         errors: { message: error.message },
       };

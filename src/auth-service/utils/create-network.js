@@ -2,7 +2,7 @@ const NetworkSchema = require("../models/Network");
 const { getModelByTenant } = require("./multitenancy");
 const { logElement, logText, logObject } = require("./log");
 const generateFilter = require("./generate-filter");
-const HTTPStatus = require("http-status");
+const httpStatus = require("http-status");
 const companyEmailValidator = require("company-email-validator");
 const isEmpty = require("is-empty");
 const mongoose = require("mongoose").set("debug", true);
@@ -29,7 +29,7 @@ const createNetwork = {
             success: true,
             data: storedNetwork,
             message: "successfully retrieved the network",
-            status: HTTPStatus.OK,
+            status: httpStatus.OK,
           };
         } else if (responseFromListNetworks.success === false) {
           return responseFromListNetworks;
@@ -65,14 +65,14 @@ const createNetwork = {
       return {
         success: true,
         data: network,
-        status: HTTPStatus.OK,
+        status: httpStatus.OK,
         message: "successfully removed the file extension",
       };
     } catch (error) {
       return {
         success: false,
         message: "Internal Server Error",
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
         errors: {
           message: error.message,
         },
@@ -150,7 +150,7 @@ const createNetwork = {
         success: false,
         message: "network util server errors",
         errors: err.message,
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -192,7 +192,7 @@ const createNetwork = {
       } else if (responseFromGeneratefilter.success === false) {
         let status = responseFromGeneratefilter.status
           ? responseFromGeneratefilter.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+          : httpStatus.INTERNAL_SERVER_ERROR;
         let errors = responseFromGeneratefilter.errors
           ? responseFromGeneratefilter.errors
           : "";
@@ -309,7 +309,7 @@ const createNetwork = {
     } catch (error) {
       return {
         message: "Internal Server Error",
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
         errors: error.message,
         success: false,
       };
@@ -376,7 +376,7 @@ const createNetwork = {
       logElement("internal server error", error.message);
       return {
         success: false,
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
         message: "Internal Server Error",
         errors: error.message,
       };

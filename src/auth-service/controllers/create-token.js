@@ -1,9 +1,8 @@
-const HTTPStatus = require("http-status");
+const httpStatus = require("http-status");
 const { validationResult } = require("express-validator");
 const controlAccessUtil = require("../utils/control-access");
 const { badRequest, convertErrorArrayToObject } = require("../utils/errors");
 const { logText, logElement, logObject, logError } = require("../utils/log");
-const httpStatus = require("http-status");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 
@@ -57,7 +56,7 @@ const createAccessToken = {
         });
       }
     } catch (error) {
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -93,7 +92,7 @@ const createAccessToken = {
       if (responseFromListAccessToken.success === true) {
         const status = responseFromListAccessToken.status
           ? responseFromListAccessToken.status
-          : HTTPStatus.OK;
+          : httpStatus.OK;
         return res.status(status).json({
           message: responseFromListAccessToken.message
             ? responseFromListAccessToken.message
@@ -105,7 +104,7 @@ const createAccessToken = {
       } else if (responseFromListAccessToken.success === false) {
         const status = responseFromListAccessToken.status
           ? responseFromListAccessToken.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+          : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           message: responseFromListAccessToken.message,
           errors: responseFromListAccessToken.errors
@@ -114,7 +113,7 @@ const createAccessToken = {
         });
       }
     } catch (error) {
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -150,10 +149,10 @@ const createAccessToken = {
         let tokenDetails = {};
         const status = responseFromListAccessToken.status
           ? responseFromListAccessToken.status
-          : HTTPStatus.OK;
-        if (responseFromListAccessToken.status === HTTPStatus.BAD_REQUEST) {
+          : httpStatus.OK;
+        if (responseFromListAccessToken.status === httpStatus.BAD_REQUEST) {
           tokenDetails = {};
-        } else if (responseFromListAccessToken.status === HTTPStatus.OK) {
+        } else if (responseFromListAccessToken.status === httpStatus.OK) {
           tokenDetails = responseFromListAccessToken.data
             ? responseFromListAccessToken.data
             : {};
@@ -167,7 +166,7 @@ const createAccessToken = {
       } else if (responseFromListAccessToken.success === false) {
         const status = responseFromListAccessToken.status
           ? responseFromListAccessToken.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+          : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           message: responseFromListAccessToken.message,
           errors: responseFromListAccessToken.errors
@@ -176,7 +175,7 @@ const createAccessToken = {
         });
       }
     } catch (error) {
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -233,7 +232,7 @@ const createAccessToken = {
         });
       }
     } catch (error) {
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -290,7 +289,7 @@ const createAccessToken = {
         });
       }
     } catch (error) {
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },

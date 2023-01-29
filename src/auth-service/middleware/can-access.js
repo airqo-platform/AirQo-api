@@ -1,5 +1,5 @@
 import { logElement } from "../utils/log";
-const HTTPStatus = require("http-status");
+const httpStatus = require("http-status");
 const RoleSchema = "../models/Role";
 const PermissionSchema = "../models/Permission";
 const { getModelByTenant } = require("../utils/multitenancy");
@@ -21,7 +21,7 @@ export default (permission) => async (req, res, next) => {
   }
   logElement("You do not have the authorization to access this.");
   return res.status(403).json({
-    status: HTTPStatus.UNAUTHORIZED,
+    status: httpStatus.UNAUTHORIZED,
     error: "You do not have the authorization to access this",
   });
 };

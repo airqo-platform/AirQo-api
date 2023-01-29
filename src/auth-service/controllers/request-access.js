@@ -1,11 +1,11 @@
-const HTTPStatus = require("http-status");
-const requestAccessUtil = require("../utils/request-access");
-const generateFilter = require("../utils/generate-filter");
+const httpStatus = require("http-status");
+const requestAccessUtil = require("@utils/request-access");
+const generateFilter = require("@utils/generate-filter");
 const { validationResult } = require("express-validator");
-const { badRequest, convertErrorArrayToObject } = require("../utils/errors");
-const { logObject } = require("../utils/log");
+const { badRequest, convertErrorArrayToObject } = require("@utils/errors");
+const { logObject } = require("@utils/log");
 const isEmpty = require("is-empty");
-const constants = require("../config/constants");
+const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- request-controller`
@@ -52,7 +52,7 @@ const requestAccess = {
       await requestAccessUtil
         .create(request, (value) => {
           if (value.success === true) {
-            const status = value.status ? value.status : HTTPStatus.OK;
+            const status = value.status ? value.status : httpStatus.OK;
             return res.status(status).json({
               success: true,
               message: value.message,
@@ -61,7 +61,7 @@ const requestAccess = {
           } else if (value.success === false) {
             const status = value.status
               ? value.status
-              : HTTPStatus.INTERNAL_SERVER_ERROR;
+              : httpStatus.INTERNAL_SERVER_ERROR;
             const errors = value.errors ? value.errors : "";
             return res.status(status).json({
               success: false,
@@ -71,14 +71,14 @@ const requestAccess = {
           }
         })
         .catch((error) => {
-          return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+          return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
             success: false,
             message: "internal server error",
             errors: { message: error },
           });
         });
     } catch (error) {
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -115,20 +115,20 @@ const requestAccess = {
         });
         logObject("responseFromListCandidate", responseFromListCandidate);
         if (responseFromListCandidate.success === true) {
-          return res.status(HTTPStatus.OK).json({
+          return res.status(httpStatus.OK).json({
             success: true,
             message: responseFromListCandidate.message,
             candidates: responseFromListCandidate.data,
           });
         } else if (responseFromListCandidate.success === false) {
           if (responseFromListCandidate.error) {
-            return res.status(HTTPStatus.BAD_GATEWAY).json({
+            return res.status(httpStatus.BAD_GATEWAY).json({
               success: false,
               message: responseFromListCandidate.message,
               error: responseFromListCandidate.error,
             });
           } else {
-            return res.status(HTTPStatus.BAD_REQUEST).json({
+            return res.status(httpStatus.BAD_REQUEST).json({
               success: false,
               message: responseFromListCandidate.message,
             });
@@ -137,13 +137,13 @@ const requestAccess = {
       } else if (responseFromFilter.success === false) {
         if (responseFromFilter.error) {
           if (responseFromFilter.error) {
-            return res.status(HTTPStatus.BAD_GATEWAY).json({
+            return res.status(httpStatus.BAD_GATEWAY).json({
               success: false,
               message: responseFromFilter.message,
               error: responseFromFilter.error,
             });
           } else {
-            return res.status(HTTPStatus.BAD_REQUEST).json({
+            return res.status(httpStatus.BAD_REQUEST).json({
               success: false,
               message: responseFromFilter.message,
             });
@@ -151,7 +151,7 @@ const requestAccess = {
         }
       }
     } catch (e) {
-      return res.status(HTTPStatus.BAD_GATEWAY).json({
+      return res.status(httpStatus.BAD_GATEWAY).json({
         success: false,
         message: "controller server error",
         error: e.message,
@@ -212,7 +212,7 @@ const requestAccess = {
         if (responseFromConfirmCandidate.success === true) {
           let status = responseFromConfirmCandidate.status
             ? responseFromConfirmCandidate.status
-            : HTTPStatus.OK;
+            : httpStatus.OK;
           return res.status(status).json({
             success: true,
             message: responseFromConfirmCandidate.message,
@@ -221,7 +221,7 @@ const requestAccess = {
         } else if (responseFromConfirmCandidate.success === false) {
           let status = responseFromConfirmCandidate.status
             ? responseFromConfirmCandidate.status
-            : HTTPStatus.INTERNAL_SERVER_ERROR;
+            : httpStatus.INTERNAL_SERVER_ERROR;
 
           let error = responseFromConfirmCandidate.error
             ? responseFromConfirmCandidate.error
@@ -237,13 +237,13 @@ const requestAccess = {
       } else if (responseFromFilter.success === false) {
         if (responseFromFilter.error) {
           if (responseFromFilter.error) {
-            return res.status(HTTPStatus.BAD_GATEWAY).json({
+            return res.status(httpStatus.BAD_GATEWAY).json({
               success: false,
               message: responseFromFilter.message,
               error: responseFromFilter.error,
             });
           } else {
-            return res.status(HTTPStatus.BAD_REQUEST).json({
+            return res.status(httpStatus.BAD_REQUEST).json({
               success: false,
               message: responseFromFilter.message,
             });
@@ -251,7 +251,7 @@ const requestAccess = {
         }
       }
     } catch (e) {
-      return res.status(HTTPStatus.BAD_GATEWAY).json({
+      return res.status(httpStatus.BAD_GATEWAY).json({
         success: false,
         message: "contoller server error",
         error: e.message,
@@ -282,21 +282,21 @@ const requestAccess = {
         );
 
         if (responseFromDeleteCandidate.success == true) {
-          res.status(HTTPStatus.OK).json({
+          res.status(httpStatus.OK).json({
             success: true,
             message: responseFromDeleteCandidate.message,
             candidate: responseFromDeleteCandidate.data,
           });
         } else if (responseFromDeleteCandidate.success == false) {
           if (responseFromDeleteCandidate.error) {
-            res.status(HTTPStatus.BAD_GATEWAY).json({
+            res.status(httpStatus.BAD_GATEWAY).json({
               success: false,
               message: responseFromDeleteCandidate.message,
               candidate: responseFromDeleteCandidate.data,
               error: responseFromDeleteCandidate.error,
             });
           } else {
-            res.status(HTTPStatus.BAD_REQUEST).json({
+            res.status(httpStatus.BAD_REQUEST).json({
               success: false,
               message: responseFromDeleteCandidate.message,
               candidate: responseFromDeleteCandidate.data,
@@ -305,20 +305,20 @@ const requestAccess = {
         }
       } else if (responseFromFilter.success == false) {
         if (responseFromFilter.error) {
-          return res.status(HTTPStatus.BAD_GATEWAY).json({
+          return res.status(httpStatus.BAD_GATEWAY).json({
             success: false,
             message: responseFromFilter.message,
             error: responseFromFilter.error,
           });
         } else {
-          return res.status(HTTPStatus.BAD_REQUEST).json({
+          return res.status(httpStatus.BAD_REQUEST).json({
             success: false,
             message: responseFromFilter.message,
           });
         }
       }
     } catch (error) {
-      return res.status(HTTPStatus.BAD_GATEWAY).json({
+      return res.status(httpStatus.BAD_GATEWAY).json({
         success: false,
         message: "controller server error",
         error: error.message,
@@ -354,21 +354,21 @@ const requestAccess = {
         );
         logObject("responseFromUpdateCandidate", responseFromUpdateCandidate);
         if (responseFromUpdateCandidate.success == true) {
-          res.status(HTTPStatus.OK).json({
+          res.status(httpStatus.OK).json({
             success: true,
             message: responseFromUpdateCandidate.message,
             candidate: responseFromUpdateCandidate.data,
           });
         } else if (responseFromUpdateCandidate.success == false) {
           if (responseFromUpdateCandidate.error) {
-            res.status(HTTPStatus.BAD_GATEWAY).json({
+            res.status(httpStatus.BAD_GATEWAY).json({
               success: false,
               message: responseFromUpdateCandidate.message,
               candidate: responseFromUpdateCandidate.data,
               error: responseFromUpdateCandidate.error,
             });
           } else {
-            res.status(HTTPStatus.BAD_REQUEST).json({
+            res.status(httpStatus.BAD_REQUEST).json({
               success: false,
               message: responseFromUpdateCandidate.message,
               candidate: responseFromUpdateCandidate.data,
@@ -377,20 +377,20 @@ const requestAccess = {
         }
       } else if (responseFromFilter.success == false) {
         if (responseFromFilter.error) {
-          return res.status(HTTPStatus.BAD_GATEWAY).json({
+          return res.status(httpStatus.BAD_GATEWAY).json({
             success: false,
             message: responseFromFilter.message,
             error: responseFromFilter.error,
           });
         } else {
-          return res.status(HTTPStatus.BAD_REQUEST).json({
+          return res.status(httpStatus.BAD_REQUEST).json({
             success: false,
             message: responseFromFilter.message,
           });
         }
       }
     } catch (error) {
-      return res.status(HTTPStatus.BAD_GATEWAY).json({
+      return res.status(httpStatus.BAD_GATEWAY).json({
         success: false,
         message: "controller server error",
         error: error.message,
