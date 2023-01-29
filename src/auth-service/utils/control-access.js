@@ -1395,123 +1395,51 @@ const controlAccess = {
   /********* departments  ******************************************/
   createDepartment: async (request) => {
     try {
-      let { body } = request;
-      let modifiedBody = body;
-
-      const responseFromExtractNetworkName =
-        createNetwork.extractOneAcronym(request);
-
-      logObject(
-        "responseFromExtractNetworkName",
-        responseFromExtractNetworkName
-      );
-
-      if (responseFromExtractNetworkName.success === true) {
-        modifiedBody["net_name"] = responseFromExtractNetworkName.data;
-        modifiedBody["net_acronym"] = responseFromExtractNetworkName.data;
-      } else if (responseFromExtractNetworkName.success === false) {
-        return responseFromExtractNetworkName;
-      }
-
-      logObject("modifiedBody", modifiedBody);
-      const responseFromRegisterNetwork = await getModelByTenant(
-        "airqo",
-        "network",
-        NetworkSchema
+      const { body, query } = request;
+      const { tenant } = query;
+      let modifiedBody = Object.assign({}, body);
+      const responseFromRegisterDepartment = await DepartmentModel(
+        tenant.toLowerCase()
       ).register(modifiedBody);
 
-      logObject("responseFromRegisterNetwork", responseFromRegisterNetwork);
+      logObject(
+        "responseFromRegisterDepartment",
+        responseFromRegisterDepartment
+      );
 
-      if (responseFromRegisterNetwork.success === true) {
-        let status = responseFromRegisterNetwork.status
-          ? responseFromRegisterNetwork.status
-          : "";
-        return {
-          success: true,
-          message: responseFromRegisterNetwork.message,
-          data: responseFromRegisterNetwork.data,
-          status,
-        };
+      if (responseFromRegisterDepartment.success === true) {
+        return responseFromRegisterDepartment;
       } else if (responseFromRegisterNetwork.success === false) {
-        let errors = responseFromRegisterNetwork.errors
-          ? responseFromRegisterNetwork.errors
-          : "";
-
-        let status = responseFromRegisterNetwork.status
-          ? responseFromRegisterNetwork.status
-          : "";
-
-        return {
-          success: false,
-          message: responseFromRegisterNetwork.message,
-          errors,
-          status,
-        };
+        return responseFromRegisterDepartment;
       }
     } catch (err) {
       logger.error(`internal server error -- ${err.message}`);
       return {
         success: false,
         message: "network util server errors",
-        errors: err.message,
+        errors: { message: err.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
   updateDepartment: async (request) => {
     try {
-      let { body, query, params } = request;
-      let tenant = "airqo";
-      let update = body;
-      const action = request.path.split("/")[3];
-      logElement("action", action);
-      update["action"] = action;
+      const { body, query, params } = request;
+      const { tenant } = query;
+
+      let update = Object.assign({}, body);
       let filter = {};
-      const responseFromGeneratefilter = generateFilter.networks(request);
 
-      if (!isEmpty(params.user_id)) {
-        logElement("params.user_id", params.user_id);
-        let usersArray = params.user_id.toString().split(",");
-        let modifiedUsersArray = usersArray.map((user_id) => {
-          return ObjectId(user_id);
-        });
-        update.net_users = modifiedUsersArray;
-      } else if (!isEmpty(update.user_ids)) {
-        let usersArray = update.user_ids.toString().split(",");
-        let modifiedUsersArray = usersArray.map((user_id) => {
-          return ObjectId(user_id);
-        });
-        update.net_users = modifiedUsersArray;
-      }
+      const responseFromGeneratefilter = generateFilter.departments(request);
 
-      if (responseFromGeneratefilter.success === true) {
+      if (responseFromGeneratefilter.success === false) {
+        return responseFromGeneratefilter;
+      } else {
         filter = responseFromGeneratefilter.data;
-        if (
-          !isEmpty(params.user_id) &&
-          !isEmpty(action) &&
-          action === "unassign-user"
-        ) {
-          filter["net_users"] = ObjectId(params.user_id);
-        }
-      } else if (responseFromGeneratefilter.success === false) {
-        let status = responseFromGeneratefilter.status
-          ? responseFromGeneratefilter.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        let errors = responseFromGeneratefilter.errors
-          ? responseFromGeneratefilter.errors
-          : "";
-        return {
-          message: "Internal Server Error",
-          errors,
-          status,
-          success: false,
-        };
       }
 
-      const responseFromModifyNetwork = await getModelByTenant(
-        "airqo",
-        "network",
-        NetworkSchema
+      const responseFromModifyNetwork = await DepartmentModel(
+        tenant.toLowerCase()
       ).modify({ update, filter });
 
       if (responseFromModifyNetwork.success === true) {
@@ -1670,6 +1598,139 @@ const controlAccess = {
             : "",
           message: responseFromListDepartments.message,
         };
+      }
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      logElement("internal server error", error.message);
+      return {
+        success: false,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      };
+    }
+  },
+
+  /********* groups  ******************************************/
+  createGroup: async (request) => {
+    try {
+      const { body, query } = request;
+      const { tenant } = query;
+      let modifiedBody = Object.assign({}, body);
+
+      const responseFromRegisterGroup = await GroupModel(
+        tenant.toLowerCase()
+      ).register(modifiedBody);
+
+      logObject("responseFromRegisterGroup", responseFromRegisterGroup);
+
+      if (responseFromRegisterGroup.success === true) {
+        return responseFromRegisterGroup;
+      } else if (responseFromRegisterGroup.success === false) {
+        return responseFromRegisterGroup;
+      }
+    } catch (err) {
+      logger.error(`internal server error -- ${err.message}`);
+      return {
+        success: false,
+        message: "network util server errors",
+        errors: { message: err.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  updateGroup: async (request) => {
+    try {
+      const { body, query, params } = request;
+      const { tenant } = query;
+      let update = Object.assign({}, body);
+
+      let filter = {};
+      const responseFromGeneratefilter = generateFilter.groups(request);
+      if (responseFromGeneratefilter.success === false) {
+        return responseFromGeneratefilter;
+      } else {
+        filter = responseFromGeneratefilter.data;
+      }
+
+      const responseFromModifyGroup = await GroupModel(
+        tenant.toLowerCase()
+      ).modify({ update, filter });
+
+      if (responseFromModifyGroup.success === true) {
+        return responseFromModifyGroup;
+      } else if (responseFromModifyGroup.success === false) {
+        return responseFromModifyGroup;
+      }
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      logObject("error", error);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      };
+    }
+  },
+  deleteGroup: async (request) => {
+    try {
+      const { query } = request;
+      const { tenant } = query;
+      let filter = {};
+      const responseFromGenerateFilter = generateFilter.groups(request);
+      logObject("responseFromGenerateFilter", responseFromGenerateFilter);
+      if (responseFromGenerateFilter.success === false) {
+        return responseFromGenerateFilter;
+      } else {
+        filter = responseFromGenerateFilter.data;
+      }
+
+      logObject("the filter", filter);
+
+      const responseFromRemoveGroup = await GroupModel(
+        tenant.toLowerCase()
+      ).remove({ filter });
+
+      logObject("responseFromRemoveGroup", responseFromRemoveGroup);
+
+      if (responseFromRemoveGroup.success === true) {
+        return responseFromRemoveGroup;
+      } else if (responseFromRemoveGroup.success === false) {
+        return responseFromRemoveGroup;
+      }
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return {
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+        success: false,
+      };
+    }
+  },
+  listGroup: async (request) => {
+    try {
+      const { query } = request;
+      const { tenant } = query;
+      const limit = parseInt(request.query.limit, 0);
+      const skip = parseInt(request.query.skip, 0);
+      let filter = {};
+      const responseFromGenerateFilter = generateFilter.groups(request);
+      if (responseFromGenerateFilter.success === false) {
+        return responseFromGenerateFilter;
+      } else {
+        filter = responseFromGenerateFilter.data;
+        logObject("filter", filter);
+      }
+
+      const responseFromListGroups = await GroupModel(
+        tenant.toLowerCase()
+      ).list({ filter, limit, skip });
+
+      if (responseFromListGroups.success === true) {
+        return responseFromListGroups;
+      } else if (responseFromListGroups.success === false) {
+        return responseFromListGroups;
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
