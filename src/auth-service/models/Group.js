@@ -15,7 +15,7 @@ const GroupSchema = new Schema(
       unique: true,
       required: [true, "grp_title is required"],
     },
-    grp_status: { type: String, default: "inactive" },
+    grp_status: { type: String, default: "INACTIVE" },
     network_id: {
       type: ObjectId,
       ref: "network",
@@ -76,7 +76,7 @@ GroupSchema.statics = {
       if (tenant) {
         modifiedArgs["tenant"] = sanitizeName(tenant);
       }
-      let data = await this.create({
+      const data = await this.create({
         ...modifiedArgs,
       });
       if (!isEmpty(data)) {
@@ -86,12 +86,12 @@ GroupSchema.statics = {
           message: "group created",
           status: HTTPStatus.OK,
         };
-      } else {
+      } else if (isEmpty(data)) {
         return {
           success: true,
           data,
           message: "group NOT successfully created but operation successful",
-          status: HTTPStatus.NO_CONTENT,
+          status: HTTPStatus.ACCEPTED,
         };
       }
     } catch (err) {
@@ -174,17 +174,16 @@ GroupSchema.statics = {
         .allowDiskUse(true);
 
       if (!isEmpty(response)) {
-        let data = response;
         return {
           success: true,
           message: "successfully retrieved the groups",
-          data,
+          data: response,
           status: HTTPStatus.OK,
         };
       } else if (isEmpty(response)) {
         return {
-          success: false,
-          message: "group/s do not exist, please crosscheck",
+          success: true,
+          message: "groups do not exist, please crosscheck",
           status: HTTPStatus.NOT_FOUND,
           data: [],
           errors: { message: "unable to retrieve groups" },
@@ -236,26 +235,26 @@ GroupSchema.statics = {
         delete modifiedUpdate["grp_users"];
       }
 
-      let updatedOrganization = await this.findOneAndUpdate(
+      const updatedOrganization = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,
         options
       ).exec();
 
       if (!isEmpty(updatedOrganization)) {
-        let data = updatedOrganization._doc;
         return {
           success: true,
           message: "successfully modified the group",
-          data,
+          data: updatedOrganization._doc,
           status: HTTPStatus.OK,
         };
-      } else {
+      } else if (isEmpty(updatedOrganization)) {
         return {
-          success: false,
+          success: true,
           message: "group does not exist, please crosscheck",
           status: HTTPStatus.NOT_FOUND,
-          errors: "Not Found",
+          errors: { message: "Not Found" },
+          data: [],
         };
       }
     } catch (err) {
@@ -297,25 +296,25 @@ GroupSchema.statics = {
           createdAt: 1,
         },
       };
-      let removedOrganization = await this.findOneAndRemove(
+      const removedOrganization = await this.findOneAndRemove(
         filter,
         options
       ).exec();
 
       if (!isEmpty(removedOrganization)) {
-        let data = removedOrganization._doc;
         return {
           success: true,
           message: "successfully removed the group",
-          data,
+          data: removedOrganization._doc,
           status: HTTPStatus.OK,
         };
-      } else {
+      } else if (isEmpty(removedOrganization)) {
         return {
-          success: false,
+          success: true,
           message: "group does not exist, please crosscheck",
           status: HTTPStatus.NOT_FOUND,
-          errors: "Not Found",
+          errors: { message: "Not Found" },
+          data: [],
         };
       }
     } catch (err) {

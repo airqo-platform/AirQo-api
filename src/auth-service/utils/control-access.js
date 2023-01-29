@@ -5,6 +5,7 @@ const AccessTokenSchema = require("@models/AccessToken");
 const UserSchema = require("@models/User");
 const RoleSchema = require("@models/Role");
 const DepartmentSchema = require("@models/Department");
+const GroupSchema = require("@models/Group");
 const httpStatus = require("http-status");
 const mongoose = require("mongoose").set("debug", true);
 const accessCodeGenerator = require("generate-password");
@@ -13,6 +14,12 @@ const { logObject, logElement, logText } = require("@utils/log");
 const mailer = require("@utils/mailer");
 const generateFilter = require("@utils/generate-filter");
 const isEmpty = require("is-empty");
+const constants = require("@config/constants");
+
+const log4js = require("log4js");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- control-access-util`
+);
 
 const UserModel = (tenant) => {
   try {
@@ -81,6 +88,16 @@ const DepartmentModel = (tenant) => {
   } catch (error) {
     let departments = getModelByTenant(tenant, "department", DepartmentSchema);
     return departments;
+  }
+};
+
+const GroupModel = (tenant) => {
+  try {
+    let groups = mongoose.model("groups");
+    return groups;
+  } catch (error) {
+    let groups = getModelByTenant(tenant, "group", GroupSchema);
+    return groups;
   }
 };
 
@@ -211,6 +228,7 @@ const controlAccess = {
         return responseFromListAccessToken;
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       logObject("erroring in util", error);
       return {
         success: false,
@@ -251,6 +269,7 @@ const controlAccess = {
         return responseFromUpdateToken;
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -281,6 +300,7 @@ const controlAccess = {
         return responseFromDeleteToken;
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -331,6 +351,7 @@ const controlAccess = {
         return responseFromListAccessToken;
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       logObject("erroring in util", error);
       return {
         success: false,
@@ -375,6 +396,7 @@ const controlAccess = {
         return responseFromListToken;
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -416,6 +438,7 @@ const controlAccess = {
         return responseFromCreateToken;
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -465,6 +488,7 @@ const controlAccess = {
         return responseFromUpdateToken;
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -495,6 +519,7 @@ const controlAccess = {
         return responseFromDeleteToken;
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -526,6 +551,7 @@ const controlAccess = {
         return responseFromListToken;
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -567,6 +593,7 @@ const controlAccess = {
         return responseFromCreateToken;
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -601,6 +628,7 @@ const controlAccess = {
         return responseFromUpdateToken;
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -631,6 +659,7 @@ const controlAccess = {
         return responseFromDeleteToken;
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -662,6 +691,7 @@ const controlAccess = {
         return responseFromListToken;
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -685,6 +715,7 @@ const controlAccess = {
         return responseFromCreateToken;
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -708,6 +739,7 @@ const controlAccess = {
       });
       return responseFromListRole;
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -730,6 +762,7 @@ const controlAccess = {
       logObject("responseFromDeleteRole", responseFromDeleteRole);
       return responseFromDeleteRole;
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -752,6 +785,7 @@ const controlAccess = {
       ).modify({ filter, update });
       return responseFromUpdateRole;
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -770,6 +804,7 @@ const controlAccess = {
       logObject("been able to create the damn role", responseFromCreateRole);
       return responseFromCreateRole;
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -784,6 +819,7 @@ const controlAccess = {
   listUserWithRole: async (req, res) => {
     try {
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -840,6 +876,7 @@ const controlAccess = {
         return responseFromListAvailableUsersForRole;
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -922,6 +959,7 @@ const controlAccess = {
         return responseFromUpdateUser;
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       logObject("error", error);
       return {
         success: false,
@@ -935,6 +973,7 @@ const controlAccess = {
   sample: async (request) => {
     try {
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -977,6 +1016,7 @@ const controlAccess = {
         return responseFromListUsersWithRole;
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       logObject("error", error);
       return {
         success: false,
@@ -1046,7 +1086,8 @@ const controlAccess = {
         return responseFromUnAssignUserFromRole;
       }
     } catch (error) {
-      logObject("zi error", error);
+      logger.error(`internal server error -- ${error.message}`);
+      logObject("error", error);
       return {
         success: false,
         message: "Internal Server Error",
@@ -1068,7 +1109,7 @@ const controlAccess = {
       let newRequest = Object.assign({}, request);
       newRequest["query"]["role_id"] = role_id;
 
-      let responseFromlistPermissionsForRole = await PermissionModel(
+      const responseFromlistPermissionsForRole = await PermissionModel(
         tenant
       ).list({
         skip,
@@ -1089,6 +1130,7 @@ const controlAccess = {
         return responseFromlistPermissionsForRole;
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -1151,6 +1193,7 @@ const controlAccess = {
         return responseFromListAvailablePermissionsForRole;
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -1186,6 +1229,7 @@ const controlAccess = {
         return responseFromAssignPermissionToRole;
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -1226,6 +1270,7 @@ const controlAccess = {
         return responseFromUnAssignPermissionFromRole;
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -1254,6 +1299,7 @@ const controlAccess = {
         return responseFromListPermissions;
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -1284,6 +1330,7 @@ const controlAccess = {
         return responseFromDeletePermission;
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -1311,6 +1358,7 @@ const controlAccess = {
         return responseFromUpdatePermission;
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -1333,7 +1381,8 @@ const controlAccess = {
         return responseFromCreatePermission;
       }
     } catch (error) {
-      logObject("erroring", error);
+      logger.error(`internal server error -- ${error.message}`);
+      logObject("error", error);
       return {
         success: false,
         message: "Internal Server Error",
@@ -1365,7 +1414,7 @@ const controlAccess = {
       }
 
       logObject("modifiedBody", modifiedBody);
-      let responseFromRegisterNetwork = await getModelByTenant(
+      const responseFromRegisterNetwork = await getModelByTenant(
         "airqo",
         "network",
         NetworkSchema
@@ -1400,6 +1449,7 @@ const controlAccess = {
         };
       }
     } catch (err) {
+      logger.error(`internal server error -- ${err.message}`);
       return {
         success: false,
         message: "network util server errors",
@@ -1417,7 +1467,7 @@ const controlAccess = {
       logElement("action", action);
       update["action"] = action;
       let filter = {};
-      let responseFromGeneratefilter = generateFilter.networks(request);
+      const responseFromGeneratefilter = generateFilter.networks(request);
 
       if (!isEmpty(params.user_id)) {
         logElement("params.user_id", params.user_id);
@@ -1458,7 +1508,7 @@ const controlAccess = {
         };
       }
 
-      let responseFromModifyNetwork = await getModelByTenant(
+      const responseFromModifyNetwork = await getModelByTenant(
         "airqo",
         "network",
         NetworkSchema
@@ -1489,6 +1539,7 @@ const controlAccess = {
         };
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       logObject("error", error);
       return {
         success: false,
@@ -1526,7 +1577,7 @@ const controlAccess = {
 
       logObject("the filter", filter);
 
-      let responseFromRemoveNetwork = await getModelByTenant(
+      const responseFromRemoveNetwork = await getModelByTenant(
         "airqo",
         "network",
         NetworkSchema
@@ -1561,6 +1612,7 @@ const controlAccess = {
         };
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return {
         message: "Internal Server Error",
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
@@ -1577,7 +1629,7 @@ const controlAccess = {
       const skip = parseInt(request.query.skip, 0);
       let filter = {};
 
-      let responseFromGenerateFilter = generateFilter.departments(request);
+      const responseFromGenerateFilter = generateFilter.departments(request);
       if (responseFromGenerateFilter.success === true) {
         filter = responseFromGenerateFilter.data;
         logObject("filter", filter);
@@ -1620,6 +1672,7 @@ const controlAccess = {
         };
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       logElement("internal server error", error.message);
       return {
         success: false,
