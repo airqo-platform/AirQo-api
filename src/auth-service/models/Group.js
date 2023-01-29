@@ -16,11 +16,11 @@ const GroupSchema = new Schema(
       required: [true, "grp_title is required"],
     },
     grp_status: { type: String, default: "INACTIVE" },
-    network_id: {
+    grp_network_id: {
       type: ObjectId,
       ref: "network",
       trim: true,
-      required: [true, "network_id is required"],
+      required: [true, "grp_network_id is required"],
     },
     grp_users: [
       {
@@ -29,7 +29,10 @@ const GroupSchema = new Schema(
       },
     ],
     grp_tasks: { type: Number },
-    description: { type: String, required: [true, "description is required"] },
+    grp_description: {
+      type: String,
+      required: [true, "grp_description is required"],
+    },
   },
   {
     timestamps: true,
@@ -50,8 +53,8 @@ GroupSchema.methods = {
       grp_status: this.grp_status,
       grp_users: this.grp_users,
       grp_tasks: this.grp_tasks,
-      description: this.description,
-      network_id: this.network_id,
+      grp_description: this.grp_description,
+      grp_network_id: this.grp_network_id,
       createdAt: this.createdAt,
     };
   },
@@ -71,11 +74,11 @@ const sanitizeName = (name) => {
 GroupSchema.statics = {
   async register(args) {
     try {
-      let modifiedArgs = args;
-      let tenant = modifiedArgs.tenant;
-      if (tenant) {
-        modifiedArgs["tenant"] = sanitizeName(tenant);
-      }
+      let modifiedArgs = Object.assign({}, args);
+
+      // if (modifiedArgs.grp_title) {
+      //   modifiedArgs["grp_title"] = sanitizeName(grp_title);
+      // }
       const data = await this.create({
         ...modifiedArgs,
       });
@@ -115,9 +118,9 @@ GroupSchema.statics = {
         });
       }
       return {
+        success: false,
         errors: response,
         message,
-        success: false,
         status,
       };
     }
@@ -134,7 +137,7 @@ GroupSchema.statics = {
         })
         .lookup({
           from: "networks",
-          localField: "network_id",
+          localField: "grp_network_id",
           foreignField: "_id",
           as: "network",
         })
@@ -144,7 +147,7 @@ GroupSchema.statics = {
           grp_title: 1,
           grp_status: 1,
           grp_tasks: 1,
-          description: 1,
+          grp_description: 1,
           createdAt: 1,
           grp_users: "$grp_users",
           network: { $arrayElemAt: ["$network", 0] },
@@ -221,11 +224,15 @@ GroupSchema.statics = {
   async modify({ filter = {}, update = {} } = {}) {
     try {
       let options = { new: true };
-      let modifiedUpdate = update;
+      let modifiedUpdate = Object.assign({}, update);
       modifiedUpdate["$addToSet"] = {};
 
       if (modifiedUpdate.tenant) {
         delete modifiedUpdate.tenant;
+      }
+
+      if (modifiedUpdate.grp_title) {
+        delete modifiedUpdate.grp_title;
       }
 
       if (modifiedUpdate.grp_users) {
@@ -292,7 +299,7 @@ GroupSchema.statics = {
           _id: 1,
           grp_title: 1,
           grp_status: 1,
-          description: 1,
+          grp_description: 1,
           createdAt: 1,
         },
       };
