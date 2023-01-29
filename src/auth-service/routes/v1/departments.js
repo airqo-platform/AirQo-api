@@ -38,7 +38,7 @@ router.delete(
     param("dep_id")
       .exists()
       .withMessage(
-        "the record's identifier is missing in request, consider using the id"
+        "the record's identifier is missing in request, consider using the dep_id"
       )
       .bail()
       .trim()
@@ -72,7 +72,7 @@ router.put(
   oneOf([
     param("dep_id")
       .exists()
-      .withMessage("the net_ids is missing in request")
+      .withMessage("the net_id is missing in request")
       .bail()
       .trim()
       .isMongoId()
@@ -84,78 +84,107 @@ router.put(
   ]),
   oneOf([
     [
-      body("net_email")
+      body("dep_network_id")
         .optional()
         .notEmpty()
-        .withMessage("the email should not be empty if provided")
+        .withMessage("the dep_network_id should not be empty if provided")
         .bail()
-        .isEmail()
-        .withMessage("this is not a valid email address")
+        .isMongoId()
+        .withMessage("the dep_network_id should be an Object ID")
         .trim(),
-      body("net_website")
+      body("dep_title")
         .optional()
         .notEmpty()
-        .withMessage("the net_website should not be empty if provided")
-        .bail()
-        .isURL()
-        .withMessage("the net_website is not a valid URL")
+        .withMessage("the dep_title should not be empty if provided")
         .trim(),
-      body("net_status")
+      body("dep_description")
         .optional()
         .notEmpty()
-        .withMessage("the net_status should not be empty if provided")
-        .bail()
-        .toLowerCase()
-        .isIn(["active", "inactive", "pending"])
+        .withMessage("the dep_description should not be empty if provided")
+        .trim(),
+      body("dep_manager_username")
+        .optional()
+        .notEmpty()
+        .withMessage("the dep_manager_username should not be empty if provided")
+        .trim(),
+      body("dep_manager_firstname")
+        .optional()
+        .notEmpty()
         .withMessage(
-          "the net_status value is not among the expected ones which include: active, inactive, pending"
+          "the dep_manager_firstname should not be empty if provided"
         )
         .trim(),
-      body("net_phoneNumber")
+      body("dep_manager_lastname")
         .optional()
         .notEmpty()
-        .withMessage("the phoneNumber should not be empty if provided")
-        .bail()
-        .isMobilePhone()
-        .withMessage("the phoneNumber is not a valid one")
-        .bail()
+        .withMessage("the dep_manager_lastname should not be empty if provided")
         .trim(),
-      body("net_category")
+      body("has_children")
         .optional()
         .notEmpty()
-        .withMessage("the net_category should not be empty if provided")
+        .withMessage("has_children should not be empty if provided")
+        .trim(),
+      body("dep_last")
+        .optional()
+        .notEmpty()
+        .withMessage("dep_last should not be empty if provided")
         .bail()
-        .toLowerCase()
-        .isIn([
-          "business",
-          "research",
-          "policy",
-          "awareness",
-          "school",
-          "others",
-        ])
+        .isNumeric()
+        .withMessage("the dep_last should be a number")
+        .trim(),
+      body("dep_parent")
+        .optional()
+        .notEmpty()
+        .withMessage("the dep_parent should not be empty if provided")
+        .bail()
+        .isMongoId()
+        .withMessage("the dep_parent is not a valid Object ID")
+        .trim(),
+      body("dep_status")
+        .optional()
+        .notEmpty()
+        .withMessage("the dep_status should not be empty if provided")
+        .bail()
+        .toUpperCase()
+        .isIn(["ACTIVE", "INACTIVE"])
         .withMessage(
-          "the status value is not among the expected ones which include: business, research, policy, awareness, school, others"
+          "the dep_status value is not among the expected ones which include: ACTIVE, INACTIVE"
         )
         .trim(),
-      body("net_name")
-        .if(body("net_name").exists())
+      body("dep_manager")
+        .optional()
         .notEmpty()
-        .withMessage("the net_name should not be empty")
+        .withMessage("the dep_manager should not be empty if provided")
+        .bail()
+        .isMongoId()
+        .withMessage("the dep_manager must be an Object ID")
         .trim(),
-      body("net_users")
+      body("dep_users")
         .optional()
         .custom((value) => {
           return Array.isArray(value);
         })
-        .withMessage("the net_users should be an array")
+        .withMessage("the dep_users should be an array")
         .bail()
         .notEmpty()
-        .withMessage("the net_users should not be empty"),
-      body("net_users.*")
+        .withMessage("the dep_users should not be empty"),
+      body("dep_users.*")
         .optional()
         .isMongoId()
-        .withMessage("each use should be an object ID"),
+        .withMessage("each dep_user should be an object ID"),
+      body("dep_children")
+        .optional()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the dep_children should be an array")
+        .bail()
+        .notEmpty()
+        .withMessage("the dep_children should not be empty"),
+      body("dep_children.*")
+        .optional()
+        .isMongoId()
+        .withMessage("each dep_child should be an object ID"),
     ],
   ]),
   setJWTAuth,
@@ -182,22 +211,22 @@ router.put(
     [
       param("dep_id")
         .exists()
-        .withMessage("the network ID param is missing in the request")
+        .withMessage("the dep_id param is missing in the request")
         .bail()
         .trim()
         .isMongoId()
-        .withMessage("the network ID must be an object ID")
+        .withMessage("the dep_id param must be an object ID")
         .bail()
         .customSanitizer((value) => {
           return ObjectId(value);
         }),
       param("user_id")
         .exists()
-        .withMessage("the user ID param is missing in the request")
+        .withMessage("the user_id param is missing in the request")
         .bail()
         .trim()
         .isMongoId()
-        .withMessage("the user ID must be an object ID")
+        .withMessage("the user_id must be an object ID")
         .bail()
         .customSanitizer((value) => {
           return ObjectId(value);
@@ -228,22 +257,22 @@ router.put(
     [
       param("dep_id")
         .exists()
-        .withMessage("the network ID param is missing in the request")
+        .withMessage("the dep_id param is missing in the request")
         .bail()
         .trim()
         .isMongoId()
-        .withMessage("the network ID must be an object ID")
+        .withMessage("the dep_id must be an object ID")
         .bail()
         .customSanitizer((value) => {
           return ObjectId(value);
         }),
       param("user_id")
         .exists()
-        .withMessage("the user ID param is missing in the request")
+        .withMessage("the user_id param is missing in the request")
         .bail()
         .trim()
         .isMongoId()
-        .withMessage("the user ID must be an object ID")
+        .withMessage("the user_id must be an object ID")
         .bail()
         .customSanitizer((value) => {
           return ObjectId(value);
@@ -300,60 +329,113 @@ router.post(
   ]),
   oneOf([
     [
-      body("net_email")
+      body("dep_network_id")
         .exists()
-        .withMessage("the network's email address is required")
+        .withMessage("the dep_network_id is required")
         .bail()
-        .isEmail()
-        .withMessage("This is not a valid email address")
+        .notEmpty()
+        .withMessage("the dep_network_id should not be empty if provided")
+        .bail()
+        .isMongoId()
+        .withMessage("the dep_network_id should be an Object ID")
         .trim(),
-      body("net_website")
+      body("dep_title")
         .exists()
-        .withMessage("the net_network's website is required")
+        .withMessage("the dep_title is required")
         .bail()
-        .isURL()
-        .withMessage("the net_website is not a valid URL")
+        .notEmpty()
+        .withMessage("the dep_title should not be empty if provided")
         .trim(),
-      body("net_status")
+      body("dep_description")
+        .exists()
+        .withMessage("the dep_description is required")
+        .bail()
+        .notEmpty()
+        .withMessage("the dep_description should not be empty if provided")
+        .trim(),
+      body("dep_manager_username")
         .optional()
         .notEmpty()
-        .withMessage("the net_status should not be empty")
-        .bail()
-        .toLowerCase()
-        .isIn(["active", "inactive", "pending"])
+        .withMessage("the dep_manager_username should not be empty if provided")
+        .trim(),
+      body("dep_manager_firstname")
+        .optional()
+        .notEmpty()
         .withMessage(
-          "the status value is not among the expected ones which include: active, inactive, pending"
+          "the dep_manager_firstname should not be empty if provided"
         )
         .trim(),
-      body("net_phoneNumber")
-        .exists()
-        .withMessage("the net_phoneNumber is required")
-        .bail()
-        .isMobilePhone()
-        .withMessage("the net_phoneNumber is not a valid one")
-        .bail()
+      body("dep_manager_lastname")
+        .optional()
+        .notEmpty()
+        .withMessage("the dep_manager_lastname should not be empty if provided")
         .trim(),
-      body("net_category")
-        .exists()
-        .withMessage("the net_category is required")
+      body("has_children")
+        .optional()
+        .notEmpty()
+        .withMessage("has_children should not be empty if provided")
+        .trim(),
+      body("dep_last")
+        .optional()
+        .notEmpty()
+        .withMessage("dep_last should not be empty if provided")
         .bail()
-        .toLowerCase()
-        .isIn([
-          "business",
-          "research",
-          "policy",
-          "awareness",
-          "school",
-          "others",
-        ])
+        .isNumeric()
+        .withMessage("the dep_last should be a number")
+        .trim(),
+      body("dep_parent")
+        .optional()
+        .notEmpty()
+        .withMessage("the dep_parent should not be empty if provided")
+        .bail()
+        .isMongoId()
+        .withMessage("the dep_parent is not a valid Object ID")
+        .trim(),
+      body("dep_status")
+        .optional()
+        .notEmpty()
+        .withMessage("the dep_status should not be empty if provided")
+        .bail()
+        .toUpperCase()
+        .isIn(["ACTIVE", "INACTIVE"])
         .withMessage(
-          "the status value is not among the expected ones which include: business, research, policy, awareness, school, others"
+          "the dep_status value is not among the expected ones which include: ACTIVE, INACTIVE"
         )
         .trim(),
-      body("net_description")
-        .exists()
-        .withMessage("the net_description is required")
+      body("dep_manager")
+        .optional()
+        .notEmpty()
+        .withMessage("the dep_manager should not be empty if provided")
+        .bail()
+        .isMongoId()
+        .withMessage("the dep_manager must be an Object ID")
         .trim(),
+      body("dep_users")
+        .optional()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the dep_users should be an array")
+        .bail()
+        .notEmpty()
+        .withMessage("the dep_users should not be empty"),
+      body("dep_users.*")
+        .optional()
+        .isMongoId()
+        .withMessage("each dep_user should be an object ID"),
+      body("dep_children")
+        .optional()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the dep_children should be an array")
+        .bail()
+        .notEmpty()
+        .withMessage("the dep_children should not be empty"),
+      body("dep_children.*")
+        .optional()
+        .isMongoId()
+        .withMessage("each dep_child should be an object ID"),
     ],
   ]),
   setJWTAuth,
@@ -380,11 +462,11 @@ router.post(
     [
       param("dep_id")
         .exists()
-        .withMessage("the network ID param is missing in the request")
+        .withMessage("the dep_id param is missing in the request")
         .bail()
         .trim()
         .isMongoId()
-        .withMessage("the network ID must be an object ID")
+        .withMessage("the dep_id must be an object ID")
         .bail()
         .customSanitizer((value) => {
           return ObjectId(value);
@@ -429,22 +511,22 @@ router.delete(
     [
       param("dep_id")
         .exists()
-        .withMessage("the network ID is missing in request")
+        .withMessage("the dep_id is missing in request")
         .bail()
         .trim()
         .isMongoId()
-        .withMessage("the network ID must be an object ID")
+        .withMessage("the dep_id must be an object ID")
         .bail()
         .customSanitizer((value) => {
           return ObjectId(value);
         }),
       param("user_id")
         .exists()
-        .withMessage("the user ID is missing in request")
+        .withMessage("the user_id is missing in request")
         .bail()
         .trim()
         .isMongoId()
-        .withMessage("user ID must be an object ID")
+        .withMessage("user_id must be an object ID")
         .bail()
         .customSanitizer((value) => {
           return ObjectId(value);
@@ -454,62 +536,6 @@ router.delete(
   setJWTAuth,
   authJWT,
   createDepartmentController.update
-);
-
-router.get(
-  "/:dep_id",
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant cannot be empty if provided")
-        .bail()
-        .trim()
-        .toLowerCase()
-        .isIn(["kcca", "airqo"])
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-  oneOf([
-    param("dep_id")
-      .optional()
-      .isMongoId()
-      .withMessage("dep_id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
-  ]),
-  createDepartmentController.list
-);
-
-router.get(
-  "/",
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant cannot be empty if provided")
-        .bail()
-        .trim()
-        .toLowerCase()
-        .isIn(["kcca", "airqo"])
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-  oneOf([
-    param("dep_id")
-      .optional()
-      .isMongoId()
-      .withMessage("dep_id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
-  ]),
-  createDepartmentController.list
 );
 
 router.get(
@@ -538,6 +564,52 @@ router.get(
       }),
   ]),
   createDepartmentController.listUsersWithDepartment
+);
+
+router.get(
+  "/",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  createDepartmentController.list
+);
+
+router.get(
+  "/:dep_id",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    param("dep_id")
+      .optional()
+      .isMongoId()
+      .withMessage("dep_id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+  ]),
+  createDepartmentController.list
 );
 
 module.exports = router;
