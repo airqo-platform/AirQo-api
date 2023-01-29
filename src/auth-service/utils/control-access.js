@@ -1438,33 +1438,14 @@ const controlAccess = {
         filter = responseFromGeneratefilter.data;
       }
 
-      const responseFromModifyNetwork = await DepartmentModel(
+      const responseFromModifyDepartment = await DepartmentModel(
         tenant.toLowerCase()
       ).modify({ update, filter });
 
-      if (responseFromModifyNetwork.success === true) {
-        let status = responseFromModifyNetwork.status
-          ? responseFromModifyNetwork.status
-          : "";
-        return {
-          message: responseFromModifyNetwork.message,
-          status,
-          data: responseFromModifyNetwork.data,
-          success: true,
-        };
-      } else if (responseFromModifyNetwork.success === false) {
-        let status = responseFromModifyNetwork.status
-          ? responseFromModifyNetwork.status
-          : "";
-        let errors = responseFromModifyNetwork.errors
-          ? responseFromModifyNetwork.errors
-          : "";
-        return {
-          success: false,
-          message: responseFromModifyNetwork.message,
-          errors,
-          status,
-        };
+      if (responseFromModifyDepartment.success === true) {
+        return responseFromModifyDepartment;
+      } else if (responseFromModifyDepartment.success === false) {
+        return responseFromModifyDepartment;
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
@@ -1472,80 +1453,44 @@ const controlAccess = {
       return {
         success: false,
         message: "Internal Server Error",
-        errors: error,
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
   deleteDepartment: async (request) => {
     try {
       logText("the delete operation.....");
-      let { query, body } = request;
-      let tenant = "airqo";
+      const { query } = request;
+      const { tenant } = query;
       let filter = {};
 
-      const responseFromGenerateFilter = generateFilter.networks(request);
+      const responseFromGenerateFilter = generateFilter.departments(request);
 
-      logObject("responseFromGenerateFilter", responseFromGenerateFilter);
-
-      if (responseFromGenerateFilter.success === true) {
+      if (responseFromGenerateFilter.success === false) {
+        return responseFromGenerateFilter;
+      } else {
         filter = responseFromGenerateFilter.data;
-      } else if (responseFromGenerateFilter.success === false) {
-        let status = responseFromGenerateFilter.status
-          ? responseFromGenerateFilter.status
-          : "";
-        let errors = responseFromGenerateFilter.errors
-          ? responseFromGenerateFilter.errors
-          : "";
-        return {
-          status,
-          errors,
-          message: responseFromGenerateFilter.message,
-        };
       }
 
-      logObject("the filter", filter);
-
-      const responseFromRemoveNetwork = await getModelByTenant(
-        "airqo",
-        "network",
-        NetworkSchema
+      const responseFromRemoveNetwork = await DepartmentModel(
+        tenant.toLowerCase()
       ).remove({ filter });
 
       logObject("responseFromRemoveNetwork", responseFromRemoveNetwork);
 
       if (responseFromRemoveNetwork.success === true) {
-        let status = responseFromRemoveNetwork.status
-          ? responseFromRemoveNetwork.status
-          : "";
-
-        return {
-          status,
-          message: responseFromRemoveNetwork.message,
-          data: responseFromRemoveNetwork.data,
-          success: true,
-        };
+        return responseFromRemoveNetwork;
       } else if (responseFromRemoveNetwork.success === false) {
-        let status = responseFromRemoveNetwork.status
-          ? responseFromRemoveNetwork.status
-          : "";
-        let errors = responseFromRemoveNetwork.errors
-          ? responseFromRemoveNetwork.errors
-          : "";
-
-        return {
-          message: responseFromRemoveNetwork.message,
-          errors,
-          status,
-          success: false,
-        };
+        return responseFromRemoveNetwork;
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
       return {
+        success: false,
         message: "Internal Server Error",
         status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: error.message,
-        success: false,
+        errors: { message: error.message },
       };
     }
   },
@@ -1558,20 +1503,10 @@ const controlAccess = {
       let filter = {};
 
       const responseFromGenerateFilter = generateFilter.departments(request);
-      if (responseFromGenerateFilter.success === true) {
-        filter = responseFromGenerateFilter.data;
-        logObject("filter", filter);
-      }
-
       if (responseFromGenerateFilter.success === false) {
-        let errors = responseFromGenerateFilter.errors
-          ? responseFromGenerateFilter.errors
-          : "";
-        return {
-          success: false,
-          message: responseFromGenerateFilter.message,
-          errors,
-        };
+        return responseFromGenerateFilter;
+      } else {
+        filter = responseFromGenerateFilter.data;
       }
 
       const responseFromListDepartments = await DepartmentModel(
@@ -1579,25 +1514,9 @@ const controlAccess = {
       ).list({ filter, limit, skip });
 
       if (responseFromListDepartments.success === true) {
-        return {
-          success: true,
-          status: responseFromListDepartments.status
-            ? responseFromListDepartments.status
-            : "",
-          message: responseFromListDepartments.message,
-          data: responseFromListDepartments.data,
-        };
+        return responseFromListDepartments;
       } else if (responseFromListDepartments.success === false) {
-        return {
-          success: false,
-          status: responseFromListDepartments.status
-            ? responseFromListDepartments.status
-            : "",
-          errors: responseFromListDepartments.errors
-            ? responseFromListDepartments.errors
-            : "",
-          message: responseFromListDepartments.message,
-        };
+        return responseFromListDepartments;
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
