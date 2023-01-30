@@ -6,7 +6,7 @@ var uniqueValidator = require("mongoose-unique-validator");
 const { logObject, logElement, logText } = require("../utils/log");
 const isEmpty = require("is-empty");
 const { getModelByTenant } = require("../utils/multitenancy");
-const HTTPStatus = require("http-status");
+const httpStatus = require("http-status");
 
 const GroupSchema = new Schema(
   {
@@ -15,12 +15,12 @@ const GroupSchema = new Schema(
       unique: true,
       required: [true, "grp_title is required"],
     },
-    grp_status: { type: String, default: "inactive" },
-    network_id: {
+    grp_status: { type: String, default: "INACTIVE" },
+    grp_network_id: {
       type: ObjectId,
       ref: "network",
       trim: true,
-      required: [true, "network_id is required"],
+      required: [true, "grp_network_id is required"],
     },
     grp_users: [
       {
@@ -29,7 +29,10 @@ const GroupSchema = new Schema(
       },
     ],
     grp_tasks: { type: Number },
-    description: { type: String, required: [true, "description is required"] },
+    grp_description: {
+      type: String,
+      required: [true, "grp_description is required"],
+    },
   },
   {
     timestamps: true,
@@ -50,8 +53,8 @@ GroupSchema.methods = {
       grp_status: this.grp_status,
       grp_users: this.grp_users,
       grp_tasks: this.grp_tasks,
-      description: this.description,
-      network_id: this.network_id,
+      grp_description: this.grp_description,
+      grp_network_id: this.grp_network_id,
       createdAt: this.createdAt,
     };
   },
@@ -71,12 +74,12 @@ const sanitizeName = (name) => {
 GroupSchema.statics = {
   async register(args) {
     try {
-      let modifiedArgs = args;
-      let tenant = modifiedArgs.tenant;
-      if (tenant) {
-        modifiedArgs["tenant"] = sanitizeName(tenant);
-      }
-      let data = await this.create({
+      let modifiedArgs = Object.assign({}, args);
+
+      // if (modifiedArgs.grp_title) {
+      //   modifiedArgs["grp_title"] = sanitizeName(grp_title);
+      // }
+      const data = await this.create({
         ...modifiedArgs,
       });
       if (!isEmpty(data)) {
@@ -84,40 +87,40 @@ GroupSchema.statics = {
           success: true,
           data,
           message: "group created",
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
-      } else {
+      } else if (isEmpty(data)) {
         return {
           success: true,
           data,
           message: "group NOT successfully created but operation successful",
-          status: HTTPStatus.NO_CONTENT,
+          status: httpStatus.ACCEPTED,
         };
       }
     } catch (err) {
       let response = {};
       let errors = {};
       let message = "Internal Server Error";
-      let status = HTTPStatus.INTERNAL_SERVER_ERROR;
+      let status = httpStatus.INTERNAL_SERVER_ERROR;
       if (err.code === 11000 || err.code === 11001) {
         errors = err.keyValue;
         message = "duplicate values provided";
-        status = HTTPStatus.CONFLICT;
+        status = httpStatus.CONFLICT;
         Object.entries(errors).forEach(([key, value]) => {
           return (response[key] = value);
         });
       } else {
         message = "validation errors for some of the provided fields";
-        status = HTTPStatus.CONFLICT;
+        status = httpStatus.CONFLICT;
         errors = err.errors;
         Object.entries(errors).forEach(([key, value]) => {
           return (response[key] = value.message);
         });
       }
       return {
+        success: false,
         errors: response,
         message,
-        success: false,
         status,
       };
     }
@@ -134,7 +137,7 @@ GroupSchema.statics = {
         })
         .lookup({
           from: "networks",
-          localField: "network_id",
+          localField: "grp_network_id",
           foreignField: "_id",
           as: "network",
         })
@@ -144,7 +147,7 @@ GroupSchema.statics = {
           grp_title: 1,
           grp_status: 1,
           grp_tasks: 1,
-          description: 1,
+          grp_description: 1,
           createdAt: 1,
           grp_users: "$grp_users",
           network: { $arrayElemAt: ["$network", 0] },
@@ -174,18 +177,17 @@ GroupSchema.statics = {
         .allowDiskUse(true);
 
       if (!isEmpty(response)) {
-        let data = response;
         return {
           success: true,
           message: "successfully retrieved the groups",
-          data,
-          status: HTTPStatus.OK,
+          data: response,
+          status: httpStatus.OK,
         };
       } else if (isEmpty(response)) {
         return {
-          success: false,
-          message: "group/s do not exist, please crosscheck",
-          status: HTTPStatus.NOT_FOUND,
+          success: true,
+          message: "groups do not exist, please crosscheck",
+          status: httpStatus.NOT_FOUND,
           data: [],
           errors: { message: "unable to retrieve groups" },
         };
@@ -194,17 +196,17 @@ GroupSchema.statics = {
       let response = {};
       let errors = {};
       let message = "Internal Server Error";
-      let status = HTTPStatus.INTERNAL_SERVER_ERROR;
+      let status = httpStatus.INTERNAL_SERVER_ERROR;
       if (err.code === 11000 || err.code === 11001) {
         errors = err.keyValue;
         message = "duplicate values provided";
-        status = HTTPStatus.CONFLICT;
+        status = httpStatus.CONFLICT;
         Object.entries(errors).forEach(([key, value]) => {
           return (response[key] = value);
         });
       } else {
         message = "validation errors for some of the provided fields";
-        status = HTTPStatus.CONFLICT;
+        status = httpStatus.CONFLICT;
         errors = err.errors;
         Object.entries(errors).forEach(([key, value]) => {
           return (response[key] = value.message);
@@ -222,11 +224,15 @@ GroupSchema.statics = {
   async modify({ filter = {}, update = {} } = {}) {
     try {
       let options = { new: true };
-      let modifiedUpdate = update;
+      let modifiedUpdate = Object.assign({}, update);
       modifiedUpdate["$addToSet"] = {};
 
       if (modifiedUpdate.tenant) {
         delete modifiedUpdate.tenant;
+      }
+
+      if (modifiedUpdate.grp_title) {
+        delete modifiedUpdate.grp_title;
       }
 
       if (modifiedUpdate.grp_users) {
@@ -236,43 +242,43 @@ GroupSchema.statics = {
         delete modifiedUpdate["grp_users"];
       }
 
-      let updatedOrganization = await this.findOneAndUpdate(
+      const updatedOrganization = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,
         options
       ).exec();
 
       if (!isEmpty(updatedOrganization)) {
-        let data = updatedOrganization._doc;
         return {
           success: true,
           message: "successfully modified the group",
-          data,
-          status: HTTPStatus.OK,
+          data: updatedOrganization._doc,
+          status: httpStatus.OK,
         };
-      } else {
+      } else if (isEmpty(updatedOrganization)) {
         return {
-          success: false,
+          success: true,
           message: "group does not exist, please crosscheck",
-          status: HTTPStatus.NOT_FOUND,
-          errors: "Not Found",
+          status: httpStatus.NOT_FOUND,
+          errors: { message: "Not Found" },
+          data: [],
         };
       }
     } catch (err) {
       let response = {};
       let errors = {};
       let message = "Internal Server Error";
-      let status = HTTPStatus.INTERNAL_SERVER_ERROR;
+      let status = httpStatus.INTERNAL_SERVER_ERROR;
       if (err.code === 11000 || err.code === 11001) {
         errors = err.keyValue;
         message = "duplicate values provided";
-        status = HTTPStatus.CONFLICT;
+        status = httpStatus.CONFLICT;
         Object.entries(errors).forEach(([key, value]) => {
           return (response[key] = value);
         });
       } else {
         message = "validation errors for some of the provided fields";
-        status = HTTPStatus.CONFLICT;
+        status = httpStatus.CONFLICT;
         errors = err.errors;
         Object.entries(errors).forEach(([key, value]) => {
           return (response[key] = value.message);
@@ -293,46 +299,46 @@ GroupSchema.statics = {
           _id: 1,
           grp_title: 1,
           grp_status: 1,
-          description: 1,
+          grp_description: 1,
           createdAt: 1,
         },
       };
-      let removedOrganization = await this.findOneAndRemove(
+      const removedOrganization = await this.findOneAndRemove(
         filter,
         options
       ).exec();
 
       if (!isEmpty(removedOrganization)) {
-        let data = removedOrganization._doc;
         return {
           success: true,
           message: "successfully removed the group",
-          data,
-          status: HTTPStatus.OK,
+          data: removedOrganization._doc,
+          status: httpStatus.OK,
         };
-      } else {
+      } else if (isEmpty(removedOrganization)) {
         return {
-          success: false,
+          success: true,
           message: "group does not exist, please crosscheck",
-          status: HTTPStatus.NOT_FOUND,
-          errors: "Not Found",
+          status: httpStatus.NOT_FOUND,
+          errors: { message: "Not Found" },
+          data: [],
         };
       }
     } catch (err) {
       let response = {};
       let errors = {};
       let message = "Internal Server Error";
-      let status = HTTPStatus.INTERNAL_SERVER_ERROR;
+      let status = httpStatus.INTERNAL_SERVER_ERROR;
       if (err.code === 11000 || err.code === 11001) {
         errors = err.keyValue;
         message = "duplicate values provided";
-        status = HTTPStatus.CONFLICT;
+        status = httpStatus.CONFLICT;
         Object.entries(errors).forEach(([key, value]) => {
           return (response[key] = value);
         });
       } else {
         message = "validation errors for some of the provided fields";
-        status = HTTPStatus.CONFLICT;
+        status = httpStatus.CONFLICT;
         errors = err.errors;
         Object.entries(errors).forEach(([key, value]) => {
           return (response[key] = value.message);

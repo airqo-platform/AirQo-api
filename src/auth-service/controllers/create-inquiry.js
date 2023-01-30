@@ -1,4 +1,4 @@
-const HTTPStatus = require("http-status");
+const httpStatus = require("http-status");
 const createInquiryUtil = require("../utils/create-inquiry");
 const generateFilter = require("../utils/generate-filter");
 const { validationResult } = require("express-validator");
@@ -59,7 +59,7 @@ const inquire = {
         })
         .catch((error) => {});
     } catch (error) {
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -94,20 +94,20 @@ const inquire = {
           skip,
         });
         if (responseFromListInquiry.success == true) {
-          return res.status(HTTPStatus.OK).json({
+          return res.status(httpStatus.OK).json({
             success: true,
             message: responseFromListInquiry.message,
             inquiries: responseFromListInquiry.data,
           });
         } else if (responseFromListInquiry.success == false) {
           if (responseFromListInquiry.error) {
-            return res.status(HTTPStatus.BAD_GATEWAY).json({
+            return res.status(httpStatus.BAD_GATEWAY).json({
               success: false,
               message: responseFromListInquiry.message,
               error: responseFromListInquiry.error,
             });
           } else {
-            return res.status(HTTPStatus.BAD_REQUEST).json({
+            return res.status(httpStatus.BAD_REQUEST).json({
               success: false,
               message: responseFromListInquiry.message,
             });
@@ -116,13 +116,13 @@ const inquire = {
       } else if (responseFromFilter.success == false) {
         if (responseFromFilter.error) {
           if (responseFromFilter.error) {
-            return res.status(HTTPStatus.BAD_GATEWAY).json({
+            return res.status(httpStatus.BAD_GATEWAY).json({
               success: false,
               message: responseFromFilter.message,
               error: responseFromFilter.error,
             });
           } else {
-            return res.status(HTTPStatus.BAD_REQUEST).json({
+            return res.status(httpStatus.BAD_REQUEST).json({
               success: false,
               message: responseFromFilter.message,
             });
@@ -130,7 +130,7 @@ const inquire = {
         }
       }
     } catch (e) {
-      return res.status(HTTPStatus.BAD_GATEWAY).json({
+      return res.status(httpStatus.BAD_GATEWAY).json({
         success: false,
         message: "controller server error",
         error: e.message,
@@ -162,21 +162,21 @@ const inquire = {
         );
 
         if (responseFromDeleteInquiry.success == true) {
-          res.status(HTTPStatus.OK).json({
+          res.status(httpStatus.OK).json({
             success: true,
             message: responseFromDeleteInquiry.message,
             inquiry: responseFromDeleteInquiry.data,
           });
         } else if (responseFromDeleteInquiry.success == false) {
           if (responseFromDeleteInquiry.error) {
-            res.status(HTTPStatus.BAD_GATEWAY).json({
+            res.status(httpStatus.BAD_GATEWAY).json({
               success: false,
               message: responseFromDeleteInquiry.message,
               inquire: responseFromDeleteInquiry.data,
               error: responseFromDeleteInquiry.error,
             });
           } else {
-            res.status(HTTPStatus.BAD_REQUEST).json({
+            res.status(httpStatus.BAD_REQUEST).json({
               success: false,
               message: responseFromDeleteInquiry.message,
               inquire: responseFromDeleteInquiry.data,
@@ -185,20 +185,20 @@ const inquire = {
         }
       } else if (responseFromFilter.success == false) {
         if (responseFromFilter.error) {
-          return res.status(HTTPStatus.BAD_GATEWAY).json({
+          return res.status(httpStatus.BAD_GATEWAY).json({
             success: false,
             message: responseFromFilter.message,
             error: responseFromFilter.error,
           });
         } else {
-          return res.status(HTTPStatus.BAD_REQUEST).json({
+          return res.status(httpStatus.BAD_REQUEST).json({
             success: false,
             message: responseFromFilter.message,
           });
         }
       }
     } catch (error) {
-      return res.status(HTTPStatus.BAD_GATEWAY).json({
+      return res.status(httpStatus.BAD_GATEWAY).json({
         success: false,
         message: "controller server error",
         error: error.message,
@@ -234,21 +234,21 @@ const inquire = {
         );
         logObject("responseFromUpdateInquiry", responseFromUpdateInquiry);
         if (responseFromUpdateInquiry.success == true) {
-          res.status(HTTPStatus.OK).json({
+          res.status(httpStatus.OK).json({
             success: true,
             message: responseFromUpdateInquiry.message,
             inquiry: responseFromUpdateInquiry.data,
           });
         } else if (responseFromUpdateInquiry.success == false) {
           if (responseFromUpdateInquiry.error) {
-            res.status(HTTPStatus.BAD_GATEWAY).json({
+            res.status(httpStatus.BAD_GATEWAY).json({
               success: false,
               message: responseFromUpdateInquiry.message,
               inquire: responseFromUpdateInquiry.data,
               error: responseFromUpdateInquiry.error,
             });
           } else {
-            res.status(HTTPStatus.BAD_REQUEST).json({
+            res.status(httpStatus.BAD_REQUEST).json({
               success: false,
               message: responseFromUpdateInquiry.message,
               inquire: responseFromUpdateInquiry.data,
@@ -257,20 +257,20 @@ const inquire = {
         }
       } else if (responseFromFilter.success == false) {
         if (responseFromFilter.error) {
-          return res.status(HTTPStatus.BAD_GATEWAY).json({
+          return res.status(httpStatus.BAD_GATEWAY).json({
             success: false,
             message: responseFromFilter.message,
             error: responseFromFilter.error,
           });
         } else {
-          return res.status(HTTPStatus.BAD_REQUEST).json({
+          return res.status(httpStatus.BAD_REQUEST).json({
             success: false,
             message: responseFromFilter.message,
           });
         }
       }
     } catch (error) {
-      return res.status(HTTPStatus.BAD_GATEWAY).json({
+      return res.status(httpStatus.BAD_GATEWAY).json({
         success: false,
         message: "controller server error",
         error: error.message,

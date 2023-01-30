@@ -28,7 +28,10 @@ const DepartmentSchema = new Schema(
         ref: "department",
       },
     ],
-    description: { type: String, required: [true, "description is required"] },
+    dep_description: {
+      type: String,
+      required: [true, "dep_description is required"],
+    },
     dep_users: [
       {
         type: ObjectId,

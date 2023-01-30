@@ -1,5 +1,5 @@
 const { logElement, logText, logObject } = require("../utils/log");
-const HTTPStatus = require("http-status");
+const httpStatus = require("http-status");
 const createNetworkUtil = require("../utils/create-network");
 const createUserUtil = require("../utils/create-user");
 const { validationResult } = require("express-validator");
@@ -23,7 +23,7 @@ const createNetwork = {
       if (responseFromGetNetworkFromEmail.success === true) {
         let status = responseFromGetNetworkFromEmail.status
           ? responseFromGetNetworkFromEmail.status
-          : HTTPStatus.OK;
+          : httpStatus.OK;
         return res.status(status).json({
           success: true,
           message: responseFromGetNetworkFromEmail.message,
@@ -32,7 +32,7 @@ const createNetwork = {
       } else if (responseFromGetNetworkFromEmail.success === false) {
         let status = responseFromGetNetworkFromEmail.status
           ? responseFromGetNetworkFromEmail.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+          : httpStatus.INTERNAL_SERVER_ERROR;
         let errors = responseFromGetNetworkFromEmail.errors
           ? responseFromGetNetworkFromEmail.errors
           : "";
@@ -43,7 +43,7 @@ const createNetwork = {
         });
       }
     } catch (error) {
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -75,7 +75,7 @@ const createNetwork = {
       if (responseFromCreateNetwork.success === true) {
         let status = responseFromCreateNetwork.status
           ? responseFromCreateNetwork.status
-          : HTTPStatus.OK;
+          : httpStatus.OK;
 
         return res.status(status).json({
           success: true,
@@ -89,7 +89,7 @@ const createNetwork = {
 
         const status = responseFromCreateNetwork.status
           ? responseFromCreateNetwork.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+          : httpStatus.INTERNAL_SERVER_ERROR;
 
         return res.status(status).json({
           success: false,
@@ -98,7 +98,7 @@ const createNetwork = {
         });
       }
     } catch (err) {
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: err.message,
@@ -132,7 +132,7 @@ const createNetwork = {
       if (responseFromUpdateUser.success === true) {
         let status = responseFromUpdateUser.status
           ? responseFromUpdateUser.status
-          : HTTPStatus.OK;
+          : httpStatus.OK;
 
         return res.status(status).json({
           message: responseFromUpdateUser.message,
@@ -142,7 +142,7 @@ const createNetwork = {
       } else if (responseFromUpdateUser.success === false) {
         let status = responseFromUpdateUser.status
           ? responseFromUpdateUser.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+          : httpStatus.INTERNAL_SERVER_ERROR;
         let errors = responseFromUpdateUser.errors
           ? responseFromUpdateUser.errors
           : "";
@@ -154,7 +154,7 @@ const createNetwork = {
       }
     } catch (error) {
       logObject("error", error);
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: error.message,
@@ -188,7 +188,7 @@ const createNetwork = {
       if (responseFromUpdateNetwork.success === true) {
         let status = responseFromUpdateNetwork.status
           ? responseFromUpdateNetwork.status
-          : HTTPStatus.OK;
+          : httpStatus.OK;
 
         return res.status(status).json({
           message: responseFromUpdateNetwork.message,
@@ -198,7 +198,7 @@ const createNetwork = {
       } else if (responseFromUpdateNetwork.success === false) {
         let status = responseFromUpdateNetwork.status
           ? responseFromUpdateNetwork.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+          : httpStatus.INTERNAL_SERVER_ERROR;
         let errors = responseFromUpdateNetwork.errors
           ? responseFromUpdateNetwork.errors
           : "";
@@ -210,7 +210,7 @@ const createNetwork = {
       }
     } catch (error) {
       logObject("error", error);
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: error.message,
@@ -253,7 +253,7 @@ const createNetwork = {
       if (responseFromDeleteNetwork.success === true) {
         let status = responseFromDeleteNetwork.status
           ? responseFromDeleteNetwork.status
-          : HTTPStatus.OK;
+          : httpStatus.OK;
 
         return res.status(status).json({
           message: responseFromDeleteNetwork.message,
@@ -263,7 +263,7 @@ const createNetwork = {
       } else if (responseFromDeleteNetwork.success === false) {
         let status = responseFromDeleteNetwork.status
           ? responseFromDeleteNetwork.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+          : httpStatus.INTERNAL_SERVER_ERROR;
         let errors = responseFromDeleteNetwork.errors
           ? responseFromDeleteNetwork.errors
           : "";
@@ -275,7 +275,7 @@ const createNetwork = {
         });
       }
     } catch (error) {
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         message: "Internal Server Error",
         errors: error.message,
         success: false,
@@ -311,7 +311,7 @@ const createNetwork = {
       if (responseFromListNetworks.success === true) {
         let status = responseFromListNetworks.status
           ? responseFromListNetworks.status
-          : HTTPStatus.OK;
+          : httpStatus.OK;
 
         return res.status(status).json({
           success: true,
@@ -321,7 +321,7 @@ const createNetwork = {
       } else if (responseFromListNetworks.success === false) {
         let status = responseFromListNetworks.status
           ? responseFromListNetworks.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+          : httpStatus.INTERNAL_SERVER_ERROR;
         let errors = responseFromListNetworks.errors
           ? responseFromListNetworks.errors
           : "";
@@ -333,7 +333,7 @@ const createNetwork = {
       }
     } catch (error) {
       logElement("internal server error", error.message);
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: error.message,
@@ -368,7 +368,7 @@ const createNetwork = {
       if (responseFromListNetworks.success === true) {
         let status = responseFromListNetworks.status
           ? responseFromListNetworks.status
-          : HTTPStatus.OK;
+          : httpStatus.OK;
         return res.status(status).json({
           success: true,
           message: "successfully retrieved the users for this network",
@@ -377,7 +377,7 @@ const createNetwork = {
       } else if (responseFromListNetworks.success === false) {
         let status = responseFromListNetworks.status
           ? responseFromListNetworks.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+          : httpStatus.INTERNAL_SERVER_ERROR;
         let errors = responseFromListNetworks.errors
           ? responseFromListNetworks.errors
           : "";
@@ -389,7 +389,7 @@ const createNetwork = {
       }
     } catch (error) {
       logElement("internal server error", error.message);
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: error.message,
@@ -410,7 +410,7 @@ const createNetwork = {
         );
       }
 
-      return res.status(HTTPStatus.NOT_IMPLEMENTED).json({
+      return res.status(httpStatus.NOT_IMPLEMENTED).json({
         success: true,
         message: "Not Yet Implemented",
       });
@@ -431,7 +431,7 @@ const createNetwork = {
       if (responseFromListNetworks.success === true) {
         let status = responseFromListNetworks.status
           ? responseFromListNetworks.status
-          : HTTPStatus.OK;
+          : httpStatus.OK;
 
         return res.status(status).json({
           success: true,
@@ -441,7 +441,7 @@ const createNetwork = {
       } else if (responseFromListNetworks.success === false) {
         let status = responseFromListNetworks.status
           ? responseFromListNetworks.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+          : httpStatus.INTERNAL_SERVER_ERROR;
         let errors = responseFromListNetworks.errors
           ? responseFromListNetworks.errors
           : "";
@@ -453,7 +453,7 @@ const createNetwork = {
       }
     } catch (error) {
       logElement("internal server error", error.message);
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: error.message,

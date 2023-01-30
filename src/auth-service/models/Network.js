@@ -6,7 +6,7 @@ var uniqueValidator = require("mongoose-unique-validator");
 const { logObject, logElement, logText } = require("../utils/log");
 const isEmpty = require("is-empty");
 const { getModelByTenant } = require("../utils/multitenancy");
-const HTTPStatus = require("http-status");
+const httpStatus = require("http-status");
 
 const NetworkSchema = new Schema(
   {
@@ -152,31 +152,31 @@ NetworkSchema.statics = {
           success: true,
           data,
           message: "network created",
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       } else {
         return {
           success: true,
           data,
           message: "network NOT successfully created but operation successful",
-          status: HTTPStatus.NO_CONTENT,
+          status: httpStatus.NO_CONTENT,
         };
       }
     } catch (err) {
       let response = {};
       let errors = {};
       let message = "Internal Server Error";
-      let status = HTTPStatus.INTERNAL_SERVER_ERROR;
+      let status = httpStatus.INTERNAL_SERVER_ERROR;
       if (err.code === 11000 || err.code === 11001) {
         errors = err.keyValue;
         message = "duplicate values provided";
-        status = HTTPStatus.CONFLICT;
+        status = httpStatus.CONFLICT;
         Object.entries(errors).forEach(([key, value]) => {
           return (response[key] = value);
         });
       } else {
         message = "validation errors for some of the provided fields";
-        status = HTTPStatus.CONFLICT;
+        status = httpStatus.CONFLICT;
         errors = err.errors;
         Object.entries(errors).forEach(([key, value]) => {
           return (response[key] = value.message);
@@ -318,13 +318,13 @@ NetworkSchema.statics = {
           success: true,
           message: "successfully retrieved the networks",
           data,
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       } else if (isEmpty(response)) {
         return {
           success: false,
           message: "network/s do not exist, please crosscheck",
-          status: HTTPStatus.NOT_FOUND,
+          status: httpStatus.NOT_FOUND,
           data: [],
           errors: { message: "unable to retrieve networks" },
         };
@@ -333,17 +333,17 @@ NetworkSchema.statics = {
       let response = {};
       let errors = {};
       let message = "Internal Server Error";
-      let status = HTTPStatus.INTERNAL_SERVER_ERROR;
+      let status = httpStatus.INTERNAL_SERVER_ERROR;
       if (err.code === 11000 || err.code === 11001) {
         errors = err.keyValue;
         message = "duplicate values provided";
-        status = HTTPStatus.CONFLICT;
+        status = httpStatus.CONFLICT;
         Object.entries(errors).forEach(([key, value]) => {
           return (response[key] = value);
         });
       } else {
         message = "validation errors for some of the provided fields";
-        status = HTTPStatus.CONFLICT;
+        status = httpStatus.CONFLICT;
         errors = err.errors;
         Object.entries(errors).forEach(([key, value]) => {
           return (response[key] = value.message);
@@ -439,13 +439,13 @@ NetworkSchema.statics = {
           success: true,
           message: "successfully modified the network",
           data,
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       } else {
         return {
           success: false,
           message: "network does not exist, please crosscheck",
-          status: HTTPStatus.NOT_FOUND,
+          status: httpStatus.NOT_FOUND,
           errors: "Not Found",
         };
       }
@@ -453,17 +453,17 @@ NetworkSchema.statics = {
       let response = {};
       let errors = {};
       let message = "Internal Server Error";
-      let status = HTTPStatus.INTERNAL_SERVER_ERROR;
+      let status = httpStatus.INTERNAL_SERVER_ERROR;
       if (err.code === 11000 || err.code === 11001) {
         errors = err.keyValue;
         message = "duplicate values provided";
-        status = HTTPStatus.CONFLICT;
+        status = httpStatus.CONFLICT;
         Object.entries(errors).forEach(([key, value]) => {
           return (response[key] = value);
         });
       } else {
         message = "validation errors for some of the provided fields";
-        status = HTTPStatus.CONFLICT;
+        status = httpStatus.CONFLICT;
         errors = err.errors;
         Object.entries(errors).forEach(([key, value]) => {
           return (response[key] = value.message);
@@ -496,13 +496,13 @@ NetworkSchema.statics = {
           success: true,
           message: "successfully removed the network",
           data,
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       } else {
         return {
           success: false,
           message: "network does not exist, please crosscheck",
-          status: HTTPStatus.NOT_FOUND,
+          status: httpStatus.NOT_FOUND,
           errors: "Not Found",
         };
       }
@@ -510,17 +510,17 @@ NetworkSchema.statics = {
       let response = {};
       let errors = {};
       let message = "Internal Server Error";
-      let status = HTTPStatus.INTERNAL_SERVER_ERROR;
+      let status = httpStatus.INTERNAL_SERVER_ERROR;
       if (err.code === 11000 || err.code === 11001) {
         errors = err.keyValue;
         message = "duplicate values provided";
-        status = HTTPStatus.CONFLICT;
+        status = httpStatus.CONFLICT;
         Object.entries(errors).forEach(([key, value]) => {
           return (response[key] = value);
         });
       } else {
         message = "validation errors for some of the provided fields";
-        status = HTTPStatus.CONFLICT;
+        status = httpStatus.CONFLICT;
         errors = err.errors;
         Object.entries(errors).forEach(([key, value]) => {
           return (response[key] = value.message);

@@ -1,7 +1,6 @@
 const mongoose = require("mongoose").set("debug", true);
 const { logObject, logText } = require("@utils/log");
 const isEmpty = require("is-empty");
-const HTTPStatus = require("http-status");
 const httpStatus = require("http-status");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 
@@ -89,7 +88,7 @@ RoleSchema.statics = {
       logObject("the error", err);
       let response = {};
       let message = "validation errors for some of the provided fields";
-      let status = HTTPStatus.CONFLICT;
+      let status = httpStatus.CONFLICT;
       if (err.keyValue) {
         Object.entries(err.keyValue).forEach(([key, value]) => {
           return (response[key] = `the ${key} must be unique`);

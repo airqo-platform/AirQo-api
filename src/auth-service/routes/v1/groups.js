@@ -71,7 +71,7 @@ router.put(
   oneOf([
     param("grp_id")
       .exists()
-      .withMessage("the grp_ids is missing in request")
+      .withMessage("the grp_id is missing in request")
       .bail()
       .trim()
       .isMongoId()
@@ -83,66 +83,59 @@ router.put(
   ]),
   oneOf([
     [
-      body("net_email")
+      body("grp_title")
         .optional()
         .notEmpty()
-        .withMessage("the email should not be empty if provided")
-        .bail()
-        .isEmail()
-        .withMessage("this is not a valid email address")
+        .withMessage("the grp_title should not be empty if provided")
         .trim(),
-      body("net_website")
+      body("grp_status")
         .optional()
         .notEmpty()
-        .withMessage("the net_website should not be empty if provided")
+        .withMessage("the grp_status should not be empty if provided")
         .bail()
-        .isURL()
-        .withMessage("the net_website is not a valid URL")
-        .trim(),
-      body("net_status")
-        .optional()
-        .notEmpty()
-        .withMessage("the net_status should not be empty if provided")
-        .bail()
-        .toLowerCase()
-        .isIn(["active", "inactive", "pending"])
+        .trim()
+        .toUpperCase()
+        .isIn(["INACTIVE", "ACTIVE"])
         .withMessage(
-          "the net_status value is not among the expected ones which include: active, inactive, pending"
-        )
-        .trim(),
-      body("net_phoneNumber")
+          "the grp_status value is not among the expected ones: INACTIVE or ACTIVE"
+        ),
+      body("grp_tasks")
         .optional()
         .notEmpty()
-        .withMessage("the phoneNumber should not be empty if provided")
+        .withMessage("the grp_tasks should not be empty if provided")
         .bail()
-        .isMobilePhone()
-        .withMessage("the phoneNumber is not a valid one")
-        .bail()
+        .isNumeric()
+        .withMessage("the grp_tasks should be a number")
         .trim(),
-      body("net_category")
+      body("grp_network")
         .optional()
         .notEmpty()
-        .withMessage("the net_category should not be empty if provided")
+        .withMessage("the grp_network should not be empty if provided")
         .bail()
+        .isMongoId()
+        .withMessage("the group_network must be an Object ID")
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        })
         .trim(),
-      body("net_name")
-        .if(body("net_name").exists())
+      body("grp_description")
+        .optional()
         .notEmpty()
-        .withMessage("the net_name should not be empty")
+        .withMessage("the grp_description should not be empty")
         .trim(),
-      body("net_users")
+      body("grp_users")
         .optional()
         .custom((value) => {
           return Array.isArray(value);
         })
-        .withMessage("the net_users should be an array")
+        .withMessage("the grp_users should be an array")
         .bail()
         .notEmpty()
-        .withMessage("the net_users should not be empty"),
-      body("net_users.*")
+        .withMessage("the grp_users should not be empty"),
+      body("grp_users.*")
         .optional()
         .isMongoId()
-        .withMessage("each use should be an object ID"),
+        .withMessage("each group user should be an object ID"),
     ],
   ]),
   setJWTAuth,
@@ -169,22 +162,22 @@ router.put(
     [
       param("grp_id")
         .exists()
-        .withMessage("the network ID param is missing in the request")
+        .withMessage("the grp_id param is missing in the request")
         .bail()
         .trim()
         .isMongoId()
-        .withMessage("the network ID must be an object ID")
+        .withMessage("the grp_id must be an object ID")
         .bail()
         .customSanitizer((value) => {
           return ObjectId(value);
         }),
       param("user_id")
         .exists()
-        .withMessage("the user ID param is missing in the request")
+        .withMessage("the user_id param is missing in the request")
         .bail()
         .trim()
         .isMongoId()
-        .withMessage("the user ID must be an object ID")
+        .withMessage("the user_id must be an object ID")
         .bail()
         .customSanitizer((value) => {
           return ObjectId(value);
@@ -194,62 +187,6 @@ router.put(
   setJWTAuth,
   authJWT,
   createGroupController.update
-);
-
-router.get(
-  "/:grp_id",
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant cannot be empty if provided")
-        .bail()
-        .trim()
-        .toLowerCase()
-        .isIn(["kcca", "airqo"])
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-  oneOf([
-    param("grp_id")
-      .optional()
-      .isMongoId()
-      .withMessage("grp_id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
-  ]),
-  createGroupController.list
-);
-
-router.get(
-  "/",
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant cannot be empty if provided")
-        .bail()
-        .trim()
-        .toLowerCase()
-        .isIn(["kcca", "airqo"])
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-  oneOf([
-    param("grp_id")
-      .optional()
-      .isMongoId()
-      .withMessage("grp_id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
-  ]),
-  createGroupController.list
 );
 
 router.get(
@@ -325,60 +262,66 @@ router.post(
   ]),
   oneOf([
     [
-      body("net_email")
+      body("grp_title")
         .exists()
-        .withMessage("the network's email address is required")
+        .withMessage("the grp_title must be provided")
         .bail()
-        .isEmail()
-        .withMessage("This is not a valid email address")
+        .notEmpty()
+        .withMessage("the grp_title should not be empty")
         .trim(),
-      body("net_website")
+      body("grp_network_id")
         .exists()
-        .withMessage("the net_network's website is required")
+        .withMessage("the grp_network_id must be provided")
         .bail()
-        .isURL()
-        .withMessage("the net_website is not a valid URL")
+        .notEmpty()
+        .withMessage("the grp_network_id should not be empty")
+        .bail()
+        .isMongoId()
+        .withMessage("the group_network_id must be an Object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        })
         .trim(),
-      body("net_status")
+      body("grp_status")
         .optional()
         .notEmpty()
-        .withMessage("the net_status should not be empty")
+        .withMessage("the grp_status should not be empty if provided")
         .bail()
-        .toLowerCase()
-        .isIn(["active", "inactive", "pending"])
+        .trim()
+        .toUpperCase()
+        .isIn(["INACTIVE", "ACTIVE"])
         .withMessage(
-          "the status value is not among the expected ones which include: active, inactive, pending"
-        )
-        .trim(),
-      body("net_phoneNumber")
-        .exists()
-        .withMessage("the net_phoneNumber is required")
+          "the grp_status value is not among the expected ones: INACTIVE or ACTIVE"
+        ),
+      body("grp_tasks")
+        .optional()
+        .notEmpty()
+        .withMessage("the grp_tasks should not be empty if provided")
         .bail()
-        .isMobilePhone()
-        .withMessage("the net_phoneNumber is not a valid one")
-        .bail()
+        .isNumeric()
+        .withMessage("the grp_tasks should be a number")
         .trim(),
-      body("net_category")
+      body("grp_description")
         .exists()
-        .withMessage("the net_category is required")
+        .withMessage("the grp_description is required")
         .bail()
-        .toLowerCase()
-        .isIn([
-          "business",
-          "research",
-          "policy",
-          "awareness",
-          "school",
-          "others",
-        ])
-        .withMessage(
-          "the status value is not among the expected ones which include: business, research, policy, awareness, school, others"
-        )
+        .notEmpty()
+        .withMessage("the grp_description should not be empty")
         .trim(),
-      body("net_description")
-        .exists()
-        .withMessage("the net_description is required")
-        .trim(),
+      body("grp_users")
+        .optional()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the grp_users should be an array")
+        .bail()
+        .notEmpty()
+        .withMessage("the grp_users should not be empty"),
+      body("grp_users.*")
+        .optional()
+        .isMongoId()
+        .withMessage("each group user should be an object ID"),
     ],
   ]),
   setJWTAuth,
@@ -405,11 +348,11 @@ router.post(
     [
       param("grp_id")
         .exists()
-        .withMessage("the network ID param is missing in the request")
+        .withMessage("the grp_id param is missing in the request")
         .bail()
         .trim()
         .isMongoId()
-        .withMessage("the network ID must be an object ID")
+        .withMessage("the grp_id must be an object ID")
         .bail()
         .customSanitizer((value) => {
           return ObjectId(value);
@@ -454,22 +397,22 @@ router.delete(
     [
       param("grp_id")
         .exists()
-        .withMessage("the network ID is missing in request")
+        .withMessage("the grp_id is missing in request")
         .bail()
         .trim()
         .isMongoId()
-        .withMessage("the network ID must be an object ID")
+        .withMessage("the grp_id must be an object ID")
         .bail()
         .customSanitizer((value) => {
           return ObjectId(value);
         }),
       param("user_id")
         .exists()
-        .withMessage("the user ID is missing in request")
+        .withMessage("the user_id is missing in the request")
         .bail()
         .trim()
         .isMongoId()
-        .withMessage("user ID must be an object ID")
+        .withMessage("the user_id must be an object ID")
         .bail()
         .customSanitizer((value) => {
           return ObjectId(value);
@@ -479,6 +422,52 @@ router.delete(
   setJWTAuth,
   authJWT,
   createGroupController.update
+);
+
+router.get(
+  "/",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  createGroupController.list
+);
+
+router.get(
+  "/:grp_id",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    param("grp_id")
+      .optional()
+      .isMongoId()
+      .withMessage("grp_id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+  ]),
+  createGroupController.list
 );
 
 module.exports = router;

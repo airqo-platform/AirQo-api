@@ -41,7 +41,7 @@ app.use("/api/v1/users/tokens", routes.v1.tokens);
 app.use("/api/v1/users/clients", routes.v1.clients);
 app.use("/api/v1/users/scopes", routes.v1.scopes);
 app.use("/api/v1/users/departments", routes.v1.departments);
-// app.use("/api/v1/user/groups", routes.v1.groups);
+app.use("/api/v1/users/groups", routes.v1.groups);
 app.use("/api/v1/users", routes.v1.users);
 
 /****** the V2 endpoints ****************/
@@ -53,7 +53,7 @@ app.use("/api/v2/users/requests", routes.v2.requests);
 app.use("/api/v2/users/defaults", routes.v2.defaults);
 // app.use("/api/v2/users/tokens", routes.v2.tokens);
 // app.use("/api/v2/users/departments", routes.v2.departments);
-// app.use("/api/v2/user/groups", routes.v2.groups);
+// app.use("/api/v2/users/groups", routes.v2.groups);
 app.use("/api/v2/users", routes.v2.users);
 
 require("./config/firebase-admin");

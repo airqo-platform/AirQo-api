@@ -1,13 +1,19 @@
 const httpStatus = require("http-status");
 const { validationResult } = require("express-validator");
-const { badRequest, convertErrorArrayToObject } = require("../utils/errors");
-const controlAccessUtil = require("../utils/control-access");
-const { logText, logElement, logObject, logError } = require("../utils/log");
+const { badRequest, convertErrorArrayToObject } = require("@utils/errors");
+const controlAccessUtil = require("@utils/control-access");
+const { logText, logElement, logObject, logError } = require("@utils/log");
+const isEmpty = require("is-empty");
+const constants = require("@config/constants");
+const log4js = require("log4js");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- create-group-controller`
+);
 
 const createGroup = {
   list: async (req, res) => {
     try {
-      const { query } = req;
+      const { query, params } = req;
       let { tenant } = query;
       const hasErrors = !validationResult(req).isEmpty();
       logObject("hasErrors", hasErrors);
@@ -36,7 +42,11 @@ const createGroup = {
           message: responseFromListGroup.message
             ? responseFromListGroup.message
             : "",
-          groups: responseFromListGroup.data ? responseFromListGroup.data : [],
+          [isEmpty(params) ? "groups" : "group"]: responseFromListGroup.data
+            ? isEmpty(params)
+              ? responseFromListGroup.data
+              : responseFromListGroup.data[0]
+            : [],
         });
       } else if (responseFromListGroup.success === false) {
         const status = responseFromListGroup.status
@@ -53,6 +63,7 @@ const createGroup = {
         });
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -112,6 +123,7 @@ const createGroup = {
         });
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -170,6 +182,7 @@ const createGroup = {
         });
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -227,6 +240,7 @@ const createGroup = {
         });
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -286,6 +300,7 @@ const createGroup = {
         });
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -343,6 +358,7 @@ const createGroup = {
         });
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -401,6 +417,7 @@ const createGroup = {
         });
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -458,6 +475,7 @@ const createGroup = {
         });
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -515,6 +533,7 @@ const createGroup = {
         });
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",

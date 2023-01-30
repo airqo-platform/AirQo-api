@@ -2,7 +2,7 @@ const DefaultsSchema = require("../models/Defaults");
 const { getModelByTenant } = require("./multitenancy");
 const { logElement, logText, logObject } = require("./log");
 const generateFilter = require("./generate-filter");
-const HTTPStatus = require("http-status");
+const httpStatus = require("http-status");
 
 const constants = require("../config/constants");
 const log4js = require("log4js");
@@ -53,7 +53,7 @@ const defaults = {
         success: false,
         message: "utils server errors",
         errors: e.message,
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -104,7 +104,7 @@ const defaults = {
         success: false,
         message: "defaults util server errors",
         errors: e.message,
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -150,7 +150,7 @@ const defaults = {
         success: false,
         message: "defaults util server errors",
         errors: e.message,
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },

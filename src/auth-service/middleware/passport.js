@@ -1,6 +1,6 @@
 const passport = require("passport");
 const LocalStrategy = require("passport-local");
-const HTTPStatus = require("http-status");
+const httpStatus = require("http-status");
 const Validator = require("validator");
 const UserSchema = require("../models/User");
 const AccessTokenSchema = require("../models/AccessToken");
@@ -268,7 +268,7 @@ function setJWTAuth(req, res, next) {
   } catch (e) {
     console.log("the error in setLocalAuth is: ", e.message);
     res
-      .status(HTTPStatus.BAD_GATEWAY)
+      .status(httpStatus.BAD_GATEWAY)
       .json({ success: false, message: e.message });
   }
 }
