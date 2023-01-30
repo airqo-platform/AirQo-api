@@ -3,10 +3,10 @@ resource "google_compute_instance" "airqo_k8s_worker_0" {
   project = var.project_id
   zone    = var.zone
 
-  machine_type = "e2-custom-4-8704"
+  machine_type = "c2-standard-4"
 
   boot_disk {
-    auto_delete = true
+    auto_delete = false
     source      = "https://www.googleapis.com/compute/v1/projects/airqo-250220/zones/europe-west1-b/disks/airqo-k8s-worker-0"
   }
 
