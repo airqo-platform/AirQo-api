@@ -2,8 +2,7 @@ k8s_cluster:
   children:
     k8s_master:
       hosts:
-        10.240.0.11:
-          preemptive_node_name: airqo-k8s-worker-0
+        10.240.0.11
     k8s_workers:
       hosts:
         10.240.0.21
@@ -13,3 +12,5 @@ k8s_cluster:
         preemptive_node:
           hosts:
             10.240.0.20
+  vars:
+    preemptive_node_name: airqo-k8s-worker-0
