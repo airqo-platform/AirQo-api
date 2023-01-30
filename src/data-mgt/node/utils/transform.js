@@ -117,7 +117,7 @@ const transform = {
             } else if (!isEmpty(deviceDetails.readKey)) {
               let readKey = deviceDetails.readKey;
               logElement("readKey", readKey);
-              const url = constants.DECYPT_DEVICE_KEY_URL;
+              const url = constants.DECRYPT_DEVICE_KEY_URL;
               return axios
                 .post(
                   url,
