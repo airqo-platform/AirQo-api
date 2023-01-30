@@ -50,4 +50,4 @@
       cron:
         name: "Reset k8s node"
         minute: "9"
-        job: "/bin/bash /root/leave_k8s_cluster.sh"
+        job: "sudo /bin/bash /root/leave_k8s_cluster.sh"
