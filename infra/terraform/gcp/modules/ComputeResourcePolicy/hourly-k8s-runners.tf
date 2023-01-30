@@ -5,7 +5,7 @@ resource "google_compute_resource_policy" "hourly_k8s_runners" {
   description = "Start and stop instances that run the Kubernetes hourly cronjobs"
   instance_schedule_policy {
     vm_start_schedule {
-      schedule = "50 * * * *"
+      schedule = "40 * * * *"
     }
     vm_stop_schedule {
       schedule = "10 * * * *"
