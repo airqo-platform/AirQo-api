@@ -14,8 +14,8 @@
         minute: "8"
         job: "/bin/bash /root/remove_preemptive_node.sh"
 
-    - name: Get join command with a token that expires in 1 hour
-      shell: kubeadm token create --print-join-command --ttl 1h
+    - name: Get join command with a token that expires in 30 days (720 hours)
+      shell: kubeadm token create --print-join-command --ttl 720h
       register: join_command_raw
 
     - name: Set join command
