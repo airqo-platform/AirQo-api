@@ -410,7 +410,7 @@ def airqo_realtime_measurements():
         )
 
         airqo_api = AirQoApi()
-        airqo_api.save_events(measurements=data, tenant="airqo")
+        airqo_api.save_events(measurements=data)
 
     @task()
     def send_hourly_measurements_to_message_broker(data: pd.DataFrame):

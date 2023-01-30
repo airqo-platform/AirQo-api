@@ -1,3 +1,4 @@
+require("module-alias/register");
 const log4js = require("log4js");
 require("app-module-path").addPath(__dirname);
 const express = require("express");
@@ -6,8 +7,7 @@ const dotenv = require("dotenv");
 dotenv.config();
 const cookieParser = require("cookie-parser");
 const bodyParser = require("body-parser");
-const apiV1 = require("./routes/api-v1");
-const apiV2 = require("./routes/api-v2");
+const routes = require("./routes/index");
 const constants = require("./config/constants");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- app entry`);
 const mongodb = require("./config/dbConnection");
@@ -30,8 +30,31 @@ app.use(cookieParser());
 app.use(express.static(path.join(__dirname, "public")));
 // app.use(bindCurrentNamespace);
 
-app.use("/api/v1/users", apiV1);
-app.use("/api/v2/users", apiV2);
+/****** the V1 endpoints ****************/
+app.use("/api/v1/users/networks", routes.v1.networks);
+app.use("/api/v1/users/permissions", routes.v1.permissions);
+app.use("/api/v1/users/roles", routes.v1.roles);
+app.use("/api/v1/users/inquiries", routes.v1.inquiries);
+app.use("/api/v1/users/requests", routes.v1.requests);
+app.use("/api/v1/users/defaults", routes.v1.defaults);
+app.use("/api/v1/users/tokens", routes.v1.tokens);
+app.use("/api/v1/users/clients", routes.v1.clients);
+app.use("/api/v1/users/scopes", routes.v1.scopes);
+app.use("/api/v1/users/departments", routes.v1.departments);
+app.use("/api/v1/users/groups", routes.v1.groups);
+app.use("/api/v1/users", routes.v1.users);
+
+/****** the V2 endpoints ****************/
+app.use("/api/v2/users/networks", routes.v2.networks);
+app.use("/api/v2/users/permissions", routes.v2.permissions);
+app.use("/api/v2/users/roles", routes.v2.roles);
+app.use("/api/v2/users/inquiries", routes.v2.inquiries);
+app.use("/api/v2/users/requests", routes.v2.requests);
+app.use("/api/v2/users/defaults", routes.v2.defaults);
+// app.use("/api/v2/users/tokens", routes.v2.tokens);
+// app.use("/api/v2/users/departments", routes.v2.departments);
+// app.use("/api/v2/users/groups", routes.v2.groups);
+app.use("/api/v2/users", routes.v2.users);
 
 require("./config/firebase-admin");
 
@@ -106,7 +129,7 @@ app.use(function (err, req, res, next) {
   } else {
     res.status(err.status || 500).json({
       success: false,
-      message: "server side error",
+      message: "server side error - app entry",
       error: err.message,
     });
   }

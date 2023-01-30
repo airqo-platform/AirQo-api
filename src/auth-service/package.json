@@ -15,6 +15,16 @@
         "create-env": "printenv > .env",
         "test": "mocha ./**/test/ut_*.js --exit"
     },
+    "_moduleAliases": {
+        "@root": ".",
+        "@models": "models/",
+        "@utils": "utils",
+        "@controllers": "controllers",
+        "@config": "config",
+        "@middleware": "middleware",
+        "@scripts": "scripts",
+        "@routes": "routes"
+    },
     "dependencies": {
         "@google-cloud/datastore": "^5.1.0",
         "@google-cloud/debug-agent": "^4.0.4",
@@ -33,9 +43,9 @@
         "debug": "~2.6.9",
         "dotenv": "^8.2.0",
         "email-existence": "^0.1.6",
-        "express": "^4.17.1",
-        "express-jwt": "^5.3.1",
-        "express-session": "^1.17.0",
+        "express": "^4.18.1",
+        "express-formidable": "^1.2.0",
+        "express-session": "^1.17.3",
         "express-validation": "^1.0.3",
         "express-validator": "^6.12.1",
         "firebase-admin": "^10.0.0",
@@ -47,20 +57,21 @@
         "is-empty": "^1.2.0",
         "jade": "~1.11.0",
         "joi": "^14.3.1",
-        "jsonify": "0.0.0",
         "jsonwebtoken": "^8.5.1",
-        "kickbox": "^2.0.4",
         "log4js": "^6.7.0",
         "md5": "^2.3.0",
+        "module-alias": "^2.2.2",
         "mongoose": "^5.12.14",
         "mongoose-unique-validator": "^2.0.3",
         "morgan": "~1.9.0",
         "nodemailer": "^6.6.1",
         "passport": "^0.4.1",
+        "passport-auth-token": "^1.0.1",
         "passport-jwt": "^4.0.0",
         "passport-local": "^1.0.0",
         "saslprep": "^1.0.3",
         "serve-favicon": "~2.4.5",
+        "tslib": "^2.4.0",
         "validator": "^11.1.0",
         "xoauth2": "^1.2.0"
     },
@@ -70,7 +81,6 @@
         "faker": "^5.5.3",
         "mocha": "^8.4.0",
         "nodemon": "^1.19.3",
-        "prisma": "^3.15.1",
         "sinon": "^11.1.1"
     }
 }
