@@ -13,7 +13,7 @@ const devConfig = {
       process.env.DEVICE_REGISTRY_BASE_URL_DEV
     }?tenant=${tenant}&device_number=${channel.trim()}`;
   },
-  DECYPT_DEVICE_KEY_URL: `${process.env.DEVICE_REGISTRY_BASE_URL_DEV}/decrypt`,
+  DECRYPT_DEVICE_KEY_URL: `${process.env.DEVICE_REGISTRY_BASE_URL_DEV}/decrypt`,
 };
 const stageConfig = {
   JWT_TOKEN: process.env.JWT_TOKEN_STAGING,
@@ -27,7 +27,7 @@ const stageConfig = {
       process.env.DEVICE_REGISTRY_BASE_URL_STAGE
     }?tenant=${tenant}&device_number=${channel.trim()}`;
   },
-  DECYPT_DEVICE_KEY_URL: `${process.env.DEVICE_REGISTRY_BASE_URL_STAGE}/decrypt`,
+  DECRYPT_DEVICE_KEY_URL: `${process.env.DEVICE_REGISTRY_BASE_URL_STAGE}/decrypt`,
 };
 const prodConfig = {
   JWT_TOKEN: process.env.JWT_TOKEN_PRODUCTION,
@@ -41,7 +41,7 @@ const prodConfig = {
       process.env.DEVICE_REGISTRY_BASE_URL_PROD
     }?tenant=${tenant}&device_number=${channel.trim()}`;
   },
-  DECYPT_DEVICE_KEY_URL: `${process.env.DEVICE_REGISTRY_BASE_URL_PROD}/decrypt`,
+  DECRYPT_DEVICE_KEY_URL: `${process.env.DEVICE_REGISTRY_BASE_URL_PROD}/decrypt`,
 };
 const defaultConfig = {
   TS_TEST_CHANNEL: process.env.TS_TEST_CHANNEL,

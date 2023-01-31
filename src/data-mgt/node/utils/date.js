@@ -54,7 +54,7 @@ const generateDateFormatWithoutHrs = (ISODate) => {
 
     return `${year}-${month}-${day}`;
   } catch (e) {
-    console.log("server side error: ", e.message);
+    logElement("server side error: ", e.message);
   }
 };
 
@@ -68,7 +68,7 @@ const addMonthsToProvidedDate = (date, number) => {
     let modifiedMonth = "0" + newMonth;
     return `${year}-${modifiedMonth}-${day}`;
   } catch (e) {
-    console.log("server side error: ", e.message);
+    logElement("server side error: ", e.message);
   }
 };
 
@@ -106,7 +106,7 @@ const addMonthsToProvideDateTime = (dateTime, number) => {
       return newDate;
     }
   } catch (e) {
-    console.log("server side error: ", e.message);
+    logElement("server side error: ", e.message);
   }
 };
 
@@ -120,7 +120,7 @@ const monthsInfront = (number) => {
     }
     return d;
   } catch (e) {
-    console.log("server side error: ", e.message);
+    logElement("server side error: ", e.message);
   }
 };
 
@@ -130,7 +130,7 @@ const addDays = (number) => {
     let target = d.setDate(d.getDate() + number);
     return d;
   } catch (e) {
-    console.log("server side error: ", e.message);
+    logElement("server side error: ", e.message);
   }
 };
 

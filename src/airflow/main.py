@@ -344,9 +344,6 @@ class MainClass:
         )
         message_broker_data.to_csv("airnow_message_broker_data.csv", index=False)
 
-        latest_bam_data = AirnowDataUtils.process_latest_bam_data(processed_bam_data)
-        latest_bam_data.to_csv("airnow_latest_bam_data.csv", index=False)
-
     def airqo_bam_data(self):
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 

@@ -586,6 +586,7 @@ class AirQoDataUtils:
                     "site_id": row["site_id"],
                     "device_number": device_number,
                     "tenant": str(Tenant.AIRQO),
+                    "tenant": str(Tenant.AIRQO),
                     "location": {
                         "latitude": {"value": row["latitude"]},
                         "longitude": {"value": row["longitude"]},
