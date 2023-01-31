@@ -87,7 +87,6 @@ const UserSchema = new Schema(
       {
         type: ObjectId,
         ref: "network",
-        required: [true, "the network is required!"],
       },
     ],
     groups: [
