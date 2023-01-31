@@ -2,9 +2,7 @@ const express = require("express");
 const router = express.Router();
 const requestAccessController = require("@controllers/request-access");
 const { check, oneOf, query, body, param } = require("express-validator");
-
 const { setJWTAuth, authJWT } = require("@middleware/passport");
-
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 
@@ -77,6 +75,7 @@ router.post(
         .bail()
         .isMongoId()
         .withMessage("the network_id must be a MongoID")
+        .bail()
         .customSanitizer((value) => {
           return ObjectId(value);
         }),
