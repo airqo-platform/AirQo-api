@@ -1,9 +1,9 @@
 const mongoose = require("mongoose").set("debug", true);
 const ObjectId = mongoose.Types.ObjectId;
 var uniqueValidator = require("mongoose-unique-validator");
-const { logElement, logText, logObject } = require("../utils/log");
+const { logElement, logText, logObject } = require("@utils/log");
 const isEmpty = require("is-empty");
-const HTTPStatus = require("http-status");
+const httpStatus = require("http-status");
 
 const periodSchema = new mongoose.Schema(
   {
@@ -48,14 +48,22 @@ const DefaultsSchema = new mongoose.Schema(
     },
     airqloud: {
       type: ObjectId,
+      ref: "airqloud",
+    },
+    network_id: {
+      type: ObjectId,
+      ref: "network",
+      required: [true, "network_id is required!"],
     },
     user: {
       type: ObjectId,
       required: [true, "user is required"],
+      ref: "user",
     },
     sites: [
       {
         type: ObjectId,
+        ref: "site",
       },
     ],
     period: { type: periodSchema, required: [true, "period is required!"] },
@@ -83,6 +91,7 @@ DefaultsSchema.methods = {
       chartTitle: this.chartTitle,
       chartSubTitle: this.chartSubTitle,
       sites: this.sites,
+      network_id: this.network_id,
       period: this.period,
       createdAt: this.createdAt,
     };
@@ -105,30 +114,30 @@ DefaultsSchema.statics = {
           success: true,
           data,
           message: "default created",
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       } else {
         return {
           success: true,
           message: "default not created despite successful operation",
-          status: HTTPStatus.CREATED,
+          status: httpStatus.CREATED,
         };
       }
     } catch (err) {
       let response = {};
       let errors = {};
       let message = "Internal Server Error";
-      let status = HTTPStatus.INTERNAL_SERVER_ERROR;
+      let status = httpStatus.INTERNAL_SERVER_ERROR;
       if (err.code === 11000 || err.code === 11001) {
         errors = err.keyValue;
         message = "duplicate values provided";
-        status = HTTPStatus.CONFLICT;
+        status = httpStatus.CONFLICT;
         Object.entries(errors).forEach(([key, value]) => {
           return (response[key] = value);
         });
       } else {
         message = "validation errors for some of the provided fields";
-        status = HTTPStatus.CONFLICT;
+        status = httpStatus.CONFLICT;
         errors = err.errors;
         Object.entries(errors).forEach(([key, value]) => {
           return (response[key] = value.message);
@@ -156,7 +165,7 @@ DefaultsSchema.statics = {
           success: true,
           data,
           message: "successfully listed the defaults",
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       }
       if (isEmpty(data)) {
@@ -164,21 +173,21 @@ DefaultsSchema.statics = {
           success: true,
           message: "no defaults found for this search",
           data,
-          status: HTTPStatus.NOT_FOUND,
+          status: httpStatus.NOT_FOUND,
         };
       }
       return {
         success: false,
         message: "unable to retrieve defaults",
         data,
-        status: HTTPStatus.BAD_GATEWAY,
+        status: httpStatus.BAD_GATEWAY,
       };
     } catch (error) {
       return {
         success: false,
         message: "unable to list the defaults",
         errors: error.message,
-        status: HTTPStatus.CONFLICT,
+        status: httpStatus.CONFLICT,
       };
     }
   },
@@ -200,13 +209,13 @@ DefaultsSchema.statics = {
           success: true,
           message: "successfully modified the default",
           data,
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       } else {
         return {
           success: false,
           message: "the default does not exist, please crosscheck",
-          status: HTTPStatus.NOT_FOUND,
+          status: httpStatus.NOT_FOUND,
         };
       }
     } catch (err) {
@@ -216,7 +225,7 @@ DefaultsSchema.statics = {
       if (err.code == 11000) {
         errors = err.keyValue;
         message = "duplicate values provided";
-        status = HTTPStatus.CONFLICT;
+        status = httpStatus.CONFLICT;
       }
       return {
         success: false,
@@ -245,13 +254,13 @@ DefaultsSchema.statics = {
           success: true,
           message: "successfully removed the default",
           data,
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       } else {
         return {
           success: false,
           message: "default does not exist, please crosscheck",
-          status: HTTPStatus.NOT_FOUND,
+          status: httpStatus.NOT_FOUND,
         };
       }
     } catch (error) {
@@ -259,7 +268,7 @@ DefaultsSchema.statics = {
         success: false,
         message: "model server error",
         errors: error.message,
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },

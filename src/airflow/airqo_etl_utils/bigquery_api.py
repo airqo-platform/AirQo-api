@@ -33,6 +33,8 @@ class BigQueryApi:
         self.raw_weather_table = configuration.BIGQUERY_RAW_WEATHER_TABLE
         self.consolidated_data_table = configuration.BIGQUERY_ANALYTICS_TABLE
         self.sites_table = configuration.BIGQUERY_SITES_TABLE
+        self.airqlouds_table = configuration.BIGQUERY_AIRQLOUDS_TABLE
+        self.airqlouds_sites_table = configuration.BIGQUERY_AIRQLOUDS_SITES_TABLE
         self.sites_meta_data_table = configuration.BIGQUERY_SITES_META_DATA_TABLE
         self.devices_table = configuration.BIGQUERY_DEVICES_TABLE
 
@@ -109,6 +111,10 @@ class BigQueryApi:
             schema_file = "latest_measurements.json"
         elif table == self.consolidated_data_table:
             schema_file = "data_warehouse.json"
+        elif table == self.airqlouds_table:
+            schema_file = "airqlouds.json"
+        elif table == self.airqlouds_sites_table:
+            schema_file = "airqlouds_sites.json"
         elif table == self.sites_table:
             schema_file = "sites.json"
         elif table == self.sites_meta_data_table:
@@ -208,6 +214,49 @@ class BigQueryApi:
     @staticmethod
     def device_unique_col(tenant: str, device_id: str, device_number: int):
         return str(f"{tenant}:{device_id}:{device_number}").lower()
+
+    def update_airqlouds(self, dataframe: pd.DataFrame, table=None) -> None:
+        if table is None:
+            table = self.airqlouds_table
+        unique_cols = ["id", "tenant"]
+
+        dataframe.reset_index(drop=True, inplace=True)
+        dataframe = self.validate_data(
+            dataframe=dataframe,
+            table=table,
+        )
+
+        available_data = (
+            self.client.query(query=f"SELECT * FROM `{table}`").result().to_dataframe()
+        )
+
+        up_to_date_data = pd.concat([available_data, dataframe], ignore_index=True)
+        up_to_date_data.drop_duplicates(subset=unique_cols, inplace=True, keep="first")
+
+        self.load_data(
+            dataframe=up_to_date_data, table=table, job_action=JobAction.OVERWRITE
+        )
+
+    def update_airqlouds_sites_table(self, dataframe: pd.DataFrame, table=None) -> None:
+        if table is None:
+            table = self.airqlouds_sites_table
+
+        dataframe.reset_index(drop=True, inplace=True)
+        dataframe = self.validate_data(
+            dataframe=dataframe,
+            table=table,
+        )
+
+        available_data = (
+            self.client.query(query=f"SELECT * FROM `{table}`").result().to_dataframe()
+        )
+
+        up_to_date_data = pd.concat([available_data, dataframe], ignore_index=True)
+        up_to_date_data.drop_duplicates(inplace=True, keep="first")
+
+        self.load_data(
+            dataframe=up_to_date_data, table=table, job_action=JobAction.OVERWRITE
+        )
 
     def update_sites_and_devices(
         self,
