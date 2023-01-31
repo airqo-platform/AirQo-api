@@ -25,6 +25,9 @@ const InquirySchema = new mongoose.Schema(
     },
     message: { type: String, required: [true, "message is required"] },
     category: { type: String, required: [true, "category is required"] },
+    network: {
+      type: String,
+    },
     status: {
       type: String,
       default: "pending",
@@ -155,6 +158,7 @@ InquirySchema.methods = {
       message: this.message,
       category: this.category,
       status: this.status,
+      network: this.network,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
     };

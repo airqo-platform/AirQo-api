@@ -14,6 +14,41 @@ router.get("/channels/fields/age", transformController.getLastFieldEntryAge);
 router.get("/channels/count", transformController.getDeviceCount);
 router.get(
   "/feeds/transform/recent",
+  oneOf([
+    [
+      query("channel")
+        .exists()
+        .withMessage(
+          "the channel query parameter must always be available in the request"
+        )
+        .notEmpty()
+        .withMessage(
+          "the channel query parameter cannot be empty in the request"
+        )
+        .bail()
+        .isNumeric()
+        .withMessage("the channel must be a number")
+        .trim(),
+      query("start")
+        .optional()
+        .notEmpty()
+        .withMessage("start date cannot be empty if provided")
+        .bail()
+        .trim()
+        .isISO8601({ strict: true, strictSeparator: true })
+        .withMessage("start date must be a valid datetime.")
+        .toDate(),
+      query("end")
+        .optional()
+        .notEmpty()
+        .withMessage("end date cannot be empty if provided")
+        .bail()
+        .trim()
+        .isISO8601({ strict: true, strictSeparator: true })
+        .withMessage("end date must be a valid datetime.")
+        .toDate(),
+    ],
+  ]),
   transformController.generateDescriptiveLastEntry
 );
 
