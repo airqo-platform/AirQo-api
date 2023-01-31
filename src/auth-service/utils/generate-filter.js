@@ -141,7 +141,7 @@ const filter = {
         filter["category"] = category;
       }
       if (id) {
-        filter["_id"] = id;
+        filter["_id"] = ObjectId(id);
       }
       return {
         success: true,
