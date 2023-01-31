@@ -57,10 +57,16 @@ const CandidateSchema = new mongoose.Schema(
 CandidateSchema.statics = {
   register(args) {
     try {
+      let newArgs = Object.assign({}, args);
+
+      if (isEmpty(newArgs.network_id)) {
+        newArgs.network_id = constants.DEFAULT_NETWORK;
+        logObject("newArgs.network_id", newArgs.network_id);
+      }
       return {
         success: true,
         data: this.create({
-          ...args,
+          ...newArgs,
         }),
         message: "candidate created",
         status: httpStatus.OK,
@@ -90,6 +96,7 @@ CandidateSchema.statics = {
         createdAt: 1,
         updatedAt: 1,
         existing_user: { $arrayElemAt: ["$user", 0] },
+        network: { $arrayElemAt: ["$network", 0] },
       };
 
       const data = await this.aggregate()
@@ -99,6 +106,12 @@ CandidateSchema.statics = {
           localField: "email",
           foreignField: "email",
           as: "user",
+        })
+        .lookup({
+          from: "networks",
+          localField: "network_id",
+          foreignField: "_id",
+          as: "network",
         })
         .sort({ createdAt: -1 })
         .project(project)

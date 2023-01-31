@@ -374,7 +374,7 @@ const createUser = {
           convertErrorArrayToObject(nestedErrors)
         );
       }
-      s;
+
       let { tenant } = req.query;
       if (isEmpty(tenant)) {
         tenant = constants.DEFAULT_TENANT;
