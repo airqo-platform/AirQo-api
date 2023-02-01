@@ -1,18 +1,18 @@
 const HTTPStatus = require("http-status");
 const iot = require("@google-cloud/iot");
 const client = new iot.v1.DeviceManagerClient();
-const { logObject, logElement, logText } = require("../utils/log");
-const createDeviceUtil = require("../utils/create-device");
-const distance = require("../utils/distance");
+const { logObject, logElement, logText } = require("@utils/log");
+const createDeviceUtil = require("@utils/create-device");
+const distance = require("@utils/distance");
 const { validationResult } = require("express-validator");
-const constants = require("../config/constants");
-const errors = require("../utils/errors");
+const constants = require("@config/constants");
+const errors = require("@utils/errors");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-device-controller`
 );
-// const bulkUpdateUtil = require("../scripts/bulk-update");
-// const bulkCreateUtil = require("../scripts/bulk-create");
+// const bulkUpdateUtil = require("@scripts/bulk-update");
+// const bulkCreateUtil = require("@scripts/bulk-create");
 const httpStatus = require("http-status");
 
 const device = {

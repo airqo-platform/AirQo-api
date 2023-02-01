@@ -1,17 +1,17 @@
 const HTTPStatus = require("http-status");
 const isEmpty = require("is-empty");
-const { logObject, logElement, logText } = require("../utils/log");
+const { logObject, logElement, logText } = require("@utils/log");
 const { validationResult } = require("express-validator");
-const { getModelByTenant } = require("../utils/multitenancy");
-const constants = require("../config/constants");
+const { getModelByTenant } = require("@utils/multitenancy");
+const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-activity-controller`
 );
-const createActivityUtil = require("../utils/create-activity");
-// const { runActivitiesUpdates } = require("../scripts/bulk-update");
-// const { runActivitiesAdditions } = require("../scripts/bulk-create");
-const errors = require("../utils/errors");
+const createActivityUtil = require("@utils/create-activity");
+// const { runActivitiesUpdates } = require("@scripts/bulk-update");
+// const { runActivitiesAdditions } = require("@scripts/bulk-create");
+const errors = require("@utils/errors");
 
 const activity = {
   deploy: async (req, res) => {

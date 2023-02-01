@@ -1,10 +1,10 @@
 const { Schema } = require("mongoose");
 const ObjectId = Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
-const { logElement, logObject, logText } = require("../utils/log");
+const { logElement, logObject, logText } = require("@utils/log");
 const isEmpty = require("is-empty");
 const HTTPStatus = require("http-status");
-const constants = require("../config/constants");
+const constants = require("@config/constants");
 const log4js = require("log4js");
 const { stringify } = require("qs");
 const logger = log4js.getLogger(
@@ -170,14 +170,14 @@ const airqloudSchema = new Schema(
   }
 );
 
-airqloudSchema.pre("save", function (next) {
+airqloudSchema.pre("save", function(next) {
   if (this.isModified("_id")) {
     delete this._id;
   }
   return next();
 });
 
-airqloudSchema.pre("update", function (next) {
+airqloudSchema.pre("update", function(next) {
   if (this.isModified("_id")) {
     delete this._id;
   }

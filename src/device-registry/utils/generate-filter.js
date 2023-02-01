@@ -9,7 +9,7 @@ const {
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const { logElement, logObject, logText } = require("./log");
-const constants = require("../config/constants");
+const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- generate-filter-util`

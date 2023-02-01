@@ -1,9 +1,9 @@
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
-const { logObject, logElement, logText } = require("../utils/log");
-const { monthsInfront } = require("../utils/date");
-const constants = require("../config/constants");
+const { logObject, logElement, logText } = require("@utils/log");
+const { monthsInfront } = require("@utils/date");
+const constants = require("@config/constants");
 const cryptoJS = require("crypto-js");
 const isEmpty = require("is-empty");
 const log4js = require("log4js");

@@ -1,9 +1,9 @@
 const HTTPStatus = require("http-status");
-const { logObject, logElement, logText } = require("../utils/log");
+const { logObject, logElement, logText } = require("@utils/log");
 const { validationResult } = require("express-validator");
-const errors = require("../utils/errors");
-const createLocationUtil = require("../utils/create-location");
-const constants = require("../config/constants");
+const errors = require("@utils/errors");
+const createLocationUtil = require("@utils/create-location");
+const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-location-controller`

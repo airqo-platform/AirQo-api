@@ -1,9 +1,9 @@
 const { Schema } = require("mongoose");
 const ObjectId = Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
-const { logElement, logObject, logText } = require("../utils/log");
+const { logElement, logObject, logText } = require("@utils/log");
 const isEmpty = require("is-empty");
-const constants = require("../config/constants");
+const constants = require("@config/constants");
 const HTTPStatus = require("http-status");
 
 const siteSchema = new Schema(
