@@ -23,5 +23,10 @@ OR
 ### Install the necessary dependencies
 ```pip install -r requirements.txt```
 
+### Running the model
+```python main.py --tenant=airqo```
 
+## Running the model with Docker
+### Build the image
+```docker build -t gp-model .```
 
