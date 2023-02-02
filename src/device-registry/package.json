@@ -64,6 +64,7 @@
         "kafka-node": "^5.0.0",
         "kafkajs": "^1.16.0",
         "log4js": "^6.3.0",
+        "module-alias": "^2.2.2",
         "moesif-nodejs": "^3.2.2",
         "mongoose": "^5.13.5",
         "mongoose-unique-validator": "^2.0.3",

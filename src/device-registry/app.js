@@ -1,3 +1,4 @@
+require("module-alias/register");
 const log4js = require("log4js");
 const express = require("express");
 const path = require("path");
