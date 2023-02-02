@@ -121,52 +121,6 @@ spec:
           averageUtilization: 80
 
 ---
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: stage-airflow-sa
-  namespace: pipeline
-
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: stage-airflow-cluster-role
-rules:
-  - apiGroups: [""]
-    resources: ["services"]
-    verbs: ["get", "list", "watch", "create", "update", "delete", "patch"]
-  - apiGroups: [""]
-    resources: ["pods", "pods/exec", "pods/log"]
-    verbs: ["*"]
-  - apiGroups: ["extensions"]
-    resources: ["ingresses"]
-    verbs: ["get", "watch", "list"]
-  - apiGroups: [""]
-    resources: ["nodes"]
-    verbs: ["get", "list", "watch"]
-
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: stage-airflow-cluster-role-binding
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: stage-airflow-cluster-role
-subjects:
-  - kind: ServiceAccount
-    name: stage-airflow-sa
-    namespace: pipeline
-
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: pipeline-workers
-
----
 kind: Service
 apiVersion: v1
 metadata:
@@ -182,16 +136,49 @@ spec:
   selector:
     app: airflow
 
----
-kind: Service
-apiVersion: v1
-metadata:
-  name: airflow-svc
-  namespace: staging
-spec:
-  type: ExternalName
-  externalName: airflow-svc.pipeline.svc.cluster.local
-  ports:
-    - port: 8080
-      targetPort: 8080
-      protocol: TCP
+
+# ---
+# apiVersion: v1
+# kind: ServiceAccount
+# metadata:
+#   name: stage-airflow-sa
+#   namespace: pipeline
+
+# ---
+# apiVersion: rbac.authorization.k8s.io/v1
+# kind: ClusterRole
+# metadata:
+#   name: stage-airflow-cluster-role
+# rules:
+#   - apiGroups: [""]
+#     resources: ["services"]
+#     verbs: ["get", "list", "watch", "create", "update", "delete", "patch"]
+#   - apiGroups: [""]
+#     resources: ["pods", "pods/exec", "pods/log"]
+#     verbs: ["*"]
+#   - apiGroups: ["extensions"]
+#     resources: ["ingresses"]
+#     verbs: ["get", "watch", "list"]
+#   - apiGroups: [""]
+#     resources: ["nodes"]
+#     verbs: ["get", "list", "watch"]
+
+# ---
+# apiVersion: rbac.authorization.k8s.io/v1
+# kind: ClusterRoleBinding
+# metadata:
+#   name: stage-airflow-cluster-role-binding
+# roleRef:
+#   apiGroup: rbac.authorization.k8s.io
+#   kind: ClusterRole
+#   name: stage-airflow-cluster-role
+# subjects:
+#   - kind: ServiceAccount
+#     name: stage-airflow-sa
+#     namespace: pipeline
+
+# ---
+# apiVersion: v1
+# kind: Namespace
+# metadata:
+#   name: pipeline-workers

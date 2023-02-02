@@ -6,6 +6,7 @@ const mailer = require("./mailer");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 constants = require("../config/constants");
+const accessCodeGenerator = require("generate-password");
 
 const UserModel = (tenant) => {
   return getModelByTenant(tenant, "user", UserSchema);
