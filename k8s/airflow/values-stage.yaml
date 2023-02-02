@@ -2,11 +2,14 @@ app:
   name: airflow
   label: airflow
   namespace: pipeline
-  configmap: stage-auth-api-config
+  configmap: airflow-config
 
 replicaCount: 2
-image:
-  repository: gcr.io/airqo-250220/airqo-stage-auth-api
+serviceAccountName: stage-airflow-sa
+images:
+  repositories:
+    initContainer: eu.gcr.io/airqo-250220/airqo-stage-apache-airflow-xcom
+    containers: eu.gcr.io/airqo-250220/airqo-stage-apache-airflow
   tag: latest
 
 nameOverride: ""
@@ -16,21 +19,25 @@ podAnnotations: {}
 
 resources:
   limits:
-    cpu: 100m
-    memory: 250Mi
+    cpu: 1500m
+    memory: 4500Mi
   requests:
-    # Average usage was 0.002 vCPU and 190Mi over the last 30 days
-    cpu: 10m
-    memory: 180Mi
+    # Average usage was 0.002 vCPU and 250Mi over the last 30 days
+    cpu: 150m
+    memory: 1400Mi
 
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config
+  - name: xcom-config-volume
+    mountPath: /etc/airflow_xcom
 
 volumes:
   - name: config-volume
     configMap:
-      name: stage-auth-api-config-files
+      name: airflow-config-files
+  - name: xcom-config-volume
+    emptyDir: {}
 
 ingress:
   enabled: false

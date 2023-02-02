@@ -2,11 +2,14 @@ app:
   name: airflow
   label: airflow
   namespace: pipeline
-  configmap: prod-auth-api-config
+  configmap: airflow-config
 
-replicaCount: 3
-image:
-  repository: gcr.io/airqo-250220/airqo-auth-api
+replicaCount: 2
+serviceAccountName: airflow-sa
+images:
+  repositories:
+    initContainer: eu.gcr.io/airqo-250220/airqo-apache-airflow-xcom
+    containers: eu.gcr.io/airqo-250220/airqo-apache-airflow
   tag: latest
 
 nameOverride: ""
@@ -16,21 +19,25 @@ podAnnotations: {}
 
 resources:
   limits:
-    cpu: 100m
-    memory: 350Mi
+    cpu: 1500m
+    memory: 4500Mi
   requests:
     # Average usage was 0.002 vCPU and 250Mi over the last 30 days
-    cpu: 10m
-    memory: 250Mi
+    cpu: 500m
+    memory: 3000Mi
 
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config
+  - name: xcom-config-volume
+    mountPath: /etc/airflow_xcom
 
 volumes:
   - name: config-volume
     configMap:
-      name: prod-auth-api-config-files
+      name: airflow-config-files
+  - name: xcom-config-volume
+    emptyDir: {}
 
 ingress:
   enabled: false
