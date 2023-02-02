@@ -159,6 +159,7 @@ const deviceSchema = new mongoose.Schema(
       type: Number,
       trim: true,
       unique: true,
+      required: false,
     },
     category: {
       type: String,
@@ -258,7 +259,6 @@ deviceSchema.statics = {
   async register(args) {
     try {
       let modifiedArgs = Object.assign({}, args);
-      logObject("modifiedArgs", modifiedArgs);
 
       if (isEmpty(modifiedArgs.network)) {
         modifiedArgs.network = constants.DEFAULT_NETWORK;
@@ -309,6 +309,8 @@ deviceSchema.statics = {
           };
         }
       }
+
+      logObject("modifiedArgs", modifiedArgs);
 
       let createdDevice = await this.create({
         ...modifiedArgs,
