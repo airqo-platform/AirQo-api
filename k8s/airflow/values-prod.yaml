@@ -1,6 +1,6 @@
 app:
-  name: airqo-auth-api
-  label: auth-api
+  name: airflow
+  label: airflow
   namespace: pipeline
   configmap: prod-auth-api-config
 
@@ -45,5 +45,5 @@ service:
 autoscaling:
   minReplicas: 1
   maxReplicas: 3
-  # targetCPUUtilizationPercentage: 70
-  targetMemoryUtilizationPercentage: 70
+  targetCPUUtilizationPercentage: 70
+  # targetMemoryUtilizationPercentage: 70
