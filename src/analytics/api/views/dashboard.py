@@ -126,6 +126,12 @@ class DownloadDataResource(Resource):
             pollutants=pollutants,
         )
 
+        if data_frame.empty:
+            return (
+                create_response("No data found", data=[]),
+                Status.HTTP_404_NOT_FOUND,
+            )
+
         records = data_frame.to_dict("records")
 
         if output_format == "aqcsv":
