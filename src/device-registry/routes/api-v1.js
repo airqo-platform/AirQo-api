@@ -429,20 +429,41 @@ router.get(
 router.post(
   "/",
   oneOf([
+    query("tenant")
+      .optional()
+      .notEmpty()
+      .withMessage("the tenant should not be empty if provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(constants.NETWORKS)
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    body("name")
+      .exists()
+      .withMessage(
+        "device identification details are missing in the request, consider using the name"
+      )
+      .bail()
+      .notEmpty()
+      .withMessage("the name should not be empty if provided"),
+    body("long_name")
+      .exists()
+      .withMessage(
+        "device identification details are missing in the request, consider using the long_name"
+      )
+      .bail()
+      .notEmpty()
+      .withMessage("the long_name should not be empty if provided"),
+  ]),
+  oneOf([
     [
-      query("tenant")
-        .exists()
-        .withMessage("tenant should be provided")
-        .bail()
-        .trim()
-        .toLowerCase()
-        .isIn(constants.NETWORKS)
-        .withMessage("the tenant value is not among the expected ones"),
       body("network")
-        .exists()
-        .withMessage("network should be provided")
-        .bail()
+        .optional()
         .trim()
+        .notEmpty()
+        .withMessage("the network should not be empty if provided")
         .toLowerCase()
         .isIn(constants.NETWORKS)
         .withMessage("the network value is not among the expected ones"),
@@ -454,18 +475,6 @@ router.post(
         .trim()
         .isInt()
         .withMessage("the device_number should be an integer value"),
-      body("name")
-        .exists()
-        .withMessage("the name should be provided")
-        .bail()
-        .notEmpty()
-        .withMessage("the name should not be empty")
-        .trim(),
-      body("long_name")
-        .optional()
-        .notEmpty()
-        .withMessage("the long_name should not be empty if provided")
-        .trim(),
       body("generation_version")
         .optional()
         .notEmpty()
@@ -594,18 +603,24 @@ router.post(
       body("isRetired")
         .optional()
         .notEmpty()
+        .withMessage("the isRetired should not be empty if provided")
+        .bail()
         .trim()
         .isBoolean()
         .withMessage("isRetired must be Boolean"),
       body("mobility")
         .optional()
         .notEmpty()
+        .withMessage("the mobility should not be empty if provided")
+        .bail()
         .trim()
         .isBoolean()
         .withMessage("mobility must be Boolean"),
       body("nextMaintenance")
         .optional()
         .notEmpty()
+        .withMessage("the nextMaintenance should not be empty if provided")
+        .bail()
         .trim()
         .toDate()
         .isISO8601({ strict: true, strictSeparator: true })
@@ -613,18 +628,24 @@ router.post(
       body("isPrimaryInLocation")
         .optional()
         .notEmpty()
+        .withMessage("the isPrimaryInLocation should not be empty if provided")
+        .bail()
         .trim()
         .isBoolean()
         .withMessage("isPrimaryInLocation must be Boolean"),
       body("isUsedForCollocation")
         .optional()
         .notEmpty()
+        .withMessage("the isUsedForCollocation should not be empty if provided")
+        .bail()
         .trim()
         .isBoolean()
         .withMessage("isUsedForCollocation must be Boolean"),
       body("owner")
         .optional()
         .notEmpty()
+        .withMessage("the owner should not be empty if provided")
+        .bail()
         .trim()
         .isMongoId()
         .withMessage("the owner must be an object ID")
@@ -635,6 +656,8 @@ router.post(
       body("host_id")
         .optional()
         .notEmpty()
+        .withMessage("the host_id should not be empty if provided")
+        .bail()
         .trim()
         .isMongoId()
         .withMessage("the host_id must be an object ID")
@@ -645,6 +668,8 @@ router.post(
       body("phoneNumber")
         .optional()
         .notEmpty()
+        .withMessage("the phoneNumber should not be empty if provided")
+        .bail()
         .trim()
         .custom((value) => {
           let parsedPhoneNumber = phoneUtil.parse(value);
@@ -656,6 +681,8 @@ router.post(
       body("height")
         .optional()
         .notEmpty()
+        .withMessage("the height should not be empty if provided")
+        .bail()
         .trim()
         .isFloat({ gt: 0, lt: 100 })
         .withMessage("height must be a number between 0 and 100")
@@ -664,6 +691,8 @@ router.post(
       body("elevation")
         .optional()
         .notEmpty()
+        .withMessage("the elevation should not be empty if provided")
+        .bail()
         .trim()
         .isFloat()
         .withMessage("elevation must be a float")
@@ -672,10 +701,14 @@ router.post(
       body("writeKey")
         .optional()
         .notEmpty()
+        .withMessage("the writeKey should not be empty if provided")
+        .bail()
         .trim(),
       body("readKey")
         .optional()
         .notEmpty()
+        .withMessage("the readKey should not be empty if provided")
+        .bail()
         .trim(),
     ],
   ]),
@@ -1010,18 +1043,40 @@ router.get(
 router.post(
   "/soft",
   oneOf([
+    query("tenant")
+      .optional()
+      .notEmpty()
+      .withMessage("the tenant should not be empty if provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(constants.NETWORKS)
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    body("name")
+      .exists()
+      .withMessage(
+        "device identification details are missing in the request, consider using the name"
+      )
+      .bail()
+      .notEmpty()
+      .withMessage("the name should not be empty if provided"),
+    body("long_name")
+      .exists()
+      .withMessage(
+        "device identification details are missing in the request, consider using the long_name"
+      )
+      .bail()
+      .notEmpty()
+      .withMessage("the long_name should not be empty if provided"),
+  ]),
+  oneOf([
     [
-      query("tenant")
-        .exists()
-        .withMessage("tenant should be provided")
-        .bail()
-        .trim()
-        .toLowerCase()
-        .isIn(constants.NETWORKS)
-        .withMessage("the tenant value is not among the expected ones"),
       body("network")
-        .exists()
-        .withMessage("network should be provided")
+        .optional()
+        .notEmpty()
+        .withMessage("network should not be empty if provided")
         .bail()
         .trim()
         .toLowerCase()
@@ -1043,19 +1098,6 @@ router.post(
         .trim()
         .isInt()
         .withMessage("the device_number should be an integer value"),
-      body("long_name")
-        .optional()
-        .notEmpty()
-        .withMessage("the long_name should not be empty if provided")
-        .bail()
-        .trim(),
-      body("name")
-        .exists()
-        .withMessage("the name should be provided")
-        .bail()
-        .notEmpty()
-        .withMessage("the name should not be empty")
-        .trim(),
       body("generation_version")
         .optional()
         .notEmpty()
