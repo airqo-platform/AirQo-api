@@ -302,6 +302,10 @@ const authJWT = passport.authenticate("jwt", {
   session: false,
 });
 
+/**
+ * we are going to utilise strategies for social media logins
+ */
+
 module.exports = {
   setLocalAuth,
   setJWTAuth,
