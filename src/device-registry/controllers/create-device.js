@@ -14,6 +14,7 @@ const logger = log4js.getLogger(
 // const bulkUpdateUtil = require("@scripts/bulk-update");
 // const bulkCreateUtil = require("@scripts/bulk-create");
 const httpStatus = require("http-status");
+const isEmpty = require("is-empty");
 
 const device = {
   bulkCreate: async (req, res) => {
@@ -281,6 +282,8 @@ const device = {
   create: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
+      const { query, body } = req;
+      let { tenant } = query;
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         try {
@@ -299,7 +302,14 @@ const device = {
         );
       }
 
-      let responseFromCreateDevice = await createDeviceUtil.create(req);
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
+
+      let responseFromCreateDevice = await createDeviceUtil.create(request);
       logger.info(
         `responseFromCreateDevice -- ${JSON.stringify(
           responseFromCreateDevice
@@ -315,9 +325,6 @@ const device = {
           created_device: responseFromCreateDevice.data,
         });
       } else if (responseFromCreateDevice.success === false) {
-        let errors = responseFromCreateDevice.errors
-          ? responseFromCreateDevice.errors
-          : "";
         let status = responseFromCreateDevice.status
           ? responseFromCreateDevice.status
           : HTTPStatus.BAD_GATEWAY;
@@ -325,7 +332,9 @@ const device = {
         return res.status(status).json({
           success: false,
           message: responseFromCreateDevice.message,
-          errors,
+          errors: responseFromCreateDevice.errors
+            ? responseFromCreateDevice.errors
+            : "",
         });
       }
     } catch (e) {
@@ -895,6 +904,8 @@ const device = {
 
   createOnPlatform: async (req, res) => {
     try {
+      const { query, body } = req;
+      let { tenant } = query;
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -913,8 +924,10 @@ const device = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { tenant } = req.query;
-      const { body } = req;
+
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
 
       let requestBody = {};
       requestBody["query"] = {};
