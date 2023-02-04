@@ -5,7 +5,7 @@ app:
 schedule: 0 5 * * 1
 image:
   repository: gcr.io/airqo-250220/airqo-train-job
-  tag: prod-4bcf8ba0-1670941557
+  tag: prod-4b9485a3-1675498270
 nameOverride: ''
 fullnameOverride: ''
 resources:
