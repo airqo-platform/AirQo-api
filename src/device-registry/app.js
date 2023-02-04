@@ -12,6 +12,7 @@ const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- app entry`);
 const { mongodb } = require("@config/database");
 const createEvent = require("@utils/create-event");
 const isEmpty = require("is-empty");
+const routes = require("@routes");
 
 mongodb;
 
