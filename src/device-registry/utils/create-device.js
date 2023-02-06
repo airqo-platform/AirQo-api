@@ -309,78 +309,44 @@ const createDevice = {
   update: async (request) => {
     try {
       logger.info(`in the update util....`);
-      const { device_number } = request.query;
-      let modifiedRequest = request;
+      let { device_number } = request.query;
+      let modifiedRequest = Object.assign({}, request);
       if (isEmpty(device_number)) {
-        logger.info(`the device_number is not present`);
+        logger.info(`the device_number is not present in the update request`);
         let responseFromListDevice = await createDevice.list(request);
         logger.info(`responseFromListDevice -- ${responseFromListDevice}`);
         if (responseFromListDevice.success === false) {
-          let errors = responseFromListDevice.errors
-            ? responseFromListDevice.errors
-            : "";
           return {
             success: false,
             message: responseFromListDevice.message,
-            errors,
+            errors: responseFromListDevice.errors
+              ? responseFromListDevice.errors
+              : { message: "" },
           };
         }
-        let device_number = responseFromListDevice.data[0].device_number;
+        device_number = responseFromListDevice.data[0].device_number;
         logger.info(`device_number -- ${device_number}`);
         modifiedRequest["query"]["device_number"] = device_number;
       }
       logger.info(`the modifiedRequest -- ${modifiedRequest} `);
 
-      let responseFromUpdateDeviceOnThingspeak = await createDevice.updateOnThingspeak(
-        modifiedRequest
-      );
-      logger.info(
-        `responseFromUpdateDeviceOnThingspeak -- ${responseFromUpdateDeviceOnThingspeak}`
-      );
-      if (responseFromUpdateDeviceOnThingspeak.success === true) {
-        let responseFromUpdateDeviceOnPlatform = await createDevice.updateOnPlatform(
+      if (isEmpty(device_number)) {
+        const responseFromUpdateDeviceOnPlatform = await createDevice.updateOnPlatform(
           request
         );
-        logger.info(
-          `responseFromUpdateDeviceOnPlatform -- ${responseFromUpdateDeviceOnPlatform}`
+        return responseFromUpdateDeviceOnPlatform;
+      } else if (!isEmpty(device_number)) {
+        const responseFromUpdateDeviceOnThingspeak = await createDevice.updateOnThingspeak(
+          modifiedRequest
         );
-        if (responseFromUpdateDeviceOnPlatform.success === true) {
-          let status = responseFromUpdateDeviceOnPlatform.status
-            ? responseFromUpdateDeviceOnPlatform.status
-            : "";
-          return {
-            success: true,
-            message: responseFromUpdateDeviceOnPlatform.message,
-            data: responseFromUpdateDeviceOnPlatform.data,
-            status,
-          };
-        } else if (responseFromUpdateDeviceOnPlatform.success === false) {
-          let errors = responseFromUpdateDeviceOnPlatform.errors
-            ? responseFromUpdateDeviceOnPlatform.errors
-            : "";
-          let status = responseFromUpdateDeviceOnPlatform.status
-            ? responseFromUpdateDeviceOnPlatform.status
-            : "";
-          return {
-            success: false,
-            message: responseFromUpdateDeviceOnPlatform.message,
-            errors,
-            status,
-          };
+        if (responseFromUpdateDeviceOnThingspeak.success === true) {
+          const responseFromUpdateDeviceOnPlatform = await createDevice.updateOnPlatform(
+            request
+          );
+          return responseFromUpdateDeviceOnPlatform;
+        } else if (responseFromUpdateDeviceOnThingspeak.success === false) {
+          return responseFromUpdateDeviceOnThingspeak;
         }
-      } else if (responseFromUpdateDeviceOnThingspeak.success === false) {
-        let errors = responseFromUpdateDeviceOnThingspeak.errors
-          ? responseFromUpdateDeviceOnThingspeak.errors
-          : "";
-        let status = responseFromUpdateDeviceOnThingspeak.status
-          ? responseFromUpdateDeviceOnThingspeak.status
-          : "";
-        return {
-          success: false,
-          message: responseFromUpdateDeviceOnThingspeak.message,
-          errors,
-          status,
-        };
       }
     } catch (e) {
       logger.error(`internal server error -- ${e.message}`);
