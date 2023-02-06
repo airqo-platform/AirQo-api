@@ -95,6 +95,7 @@ app.use(express.static(path.join(__dirname, "public")));
 /****** the V1 endpoints ****************/
 app.use("/api/v1/devices/activities", routes.v1.activities);
 app.use("/api/v1/devices/airqlouds", routes.v1.airqlouds);
+app.use("/api/v1/devices/sites", routes.v1.sites);
 app.use("/api/v1/devices/events", routes.v1.events);
 app.use("/api/v1/devices/locations", routes.v1.locations);
 app.use("/api/v1/devices/photos", routes.v1.photos);
@@ -104,6 +105,7 @@ app.use("/api/v1/devices", routes.v1.devices);
 /****** the V2 endpoints ****************/
 app.use("/api/v2/devices/activities", routes.v2.activities);
 app.use("/api/v2/devices/airqlouds", routes.v2.airqlouds);
+app.use("/api/v2/devices/sites", routes.v2.sites);
 app.use("/api/v2/devices/events", routes.v2.events);
 app.use("/api/v2/devices/locations", routes.v2.locations);
 app.use("/api/v2/devices/photos", routes.v2.photos);
