@@ -1,11 +1,11 @@
 "use strict";
 const HTTPStatus = require("http-status");
-const DeviceSchema = require("../models/Device");
+const DeviceSchema = require("@models/Device");
 const { getModelByTenant } = require("./multitenancy");
 const axios = require("axios");
 const { logObject, logElement, logText } = require("./log");
 const { transform } = require("node-json-transform");
-const constants = require("../config/constants");
+const constants = require("@config/constants");
 const cryptoJS = require("crypto-js");
 const generateFilter = require("./generate-filter");
 const errors = require("./errors");
@@ -749,12 +749,15 @@ const createDevice = {
       const baseURL = constants.CREATE_THING_URL;
       const { body } = request;
       const { category } = body;
-      const data = body;
+      let data = body;
+      if (isEmpty(data.long_name) && !isEmpty(data.name)) {
+        data.long_name = data.name;
+      }
       const map = constants.DEVICE_THINGSPEAK_MAPPINGS;
       let context = {};
       if (category === "bam") {
         context = constants.BAM_THINGSPEAK_FIELD_DESCRIPTIONS;
-      } else if (category === "lowcost") {
+      } else {
         context = constants.THINGSPEAK_FIELD_DESCRIPTIONS;
       }
 
@@ -777,35 +780,54 @@ const createDevice = {
           message: responseFromTransformRequestBody.message,
         };
       }
-      const response = await axios.post(baseURL, transformedBody);
+      return await axios
+        .post(baseURL, transformedBody)
+        .then((response) => {
+          let writeKey = response.data.api_keys[0].write_flag
+            ? response.data.api_keys[0].api_key
+            : "";
+          let readKey = !response.data.api_keys[1].write_flag
+            ? response.data.api_keys[1].api_key
+            : "";
 
-      if (isEmpty(response)) {
-        return {
-          success: false,
-          message: "unable to create the device on thingspeak",
-        };
-      }
+          let newChannel = {
+            device_number: `${response.data.id}`,
+            writeKey: writeKey,
+            readKey: readKey,
+          };
 
-      let writeKey = response.data.api_keys[0].write_flag
-        ? response.data.api_keys[0].api_key
-        : "";
-      let readKey = !response.data.api_keys[1].write_flag
-        ? response.data.api_keys[1].api_key
-        : "";
-
-      let newChannel = {
-        device_number: `${response.data.id}`,
-        writeKey: writeKey,
-        readKey: readKey,
-      };
-
-      return {
-        success: true,
-        message: "successfully created the device on thingspeak",
-        data: newChannel,
-      };
+          return {
+            success: true,
+            message: "successfully created the device on thingspeak",
+            data: newChannel,
+          };
+        })
+        .catch((error) => {
+          if (error.response) {
+            return {
+              success: false,
+              status: error.response.status
+                ? error.response.status
+                : parseInt(error.response.data.status),
+              errors: {
+                message: error.response.statusText
+                  ? error.response.statusText
+                  : error.response.data.error,
+              },
+            };
+          } else {
+            return {
+              success: false,
+              message: "Bad Gateway Error",
+              status: HTTPStatus.BAD_GATEWAY,
+              errors: {
+                message:
+                  "unable to create the device on thingspeak, crosscheck why",
+              },
+            };
+          }
+        });
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",

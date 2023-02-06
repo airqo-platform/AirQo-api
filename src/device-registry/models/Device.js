@@ -1,9 +1,9 @@
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
-const { logObject, logElement, logText } = require("../utils/log");
-const { monthsInfront } = require("../utils/date");
-const constants = require("../config/constants");
+const { logObject, logElement, logText } = require("@utils/log");
+const { monthsInfront } = require("@utils/date");
+const constants = require("@config/constants");
 const cryptoJS = require("crypto-js");
 const isEmpty = require("is-empty");
 const log4js = require("log4js");
@@ -46,6 +46,7 @@ const deviceSchema = new mongoose.Schema(
     network: {
       type: String,
       trim: true,
+      required: [true, "the network is required!"],
     },
     access_code: {
       type: String,
@@ -158,6 +159,7 @@ const deviceSchema = new mongoose.Schema(
       type: Number,
       trim: true,
       unique: true,
+      required: false,
     },
     category: {
       type: String,
@@ -256,17 +258,20 @@ deviceSchema.methods = {
 deviceSchema.statics = {
   async register(args) {
     try {
-      logObject("the args", args);
-      logger.info("in the register static fn of the Device model...");
-      let modifiedArgs = args;
+      let modifiedArgs = Object.assign({}, args);
+
+      if (isEmpty(modifiedArgs.network)) {
+        modifiedArgs.network = constants.DEFAULT_NETWORK;
+      }
 
       if (
-        isEmpty(modifiedArgs.name) &&
-        !isEmpty(args.generation_version) &&
-        !isEmpty(args.generation_count)
+        !isEmpty(modifiedArgs.generation_version) &&
+        !isEmpty(modifiedArgs.generation_count)
       ) {
-        modifiedArgs.name = `aq_g${args.generation_version}_${args.generation_count}`;
-      } else {
+        modifiedArgs.name = `aq_g${modifiedArgs.generation_version}_${modifiedArgs.generation_count}`;
+      }
+
+      if (!isEmpty(modifiedArgs.name)) {
         try {
           let nameWithoutWhiteSpaces = modifiedArgs.name.replace(/\s/g, "");
           let shortenedName = nameWithoutWhiteSpaces.substring(0, 15);
@@ -275,8 +280,37 @@ deviceSchema.statics = {
           logger.error(
             `internal server error -- sanitiseName-- ${error.message}`
           );
+          return {
+            success: false,
+            errors: { message: error.message },
+            message: "Internal Server Error",
+            status: HTTPStatus.INTERNAL_SERVER_ERROR,
+          };
         }
       }
+
+      if (!isEmpty(modifiedArgs.long_name && isEmpty(modifiedArgs.name))) {
+        try {
+          let nameWithoutWhiteSpaces = modifiedArgs.long_name.replace(
+            /\s/g,
+            ""
+          );
+          let shortenedName = nameWithoutWhiteSpaces.substring(0, 15);
+          modifiedArgs.name = shortenedName.trim().toLowerCase();
+        } catch (error) {
+          logger.error(
+            `internal server error -- sanitiseName-- ${error.message}`
+          );
+          return {
+            success: false,
+            errors: { message: error.message },
+            message: "Internal Server Error",
+            status: HTTPStatus.INTERNAL_SERVER_ERROR,
+          };
+        }
+      }
+
+      logObject("modifiedArgs", modifiedArgs);
 
       let createdDevice = await this.create({
         ...modifiedArgs,

@@ -1,5 +1,5 @@
-const AirQloudSchema = require("../models/Airqloud");
-const SiteSchema = require("../models/Site");
+const AirQloudSchema = require("@models/Airqloud");
+const SiteSchema = require("@models/Site");
 const { logObject, logElement, logText } = require("./log");
 const { getModelByTenant } = require("./multitenancy");
 const isEmpty = require("is-empty");
@@ -8,7 +8,7 @@ const HTTPStatus = require("http-status");
 const axiosInstance = () => {
   return axios.create();
 };
-const constants = require("../config/constants");
+const constants = require("@config/constants");
 const generateFilter = require("./generate-filter");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
@@ -605,29 +605,24 @@ const createAirqloud = {
       });
 
       if (responseFromListAirQloud.success === false) {
-        let errors = responseFromListAirQloud.errors
-          ? responseFromListAirQloud.errors
-          : "";
-
-        let status = responseFromListAirQloud.status
-          ? responseFromListAirQloud.status
-          : "";
         return {
           success: false,
           message: responseFromListAirQloud.message,
-          errors,
-          status,
+          errors: responseFromListAirQloud.errors
+            ? responseFromListAirQloud.errors
+            : "",
+          status: responseFromListAirQloud.status
+            ? responseFromListAirQloud.status
+            : "",
         };
       } else if (responseFromListAirQloud.success === true) {
-        let status = responseFromListAirQloud.status
-          ? responseFromListAirQloud.status
-          : "";
-        let data = responseFromListAirQloud.data;
         return {
           success: true,
           message: responseFromListAirQloud.message,
-          data,
-          status,
+          data: responseFromListAirQloud.data,
+          status: responseFromListAirQloud.status
+            ? responseFromListAirQloud.status
+            : "",
         };
       }
     } catch (err) {

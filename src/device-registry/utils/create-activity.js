@@ -1,4 +1,4 @@
-const ActivitySchema = require("../models/SiteActivity");
+const ActivitySchema = require("@models/SiteActivity");
 const { logObject, logElement, logText } = require("./log");
 const { getModelByTenant } = require("./multitenancy");
 const ActivityModel = (tenant) => {
@@ -9,7 +9,7 @@ const createSiteUtil = require("./create-site");
 const httpStatus = require("http-status");
 const { addMonthsToProvideDateTime } = require("./date");
 const generateFilter = require("./generate-filter");
-const constants = require("../config/constants");
+const constants = require("@config/constants");
 const distance = require("./distance");
 const log4js = require("log4js");
 const logger = log4js.getLogger(

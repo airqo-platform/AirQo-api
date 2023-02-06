@@ -1,4 +1,4 @@
-const LocationSchema = require("../models/Location");
+const LocationSchema = require("@models/Location");
 const { logObject, logElement, logText } = require("./log");
 const { getModelByTenant } = require("./multitenancy");
 const isEmpty = require("is-empty");
@@ -7,7 +7,7 @@ const HTTPStatus = require("http-status");
 const axiosInstance = () => {
   return axios.create();
 };
-const constants = require("../config/constants");
+const constants = require("@config/constants");
 const generateFilter = require("./generate-filter");
 const log4js = require("log4js");
 const logger = log4js.getLogger(

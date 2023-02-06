@@ -534,12 +534,6 @@ jobs:
           username: _json_key
           password: ${{ secrets.GCR_CONFIG }}
 
-      - name: Login to K8S
-        uses: azure/k8s-set-context@v2
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
-
       - name: Build and push app
         uses: docker/build-push-action@v3
         with:
@@ -556,6 +550,17 @@ jobs:
           target: xcom-setup
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-apache-airflow-xcom:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-apache-airflow-xcom:latest
 
+      - name: Update corresponding helm values file(with retry)
+        uses: Wandalen/wretry.action@master # Retries action on fail
+        with:
+          action: fjogeleit/yaml-update-action@main # Action to retry
+          with: |
+            valueFile: "k8s/airflow/values-prod.yaml"
+            propertyPath: "images.tag"
+            value: ${{ needs.image-tag.outputs.build_id }}
+            branch: ${{ env.DEPLOY_BRANCH }}
+            message: "Update airflow prod image tag to ${{ needs.image-tag.outputs.build_id }}"
+
       - name: Login to GCP
         uses: google-github-actions/auth@v0
         with:
@@ -564,16 +569,17 @@ jobs:
       - name: Setup Cloud SDK
         uses: google-github-actions/setup-gcloud@v0
 
+      - name: Login to K8S
+        uses: azure/k8s-set-context@v2
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
+
       - name: Update the corresponding k8s configmap(s)
         run: |
           cd src/airflow/
           gcloud secrets versions access latest --secret="prod-env-airflow" > .env
           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env airflow-config | kubectl replace -f - -n pipeline
-
-      - name: Deploy to K8S
-        run: |
-          kubectl apply -f k8s/airflow/airflow-app.yaml
-          kubectl rollout restart deployment airflow  -n pipeline
 
   #### Device Registry ######
   device-registry:
@@ -832,10 +838,10 @@ jobs:
       - name: Build and Push Job's Docker Image
         run: |
           cd src/analytics/jobs/reports
-          docker build --target=production --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-analytics-report-job:${{ needs.image-tag.outputs.build_id }} .
-          docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-analytics-report-job:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-analytics-report-job:latest
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-analytics-report-job:${{ needs.image-tag.outputs.build_id }}
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-analytics-report-job:latest
+          docker build --target=production --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-report-job:${{ needs.image-tag.outputs.build_id }} .
+          docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-report-job:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-report-job:latest
+          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-report-job:${{ needs.image-tag.outputs.build_id }}
+          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-report-job:latest
 
       - name: Update corresponding helm values file
         uses: fjogeleit/yaml-update-action@main

@@ -13,6 +13,7 @@ images:
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
+
 resources:
   limits:
     cpu: 1500m
@@ -20,6 +21,7 @@ resources:
   requests:
     cpu: 150m
     memory: 1400Mi
+
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config
@@ -33,6 +35,7 @@ volumes:
     emptyDir: {}
 ingress:
   enabled: false
+
 service:
   type: NodePort
   port: 8080

@@ -1,6 +1,6 @@
 const { Schema, model } = require("mongoose");
 const ObjectId = Schema.Types.ObjectId;
-const { logObject, logElement, logText } = require("../utils/log");
+const { logObject, logElement, logText } = require("@utils/log");
 const HTTPStatus = require("http-status");
 const isEmpty = require("is-empty");
 

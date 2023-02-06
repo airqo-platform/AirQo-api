@@ -3,7 +3,7 @@ const ObjectId = mongoose.Types.ObjectId;
 var uniqueValidator = require("mongoose-unique-validator");
 const { logElement, logText, logObject } = require("../utils/log");
 const isEmpty = require("is-empty");
-const HTTPStatus = require("http-status");
+const httpStatus = require("http-status");
 
 const minValue = 0;
 const getPeriod = ({ maxValue }) => ({
@@ -187,27 +187,27 @@ SettingsSchema.statics = {
           success: true,
           data,
           message: "default created",
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       } else {
         return {
           success: false,
           message: "default not created despite successful operation",
-          status: HTTPStatus.CREATED,
+          status: httpStatus.CREATED,
         };
       }
     } catch (err) {
       let response = {};
       let errors = {};
       let message = "Internal Server Error";
-      let status = HTTPStatus.INTERNAL_SERVER_ERROR;
+      let status = httpStatus.INTERNAL_SERVER_ERROR;
       if (err.code === 11000 || err.code === 11001) {
         errors = err.keyValue;
         message = "duplicate values provided";
-        status = HTTPStatus.CONFLICT;
+        status = httpStatus.CONFLICT;
       } else {
         message = "validation errors for some of the provided fields";
-        status = HTTPStatus.CONFLICT;
+        status = httpStatus.CONFLICT;
         errors = err.errors;
         Object.entries(err.errors).forEach(([key, value]) => {
           return (response[key] = value.message);
@@ -272,13 +272,13 @@ SettingsSchema.statics = {
           success: true,
           message: "successfully modified or created the default",
           data,
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       } else {
         return {
           success: false,
           message: "defaults do not exist, please crosscheck",
-          status: HTTPStatus.NOT_FOUND,
+          status: httpStatus.NOT_FOUND,
         };
       }
     } catch (err) {
@@ -288,7 +288,7 @@ SettingsSchema.statics = {
       if (err.code == 11000) {
         error = err.keyValue;
         message = "duplicate values provided";
-        status = HTTPStatus.CONFLICT;
+        status = httpStatus.CONFLICT;
       }
       return {
         success: false,
@@ -318,13 +318,13 @@ SettingsSchema.statics = {
           success: true,
           message: "successfully removed the default",
           data,
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       } else {
         return {
           success: false,
           message: "default does not exist, please crosscheck",
-          status: HTTPStatus.NOT_FOUND,
+          status: httpStatus.NOT_FOUND,
         };
       }
     } catch (error) {
@@ -332,7 +332,7 @@ SettingsSchema.statics = {
         success: false,
         message: "model server error",
         error: error.message,
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },

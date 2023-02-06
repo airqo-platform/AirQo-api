@@ -3,7 +3,8 @@ import traceback
 import pandas as pd
 
 from .airnow_api import AirNowApi
-from .constants import Tenant, DataSource, DeviceCategory
+from .airqo_api import AirQoApi
+from .constants import Tenant, DataSource, DeviceCategory, Frequency
 from .data_validator import DataValidationUtils
 from .date import str_to_date, date_to_str
 from .utils import Utils
@@ -38,9 +39,7 @@ class AirnowDataUtils:
             end_date_time=end_date_time,
         )
 
-        data = pd.DataFrame(data)
-
-        return data
+        return pd.DataFrame(data)
 
     @staticmethod
     def extract_bam_data(start_date_time: str, end_date_time: str) -> pd.DataFrame:
@@ -65,8 +64,15 @@ class AirnowDataUtils:
     def process_bam_data(data: pd.DataFrame) -> pd.DataFrame:
 
         air_now_data = []
+
+        devices = AirQoApi().get_tenant_devices(tenant=Tenant.US_EMBASSY)
         for _, row in data.iterrows():
             try:
+                device_id = row["FullAQSCode"]
+                device_details = list(
+                    filter(lambda y: str(device_id) in y["device_codes"], devices)
+                )[0]
+
                 pollutant_value = dict({"pm2_5": None, "pm10": None, "no2": None})
 
                 parameter_col_name = AirnowDataUtils.parameter_column_name(
@@ -78,14 +84,23 @@ class AirnowDataUtils:
                     {
                         "timestamp": row["UTC"],
                         "tenant": str(Tenant.US_EMBASSY),
-                        "site_id": row["FullAQSCode"],
-                        "device_id": row["FullAQSCode"],
-                        "device_number": -1,
+                        "site_id": device_details.get("site_id"),
+                        "device_id": device_details.get("device_id"),
+                        "mongo_id": device_details.get("mongo_id"),
+                        "device_number": device_details.get("device_number"),
+                        "frequency": str(Frequency.HOURLY),
                         "latitude": row["Latitude"],
                         "longitude": row["Longitude"],
+                        "device_category": str(DeviceCategory.BAM),
                         "pm2_5": pollutant_value["pm2_5"],
+                        "pm2_5_calibrated_value": pollutant_value["pm2_5"],
+                        "pm2_5_raw_value": pollutant_value["pm2_5"],
                         "pm10": pollutant_value["pm10"],
+                        "pm10_calibrated_value": pollutant_value["pm10"],
+                        "pm10_raw_value": pollutant_value["pm10"],
                         "no2": pollutant_value["no2"],
+                        "no2_calibrated_value": pollutant_value["no2"],
+                        "no2_raw_value": pollutant_value["no2"],
                     }
                 )
             except Exception as ex:
@@ -94,21 +109,3 @@ class AirnowDataUtils:
 
         air_now_data = pd.DataFrame(air_now_data)
         return DataValidationUtils.remove_outliers(air_now_data)
-
-    @staticmethod
-    def process_latest_bam_data(data: pd.DataFrame) -> pd.DataFrame:
-        data["s1_pm2_5"] = data["pm2_5"]
-        data["pm2_5_raw_value"] = data["pm2_5"]
-        data["pm2_5_calibrated_value"] = data["pm2_5"]
-
-        data["s1_pm10"] = data["pm10"]
-        data["pm10_raw_value"] = data["pm10"]
-        data["pm10_calibrated_value"] = data["pm10"]
-
-        data["no2_raw_value"] = data["no2"]
-        data["no2_calibrated_value"] = data["no2"]
-
-        data.loc[:, "tenant"] = str(Tenant.US_EMBASSY)
-        data.loc[:, "device_category"] = str(DeviceCategory.BAM)
-
-        return data

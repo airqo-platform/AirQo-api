@@ -76,6 +76,14 @@ def airnow_bam_realtime_data():
         return AirnowDataUtils.process_bam_data(data=data)
 
     @task()
+    def send_to_message_broker(data: pd.DataFrame):
+        from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
+        from airqo_etl_utils.data_validator import DataValidationUtils
+
+        data = DataValidationUtils.process_for_message_broker_v2(data)
+        MessageBrokerUtils.update_measurements_topic(data=data)
+
+    @task()
     def send_to_bigquery(data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
         from airqo_etl_utils.constants import Tenant
@@ -89,40 +97,19 @@ def airnow_bam_realtime_data():
         big_query_api.load_data(data, table=table)
 
     @task()
-    def send_measurements_to_api(data: pd.DataFrame):
+    def send_to_api(data: pd.DataFrame):
+        from airqo_etl_utils.data_validator import DataValidationUtils
         from airqo_etl_utils.airqo_api import AirQoApi
-        from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
-        restructured_data = AirQoDataUtils.process_airnow_data_for_api(data=data)
+        data = DataValidationUtils.process_data_for_api(data)
         airqo_api = AirQoApi()
-        airqo_api.save_events(measurements=restructured_data, tenant="airqo")
-
-    @task()
-    def update_latest_data_table(data: pd.DataFrame):
-        from airqo_etl_utils.airnow_utils import AirnowDataUtils
-        from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
-        from airqo_etl_utils.constants import Tenant
-
-        data = AirnowDataUtils.process_latest_bam_data(data)
-        DataWarehouseUtils.update_latest_measurements(
-            data=data, tenant=Tenant.US_EMBASSY
-        )
-
-    @task()
-    def update_latest_data_topic(data: pd.DataFrame):
-        from airqo_etl_utils.airnow_utils import AirnowDataUtils
-        from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
-
-        data = AirnowDataUtils.process_latest_bam_data(data)
-        MessageBrokerUtils.update_hourly_data_topic(data=data)
+        airqo_api.save_events(measurements=data)
 
     extracted_bam_data = extract_bam_data()
     processed_bam_data = process_data(extracted_bam_data)
     send_to_bigquery(processed_bam_data)
-    # update_latest_data_table(processed_bam_data)
-    # update_latest_data_topic(processed_bam_data)
-    # send_measurements_to_api(processed_bam_data)
-
+    send_to_message_broker(processed_bam_data)
+    send_to_api(processed_bam_data)
 
 airnow_bam_realtime_data()
 airnow_bam_historical_data()

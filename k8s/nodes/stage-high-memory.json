@@ -1,10 +1,10 @@
 {
-    "kind": "Node",
-    "apiVersion": "v1",
-    "metadata": {
-        "name": "airqo-stage-k8s-worker-0",
-        "labels": {
-            "node-type": "high-memory"
-        }
+  "kind": "Node",
+  "apiVersion": "v1",
+  "metadata": {
+    "name": "airqo-stage-k8s-worker-1",
+    "labels": {
+      "node-type": "high-memory"
     }
+  }
 }

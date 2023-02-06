@@ -46,11 +46,11 @@ def save_device_uptime(tenant):
     for device in devices:
         if device.get("network", "") != "airqo":
             continue
-        if device.get('isActive'):
+        if device.get('isActive', None):
             active_device_count += 1
 
-        channel_id = device["device_number"]
-        device_name = device["name"]
+        channel_id = device.get("device_number", None)
+        device_name = device.get("name", None)
 
         if not (channel_id and device_name):
             print("this device could not be processed", device_name)
