@@ -157,7 +157,9 @@ locationSchema.statics = {
       message = "validation errors for some of the provided fields";
       const status = HTTPStatus.CONFLICT;
       Object.entries(err.errors).forEach(([key, value]) => {
-        return (response[value.path] = value.message);
+        response.message = value.message;
+        response[value.path] = value.message;
+        return response;
       });
 
       return {

@@ -117,7 +117,9 @@ photoSchema.statics = {
         });
       } else {
         Object.entries(err.errors).forEach(([key, value]) => {
-          return (response[key] = value.message);
+          response.message = value.message;
+          response[key] = value.message;
+          return response;
         });
       }
       return {
