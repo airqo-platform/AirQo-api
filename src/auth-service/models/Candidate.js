@@ -43,6 +43,7 @@ const CandidateSchema = new mongoose.Schema(
     jobTitle: { type: String, required: [true, "jobTitle is required"] },
     category: { type: String, required: [true, "category is required"] },
     website: { type: String, required: [true, "website is required"] },
+    country: { type: String, required: [true, "country is required"] },
     isDenied: {
       type: Boolean,
     },
@@ -95,6 +96,7 @@ CandidateSchema.statics = {
         status: 1,
         createdAt: 1,
         updatedAt: 1,
+        country: 1,
         existing_user: { $arrayElemAt: ["$user", 0] },
         network: { $arrayElemAt: ["$network", 0] },
       };
@@ -240,6 +242,7 @@ CandidateSchema.methods = {
       status: this.status,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
+      country: this.country,
     };
   },
 };

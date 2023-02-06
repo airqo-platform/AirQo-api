@@ -4,6 +4,7 @@ const createDefaultUtil = require("../utils/create-default");
 const generateFilter = require("../utils/generate-filter");
 const { validationResult } = require("express-validator");
 const constants = require("../config/constants");
+const isEmpty = require("is-empty");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- defaults-controller`
@@ -199,6 +200,7 @@ const defaults = {
         });
       }
     } catch (errors) {
+      logObject("errors", errors);
       tryCatchErrors(res, errors, "join controller");
     }
   },
