@@ -268,7 +268,7 @@ airqloudSchema.statics = {
   async list({ filter = {}, _limit = 1000, _skip = 0 } = {}) {
     try {
       logElement("the limit in the model", _limit);
-      const { summary } = filter;
+      const { summary, dashboard } = filter;
 
       let projectAll = {
         _id: 1,
@@ -300,11 +300,30 @@ airqloudSchema.statics = {
         },
       };
 
+      const projectDashboard = {
+        _id: 1,
+        name: 1,
+        long_name: 1,
+        description: 1,
+        airqloud_tags: 1,
+        admin_level: 1,
+        isCustom: 1,
+        metadata: 1,
+        center_point: 1,
+        airqloud_codes: 1,
+        sites: "$sites",
+      };
+
       let projection = projectAll;
 
       if (!isEmpty(summary)) {
         projection = projectSummary;
         delete filter.summary;
+      }
+
+      if (!isEmpty(dashboard)) {
+        projection = projectDashboard;
+        delete filter.dashboard;
       }
 
       let data = await this.aggregate()

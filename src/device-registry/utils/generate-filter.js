@@ -744,6 +744,7 @@ const generateFilter = {
       name,
       admin_level,
       summary,
+      dashboard,
       airqloud_id,
       network,
       airqloud,
@@ -763,6 +764,10 @@ const generateFilter = {
 
     if (summary === "yes") {
       filter["summary"] = summary;
+    }
+
+    if (dashboard === "yes") {
+      filter["dashboard"] = dashboard;
     }
 
     if (airqloud_codes) {
