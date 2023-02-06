@@ -50,22 +50,25 @@ const createLocation = {
           location: responseFromCreateLocation.data,
         });
       } else if (responseFromCreateLocation.success === false) {
-        let status = responseFromCreateLocation.status
+        const status = responseFromCreateLocation.status
           ? responseFromCreateLocation.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
-        let errors = responseFromCreateLocation.errors
-          ? responseFromCreateLocation.errors
-          : "";
 
         return res.status(status).json({
           success: false,
           message: responseFromCreateLocation.message,
-          errors,
+          errors: responseFromCreateLocation.errors
+            ? responseFromCreateLocation.errors
+            : { message: "" },
         });
       }
     } catch (errors) {
       logger.error(`internal server error -- ${errors.message}`);
-      errors.tryCatchErrors(res, errors, "createLocation controller");
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: errors.message },
+      });
     }
   },
 
@@ -99,7 +102,7 @@ const createLocation = {
       let responseFromRemoveLocation = await createLocationUtil.delete(request);
 
       if (responseFromRemoveLocation.success === true) {
-        let status = responseFromRemoveLocation.status
+        const status = responseFromRemoveLocation.status
           ? responseFromRemoveLocation.status
           : HTTPStatus.OK;
         return res.status(status).json({
@@ -108,21 +111,24 @@ const createLocation = {
           location: responseFromRemoveLocation.data,
         });
       } else if (responseFromRemoveLocation.success === false) {
-        let errors = responseFromRemoveLocation.errors
-          ? responseFromRemoveLocation.errors
-          : "";
-        let status = responseFromRemoveLocation.status
+        const status = responseFromRemoveLocation.status
           ? responseFromRemoveLocation.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
           message: responseFromRemoveLocation.message,
-          errors,
+          errors: responseFromRemoveLocation.errors
+            ? responseFromRemoveLocation.errors
+            : { message: "" },
         });
       }
     } catch (errors) {
       logger.error(`internal server error -- ${errors.message}`);
-      errors.tryCatchErrors(res, errors, "createLocation controller");
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: errors.message },
+      });
     }
   },
 
@@ -155,7 +161,7 @@ const createLocation = {
       let responseFromUpdateLocation = await createLocationUtil.update(request);
 
       if (responseFromUpdateLocation.success === true) {
-        let status = responseFromUpdateLocation.status
+        const status = responseFromUpdateLocation.status
           ? responseFromUpdateLocation.status
           : HTTPStatus.OK;
         return res.status(status).json({
@@ -164,23 +170,25 @@ const createLocation = {
           location: responseFromUpdateLocation.data,
         });
       } else if (responseFromUpdateLocation.success === false) {
-        let errors = responseFromUpdateLocation.errors
-          ? responseFromUpdateLocation.errors
-          : "";
-
-        let status = responseFromUpdateLocation.status
+        const status = responseFromUpdateLocation.status
           ? responseFromUpdateLocation.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
 
         return res.status(status).json({
           success: false,
           message: responseFromUpdateLocation.message,
-          errors,
+          errors: responseFromUpdateLocation.errors
+            ? responseFromUpdateLocation.errors
+            : { message: "" },
         });
       }
     } catch (errors) {
       logger.error(`internal server error -- ${errors.message}`);
-      errors.tryCatchErrors(res, errors, "createLocation controller");
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: errors.message },
+      });
     }
   },
 
@@ -213,7 +221,7 @@ const createLocation = {
       let responseFromListLocations = await createLocationUtil.list(request);
 
       if (responseFromListLocations.success === true) {
-        let status = responseFromListLocations.status
+        const status = responseFromListLocations.status
           ? responseFromListLocations.status
           : HTTPStatus.OK;
 
@@ -223,16 +231,15 @@ const createLocation = {
           airqlouds: responseFromListLocations.data,
         });
       } else if (responseFromListLocations.success === false) {
-        let errors = responseFromListLocations.errors
-          ? responseFromListLocations.errors
-          : { message: "" };
-        let status = responseFromListLocations.status
+        const status = responseFromListLocations.status
           ? responseFromListLocations.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
           message: responseFromListLocations.message,
-          errors,
+          errors: responseFromListLocations.errors
+            ? responseFromListLocations.errors
+            : { message: "" },
         });
       }
     } catch (errors) {
@@ -276,7 +283,7 @@ const createLocation = {
         responseFromListLocations.success
       );
       if (responseFromListLocations.success === true) {
-        let status = responseFromListLocations.status
+        const status = responseFromListLocations.status
           ? responseFromListLocations.status
           : HTTPStatus.OK;
         res.status(status).json({
@@ -285,21 +292,24 @@ const createLocation = {
           locations: responseFromListLocations.data,
         });
       } else if (responseFromListLocations.success === false) {
-        let errors = responseFromListLocations.errors
-          ? responseFromListLocations.errors
-          : "";
-        let status = responseFromListLocations.status
+        const status = responseFromListLocations.status
           ? responseFromListLocations.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
           message: responseFromListLocations.message,
-          errors,
+          errors: responseFromListLocations.errors
+            ? responseFromListLocations.errors
+            : { message: "" },
         });
       }
     } catch (errors) {
       logger.error(`internal server error -- ${errors.message}`);
-      errors.tryCatchErrors(res, errors, "create location controller");
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: errors.message },
+      });
     }
   },
 
@@ -333,7 +343,7 @@ const createLocation = {
       let responseFromRemoveLocation = await createLocationUtil.delete(request);
 
       if (responseFromRemoveLocation.success === true) {
-        let status = responseFromRemoveLocation.status
+        const status = responseFromRemoveLocation.status
           ? responseFromRemoveLocation.status
           : HTTPStatus.OK;
         return res.status(status).json({
@@ -342,21 +352,24 @@ const createLocation = {
           location: responseFromRemoveLocation.data,
         });
       } else if (responseFromRemoveLocation.success === false) {
-        let errors = responseFromRemoveLocation.errors
-          ? responseFromRemoveLocation.errors
-          : "";
-        let status = responseFromRemoveLocation.status
+        const status = responseFromRemoveLocation.status
           ? responseFromRemoveLocation.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
           message: responseFromRemoveLocation.message,
-          errors,
+          errors: responseFromRemoveLocation.errors
+            ? responseFromRemoveLocation.errors
+            : { message: "" },
         });
       }
     } catch (errors) {
       logger.error(`internal server error -- ${errors.message}`);
-      errors.tryCatchErrors(res, errors, "manageLocation controller");
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: errors.message },
+      });
     }
   },
 };

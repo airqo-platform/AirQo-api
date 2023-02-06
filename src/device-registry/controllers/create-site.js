@@ -58,7 +58,9 @@ const manageSite = {
       }
     } catch (error) {
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
         message: "internal server error",
+        errors: { message: error.message },
       });
     }
   },
@@ -100,7 +102,9 @@ const manageSite = {
       }
     } catch (error) {
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
         message: "internal server error",
+        errors: { message: error.message },
       });
     }
   },
@@ -140,7 +144,9 @@ const manageSite = {
       }
     } catch (error) {
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
         message: "internal server error",
+        errors: { message: error.message },
       });
     }
   },
@@ -177,16 +183,15 @@ const manageSite = {
           site: responseFromCreateSite.data,
         });
       } else if (responseFromCreateSite.success === false) {
-        let errors = responseFromCreateSite.errors
-          ? responseFromCreateSite.errors
-          : "";
         let status = responseFromCreateSite.status
           ? responseFromCreateSite.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
           message: responseFromCreateSite.message,
-          errors,
+          errors: responseFromCreateSite.errors
+            ? responseFromCreateSite.errors
+            : { message: "" },
         });
       }
     } catch (error) {
@@ -235,16 +240,13 @@ const manageSite = {
           message: responseFromGenerateMetadata.message,
           metadata: responseFromGenerateMetadata.data,
         });
-      }
-
-      if (responseFromGenerateMetadata.success === false) {
-        let error = responseFromGenerateMetadata.errors
-          ? responseFromGenerateMetadata.errors
-          : "";
+      } else if (responseFromGenerateMetadata.success === false) {
         return res.status(HTTPStatus.BAD_GATEWAY).json({
           success: false,
           message: responseFromGenerateMetadata.message,
-          error,
+          errors: responseFromGenerateMetadata.errors
+            ? responseFromGenerateMetadata.errors
+            : { message: "" },
         });
       }
     } catch (error) {
@@ -295,24 +297,22 @@ const manageSite = {
           message: "nearest site retrieved",
           nearest_weather_station: responseFromFindNearestSite.data,
         });
-      }
-
-      if (responseFromFindNearestSite.success === false) {
+      } else if (responseFromFindNearestSite.success === false) {
         const status = responseFromFindNearestSite.status
           ? responseFromFindNearestSite.status
           : httpStatus.INTERNAL_SERVER_ERROR;
-        const errors = responseFromFindNearestSite.errors
-          ? responseFromFindNearestSite.errors
-          : "";
         res.status(status).json({
           success: false,
           message: responseFromFindNearestSite.message,
-          errors,
+          errors: responseFromFindNearestSite.errors
+            ? responseFromFindNearestSite.errors
+            : { message: "" },
         });
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
       res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
       });
@@ -335,13 +335,12 @@ const manageSite = {
         const status = responseFromListTahmoStations.status
           ? responseFromListTahmoStations.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
-        const errors = responseFromListTahmoStations.errors
-          ? responseFromListTahmoStations.errors
-          : "";
         res.status(status).json({
           success: false,
           message: responseFromListTahmoStations.message,
-          errors,
+          errors: responseFromListTahmoStations.errors
+            ? responseFromListTahmoStations.errors
+            : { message: "" },
         });
       }
     } catch (error) {
@@ -386,7 +385,7 @@ const manageSite = {
       );
       logObject("responseFromFindAirQloud", responseFromFindAirQloud);
       if (responseFromFindAirQloud.success === true) {
-        let status = responseFromFindAirQloud.status
+        const status = responseFromFindAirQloud.status
           ? responseFromFindAirQloud.status
           : httpStatus.OK;
         res.status(status).json({
@@ -394,18 +393,16 @@ const manageSite = {
           airqlouds: responseFromFindAirQloud.data,
           message: responseFromFindAirQloud.message,
         });
-      }
-      if (responseFromFindAirQloud.success === false) {
-        let errors = responseFromFindAirQloud.errors
-          ? responseFromFindAirQloud.errors
-          : "";
-        let status = responseFromFindAirQloud.status
+      } else if (responseFromFindAirQloud.success === false) {
+        const status = responseFromFindAirQloud.status
           ? responseFromFindAirQloud.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
           message: responseFromFindAirQloud.message,
-          errors,
+          errors: responseFromFindAirQloud.errors
+            ? responseFromFindAirQloud.errors
+            : { message: "" },
         });
       }
     } catch (error) {
@@ -453,19 +450,16 @@ const manageSite = {
           message: responseFromRemoveSite.message,
           site: responseFromRemoveSite.data,
         });
-      }
-
-      if (responseFromRemoveSite.success === false) {
+      } else if (responseFromRemoveSite.success === false) {
         const status = responseFromRemoveSite.status
           ? responseFromRemoveSite.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
-        const errors = responseFromRemoveSite.errors
-          ? responseFromRemoveSite.errors
-          : "";
         return res.status(status).json({
           success: false,
           message: responseFromRemoveSite.message,
-          errors,
+          errors: responseFromRemoveSite.errors
+            ? responseFromRemoveSite.errors
+            : { message: "" },
         });
       }
     } catch (error) {
@@ -515,12 +509,7 @@ const manageSite = {
           message: responseFromUpdateSite.message,
           site: responseFromUpdateSite.data,
         });
-      }
-
-      if (responseFromUpdateSite.success === false) {
-        const errors = responseFromUpdateSite.errors
-          ? responseFromUpdateSite.errors
-          : "";
+      } else if (responseFromUpdateSite.success === false) {
         const status = responseFromUpdateSite.status
           ? responseFromUpdateSite.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
@@ -528,7 +517,9 @@ const manageSite = {
         return res.status(status).json({
           success: false,
           message: responseFromUpdateSite.message,
-          errors,
+          errors: responseFromUpdateSite.errors
+            ? responseFromUpdateSite.errors
+            : { message: "" },
         });
       }
     } catch (error) {
@@ -568,7 +559,7 @@ const manageSite = {
       let responseFromRefreshSite = await createSiteUtil.refresh(tenant, req);
       logObject("responseFromRefreshSite", responseFromRefreshSite);
       if (responseFromRefreshSite.success === true) {
-        let status = responseFromRefreshSite.status
+        const status = responseFromRefreshSite.status
           ? responseFromRefreshSite.status
           : HTTPStatus.OK;
         return res.status(status).json({
@@ -576,20 +567,17 @@ const manageSite = {
           message: responseFromRefreshSite.message,
           site: responseFromRefreshSite.data,
         });
-      }
-
-      if (responseFromRefreshSite.success === false) {
-        let error = responseFromRefreshSite.errors
-          ? responseFromRefreshSite.errors
-          : "";
-        let status = responseFromRefreshSite.status
+      } else if (responseFromRefreshSite.success === false) {
+        const status = responseFromRefreshSite.status
           ? responseFromRefreshSite.status
           : HTTPStatus.BAD_GATEWAY;
 
         return res.status(status).json({
           success: false,
           message: responseFromRefreshSite.message,
-          error,
+          errors: responseFromRefreshSite.errors
+            ? responseFromRefreshSite.errors
+            : { message: "" },
         });
       }
     } catch (error) {
@@ -639,27 +627,25 @@ const manageSite = {
 
       logObject("responseFromFindNearestSite", responseFromFindNearestSite);
       if (responseFromFindNearestSite.success === true) {
-        let nearestSites = responseFromFindNearestSite.data;
-        let status = responseFromFindNearestSite.status
+        const status = responseFromFindNearestSite.status
           ? responseFromFindNearestSite.status
           : HTTPStatus.OK;
 
         return res.status(status).json({
           success: true,
           message: responseFromFindNearestSite.message,
-          sites: nearestSites,
+          sites: responseFromFindNearestSite.data,
         });
       } else if (responseFromFindNearestSite.success === false) {
-        let errors = responseFromFindNearestSite.errors
-          ? responseFromFindNearestSite.errors
-          : "";
-        let status = responseFromFindNearestSite.status
+        const status = responseFromFindNearestSite.status
           ? responseFromFindNearestSite.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
           message: responseFromFindNearestSite.message,
-          errors,
+          errors: responseFromFindNearestSite.errors
+            ? responseFromFindNearestSite.errors
+            : { message: "" },
         });
       }
     } catch (e) {
@@ -704,7 +690,7 @@ const manageSite = {
       });
 
       if (responseFromListSites.success === true) {
-        let status = responseFromListSites.status
+        const status = responseFromListSites.status
           ? responseFromListSites.status
           : HTTPStatus.OK;
         res.status(status).json({
@@ -713,18 +699,16 @@ const manageSite = {
           sites: responseFromListSites.data,
         });
       } else if (responseFromListSites.success === false) {
-        let errors = responseFromListSites.errors
-          ? responseFromListSites.errors
-          : { message: "" };
-
-        let status = responseFromListSites.status
+        const status = responseFromListSites.status
           ? responseFromListSites.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
 
         res.status(status).json({
           success: false,
           message: responseFromListSites.message,
-          errors,
+          errors: responseFromListSites.errors
+            ? responseFromListSites.errors
+            : { message: "" },
         });
       }
     } catch (error) {
@@ -1011,16 +995,15 @@ const manageSite = {
           site_activities: responseFromListSite.data,
         });
       } else if (responseFromListSite.success === false) {
-        const errors = responseFromListSite.errors
-          ? responseFromListSite.errors
-          : "";
         const status = responseFromListSite.status
           ? responseFromListSite.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
           message: responseFromListSite.message,
-          errors,
+          errors: responseFromListSite.errors
+            ? responseFromListSite.errors
+            : { message: "" },
         });
       }
     } catch (e) {

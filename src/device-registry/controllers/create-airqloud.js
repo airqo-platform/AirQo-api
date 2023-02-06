@@ -53,6 +53,8 @@ const createAirqloud = {
     } catch (error) {
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         message: "internal server error",
+        success: false,
+        errors: { message: error.message },
       });
     }
   },
@@ -115,7 +117,11 @@ const createAirqloud = {
       }
     } catch (errors) {
       logger.error(`internal server error -- ${errors.message}`);
-      errors.tryCatchErrors(res, errors, "createAirqloud controller");
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: errors.message },
+      });
     }
   },
 
@@ -230,9 +236,7 @@ const createAirqloud = {
           message: responseFromRemoveAirQloud.message,
           airqloud: responseFromRemoveAirQloud.data,
         });
-      }
-
-      if (responseFromRemoveAirQloud.success === false) {
+      } else if (responseFromRemoveAirQloud.success === false) {
         let errors = responseFromRemoveAirQloud.errors
           ? responseFromRemoveAirQloud.errors
           : { message: "" };
@@ -247,7 +251,11 @@ const createAirqloud = {
       }
     } catch (errors) {
       logger.error(`internal server error -- ${errors.message}`);
-      errors.tryCatchErrors(res, errors, "createAirqloud controller");
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: errors.message },
+      });
     }
   },
   refresh: async (req, res) => {
@@ -354,8 +362,7 @@ const createAirqloud = {
           sites: responseFromFindSites.data,
           message: responseFromFindSites.message,
         });
-      }
-      if (responseFromFindSites.success === false) {
+      } else if (responseFromFindSites.success === false) {
         let errors = responseFromFindSites.errors
           ? responseFromFindSites.errors
           : { message: "" };
@@ -417,9 +424,7 @@ const createAirqloud = {
           message: responseFromUpdateAirQloud.message,
           airqloud: responseFromUpdateAirQloud.data,
         });
-      }
-
-      if (responseFromUpdateAirQloud.success === false) {
+      } else if (responseFromUpdateAirQloud.success === false) {
         let errors = responseFromUpdateAirQloud.errors
           ? responseFromUpdateAirQloud.errors
           : { message: "" };
@@ -436,7 +441,11 @@ const createAirqloud = {
       }
     } catch (errors) {
       logger.error(`internal server error -- ${errors.message}`);
-      errors.tryCatchErrors(res, errors, "createAirqloud controller");
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: errors.message },
+      });
     }
   },
 
@@ -480,16 +489,15 @@ const createAirqloud = {
           airqlouds: responseFromListAirQlouds.data,
         });
       } else if (responseFromListAirQlouds.success === false) {
-        let errors = responseFromListAirQlouds.errors
-          ? responseFromListAirQlouds.errors
-          : { message: "" };
         let status = responseFromListAirQlouds.status
           ? responseFromListAirQlouds.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
           message: responseFromListAirQlouds.message,
-          errors,
+          errors: responseFromListAirQlouds.errors
+            ? responseFromListAirQlouds.errors
+            : { message: "" },
         });
       }
     } catch (errors) {
@@ -542,19 +550,16 @@ const createAirqloud = {
           message: responseFromListAirQlouds.message,
           airqlouds: responseFromListAirQlouds.data,
         });
-      }
-
-      if (responseFromListAirQlouds.success === false) {
-        let errors = responseFromListAirQlouds.errors
-          ? responseFromListAirQlouds.errors
-          : { message: "" };
+      } else if (responseFromListAirQlouds.success === false) {
         let status = responseFromListAirQlouds.status
           ? responseFromListAirQlouds.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
           message: responseFromListAirQlouds.message,
-          errors,
+          errors: responseFromListAirQlouds.errors
+            ? responseFromListAirQlouds.errors
+            : { message: "" },
         });
       }
     } catch (errors) {
@@ -668,24 +673,25 @@ const createAirqloud = {
           message: responseFromRemoveAirQloud.message,
           airqloud: responseFromRemoveAirQloud.data,
         });
-      }
-
-      if (responseFromRemoveAirQloud.success === false) {
-        let errors = responseFromRemoveAirQloud.errors
-          ? responseFromRemoveAirQloud.errors
-          : { message: "" };
+      } else if (responseFromRemoveAirQloud.success === false) {
         let status = responseFromRemoveAirQloud.status
           ? responseFromRemoveAirQloud.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
           message: responseFromRemoveAirQloud.message,
-          errors,
+          errors: responseFromRemoveAirQloud.errors
+            ? responseFromRemoveAirQloud.errors
+            : { message: "" },
         });
       }
     } catch (errors) {
       logger.error(`internal server error -- ${errors.message}`);
-      errors.tryCatchErrors(res, errors, "manageAirQloud controller");
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: errors.message },
+      });
     }
   },
 };
