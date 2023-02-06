@@ -36,6 +36,7 @@ const requestAccess = {
         website,
         description,
         category,
+        country,
       } = req.body;
 
       let request = {};
@@ -48,6 +49,7 @@ const requestAccess = {
       request["website"] = website;
       request["description"] = description;
       request["category"] = category;
+      request["country"] = country;
 
       await requestAccessUtil
         .create(request, (value) => {
