@@ -1,6 +1,6 @@
-const mongodb = require("../config/database");
-const constants = require("../config/constants");
-const { logElement, logText, logObject } = require("../utils/log");
+const mongodb = require("@config/database");
+const constants = require("@config/constants");
+const { logElement, logText, logObject } = require("@utils/log");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- multitenancy util`

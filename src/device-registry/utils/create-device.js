@@ -1,11 +1,11 @@
 "use strict";
 const HTTPStatus = require("http-status");
-const DeviceSchema = require("../models/Device");
+const DeviceSchema = require("@models/Device");
 const { getModelByTenant } = require("./multitenancy");
 const axios = require("axios");
 const { logObject, logElement, logText } = require("./log");
 const { transform } = require("node-json-transform");
-const constants = require("../config/constants");
+const constants = require("@config/constants");
 const cryptoJS = require("crypto-js");
 const generateFilter = require("./generate-filter");
 const errors = require("./errors");
