@@ -1,4 +1,6 @@
 # Third-party libraries
+import math
+
 from flasgger import swag_from
 import flask_excel as excel
 from flask_restx import Resource
@@ -281,22 +283,25 @@ class DailyAveragesResource(Resource):
 
         for v in data:
 
-            if not v.get("site_id"):
+            value = v.get("value", None)
+            site_id = v.get("site_id", None)
+
+            if not site_id or not value or math.isnan(value):
                 continue
 
-            site = list(filter(lambda s: s.get("site_id") == v.get("site_id"), sites))
+            site = list(filter(lambda s: s.get("site_id") == site_id, sites))
 
             if not site:
                 continue
 
             site = site[0]
-            values.append(v.get("value"))
+            values.append(value)
             labels.append(
                 site.get("name")
                 or site.get("description")
                 or site.get("generated_name")
             )
-            background_colors.append(set_pm25_category_background(v.get("value")))
+            background_colors.append(set_pm25_category_background(value))
 
         return (
             create_response(
