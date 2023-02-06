@@ -3,39 +3,29 @@ app:
   label: sta-net-uptime
   namespace: staging
   configmap: env-network-uptime-staging
-
 replicaCount: 0
-
 image:
   repository: gcr.io/airqo-250220/airqo-stage-network-uptime-api
-  tag: latest
-
-nameOverride: ""
-fullnameOverride: ""
-
+  tag: stage-09ba71bd-1670928304
+nameOverride: ''
+fullnameOverride: ''
 podAnnotations: {}
-
 resources:
   limits:
     cpu: 100m
     memory: 200Mi
   requests:
-    # No available over the last 30 days, using estimates
     cpu: 5m
     memory: 10Mi
-
 ingress:
   enabled: false
-
 service:
   type: NodePort
   port: 8501
   protocol: TCP
   targetPort: 8501
   nodePort: 31012
-
 autoscaling:
   minReplicas: 1
   maxReplicas: 2
-  # targetCPUUtilizationPercentage: 80
   targetMemoryUtilizationPercentage: 80

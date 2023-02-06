@@ -3,39 +3,29 @@ app:
   label: sta-data-mgt
   namespace: staging
   configmap: data-mgt-api-config
-
 replicaCount: 2
-
 image:
   repository: gcr.io/airqo-250220/airqo-stage-data-mgt-api
-  tag: latest
-
-nameOverride: ""
-fullnameOverride: ""
-
+  tag: stage-4a0a9679-1675496635
+nameOverride: ''
+fullnameOverride: ''
 podAnnotations: {}
-
 resources:
   limits:
     cpu: 50m
     memory: 100Mi
   requests:
-    # Average usage was 0.00009 vCPU and 70Mi over the last 30 days
     cpu: 5m
     memory: 70Mi
-
 ingress:
   enabled: false
-
 service:
   type: NodePort
   port: 3000
   protocol: TCP
   targetPort: 3000
   nodePort: 31001
-
 autoscaling:
   minReplicas: 1
   maxReplicas: 2
-  # targetCPUUtilizationPercentage: 80
   targetMemoryUtilizationPercentage: 80

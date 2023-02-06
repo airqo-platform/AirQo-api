@@ -2,27 +2,21 @@ app:
   name: prod-update-channel-data-job
   namespace: production
   configmap: env-update-channel-data-production
-
 image:
-  repository: gcr.io/airqo-250220/airqo-update-channel-data-job
-  tag: latest
-
+  repository: gcr.io/airqo-250220/prod-update-channel-data-job
+  tag: prod-4bcf8ba0-1670941557
 nameOverride: ""
 fullnameOverride: ""
-
 resources:
   limits:
-    cpu: 500Mi
+    cpu: 500m
     memory: 500Mi
   requests:
-    # Average usage was 0.02 vCPU and 100Mi over the last 30 days
     cpu: 20m
     memory: 100Mi
-
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config
-
 volumes:
   - name: config-volume
     configMap:

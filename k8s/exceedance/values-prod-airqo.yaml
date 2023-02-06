@@ -2,10 +2,8 @@ app:
   name: airqo-exceedance-job
   namespace: staging
   configmap: env-exceedance-production
-
 image:
   repository: gcr.io/airqo-250220/airqo-exceedance-job
-  tag: latest
-
-nameOverride: ""
-fullnameOverride: ""
+  tag: prod-4b9485a3-1675498270
+nameOverride: ''
+fullnameOverride: ''

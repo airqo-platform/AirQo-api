@@ -2,24 +2,19 @@ app:
   name: airqo-train-job
   namespace: production
   configmap: env-train-job-production
-
 schedule: 0 5 * * 1
-
 image:
   repository: gcr.io/airqo-250220/airqo-train-job
-  tag: latest
-
-nameOverride: ""
-fullnameOverride: ""
+  tag: prod-4b9485a3-1675498270
+nameOverride: ''
+fullnameOverride: ''
 resources:
   limits:
     cpu: 2500m
     memory: 4000Mi
-
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config
-
 volumes:
   - name: config-volume
     configMap:

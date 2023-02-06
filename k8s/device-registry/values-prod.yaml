@@ -3,47 +3,36 @@ app:
   label: device-reg-api
   namespace: production
   configmap: env-device-registry-production
-
 replicaCount: 3
 image:
   repository: gcr.io/airqo-250220/airqo-device-registry-api
-  tag: latest
-
-nameOverride: ""
-fullnameOverride: ""
-
+  tag: prod-0b7e8d13-1675405354
+nameOverride: ''
+fullnameOverride: ''
 podAnnotations: {}
-
 resources:
   limits:
     cpu: 100m
     memory: 900Mi
   requests:
-    # Average usage was 0.0005 vCPU and 1Gi over the last 30 days
     cpu: 5m
     memory: 600Mi
-
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config
-
 volumes:
   - name: config-volume
     configMap:
       name: device-registry-config-files
-
 ingress:
   enabled: false
-
 service:
   type: NodePort
   port: 3000
   protocol: TCP
   targetPort: 3000
   nodePort: 30002
-
 autoscaling:
   minReplicas: 1
   maxReplicas: 3
-  # targetCPUUtilizationPercentage: 70
   targetMemoryUtilizationPercentage: 70

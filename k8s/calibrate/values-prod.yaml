@@ -3,57 +3,44 @@ app:
   label: calibrate
   namespace: production
   configmap: prod-calibrate-api-config
-
 initContainer:
   image:
     repository: gcr.io/airqo-250220/airqo-calibrate-pickle-file
-    tag: latest
-
+    tag: prod-4bcf8ba0-1670941557
 replicaCount: 3
-
 image:
   repository: gcr.io/airqo-250220/airqo-calibrate-api
-  tag: latest
-
-nameOverride: ""
-fullnameOverride: ""
-
+  tag: prod-4bcf8ba0-1670941557
+nameOverride: ''
+fullnameOverride: ''
 podAnnotations: {}
-
 resources:
   limits:
     cpu: 100m
     memory: 1500Mi
   requests:
-    # Average usage was 0.0005 vCPU and 1Gi over the last 30 days
     cpu: 10m
     memory: 950Mi
-
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config
   - name: shared-data
     mountPath: /usr/pickle-files
-
 volumes:
   - name: config-volume
     configMap:
       name: prod-calibrate-api-config-files
   - name: shared-data
     emptyDir: {}
-
 ingress:
   enabled: false
-
 service:
   type: NodePort
   port: 4001
   protocol: TCP
   targetPort: 4001
   nodePort: 30011
-
 autoscaling:
   minReplicas: 1
   maxReplicas: 3
-  # targetCPUUtilizationPercentage: 70
   targetMemoryUtilizationPercentage: 70

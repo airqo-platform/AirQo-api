@@ -1,32 +1,24 @@
 app:
   name: airqo-view-message-broker
   label: view-msg-brokr
-  namespace: staging
+  namespace: production
   configmap: prod-view-message-broker-config
-
 replicaCount: 2
-
 image:
   repository: gcr.io/airqo-250220/airqo-view-message-broker
-  tag: latest
-
-nameOverride: ""
-fullnameOverride: ""
-
+  tag: prod-fc2d06b7-1673528314
+nameOverride: ''
+fullnameOverride: ''
 podAnnotations:
-  sidecar.istio.io/inject: "false"
-
+  sidecar.istio.io/inject: 'false'
 resources:
   limits:
     cpu: 100m
     memory: 400Mi
   requests:
-    # Average usage was 0.008 vCPU and 200Mi over the last 30 days
     cpu: 10m
     memory: 200Mi
-
 autoscaling:
   minReplicas: 1
   maxReplicas: 3
-  # targetCPUUtilizationPercentage: 80
   targetMemoryUtilizationPercentage: 80

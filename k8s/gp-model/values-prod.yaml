@@ -2,13 +2,11 @@ app:
   name: prod-gpmodel
   namespace: production
   configmap: env-gp-model-production
-
 image:
   repository: gcr.io/airqo-250220/airqo-gp-model-job
-  tag: latest
-
-nameOverride: ""
-fullnameOverride: ""
+  tag: prod-4b9485a3-1675498270
+nameOverride: ''
+fullnameOverride: ''
 resources:
   limits:
     cpu: 2000m
