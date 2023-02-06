@@ -107,7 +107,7 @@ class ChartDataResource(Resource):
         "chartType|required:str",
     )
     def post(self):
-        tenant = request.args.get("tenant")
+        tenant = request.args.get("tenant", "airqo")
 
         json_data = request.get_json()
         sites = json_data["sites"]
@@ -212,7 +212,7 @@ class D3ChartDataResource(Resource):
         "chartType|required:str",
     )
     def post(self):
-        tenant = request.args.get("tenant")
+        tenant = request.args.get("tenant", "airqo")
 
         json_data = request.get_json()
         sites = json_data["sites"]
@@ -241,7 +241,7 @@ class D3ChartDataResource(Resource):
 class MonitoringSiteResource(Resource):
     @swag_from("/api/docs/dashboard/monitoring_site_get.yml")
     def get(self):
-        tenant = request.args.get("tenant")
+        tenant = request.args.get("tenant", "airqo")
 
         ms_model = SiteModel(tenant)
 
@@ -263,7 +263,7 @@ class DailyAveragesResource(Resource):
         "sites|optional:list",
     )
     def post(self):
-        tenant = request.args.get("tenant")
+        tenant = request.args.get("tenant", "airqo")
         json_data = request.get_json()
         pollutant = json_data["pollutant"]
         start_date = json_data["startDate"]
@@ -327,7 +327,7 @@ class ExceedancesResource(Resource):
         "sites|optional:list",
     )
     def post(self):
-        tenant = request.args.get("tenant")
+        tenant = request.args.get("tenant", "airqo")
 
         json_data = request.get_json()
         pollutant = json_data["pollutant"]
