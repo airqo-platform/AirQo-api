@@ -821,6 +821,7 @@ const createEvent = {
         success: false,
         message: "Internal Server Error",
         status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
       };
     }
   },
@@ -838,6 +839,10 @@ const createEvent = {
               status: httpStatus.INTERNAL_SERVER_ERROR,
               message:
                 "unable to categorise this device, please first update device details",
+              errors: {
+                message:
+                  "unable to categorise this device, please first update device details",
+              },
             };
           }
         } else {
@@ -845,21 +850,19 @@ const createEvent = {
             success: false,
             status: httpStatus.NOT_FOUND,
             message: "no matching devices found",
+            errors: { message: "no matching devices found" },
           };
         }
       } else if (responseFromListDevice.success === false) {
-        const status = responseFromListDevice.status
-          ? responseFromListDevice.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
-        const errors = responseFromListDevice.errors
-          ? responseFromListDevice.errors
-          : { message: "" };
-
         return {
           success: false,
           message: responseFromListDevice.message,
-          errors,
-          status,
+          errors: responseFromListDevice.errors
+            ? responseFromListDevice.errors
+            : { message: "" },
+          status: responseFromListDevice.status
+            ? responseFromListDevice.status
+            : HTTPStatus.INTERNAL_SERVER_ERROR,
         };
       }
 
@@ -1158,7 +1161,7 @@ const createEvent = {
             success: false,
             message: "no cache present",
             data: resultJSON,
-            errors: err,
+            errors: { message: err.message },
           });
         }
       });
@@ -1285,14 +1288,14 @@ const createEvent = {
       );
       return {
         success: false,
-        message: "server error",
+        message: "Internal Server Error",
         errors: { message: error.message },
       };
     }
   },
   transformManyEvents: async (request) => {
     try {
-      const { body, query } = request;
+      const { body } = request;
 
       logger.info(
         `the body received for transformation -- ${JSON.stringify(body)}`
@@ -1385,50 +1388,21 @@ const createEvent = {
     try {
       logText("adding the events insertTransformedEvents to the util.....");
       logger.info(`adding events in the util.....`);
-      let { tenant } = request.query;
-      let { body } = request;
-      let responseFromTransformEvents = await createEvent.transformManyEvents(
+      const { tenant } = request.query;
+      const responseFromTransformEvents = await createEvent.transformManyEvents(
         request
       );
 
-      logger.info(
-        `responseFromTransformEvents -- ${JSON.stringify(
-          responseFromTransformEvents
-        )}`
-      );
       if (responseFromTransformEvents.success === false) {
         logElement("responseFromTransformEvents was false?", true);
-        let errors = responseFromTransformEvents.errors
-          ? responseFromTransformEvents.errors
-          : { message: "" };
-        return {
-          success: false,
-          message: responseFromTransformEvents.message,
-          errors,
-        };
+        return responseFromTransformEvents;
       } else if (responseFromTransformEvents.success === true) {
         let transformedMeasurements = responseFromTransformEvents.data;
-        let responseFromInsertEvents = await createEvent.insertTransformedEvents(
+        const responseFromInsertEvents = await createEvent.insertTransformedEvents(
           tenant,
           transformedMeasurements
         );
-
-        if (responseFromInsertEvents.success) {
-          return {
-            success: true,
-            message: responseFromInsertEvents.message,
-            data: responseFromInsertEvents.data,
-          };
-        } else if (!responseFromInsertEvents.success) {
-          let errors = responseFromInsertEvents.errors
-            ? responseFromInsertEvents.errors
-            : "";
-          return {
-            success: false,
-            message: responseFromInsertEvents.message,
-            errors,
-          };
-        }
+        return responseFromInsertEvents;
       }
     } catch (error) {
       logger.error(`internal server error -- addEvents -- ${error.message}`);
@@ -1523,7 +1497,7 @@ const createEvent = {
         return {
           success: false,
           message: "finished the operation with some errors",
-          errors: errors,
+          errors,
         };
       } else {
         return {
@@ -1536,7 +1510,7 @@ const createEvent = {
       logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
-        message: "server side error",
+        message: "internal server error",
         errors: { message: error.message },
       };
     }
@@ -1577,9 +1551,7 @@ const createEvent = {
         message: responseFromListEvents.message,
         data: dottedEventsArray,
       };
-    }
-
-    if (responseFromListEvents.success === false) {
+    } else if (responseFromListEvents.success === false) {
       let errors = responseFromListEvents.errors
         ? responseFromListEvents.errors
         : { message: "" };
@@ -1605,37 +1577,16 @@ const createEvent = {
 
       if (responseFromFilter.success == true) {
         filter = responseFromFilter.data;
-      }
-
-      if (responseFromFilter.success == false) {
-        let errors = responseFromFilter.errors
-          ? responseFromFilter.errors
-          : { message: "" };
-        return {
-          success: false,
-          message: responseFromFilter.message,
-          errors,
-        };
+      } else if (responseFromFilter.success == false) {
+        return responseFromFilter;
       }
 
       let responseFromClearEvents = { success: false, message: "coming soon" };
 
-      if (responseFromClearEvents.success == true) {
-        return {
-          success: true,
-          message: responseFromClearEvents.message,
-          data: responseFromClearEvents.data,
-        };
-      } else if (responseFromClearEvents.success == false) {
-        let error = responseFromClearEvents.error
-          ? responseFromClearEvents.error
-          : { message: "" };
-
-        return {
-          success: false,
-          message: responseFromClearEvents.message,
-          errors: responseFromClearEvents.error,
-        };
+      if (responseFromClearEvents.success === true) {
+        return responseFromClearEvents;
+      } else if (responseFromClearEvents.success === false) {
+        return responseFromClearEvents;
       }
     } catch (e) {
       logger.error(
@@ -1896,7 +1847,7 @@ const createEvent = {
       return {
         success: false,
         message: "finished the operation with some errors",
-        errors: errors,
+        errors,
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     } else {
@@ -1924,6 +1875,7 @@ const createEvent = {
           device: device,
           success: false,
           message: e.message,
+          errors: { message: e.message },
         };
       }
     });
@@ -2098,6 +2050,9 @@ const createEvent = {
             return {
               message: `unable to clear the device data, device ${device} does not exist`,
               success: false,
+              errors: {
+                message: `unable to clear the device data, device ${device} does not exist`,
+              },
             };
           });
       } else {
@@ -2105,6 +2060,7 @@ const createEvent = {
         return {
           message: `device ${device} does not exist in the system`,
           success: false,
+          errors: { message: `device ${device} does not exist in the system` },
         };
       }
     } catch (e) {
@@ -2112,6 +2068,7 @@ const createEvent = {
       return {
         success: false,
         message: "Internal Server Error",
+        errors: { message: e.message },
       };
     }
   },

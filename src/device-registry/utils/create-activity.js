@@ -101,33 +101,7 @@ const createActivity = {
         limit,
         skip,
       });
-
-      if (responseFromListActivity.success === false) {
-        let errors = responseFromListActivity.errors
-          ? responseFromListActivity.errors
-          : "";
-
-        let status = responseFromListActivity.status
-          ? responseFromListActivity.status
-          : "";
-        return {
-          success: false,
-          message: responseFromListActivity.message,
-          errors,
-          status,
-        };
-      } else if (responseFromListActivity.success === true) {
-        let status = responseFromListActivity.status
-          ? responseFromListActivity.status
-          : "";
-        let data = responseFromListActivity.data;
-        return {
-          success: true,
-          message: responseFromListActivity.message,
-          data,
-          status,
-        };
-      }
+      return responseFromListActivity;
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
       return {
@@ -155,32 +129,7 @@ const createActivity = {
         update,
       });
 
-      if (responseFromModifyActivity.success === true) {
-        let status = responseFromModifyActivity.status
-          ? responseFromModifyActivity.status
-          : "";
-        return {
-          success: true,
-          message: responseFromModifyActivity.message,
-          data: responseFromModifyActivity.data,
-          status,
-        };
-      } else if (responseFromModifyActivity.success === false) {
-        let errors = responseFromModifyActivity.errors
-          ? responseFromModifyActivity.errors
-          : "";
-
-        let status = responseFromModifyActivity.status
-          ? responseFromModifyActivity.status
-          : "";
-
-        return {
-          success: false,
-          message: responseFromModifyActivity.message,
-          errors,
-          status,
-        };
-      }
+      return responseFromModifyActivity;
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
       return {
@@ -205,32 +154,7 @@ const createActivity = {
         filter,
       });
 
-      if (responseFromRemoveActivity.success === true) {
-        let status = responseFromRemoveActivity.status
-          ? responseFromRemoveActivity.status
-          : "";
-        return {
-          success: true,
-          message: responseFromRemoveActivity.message,
-          data: responseFromRemoveActivity.data,
-          status,
-        };
-      } else if (responseFromRemoveActivity.success === false) {
-        let errors = responseFromRemoveActivity.errors
-          ? responseFromRemoveActivity.errors
-          : "";
-
-        let status = responseFromRemoveActivity.status
-          ? responseFromRemoveActivity.status
-          : "";
-
-        return {
-          success: false,
-          message: responseFromRemoveActivity.message,
-          errors,
-          status,
-        };
-      }
+      return responseFromRemoveActivity;
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
       return {
