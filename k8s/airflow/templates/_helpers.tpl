@@ -1,7 +1,7 @@
 {{/*
 Expand the name of the chart.
 */}}
-{{- define "airqo-auth-api.name" -}}
+{{- define "airflow.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
@@ -10,7 +10,7 @@ Create a default fully qualified app name.
 We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
 If release name contains chart name it will be used as a full name.
 */}}
-{{- define "airqo-auth-api.fullname" -}}
+{{- define "airflow.fullname" -}}
 {{- if .Values.fullnameOverride }}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
@@ -26,16 +26,16 @@ If release name contains chart name it will be used as a full name.
 {{/*
 Create chart name and version as used by the chart label.
 */}}
-{{- define "airqo-auth-api.chart" -}}
+{{- define "airflow.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
 Common labels
 */}}
-{{- define "airqo-auth-api.labels" -}}
-helm.sh/chart: {{ include "airqo-auth-api.chart" . }}
-{{ include "airqo-auth-api.selectorLabels" . }}
+{{- define "airflow.labels" -}}
+helm.sh/chart: {{ include "airflow.chart" . }}
+{{ include "airflow.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
@@ -45,17 +45,17 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{/*
 Selector labels
 */}}
-{{- define "airqo-auth-api.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "airqo-auth-api.name" . }}
+{{- define "airflow.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "airflow.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
 Create the name of the service account to use
 */}}
-{{- define "airqo-auth-api.serviceAccountName" -}}
+{{- define "airflow.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create }}
-{{- default (include "airqo-auth-api.fullname" .) .Values.serviceAccount.name }}
+{{- default (include "airflow.fullname" .) .Values.serviceAccount.name }}
 {{- else }}
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
