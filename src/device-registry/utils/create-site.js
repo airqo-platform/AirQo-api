@@ -422,18 +422,7 @@ const createSite = {
         generated_name = responseFromGenerateName.data;
         request["body"]["generated_name"] = generated_name;
       } else if (responseFromGenerateName.success === false) {
-        let errors = responseFromGenerateName.errors
-          ? responseFromGenerateName.errors
-          : "";
-        let status = responseFromGenerateName.status
-          ? responseFromGenerateName.status
-          : "";
-        return {
-          success: false,
-          message: responseFromGenerateName.message,
-          errors,
-          status,
-        };
+        return responseFromGenerateName;
       }
 
       let responseFromGenerateMetadata = await createSite.generateMetadata(
@@ -443,25 +432,16 @@ const createSite = {
       if (responseFromGenerateMetadata.success === true) {
         requestBodyForCreatingSite = responseFromGenerateMetadata.data;
       } else if (responseFromGenerateMetadata.success === false) {
-        let errors = responseFromGenerateMetadata.errors
-          ? responseFromGenerateMetadata.errors
-          : "";
-        let status = responseFromGenerateMetadata.status
-          ? responseFromGenerateMetadata.status
-          : "";
-        return {
-          success: false,
-          message: responseFromGenerateMetadata.message,
-          errors,
-          status,
-        };
+        return responseFromGenerateMetadata;
       }
 
-      let responseFromCreateSite = await getModelByTenant(
+      const responseFromCreateSite = await getModelByTenant(
         tenant.toLowerCase(),
         "site",
         SiteSchema
       ).register(requestBodyForCreatingSite);
+
+      logObject("responseFromCreateSite in the util", responseFromCreateSite);
 
       if (responseFromCreateSite.success === true) {
         let createdSite = responseFromCreateSite.data;
@@ -485,28 +465,9 @@ const createSite = {
           logger.error(`internal server error -- ${error.message}`);
         }
 
-        let status = responseFromCreateSite.status
-          ? responseFromCreateSite.status
-          : "";
-        return {
-          success: true,
-          message: "Site successfully created",
-          data: createdSite,
-          status,
-        };
+        return responseFromCreateSite;
       } else if (responseFromCreateSite.success === false) {
-        let errors = responseFromCreateSite.errors
-          ? responseFromCreateSite.errors
-          : "";
-        let status = responseFromCreateSite.status
-          ? responseFromCreateSite.status
-          : "";
-        return {
-          success: false,
-          message: responseFromCreateSite.message,
-          errors,
-          status,
-        };
+        return responseFromCreateSite;
       }
     } catch (e) {
       logger.error(`internal server error -- ${e.message}`);
