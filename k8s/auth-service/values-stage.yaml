@@ -5,8 +5,8 @@ app:
   configmap: stage-auth-api-config
 replicaCount: 2
 image:
-  repository: gcr.io/airqo-250220/airqo-stage-auth-api
-  tag: stage-9e869f24-1675678025
+  repository: eu.gcr.io/airqo-250220/airqo-stage-auth-api
+  tag: stage-a986baa8-1675769529
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
