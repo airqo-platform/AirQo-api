@@ -5,8 +5,8 @@ app:
   configmap: data-mgt-api-config
 replicaCount: 2
 image:
-  repository: gcr.io/airqo-250220/airqo-stage-data-mgt-api
-  tag: stage-4a0a9679-1675496635
+  repository: eu.gcr.io/airqo-250220/airqo-stage-data-mgt-api
+  tag: stage-a986baa8-1675769529
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
