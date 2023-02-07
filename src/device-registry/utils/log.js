@@ -1,14 +1,31 @@
-const logObject = (text, body) => {
-  console.log(text + ":");
-  console.dir(body);
+const logText = (message) => {
+  if (process.env.NODE_ENV === "development") {
+    console.log(message);
+  }
+  return "log deactivated in prod and stage";
 };
 
-const logElement = (text, body) => {
-  console.log(text + ": " + body);
+const logElement = (message, body) => {
+  if (process.env.NODE_ENV === "development") {
+    console.log(message + ": " + body);
+  }
+  return "log deactivated in prod and stage";
 };
 
-const logText = (text) => {
-  console.log(text);
+const logObject = (message, object) => {
+  if (process.env.NODE_ENV === "development") {
+    console.log(message + ": ");
+    console.dir(object);
+  }
+  return "log deactivated in prod and stage";
 };
 
-module.exports = { logObject, logText, logElement };
+const logError = (error) => {
+  if (process.env.NODE_ENV === "development") {
+    console.log("an unhandled promise rejection" + ": ");
+    console.error(e);
+  }
+  return "log deactivated in prod and stage";
+};
+
+module.exports = { logText, logElement, logObject, logError };

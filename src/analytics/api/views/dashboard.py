@@ -1,4 +1,6 @@
 # Third-party libraries
+import math
+
 from flasgger import swag_from
 import flask_excel as excel
 from flask_restx import Resource
@@ -105,7 +107,7 @@ class ChartDataResource(Resource):
         "chartType|required:str",
     )
     def post(self):
-        tenant = request.args.get("tenant")
+        tenant = request.args.get("tenant", "airqo")
 
         json_data = request.get_json()
         sites = json_data["sites"]
@@ -210,7 +212,7 @@ class D3ChartDataResource(Resource):
         "chartType|required:str",
     )
     def post(self):
-        tenant = request.args.get("tenant")
+        tenant = request.args.get("tenant", "airqo")
 
         json_data = request.get_json()
         sites = json_data["sites"]
@@ -239,7 +241,7 @@ class D3ChartDataResource(Resource):
 class MonitoringSiteResource(Resource):
     @swag_from("/api/docs/dashboard/monitoring_site_get.yml")
     def get(self):
-        tenant = request.args.get("tenant")
+        tenant = request.args.get("tenant", "airqo")
 
         ms_model = SiteModel(tenant)
 
@@ -261,7 +263,7 @@ class DailyAveragesResource(Resource):
         "sites|optional:list",
     )
     def post(self):
-        tenant = request.args.get("tenant")
+        tenant = request.args.get("tenant", "airqo")
         json_data = request.get_json()
         pollutant = json_data["pollutant"]
         start_date = json_data["startDate"]
@@ -281,22 +283,25 @@ class DailyAveragesResource(Resource):
 
         for v in data:
 
-            if not v.get("site_id"):
+            value = v.get("value", None)
+            site_id = v.get("site_id", None)
+
+            if not site_id or not value or math.isnan(value):
                 continue
 
-            site = list(filter(lambda s: s.get("site_id") == v.get("site_id"), sites))
+            site = list(filter(lambda s: s.get("site_id") == site_id, sites))
 
             if not site:
                 continue
 
             site = site[0]
-            values.append(v.get("value"))
+            values.append(value)
             labels.append(
                 site.get("name")
                 or site.get("description")
                 or site.get("generated_name")
             )
-            background_colors.append(set_pm25_category_background(v.get("value")))
+            background_colors.append(set_pm25_category_background(value))
 
         return (
             create_response(
@@ -322,7 +327,7 @@ class ExceedancesResource(Resource):
         "sites|optional:list",
     )
     def post(self):
-        tenant = request.args.get("tenant")
+        tenant = request.args.get("tenant", "airqo")
 
         json_data = request.get_json()
         pollutant = json_data["pollutant"]
