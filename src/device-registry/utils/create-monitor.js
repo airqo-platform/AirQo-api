@@ -1,12 +1,12 @@
 "use strict";
 const HTTPStatus = require("http-status");
 module.exports = { getDevicesCount, list, decryptKey };
-const DeviceSchema = require("../models/Device");
+const DeviceSchema = require("@models/Device");
 const { getModelByTenant } = require("./multitenancy");
 const axios = require("axios");
 const { logObject, logElement, logText } = require("./log");
 const { transform } = require("node-json-transform");
-const constants = require("../config/constants");
+const constants = require("@config/constants");
 const cryptoJS = require("crypto-js");
 const generateFilter = require("./generate-filter");
 const errors = require("./errors");
@@ -36,7 +36,9 @@ async function list(request) {
       filter = responseFromFilter.data;
       logger.info(`the filter in list -- ${filter}`);
     } else if (responseFromFilter.success === false) {
-      let errors = responseFromFilter.errors ? responseFromFilter.errors : "";
+      let errors = responseFromFilter.errors
+        ? responseFromFilter.errors
+        : { message: "" };
       let status = responseFromFilter.status ? responseFromFilter.status : "";
       try {
         logger.error(
@@ -70,10 +72,7 @@ async function list(request) {
     if (responseFromListDevice.success === false) {
       let errors = responseFromListDevice.errors
         ? responseFromListDevice.errors
-        : "";
-      let status = responseFromListDevice.status
-        ? responseFromListDevice.status
-        : "";
+        : { message: "" };
       try {
         logger.error(
           `responseFromListDevice was not a success -- ${
@@ -83,31 +82,18 @@ async function list(request) {
       } catch (error) {
         logger.error(`internal server error -- ${error.message}`);
       }
-      return {
-        success: false,
-        message: responseFromListDevice.message,
-        errors,
-        status,
-      };
+      return responseFromListDevice;
     } else if (responseFromListDevice.success === true) {
       let data = responseFromListDevice.data;
-      let status = responseFromListDevice.status
-        ? responseFromListDevice.status
-        : "";
       logger.info(`responseFromListDevice was a success -- ${data}`);
-      return {
-        success: true,
-        message: responseFromListDevice.message,
-        data,
-        status,
-      };
+      return responseFromListDevice;
     }
   } catch (e) {
     logger.error(`error for list devices util -- ${e.message}`);
     return {
       success: false,
       message: "list devices util - server error",
-      errors: e.message,
+      errors: { message: e.message },
       status: HTTPStatus.INTERNAL_SERVER_ERROR,
     };
   }
@@ -131,7 +117,7 @@ async function getDevicesCount(request, callback) {
         callback({
           success: false,
           message: "Internal Server Error",
-          errors: { message: err },
+          errors: { message: err.message },
           status: HTTPStatus.INTERNAL_SERVER_ERROR,
         });
       }
@@ -156,7 +142,7 @@ async function decryptKey(encryptedKey) {
     let isKeyUnknown = isEmpty(originalText);
     if (isKeyUnknown) {
       return {
-        success: false,
+        success: true,
         status: HTTPStatus.NOT_FOUND,
         message: "the provided encrypted key is not recognizable",
       };

@@ -53,7 +53,6 @@ const DefaultsSchema = new mongoose.Schema(
     network_id: {
       type: ObjectId,
       ref: "network",
-      required: [true, "network_id is required!"],
     },
     user: {
       type: ObjectId,

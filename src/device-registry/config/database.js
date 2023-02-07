@@ -4,7 +4,7 @@ mongoose.set("useNewUrlParser", true);
 mongoose.set("useCreateIndex", true);
 mongoose.set("debug", false);
 const constants = require("./constants");
-const { logElement, logText, logObject } = require("../utils/log");
+const { logElement, logText, logObject } = require("@utils/log");
 const URI = constants.MONGO_URI;
 // logElement("the URI string", URI);
 

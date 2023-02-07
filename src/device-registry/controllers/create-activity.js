@@ -1,17 +1,17 @@
 const HTTPStatus = require("http-status");
 const isEmpty = require("is-empty");
-const { logObject, logElement, logText } = require("../utils/log");
+const { logObject, logElement, logText } = require("@utils/log");
 const { validationResult } = require("express-validator");
-const { getModelByTenant } = require("../utils/multitenancy");
-const constants = require("../config/constants");
+const { getModelByTenant } = require("@utils/multitenancy");
+const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-activity-controller`
 );
-const createActivityUtil = require("../utils/create-activity");
-// const { runActivitiesUpdates } = require("../scripts/bulk-update");
-// const { runActivitiesAdditions } = require("../scripts/bulk-create");
-const errors = require("../utils/errors");
+const createActivityUtil = require("@utils/create-activity");
+// const { runActivitiesUpdates } = require("@scripts/bulk-update");
+// const { runActivitiesAdditions } = require("@scripts/bulk-create");
+const errors = require("@utils/errors");
 
 const activity = {
   deploy: async (req, res) => {
@@ -262,7 +262,7 @@ const activity = {
       });
       logObject("responseFromCreateActivities", responseFromCreateActivities);
       if (responseFromCreateActivities.success === true) {
-        let status = responseFromCreateActivities.status
+        const status = responseFromCreateActivities.status
           ? responseFromCreateActivities.status
           : HTTPStatus.OK;
         return res.status(status).json({
@@ -271,18 +271,16 @@ const activity = {
           updated_activities: responseFromCreateActivities.data,
         });
       } else if (responseFromCreateActivities.success === false) {
-        let errors = responseFromCreateActivities.errors
-          ? responseFromCreateActivities.errors
-          : "";
-
-        let status = responseFromCreateActivities.status
+        const status = responseFromCreateActivities.status
           ? responseFromCreateActivities.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
 
         return res.status(status).json({
           success: false,
           message: responseFromCreateActivities.message,
-          errors,
+          errors: responseFromCreateActivities.errors
+            ? responseFromCreateActivities.errors
+            : { message: "" },
         });
       }
     } catch (error) {
@@ -332,7 +330,7 @@ const activity = {
         network,
       });
       if (responseFromUpdateActivities.success === true) {
-        let status = responseFromUpdateActivities.status
+        const status = responseFromUpdateActivities.status
           ? responseFromUpdateActivities.status
           : HTTPStatus.OK;
         return res.status(status).json({
@@ -341,18 +339,16 @@ const activity = {
           updated_activities: responseFromUpdateActivities.data,
         });
       } else if (responseFromUpdateActivities.success === false) {
-        let errors = responseFromUpdateActivities.errors
-          ? responseFromUpdateActivities.errors
-          : "";
-
-        let status = responseFromUpdateActivities.status
+        const status = responseFromUpdateActivities.status
           ? responseFromUpdateActivities.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
 
         return res.status(status).json({
           success: false,
           message: responseFromUpdateActivities.message,
-          errors,
+          errors: responseFromUpdateActivities.errors
+            ? responseFromUpdateActivities.errors
+            : { message: "" },
         });
       }
     } catch (error) {
@@ -395,7 +391,7 @@ const activity = {
       let responseFromUpdateActivity = await createActivityUtil.update(request);
       logObject("responseFromUpdateActivity", responseFromUpdateActivity);
       if (responseFromUpdateActivity.success === true) {
-        let status = responseFromUpdateActivity.status
+        const status = responseFromUpdateActivity.status
           ? responseFromUpdateActivity.status
           : HTTPStatus.OK;
         return res.status(status).json({
@@ -404,18 +400,16 @@ const activity = {
           updated_activity: responseFromUpdateActivity.data,
         });
       } else if (responseFromUpdateActivity.success === false) {
-        let errors = responseFromUpdateActivity.errors
-          ? responseFromUpdateActivity.errors
-          : "";
-
-        let status = responseFromUpdateActivity.status
+        const status = responseFromUpdateActivity.status
           ? responseFromUpdateActivity.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
 
         return res.status(status).json({
           success: false,
           message: responseFromUpdateActivity.message,
-          errors,
+          errors: responseFromUpdateActivity.errors
+            ? responseFromUpdateActivity.errors
+            : { message: "" },
         });
       }
     } catch (error) {
@@ -456,7 +450,7 @@ const activity = {
       let responseFromRemoveActivity = await createActivityUtil.delete(request);
 
       if (responseFromRemoveActivity.success === true) {
-        let status = responseFromRemoveActivity.status
+        const status = responseFromRemoveActivity.status
           ? responseFromRemoveActivity.status
           : HTTPStatus.OK;
         return res.status(status).json({
@@ -465,16 +459,15 @@ const activity = {
           deleted_activity: responseFromRemoveActivity.data,
         });
       } else if (responseFromRemoveActivity.success === false) {
-        let errors = responseFromRemoveActivity.errors
-          ? responseFromRemoveActivity.errors
-          : "";
-        let status = responseFromRemoveActivity.status
+        const status = responseFromRemoveActivity.status
           ? responseFromRemoveActivity.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
           message: responseFromRemoveActivity.message,
-          errors,
+          errors: responseFromRemoveActivity.errors
+            ? responseFromRemoveActivity.errors
+            : { message: "" },
         });
       }
     } catch (error) {
@@ -517,7 +510,7 @@ const activity = {
         responseFromListActivities.success
       );
       if (responseFromListActivities.success === true) {
-        let status = responseFromListActivities.status
+        const status = responseFromListActivities.status
           ? responseFromListActivities.status
           : HTTPStatus.OK;
         res.status(status).json({
@@ -526,16 +519,15 @@ const activity = {
           site_activities: responseFromListActivities.data,
         });
       } else if (responseFromListActivities.success === false) {
-        let errors = responseFromListActivities.errors
-          ? responseFromListActivities.errors
-          : "";
-        let status = responseFromListActivities.status
+        const status = responseFromListActivities.status
           ? responseFromListActivities.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
           message: responseFromListActivities.message,
-          errors,
+          errors: responseFromListActivities.errors
+            ? responseFromListActivities.errors
+            : { message: "" },
         });
       }
     } catch (error) {
