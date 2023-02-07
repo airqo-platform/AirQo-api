@@ -5,12 +5,12 @@ app:
   configmap: stage-calibrate-api-config
 initContainer:
   image:
-    repository: gcr.io/airqo-250220/airqo-stage-calibrate-pickle-file
-    tag: stage-09ba71bd-1670928304
+    repository: eu.gcr.io/airqo-250220/airqo-stage-calibrate-pickle-file
+    tag: stage-a986baa8-1675769529
 replicaCount: 2
 image:
-  repository: gcr.io/airqo-250220/airqo-stage-calibrate-api
-  tag: stage-09ba71bd-1670928304
+  repository: eu.gcr.io/airqo-250220/airqo-stage-calibrate-api
+  tag: stage-a986baa8-1675769529
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
