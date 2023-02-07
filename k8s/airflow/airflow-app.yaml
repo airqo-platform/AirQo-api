@@ -135,7 +135,6 @@ spec:
       nodePort: 30036
   selector:
     app: airflow
-
 # ---
 # apiVersion: v1
 # kind: ServiceAccount
@@ -181,4 +180,3 @@ spec:
 # kind: Namespace
 # metadata:
 #   name: airflow-workers
-

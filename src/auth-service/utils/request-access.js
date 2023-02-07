@@ -258,6 +258,7 @@ const requestAccess = {
       category,
       filter,
       description,
+      country,
     } = req;
     try {
       let responseFromListCandidate = await requestAccess.list({
@@ -286,6 +287,7 @@ const requestAccess = {
           category,
           privilege: "user",
           userName: email,
+          country,
         };
         logObject("requestBody during confirmation", requestBody);
 
