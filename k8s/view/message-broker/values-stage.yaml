@@ -5,8 +5,8 @@ app:
   configmap: stage-view-message-broker-config
 replicaCount: 2
 image:
-  repository: gcr.io/airqo-250220/airqo-stage-view-message-broker
-  tag: stage-f7b4dfc9-1673512005
+  repository: eu.gcr.io/airqo-250220/airqo-stage-view-message-broker
+  tag: stage-a986baa8-1675769529
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations:
