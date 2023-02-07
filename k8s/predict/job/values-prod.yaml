@@ -6,7 +6,7 @@ app:
 schedule: 0 * * * *
 
 image:
-  repository: gcr.io/airqo-250220/airqo-predict-job
+  repository: eu.gcr.io/airqo-250220/airqo-predict-job
   tag: latest
 
 nameOverride: ""

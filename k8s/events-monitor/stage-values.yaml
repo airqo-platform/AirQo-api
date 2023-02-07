@@ -6,7 +6,7 @@ jobs:
   - name: stage-events-monitor-job
     schedule: "@hourly"
     image:
-      repository: us.gcr.io/airqo-250220/stage-events-monitor-job
+      repository: eu.gcr.io/airqo-250220/stage-events-monitor-job
       pullPolicy: Always
       tag: "latest"
 
@@ -21,7 +21,7 @@ jobs:
   - name: stage-events-notifs-job
     schedule: "@hourly"
     image:
-      repository: us.gcr.io/airqo-250220/stage-events-notifs-job
+      repository: eu.gcr.io/airqo-250220/stage-events-notifs-job
       pullPolicy: Always
       tag: "latest"
 

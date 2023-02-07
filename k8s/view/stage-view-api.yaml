@@ -43,7 +43,7 @@ spec:
                       - general-purpose
       containers:
         - name: view-api
-          image: us.gcr.io/airqo-250220/airqo-stage-view-api:latest
+          image: eu.gcr.io/airqo-250220/airqo-stage-view-api:latest
           imagePullPolicy: Always
           resources:
             requests:

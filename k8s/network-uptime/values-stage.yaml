@@ -7,7 +7,7 @@ app:
 replicaCount: 0
 
 image:
-  repository: gcr.io/airqo-250220/airqo-stage-network-uptime-api
+  repository: eu.gcr.io/airqo-250220/airqo-stage-network-uptime-api
   tag: latest
 
 nameOverride: ""
