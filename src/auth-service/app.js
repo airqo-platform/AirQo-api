@@ -13,6 +13,45 @@ const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- app entry`);
 const mongodb = require("./config/dbConnection");
 mongodb;
 
+const { logText } = require("@utils/log");
+
+const { Kafka } = require("kafkajs");
+const kafka = new Kafka({
+  clientId: constants.KAFKA_CLIENT_ID,
+  brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
+});
+
+const runKafkaConsumer = async () => {
+  try {
+    const kafkaConsumer = kafka.consumer({
+      groupId: constants.UNIQUE_CONSUMER_GROUP,
+    });
+    await kafkaConsumer.connect();
+    await kafkaConsumer.subscribe({
+      topic: constants.MOBILE_APP_USERS_TOPIC,
+      fromBeginning: true,
+    });
+    await kafkaConsumer.run({
+      eachMessage: async ({ message }) => {
+        const receivedData = JSON.parse(message.value).data;
+        if (isEmpty(receivedData)) {
+          logger.error(
+            `KAFKA: the sent receivedData is just empty (undefined) --- ${JSON.stringify(
+              receivedData
+            )}`
+          );
+        }
+      },
+    });
+  } catch (error) {
+    logger.error("KAFKA: internal server error", error.message);
+  }
+};
+
+if (constants.ENVIRONMENT === "STAGING ENVIRONMENT") {
+  runKafkaConsumer();
+}
+
 const app = express();
 
 app.use(log4js.connectLogger(log4js.getLogger("http"), { level: "auto" }));
@@ -56,10 +95,10 @@ app.use("/api/v2/users/defaults", routes.v2.defaults);
 // app.use("/api/v2/users/groups", routes.v2.groups);
 app.use("/api/v2/users", routes.v2.users);
 
-require("./config/firebase-admin");
-const firebaseFuncs = require("./config/firebase-admin");
-firebaseFuncs.newUserSignUp();
-firebaseFuncs.userDeleted();
+require("@config/firebase-admin");
+const firebaseFuncs = require("@config/firebase-admin");
+// firebaseFuncs.newUserSignUp();
+// firebaseFuncs.userDeleted();
 
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {
