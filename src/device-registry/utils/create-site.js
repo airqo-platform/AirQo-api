@@ -79,6 +79,7 @@ const createSite = {
             success: false,
             message: "unable to find one match for this site",
             status: HTTPStatus.NOT_FOUND,
+            errors: { message: "unable to find one match for this site" },
           };
         }
         const { latitude, longitude } = data[0];
@@ -125,25 +126,10 @@ const createSite = {
             };
           }
         } else if (responseFromListAirQlouds.success === false) {
-          return {
-            success: false,
-            message: responseFromListAirQlouds.message,
-            status: responseFromListAirQlouds.status,
-          };
+          return responseFromListAirQlouds;
         }
       } else if (responseFromListSites.success === false) {
-        const status = responseFromListSites.status
-          ? responseFromListSites.status
-          : "";
-        const errors = responseFromListSites.errors
-          ? responseFromListSites.errors
-          : "";
-        return {
-          success: false,
-          message: responseFromListSites.message,
-          errors,
-          status,
-        };
+        return responseFromListSites;
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
@@ -183,27 +169,11 @@ const createSite = {
             data: nearestWeatherStation,
             status: HTTPStatus.OK,
           };
-        }
-        if (responseFromListWeatherStations.success === false) {
-          return {
-            success: false,
-            message: responseFromListWeatherStations.message,
-            status: responseFromListWeatherStations.status,
-          };
+        } else if (responseFromListWeatherStations.success === false) {
+          return responseFromListWeatherStations;
         }
       } else if (responseFromListSites.success === false) {
-        const status = responseFromListSites.status
-          ? responseFromListSites.status
-          : "";
-        const errors = responseFromListSites.errors
-          ? responseFromListSites.errors
-          : "";
-        return {
-          success: false,
-          message: responseFromListSites.message,
-          errors,
-          status,
-        };
+        return responseFromListSites;
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
@@ -321,42 +291,34 @@ const createSite = {
         logger.error(
           `unable to find the counter document, please first create it`
         );
-        let errors = responseFromModifyUniqueIdentifierCounter.errors
-          ? responseFromModifyUniqueIdentifierCounter.errors
-          : {};
-        logObject("error", errors);
-
-        let status = responseFromModifyUniqueIdentifierCounter.status
-          ? responseFromModifyUniqueIdentifierCounter.status
-          : "";
-
         return {
           success: false,
           message:
             "unable to generate unique name for this site, contact support",
-          errors,
-          status,
+          errors: responseFromModifyUniqueIdentifierCounter.errors
+            ? responseFromModifyUniqueIdentifierCounter.errors
+            : { message: "" },
+          status: responseFromModifyUniqueIdentifierCounter.status
+            ? responseFromModifyUniqueIdentifierCounter.status
+            : "",
         };
-      }
-
-      if (responseFromModifyUniqueIdentifierCounter.success === true) {
-        const status = responseFromModifyUniqueIdentifierCounter.status
-          ? responseFromModifyUniqueIdentifierCounter.status
-          : "";
+      } else if (responseFromModifyUniqueIdentifierCounter.success === true) {
         const count = responseFromModifyUniqueIdentifierCounter.data.COUNT;
         const siteName = `site_${count}`;
         return {
           success: true,
           message: "unique name generated for this site",
           data: siteName,
-          status,
+          status: responseFromModifyUniqueIdentifierCounter.status
+            ? responseFromModifyUniqueIdentifierCounter.status
+            : "",
         };
       }
     } catch (e) {
       logger.error(`internal server error -- ${e.message}`);
       return {
         success: false,
-        errors: { message: { message: e.message } },
+        errors: { message: e.message },
         message: "generateName -- createSite util server error",
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
@@ -422,18 +384,7 @@ const createSite = {
         generated_name = responseFromGenerateName.data;
         request["body"]["generated_name"] = generated_name;
       } else if (responseFromGenerateName.success === false) {
-        let errors = responseFromGenerateName.errors
-          ? responseFromGenerateName.errors
-          : "";
-        let status = responseFromGenerateName.status
-          ? responseFromGenerateName.status
-          : "";
-        return {
-          success: false,
-          message: responseFromGenerateName.message,
-          errors,
-          status,
-        };
+        return responseFromGenerateName;
       }
 
       let responseFromGenerateMetadata = await createSite.generateMetadata(
@@ -443,25 +394,16 @@ const createSite = {
       if (responseFromGenerateMetadata.success === true) {
         requestBodyForCreatingSite = responseFromGenerateMetadata.data;
       } else if (responseFromGenerateMetadata.success === false) {
-        let errors = responseFromGenerateMetadata.errors
-          ? responseFromGenerateMetadata.errors
-          : "";
-        let status = responseFromGenerateMetadata.status
-          ? responseFromGenerateMetadata.status
-          : "";
-        return {
-          success: false,
-          message: responseFromGenerateMetadata.message,
-          errors,
-          status,
-        };
+        return responseFromGenerateMetadata;
       }
 
-      let responseFromCreateSite = await getModelByTenant(
+      const responseFromCreateSite = await getModelByTenant(
         tenant.toLowerCase(),
         "site",
         SiteSchema
       ).register(requestBodyForCreatingSite);
+
+      logObject("responseFromCreateSite in the util", responseFromCreateSite);
 
       if (responseFromCreateSite.success === true) {
         let createdSite = responseFromCreateSite.data;
@@ -485,35 +427,16 @@ const createSite = {
           logger.error(`internal server error -- ${error.message}`);
         }
 
-        let status = responseFromCreateSite.status
-          ? responseFromCreateSite.status
-          : "";
-        return {
-          success: true,
-          message: "Site successfully created",
-          data: createdSite,
-          status,
-        };
+        return responseFromCreateSite;
       } else if (responseFromCreateSite.success === false) {
-        let errors = responseFromCreateSite.errors
-          ? responseFromCreateSite.errors
-          : "";
-        let status = responseFromCreateSite.status
-          ? responseFromCreateSite.status
-          : "";
-        return {
-          success: false,
-          message: responseFromCreateSite.message,
-          errors,
-          status,
-        };
+        return responseFromCreateSite;
       }
     } catch (e) {
       logger.error(`internal server error -- ${e.message}`);
       return {
         success: false,
         message: "Internal Server Error",
-        errors: { message: { message: e.message } },
+        errors: { message: e.message },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -529,32 +452,8 @@ const createSite = {
         filter,
         update,
       });
-      if (responseFromModifySite.success === true) {
-        let status = responseFromModifySite.status
-          ? responseFromModifySite.status
-          : "";
-        return {
-          success: true,
-          message: responseFromModifySite.message,
-          data: responseFromModifySite.data,
-          status,
-        };
-      } else if (responseFromModifySite.success === false) {
-        let errors = responseFromModifySite.errors
-          ? responseFromModifySite.errors
-          : "";
 
-        let status = responseFromModifySite.status
-          ? responseFromModifySite.status
-          : "";
-
-        return {
-          success: false,
-          message: responseFromModifySite.message,
-          errors,
-          status,
-        };
-      }
+      return responseFromModifySite;
     } catch (e) {
       logger.error(`internal server error -- ${e.message}`);
       return {
@@ -619,7 +518,7 @@ const createSite = {
               return {
                 success: false,
                 errors: { message: error },
-                message: "constants server side error",
+                message: "Internal Server Error",
                 status: httpStatus.INTERNAL_SERVER_ERROR,
               };
             })
@@ -634,13 +533,12 @@ const createSite = {
             status: HTTPStatus.OK,
             data: response,
           };
-        }
-
-        if (isEmpty(response)) {
+        } else if (isEmpty(response)) {
           return {
             success: false,
             message: "unable to retrieve any road metadata",
             status: HTTPStatus.NOT_FOUND,
+            errors: { message: "unable to retrieve any road metadata" },
           };
         }
       });
@@ -677,7 +575,7 @@ const createSite = {
       } else if (responseFromGetAltitude.success === false) {
         let errors = responseFromGetAltitude.errors
           ? responseFromGetAltitude.errors
-          : "";
+          : { message: "" };
         try {
           logger.error(
             `unable to retrieve the altitude for this site, ${
@@ -701,7 +599,7 @@ const createSite = {
       // } else if (responseFromGetRoadMetadata.success === false) {
       //   let errors = responseFromGetRoadMetadata.errors
       //     ? responseFromGetRoadMetadata.errors
-      //     : "";
+      //     : {message:""};
       //   try {
       //     logger.error(
       //       `unable to retrieve the road metadata, ${
@@ -742,25 +640,14 @@ const createSite = {
           status,
         };
       } else if (responseFromReverseGeoCode.success === false) {
-        let errors = responseFromReverseGeoCode.errors
-          ? responseFromReverseGeoCode.errors
-          : "";
-        let status = responseFromReverseGeoCode.status
-          ? responseFromReverseGeoCode.status
-          : "";
-        return {
-          success: false,
-          message: responseFromReverseGeoCode.message,
-          errors,
-          status,
-        };
+        return responseFromReverseGeoCode;
       }
     } catch (e) {
       logger.error(`internal server error -- ${e.message}`);
       return {
         success: false,
         message: "Internal Server Error",
-        errors: { message: { message: e.message } },
+        errors: { message: e.message },
       };
     }
   },
@@ -794,18 +681,7 @@ const createSite = {
         delete request.body._id;
         delete request.body.devices;
       } else if (responseFromListSite.success === false) {
-        let errors = responseFromListSite.errors
-          ? responseFromListSite.errors
-          : "";
-        let status = responseFromListSite.status
-          ? responseFromListSite.status
-          : "";
-        return {
-          message: responseFromListSite.message,
-          status,
-          errors,
-          success: false,
-        };
+        return responseFromListSite;
       }
 
       logger.info(`refresh -- responseFromListSite -- ${responseFromListSite}`);
@@ -840,14 +716,7 @@ const createSite = {
           generated_name = responseFromGenerateName.data;
           request["body"]["generated_name"] = generated_name;
         } else if (responseFromGenerateName.success === false) {
-          let errors = responseFromGenerateName.errors
-            ? responseFromGenerateName.errors
-            : "";
-          return {
-            success: false,
-            message: responseFromGenerateName.message,
-            errors,
-          };
+          return responseFromGenerateName;
         }
       }
 
@@ -900,14 +769,7 @@ const createSite = {
       if (responseFromGenerateMetadata.success === true) {
         update = responseFromGenerateMetadata.data;
       } else if (responseFromGenerateMetadata.success === false) {
-        let errors = responseFromGenerateMetadata.errors
-          ? responseFromGenerateMetadata.errors
-          : "";
-        return {
-          success: false,
-          message: responseFromGenerateMetadata.message,
-          errors,
-        };
+        return responseFromGenerateMetadata;
       }
 
       logger.info(`refresh -- update -- ${update}`);
@@ -929,20 +791,13 @@ const createSite = {
           data: responseFromModifySite.data,
         };
       } else if (responseFromModifySite.success === false) {
-        let errors = responseFromModifySite.errors
-          ? responseFromModifySite.errors
-          : "";
-        return {
-          success: false,
-          message: responseFromModifySite.message,
-          errors,
-        };
+        return responseFromModifySite;
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
       return {
         errors: { message: error.message },
-        message: "create site util -- server error -- refresh site data",
+        message: "Internal Server Error",
         success: false,
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
@@ -964,28 +819,8 @@ const createSite = {
       ).remove({
         filter,
       });
-      if (responseFromRemoveSite.success === true) {
-        return {
-          success: true,
-          message: responseFromRemoveSite.message,
-          data: responseFromRemoveSite.data,
-        };
-      } else if (responseFromRemoveSite.success === false) {
-        let errors = responseFromRemoveSite.errors
-          ? responseFromRemoveSite.errors
-          : "";
 
-        let status = responseFromRemoveSite.status
-          ? responseFromRemoveSite.status
-          : "";
-
-        return {
-          success: false,
-          message: responseFromRemoveSite.message,
-          errors,
-          status,
-        };
-      }
+      return responseFromRemoveSite;
     } catch (e) {
       logger.error(`internal server error -- ${e.message}`);
       return {
@@ -1085,7 +920,7 @@ const createSite = {
       return {
         success: false,
         message: "unable to transform the address",
-        errors: { message: { message: e.message } },
+        errors: { message: e.message },
       };
     }
   },
@@ -1102,26 +937,7 @@ const createSite = {
             let responseFromTransformAddress = createSite.retrieveInformationFromAddress(
               responseJSON
             );
-            if (responseFromTransformAddress.success === true) {
-              return {
-                success: true,
-                data: responseFromTransformAddress.data,
-                message: responseFromTransformAddress.message,
-              };
-            } else if (responseFromTransformAddress.success === false) {
-              if (responseFromTransformAddress.errors) {
-                return {
-                  success: false,
-                  errors: responseFromTransformAddress.errors,
-                  message: responseFromTransformAddress.message,
-                };
-              } else {
-                return {
-                  success: false,
-                  message: responseFromTransformAddress.message,
-                };
-              }
-            }
+            return responseFromTransformAddress;
           } else {
             return {
               success: false,
@@ -1151,7 +967,7 @@ const createSite = {
       return {
         success: false,
         message: "unable to get the address values",
-        errors: { message: { message: e.message } },
+        errors: { message: e.message },
       };
     }
   },
@@ -1307,18 +1123,7 @@ const createSite = {
           status,
         };
       } else if (responseFromListSites.success === false) {
-        let status = responseFromListSites.status
-          ? responseFromListSites.status
-          : "";
-        let errors = responseFromListSites.errors
-          ? responseFromListSites.errors
-          : "";
-        return {
-          success: false,
-          errors,
-          message: responseFromListSites.message,
-          status,
-        };
+        return responseFromListSites;
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
@@ -1406,6 +1211,9 @@ const createSite = {
         return res.status(HTTPStatus.NOT_FOUND).json({
           message: `device does not exist, please first create the device`,
           success: false,
+          errors: {
+            message: `device does not exist, please first create the device`,
+          },
         });
       }
     );
@@ -1533,6 +1341,7 @@ const createSite = {
         return res.status(HTTPStatus.BAD_REQUEST).json({
           message: "incorrect query parameter",
           success: false,
+          errors: { message: "incorrect query parameter" },
         });
       }
     } catch (e) {
@@ -1619,7 +1428,11 @@ const createSite = {
       return { filter };
     } catch (e) {
       logger.error(`internal server error -- ${e.message}`);
-      tryCatchErrors(res, e);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: e.message },
+      };
     }
   },
   bodyFilterOptions: async (req, res) => {
@@ -1648,7 +1461,11 @@ const createSite = {
       return { activityBody };
     } catch (e) {
       logger.error(`internal server error -- ${e.message}`);
-      tryCatchErrors(res, e);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: e.message },
+      };
     }
   },
 

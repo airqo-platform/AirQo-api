@@ -433,11 +433,13 @@ siteSchema.statics = {
       let message = "validation errors for some of the provided fields";
       let status = HTTPStatus.CONFLICT;
       Object.entries(err.errors).forEach(([key, value]) => {
-        return (response[key] = value.message);
+        response.message = value.message;
+        response[key] = value.message;
+        return response;
       });
 
       return {
-        errors: { message: response },
+        errors: response,
         message,
         success: false,
         status,

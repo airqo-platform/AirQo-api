@@ -59,18 +59,23 @@ const createEvent = {
       const responseFromConsumeMeasurements = await createEventUtil.consume();
       if (responseFromConsumeMeasurements.success === true) {
         return res.status(HTTPStatus.OK).json({
+          success: true,
           message: responseFromConsumeMeasurements.message,
           response: responseFromConsumeMeasurements.data,
         });
       } else {
         return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+          success: false,
           message: responseFromConsumeMeasurements.message,
-          errors: responseFromConsumeMeasurements.errors,
+          errors: responseFromConsumeMeasurements.errors
+            ? responseFromConsumeMeasurements.errors
+            : { message: "" },
         });
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
       });
@@ -172,13 +177,12 @@ const createEvent = {
         const status = responseFromListFromBigQuery.status
           ? responseFromListFromBigQuery.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
-        const errors = responseFromListFromBigQuery.errors
-          ? responseFromListFromBigQuery.errors
-          : { message: "Internal Server Error" };
         return res.status(status).json({
           success: false,
           message: responseFromListFromBigQuery.message,
-          errors,
+          errors: responseFromListFromBigQuery.errors
+            ? responseFromListFromBigQuery.errors
+            : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
@@ -264,10 +268,9 @@ const createEvent = {
           const status = result.status
             ? result.status
             : HTTPStatus.INTERNAL_SERVER_ERROR;
-          const errors = result.errors ? result.errors : { message: "" };
           res.status(status).json({
             success: false,
-            errors,
+            errors: result.errors ? result.errors : { message: "" },
             message: result.message,
           });
         }
@@ -361,10 +364,9 @@ const createEvent = {
           const status = result.status
             ? result.status
             : HTTPStatus.INTERNAL_SERVER_ERROR;
-          const errors = result.errors ? result.errors : { message: "" };
           res.status(status).json({
             success: false,
-            errors,
+            errors: result.errors ? result.errors : { message: "" },
             message: result.message,
           });
         }
@@ -404,17 +406,17 @@ const createEvent = {
         const status = responseFromTransformEvents.status
           ? responseFromTransformEvents.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
-        const errors = responseFromTransformEvents.errors
-          ? responseFromTransformEvents.errors
-          : { message: "" };
         return res.status(status).json({
           message: responseFromTransformEvents.message,
-          errors,
+          errors: responseFromTransformEvents.errors
+            ? responseFromTransformEvents.errors
+            : { message: "" },
         });
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
       });
@@ -458,18 +460,18 @@ const createEvent = {
         const status = responseFromCreateEvents.status
           ? responseFromCreateEvents.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
-        const errors = responseFromCreateEvents.errors
-          ? responseFromCreateEvents.errors
-          : { message: "" };
         return res.status(status).json({
           success: false,
           message: responseFromCreateEvents.message,
-          errors,
+          errors: responseFromCreateEvents.errors
+            ? responseFromCreateEvents.errors
+            : { message: "" },
         });
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
       });
@@ -515,6 +517,7 @@ const createEvent = {
           ? responseFromTransmitMultipleSensorValues.status
           : HTTPStatus.OK;
         res.status(status).json({
+          success: true,
           message: responseFromTransmitMultipleSensorValues.message,
           response: responseFromTransmitMultipleSensorValues.data,
         });
@@ -522,17 +525,18 @@ const createEvent = {
         const status = responseFromTransmitMultipleSensorValues.status
           ? responseFromTransmitMultipleSensorValues.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
-        const errors = responseFromTransmitMultipleSensorValues.errors
-          ? responseFromTransmitMultipleSensorValues.errors
-          : { message: "" };
         res.status(status).json({
+          success: false,
           message: responseFromTransmitMultipleSensorValues.message,
-          errors,
+          errors: responseFromTransmitMultipleSensorValues.errors
+            ? responseFromTransmitMultipleSensorValues.errors
+            : { message: "" },
         });
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
       });
@@ -579,23 +583,25 @@ const createEvent = {
           ? responseFromBulkTransmitMultipleSensorValues.status
           : HTTPStatus.OK;
         res.status(status).json({
+          success: true,
           message: responseFromBulkTransmitMultipleSensorValues.message,
         });
       } else {
         const status = responseFromBulkTransmitMultipleSensorValues.status
           ? responseFromBulkTransmitMultipleSensorValues.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
-        const errors = responseFromBulkTransmitMultipleSensorValues.errors
-          ? responseFromBulkTransmitMultipleSensorValues.errors
-          : { message: "" };
         res.status(status).json({
+          success: false,
           message: responseFromBulkTransmitMultipleSensorValues.message,
-          errors,
+          errors: responseFromBulkTransmitMultipleSensorValues.errors
+            ? responseFromBulkTransmitMultipleSensorValues.errors
+            : { message: "" },
         });
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
       });
@@ -635,6 +641,7 @@ const createEvent = {
           ? responseFromTransmitValues.status
           : HTTPStatus.OK;
         res.status(status).json({
+          success: true,
           message: responseFromTransmitValues.message,
           response: responseFromTransmitValues.data,
         });
@@ -642,12 +649,13 @@ const createEvent = {
         const status = responseFromTransmitValues.status
           ? responseFromTransmitValues.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
-        const errors = responseFromTransmitValues.errors
-          ? responseFromTransmitValues.errors
-          : { message: "" };
-        res
-          .status(status)
-          .json({ message: responseFromTransmitValues.message, errors });
+        res.status(status).json({
+          success: false,
+          message: responseFromTransmitValues.message,
+          errors: responseFromTransmitValues.errors
+            ? responseFromTransmitValues.errors
+            : { message: "" },
+        });
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
@@ -690,19 +698,22 @@ const createEvent = {
         )}`
       );
 
-      if (responseFromClearValuesOnPlatform.success == false) {
-        let error = responseFromClearValuesOnPlatform.error
-          ? responseFromClearValuesOnPlatform.error
-          : { message: "" };
-        return res.status(HTTPStatus.BAD_GATEWAY).json({
+      if (responseFromClearValuesOnPlatform.success === false) {
+        const status = responseFromClearValuesOnPlatform.status
+          ? responseFromClearValuesOnPlatform.status
+          : HTTPStatus.BAD_GATEWAY;
+        return res.status(status).json({
           success: false,
           message: responseFromClearValuesOnPlatform.message,
-          error,
+          errors: responseFromClearValuesOnPlatform.error
+            ? responseFromClearValuesOnPlatform.error
+            : { message: "" },
         });
-      }
-
-      if (responseFromClearValuesOnPlatform.success == true) {
-        return res.status(HTTPStatus.OK).json({
+      } else if (responseFromClearValuesOnPlatform.success === true) {
+        const status = responseFromClearValuesOnPlatform.status
+          ? responseFromClearValuesOnPlatform.status
+          : HTTPStatus.OK;
+        return res.status(status).json({
           success: true,
           message: responseFromClearValuesOnPlatform.message,
           data: responseFromClearValuesOnPlatform.data,
@@ -710,11 +721,11 @@ const createEvent = {
       }
     } catch (e) {
       logger.error(`internal server error -- ${e.message}`);
-      errors.tryCatchErrors(
-        res,
-        e.message,
-        "responseFromClearValuesOnPlatform"
-      );
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: e.message },
+      });
     }
   },
 
@@ -759,19 +770,22 @@ const createEvent = {
         )}`
       );
 
-      if (!responseFromAddEventsUtil.success) {
-        let errors = responseFromAddEventsUtil.error
-          ? responseFromAddEventsUtil.error
-          : { message: "" };
-        return res.status(HTTPStatus.FORBIDDEN).json({
+      if (responseFromAddEventsUtil.success === false) {
+        const status = responseFromAddEventsUtil.status
+          ? responseFromAddEventsUtil.status
+          : HTTPStatus.FORBIDDEN;
+        return res.status(status).json({
           success: false,
           message: "finished the operation with some errors",
-          errors,
+          errors: responseFromAddEventsUtil.error
+            ? responseFromAddEventsUtil.error
+            : { message: "" },
         });
-      }
-
-      if (responseFromAddEventsUtil.success) {
-        return res.status(HTTPStatus.OK).json({
+      } else if (responseFromAddEventsUtil.success === true) {
+        const status = responseFromAddEventsUtil.status
+          ? responseFromAddEventsUtil.status
+          : HTTPStatus.OK;
+        return res.status(status).json({
           success: true,
           message: "successfully added all the events",
           stored_events: responseFromAddEventsUtil.data,
@@ -781,8 +795,8 @@ const createEvent = {
       logger.error(`addValue -- ${e.message}`);
       return res.status(HTTPStatus.BAD_GATEWAY).json({
         success: false,
-        message: "server error",
-        error: e.message,
+        message: "internal server error",
+        errors: { message: e.message },
       });
     }
   },
@@ -819,24 +833,24 @@ const createEvent = {
           message: responseFromEventsUtil.message,
           measurements: responseFromEventsUtil.data,
         });
-      }
-
-      if (responseFromEventsUtil.success === false) {
-        let error = responseFromEventsUtil.error
-          ? responseFromEventsUtil.error
-          : { message: "" };
-        res.status(HTTPStatus.BAD_GATEWAY).json({
+      } else if (responseFromEventsUtil.success === false) {
+        const status = responseFromEventsUtil.status
+          ? responseFromEventsUtil.status
+          : HTTPStatus.BAD_GATEWAY;
+        res.status(status).json({
           success: false,
           message: responseFromEventsUtil.message,
-          error,
+          errors: responseFromEventsUtil.error
+            ? responseFromEventsUtil.error
+            : { message: "" },
         });
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      res.status(HTTPStatus.BAD_GATEWAY).json({
+      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "server error",
-        error: error.message,
+        errors: { message: error.message },
       });
     }
   },
