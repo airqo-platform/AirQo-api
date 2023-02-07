@@ -5,8 +5,8 @@ app:
   configmap: nv-device-registry-staging
 replicaCount: 2
 image:
-  repository: gcr.io/airqo-250220/airqo-stage-device-registry-api
-  tag: stage-04c2a7da-1675752432
+  repository: eu.gcr.io/airqo-250220/airqo-stage-device-registry-api
+  tag: stage-a986baa8-1675769529
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
