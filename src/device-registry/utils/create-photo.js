@@ -1,10 +1,10 @@
 const HTTPStatus = require("http-status");
-const PhotoSchema = require("../models/Photo");
+const PhotoSchema = require("@models/Photo");
 const { getModelByTenant } = require("./multitenancy");
 const isEmpty = require("is-empty");
 const axios = require("axios");
-const constants = require("../config/constants");
-const cloudinary = require("../config/cloudinary");
+const constants = require("@config/constants");
+const cloudinary = require("@config/cloudinary");
 const { logObject, logElement, logText } = require("./log");
 const generateFilter = require("./generate-filter");
 const log4js = require("log4js");

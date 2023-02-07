@@ -1,17 +1,17 @@
 const HTTPStatus = require("http-status");
-const constants = require("../config/constants");
-const { logObject, logText, logElement } = require("../utils/log");
+const constants = require("@config/constants");
+const { logObject, logText, logElement } = require("@utils/log");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-event-controller`
 );
 
-const errors = require("../utils/errors");
+const errors = require("@utils/errors");
 
 const { validationResult } = require("express-validator");
 const isEmpty = require("is-empty");
-const createEventUtil = require("../utils/create-event");
-createDeviceUtil = require("../utils/create-device");
+const createEventUtil = require("@utils/create-event");
+createDeviceUtil = require("@utils/create-device");
 
 const { Kafka } = require("kafkajs");
 const { SchemaRegistry } = require("@kafkajs/confluent-schema-registry");

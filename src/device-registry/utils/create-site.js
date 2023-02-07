@@ -1,8 +1,8 @@
 const { Schema } = require("mongoose");
 const ObjectId = Schema.Types.ObjectId;
-const SiteSchema = require("../models/Site");
-const UniqueIdentifierCounterSchema = require("../models/UniqueIdentifierCounter");
-const constants = require("../config/constants");
+const SiteSchema = require("@models/Site");
+const UniqueIdentifierCounterSchema = require("@models/UniqueIdentifierCounter");
+const constants = require("@config/constants");
 const { logObject, logElement, logText } = require("./log");
 const { getModelByTenant } = require("./multitenancy");
 const isEmpty = require("is-empty");
@@ -24,8 +24,8 @@ const createAirqloudUtil = require("./create-airqloud");
 const pointInPolygon = require("point-in-polygon");
 const httpStatus = require("http-status");
 const geolib = require("geolib");
-const DeviceSchema = require("../models/Device");
-const SiteActivitySchema = require("../models/SiteActivity");
+const DeviceSchema = require("@models/Device");
+const SiteActivitySchema = require("@models/SiteActivity");
 
 const {
   threeMonthsFromNow,
