@@ -5,15 +5,15 @@ app:
   configmap: env-predict-staging
 replicaCount: 2
 image:
-  repository: gcr.io/airqo-250220/airqo-stage-prediction-api
-  tag: stage-4a0a9679-1675496635
+  repository: eu.gcr.io/airqo-250220/airqo-stage-prediction-api
+  tag: stage-a986baa8-1675769529
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
 resources:
   limits:
-    cpu: 100m
-    memory: 400Mi
+    cpu: 50m
+    memory: 200Mi
   requests:
     cpu: 5m
     memory: 130Mi
