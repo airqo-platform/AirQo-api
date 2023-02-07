@@ -1,7 +1,7 @@
 replicaCount: 2
 image:
   repository: eu.gcr.io/airqo-250220/airqo-stage-analytics-api
-  tag: stage-a986baa8-1675769529
+  tag: stage-dd604009-1675773542
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
