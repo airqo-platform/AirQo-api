@@ -1,14 +1,14 @@
-resource "google_compute_instance_template" "cfgsvr_template" {
+resource "google_compute_instance_template" "mongos_template" {
   confidential_instance_config {
     enable_confidential_compute = false
   }
 
-  description = "This template is used to create config server instances for mongodb sharded clusters."
+  description = "This template is used to create mongos query router instances for mongodb sharded clusters."
 
   disk {
     auto_delete  = true
     boot         = true
-    device_name  = "cfgsvr-template"
+    device_name  = "mongos-template"
     disk_size_gb = var.disk_size["small"]
     disk_type    = "pd-balanced"
     mode         = "READ_WRITE"
@@ -20,8 +20,8 @@ resource "google_compute_instance_template" "cfgsvr_template" {
     managed-by-cnrm = "true"
   }
 
-  machine_type = "e2-custom-4-8192"
-  name         = "cfgsvr-template"
+  machine_type = "e2-standard-2"
+  name         = "mongos-template"
 
   network_interface {
     access_config {
@@ -55,4 +55,4 @@ resource "google_compute_instance_template" "cfgsvr_template" {
 
   tags = ["airqo-shard", "http-server", "https-server"]
 }
-# terraform import google_compute_instance_template.cfgsvr_template projects/${var.project_id}/global/instanceTemplates/cfgsvr-template
+# terraform import google_compute_instance_template.mongos_template projects/${var.project_id}/global/instanceTemplates/mongos-template

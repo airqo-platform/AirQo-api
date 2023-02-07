@@ -1,20 +1,21 @@
-resource "google_compute_instance" "ansible_controller" {
+resource "google_compute_instance" "shard_prod_1" {
   boot_disk {
     auto_delete = true
-    source      = "ansible-controller"
+    source      = "shard-prod-1"
   }
 
   labels = {
-    "env" = "prod"
+    "env"  = "prod"
+    "type" = "mongo-shard"
   }
 
-  machine_type = "e2-small"
+  machine_type = "e2-custom-4-8192"
 
   metadata = {
     startup-script = "sudo ufw allow ssh"
   }
 
-  name = "ansible-controller"
+  name = "shard-prod-1"
 
   network_interface {
     access_config {
@@ -22,7 +23,7 @@ resource "google_compute_instance" "ansible_controller" {
     }
 
     network    = "default"
-    network_ip = "10.132.0.44"
+    network_ip = "10.132.0.52"
   }
 
   project = var.project_id
@@ -44,4 +45,4 @@ resource "google_compute_instance" "ansible_controller" {
 
   zone = var.zone
 }
-# terraform import google_compute_instance.ansible_controller projects/${var.project_id}/zones/${var.zone}/instances/ansible-controller
+# terraform import google_compute_instance.shard_prod_1 projects/${var.project_id}/zones/${var.zone}/instances/shard-prod-1

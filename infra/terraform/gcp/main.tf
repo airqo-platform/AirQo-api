@@ -1,28 +1,22 @@
 provider "google" {
-  project = var.project-id
+  project = var.project_id
   region  = var.region
 }
 
 module "ComputeDisk" {
   source = "./modules/ComputeDisk"
 
-  project-id = var.project-id
+  project_id = var.project_id
   zone       = var.zone
   os         = var.os
   disk_size  = var.disk_size
 }
 
-module "ComputeFirewall" {
-  source = "./modules/ComputeFirewall"
-
-  project-id = var.project-id
-}
-
 module "ComputeInstance" {
   source = "./modules/ComputeInstance"
 
-  project-id     = var.project-id
-  project-number = var.project-number
+  project_id     = var.project_id
+  project_number = var.project_number
   zone           = var.zone
   os             = var.os
   disk_size      = var.disk_size
@@ -31,28 +25,16 @@ module "ComputeInstance" {
 module "ComputeInstanceTemplate" {
   source = "./modules/ComputeInstanceTemplate"
 
-  project-id     = var.project-id
-  project-number = var.project-number
+  project_id     = var.project_id
+  project_number = var.project_number
+  region         = var.region
   os             = var.os
   disk_size      = var.disk_size
 }
 
-module "ComputeNetwork" {
-  source = "./modules/ComputeNetwork"
+module "ComputeResourcePolicy" {
+  source = "./modules/ComputeResourcePolicy"
 
-  project-id = var.project-id
-}
-
-module "ComputeSubnetwork" {
-  source = "./modules/ComputeSubnetwork"
-
-  project-id = var.project-id
-  region     = var.region
-}
-
-module "SecretManagerSecret" {
-  source = "./modules/SecretManagerSecret"
-
-  project-id     = var.project-id
-  project-number = var.project-number
+  project_id     = var.project_id
+  region         = var.region
 }

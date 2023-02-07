@@ -1,28 +1,29 @@
-resource "google_compute_instance" "ansible_controller" {
+resource "google_compute_instance" "cfgsvr_prod_3" {
   boot_disk {
     auto_delete = true
-    source      = "ansible-controller"
+    source      = "cfgsvr-prod-3"
   }
 
   labels = {
-    "env" = "prod"
+    "env"  = "prod"
+    "type" = "mongo-config-server"
   }
 
-  machine_type = "e2-small"
+  machine_type = "e2-custom-4-8192"
 
   metadata = {
     startup-script = "sudo ufw allow ssh"
   }
 
-  name = "ansible-controller"
+  name = "cfgsvr-prod-3"
 
   network_interface {
     access_config {
       network_tier = "PREMIUM"
     }
 
-    network    = "default"
-    network_ip = "10.132.0.44"
+    network = "default"
+    network_ip = "10.132.0.50"
   }
 
   project = var.project_id
@@ -44,4 +45,4 @@ resource "google_compute_instance" "ansible_controller" {
 
   zone = var.zone
 }
-# terraform import google_compute_instance.ansible_controller projects/${var.project_id}/zones/${var.zone}/instances/ansible-controller
+# terraform import google_compute_instance.cfgsvr_prod_3 projects/${var.project_id}/zones/${var.zone}/instances/cfgsvr-prod-3

@@ -1,0 +1,15 @@
+k8s_cluster:
+  children:
+    k8s_master:
+      hosts:
+        10.240.0.100:
+    k8s_workers:
+      hosts:
+        10.240.0.102
+        10.240.0.70
+      children:
+        preemptive_node:
+          hosts:
+            10.240.0.36:
+  vars:
+    preemptive_node_name: airqo-stage-k8s-worker-0
