@@ -180,7 +180,23 @@ router.post(
   ]),
   activityController.maintain
 );
-router.get("/", activityController.list);
+router.get(
+  "/",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(constants.NETWORKS)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  activityController.list
+);
 router.put("/", activityController.update);
 router.put(
   "/bulk/",

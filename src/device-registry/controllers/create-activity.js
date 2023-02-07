@@ -482,6 +482,7 @@ const activity = {
   list: async (req, res) => {
     try {
       const { query } = req;
+      let { tenant } = query;
       let request = {};
       logText(".....................................");
       logText("list all activities by query params provided");
@@ -503,7 +504,12 @@ const activity = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
+
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
       request["query"] = query;
+      request["query"]["tenant"] = tenant;
       let responseFromListActivities = await createActivityUtil.list(request);
       logElement(
         "has the response for listing activities been successful?",
