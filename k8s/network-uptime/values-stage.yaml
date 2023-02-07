@@ -5,8 +5,8 @@ app:
   configmap: env-network-uptime-staging
 replicaCount: 0
 image:
-  repository: gcr.io/airqo-250220/airqo-stage-network-uptime-api
-  tag: stage-09ba71bd-1670928304
+  repository: eu.gcr.io/airqo-250220/airqo-stage-network-uptime-api
+  tag: stage-a986baa8-1675769529
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
