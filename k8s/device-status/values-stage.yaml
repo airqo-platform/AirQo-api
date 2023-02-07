@@ -3,8 +3,8 @@ app:
   namespace: staging
   configmap: env-device-status-staging
 image:
-  repository: gcr.io/airqo-250220/airqo-stage-device-status-job
-  tag: stage-9b8819a9-1671116885
+  repository: eu.gcr.io/airqo-250220/airqo-stage-device-status-job
+  tag: stage-a986baa8-1675769529
 nameOverride: ''
 fullnameOverride: ''
 resources:
