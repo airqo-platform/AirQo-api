@@ -4,8 +4,8 @@ app:
   configmap: env-predict-job-staging
 schedule: 0 * * * *
 image:
-  repository: gcr.io/airqo-250220/stage-airqo-predict-job
-  tag: stage-4a0a9679-1675496635
+  repository: eu.gcr.io/airqo-250220/stage-airqo-predict-job
+  tag: stage-a986baa8-1675769529
 nameOverride: ''
 fullnameOverride: ''
 resources:
