@@ -139,7 +139,7 @@ const device = {
       );
 
       if (responseFromDecryptManyKeys.success === true) {
-        let status = responseFromDecryptManyKeys.status
+        const status = responseFromDecryptManyKeys.status
           ? responseFromDecryptManyKeys.status
           : HTTPStatus.OK;
         return res.status(status).json({
@@ -193,7 +193,7 @@ const device = {
       let responseFromDecryptKey = createDeviceUtil.decryptKey(encrypted_key);
 
       if (responseFromDecryptKey.success === true) {
-        let status = responseFromDecryptKey.status
+        const status = responseFromDecryptKey.status
           ? responseFromDecryptKey.status
           : HTTPStatus.OK;
         return res.status(status).json({
@@ -313,7 +313,7 @@ const device = {
         )}`
       );
       if (responseFromCreateDevice.success === true) {
-        let status = responseFromCreateDevice.status
+        const status = responseFromCreateDevice.status
           ? responseFromCreateDevice.status
           : HTTPStatus.OK;
         return res.status(status).json({
@@ -322,7 +322,7 @@ const device = {
           created_device: responseFromCreateDevice.data,
         });
       } else if (responseFromCreateDevice.success === false) {
-        let status = responseFromCreateDevice.status
+        const status = responseFromCreateDevice.status
           ? responseFromCreateDevice.status
           : HTTPStatus.BAD_GATEWAY;
 
@@ -382,7 +382,7 @@ const device = {
         `responseFromGenerateQRCode -- ${responseFromGenerateQRCode}`
       );
       if (responseFromGenerateQRCode.success === true) {
-        let status = responseFromGenerateQRCode.status
+        const status = responseFromGenerateQRCode.status
           ? responseFromGenerateQRCode.status
           : HTTPStatus.OK;
         return res.status(status).json({
@@ -391,7 +391,7 @@ const device = {
           data: responseFromGenerateQRCode.data,
         });
       } else if (responseFromGenerateQRCode.success === false) {
-        let status = responseFromGenerateQRCode.status
+        const status = responseFromGenerateQRCode.status
           ? responseFromGenerateQRCode.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
@@ -594,7 +594,7 @@ const device = {
       );
 
       if (responseFromEncryptKeys.success === true) {
-        let status = responseFromEncryptKeys.status
+        const status = responseFromEncryptKeys.status
           ? responseFromEncryptKeys.status
           : HTTPStatus.OK;
         return res.status(status).json({
@@ -653,7 +653,7 @@ const device = {
       );
 
       if (responseFromListDeviceDetails.success === true) {
-        let status = responseFromListDeviceDetails.status
+        const status = responseFromListDeviceDetails.status
           ? responseFromListDeviceDetails.status
           : HTTPStatus.OK;
         return res.status(status).json({
@@ -662,16 +662,15 @@ const device = {
           devices: responseFromListDeviceDetails.data,
         });
       } else if (responseFromListDeviceDetails.success === false) {
-        let errors = responseFromListDeviceDetails.errors
-          ? responseFromListDeviceDetails.errors
-          : "";
-        let status = responseFromListDeviceDetails.status
+        const status = responseFromListDeviceDetails.status
           ? responseFromListDeviceDetails.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
           message: responseFromListDeviceDetails.message,
-          errors,
+          errors: responseFromListDeviceDetails.errors
+            ? responseFromListDeviceDetails.errors
+            : { message: "" },
         });
       }
     } catch (e) {
@@ -868,7 +867,7 @@ const device = {
       );
 
       if (responseFromRemoveDevice.success === true) {
-        let status = responseFromRemoveDevice.status
+        const status = responseFromRemoveDevice.status
           ? responseFromRemoveDevice.status
           : HTTPStatus.OK;
         return res.status(status).json({
@@ -877,7 +876,7 @@ const device = {
           deleted_device: responseFromRemoveDevice.data,
         });
       } else if (responseFromRemoveDevice.success === false) {
-        let status = responseFromRemoveDevice.status
+        const status = responseFromRemoveDevice.status
           ? responseFromRemoveDevice.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
 

@@ -174,7 +174,7 @@ const manageSite = {
       const { tenant } = req.query;
       let responseFromCreateSite = await createSiteUtil.create(tenant, req);
       if (responseFromCreateSite.success === true) {
-        let status = responseFromCreateSite.status
+        const status = responseFromCreateSite.status
           ? responseFromCreateSite.status
           : HTTPStatus.OK;
         return res.status(status).json({
@@ -183,7 +183,7 @@ const manageSite = {
           site: responseFromCreateSite.data,
         });
       } else if (responseFromCreateSite.success === false) {
-        let status = responseFromCreateSite.status
+        const status = responseFromCreateSite.status
           ? responseFromCreateSite.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({

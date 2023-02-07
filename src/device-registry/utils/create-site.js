@@ -575,7 +575,7 @@ const createSite = {
       } else if (responseFromGetAltitude.success === false) {
         let errors = responseFromGetAltitude.errors
           ? responseFromGetAltitude.errors
-          : "";
+          : { message: "" };
         try {
           logger.error(
             `unable to retrieve the altitude for this site, ${
@@ -599,7 +599,7 @@ const createSite = {
       // } else if (responseFromGetRoadMetadata.success === false) {
       //   let errors = responseFromGetRoadMetadata.errors
       //     ? responseFromGetRoadMetadata.errors
-      //     : "";
+      //     : {message:""};
       //   try {
       //     logger.error(
       //       `unable to retrieve the road metadata, ${
@@ -819,28 +819,8 @@ const createSite = {
       ).remove({
         filter,
       });
-      if (responseFromRemoveSite.success === true) {
-        return {
-          success: true,
-          message: responseFromRemoveSite.message,
-          data: responseFromRemoveSite.data,
-        };
-      } else if (responseFromRemoveSite.success === false) {
-        let errors = responseFromRemoveSite.errors
-          ? responseFromRemoveSite.errors
-          : "";
 
-        let status = responseFromRemoveSite.status
-          ? responseFromRemoveSite.status
-          : "";
-
-        return {
-          success: false,
-          message: responseFromRemoveSite.message,
-          errors,
-          status,
-        };
-      }
+      return responseFromRemoveSite;
     } catch (e) {
       logger.error(`internal server error -- ${e.message}`);
       return {

@@ -205,7 +205,7 @@ const createDevice = {
           if (responseFromDeleteDeviceFromThingspeak.success === true) {
             let errors = responseFromCreateDeviceOnPlatform.errors
               ? responseFromCreateDeviceOnPlatform.errors
-              : "";
+              : { message: "" };
             try {
               logger.error(
                 `creation operation failed -- successfully undid the successfull operations -- ${JSON.stringify(
@@ -227,7 +227,7 @@ const createDevice = {
           } else if (responseFromDeleteDeviceFromThingspeak.success === false) {
             let errors = responseFromDeleteDeviceFromThingspeak.errors
               ? responseFromDeleteDeviceFromThingspeak.errors
-              : "";
+              : { message: "" };
             let status = responseFromDeleteDeviceFromThingspeak.status
               ? responseFromDeleteDeviceFromThingspeak.status
               : "";
@@ -252,7 +252,7 @@ const createDevice = {
       } else if (isEmpty(enrichmentDataForDeviceCreation)) {
         let errors = responseFromCreateOnThingspeak.errors
           ? responseFromCreateOnThingspeak.errors
-          : "";
+          : { message: "" };
         try {
           logger.error(
             `unable to generate enrichment data for the device -- ${JSON.stringify(
@@ -402,18 +402,7 @@ const createDevice = {
         let responseFromListDevice = await createDevice.list(request);
         logger.info(`responseFromListDevice -- ${responseFromListDevice}`);
         if (responseFromListDevice.success === false) {
-          let errors = responseFromListDevice.errors
-            ? responseFromListDevice.errors
-            : "";
-          let status = responseFromListDevice.status
-            ? responseFromListDevice.status
-            : "";
-          return {
-            success: false,
-            message: responseFromListDevice.message,
-            errors,
-            status,
-          };
+          return responseFromListDevice;
         }
         let device_number = responseFromListDevice.data[0].device_number;
         logger.info(`device_number -- ${device_number}`);
@@ -438,49 +427,24 @@ const createDevice = {
         );
 
         if (responseFromDeleteDeviceOnPlatform.success === true) {
-          let status = responseFromDeleteDeviceOnPlatform.status
-            ? responseFromDeleteDeviceOnPlatform.status
-            : "";
-          return {
-            success: true,
-            message: responseFromDeleteDeviceOnPlatform.message,
-            data: responseFromDeleteDeviceOnPlatform.data,
-            status,
-          };
+          return responseFromDeleteDeviceOnPlatform;
+        } else if (responseFromDeleteDeviceOnPlatform.success === false) {
+          return responseFromDeleteDeviceOnPlatform;
         }
-
-        if (responseFromDeleteDeviceOnPlatform.success === false) {
-          let errors = responseFromDeleteDeviceOnPlatform.errors
-            ? responseFromDeleteDeviceOnPlatform.errors
-            : "";
-          let status = responseFromDeleteDeviceOnPlatform.status
-            ? responseFromDeleteDeviceOnPlatform.status
-            : "";
-          return {
-            success: false,
-            message: responseFromDeleteDeviceOnPlatform.message,
-            errors,
-            status,
-          };
-        }
-      }
-
-      if (responseFromDeleteDeviceFromThingspeak.success === false) {
-        let errors = responseFromDeleteDeviceFromThingspeak.errors
-          ? responseFromDeleteDeviceFromThingspeak.errors
-          : "";
-        let status = parseInt(
-          `${
-            responseFromDeleteDeviceFromThingspeak.status
-              ? responseFromDeleteDeviceFromThingspeak.status
-              : ""
-          }`
-        );
+      } else if (responseFromDeleteDeviceFromThingspeak.success === false) {
         return {
           success: false,
           message: responseFromDeleteDeviceFromThingspeak.message,
-          errors,
-          status,
+          errors: responseFromDeleteDeviceFromThingspeak.errors
+            ? responseFromDeleteDeviceFromThingspeak.errors
+            : { message: "" },
+          status: parseInt(
+            `${
+              responseFromDeleteDeviceFromThingspeak.status
+                ? responseFromDeleteDeviceFromThingspeak.status
+                : ""
+            }`
+          ),
         };
       }
     } catch (e) {
@@ -859,12 +823,14 @@ const createDevice = {
           logger.error(`error.response.status -- ${e.response.status}`);
           logger.error(`error.response.headers -- ${e.response.headers}`);
           if (e.response) {
-            let errors = e.response.data.error;
-            let status = e.response.data.status;
             return {
               success: false,
-              errors,
-              status,
+              errors: {
+                message:
+                  "corresponding device_number does not exist on external system, consider SOFT delete",
+                error: e.response.data.error,
+              },
+              status: e.response.data.status,
               message:
                 "corresponding device_number does not exist on external system, consider SOFT delete",
             };
@@ -876,7 +842,10 @@ const createDevice = {
         return {
           success: false,
           message: `${response.message}`,
-          errors: `${response.error}`,
+          errors: {
+            message: "unable to complete operation",
+            error: `${response.error}`,
+          },
           status: `${response.status}`,
         };
       } else if (!isEmpty(response.data)) {

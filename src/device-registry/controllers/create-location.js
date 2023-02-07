@@ -41,7 +41,7 @@ const createLocation = {
       let responseFromCreateLocation = await createLocationUtil.create(request);
 
       if (responseFromCreateLocation.success === true) {
-        let status = responseFromCreateLocation.status
+        const status = responseFromCreateLocation.status
           ? responseFromCreateLocation.status
           : HTTPStatus.OK;
         return res.status(status).json({

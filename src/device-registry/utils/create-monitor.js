@@ -36,7 +36,9 @@ async function list(request) {
       filter = responseFromFilter.data;
       logger.info(`the filter in list -- ${filter}`);
     } else if (responseFromFilter.success === false) {
-      let errors = responseFromFilter.errors ? responseFromFilter.errors : "";
+      let errors = responseFromFilter.errors
+        ? responseFromFilter.errors
+        : { message: "" };
       let status = responseFromFilter.status ? responseFromFilter.status : "";
       try {
         logger.error(
@@ -70,7 +72,7 @@ async function list(request) {
     if (responseFromListDevice.success === false) {
       let errors = responseFromListDevice.errors
         ? responseFromListDevice.errors
-        : "";
+        : { message: "" };
       try {
         logger.error(
           `responseFromListDevice was not a success -- ${
