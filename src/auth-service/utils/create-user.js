@@ -187,7 +187,6 @@ const join = {
               success: true,
               message: "Successfully fetched user data",
               status: httpStatus.OK,
-              data: userRecord,
             });
           });
 
