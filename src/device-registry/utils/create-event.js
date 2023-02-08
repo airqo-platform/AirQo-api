@@ -1160,8 +1160,7 @@ const createEvent = {
           callback({
             success: false,
             message: "no cache present",
-            data: resultJSON,
-            errors: { message: err.message },
+            errors: { message: "no cache present" },
           });
         }
       });
