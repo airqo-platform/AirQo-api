@@ -5,8 +5,8 @@ app:
   configmap: env-device-registry-production
 replicaCount: 3
 image:
-  repository: gcr.io/airqo-250220/airqo-device-registry-api
-  tag: prod-0b7e8d13-1675405354
+  repository: eu.gcr.io/airqo-250220/airqo-device-registry-api
+  tag: prod-bfec5269-1675866864
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
