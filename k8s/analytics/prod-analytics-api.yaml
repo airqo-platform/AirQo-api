@@ -42,7 +42,7 @@ spec:
                       - general-purpose
       containers:
         - name: analytics-api
-          image: us.gcr.io/airqo-250220/airqo-analytics-api:latest
+          image: eu.gcr.io/airqo-250220/airqo-analytics-api:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 5000

@@ -34,7 +34,7 @@ spec:
                           - compute
           containers:
             - name: prod-device-status-job
-              image: us.gcr.io/airqo-250220/airqo-device-status-job:latest
+              image: eu.gcr.io/airqo-250220/airqo-device-status-job:latest
               imagePullPolicy: Always
               envFrom:
                 - configMapRef:

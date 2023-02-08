@@ -7,7 +7,7 @@ jobs:
     schedule: "@hourly"
 
     image:
-      repository: us.gcr.io/airqo-250220/prod-events-monitor-job
+      repository: eu.gcr.io/airqo-250220/prod-events-monitor-job
       pullPolicy: Always
       tag: "latest"
 
@@ -23,7 +23,7 @@ jobs:
     schedule: "@hourly"
 
     image:
-      repository: us.gcr.io/airqo-250220/prod-events-notifs-job
+      repository: eu.gcr.io/airqo-250220/prod-events-notifs-job
       pullPolicy: Always
       tag: "latest"
 
