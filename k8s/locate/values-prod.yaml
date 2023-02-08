@@ -5,8 +5,8 @@ app:
   configmap: env-locate-production
 replicaCount: 3
 image:
-  repository: gcr.io/airqo-250220/airqo-locate-api
-  tag: prod-4bcf8ba0-1670941557
+  repository: eu.gcr.io/airqo-250220/airqo-locate-api
+  tag: prod-bfec5269-1675866864
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
