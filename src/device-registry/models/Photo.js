@@ -131,8 +131,8 @@ photoSchema.statics = {
     }
   },
   async list({
-    _skip = 0,
-    _limit = parseInt(constants.DEFAULT_LIMIT_FOR_QUERYING_PHOTOS),
+    skip = 0,
+    limit = parseInt(constants.DEFAULT_LIMIT_FOR_QUERYING_PHOTOS),
     filter = {},
   } = {}) {
     try {
@@ -151,8 +151,10 @@ photoSchema.statics = {
           metadata: 1,
           network: 1,
         })
-        .skip(_skip)
-        .limit(_limit)
+        .skip(skip ? skip : 0)
+        .limit(
+          limit ? limit : parseInt(constants.DEFAULT_LIMIT_FOR_QUERYING_PHOTOS)
+        )
         .allowDiskUse(true);
 
       if (!isEmpty(response)) {
@@ -164,26 +166,32 @@ photoSchema.statics = {
           data,
           status: HTTPStatus.OK,
         };
-      } else {
+      } else if (isEmpty(response)) {
         return {
           success: false,
           message: "this photo does not exist, please crosscheck",
           status: HTTPStatus.NOT_FOUND,
-          errors: filter,
+          errors: { message: "this photo does not exist, please crosscheck" },
         };
       }
     } catch (err) {
       logObject("the error", err);
-      let response = {};
+      let response = { message: err.message };
       let message = "validation errors for some of the provided fields";
       let status = HTTPStatus.CONFLICT;
       if (err.code === 11000) {
-        Object.entries(err.keyPattern).forEach(([key, value]) => {
-          return (response[key] = "duplicate value");
-        });
-      } else {
+        if (!isEmpty(err.keyPattern)) {
+          Object.entries(err.keyPattern).forEach(([key, value]) => {
+            return (response[key] = "duplicate value");
+          });
+        } else {
+          response.message = "duplicate value";
+        }
+      } else if (!isEmpty(err.errors)) {
         Object.entries(err.errors).forEach(([key, value]) => {
-          return (response[key] = value.message);
+          response[key] = value.message;
+          response["message"] = value.message;
+          return response;
         });
       }
       return {
