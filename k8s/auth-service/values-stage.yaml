@@ -6,7 +6,7 @@ app:
 
 replicaCount: 2
 image:
-  repository: gcr.io/airqo-250220/airqo-stage-auth-api
+  repository: eu.gcr.io/airqo-250220/airqo-stage-auth-api
   tag: latest
 
 nameOverride: ""

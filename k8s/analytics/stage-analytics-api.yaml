@@ -42,7 +42,7 @@ spec:
                       - general-purpose
       containers:
         - name: sta-alytics-api
-          image: us.gcr.io/airqo-250220/airqo-stage-analytics-api:latest
+          image: eu.gcr.io/airqo-250220/airqo-stage-analytics-api:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 5000

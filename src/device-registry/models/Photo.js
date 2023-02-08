@@ -2,9 +2,9 @@ const { Schema, model } = require("mongoose");
 const uniqueValidator = require("mongoose-unique-validator");
 const mongoose = require("mongoose");
 const ObjectId = Schema.Types.ObjectId;
-const { logElement, logObject, logText } = require("../utils/log");
+const { logElement, logObject, logText } = require("@utils/log");
 const isEmpty = require("is-empty");
-const constants = require("../config/constants");
+const constants = require("@config/constants");
 const HTTPStatus = require("http-status");
 
 const photoSchema = new Schema(
@@ -117,7 +117,9 @@ photoSchema.statics = {
         });
       } else {
         Object.entries(err.errors).forEach(([key, value]) => {
-          return (response[key] = value.message);
+          response.message = value.message;
+          response[key] = value.message;
+          return response;
         });
       }
       return {

@@ -6,13 +6,13 @@ app:
 
 initContainer:
   image:
-    repository: gcr.io/airqo-250220/airqo-calibrate-pickle-file
+    repository: eu.gcr.io/airqo-250220/airqo-calibrate-pickle-file
     tag: latest
 
 replicaCount: 3
 
 image:
-  repository: gcr.io/airqo-250220/airqo-calibrate-api
+  repository: eu.gcr.io/airqo-250220/airqo-calibrate-api
   tag: latest
 
 nameOverride: ""

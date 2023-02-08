@@ -1,10 +1,10 @@
 const mongoose = require("mongoose");
 const validator = require("validator");
 const ObjectId = mongoose.Schema.Types.ObjectId;
-const { logObject, logElement } = require("../utils/log");
+const { logObject, logElement } = require("@utils/log");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
-const constants = require("../config/constants");
+const constants = require("@config/constants");
 
 const CandidateSchema = new mongoose.Schema(
   {
@@ -24,6 +24,12 @@ const CandidateSchema = new mongoose.Schema(
       required: [true, "FirstName is required!"],
       trim: true,
     },
+    network_id: {
+      type: ObjectId,
+      required: [true, "network_id is required!"],
+      trim: true,
+      ref: "network",
+    },
     lastName: {
       type: String,
       required: [true, "LastName is required"],
@@ -37,6 +43,7 @@ const CandidateSchema = new mongoose.Schema(
     jobTitle: { type: String, required: [true, "jobTitle is required"] },
     category: { type: String, required: [true, "category is required"] },
     website: { type: String, required: [true, "website is required"] },
+    country: { type: String, required: [true, "country is required"] },
     isDenied: {
       type: Boolean,
     },
@@ -51,10 +58,16 @@ const CandidateSchema = new mongoose.Schema(
 CandidateSchema.statics = {
   register(args) {
     try {
+      let newArgs = Object.assign({}, args);
+
+      if (isEmpty(newArgs.network_id)) {
+        newArgs.network_id = constants.DEFAULT_NETWORK;
+        logObject("newArgs.network_id", newArgs.network_id);
+      }
       return {
         success: true,
         data: this.create({
-          ...args,
+          ...newArgs,
         }),
         message: "candidate created",
         status: httpStatus.OK,
@@ -83,7 +96,9 @@ CandidateSchema.statics = {
         status: 1,
         createdAt: 1,
         updatedAt: 1,
+        country: 1,
         existing_user: { $arrayElemAt: ["$user", 0] },
+        network: { $arrayElemAt: ["$network", 0] },
       };
 
       const data = await this.aggregate()
@@ -93,6 +108,12 @@ CandidateSchema.statics = {
           localField: "email",
           foreignField: "email",
           as: "user",
+        })
+        .lookup({
+          from: "networks",
+          localField: "network_id",
+          foreignField: "_id",
+          as: "network",
         })
         .sort({ createdAt: -1 })
         .project(project)
@@ -217,9 +238,11 @@ CandidateSchema.methods = {
       long_organization: this.long_organization,
       jobTitle: this.jobTitle,
       website: this.website,
+      network_id: this.network_id,
       status: this.status,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
+      country: this.country,
     };
   },
 };

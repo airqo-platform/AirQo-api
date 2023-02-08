@@ -70,7 +70,7 @@ const data = {
     }
   },
   getFeeds: async (req, res) => {
-    console.log("getting feeds..............  ");
+    logText("getting feeds..............  ");
     const fetch_response = await fetch(constants.GET_FEEDS(req.params.ch_id));
     const json = await fetch_response.json();
     res.status(200).send(json);
@@ -151,7 +151,7 @@ const data = {
   },
 
   hourly: async (req, res) => {
-    console.log("getting hourly..............  ");
+    logText("getting hourly..............  ");
     try {
       const { channel } = req.query;
 
@@ -518,72 +518,53 @@ const data = {
 
   generateDescriptiveLastEntry: async (req, res) => {
     try {
-      const { channel, device, device_number, start, end } = req.query;
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return errorsUtil.badRequest(
+          res,
+          "bad request errors",
+          errorsUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      const { channel, start, end } = req.query;
       let deviceCategory = "";
-      if (channel || device_number || device) {
-        let api_key = "";
-        let errors = [];
-        await transformUtil.getAPIKey(channel, (result) => {
-          if (result.success === true) {
-            api_key = result.data;
-          } else if (result.success === false) {
-            const errors = result.errors ? result.errors : { message: "" };
-            const status = result.status
-              ? result.status
-              : HTTPStatus.INTERNAL_SERVER_ERROR;
-            res.status(status).json({
-              message: result.message,
-              errors,
-              success: result.success,
-            });
-          }
-        });
-        let ts = Date.now();
-        let day = await generateDateFormat(ts);
-        let cacheID = `descriptive_last_entry_${channel.trim()}_${day}`;
-        redis.get(cacheID, (err, result) => {
-          if (result) {
-            const resultJSON = JSON.parse(result);
-            return res.status(HTTPStatus.OK).json(resultJSON);
-          } else {
-            let request = {};
-            request["channel"] = channel;
-            request["api_key"] = api_key;
-            request["start"] = start;
-            request["end"] = end;
-            logObject("oooh request", request);
-            return axios
-              .get(
-                transformUtil.readDeviceMeasurementsFromThingspeak({ request }),
-                {
-                  headers: {
-                    Authorization: `JWT ${constants.JWT_TOKEN}`,
-                  },
-                }
-              )
-              .then(async (response) => {
-                const readings = response.data;
-                const { feeds } = readings;
-                let lastEntryId = readings.channel.last_entry_id;
-
-                if (isEmpty(lastEntryId) && isEmpty(feeds)) {
-                  return res.status(HTTPStatus.NOT_FOUND).json({
-                    success: true,
-                    message: "no recent measurements for this device",
-                  });
-                }
-
-                let recentReadings = await readings.feeds.filter((item) => {
-                  return item.entry_id === lastEntryId;
+      let api_key = "";
+      let errors = [];
+      await transformUtil.getAPIKey(channel, (result) => {
+        if (result.success === true) {
+          api_key = result.data;
+          // let ts = Date.now();
+          // let day = await generateDateFormat(ts);
+          // let cacheID = `descriptive_last_entry_${channel.trim()}_${day}`;
+          // redis.get(cacheID, (err, result) => {
+          //   if (result) {
+          //     const resultJSON = JSON.parse(result);
+          //     return res.status(HTTPStatus.OK).json(resultJSON);
+          //   } else {
+          //   }
+          // });
+          let request = {};
+          request["channel"] = channel;
+          request["api_key"] = api_key;
+          request["start"] = start;
+          request["end"] = end;
+          return axios
+            .get(
+              transformUtil.readRecentDeviceMeasurementsFromThingspeak({
+                request,
+              })
+            )
+            .then(async (response) => {
+              logObject("the response man", response);
+              const readings = response.data;
+              if (isEmpty(readings)) {
+                return res.status(HTTPStatus.NOT_FOUND).json({
+                  success: true,
+                  message: "no recent measurements for this device",
                 });
-
-                let responseData = recentReadings[0];
-
-                delete responseData.entry_id;
-
-                let cleanedDeviceMeasurements =
-                  transformUtil.clean(responseData);
-
+              } else if (!isEmpty(readings)) {
+                let cleanedDeviceMeasurements = transformUtil.clean(readings);
                 const fieldOneValue = cleanedDeviceMeasurements.field1
                   ? cleanedDeviceMeasurements.field1
                   : null;
@@ -594,98 +575,117 @@ const data = {
                     message: "unable to categorise device",
                     errors: {
                       message:
-                        "please crosscheck device, it is not sending field1",
+                        "please crosscheck device on thingSpeak, it is not sending field1",
                     },
                   });
-                }
-
-                const isProvidedDateReal = isDate(fieldOneValue);
-
-                if (isProvidedDateReal) {
-                  cleanedDeviceMeasurements.field9 = "reference";
-                  deviceCategory = "reference";
-                } else {
-                  cleanedDeviceMeasurements.field9 = "lowcost";
-                  deviceCategory = "lowcost";
-                }
-                let transformedData = await transformUtil.transformMeasurement(
-                  cleanedDeviceMeasurements
-                );
-                let transformedField = {};
-                let otherData = transformedData.other_data;
-
-                if (otherData) {
-                  transformedField = await transformUtil.trasformFieldValues({
-                    otherData,
-                    deviceCategory,
-                  });
-                  delete transformedData.other_data;
-                }
-
-                let newResp = {
-                  success: true,
-                  ...transformedData,
-                  ...transformedField,
-                  errors,
-                };
-                let cleanedFinalTransformation = transformUtil.clean(newResp);
-
-                if (cleanedFinalTransformation.ExternalPressure) {
-                  const responseFromConvertFromHectopascalsToKilopascals =
-                    transformUtil.convertFromHectopascalsToKilopascals(
-                      cleanedFinalTransformation.ExternalPressure
-                    );
-
-                  if (
-                    responseFromConvertFromHectopascalsToKilopascals.success
-                  ) {
-                    cleanedFinalTransformation.ExternalPressure =
-                      responseFromConvertFromHectopascalsToKilopascals.data;
+                } else if (!isEmpty(fieldOneValue)) {
+                  const isProvidedDateReal = isDate(fieldOneValue);
+                  if (isProvidedDateReal) {
+                    cleanedDeviceMeasurements.field9 = "reference";
+                    deviceCategory = "reference";
                   } else {
+                    cleanedDeviceMeasurements.field9 = "lowcost";
+                    deviceCategory = "lowcost";
                   }
-                }
+                  let transformedData =
+                    await transformUtil.transformMeasurement(
+                      cleanedDeviceMeasurements
+                    );
+                  let transformedField = {};
+                  let otherData = transformedData.other_data;
 
-                redis.set(
-                  cacheID,
-                  JSON.stringify({
-                    isCache: true,
+                  if (otherData) {
+                    transformedField = await transformUtil.trasformFieldValues({
+                      otherData,
+                      deviceCategory,
+                    });
+                    delete transformedData.other_data;
+                  }
+
+                  let newResp = {
+                    success: true,
+                    ...transformedData,
+                    ...transformedField,
+                    errors,
+                  };
+                  let cleanedFinalTransformation = transformUtil.clean(newResp);
+
+                  if (cleanedFinalTransformation.ExternalPressure) {
+                    const responseFromConvertFromHectopascalsToKilopascals =
+                      transformUtil.convertFromHectopascalsToKilopascals(
+                        cleanedFinalTransformation.ExternalPressure
+                      );
+
+                    if (
+                      responseFromConvertFromHectopascalsToKilopascals.success ===
+                      true
+                    ) {
+                      cleanedFinalTransformation.ExternalPressure =
+                        responseFromConvertFromHectopascalsToKilopascals.data;
+                    } else if (
+                      responseFromConvertFromHectopascalsToKilopascals.success ===
+                      false
+                    ) {
+                      const status =
+                        responseFromConvertFromHectopascalsToKilopascals.status
+                          ? responseFromConvertFromHectopascalsToKilopascals.status
+                          : HTTPStatus.INTERNAL_SERVER_ERROR;
+                      return res
+                        .status(status)
+                        .json(responseFromConvertFromHectopascalsToKilopascals);
+                    }
+                  }
+
+                  // redis.set(
+                  //   cacheID,
+                  //   JSON.stringify({
+                  //     isCache: true,
+                  //     ...cleanedFinalTransformation,
+                  //   })
+                  // );
+
+                  // redis.expire(
+                  //   cacheID,
+                  //   constants.GET_DESCRPIPTIVE_LAST_ENTRY_CACHE_EXPIRATION
+                  // );
+
+                  return res.status(HTTPStatus.OK).json({
+                    isCache: false,
                     ...cleanedFinalTransformation,
-                  })
-                );
-
-                redis.expire(
-                  cacheID,
-                  constants.GET_DESCRPIPTIVE_LAST_ENTRY_CACHE_EXPIRATION
-                );
-
-                return res.status(HTTPStatus.OK).json({
-                  isCache: false,
-                  ...cleanedFinalTransformation,
-                });
-              })
-              .catch((err) => {
-                let error = {};
-                if (err.response) {
-                  error["response"] = err.response.data;
-                } else if (err.request) {
-                  error["request"] = err.request;
-                } else {
-                  error["config"] = err.config;
+                  });
                 }
-                let message = err.response
-                  ? err.response.data
-                  : "Internal Server Error";
-                let statusCode = HTTPStatus.INTERNAL_SERVER_ERROR;
-                errorsUtil.errorResponse({ res, message, statusCode, error });
-              });
-          }
-        });
-      } else {
-        let message = "missing some request parameters";
-        let statusCode = HTTPStatus.BAD_REQUEST;
-        let error = {};
-        errorsUtil.errorResponse({ res, message, statusCode, error });
-      }
+              }
+            })
+            .catch((err) => {
+              let error = {};
+              logObject("err", err);
+              if (err.response) {
+                error["response"] = err.response.data;
+              } else if (err.request) {
+                error["request"] = err.request;
+              } else if (err.config) {
+                error["config"] = err.config;
+              } else {
+                error["message"] =
+                  "unclear error as trying to get measurements from ThingSpeak";
+              }
+              let message = err.response
+                ? err.response.data
+                : "Internal Server Error";
+              let statusCode = HTTPStatus.INTERNAL_SERVER_ERROR;
+              errorsUtil.errorResponse({ res, message, statusCode, error });
+            });
+        } else if (result.success === false) {
+          const status = result.status
+            ? result.status
+            : HTTPStatus.INTERNAL_SERVER_ERROR;
+          res.status(status).json({
+            message: result.message ? result.message : "internal server error",
+            errors: result.errors ? result.errors : { message: "" },
+            success: result.success ? result.success : false,
+          });
+        }
+      });
     } catch (error) {
       let message = error.message;
       let statusCode = HTTPStatus.INTERNAL_SERVER_ERROR;
@@ -695,11 +695,11 @@ const data = {
   getChannelLastEntryAge: async (req, res) => {
     try {
       const { channel } = req.query;
-      console.log("the channel ID:", channel);
+      logElement("the channel ID:", channel);
       let ts = Date.now();
       let day = await generateDateFormat(ts);
       let cacheID = `entry_age_${channel.trim()}_${day}`;
-      console.log("the cache ID", cacheID);
+      logElement("the cache ID", cacheID);
       return redis.get(cacheID, (err, result) => {
         if (result) {
           const resultJSON = JSON.parse(result);
@@ -765,7 +765,7 @@ const data = {
         let ts = Date.now();
         let day = await generateDateFormat(ts);
         let cacheID = `entry_age_${channel.trim()}_${sensor.trim()}_${day}`;
-        console.log("the cache value: ", cacheID);
+        logElement("the cache value: ", cacheID);
 
         return redis.get(`${cacheID}`, (err, result) => {
           if (result) {
@@ -829,12 +829,12 @@ const data = {
   },
 
   getDeviceCount: async (req, res) => {
-    console.log(" getDeviceCount..............  ");
+    logText(" getDeviceCount..............  ");
     try {
       let ts = Date.now();
       let day = await generateDateFormat(ts);
       let cacheID = `device_count_${day}`;
-      console.log("the cache value: ", cacheID);
+      logElement("the cache value: ", cacheID);
       return redis.get(`${cacheID}`, (err, result) => {
         if (result) {
           const resultJSON = JSON.parse(result);

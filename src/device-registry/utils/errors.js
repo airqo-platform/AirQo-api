@@ -8,6 +8,7 @@ const errors = {
         return;
       }
       result[`${helperInput[0].value}`] = helperInput[0].msg;
+      result[`message`] = helperInput[0].msg;
       helper(helperInput.slice(1));
     }
     helper(array);

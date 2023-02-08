@@ -7,7 +7,7 @@ app:
 replicaCount: 2
 
 image:
-  repository: gcr.io/airqo-250220/airqo-stage-device-monitor-api
+  repository: eu.gcr.io/airqo-250220/airqo-stage-device-monitor-api
   tag: latest
 
 nameOverride: ""

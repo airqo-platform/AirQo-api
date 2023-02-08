@@ -40,7 +40,7 @@ spec:
                       - general-purpose
       containers:
         - name: view-message-broker
-          image: us.gcr.io/airqo-250220/airqo-stage-view-message-broker:latest
+          image: eu.gcr.io/airqo-250220/airqo-stage-view-message-broker:latest
           imagePullPolicy: Always
           resources:
             requests:

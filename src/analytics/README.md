@@ -1,7 +1,7 @@
-clone project from github.
+clone project from GitHub.
 - `git clone https://github.com/airqo-platform/AirQo-api.git`
 
-change directory to the analytics micro-service
+change directory to the analytics microservice
 - `cd src/analytics`
 
 create local python environment

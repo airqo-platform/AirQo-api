@@ -1,9 +1,9 @@
 const { Schema } = require("mongoose");
 const ObjectId = Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
-const { logElement, logObject, logText } = require("../utils/log");
+const { logElement, logObject, logText } = require("@utils/log");
 const isEmpty = require("is-empty");
-const constants = require("../config/constants");
+const constants = require("@config/constants");
 const HTTPStatus = require("http-status");
 
 const siteSchema = new Schema(
@@ -13,6 +13,16 @@ const siteSchema = new Schema(
       trim: true,
       required: [true, "name is required!"],
     },
+    share_links: {
+      preview: { type: String, trim: true },
+      short_link: { type: String, trim: true },
+    },
+    images: [
+      {
+        type: String,
+        trim: true,
+      },
+    ],
     search_name: {
       type: String,
       trim: true,
@@ -351,6 +361,8 @@ siteSchema.methods = {
       geometry: this.geometry,
       village: this.village,
       site_codes: this.site_codes,
+      images: this.images,
+      share_links: this.share_links,
       city: this.city,
       street: this.street,
       county: this.county,
@@ -421,11 +433,13 @@ siteSchema.statics = {
       let message = "validation errors for some of the provided fields";
       let status = HTTPStatus.CONFLICT;
       Object.entries(err.errors).forEach(([key, value]) => {
-        return (response[key] = value.message);
+        response.message = value.message;
+        response[key] = value.message;
+        return response;
       });
 
       return {
-        errors: { message: response },
+        errors: response,
         message,
         success: false,
         status,
@@ -485,6 +499,8 @@ siteSchema.statics = {
           landform_90: 1,
           aspect: 1,
           status: 1,
+          images: 1,
+          share_links: 1,
           distance_to_nearest_road: 1,
           distance_to_nearest_primary_road: 1,
           distance_to_nearest_secondary_road: 1,
@@ -594,6 +610,13 @@ siteSchema.statics = {
         modifiedUpdateBody["$addToSet"]["site_tags"]["$each"] =
           modifiedUpdateBody.site_tags;
         delete modifiedUpdateBody["site_tags"];
+      }
+
+      if (modifiedUpdateBody.images) {
+        modifiedUpdateBody["$addToSet"]["images"] = {};
+        modifiedUpdateBody["$addToSet"]["images"]["$each"] =
+          modifiedUpdateBody.images;
+        delete modifiedUpdateBody["images"];
       }
 
       if (modifiedUpdateBody.land_use) {

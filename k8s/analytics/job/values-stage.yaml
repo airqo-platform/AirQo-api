@@ -4,7 +4,7 @@ app:
   configmap: env-analytics-report-staging
 
 image:
-  repository: gcr.io/airqo-250220/airqo-stage-analytics-report-job
+  repository: eu.gcr.io/airqo-250220/airqo-stage-analytics-report-job
   tag: latest
 
 nameOverride: ""
