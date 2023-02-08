@@ -3,7 +3,7 @@ app:
   namespace: staging
   configmap: env-exceedance-production
 image:
-  repository: gcr.io/airqo-250220/airqo-exceedance-job
-  tag: prod-4b9485a3-1675498270
+  repository: eu.gcr.io/airqo-250220/airqo-exceedance-job
+  tag: prod-bfec5269-1675866864
 nameOverride: ''
 fullnameOverride: ''
