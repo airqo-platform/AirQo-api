@@ -3,8 +3,8 @@ app:
   namespace: production
   configmap: env-device-status-production
 image:
-  repository: gcr.io/airqo-250220/airqo-device-status-job
-  tag: prod-ec64bf53-1671116939
+  repository: eu.gcr.io/airqo-250220/airqo-device-status-job
+  tag: prod-bfec5269-1675866864
 nameOverride: ''
 fullnameOverride: ''
 resources:
