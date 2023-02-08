@@ -3,8 +3,8 @@ app:
   namespace: production
   configmap: env-analytics-report-production
 image:
-  repository: gcr.io/airqo-250220/airqo-analytics-report-job
-  tag: prod-4b9485a3-1675498270
+  repository: eu.gcr.io/airqo-250220/airqo-analytics-report-job
+  tag: prod-bfec5269-1675866864
 nameOverride: ''
 fullnameOverride: ''
 resources:
