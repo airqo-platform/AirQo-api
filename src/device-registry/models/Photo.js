@@ -130,11 +130,7 @@ photoSchema.statics = {
       };
     }
   },
-  async list({
-    skip = 0,
-    limit = parseInt(constants.DEFAULT_LIMIT_FOR_QUERYING_PHOTOS),
-    filter = {},
-  } = {}) {
+  async list({ skip = 0, limit = 1000, filter = {} } = {}) {
     try {
       let response = await this.aggregate()
         .match(filter)
@@ -152,9 +148,7 @@ photoSchema.statics = {
           network: 1,
         })
         .skip(skip ? skip : 0)
-        .limit(
-          limit ? limit : parseInt(constants.DEFAULT_LIMIT_FOR_QUERYING_PHOTOS)
-        )
+        .limit(limit ? limit : 1000)
         .allowDiskUse(true);
 
       if (!isEmpty(response)) {
