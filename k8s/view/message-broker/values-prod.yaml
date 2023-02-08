@@ -1,12 +1,12 @@
 app:
   name: airqo-view-message-broker
   label: view-msg-brokr
-  namespace: production
+  namespace: staging
   configmap: prod-view-message-broker-config
 replicaCount: 2
 image:
-  repository: gcr.io/airqo-250220/airqo-view-message-broker
-  tag: prod-fc2d06b7-1673528314
+  repository: eu.gcr.io/airqo-250220/airqo-view-message-broker
+  tag: prod-bfec5269-1675866864
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations:
