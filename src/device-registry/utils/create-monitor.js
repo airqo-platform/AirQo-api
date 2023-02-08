@@ -30,11 +30,11 @@ async function list(request) {
     const skip = parseInt(request.query.skip, 0);
     let filter = {};
     let responseFromFilter = generateFilter.devices(request);
-    logger.info(`responseFromFilter -- ${responseFromFilter}`);
+    // logger.info(`responseFromFilter -- ${responseFromFilter}`);
 
     if (responseFromFilter.success === true) {
       filter = responseFromFilter.data;
-      logger.info(`the filter in list -- ${filter}`);
+      // logger.info(`the filter in list -- ${filter}`);
     } else if (responseFromFilter.success === false) {
       let errors = responseFromFilter.errors
         ? responseFromFilter.errors
@@ -65,9 +65,9 @@ async function list(request) {
       skip,
     });
 
-    logger.info(
-      `the responseFromListDevice in list -- ${responseFromListDevice} `
-    );
+    // logger.info(
+    //   `the responseFromListDevice in list -- ${responseFromListDevice} `
+    // );
 
     if (responseFromListDevice.success === false) {
       let errors = responseFromListDevice.errors
@@ -85,7 +85,7 @@ async function list(request) {
       return responseFromListDevice;
     } else if (responseFromListDevice.success === true) {
       let data = responseFromListDevice.data;
-      logger.info(`responseFromListDevice was a success -- ${data}`);
+      // logger.info(`responseFromListDevice was a success -- ${data}`);
       return responseFromListDevice;
     }
   } catch (e) {

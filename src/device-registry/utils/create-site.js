@@ -562,14 +562,14 @@ const createSite = {
       let altitudeResponseData = {};
       let reverseGeoCodeResponseData = {};
 
-      logger.info(`the body sent to generate metadata -- ${body}`);
+      // logger.info(`the body sent to generate metadata -- ${body}`);
 
       let responseFromGetAltitude = await createSite.getAltitude(
         latitude,
         longitude
       );
 
-      logger.info(`responseFromGetAltitude -- ${responseFromGetAltitude}`);
+      // logger.info(`responseFromGetAltitude -- ${responseFromGetAltitude}`);
       if (responseFromGetAltitude.success === true) {
         altitudeResponseData["altitude"] = responseFromGetAltitude.data;
       } else if (responseFromGetAltitude.success === false) {
@@ -615,9 +615,9 @@ const createSite = {
         latitude,
         longitude
       );
-      logger.info(
-        `responseFromReverseGeoCode -- ${responseFromReverseGeoCode}`
-      );
+      // logger.info(
+      //   `responseFromReverseGeoCode -- ${responseFromReverseGeoCode}`
+      // );
       if (responseFromReverseGeoCode.success === true) {
         reverseGeoCodeResponseData = responseFromReverseGeoCode.data;
         let google_site_tags = responseFromReverseGeoCode.data.site_tags;
@@ -684,7 +684,7 @@ const createSite = {
         return responseFromListSite;
       }
 
-      logger.info(`refresh -- responseFromListSite -- ${responseFromListSite}`);
+      // logger.info(`refresh -- responseFromListSite -- ${responseFromListSite}`);
 
       let {
         name,
@@ -762,9 +762,9 @@ const createSite = {
         request
       );
 
-      logger.info(
-        `refresh -- responseFromGenerateMetadata-- ${responseFromGenerateMetadata}`
-      );
+      // logger.info(
+      //   `refresh -- responseFromGenerateMetadata-- ${responseFromGenerateMetadata}`
+      // );
 
       if (responseFromGenerateMetadata.success === true) {
         update = responseFromGenerateMetadata.data;
@@ -772,7 +772,7 @@ const createSite = {
         return responseFromGenerateMetadata;
       }
 
-      logger.info(`refresh -- update -- ${update}`);
+      // logger.info(`refresh -- update -- ${update}`);
 
       let responseFromModifySite = await createSite.update(
         tenant,
@@ -780,9 +780,9 @@ const createSite = {
         update
       );
 
-      logger.info(
-        `refresh -- responseFromModifySite -- ${responseFromModifySite} `
-      );
+      // logger.info(
+      //   `refresh -- responseFromModifySite -- ${responseFromModifySite} `
+      // );
 
       if (responseFromModifySite.success === true) {
         return {
