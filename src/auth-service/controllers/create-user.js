@@ -9,7 +9,9 @@ const isEmpty = require("is-empty");
 const controlAccessUtil = require("../utils/control-access");
 const constants = require("../config/constants");
 const log4js = require("log4js");
-const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- join-controller`);
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- create-user-controller`
+);
 
 const createUser = {
   list: async (req, res) => {

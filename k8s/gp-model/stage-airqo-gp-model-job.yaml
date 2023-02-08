@@ -34,7 +34,7 @@ spec:
                           - compute
           containers:
             - name: airqo-stage-gpmodel
-              image: us.gcr.io/airqo-250220/airqo-stage-gp-model-job:latest
+              image: eu.gcr.io/airqo-250220/airqo-stage-gp-model-job:latest
               imagePullPolicy: Always
               envFrom:
                 - configMapRef:

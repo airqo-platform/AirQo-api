@@ -4,7 +4,7 @@ app:
   configmap: env-analytics-report-production
 
 image:
-  repository: gcr.io/airqo-250220/airqo-analytics-report-job
+  repository: eu.gcr.io/airqo-250220/airqo-analytics-report-job
   tag: latest
 
 nameOverride: ""

@@ -1,9 +1,9 @@
 const { Schema } = require("mongoose");
 const ObjectId = Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
-const { logElement, logObject, logText } = require("../utils/log");
+const { logElement, logObject, logText } = require("@utils/log");
 const isEmpty = require("is-empty");
-const constants = require("../config/constants");
+const constants = require("@config/constants");
 const HTTPStatus = require("http-status");
 
 const siteSchema = new Schema(
@@ -433,11 +433,13 @@ siteSchema.statics = {
       let message = "validation errors for some of the provided fields";
       let status = HTTPStatus.CONFLICT;
       Object.entries(err.errors).forEach(([key, value]) => {
-        return (response[key] = value.message);
+        response.message = value.message;
+        response[key] = value.message;
+        return response;
       });
 
       return {
-        errors: { message: response },
+        errors: response,
         message,
         success: false,
         status,

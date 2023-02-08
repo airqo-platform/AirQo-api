@@ -42,7 +42,7 @@ spec:
                       - general-purpose
       initContainers:
         - name: calibrate-pickle
-          image: us.gcr.io/airqo-250220/airqo-calibrate-pickle-file:latest
+          image: eu.gcr.io/airqo-250220/airqo-calibrate-pickle-file:latest
           imagePullPolicy: Always
           resources: {}
           envFrom:
@@ -60,7 +60,7 @@ spec:
               mountPath: /usr/pickle-files
       containers:
         - name: calibrate
-          image: us.gcr.io/airqo-250220/airqo-calibrate-api:latest
+          image: eu.gcr.io/airqo-250220/airqo-calibrate-api:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 4001

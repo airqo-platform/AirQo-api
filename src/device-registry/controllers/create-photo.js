@@ -1,13 +1,13 @@
 const HTTPStatus = require("http-status");
-const { logObject, logElement, logText } = require("../utils/log");
-const errors = require("../utils/errors");
-const constants = require("../config/constants");
+const { logObject, logElement, logText } = require("@utils/log");
+const errors = require("@utils/errors");
+const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-photo-controller`
 );
 const { validationResult } = require("express-validator");
-const createPhotoUtil = require("../utils/create-photo");
+const createPhotoUtil = require("@utils/create-photo");
 
 const processImage = {
   create: async (req, res) => {
@@ -41,9 +41,7 @@ const processImage = {
           message: responseFromCreatePhoto.message,
           created_photo: responseFromCreatePhoto.data,
         });
-      }
-
-      if (responseFromCreatePhoto.success === false) {
+      } else if (responseFromCreatePhoto.success === false) {
         const status = responseFromCreatePhoto.status
           ? responseFromCreatePhoto.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
@@ -95,9 +93,7 @@ const processImage = {
           message: responseFromUpdatePhoto.message,
           updated_photo: responseFromUpdatePhoto.data,
         });
-      }
-
-      if (responseFromUpdatePhoto.success === false) {
+      } else if (responseFromUpdatePhoto.success === false) {
         const status = responseFromUpdatePhoto.status
           ? responseFromUpdatePhoto.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
@@ -115,7 +111,7 @@ const processImage = {
       res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
-        errrors: { message: error.message },
+        errors: { message: error.message },
       });
     }
   },
@@ -156,19 +152,16 @@ const processImage = {
           message: responseFromDeletePhoto.message,
           created_photo: responseFromDeletePhoto.data,
         });
-      }
-
-      if (responseFromDeletePhoto.success === false) {
+      } else if (responseFromDeletePhoto.success === false) {
         const status = responseFromDeletePhoto.status
           ? responseFromDeletePhoto.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
-        const errors = responseFromDeletePhoto.errors
-          ? responseFromDeletePhoto.errors
-          : "";
         res.status(status).json({
           success: false,
           message: responseFromDeletePhoto.message,
-          errors,
+          errors: responseFromDeletePhoto.errors
+            ? responseFromDeletePhoto.errors
+            : { message: "" },
         });
       }
     } catch (error) {
@@ -218,19 +211,16 @@ const processImage = {
           message: responseFromListPhoto.message,
           photos: responseFromListPhoto.data,
         });
-      }
-
-      if (responseFromListPhoto.success === false) {
+      } else if (responseFromListPhoto.success === false) {
         const status = responseFromListPhoto.status
           ? responseFromListPhoto.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
-        const errors = responseFromListPhoto.errors
-          ? responseFromListPhoto.errors
-          : "";
         res.status(status).json({
           success: false,
           message: responseFromListPhoto.message,
-          errors,
+          errors: responseFromListPhoto.errors
+            ? responseFromListPhoto.errors
+            : { message: "" },
         });
       }
     } catch (error) {
@@ -288,23 +278,23 @@ const processImage = {
         const status = responseFromCreatePhotoOnPlatform.status
           ? responseFromCreatePhotoOnPlatform.status
           : HTTPStatus.OK;
-        const data = responseFromCreatePhotoOnPlatform.data;
         res.status(status).json({
           success: true,
           message: responseFromCreatePhotoOnPlatform.message,
-          created_photo: data,
+          created_photo: responseFromCreatePhotoOnPlatform.data
+            ? responseFromCreatePhotoOnPlatform.data
+            : [],
         });
       } else if (responseFromCreatePhotoOnPlatform.success === false) {
         const status = responseFromCreatePhotoOnPlatform.status
           ? responseFromCreatePhotoOnPlatform.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
-        const errors = responseFromCreatePhotoOnPlatform.errors
-          ? responseFromCreatePhotoOnPlatform.errors
-          : "";
         res.status(status).json({
           success: false,
           message: responseFromCreatePhotoOnPlatform.message,
-          errors,
+          errors: responseFromCreatePhotoOnPlatform.errors
+            ? responseFromCreatePhotoOnPlatform.errors
+            : { message: "" },
         });
       }
     } catch (error) {
@@ -358,19 +348,16 @@ const processImage = {
           message: responseFromDeletePhotoOnPlatform.message,
           deleted_photo: responseFromDeletePhotoOnPlatform.data,
         });
-      }
-
-      if (responseFromDeletePhotoOnPlatform.success === false) {
+      } else if (responseFromDeletePhotoOnPlatform.success === false) {
         const status = responseFromDeletePhotoOnPlatform.status
           ? responseFromDeletePhotoOnPlatform.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
-        const errors = responseFromDeletePhotoOnPlatform.errors
-          ? responseFromDeletePhotoOnPlatform.errors
-          : "";
         res.status(status).json({
           success: false,
           message: responseFromDeletePhotoOnPlatform.message,
-          errors,
+          errors: responseFromDeletePhotoOnPlatform.errors
+            ? responseFromDeletePhotoOnPlatform.errors
+            : { message: "" },
         });
       }
     } catch (error) {
@@ -424,19 +411,16 @@ const processImage = {
           message: responseFromUpdatePhotoOnPlatform.message,
           updated_photo: responseFromUpdatePhotoOnPlatform.data,
         });
-      }
-
-      if (responseFromUpdatePhotoOnPlatform.success === false) {
+      } else if (responseFromUpdatePhotoOnPlatform.success === false) {
         const status = responseFromUpdatePhotoOnPlatform.status
           ? responseFromUpdatePhotoOnPlatform.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
-        const errors = responseFromUpdatePhotoOnPlatform.errors
-          ? responseFromUpdatePhotoOnPlatform.errors
-          : status;
         res.status(status).json({
           success: false,
           message: responseFromUpdatePhotoOnPlatform.message,
-          errors,
+          errors: responseFromUpdatePhotoOnPlatform.errors
+            ? responseFromUpdatePhotoOnPlatform.errors
+            : status,
         });
       }
     } catch (error) {
@@ -486,19 +470,16 @@ const processImage = {
           message: responseFromDeletePhotoOnCloudinary.message,
           deletion_details: responseFromDeletePhotoOnCloudinary.data,
         });
-      }
-
-      if (responseFromDeletePhotoOnCloudinary.success === false) {
+      } else if (responseFromDeletePhotoOnCloudinary.success === false) {
         const status = responseFromDeletePhotoOnCloudinary.status
           ? responseFromDeletePhotoOnCloudinary.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
-        const errors = responseFromDeletePhotoOnCloudinary.errors
-          ? responseFromDeletePhotoOnCloudinary.errors
-          : "";
         res.status(status).json({
           success: false,
           message: responseFromDeletePhotoOnCloudinary.message,
-          errors,
+          errors: responseFromDeletePhotoOnCloudinary.errors
+            ? responseFromDeletePhotoOnCloudinary.errors
+            : { message: "" },
         });
       }
     } catch (error) {
@@ -542,19 +523,16 @@ const processImage = {
           message: responseFromUpdatePhotoOnCloudinary.message,
           created_photo: responseFromUpdatePhotoOnCloudinary.data,
         });
-      }
-
-      if (responseFromUpdatePhotoOnCloudinary.success === false) {
+      } else if (responseFromUpdatePhotoOnCloudinary.success === false) {
         const status = responseFromUpdatePhotoOnCloudinary.status
           ? responseFromUpdatePhotoOnCloudinary.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
-        const errors = responseFromUpdatePhotoOnCloudinary.errors
-          ? responseFromUpdatePhotoOnCloudinary.errors
-          : "";
         res.status(status).json({
           success: false,
           message: responseFromUpdatePhotoOnCloudinary.message,
-          errors,
+          errors: responseFromUpdatePhotoOnCloudinary.errors
+            ? responseFromUpdatePhotoOnCloudinary.errors
+            : { message: "" },
         });
       }
     } catch (error) {
@@ -601,19 +579,16 @@ const processImage = {
           message: responseFromCreatePhotoOnCloudinary.message,
           created_photo: responseFromCreatePhotoOnCloudinary.data,
         });
-      }
-
-      if (responseFromCreatePhotoOnCloudinary.success === false) {
+      } else if (responseFromCreatePhotoOnCloudinary.success === false) {
         const status = responseFromCreatePhotoOnCloudinary.status
           ? responseFromCreatePhotoOnCloudinary.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
-        const errors = responseFromCreatePhotoOnCloudinary.errors
-          ? responseFromCreatePhotoOnCloudinary.errors
-          : "";
         res.status(status).json({
           success: false,
           message: responseFromCreatePhotoOnCloudinary.message,
-          errors,
+          errors: responseFromCreatePhotoOnCloudinary.errors
+            ? responseFromCreatePhotoOnCloudinary.errors
+            : { message: "" },
         });
       }
     } catch (error) {

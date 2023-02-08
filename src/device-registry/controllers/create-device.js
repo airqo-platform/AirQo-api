@@ -1,18 +1,18 @@
 const HTTPStatus = require("http-status");
 const iot = require("@google-cloud/iot");
 const client = new iot.v1.DeviceManagerClient();
-const { logObject, logElement, logText } = require("../utils/log");
-const createDeviceUtil = require("../utils/create-device");
-const distance = require("../utils/distance");
+const { logObject, logElement, logText } = require("@utils/log");
+const createDeviceUtil = require("@utils/create-device");
+const distance = require("@utils/distance");
 const { validationResult } = require("express-validator");
-const constants = require("../config/constants");
-const errors = require("../utils/errors");
+const constants = require("@config/constants");
+const errors = require("@utils/errors");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-device-controller`
 );
-// const bulkUpdateUtil = require("../scripts/bulk-update");
-// const bulkCreateUtil = require("../scripts/bulk-create");
+// const bulkUpdateUtil = require("@scripts/bulk-update");
+// const bulkCreateUtil = require("@scripts/bulk-create");
 const httpStatus = require("http-status");
 const isEmpty = require("is-empty");
 
@@ -139,7 +139,7 @@ const device = {
       );
 
       if (responseFromDecryptManyKeys.success === true) {
-        let status = responseFromDecryptManyKeys.status
+        const status = responseFromDecryptManyKeys.status
           ? responseFromDecryptManyKeys.status
           : HTTPStatus.OK;
         return res.status(status).json({
@@ -148,16 +148,15 @@ const device = {
           decrypted_keys: responseFromDecryptManyKeys.data,
         });
       } else if (responseFromDecryptManyKeys.success === false) {
-        let errors = responseFromDecryptManyKeys.errors
-          ? responseFromDecryptManyKeys.errors
-          : "";
-        let status = responseFromDecryptManyKeys.status
+        const status = responseFromDecryptManyKeys.status
           ? responseFromDecryptManyKeys.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
           message: responseFromDecryptManyKeys.message,
-          errors,
+          errors: responseFromDecryptManyKeys.errors
+            ? responseFromDecryptManyKeys.errors
+            : { message: "" },
         });
       }
     } catch (error) {
@@ -194,7 +193,7 @@ const device = {
       let responseFromDecryptKey = createDeviceUtil.decryptKey(encrypted_key);
 
       if (responseFromDecryptKey.success === true) {
-        let status = responseFromDecryptKey.status
+        const status = responseFromDecryptKey.status
           ? responseFromDecryptKey.status
           : HTTPStatus.OK;
         return res.status(status).json({
@@ -203,16 +202,15 @@ const device = {
           decrypted_key: responseFromDecryptKey.data,
         });
       } else if (responseFromDecryptKey.success === false) {
-        let errors = responseFromDecryptKey.errors
-          ? responseFromDecryptKey.errors
-          : "";
-        let status = responseFromDecryptKey.status
+        const status = responseFromDecryptKey.status
           ? responseFromDecryptKey.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
           message: responseFromDecryptKey.message,
-          errors,
+          errors: responseFromDecryptKey.errors
+            ? responseFromDecryptKey.errors
+            : { message: "" },
         });
       }
     } catch (error) {
@@ -262,11 +260,10 @@ const device = {
           const status = result.status
             ? result.status
             : HTTPStatus.INTERNAL_SERVER_ERROR;
-          const errors = result.errors ? result.errors : "";
           return res.status(status).json({
             success: false,
             message: result.message,
-            errors,
+            errors: result.errors ? result.errors : { message: "" },
           });
         }
       });
@@ -310,13 +307,13 @@ const device = {
       request.query.tenant = tenant;
 
       let responseFromCreateDevice = await createDeviceUtil.create(request);
-      logger.info(
-        `responseFromCreateDevice -- ${JSON.stringify(
-          responseFromCreateDevice
-        )}`
-      );
+      // logger.info(
+      //   `responseFromCreateDevice -- ${JSON.stringify(
+      //     responseFromCreateDevice
+      //   )}`
+      // );
       if (responseFromCreateDevice.success === true) {
-        let status = responseFromCreateDevice.status
+        const status = responseFromCreateDevice.status
           ? responseFromCreateDevice.status
           : HTTPStatus.OK;
         return res.status(status).json({
@@ -325,7 +322,7 @@ const device = {
           created_device: responseFromCreateDevice.data,
         });
       } else if (responseFromCreateDevice.success === false) {
-        let status = responseFromCreateDevice.status
+        const status = responseFromCreateDevice.status
           ? responseFromCreateDevice.status
           : HTTPStatus.BAD_GATEWAY;
 
@@ -340,14 +337,15 @@ const device = {
     } catch (e) {
       logger.error(`server error in the create controller -- ${e.message}`);
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
         message: "server error in the create controller",
-        errors: e.message,
+        errors: { message: e.message },
       });
     }
   },
   generateQRCode: async (req, res) => {
     try {
-      logger.info(`the generate QR Code operation starts here....`);
+      // logger.info(`the generate QR Code operation starts here....`);
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -380,11 +378,11 @@ const device = {
       let responseFromGenerateQRCode = await createDeviceUtil.generateQR(
         request
       );
-      logger.info(
-        `responseFromGenerateQRCode -- ${responseFromGenerateQRCode}`
-      );
+      // logger.info(
+      //   `responseFromGenerateQRCode -- ${responseFromGenerateQRCode}`
+      // );
       if (responseFromGenerateQRCode.success === true) {
-        let status = responseFromGenerateQRCode.status
+        const status = responseFromGenerateQRCode.status
           ? responseFromGenerateQRCode.status
           : HTTPStatus.OK;
         return res.status(status).json({
@@ -393,16 +391,15 @@ const device = {
           data: responseFromGenerateQRCode.data,
         });
       } else if (responseFromGenerateQRCode.success === false) {
-        let error = responseFromGenerateQRCode.error
-          ? responseFromGenerateQRCode.error
-          : "";
-        let status = responseFromGenerateQRCode.status
+        const status = responseFromGenerateQRCode.status
           ? responseFromGenerateQRCode.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
           message: responseFromGenerateQRCode.message,
-          error,
+          errors: responseFromGenerateQRCode.error
+            ? responseFromGenerateQRCode.error
+            : { message: "" },
         });
       }
     } catch (err) {
@@ -410,13 +407,13 @@ const device = {
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "unable to generate the QR code --server side error",
-        error: err.message,
+        errors: { message: err.message },
       });
     }
   },
   delete: async (req, res) => {
     try {
-      logger.info(`the general delete device operation starts....`);
+      // logger.info(`the general delete device operation starts....`);
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -450,42 +447,46 @@ const device = {
         requestObject
       );
 
-      logger.info(
-        `responseFromRemoveDevice -- ${JSON.stringify(
-          responseFromRemoveDevice
-        )}`
-      );
+      // logger.info(
+      //   `responseFromRemoveDevice -- ${JSON.stringify(
+      //     responseFromRemoveDevice
+      //   )}`
+      // );
 
       if (responseFromRemoveDevice.success === true) {
-        return res.status(HTTPStatus.OK).json({
+        const status = responseFromRemoveDevice.status
+          ? responseFromRemoveDevice.status
+          : HTTPStatus.OK;
+        return res.status(status).json({
           success: true,
           message: responseFromRemoveDevice.message,
           deleted_device: responseFromRemoveDevice.data,
         });
-      }
-
-      if (responseFromRemoveDevice.success === false) {
-        let error = responseFromRemoveDevice.error
-          ? responseFromRemoveDevice.error
-          : "";
-        let status = responseFromRemoveDevice.status
+      } else if (responseFromRemoveDevice.success === false) {
+        const status = responseFromRemoveDevice.status
           ? responseFromRemoveDevice.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
           message: responseFromRemoveDevice.message,
-          error,
+          errors: responseFromRemoveDevice.error
+            ? responseFromRemoveDevice.error
+            : { message: "" },
         });
       }
     } catch (e) {
       logger.error(`server error - delete device --- ${e.message}`);
-      errors.logger_v2.errors.tryCatchErrors("server error", e.message);
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: e.message },
+      });
     }
   },
 
   update: async (req, res) => {
     try {
-      logger.info(`the device update operation starts....`);
+      // logger.info(`the device update operation starts....`);
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -516,11 +517,11 @@ const device = {
       requestBody["body"] = body;
 
       let responseFromUpdateDevice = await createDeviceUtil.update(requestBody);
-      logger.info(
-        `responseFromUpdateDevice ${JSON.stringify(responseFromUpdateDevice)}`
-      );
+      // logger.info(
+      //   `responseFromUpdateDevice ${JSON.stringify(responseFromUpdateDevice)}`
+      // );
       if (responseFromUpdateDevice.success === true) {
-        let status = responseFromUpdateDevice.status
+        const status = responseFromUpdateDevice.status
           ? responseFromUpdateDevice.status
           : HTTPStatus.OK;
         return res.status(status).json({
@@ -528,18 +529,16 @@ const device = {
           success: true,
           updated_device: responseFromUpdateDevice.data,
         });
-      }
-      if (responseFromUpdateDevice.success === false) {
-        let status = responseFromUpdateDevice.status
+      } else if (responseFromUpdateDevice.success === false) {
+        const status = responseFromUpdateDevice.status
           ? responseFromUpdateDevice.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
-        let errors = responseFromUpdateDevice.errors
-          ? responseFromUpdateDevice.errors
-          : "";
         return res.status(status).json({
           message: responseFromUpdateDevice.message,
           success: false,
-          errors,
+          errors: responseFromUpdateDevice.errors
+            ? responseFromUpdateDevice.errors
+            : { message: "" },
         });
       }
     } catch (e) {
@@ -547,7 +546,7 @@ const device = {
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
-        errors: e.message,
+        errors: { message: e.message },
       });
     }
   },
@@ -555,7 +554,7 @@ const device = {
   encryptKeys: async (req, res) => {
     try {
       logText("the soft update operation starts....");
-      logger.info(`the soft update operation starts....`);
+      // logger.info(`the soft update operation starts....`);
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -590,12 +589,12 @@ const device = {
         requestObject
       );
 
-      logger.info(
-        `responseFromEncryptKeys ${JSON.stringify(responseFromEncryptKeys)}`
-      );
+      // logger.info(
+      //   `responseFromEncryptKeys ${JSON.stringify(responseFromEncryptKeys)}`
+      // );
 
       if (responseFromEncryptKeys.success === true) {
-        let status = responseFromEncryptKeys.status
+        const status = responseFromEncryptKeys.status
           ? responseFromEncryptKeys.status
           : HTTPStatus.OK;
         return res.status(status).json({
@@ -603,19 +602,16 @@ const device = {
           success: true,
           updated_device: responseFromEncryptKeys.data,
         });
-      }
-
-      if (responseFromEncryptKeys.success === false) {
-        let errors = responseFromEncryptKeys.errors
-          ? responseFromEncryptKeys.errors
-          : "";
-        let status = responseFromEncryptKeys.status
+      } else if (responseFromEncryptKeys.success === false) {
+        const status = responseFromEncryptKeys.status
           ? responseFromEncryptKeys.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           message: responseFromEncryptKeys.message,
           success: false,
-          errors,
+          errors: responseFromEncryptKeys.errors
+            ? responseFromEncryptKeys.errors
+            : { message: "" },
         });
       }
     } catch (e) {
@@ -623,7 +619,7 @@ const device = {
       res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
-        errors: e.message,
+        errors: { message: e.message },
       });
     }
   },
@@ -632,6 +628,7 @@ const device = {
     try {
       logText(".....................................");
       logText("list devices based on query params...");
+      // logger.info("we are listing devices...", "yeah");
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -657,7 +654,7 @@ const device = {
       );
 
       if (responseFromListDeviceDetails.success === true) {
-        let status = responseFromListDeviceDetails.status
+        const status = responseFromListDeviceDetails.status
           ? responseFromListDeviceDetails.status
           : HTTPStatus.OK;
         return res.status(status).json({
@@ -666,16 +663,15 @@ const device = {
           devices: responseFromListDeviceDetails.data,
         });
       } else if (responseFromListDeviceDetails.success === false) {
-        let errors = responseFromListDeviceDetails.errors
-          ? responseFromListDeviceDetails.errors
-          : "";
-        let status = responseFromListDeviceDetails.status
+        const status = responseFromListDeviceDetails.status
           ? responseFromListDeviceDetails.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
           message: responseFromListDeviceDetails.message,
-          errors,
+          errors: responseFromListDeviceDetails.errors
+            ? responseFromListDeviceDetails.errors
+            : { message: "" },
         });
       }
     } catch (e) {
@@ -746,14 +742,18 @@ const device = {
       }
     } catch (e) {
       logger.error(`internal server error -- ${e.message}`);
-      errors.tryCatchErrors(res, e);
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: e.message },
+      });
     }
   },
 
   updateOnPlatform: async (req, res) => {
     try {
       logText("the soft update operation starts....");
-      logger.info(`the soft update operation starts....`);
+      // logger.info(`the soft update operation starts....`);
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -788,14 +788,14 @@ const device = {
         requestObject
       );
 
-      logger.info(
-        `responseFromUpdateDeviceOnPlatform ${JSON.stringify(
-          responseFromUpdateDeviceOnPlatform
-        )}`
-      );
+      // logger.info(
+      //   `responseFromUpdateDeviceOnPlatform ${JSON.stringify(
+      //     responseFromUpdateDeviceOnPlatform
+      //   )}`
+      // );
 
       if (responseFromUpdateDeviceOnPlatform.success === true) {
-        let status = responseFromUpdateDeviceOnPlatform.status
+        const status = responseFromUpdateDeviceOnPlatform.status
           ? responseFromUpdateDeviceOnPlatform.status
           : HTTPStatus.OK;
         return res.status(status).json({
@@ -803,19 +803,16 @@ const device = {
           success: true,
           updated_device: responseFromUpdateDeviceOnPlatform.data,
         });
-      }
-
-      if (responseFromUpdateDeviceOnPlatform.success === false) {
-        let errors = responseFromUpdateDeviceOnPlatform.errors
-          ? responseFromUpdateDeviceOnPlatform.errors
-          : "";
-        let status = responseFromUpdateDeviceOnPlatform.status
+      } else if (responseFromUpdateDeviceOnPlatform.success === false) {
+        const status = responseFromUpdateDeviceOnPlatform.status
           ? responseFromUpdateDeviceOnPlatform.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           message: responseFromUpdateDeviceOnPlatform.message,
           success: false,
-          errors,
+          errors: responseFromUpdateDeviceOnPlatform.errors
+            ? responseFromUpdateDeviceOnPlatform.errors
+            : { message: "" },
         });
       }
     } catch (e) {
@@ -823,14 +820,14 @@ const device = {
       res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
-        errors: e.message,
+        errors: { message: e.message },
       });
     }
   },
 
   deleteOnPlatform: async (req, res) => {
     try {
-      logger.info(`the soft delete operation starts....`);
+      // logger.info(`the soft delete operation starts....`);
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -864,14 +861,14 @@ const device = {
         requestObject
       );
 
-      logger.info(
-        `responseFromRemoveDevice -- ${JSON.stringify(
-          responseFromRemoveDevice
-        )}`
-      );
+      // logger.info(
+      //   `responseFromRemoveDevice -- ${JSON.stringify(
+      //     responseFromRemoveDevice
+      //   )}`
+      // );
 
       if (responseFromRemoveDevice.success === true) {
-        let status = responseFromRemoveDevice.status
+        const status = responseFromRemoveDevice.status
           ? responseFromRemoveDevice.status
           : HTTPStatus.OK;
         return res.status(status).json({
@@ -879,26 +876,26 @@ const device = {
           message: responseFromRemoveDevice.message,
           deleted_device: responseFromRemoveDevice.data,
         });
-      }
-
-      if (responseFromRemoveDevice.success === false) {
-        let error = responseFromRemoveDevice.error
-          ? responseFromRemoveDevice.error
-          : "";
-
-        let status = responseFromRemoveDevice.status
+      } else if (responseFromRemoveDevice.success === false) {
+        const status = responseFromRemoveDevice.status
           ? responseFromRemoveDevice.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
 
         return res.status(status).json({
           success: false,
           message: responseFromRemoveDevice.message,
-          error,
+          errors: responseFromRemoveDevice.error
+            ? responseFromRemoveDevice.error
+            : { message: "" },
         });
       }
     } catch (e) {
       logger.error(`server error --- ${e.message}`);
-      errors.logger_v2.errors.tryCatchErrors("server error", e.message);
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: e.message },
+      });
     }
   },
 
@@ -937,13 +934,13 @@ const device = {
       let responseFromCreateOnPlatform = await createDeviceUtil.createOnPlatform(
         requestBody
       );
-      logger.info(
-        `responseFromCreateOnPlatform -- ${JSON.stringify(
-          responseFromCreateOnPlatform
-        )}`
-      );
+      // logger.info(
+      //   `responseFromCreateOnPlatform -- ${JSON.stringify(
+      //     responseFromCreateOnPlatform
+      //   )}`
+      // );
       if (responseFromCreateOnPlatform.success === true) {
-        let status = responseFromCreateOnPlatform.status
+        const status = responseFromCreateOnPlatform.status
           ? responseFromCreateOnPlatform.status
           : HTTPStatus.OK;
         return res.status(status).json({
@@ -951,27 +948,25 @@ const device = {
           message: responseFromCreateOnPlatform.message,
           created_device: responseFromCreateOnPlatform.data,
         });
-      }
-
-      if (responseFromCreateOnPlatform.success === false) {
-        let errors = responseFromCreateOnPlatform.errors
-          ? responseFromCreateOnPlatform.errors
-          : "";
-        let status = responseFromCreateOnPlatform.status
+      } else if (responseFromCreateOnPlatform.success === false) {
+        const status = responseFromCreateOnPlatform.status
           ? responseFromCreateOnPlatform.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
 
         return res.status(status).json({
           success: false,
           message: responseFromCreateOnPlatform.message,
-          errors,
+          errors: responseFromCreateOnPlatform.errors
+            ? responseFromCreateOnPlatform.errors
+            : { message: "" },
         });
       }
     } catch (e) {
       logger.error(`server error in the create one controller -- ${e.message}`);
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
         message: "server error in the createOnPlatform controller",
-        errors: e.message,
+        errors: { message: e.message },
       });
     }
   },

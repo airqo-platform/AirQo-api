@@ -1,9 +1,9 @@
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
-const { logObject, logElement, logText } = require("../utils/log");
-const { monthsInfront } = require("../utils/date");
-const constants = require("../config/constants");
+const { logObject, logElement, logText } = require("@utils/log");
+const { monthsInfront } = require("@utils/date");
+const constants = require("@config/constants");
 const cryptoJS = require("crypto-js");
 const isEmpty = require("is-empty");
 const log4js = require("log4js");
@@ -336,7 +336,9 @@ deviceSchema.statics = {
       let message = "validation errors for some of the provided fields";
       let status = HTTPStatus.CONFLICT;
       Object.entries(err.errors).forEach(([key, value]) => {
-        return (response[key] = value.message);
+        response.message = value.message;
+        response[key] = value.message;
+        return response;
       });
 
       return {
@@ -350,12 +352,12 @@ deviceSchema.statics = {
 
   async list({ _skip = 0, _limit = 1000, filter = {} } = {}) {
     try {
-      logger.info(
-        `the filter received in the model -- ${JSON.stringify(filter)}`
-      );
-      logger.info(
-        `the type of filter received in the model -- ${typeof filter}`
-      );
+      // logger.info(
+      //   `the filter received in the model -- ${JSON.stringify(filter)}`
+      // );
+      // logger.info(
+      //   `the type of filter received in the model -- ${typeof filter}`
+      // );
       let response = await this.aggregate()
         .match(filter)
         .lookup({
@@ -439,7 +441,7 @@ deviceSchema.statics = {
         .limit(_limit)
         .allowDiskUse(true);
 
-      logger.info(`the data produced in the model -- ${response}`);
+      // logger.info(`the data produced in the model -- ${response}`);
       if (!isEmpty(response)) {
         let data = response;
         return {
