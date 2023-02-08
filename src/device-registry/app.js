@@ -52,6 +52,13 @@ const runKafkaConsumer = async () => {
               responseFromInsertMeasurements
             )}`
           );
+        } else if (responseFromInsertMeasurements.success === true) {
+          logger.error(
+            `NOT AN ERROR!! Successfully inserted the measurements`,
+            responseFromInsertMeasurements.message
+              ? responseFromInsertMeasurements.message
+              : ""
+          );
         }
       },
     });
