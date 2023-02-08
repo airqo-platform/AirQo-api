@@ -1,9 +1,9 @@
-const EventModel = require("../models/Event");
-const AirQloudSchema = require("../models/Airqloud");
+const EventModel = require("@models/Event");
+const AirQloudSchema = require("@models/Airqloud");
 const { getModelByTenant } = require("./multitenancy");
-const MeasurementModel = require("../models/Measurement");
+const MeasurementModel = require("@models/Measurement");
 const { logObject, logElement, logText } = require("./log");
-const constants = require("../config/constants");
+const constants = require("@config/constants");
 const generateFilter = require("./generate-filter");
 const errors = require("./errors");
 const isEmpty = require("is-empty");
@@ -16,7 +16,7 @@ const Dot = require("dot-object");
 const cleanDeep = require("clean-deep");
 const { getDevicesCount, list, decryptKey } = require("./create-monitor");
 const HTTPStatus = require("http-status");
-const redis = require("../config/redis");
+const redis = require("@config/redis");
 const axios = require("axios");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
@@ -70,7 +70,7 @@ const createEvent = {
         ) {
           deviceDetails = responseFromGetDeviceDetails.data[0];
         } else {
-          logger.info(`unable to retrieve details for ONE device`);
+          // logger.info(`unable to retrieve details for ONE device`);
         }
       } else if (responseFromGetDeviceDetails.success === false) {
         try {
@@ -453,10 +453,9 @@ const createEvent = {
           ? query.radius
           : constants.DEFAULT_NEAREST_SITE_RADIUS;
 
-        const responseFromFindNearestSiteByCoordinates =
-          await createSiteUtil.findNearestSitesByCoordinates(
-            requestBodyForFindingNearestSite
-          );
+        const responseFromFindNearestSiteByCoordinates = await createSiteUtil.findNearestSitesByCoordinates(
+          requestBodyForFindingNearestSite
+        );
 
         if (responseFromFindNearestSiteByCoordinates.success === true) {
           if (
@@ -822,6 +821,7 @@ const createEvent = {
         success: false,
         message: "Internal Server Error",
         status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
       };
     }
   },
@@ -839,6 +839,10 @@ const createEvent = {
               status: httpStatus.INTERNAL_SERVER_ERROR,
               message:
                 "unable to categorise this device, please first update device details",
+              errors: {
+                message:
+                  "unable to categorise this device, please first update device details",
+              },
             };
           }
         } else {
@@ -846,21 +850,19 @@ const createEvent = {
             success: false,
             status: httpStatus.NOT_FOUND,
             message: "no matching devices found",
+            errors: { message: "no matching devices found" },
           };
         }
       } else if (responseFromListDevice.success === false) {
-        const status = responseFromListDevice.status
-          ? responseFromListDevice.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
-        const errors = responseFromListDevice.errors
-          ? responseFromListDevice.errors
-          : { message: "" };
-
         return {
           success: false,
           message: responseFromListDevice.message,
-          errors,
-          status,
+          errors: responseFromListDevice.errors
+            ? responseFromListDevice.errors
+            : { message: "" },
+          status: responseFromListDevice.status
+            ? responseFromListDevice.status
+            : HTTPStatus.INTERNAL_SERVER_ERROR,
         };
       }
 
@@ -873,10 +875,9 @@ const createEvent = {
         requestBodyForCreateThingsSpeakBody
       );
 
-      const responseFromCreateRequestBody =
-        createEvent.createThingSpeakRequestBody(
-          requestBodyForCreateThingsSpeakBody
-        );
+      const responseFromCreateRequestBody = createEvent.createThingSpeakRequestBody(
+        requestBodyForCreateThingsSpeakBody
+      );
 
       if (responseFromCreateRequestBody.success === true) {
         requestBody = responseFromCreateRequestBody.data;
@@ -898,7 +899,7 @@ const createEvent = {
       requestBody.api_key = api_key;
       return await axios
         .post(constants.ADD_VALUE_JSON, requestBody)
-        .then(function (response) {
+        .then(function(response) {
           let resp = {};
           if (isEmpty(response.data)) {
             return {
@@ -921,7 +922,7 @@ const createEvent = {
             };
           }
         })
-        .catch(function (error) {
+        .catch(function(error) {
           try {
             logger.error(
               `internal server error -- ${JSON.stringify(
@@ -1003,8 +1004,9 @@ const createEvent = {
         enrichedBody.push(value);
       });
 
-      let responseFromTransformMeasurements =
-        await createEvent.transformMeasurementFields(enrichedBody);
+      let responseFromTransformMeasurements = await createEvent.transformMeasurementFields(
+        enrichedBody
+      );
 
       let transformedUpdates = {};
       if (responseFromTransformMeasurements.success === true) {
@@ -1018,7 +1020,7 @@ const createEvent = {
       requestObject.updates = transformedUpdates;
       return await axios
         .post(constants.BULK_ADD_VALUES_JSON(channel), requestObject)
-        .then(function (response) {
+        .then(function(response) {
           if (isEmpty(response)) {
             return {
               success: false,
@@ -1038,7 +1040,7 @@ const createEvent = {
             };
           }
         })
-        .catch(function (error) {
+        .catch(function(error) {
           try {
             logger.error(
               `internal server error -- ${JSON.stringify(
@@ -1159,7 +1161,7 @@ const createEvent = {
             success: false,
             message: "no cache present",
             data: resultJSON,
-            errors: err,
+            errors: { message: err.message },
           });
         }
       });
@@ -1224,11 +1226,11 @@ const createEvent = {
   },
   enrichOneEvent: async (transformedEvent) => {
     try {
-      logger.info(
-        `the transformedEvent received for enrichment -- ${JSON.stringify(
-          transformedEvent
-        )}`
-      );
+      // logger.info(
+      //   `the transformedEvent received for enrichment -- ${JSON.stringify(
+      //     transformedEvent
+      //   )}`
+      // );
       let request = {};
       let enrichedEvent = transformedEvent;
       request["query"] = {};
@@ -1236,11 +1238,11 @@ const createEvent = {
       request["query"]["tenant"] = transformedEvent.tenant;
 
       const responseFromGetDeviceDetails = await list(request);
-      logger.info(
-        `responseFromGetDeviceDetails ${JSON.stringify(
-          responseFromGetDeviceDetails
-        )}`
-      );
+      // logger.info(
+      //   `responseFromGetDeviceDetails ${JSON.stringify(
+      //     responseFromGetDeviceDetails
+      //   )}`
+      // );
       if (responseFromGetDeviceDetails.success === true) {
         if (responseFromGetDeviceDetails.data.length === 1) {
           let deviceDetails = responseFromGetDeviceDetails.data[0];
@@ -1286,18 +1288,18 @@ const createEvent = {
       );
       return {
         success: false,
-        message: "server error",
+        message: "Internal Server Error",
         errors: { message: error.message },
       };
     }
   },
   transformManyEvents: async (request) => {
     try {
-      const { body, query } = request;
+      const { body } = request;
 
-      logger.info(
-        `the body received for transformation -- ${JSON.stringify(body)}`
-      );
+      // logger.info(
+      //   `the body received for transformation -- ${JSON.stringify(body)}`
+      // );
       let promises = body.map(async (event) => {
         let data = event;
         let map = constants.EVENT_MAPPINGS;
@@ -1311,15 +1313,15 @@ const createEvent = {
           context,
         });
 
-        logger.info(
-          `responseFromTransformEvent -- ${JSON.stringify(
-            responseFromTransformEvent
-          )}`
-        );
+        // logger.info(
+        //   `responseFromTransformEvent -- ${JSON.stringify(
+        //     responseFromTransformEvent
+        //   )}`
+        // );
         if (responseFromTransformEvent.success === true) {
-          logger.info(
-            `responseFromTransformEvent is a success -- ${responseFromTransformEvent.message}`
-          );
+          // logger.info(
+          //   `responseFromTransformEvent is a success -- ${responseFromTransformEvent.message}`
+          // );
           return {
             success: true,
             data: responseFromTransformEvent.data,
@@ -1349,7 +1351,7 @@ const createEvent = {
         let transforms = [];
         let errors = [];
         if (results.every((res) => res.success === true)) {
-          logger.info(`success tranformEvents -- ${JSON.stringify(results)}`);
+          // logger.info(`success tranformEvents -- ${JSON.stringify(results)}`);
           for (const result of results) {
             transforms.push(result.data);
           }
@@ -1359,9 +1361,9 @@ const createEvent = {
             errors.push(error);
           }
           try {
-            logger.error(
-              `unsuccessful tranformEvents -- ${JSON.stringify(errors)}}`
-            );
+            // logger.error(
+            //   `unsuccessful tranformEvents -- ${JSON.stringify(errors)}}`
+            // );
           } catch (error) {
             logger.error(`internal server error -- ${error.message}`);
           }
@@ -1385,52 +1387,22 @@ const createEvent = {
   addEvents: async (request) => {
     try {
       logText("adding the events insertTransformedEvents to the util.....");
-      logger.info(`adding events in the util.....`);
-      let { tenant } = request.query;
-      let { body } = request;
-      let responseFromTransformEvents = await createEvent.transformManyEvents(
+      // logger.info(`adding events in the util.....`);
+      const { tenant } = request.query;
+      const responseFromTransformEvents = await createEvent.transformManyEvents(
         request
       );
 
-      logger.info(
-        `responseFromTransformEvents -- ${JSON.stringify(
-          responseFromTransformEvents
-        )}`
-      );
       if (responseFromTransformEvents.success === false) {
         logElement("responseFromTransformEvents was false?", true);
-        let errors = responseFromTransformEvents.errors
-          ? responseFromTransformEvents.errors
-          : { message: "" };
-        return {
-          success: false,
-          message: responseFromTransformEvents.message,
-          errors,
-        };
+        return responseFromTransformEvents;
       } else if (responseFromTransformEvents.success === true) {
         let transformedMeasurements = responseFromTransformEvents.data;
-        let responseFromInsertEvents =
-          await createEvent.insertTransformedEvents(
-            tenant,
-            transformedMeasurements
-          );
-
-        if (responseFromInsertEvents.success) {
-          return {
-            success: true,
-            message: responseFromInsertEvents.message,
-            data: responseFromInsertEvents.data,
-          };
-        } else if (!responseFromInsertEvents.success) {
-          let errors = responseFromInsertEvents.errors
-            ? responseFromInsertEvents.errors
-            : "";
-          return {
-            success: false,
-            message: responseFromInsertEvents.message,
-            errors,
-          };
-        }
+        const responseFromInsertEvents = await createEvent.insertTransformedEvents(
+          tenant,
+          transformedMeasurements
+        );
+        return responseFromInsertEvents;
       }
     } catch (error) {
       logger.error(`internal server error -- addEvents -- ${error.message}`);
@@ -1461,18 +1433,18 @@ const createEvent = {
           modifiedFilter = event.modifiedFilter;
 
           dot.object(filter);
-          logger.info(`the filter -- ${JSON.stringify(filter)}`);
+          // logger.info(`the filter -- ${JSON.stringify(filter)}`);
 
           dot.delete(
             ["filter", "update", "options", "modifiedFilter", "tenant", "day"],
             value
           );
-          logger.info(`the value -- ${JSON.stringify(value)}`);
+          // logger.info(`the value -- ${JSON.stringify(value)}`);
 
           update["$push"] = { values: value };
-          logger.info(`the update -- ${JSON.stringify(update)}`);
+          // logger.info(`the update -- ${JSON.stringify(update)}`);
 
-          logger.info(`the options -- ${JSON.stringify(options)}`);
+          // logger.info(`the options -- ${JSON.stringify(options)}`);
 
           const addedEvents = await Model(tenant).updateOne(
             modifiedFilter,
@@ -1480,11 +1452,11 @@ const createEvent = {
             options
           );
 
-          logger.info(`addedEvents -- ${JSON.stringify(addedEvents)}`);
+          // logger.info(`addedEvents -- ${JSON.stringify(addedEvents)}`);
 
           dot.delete("nValues", filter);
           if (!isEmpty(addedEvents)) {
-            logger.info(`successfuly added the event`);
+            // logger.info(`successfuly added the event`);
             let insertion = {
               msg: "successfuly added the event",
               event_details: filter,
@@ -1500,11 +1472,11 @@ const createEvent = {
               status: HTTPStatus.NOT_MODIFIED,
             };
             errors.push(errMsg);
-            logger.info(
-              `nothing added, empty response -- duplicate event -- ${JSON.stringify(
-                event
-              )}`
-            );
+            // logger.info(
+            //   `nothing added, empty response -- duplicate event -- ${JSON.stringify(
+            //     event
+            //   )}`
+            // );
           }
         } catch (error) {
           logger.error(`internal server error -- ${error.message}`);
@@ -1525,7 +1497,7 @@ const createEvent = {
         return {
           success: false,
           message: "finished the operation with some errors",
-          errors: errors,
+          errors,
         };
       } else {
         return {
@@ -1538,7 +1510,7 @@ const createEvent = {
       logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
-        message: "server side error",
+        message: "internal server error",
         errors: { message: error.message },
       };
     }
@@ -1579,9 +1551,7 @@ const createEvent = {
         message: responseFromListEvents.message,
         data: dottedEventsArray,
       };
-    }
-
-    if (responseFromListEvents.success === false) {
+    } else if (responseFromListEvents.success === false) {
       let errors = responseFromListEvents.errors
         ? responseFromListEvents.errors
         : { message: "" };
@@ -1607,37 +1577,16 @@ const createEvent = {
 
       if (responseFromFilter.success == true) {
         filter = responseFromFilter.data;
-      }
-
-      if (responseFromFilter.success == false) {
-        let errors = responseFromFilter.errors
-          ? responseFromFilter.errors
-          : { message: "" };
-        return {
-          success: false,
-          message: responseFromFilter.message,
-          errors,
-        };
+      } else if (responseFromFilter.success == false) {
+        return responseFromFilter;
       }
 
       let responseFromClearEvents = { success: false, message: "coming soon" };
 
-      if (responseFromClearEvents.success == true) {
-        return {
-          success: true,
-          message: responseFromClearEvents.message,
-          data: responseFromClearEvents.data,
-        };
-      } else if (responseFromClearEvents.success == false) {
-        let error = responseFromClearEvents.error
-          ? responseFromClearEvents.error
-          : { message: "" };
-
-        return {
-          success: false,
-          message: responseFromClearEvents.message,
-          errors: responseFromClearEvents.error,
-        };
+      if (responseFromClearEvents.success === true) {
+        return responseFromClearEvents;
+      } else if (responseFromClearEvents.success === false) {
+        return responseFromClearEvents;
       }
     } catch (e) {
       logger.error(
@@ -1780,8 +1729,9 @@ const createEvent = {
     let eventsRejected = [];
     let errors = [];
 
-    const responseFromTransformMeasurements =
-      await createEvent.transformMeasurements_v2(measurements);
+    const responseFromTransformMeasurements = await createEvent.transformMeasurements_v2(
+      measurements
+    );
 
     if (!responseFromTransformMeasurements.success) {
       logger.error(
@@ -1874,7 +1824,8 @@ const createEvent = {
         logger.error(`internal server serror -- ${e.message}`);
         eventsRejected.push(measurement);
         let errMsg = {
-          msg: "there is a system conflict, most likely a cast error or duplicate record",
+          msg:
+            "there is a system conflict, most likely a cast error or duplicate record",
           more: e.message,
           record: {
             ...(measurement.device ? { device: measurement.device } : {}),
@@ -1896,7 +1847,7 @@ const createEvent = {
       return {
         success: false,
         message: "finished the operation with some errors",
-        errors: errors,
+        errors,
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     } else {
@@ -1924,6 +1875,7 @@ const createEvent = {
           device: device,
           success: false,
           message: e.message,
+          errors: { message: e.message },
         };
       }
     });
@@ -2016,8 +1968,9 @@ const createEvent = {
       let request = {};
       for (const measurement of measurements) {
         request["body"] = measurement;
-        let responseFromCreateThingSpeakBody =
-          createEvent.createThingSpeakRequestBody(request);
+        let responseFromCreateThingSpeakBody = createEvent.createThingSpeakRequestBody(
+          request
+        );
 
         if (responseFromCreateThingSpeakBody.success === true) {
           transformed.push(responseFromCreateThingSpeakBody.data);
@@ -2092,11 +2045,14 @@ const createEvent = {
               updatedDevice,
             };
           })
-          .catch(function (error) {
+          .catch(function(error) {
             logger.error(`internal server error -- ${error.message}`);
             return {
               message: `unable to clear the device data, device ${device} does not exist`,
               success: false,
+              errors: {
+                message: `unable to clear the device data, device ${device} does not exist`,
+              },
             };
           });
       } else {
@@ -2104,6 +2060,7 @@ const createEvent = {
         return {
           message: `device ${device} does not exist in the system`,
           success: false,
+          errors: { message: `device ${device} does not exist in the system` },
         };
       }
     } catch (e) {
@@ -2111,6 +2068,7 @@ const createEvent = {
       return {
         success: false,
         message: "Internal Server Error",
+        errors: { message: e.message },
       };
     }
   },

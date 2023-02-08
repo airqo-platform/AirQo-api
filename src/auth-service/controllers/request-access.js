@@ -36,6 +36,7 @@ const requestAccess = {
         website,
         description,
         category,
+        country,
       } = req.body;
 
       let request = {};
@@ -48,6 +49,7 @@ const requestAccess = {
       request["website"] = website;
       request["description"] = description;
       request["category"] = category;
+      request["country"] = country;
 
       await requestAccessUtil
         .create(request, (value) => {
@@ -179,6 +181,7 @@ const requestAccess = {
         website,
         category,
         description,
+        country,
       } = req.body;
 
       let { tenant } = req.query;
@@ -202,6 +205,7 @@ const requestAccess = {
         request["website"] = website;
         request["description"] = description;
         request["category"] = category;
+        request["country"] = country;
         request["filter"] = filter;
 
         let responseFromConfirmCandidate = await requestAccessUtil.confirm(
@@ -223,14 +227,13 @@ const requestAccess = {
             ? responseFromConfirmCandidate.status
             : httpStatus.INTERNAL_SERVER_ERROR;
 
-          let error = responseFromConfirmCandidate.error
-            ? responseFromConfirmCandidate.error
-            : "";
           if (responseFromConfirmCandidate.error) {
             res.status(status).json({
               success: false,
               message: responseFromConfirmCandidate.message,
-              error,
+              error: responseFromConfirmCandidate.error
+                ? responseFromConfirmCandidate.error
+                : "",
             });
           }
         }
