@@ -6,6 +6,7 @@ const mailer = require("./mailer");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 constants = require("../config/constants");
+const accessCodeGenerator = require("generate-password");
 
 const UserModel = (tenant) => {
   return getModelByTenant(tenant, "user", UserSchema);
@@ -257,6 +258,7 @@ const requestAccess = {
       category,
       filter,
       description,
+      country,
     } = req;
     try {
       let responseFromListCandidate = await requestAccess.list({
@@ -285,6 +287,7 @@ const requestAccess = {
           category,
           privilege: "user",
           userName: email,
+          country,
         };
         logObject("requestBody during confirmation", requestBody);
 
@@ -297,19 +300,18 @@ const requestAccess = {
           responseFromCreateUser
         );
 
-        const createdUser = await responseFromCreateUser.data;
-        logObject("createdUser", createdUser);
-        const jsonify = (createdUser) => {
-          let jsonData = JSON.stringify(dataFromDatabase);
-          let parsedMap = JSON.parse(jsonData);
-          return parsedMap;
-        };
-
-        const jsonifyCreatedUser = jsonify(createdUser);
-
-        logObject("jsonifyCreatedUser", jsonifyCreatedUser);
-
         if (responseFromCreateUser.success === true) {
+          const createdUser = await responseFromCreateUser.data;
+          logObject("createdUser", createdUser);
+          const jsonify = (createdUser) => {
+            let jsonData = JSON.stringify(createdUser);
+            let parsedMap = JSON.parse(jsonData);
+            return parsedMap;
+          };
+
+          const jsonifyCreatedUser = jsonify(createdUser);
+
+          logObject("jsonifyCreatedUser", jsonifyCreatedUser);
           let responseFromSendEmail = await mailer.user(
             firstName,
             lastName,
@@ -361,14 +363,7 @@ const requestAccess = {
             };
           }
         } else if (responseFromCreateUser.success === false) {
-          const error = responseFromCreateUser.error
-            ? responseFromCreateUser.error
-            : {};
-          return {
-            success: false,
-            message: responseFromCreateUser.message,
-            error,
-          };
+          return responseFromCreateUser;
         }
       } else if (
         responseFromListCandidate.success === true &&

@@ -53,6 +53,7 @@ const stageConfig = {
 
 const defaultConfig = {
   NETWORKS: process.env.NETWORKS.split(","),
+  DEFAULT_NETWORK: process.env.DEFAULT_NETWORK,
   DEFAULT_NEAREST_SITE_RADIUS: process.env.DEFAULT_NEAREST_SITE_RADIUS,
   SLACK_TOKEN: process.env.SLACK_TOKEN,
   KAFKA_CLIENT_ID: process.env.KAFKA_CLIENT_ID,

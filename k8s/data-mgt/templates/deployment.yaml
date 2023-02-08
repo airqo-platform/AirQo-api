@@ -35,7 +35,7 @@ spec:
                   - key: node-type
                     operator: In
                     values:
-                      - general-purpose
+                      - compute
             - weight: 1
               preference:
                 matchExpressions:

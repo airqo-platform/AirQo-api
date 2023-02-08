@@ -36,7 +36,7 @@ spec:
                       - general-purpose
       containers:
         - name: prod-network-uptime
-          image: us.gcr.io/airqo-250220/airqo-network-uptime-api:latest
+          image: eu.gcr.io/airqo-250220/airqo-network-uptime-api:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 8501

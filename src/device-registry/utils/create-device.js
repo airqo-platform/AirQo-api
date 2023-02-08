@@ -1,11 +1,11 @@
 "use strict";
 const HTTPStatus = require("http-status");
-const DeviceSchema = require("../models/Device");
+const DeviceSchema = require("@models/Device");
 const { getModelByTenant } = require("./multitenancy");
 const axios = require("axios");
 const { logObject, logElement, logText } = require("./log");
 const { transform } = require("node-json-transform");
-const constants = require("../config/constants");
+const constants = require("@config/constants");
 const cryptoJS = require("crypto-js");
 const generateFilter = require("./generate-filter");
 const errors = require("./errors");
@@ -37,17 +37,17 @@ const createDevice = {
         DeviceSchema
       ).exists(filter);
       logElement(" doesSearchExist", doesSearchExist);
-      if (doesSearchExist) {
+      if (!isEmpty(doesSearchExist)) {
         return {
           success: true,
           message: "search exists",
           data: doesSearchExist,
         };
-      } else {
+      } else if (isEmpty(doesSearchExist)) {
         return {
-          success: false,
+          success: true,
           message: "search does not exist",
-          data: doesSearchExist,
+          data: [],
         };
       }
     } catch (error) {
@@ -111,18 +111,18 @@ const createDevice = {
           };
         }
         if (!isEmpty(include_site) && include_site === "no") {
-          logger.info(`the site details have been removed from the data`);
+          // logger.info(`the site details have been removed from the data`);
           delete deviceBody[0].site;
         }
         if (isEmpty(include_site)) {
           delete deviceBody[0].site;
         }
-        logger.info(`deviceBody -- ${deviceBody}`);
+        // logger.info(`deviceBody -- ${deviceBody}`);
         const stringifiedJSON = JSON.stringify(deviceBody[0]);
         let responseFromQRCode = await QRCode.toDataURL(stringifiedJSON, {
           type: String,
         });
-        logger.info(`responseFromQRCode -- ${responseFromQRCode}`);
+        // logger.info(`responseFromQRCode -- ${responseFromQRCode}`);
         if (!isEmpty(responseFromQRCode)) {
           return {
             success: true,
@@ -133,30 +133,19 @@ const createDevice = {
         } else if (isEmpty(responseFromQRCode)) {
           logObject("responseFromQRCode", responseFromQRCode);
           return {
-            success: false,
+            success: true,
             message: "unable to generate the QR code",
-            status: HTTPStatus.INTERNAL_SERVER_ERROR,
+            status: HTTPStatus.ACCEPTED,
           };
         }
       } else if (responseFromListDevice.success === false) {
-        let errors = responseFromListDevice.errors
-          ? responseFromListDevice.errors
-          : "";
-        let status = responseFromListDevice.status
-          ? responseFromListDevice.status
-          : "";
-        return {
-          success: false,
-          message: responseFromListDevice.message,
-          errors,
-          status,
-        };
+        return responseFromListDevice;
       }
     } catch (err) {
-      logger.error(`server side error -- ${err.message}`);
+      logger.error(`Internal Server Error -- ${err.message}`);
       return {
         success: false,
-        message: "unable to generate the QR code --server side error",
+        message: "Internal Server Error",
         errors: { message: err.message },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
@@ -175,16 +164,16 @@ const createDevice = {
         request
       );
 
-      logger.info(
-        `responseFromCreateOnThingspeak -- ${responseFromCreateOnThingspeak}`
-      );
+      // logger.info(
+      //   `responseFromCreateOnThingspeak -- ${responseFromCreateOnThingspeak}`
+      // );
 
       let enrichmentDataForDeviceCreation = responseFromCreateOnThingspeak.data
         ? responseFromCreateOnThingspeak.data
         : {};
-      logger.info(
-        `enrichmentDataForDeviceCreation -- ${enrichmentDataForDeviceCreation}`
-      );
+      // logger.info(
+      //   `enrichmentDataForDeviceCreation -- ${enrichmentDataForDeviceCreation}`
+      // );
 
       if (!isEmpty(enrichmentDataForDeviceCreation)) {
         let modifiedRequest = request;
@@ -198,39 +187,25 @@ const createDevice = {
         );
 
         if (responseFromCreateDeviceOnPlatform.success === true) {
-          logger.info(
-            `successfully create the device --  ${responseFromCreateDeviceOnPlatform.data}`
-          );
-          let status = responseFromCreateDeviceOnPlatform.status
-            ? responseFromCreateDeviceOnPlatform.status
-            : "";
-          return {
-            success: true,
-            message: responseFromCreateDeviceOnPlatform.message,
-            data: responseFromCreateDeviceOnPlatform.data,
-            status,
-          };
+          return responseFromCreateDeviceOnPlatform;
         } else if (responseFromCreateDeviceOnPlatform.success === false) {
           let deleteRequest = {};
           deleteRequest["query"] = {};
           deleteRequest["query"]["device_number"] =
             enrichmentDataForDeviceCreation.device_number;
-          logger.info(`deleteRequest -- ${deleteRequest}`);
+          // logger.info(`deleteRequest -- ${deleteRequest}`);
           let responseFromDeleteDeviceFromThingspeak = await createDevice.deleteOnThingspeak(
             deleteRequest
           );
 
-          logger.info(
-            ` responseFromDeleteDeviceFromThingspeak -- ${responseFromDeleteDeviceFromThingspeak}`
-          );
+          // logger.info(
+          //   ` responseFromDeleteDeviceFromThingspeak -- ${responseFromDeleteDeviceFromThingspeak}`
+          // );
 
           if (responseFromDeleteDeviceFromThingspeak.success === true) {
             let errors = responseFromCreateDeviceOnPlatform.errors
               ? responseFromCreateDeviceOnPlatform.errors
-              : "";
-            let status = responseFromCreateDeviceOnPlatform.status
-              ? responseFromCreateDeviceOnPlatform.status
-              : "";
+              : { message: "" };
             try {
               logger.error(
                 `creation operation failed -- successfully undid the successfull operations -- ${JSON.stringify(
@@ -245,12 +220,14 @@ const createDevice = {
               message:
                 "creation operation failed -- successfully undid the successfull operations",
               errors,
-              status,
+              status: responseFromCreateDeviceOnPlatform.status
+                ? responseFromCreateDeviceOnPlatform.status
+                : "",
             };
           } else if (responseFromDeleteDeviceFromThingspeak.success === false) {
             let errors = responseFromDeleteDeviceFromThingspeak.errors
               ? responseFromDeleteDeviceFromThingspeak.errors
-              : "";
+              : { message: "" };
             let status = responseFromDeleteDeviceFromThingspeak.status
               ? responseFromDeleteDeviceFromThingspeak.status
               : "";
@@ -275,10 +252,7 @@ const createDevice = {
       } else if (isEmpty(enrichmentDataForDeviceCreation)) {
         let errors = responseFromCreateOnThingspeak.errors
           ? responseFromCreateOnThingspeak.errors
-          : "";
-        let status = responseFromCreateOnThingspeak.status
-          ? responseFromCreateOnThingspeak.status
-          : "";
+          : { message: "" };
         try {
           logger.error(
             `unable to generate enrichment data for the device -- ${JSON.stringify(
@@ -293,7 +267,9 @@ const createDevice = {
           success: false,
           message: "unable to generate enrichment data for the device",
           errors,
-          status,
+          status: responseFromCreateOnThingspeak.status
+            ? responseFromCreateOnThingspeak.status
+            : "",
         };
       }
     } catch (error) {
@@ -308,86 +284,52 @@ const createDevice = {
   },
   update: async (request) => {
     try {
-      logger.info(`in the update util....`);
-      const { device_number } = request.query;
-      let modifiedRequest = request;
+      // logger.info(`in the update util....`);
+      let { device_number } = request.query;
+      let modifiedRequest = Object.assign({}, request);
       if (isEmpty(device_number)) {
-        logger.info(`the device_number is not present`);
+        // logger.info(`the device_number is not present in the update request`);
         let responseFromListDevice = await createDevice.list(request);
-        logger.info(`responseFromListDevice -- ${responseFromListDevice}`);
+        // logger.info(`responseFromListDevice -- ${responseFromListDevice}`);
         if (responseFromListDevice.success === false) {
-          let errors = responseFromListDevice.errors
-            ? responseFromListDevice.errors
-            : "";
           return {
             success: false,
             message: responseFromListDevice.message,
-            errors,
+            errors: responseFromListDevice.errors
+              ? responseFromListDevice.errors
+              : { message: "" },
           };
         }
-        let device_number = responseFromListDevice.data[0].device_number;
-        logger.info(`device_number -- ${device_number}`);
+        device_number = responseFromListDevice.data[0].device_number;
+        // logger.info(`device_number -- ${device_number}`);
         modifiedRequest["query"]["device_number"] = device_number;
       }
-      logger.info(`the modifiedRequest -- ${modifiedRequest} `);
+      // logger.info(`the modifiedRequest -- ${modifiedRequest} `);
 
-      let responseFromUpdateDeviceOnThingspeak = await createDevice.updateOnThingspeak(
-        modifiedRequest
-      );
-      logger.info(
-        `responseFromUpdateDeviceOnThingspeak -- ${responseFromUpdateDeviceOnThingspeak}`
-      );
-      if (responseFromUpdateDeviceOnThingspeak.success === true) {
-        let responseFromUpdateDeviceOnPlatform = await createDevice.updateOnPlatform(
+      if (isEmpty(device_number)) {
+        const responseFromUpdateDeviceOnPlatform = await createDevice.updateOnPlatform(
           request
         );
-        logger.info(
-          `responseFromUpdateDeviceOnPlatform -- ${responseFromUpdateDeviceOnPlatform}`
+        return responseFromUpdateDeviceOnPlatform;
+      } else if (!isEmpty(device_number)) {
+        const responseFromUpdateDeviceOnThingspeak = await createDevice.updateOnThingspeak(
+          modifiedRequest
         );
-        if (responseFromUpdateDeviceOnPlatform.success === true) {
-          let status = responseFromUpdateDeviceOnPlatform.status
-            ? responseFromUpdateDeviceOnPlatform.status
-            : "";
-          return {
-            success: true,
-            message: responseFromUpdateDeviceOnPlatform.message,
-            data: responseFromUpdateDeviceOnPlatform.data,
-            status,
-          };
-        } else if (responseFromUpdateDeviceOnPlatform.success === false) {
-          let errors = responseFromUpdateDeviceOnPlatform.errors
-            ? responseFromUpdateDeviceOnPlatform.errors
-            : "";
-          let status = responseFromUpdateDeviceOnPlatform.status
-            ? responseFromUpdateDeviceOnPlatform.status
-            : "";
-          return {
-            success: false,
-            message: responseFromUpdateDeviceOnPlatform.message,
-            errors,
-            status,
-          };
+        if (responseFromUpdateDeviceOnThingspeak.success === true) {
+          const responseFromUpdateDeviceOnPlatform = await createDevice.updateOnPlatform(
+            request
+          );
+          return responseFromUpdateDeviceOnPlatform;
+        } else if (responseFromUpdateDeviceOnThingspeak.success === false) {
+          return responseFromUpdateDeviceOnThingspeak;
         }
-      } else if (responseFromUpdateDeviceOnThingspeak.success === false) {
-        let errors = responseFromUpdateDeviceOnThingspeak.errors
-          ? responseFromUpdateDeviceOnThingspeak.errors
-          : "";
-        let status = responseFromUpdateDeviceOnThingspeak.status
-          ? responseFromUpdateDeviceOnThingspeak.status
-          : "";
-        return {
-          success: false,
-          message: responseFromUpdateDeviceOnThingspeak.message,
-          errors,
-          status,
-        };
       }
     } catch (e) {
       logger.error(`internal server error -- ${e.message}`);
       return {
         success: false,
         message: "Internal Server Error",
-        errors: e.message,
+        errors: { message: e.message },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -403,13 +345,12 @@ const createDevice = {
         "is responseFromFilter in util a success?",
         responseFromFilter.success
       );
-      logger.info(`the filter ${responseFromFilter.data}`);
+      // logger.info(`the filter ${responseFromFilter.data}`);
       if (responseFromFilter.success === true) {
         filter = responseFromFilter.data;
       }
 
       if (responseFromFilter.success === false) {
-        let errors = responseFromFilter.errors ? responseFromFilter.errors : "";
         try {
           logger.error(
             `responseFromFilter.error in create-device util--${JSON.stringify(
@@ -422,7 +363,9 @@ const createDevice = {
         return {
           success: false,
           message: responseFromFilter.message,
-          errors,
+          errors: responseFromFilter.errors
+            ? responseFromFilter.errors
+            : { message: "" },
         };
       }
       let responseFromEncryptKeys = await getModelByTenant(
@@ -431,32 +374,7 @@ const createDevice = {
         DeviceSchema
       ).encryptKeys({ filter, update });
 
-      if (responseFromEncryptKeys.success === true) {
-        let status = responseFromEncryptKeys.status
-          ? responseFromEncryptKeys.status
-          : "";
-        return {
-          success: true,
-          message: responseFromEncryptKeys.message,
-          data: responseFromEncryptKeys.data,
-          status,
-        };
-      }
-
-      if (responseFromEncryptKeys.success === false) {
-        let errors = responseFromEncryptKeys.errors
-          ? responseFromEncryptKeys.errors
-          : "";
-        let status = responseFromEncryptKeys.status
-          ? responseFromEncryptKeys.status
-          : "";
-        return {
-          success: false,
-          message: responseFromEncryptKeys.message,
-          errors,
-          status,
-        };
-      }
+      return responseFromEncryptKeys;
     } catch (error) {
       logger.error(
         `internal server error -- updateOnPlatform util -- ${error.message}`
@@ -480,89 +398,53 @@ const createDevice = {
       const { device_number } = request.query;
       let modifiedRequest = request;
       if (isEmpty(device_number)) {
-        logger.info(`the device_number is not present`);
+        // logger.info(`the device_number is not present`);
         let responseFromListDevice = await createDevice.list(request);
-        logger.info(`responseFromListDevice -- ${responseFromListDevice}`);
+        // logger.info(`responseFromListDevice -- ${responseFromListDevice}`);
         if (responseFromListDevice.success === false) {
-          let errors = responseFromListDevice.errors
-            ? responseFromListDevice.errors
-            : "";
-          let status = responseFromListDevice.status
-            ? responseFromListDevice.status
-            : "";
-          return {
-            success: false,
-            message: responseFromListDevice.message,
-            errors,
-            status,
-          };
+          return responseFromListDevice;
         }
         let device_number = responseFromListDevice.data[0].device_number;
-        logger.info(`device_number -- ${device_number}`);
+        // logger.info(`device_number -- ${device_number}`);
         modifiedRequest["query"]["device_number"] = device_number;
       }
-      logger.info(`the modifiedRequest -- ${modifiedRequest} `);
+      // logger.info(`the modifiedRequest -- ${modifiedRequest} `);
 
       let responseFromDeleteDeviceFromThingspeak = await createDevice.deleteOnThingspeak(
         modifiedRequest
       );
 
-      logger.info(
-        `responseFromDeleteDeviceFromThingspeak -- ${responseFromDeleteDeviceFromThingspeak}`
-      );
+      // logger.info(
+      //   `responseFromDeleteDeviceFromThingspeak -- ${responseFromDeleteDeviceFromThingspeak}`
+      // );
       if (responseFromDeleteDeviceFromThingspeak.success === true) {
         let responseFromDeleteDeviceOnPlatform = await createDevice.deleteOnPlatform(
           modifiedRequest
         );
 
-        logger.info(
-          `responseFromDeleteDeviceOnPlatform -- ${responseFromDeleteDeviceOnPlatform}`
-        );
+        // logger.info(
+        //   `responseFromDeleteDeviceOnPlatform -- ${responseFromDeleteDeviceOnPlatform}`
+        // );
 
         if (responseFromDeleteDeviceOnPlatform.success === true) {
-          let status = responseFromDeleteDeviceOnPlatform.status
-            ? responseFromDeleteDeviceOnPlatform.status
-            : "";
-          return {
-            success: true,
-            message: responseFromDeleteDeviceOnPlatform.message,
-            data: responseFromDeleteDeviceOnPlatform.data,
-            status,
-          };
+          return responseFromDeleteDeviceOnPlatform;
+        } else if (responseFromDeleteDeviceOnPlatform.success === false) {
+          return responseFromDeleteDeviceOnPlatform;
         }
-
-        if (responseFromDeleteDeviceOnPlatform.success === false) {
-          let errors = responseFromDeleteDeviceOnPlatform.errors
-            ? responseFromDeleteDeviceOnPlatform.errors
-            : "";
-          let status = responseFromDeleteDeviceOnPlatform.status
-            ? responseFromDeleteDeviceOnPlatform.status
-            : "";
-          return {
-            success: false,
-            message: responseFromDeleteDeviceOnPlatform.message,
-            errors,
-            status,
-          };
-        }
-      }
-
-      if (responseFromDeleteDeviceFromThingspeak.success === false) {
-        let errors = responseFromDeleteDeviceFromThingspeak.errors
-          ? responseFromDeleteDeviceFromThingspeak.errors
-          : "";
-        let status = parseInt(
-          `${
-            responseFromDeleteDeviceFromThingspeak.status
-              ? responseFromDeleteDeviceFromThingspeak.status
-              : ""
-          }`
-        );
+      } else if (responseFromDeleteDeviceFromThingspeak.success === false) {
         return {
           success: false,
           message: responseFromDeleteDeviceFromThingspeak.message,
-          errors,
-          status,
+          errors: responseFromDeleteDeviceFromThingspeak.errors
+            ? responseFromDeleteDeviceFromThingspeak.errors
+            : { message: "" },
+          status: parseInt(
+            `${
+              responseFromDeleteDeviceFromThingspeak.status
+                ? responseFromDeleteDeviceFromThingspeak.status
+                : ""
+            }`
+          ),
         };
       }
     } catch (e) {
@@ -570,7 +452,7 @@ const createDevice = {
       return {
         success: false,
         message: "server error --delete -- create-device util",
-        errors: e.message,
+        errors: { message: e.message },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -582,14 +464,15 @@ const createDevice = {
       const skip = parseInt(request.query.skip, 0);
       let filter = {};
       let responseFromFilter = generateFilter.devices(request);
-      logger.info(`responseFromFilter -- ${responseFromFilter}`);
+      // logger.info(`responseFromFilter -- ${responseFromFilter}`);
 
       if (responseFromFilter.success === true) {
         filter = responseFromFilter.data;
-        logger.info(`the filter in list -- ${filter}`);
+        // logger.info(`the filter in list -- ${filter}`);
       } else if (responseFromFilter.success === false) {
-        let errors = responseFromFilter.errors ? responseFromFilter.errors : "";
-        let status = responseFromFilter.status ? responseFromFilter.status : "";
+        let errors = responseFromFilter.errors
+          ? responseFromFilter.errors
+          : { message: "" };
         try {
           logger.error(
             `the error from filter in list -- ${JSON.stringify(errors)}`
@@ -601,7 +484,7 @@ const createDevice = {
           success: false,
           message: responseFromFilter.message,
           errors,
-          status,
+          status: responseFromFilter.status ? responseFromFilter.status : "",
         };
       }
 
@@ -615,17 +498,14 @@ const createDevice = {
         skip,
       });
 
-      logger.info(
-        `the responseFromListDevice in list -- ${responseFromListDevice} `
-      );
+      // logger.info(
+      //   `the responseFromListDevice in list -- ${responseFromListDevice} `
+      // );
 
       if (responseFromListDevice.success === false) {
         let errors = responseFromListDevice.errors
           ? responseFromListDevice.errors
-          : "";
-        let status = responseFromListDevice.status
-          ? responseFromListDevice.status
-          : "";
+          : { message: "" };
         try {
           logger.error(
             `responseFromListDevice was not a success -- ${
@@ -639,27 +519,19 @@ const createDevice = {
           success: false,
           message: responseFromListDevice.message,
           errors,
-          status,
+          status: responseFromListDevice.status
+            ? responseFromListDevice.status
+            : "",
         };
       } else if (responseFromListDevice.success === true) {
-        let data = responseFromListDevice.data;
-        let status = responseFromListDevice.status
-          ? responseFromListDevice.status
-          : "";
-        logger.info(`responseFromListDevice was a success -- ${data}`);
-        return {
-          success: true,
-          message: responseFromListDevice.message,
-          data,
-          status,
-        };
+        return responseFromListDevice;
       }
     } catch (e) {
       logger.error(`error for list devices util -- ${e.message}`);
       return {
         success: false,
-        message: "list devices util - server error",
-        errors: e.message,
+        message: "Internal Server Error",
+        errors: { message: e.message },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -689,9 +561,9 @@ const createDevice = {
         "device",
         DeviceSchema
       ).register(body);
-      logger.info(
-        `the responseFromRegisterDevice --${responseFromRegisterDevice} `
-      );
+      // logger.info(
+      //   `the responseFromRegisterDevice --${responseFromRegisterDevice} `
+      // );
 
       if (responseFromRegisterDevice.success === true) {
         try {
@@ -713,25 +585,11 @@ const createDevice = {
           logObject("error on kafka", error);
         }
 
-        return {
-          success: true,
-          data: responseFromRegisterDevice.data,
-          message: responseFromRegisterDevice.message,
-          status: responseFromRegisterDevice.status,
-        };
+        return responseFromRegisterDevice;
       }
 
       if (responseFromRegisterDevice.success === false) {
-        let errors = responseFromRegisterDevice.errors
-          ? responseFromRegisterDevice.errors
-          : "";
-
-        return {
-          success: false,
-          message: responseFromRegisterDevice.message,
-          errors,
-          status: responseFromRegisterDevice.status,
-        };
+        return responseFromRegisterDevice;
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
@@ -749,24 +607,27 @@ const createDevice = {
       const baseURL = constants.CREATE_THING_URL;
       const { body } = request;
       const { category } = body;
-      const data = body;
+      let data = body;
+      if (isEmpty(data.long_name) && !isEmpty(data.name)) {
+        data.long_name = data.name;
+      }
       const map = constants.DEVICE_THINGSPEAK_MAPPINGS;
       let context = {};
       if (category === "bam") {
         context = constants.BAM_THINGSPEAK_FIELD_DESCRIPTIONS;
-      } else if (category === "lowcost") {
+      } else {
         context = constants.THINGSPEAK_FIELD_DESCRIPTIONS;
       }
 
-      logger.info(`the context -- ${context}`);
+      // logger.info(`the context -- ${context}`);
       const responseFromTransformRequestBody = await createDevice.transform({
         data,
         map,
         context,
       });
-      logger.info(
-        `responseFromTransformRequestBody -- ${responseFromTransformRequestBody}`
-      );
+      // logger.info(
+      //   `responseFromTransformRequestBody -- ${responseFromTransformRequestBody}`
+      // );
       let transformedBody = responseFromTransformRequestBody.success
         ? responseFromTransformRequestBody.data
         : {};
@@ -777,35 +638,54 @@ const createDevice = {
           message: responseFromTransformRequestBody.message,
         };
       }
-      const response = await axios.post(baseURL, transformedBody);
+      return await axios
+        .post(baseURL, transformedBody)
+        .then((response) => {
+          let writeKey = response.data.api_keys[0].write_flag
+            ? response.data.api_keys[0].api_key
+            : "";
+          let readKey = !response.data.api_keys[1].write_flag
+            ? response.data.api_keys[1].api_key
+            : "";
 
-      if (isEmpty(response)) {
-        return {
-          success: false,
-          message: "unable to create the device on thingspeak",
-        };
-      }
+          let newChannel = {
+            device_number: `${response.data.id}`,
+            writeKey: writeKey,
+            readKey: readKey,
+          };
 
-      let writeKey = response.data.api_keys[0].write_flag
-        ? response.data.api_keys[0].api_key
-        : "";
-      let readKey = !response.data.api_keys[1].write_flag
-        ? response.data.api_keys[1].api_key
-        : "";
-
-      let newChannel = {
-        device_number: `${response.data.id}`,
-        writeKey: writeKey,
-        readKey: readKey,
-      };
-
-      return {
-        success: true,
-        message: "successfully created the device on thingspeak",
-        data: newChannel,
-      };
+          return {
+            success: true,
+            message: "successfully created the device on thingspeak",
+            data: newChannel,
+          };
+        })
+        .catch((error) => {
+          if (error.response) {
+            return {
+              success: false,
+              status: error.response.status
+                ? error.response.status
+                : parseInt(error.response.data.status),
+              errors: {
+                message: error.response.statusText
+                  ? error.response.statusText
+                  : error.response.data.error,
+              },
+            };
+          } else {
+            return {
+              success: false,
+              message: "Bad Gateway Error",
+              status: HTTPStatus.BAD_GATEWAY,
+              errors: {
+                message:
+                  "unable to create the device on thingspeak, crosscheck why",
+              },
+            };
+          }
+        });
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -817,7 +697,7 @@ const createDevice = {
 
   updateOnThingspeak: async (request) => {
     try {
-      logger.info(`  updateOnThingspeak's request -- ${request}`);
+      // logger.info(`  updateOnThingspeak's request -- ${request}`);
       const { device_number } = request.query;
       logElement("device_number", device_number);
       const { body } = request;
@@ -829,19 +709,19 @@ const createDevice = {
       const data = body;
       const map = constants.DEVICE_THINGSPEAK_MAPPINGS;
       const context = constants.THINGSPEAK_FIELD_DESCRIPTIONS;
-      logger.info(`the context -- ${context}`);
+      // logger.info(`the context -- ${context}`);
       const responseFromTransformRequestBody = await createDevice.transform({
         data,
         map,
       });
-      logger.info(
-        `responseFromTransformRequestBody -- ${responseFromTransformRequestBody}`
-      );
+      // logger.info(
+      //   `responseFromTransformRequestBody -- ${responseFromTransformRequestBody}`
+      // );
       let transformedBody = responseFromTransformRequestBody.success
         ? responseFromTransformRequestBody.data
         : {};
 
-      logger.info(`transformedBody -- ${transformedBody}`);
+      // logger.info(`transformedBody -- ${transformedBody}`);
 
       const response = await axios.put(
         constants.UPDATE_THING(device_number),
@@ -849,7 +729,7 @@ const createDevice = {
         config
       );
 
-      logger.info(`successfully updated the device on thingspeak`);
+      // logger.info(`successfully updated the device on thingspeak`);
       return {
         success: true,
         message: "successfully updated the device on thingspeak",
@@ -885,11 +765,13 @@ const createDevice = {
         "is responseFromFilter in util a success?",
         responseFromFilter.success
       );
-      logger.info(`the filter ${responseFromFilter.data}`);
+      // logger.info(`the filter ${responseFromFilter.data}`);
       if (responseFromFilter.success === true) {
         filter = responseFromFilter.data;
       } else if (responseFromFilter.success === false) {
-        let errors = responseFromFilter.errors ? responseFromFilter.errors : "";
+        let errors = responseFromFilter.errors
+          ? responseFromFilter.errors
+          : { message: "" };
         try {
           logger.error(
             `responseFromFilter.error in create-device util--${JSON.stringify(
@@ -919,30 +801,7 @@ const createDevice = {
         DeviceSchema
       ).modify({ filter, update, opts });
 
-      if (responseFromModifyDevice.success === true) {
-        let status = responseFromModifyDevice.status
-          ? responseFromModifyDevice.status
-          : "";
-        return {
-          success: true,
-          message: responseFromModifyDevice.message,
-          data: responseFromModifyDevice.data,
-          status,
-        };
-      } else if (responseFromModifyDevice.success === false) {
-        let errors = responseFromModifyDevice.errors
-          ? responseFromModifyDevice.errors
-          : "";
-        let status = responseFromModifyDevice.status
-          ? responseFromModifyDevice.status
-          : "";
-        return {
-          success: false,
-          message: responseFromModifyDevice.message,
-          errors,
-          status,
-        };
-      }
+      return responseFromModifyDevice;
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
       return {
@@ -956,7 +815,7 @@ const createDevice = {
   deleteOnThingspeak: async (request) => {
     try {
       let device_number = parseInt(request.query.device_number, 10);
-      logger.info(`the device_number -- ${device_number}`);
+      // logger.info(`the device_number -- ${device_number}`);
       let response = await axios
         .delete(`${constants.DELETE_THING_URL(device_number)}`)
         .catch((e) => {
@@ -964,12 +823,14 @@ const createDevice = {
           logger.error(`error.response.status -- ${e.response.status}`);
           logger.error(`error.response.headers -- ${e.response.headers}`);
           if (e.response) {
-            let errors = e.response.data.error;
-            let status = e.response.data.status;
             return {
               success: false,
-              errors,
-              status,
+              errors: {
+                message:
+                  "corresponding device_number does not exist on external system, consider SOFT delete",
+                error: e.response.data.error,
+              },
+              status: e.response.data.status,
               message:
                 "corresponding device_number does not exist on external system, consider SOFT delete",
             };
@@ -977,17 +838,20 @@ const createDevice = {
         });
 
       if (!isEmpty(response.success) && !response.success) {
-        logger.info(`the response from thingspeak -- ${response}`);
+        // logger.info(`the response from thingspeak -- ${response}`);
         return {
           success: false,
           message: `${response.message}`,
-          errors: `${response.error}`,
+          errors: {
+            message: "unable to complete operation",
+            error: `${response.error}`,
+          },
           status: `${response.status}`,
         };
       } else if (!isEmpty(response.data)) {
-        logger.info(
-          `successfully deleted the device on thingspeak -- ${response.data}`
-        );
+        // logger.info(
+        //   `successfully deleted the device on thingspeak -- ${response.data}`
+        // );
         return {
           success: true,
           message: "successfully deleted the device on thingspeak",
@@ -996,26 +860,28 @@ const createDevice = {
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      errors.utillErrors.tryCatchErrors(
-        error,
-        "server error - updateOnPlatform util"
-      );
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      };
     }
   },
   deleteOnPlatform: async (request) => {
     try {
       const { tenant } = request.query;
-      logger.info(
-        `the requesting coming into deleteOnPlatform util --${request}`
-      );
+      // logger.info(
+      //   `the requesting coming into deleteOnPlatform util --${request}`
+      // );
       let filter = {};
       let responseFromFilter = generateFilter.devices(request);
       if (responseFromFilter.success === true) {
-        logger.info(`the filter ${responseFromFilter.data}`);
+        // logger.info(`the filter ${responseFromFilter.data}`);
         filter = responseFromFilter.data;
       } else if (responseFromFilter.success === false) {
-        let errors = responseFromFilter.errors ? responseFromFilter.errors : "";
-        let status = responseFromFilter.status ? responseFromFilter.status : "";
+        let errors = responseFromFilter.errors
+          ? responseFromFilter.errors
+          : { message: "" };
         try {
           logger.error(
             `responseFromFilter.error in create-device util--${JSON.stringify(
@@ -1029,7 +895,7 @@ const createDevice = {
           success: false,
           message: responseFromFilter.message,
           errors,
-          status,
+          status: responseFromFilter.status ? responseFromFilter.status : "",
         };
       }
       let responseFromRemoveDevice = await getModelByTenant(
@@ -1038,31 +904,7 @@ const createDevice = {
         DeviceSchema
       ).remove({ filter });
 
-      logger.info(`responseFromRemoveDevice --- ${responseFromRemoveDevice}`);
-      if (responseFromRemoveDevice.success === true) {
-        let status = responseFromRemoveDevice.status
-          ? responseFromRemoveDevice.status
-          : "";
-        return {
-          success: true,
-          message: responseFromRemoveDevice.message,
-          data: responseFromRemoveDevice.data,
-          status,
-        };
-      } else if (responseFromRemoveDevice.success === false) {
-        let errors = responseFromRemoveDevice.errors
-          ? responseFromRemoveDevice.errors
-          : "";
-        let status = responseFromRemoveDevice.status
-          ? responseFromRemoveDevice.status
-          : "";
-        return {
-          success: false,
-          message: responseFromRemoveDevice.message,
-          errors,
-          status,
-        };
-      }
+      return responseFromRemoveDevice;
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
       return {
@@ -1130,6 +972,7 @@ const createDevice = {
           success: false,
           status: HTTPStatus.NOT_FOUND,
           message: "the provided encrypted key is not recognizable",
+          errors: { message: "the provided encrypted key is not recognizable" },
         };
       } else {
         return {
@@ -1143,7 +986,7 @@ const createDevice = {
       logger.error(`internal server error -- ${err.message}`);
       return {
         success: false,
-        message: "unable to decrypt the key",
+        message: "Internal Server Error",
         errors: { message: err.message },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
@@ -1173,7 +1016,7 @@ const createDevice = {
       logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
-        message: "server error - trasform util",
+        message: "Internal Server Error",
         errors: { message: error.message },
       };
     }

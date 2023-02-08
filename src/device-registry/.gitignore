@@ -7,6 +7,6 @@ scripts/data-airqlouds.js
 scripts/data-sites.js
 scripts/data-devices.js
 scripts/data-activities.js
-airqo-250220-*
-data.csv
 kafka-data.js
+airqo-250220-*
+data.*
