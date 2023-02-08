@@ -5,7 +5,7 @@ app:
 schedule: 0 5 * * 1
 image:
   repository: eu.gcr.io/airqo-250220/stage-airqo-train-job
-  tag: stage-a986baa8-1675769529
+  tag: stage-ce845393-1675841271
 nameOverride: ''
 fullnameOverride: ''
 resources:
