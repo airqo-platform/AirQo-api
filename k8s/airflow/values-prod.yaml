@@ -9,16 +9,15 @@ images:
   repositories:
     initContainer: eu.gcr.io/airqo-250220/airqo-apache-airflow-xcom
     containers: eu.gcr.io/airqo-250220/airqo-apache-airflow
-  tag: latest
-nameOverride: ""
-fullnameOverride: ""
+  tag: prod-bfec5269-1675866864
+nameOverride: ''
+fullnameOverride: ''
 podAnnotations: {}
 resources:
   limits:
     cpu: 1500m
     memory: 4500Mi
   requests:
-    # Average usage was 0.002 vCPU and 250Mi over the last 30 days
     cpu: 500m
     memory: 3000Mi
 volumeMounts:
@@ -44,4 +43,3 @@ autoscaling:
   minReplicas: 1
   maxReplicas: 3
   targetCPUUtilizationPercentage: 70
-  # targetMemoryUtilizationPercentage: 70
