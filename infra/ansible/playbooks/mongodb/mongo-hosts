@@ -1,0 +1,10 @@
+mongo_cluster_prod:
+  hosts:
+    mongos-prod-1.europe-west1-b.c.airqo-250220.internal
+  children:
+    cfgsvrs_prod:
+      hosts:
+        cfgsvr-prod-[1:3].europe-west1-b.c.airqo-250220.internal
+    shards_prod:
+      hosts:
+        shard-prod-[1:3].europe-west1-b.c.airqo-250220.internal            

@@ -9,11 +9,6 @@ const { logElement, logText, logObject } = require("@utils/log");
 const isEmpty = require("is-empty");
 
 const headers = (req, res, next) => {
-  // const allowedOrigins = constants.DOMAIN_WHITELIST;
-  // const origin = req.headers.origin;
-  // if (allowedOrigins.includes(origin)) {
-  //   res.setHeader("Access-Control-Allow-Origin", origin);
-  // }
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.header(
     "Access-Control-Allow-Headers",
