@@ -637,7 +637,7 @@ const generateFilter = {
         }
       }
 
-      logger.info(`the filter  -- ${JSON.stringify(filter)}`);
+      // logger.info(`the filter  -- ${JSON.stringify(filter)}`);
       return {
         success: true,
         message: "successfully generated the filter",

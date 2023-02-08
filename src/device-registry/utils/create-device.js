@@ -111,18 +111,18 @@ const createDevice = {
           };
         }
         if (!isEmpty(include_site) && include_site === "no") {
-          logger.info(`the site details have been removed from the data`);
+          // logger.info(`the site details have been removed from the data`);
           delete deviceBody[0].site;
         }
         if (isEmpty(include_site)) {
           delete deviceBody[0].site;
         }
-        logger.info(`deviceBody -- ${deviceBody}`);
+        // logger.info(`deviceBody -- ${deviceBody}`);
         const stringifiedJSON = JSON.stringify(deviceBody[0]);
         let responseFromQRCode = await QRCode.toDataURL(stringifiedJSON, {
           type: String,
         });
-        logger.info(`responseFromQRCode -- ${responseFromQRCode}`);
+        // logger.info(`responseFromQRCode -- ${responseFromQRCode}`);
         if (!isEmpty(responseFromQRCode)) {
           return {
             success: true,
@@ -164,16 +164,16 @@ const createDevice = {
         request
       );
 
-      logger.info(
-        `responseFromCreateOnThingspeak -- ${responseFromCreateOnThingspeak}`
-      );
+      // logger.info(
+      //   `responseFromCreateOnThingspeak -- ${responseFromCreateOnThingspeak}`
+      // );
 
       let enrichmentDataForDeviceCreation = responseFromCreateOnThingspeak.data
         ? responseFromCreateOnThingspeak.data
         : {};
-      logger.info(
-        `enrichmentDataForDeviceCreation -- ${enrichmentDataForDeviceCreation}`
-      );
+      // logger.info(
+      //   `enrichmentDataForDeviceCreation -- ${enrichmentDataForDeviceCreation}`
+      // );
 
       if (!isEmpty(enrichmentDataForDeviceCreation)) {
         let modifiedRequest = request;
@@ -193,14 +193,14 @@ const createDevice = {
           deleteRequest["query"] = {};
           deleteRequest["query"]["device_number"] =
             enrichmentDataForDeviceCreation.device_number;
-          logger.info(`deleteRequest -- ${deleteRequest}`);
+          // logger.info(`deleteRequest -- ${deleteRequest}`);
           let responseFromDeleteDeviceFromThingspeak = await createDevice.deleteOnThingspeak(
             deleteRequest
           );
 
-          logger.info(
-            ` responseFromDeleteDeviceFromThingspeak -- ${responseFromDeleteDeviceFromThingspeak}`
-          );
+          // logger.info(
+          //   ` responseFromDeleteDeviceFromThingspeak -- ${responseFromDeleteDeviceFromThingspeak}`
+          // );
 
           if (responseFromDeleteDeviceFromThingspeak.success === true) {
             let errors = responseFromCreateDeviceOnPlatform.errors
@@ -284,13 +284,13 @@ const createDevice = {
   },
   update: async (request) => {
     try {
-      logger.info(`in the update util....`);
+      // logger.info(`in the update util....`);
       let { device_number } = request.query;
       let modifiedRequest = Object.assign({}, request);
       if (isEmpty(device_number)) {
-        logger.info(`the device_number is not present in the update request`);
+        // logger.info(`the device_number is not present in the update request`);
         let responseFromListDevice = await createDevice.list(request);
-        logger.info(`responseFromListDevice -- ${responseFromListDevice}`);
+        // logger.info(`responseFromListDevice -- ${responseFromListDevice}`);
         if (responseFromListDevice.success === false) {
           return {
             success: false,
@@ -301,10 +301,10 @@ const createDevice = {
           };
         }
         device_number = responseFromListDevice.data[0].device_number;
-        logger.info(`device_number -- ${device_number}`);
+        // logger.info(`device_number -- ${device_number}`);
         modifiedRequest["query"]["device_number"] = device_number;
       }
-      logger.info(`the modifiedRequest -- ${modifiedRequest} `);
+      // logger.info(`the modifiedRequest -- ${modifiedRequest} `);
 
       if (isEmpty(device_number)) {
         const responseFromUpdateDeviceOnPlatform = await createDevice.updateOnPlatform(
@@ -345,7 +345,7 @@ const createDevice = {
         "is responseFromFilter in util a success?",
         responseFromFilter.success
       );
-      logger.info(`the filter ${responseFromFilter.data}`);
+      // logger.info(`the filter ${responseFromFilter.data}`);
       if (responseFromFilter.success === true) {
         filter = responseFromFilter.data;
       }
@@ -398,33 +398,33 @@ const createDevice = {
       const { device_number } = request.query;
       let modifiedRequest = request;
       if (isEmpty(device_number)) {
-        logger.info(`the device_number is not present`);
+        // logger.info(`the device_number is not present`);
         let responseFromListDevice = await createDevice.list(request);
-        logger.info(`responseFromListDevice -- ${responseFromListDevice}`);
+        // logger.info(`responseFromListDevice -- ${responseFromListDevice}`);
         if (responseFromListDevice.success === false) {
           return responseFromListDevice;
         }
         let device_number = responseFromListDevice.data[0].device_number;
-        logger.info(`device_number -- ${device_number}`);
+        // logger.info(`device_number -- ${device_number}`);
         modifiedRequest["query"]["device_number"] = device_number;
       }
-      logger.info(`the modifiedRequest -- ${modifiedRequest} `);
+      // logger.info(`the modifiedRequest -- ${modifiedRequest} `);
 
       let responseFromDeleteDeviceFromThingspeak = await createDevice.deleteOnThingspeak(
         modifiedRequest
       );
 
-      logger.info(
-        `responseFromDeleteDeviceFromThingspeak -- ${responseFromDeleteDeviceFromThingspeak}`
-      );
+      // logger.info(
+      //   `responseFromDeleteDeviceFromThingspeak -- ${responseFromDeleteDeviceFromThingspeak}`
+      // );
       if (responseFromDeleteDeviceFromThingspeak.success === true) {
         let responseFromDeleteDeviceOnPlatform = await createDevice.deleteOnPlatform(
           modifiedRequest
         );
 
-        logger.info(
-          `responseFromDeleteDeviceOnPlatform -- ${responseFromDeleteDeviceOnPlatform}`
-        );
+        // logger.info(
+        //   `responseFromDeleteDeviceOnPlatform -- ${responseFromDeleteDeviceOnPlatform}`
+        // );
 
         if (responseFromDeleteDeviceOnPlatform.success === true) {
           return responseFromDeleteDeviceOnPlatform;
@@ -464,11 +464,11 @@ const createDevice = {
       const skip = parseInt(request.query.skip, 0);
       let filter = {};
       let responseFromFilter = generateFilter.devices(request);
-      logger.info(`responseFromFilter -- ${responseFromFilter}`);
+      // logger.info(`responseFromFilter -- ${responseFromFilter}`);
 
       if (responseFromFilter.success === true) {
         filter = responseFromFilter.data;
-        logger.info(`the filter in list -- ${filter}`);
+        // logger.info(`the filter in list -- ${filter}`);
       } else if (responseFromFilter.success === false) {
         let errors = responseFromFilter.errors
           ? responseFromFilter.errors
@@ -498,9 +498,9 @@ const createDevice = {
         skip,
       });
 
-      logger.info(
-        `the responseFromListDevice in list -- ${responseFromListDevice} `
-      );
+      // logger.info(
+      //   `the responseFromListDevice in list -- ${responseFromListDevice} `
+      // );
 
       if (responseFromListDevice.success === false) {
         let errors = responseFromListDevice.errors
@@ -561,9 +561,9 @@ const createDevice = {
         "device",
         DeviceSchema
       ).register(body);
-      logger.info(
-        `the responseFromRegisterDevice --${responseFromRegisterDevice} `
-      );
+      // logger.info(
+      //   `the responseFromRegisterDevice --${responseFromRegisterDevice} `
+      // );
 
       if (responseFromRegisterDevice.success === true) {
         try {
@@ -619,15 +619,15 @@ const createDevice = {
         context = constants.THINGSPEAK_FIELD_DESCRIPTIONS;
       }
 
-      logger.info(`the context -- ${context}`);
+      // logger.info(`the context -- ${context}`);
       const responseFromTransformRequestBody = await createDevice.transform({
         data,
         map,
         context,
       });
-      logger.info(
-        `responseFromTransformRequestBody -- ${responseFromTransformRequestBody}`
-      );
+      // logger.info(
+      //   `responseFromTransformRequestBody -- ${responseFromTransformRequestBody}`
+      // );
       let transformedBody = responseFromTransformRequestBody.success
         ? responseFromTransformRequestBody.data
         : {};
@@ -697,7 +697,7 @@ const createDevice = {
 
   updateOnThingspeak: async (request) => {
     try {
-      logger.info(`  updateOnThingspeak's request -- ${request}`);
+      // logger.info(`  updateOnThingspeak's request -- ${request}`);
       const { device_number } = request.query;
       logElement("device_number", device_number);
       const { body } = request;
@@ -709,19 +709,19 @@ const createDevice = {
       const data = body;
       const map = constants.DEVICE_THINGSPEAK_MAPPINGS;
       const context = constants.THINGSPEAK_FIELD_DESCRIPTIONS;
-      logger.info(`the context -- ${context}`);
+      // logger.info(`the context -- ${context}`);
       const responseFromTransformRequestBody = await createDevice.transform({
         data,
         map,
       });
-      logger.info(
-        `responseFromTransformRequestBody -- ${responseFromTransformRequestBody}`
-      );
+      // logger.info(
+      //   `responseFromTransformRequestBody -- ${responseFromTransformRequestBody}`
+      // );
       let transformedBody = responseFromTransformRequestBody.success
         ? responseFromTransformRequestBody.data
         : {};
 
-      logger.info(`transformedBody -- ${transformedBody}`);
+      // logger.info(`transformedBody -- ${transformedBody}`);
 
       const response = await axios.put(
         constants.UPDATE_THING(device_number),
@@ -729,7 +729,7 @@ const createDevice = {
         config
       );
 
-      logger.info(`successfully updated the device on thingspeak`);
+      // logger.info(`successfully updated the device on thingspeak`);
       return {
         success: true,
         message: "successfully updated the device on thingspeak",
@@ -765,7 +765,7 @@ const createDevice = {
         "is responseFromFilter in util a success?",
         responseFromFilter.success
       );
-      logger.info(`the filter ${responseFromFilter.data}`);
+      // logger.info(`the filter ${responseFromFilter.data}`);
       if (responseFromFilter.success === true) {
         filter = responseFromFilter.data;
       } else if (responseFromFilter.success === false) {
@@ -815,7 +815,7 @@ const createDevice = {
   deleteOnThingspeak: async (request) => {
     try {
       let device_number = parseInt(request.query.device_number, 10);
-      logger.info(`the device_number -- ${device_number}`);
+      // logger.info(`the device_number -- ${device_number}`);
       let response = await axios
         .delete(`${constants.DELETE_THING_URL(device_number)}`)
         .catch((e) => {
@@ -838,7 +838,7 @@ const createDevice = {
         });
 
       if (!isEmpty(response.success) && !response.success) {
-        logger.info(`the response from thingspeak -- ${response}`);
+        // logger.info(`the response from thingspeak -- ${response}`);
         return {
           success: false,
           message: `${response.message}`,
@@ -849,9 +849,9 @@ const createDevice = {
           status: `${response.status}`,
         };
       } else if (!isEmpty(response.data)) {
-        logger.info(
-          `successfully deleted the device on thingspeak -- ${response.data}`
-        );
+        // logger.info(
+        //   `successfully deleted the device on thingspeak -- ${response.data}`
+        // );
         return {
           success: true,
           message: "successfully deleted the device on thingspeak",
@@ -870,13 +870,13 @@ const createDevice = {
   deleteOnPlatform: async (request) => {
     try {
       const { tenant } = request.query;
-      logger.info(
-        `the requesting coming into deleteOnPlatform util --${request}`
-      );
+      // logger.info(
+      //   `the requesting coming into deleteOnPlatform util --${request}`
+      // );
       let filter = {};
       let responseFromFilter = generateFilter.devices(request);
       if (responseFromFilter.success === true) {
-        logger.info(`the filter ${responseFromFilter.data}`);
+        // logger.info(`the filter ${responseFromFilter.data}`);
         filter = responseFromFilter.data;
       } else if (responseFromFilter.success === false) {
         let errors = responseFromFilter.errors
