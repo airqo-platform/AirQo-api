@@ -1,3 +1,5 @@
+import os
+
 from datetime import datetime
 from pathlib import Path
 from dotenv import load_dotenv
@@ -32,6 +34,16 @@ class Config:
 
     BIGQUERY_LATEST_EVENTS = env_var("BIGQUERY_LATEST_EVENTS")
 
+    BIGQUERY_DEVICES = env_var("BIGQUERY_DEVICES")
+    BIGQUERY_SITES = env_var("BIGQUERY_SITES")
+    BIGQUERY_AIRQLOUDS_SITES = env_var("BIGQUERY_AIRQLOUDS_SITES")
+    BIGQUERY_AIRQLOUDS = env_var("BIGQUERY_AIRQLOUDS")
+    DATA_EXPORT_DECIMAL_PLACES = os.getenv("DATA_EXPORT_DECIMAL_PLACES", 2)
+
+    BIGQUERY_RAW_DATA = env_var("BIGQUERY_RAW_DATA")
+    BIGQUERY_HOURLY_DATA = env_var("BIGQUERY_HOURLY_DATA")
+    BIGQUERY_DAILY_DATA = env_var("BIGQUERY_DAILY_DATA")
+
     SWAGGER = {
         "swagger": "2.0",
         "info": {
@@ -58,7 +70,6 @@ class ProductionConfig(Config):
     DEBUG = False
     MONGO_URI = env_var("MONGO_GCE_URI")
     DB_NAME = env_var("MONGO_PROD")
-    BIGQUERY_SITES = env_var("BIGQUERY_SITES_PROD")
     BIGQUERY_EVENTS = env_var("BIGQUERY_EVENTS_PROD")
     BIGQUERY_MOBILE_EVENTS = env_var("BIGQUERY_MOBILE_EVENTS_PROD")
 
@@ -68,7 +79,6 @@ class DevelopmentConfig(Config):
     DEBUG = True
     MONGO_URI = env_var("MONGO_LOCAL_URI")
     DB_NAME = env_var("MONGO_DEV")
-    BIGQUERY_SITES = env_var("BIGQUERY_SITES_STAGE")
     BIGQUERY_EVENTS = env_var("BIGQUERY_EVENTS_STAGE")
     BIGQUERY_MOBILE_EVENTS = env_var("BIGQUERY_MOBILE_EVENTS_STAGE")
 
@@ -78,7 +88,6 @@ class TestingConfig(Config):
     DEBUG = True
     MONGO_URI = env_var("MONGO_GCE_URI")
     DB_NAME = env_var("MONGO_STAGE")
-    BIGQUERY_SITES = env_var("BIGQUERY_SITES_STAGE")
     BIGQUERY_EVENTS = env_var("BIGQUERY_EVENTS_STAGE")
     BIGQUERY_MOBILE_EVENTS = env_var("BIGQUERY_MOBILE_EVENTS_STAGE")
 

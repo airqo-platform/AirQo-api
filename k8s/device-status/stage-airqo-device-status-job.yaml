@@ -34,7 +34,7 @@ spec:
                           - compute
           containers:
             - name: stage-device-status-job
-              image: us.gcr.io/airqo-250220/airqo-stage-device-status-job:latest
+              image: eu.gcr.io/airqo-250220/airqo-stage-device-status-job:latest
               imagePullPolicy: Always
               envFrom:
                 - configMapRef:

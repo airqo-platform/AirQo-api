@@ -32,7 +32,7 @@ spec:
                       - compute
       containers:
         - name: meta-data
-          image: us.gcr.io/airqo-250220/airqo-stage-meta-data-api:latest
+          image: eu.gcr.io/airqo-250220/airqo-stage-meta-data-api:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 4001

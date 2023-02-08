@@ -172,10 +172,13 @@ const createPhoto = {
   },
   list: async (request) => {
     try {
-      let { query } = request;
-      let filter = generateFilter.photos(request);
-      let { limit, skip, tenant } = query;
-      let responseFromListPhotos = await getModelByTenant(
+      const { query } = request;
+      const { tenant } = query;
+      const limit = parseInt(request.query.limit, 0);
+      const skip = parseInt(request.query.skip, 0);
+      const filter = generateFilter.photos(request);
+
+      const responseFromListPhotos = await getModelByTenant(
         tenant,
         "photo",
         PhotoSchema
