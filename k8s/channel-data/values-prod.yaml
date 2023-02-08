@@ -3,13 +3,13 @@ app:
   namespace: production
   configmap: env-update-channel-data-production
 image:
-  repository: gcr.io/airqo-250220/prod-update-channel-data-job
-  tag: prod-4bcf8ba0-1670941557
-nameOverride: ""
-fullnameOverride: ""
+  repository: eu.gcr.io/airqo-250220/airqo-update-channel-data-job
+  tag: prod-bfec5269-1675866864
+nameOverride: ''
+fullnameOverride: ''
 resources:
   limits:
-    cpu: 500m
+    cpu: 500Mi
     memory: 500Mi
   requests:
     cpu: 20m
