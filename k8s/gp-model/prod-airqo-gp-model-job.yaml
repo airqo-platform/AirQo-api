@@ -35,7 +35,7 @@ spec:
           containers:
             - name: airqo-prod-gpmodel
               image: eu.gcr.io/airqo-250220/airqo-gp-model-job:latest
-              imagePullPolicy: Always
+              imagePullPolicy: IfNotPresent
               envFrom:
                 - configMapRef:
                     name: env-gp-model-production

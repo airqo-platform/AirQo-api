@@ -43,7 +43,7 @@ spec:
       containers:
         - name: sta-auth-api
           image: eu.gcr.io/airqo-250220/airqo-stage-auth-api:latest
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3000
               name: sta-auth-api

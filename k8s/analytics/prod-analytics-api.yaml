@@ -43,7 +43,7 @@ spec:
       containers:
         - name: analytics-api
           image: eu.gcr.io/airqo-250220/airqo-analytics-api:latest
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 5000
               name: analytics-api

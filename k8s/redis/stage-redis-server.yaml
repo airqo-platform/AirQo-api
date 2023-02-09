@@ -45,7 +45,7 @@ spec:
             - name: GET_HOSTS_FROM
               value: dns
           image: eu.gcr.io/airqo-250220/airqo-stage-redis-server:latest
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           name: airqo-redis-server
           ports:
             - containerPort: 6379

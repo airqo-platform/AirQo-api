@@ -44,7 +44,7 @@ spec:
       containers:
         - name: view-api
           image: eu.gcr.io/airqo-250220/airqo-view-api:latest
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           resources:
             requests:
               # Average usage was 0.01 vCPU and 500Mi over the last 30 days

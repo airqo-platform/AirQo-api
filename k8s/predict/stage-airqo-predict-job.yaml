@@ -28,7 +28,7 @@ spec:
           containers:
             - name: stage-airqo-predict-job
               image: eu.gcr.io/airqo-250220/stage-airqo-predict-job:latest
-              imagePullPolicy: Always
+              imagePullPolicy: IfNotPresent
               envFrom:
                 - configMapRef:
                     name: env-predict-job-staging

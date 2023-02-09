@@ -43,7 +43,7 @@ spec:
       containers:
         - name: sta-dev-reg-api
           image: eu.gcr.io/airqo-250220/airqo-stage-device-registry-api:latest
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3000
               name: sta-dev-reg-api

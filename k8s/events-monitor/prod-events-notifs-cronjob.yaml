@@ -19,7 +19,7 @@ spec:
           containers:
             - name: prod-events-notifs-job
               image: eu.gcr.io/airqo-250220/airqo-events-notifs-job:latest
-              imagePullPolicy: Always
+              imagePullPolicy: IfNotPresent
               resources:
                 requests:
                   memory: 256Mi

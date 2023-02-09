@@ -43,7 +43,7 @@ spec:
       initContainers:
         - name: calibrate-pickle
           image: eu.gcr.io/airqo-250220/airqo-stage-calibrate-pickle-file:latest
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           resources: {}
           envFrom:
             - configMapRef:
@@ -61,7 +61,7 @@ spec:
       containers:
         - name: sta-calibrate
           image: eu.gcr.io/airqo-250220/airqo-stage-calibrate-api:latest
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 4001
               name: sta-calibrate

@@ -43,7 +43,7 @@ spec:
       containers:
         - name: sta-locate-api
           image: eu.gcr.io/airqo-250220/airqo-stage-locate-api:latest
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 4001
               name: sta-locate-api

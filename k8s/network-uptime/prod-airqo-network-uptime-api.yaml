@@ -37,7 +37,7 @@ spec:
       containers:
         - name: prod-network-uptime
           image: eu.gcr.io/airqo-250220/airqo-network-uptime-api:latest
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8501
               name: prod-net-uptime

@@ -33,7 +33,7 @@ spec:
                           - compute
           containers:
             - image: eu.gcr.io/airqo-250220/kcca-exceedance-job:latest
-              imagePullPolicy: Always
+              imagePullPolicy: IfNotPresent
               name: airqo-exceedance-job
               envFrom:
                 - configMapRef:

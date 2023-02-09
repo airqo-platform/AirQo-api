@@ -41,7 +41,7 @@ spec:
       containers:
         - name: view-message-broker
           image: eu.gcr.io/airqo-250220/airqo-stage-view-message-broker:latest
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           resources:
             requests:
               # Average usage was 0.01 vCPU and 400Mi over the last 30 days
