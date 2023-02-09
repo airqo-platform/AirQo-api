@@ -3,7 +3,7 @@ from airflow.decorators import dag, task
 from airqo_etl_utils.airflow_custom_utils import AirflowUtils
 from airqo_etl_utils.constants import Frequency
 from dag_docs import airqo_realtime_low_cost_measurements_doc
-from task_docs import extract_raw_airqo_data_doc
+from task_docs import extract_raw_airqo_data_doc, clean_data_raw_data_doc
 
 
 @dag(
@@ -492,12 +492,6 @@ def airqo_realtime_measurements():
 )
 def airqo_raw_data_measurements():
     import pandas as pd
-    from airqo_etl_utils.date import date_to_str_hours
-    from datetime import datetime, timedelta
-
-    hour_of_day = datetime.utcnow() - timedelta(hours=1)
-    start_date_time = date_to_str_hours(hour_of_day)
-    end_date_time = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
 
     @task(
         doc_md=extract_raw_airqo_data_doc,
@@ -505,6 +499,12 @@ def airqo_raw_data_measurements():
     def extract_raw_data():
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
         from airqo_etl_utils.constants import DeviceCategory
+        from airqo_etl_utils.date import date_to_str_hours
+        from datetime import datetime, timedelta
+
+        hour_of_day = datetime.utcnow() - timedelta(minutes=30)
+        start_date_time = date_to_str_hours(hour_of_day)
+        end_date_time = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
 
         return AirQoDataUtils.extract_devices_data(
             start_date_time=start_date_time,
@@ -512,13 +512,17 @@ def airqo_raw_data_measurements():
             device_category=DeviceCategory.LOW_COST,
         )
 
-    @task()
+    @task(
+        doc_md=clean_data_raw_data_doc
+    )
     def clean_data_raw_data(data: pd.DataFrame):
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
         return AirQoDataUtils.clean_low_cost_sensor_data(data=data)
 
-    @task()
+    @task(
+       doc_md= send_raw_measurements_to_bigquery_doc
+    )
     def send_raw_measurements_to_bigquery(airqo_data: pd.DataFrame):
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
         from airqo_etl_utils.bigquery_api import BigQueryApi
