@@ -35,7 +35,7 @@ spec:
           containers:
             - name: stage-update-channel-data-job
               image: us.gcr.io/airqo-250220/airqo-stage-update-channel-data-job:latest
-              imagePullPolicy: Always
+              imagePullPolicy: IfNotPresent
               resources:
                 requests:
                   # Average usage was 0.02 vCPU and 100Mi over the last 30 days

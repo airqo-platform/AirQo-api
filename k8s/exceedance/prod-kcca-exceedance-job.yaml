@@ -24,16 +24,16 @@ spec:
           affinity:
             nodeAffinity:
               preferredDuringSchedulingIgnoredDuringExecution:
-              - weight: 10
-                preference:
-                  matchExpressions:
-                  - key: node-type
-                    operator: In
-                    values:
-                    - compute
+                - weight: 10
+                  preference:
+                    matchExpressions:
+                      - key: node-type
+                        operator: In
+                        values:
+                          - compute
           containers:
             - image: us.gcr.io/airqo-250220/kcca-exceedance-job:latest
-              imagePullPolicy: Always
+              imagePullPolicy: IfNotPresent
               name: airqo-exceedance-job
               envFrom:
                 - configMapRef:

@@ -43,7 +43,7 @@ spec:
       containers:
         - name: device-reg-api
           image: us.gcr.io/airqo-250220/airqo-device-registry-api:latest
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3000
               name: device-reg-api

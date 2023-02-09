@@ -25,7 +25,7 @@ spec:
       containers:
         - name: schema-registry
           image: us.gcr.io/airqo-250220/stage-schema-registry:latest
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8081
               name: schema-registry

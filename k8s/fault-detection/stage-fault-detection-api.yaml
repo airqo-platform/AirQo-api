@@ -36,7 +36,7 @@ spec:
       initContainers:
         - name: train-catboost-model
           image: us.gcr.io/airqo-250220/stage-train-catboost-model:latest
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           envFrom:
             - configMapRef:
                 name: stage-fault-detection-api-config
@@ -48,7 +48,7 @@ spec:
               mountPath: /usr/models
         - name: train-lstm-model
           image: us.gcr.io/airqo-250220/stage-train-lstm-model:latest
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           envFrom:
             - configMapRef:
                 name: stage-fault-detection-api-config
@@ -63,7 +63,7 @@ spec:
       containers:
         - name: fault-detection-api
           image: us.gcr.io/airqo-250220/stage-fault-detection-api:latest
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 4001
               name: fault-detection

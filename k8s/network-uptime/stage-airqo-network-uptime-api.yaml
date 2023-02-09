@@ -36,7 +36,7 @@ spec:
       containers:
         - name: sta-network-uptime
           image: us.gcr.io/airqo-250220/airqo-stage-network-uptime-api:latest
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8501
               name: sta-net-uptime

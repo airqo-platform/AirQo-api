@@ -27,8 +27,9 @@ spec:
       containers:
         - name: schema-registry
           image: us.gcr.io/airqo-250220/stage-schema-registry:latest
-          imagePullPolicy: Always
-          resources: {}
+          imagePullPolicy: IfNotPresent
+          resources:
+            {}
             # requests:
             #   memory: 256Mi
             #   cpu: "200m"
