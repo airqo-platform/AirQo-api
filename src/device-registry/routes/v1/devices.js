@@ -417,6 +417,11 @@ router.get(
   deviceController.list
 );
 /**** create device */
+
+/**
+ * add input validations for times when user provide name
+ * with special characters.
+ */
 router.post(
   "/",
   oneOf([
