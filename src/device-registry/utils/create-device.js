@@ -37,15 +37,15 @@ const createDevice = {
         DeviceSchema
       ).exists(filter);
       logElement(" doesSearchExist", doesSearchExist);
-      if (!isEmpty(doesSearchExist)) {
+      if (doesSearchExist) {
         return {
           success: true,
           message: "search exists",
           data: doesSearchExist,
         };
-      } else if (isEmpty(doesSearchExist)) {
+      } else if (!doesSearchExist) {
         return {
-          success: true,
+          success: false,
           message: "search does not exist",
           data: [],
         };
