@@ -43,6 +43,7 @@ const runKafkaConsumer = async () => {
         }
       },
     });
+    await kafkaConsumer.disconnect();
   } catch (error) {
     logger.error("KAFKA: internal server error", error.message);
   }
