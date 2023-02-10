@@ -28,8 +28,9 @@ router.post(
   oneOf([
     [
       query("tenant")
-        .exists()
-        .withMessage("tenant should be provided")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
         .bail()
         .trim()
         .toLowerCase()
@@ -43,6 +44,8 @@ router.post(
         .exists()
         .withMessage("the deviceName is is missing in your request")
         .bail()
+        .notEmpty()
+        .withMessage("the provided deviceName cannot be empty")
         .trim(),
     ],
   ]),
@@ -53,8 +56,9 @@ router.post(
   oneOf([
     [
       query("tenant")
-        .exists()
-        .withMessage("tenant should be provided")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
         .bail()
         .trim()
         .toLowerCase()
@@ -68,6 +72,8 @@ router.post(
         .exists()
         .withMessage("the deviceName is is missing in your request")
         .bail()
+        .notEmpty()
+        .withMessage("the provided deviceName cannot be empty")
         .trim(),
     ],
   ]),
@@ -130,14 +136,14 @@ router.post(
   ]),
   activityController.deploy
 );
-
 router.post(
   "/maintain",
   oneOf([
     [
       query("tenant")
-        .exists()
-        .withMessage("tenant should be provided")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
         .bail()
         .trim()
         .toLowerCase()
@@ -151,11 +157,24 @@ router.post(
         .exists()
         .withMessage("the deviceName is is missing in your request")
         .bail()
+        .notEmpty()
+        .withMessage("the provided deviceName cannot be empty")
         .trim(),
     ],
   ]),
   oneOf([
     [
+      query("maintenanceType")
+        .optional()
+        .notEmpty()
+        .withMessage("maintenanceType should not be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(constants.MAINTENANCE_TYPES)
+        .withMessage(
+          "the maintenanceType value is not among the expected ones"
+        ),
       body("description")
         .exists()
         .withMessage("the description is missing in your request")
@@ -195,22 +214,142 @@ router.get(
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
-  activityController.list
-);
-router.put("/", activityController.update);
-router.put(
-  "/bulk/",
   oneOf([
     [
+      query("device")
+        .optional()
+        .notEmpty()
+        .withMessage("device should not be empty IF provided")
+        .bail()
+        .trim(),
+      query("id")
+        .optional()
+        .notEmpty()
+        .withMessage("id should not be empty IF provided")
+        .bail()
+        .isMongoId()
+        .withMessage("the id should be an Object String")
+        .trim(),
+      query("activity_type")
+        .optional()
+        .notEmpty()
+        .withMessage("activity_type should not be empty IF provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(constants.ACTIVITY_TYPES)
+        .withMessage(
+          "the activity_type value is not among the expected ones which are: recallment, deployment and maintenance"
+        ),
+      query("activity_tags")
+        .optional()
+        .notEmpty()
+        .withMessage("activity_tags should not be empty IF provided")
+        .trim(),
+      query("maintenance_type")
+        .optional()
+        .notEmpty()
+        .withMessage("maintenance_type should not be empty IF provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["preventive", "corrective"])
+        .withMessage(
+          "the maintenance_type value is not among the expected ones which are: corrective and preventive"
+        ),
+      query("site_id")
+        .optional()
+        .notEmpty()
+        .withMessage("site_id should not be empty IF provided")
+        .bail()
+        .isMongoId()
+        .withMessage("the site_id should be an Object String")
+        .trim(),
       query("network")
-        .exists()
-        .withMessage("tenant should be provided")
+        .optional()
+        .notEmpty()
+        .withMessage("network should not be empty IF provided")
+        .bail()
+        .trim(),
+      query("activity_codes")
+        .optional()
+        .notEmpty()
+        .withMessage("activity_codes should not be empty IF provided")
+        .bail()
+        .trim(),
+      query("id")
+        .optional()
+        .notEmpty()
+        .withMessage("id should not be empty IF provided")
+        .bail()
+        .isMongoId()
+        .withMessage("the id should be an Object String")
+        .trim(),
+    ],
+  ]),
+  activityController.list
+);
+router.put(
+  "/",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty IF provided")
         .bail()
         .trim()
         .toLowerCase()
         .isIn(constants.NETWORKS)
         .withMessage("the tenant value is not among the expected ones"),
     ],
+  ]),
+  oneOf([
+    query("id")
+      .exists()
+      .withMessage(
+        "the activity identifier is missing in request, consider using the activity id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+  ]),
+  activityController.update
+);
+router.put(
+  "/bulk/",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty IF provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(constants.NETWORKS)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    query("id")
+      .exists()
+      .withMessage(
+        "the activity identifier is missing in request, consider using the activity id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
   ]),
   activityController.bulkUpdate
 );
@@ -218,9 +357,10 @@ router.post(
   "/bulk/",
   oneOf([
     [
-      query("network")
-        .exists()
-        .withMessage("tenant should be provided")
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
         .bail()
         .trim()
         .toLowerCase()
@@ -228,8 +368,54 @@ router.post(
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
+  oneOf([
+    query("id")
+      .exists()
+      .withMessage(
+        "the activity identifier is missing in request, consider using the activity id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+  ]),
   activityController.bulkAdd
 );
-router.delete("/", activityController.delete);
+router.delete(
+  "/",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(constants.NETWORKS)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    query("id")
+      .exists()
+      .withMessage(
+        "the activity identifier is missing in request, consider using the activity id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+  ]),
+  activityController.delete
+);
 
 module.exports = router;
