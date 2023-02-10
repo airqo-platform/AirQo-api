@@ -53,6 +53,8 @@ const stageConfig = {
 
 const defaultConfig = {
   NETWORKS: process.env.NETWORKS.split(","),
+  ACTIVITY_TYPES: process.env.ACTIVITY_TYPES.split(","),
+  MAINTENANCE_TYPES: process.env.MAINTENANCE_TYPES.split(","),
   DEFAULT_NETWORK: process.env.DEFAULT_NETWORK,
   DEFAULT_NEAREST_SITE_RADIUS: process.env.DEFAULT_NEAREST_SITE_RADIUS,
   SLACK_TOKEN: process.env.SLACK_TOKEN,
