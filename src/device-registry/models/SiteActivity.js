@@ -99,7 +99,7 @@ activitySchema.statics = {
 
   async list({ skip = 0, limit = 100, filter = {} } = {}) {
     try {
-      let response = await this.aggregate()
+      const response = await this.aggregate()
         .match(filter)
         .sort({ createdAt: -1 })
         .project({
@@ -122,19 +122,21 @@ activitySchema.statics = {
         .allowDiskUse(true);
 
       if (!isEmpty(response)) {
-        let data = response;
         return {
           success: true,
           message: "successfully retrieved the activities",
-          data,
+          data: response,
           status: HTTPStatus.OK,
         };
-      } else {
+      } else if (isEmpty(response)) {
         return {
           success: false,
           message: "no activities exist, please crosscheck",
           status: HTTPStatus.NOT_FOUND,
-          errors: filter,
+          errors: {
+            ...filter,
+            message: "no activities exist, please crosscheck",
+          },
         };
       }
     } catch (error) {
