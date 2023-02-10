@@ -849,122 +849,6 @@ const generateFilter = {
     let {
       device,
       id,
-      site_id,
-      activity_type,
-      activity_tags,
-      next_maintenance,
-      maintenance_type,
-      startTime,
-      endTime,
-      network,
-      generated_name,
-    } = req.query;
-    let oneMonthBack = monthsInfront(-1);
-    let oneMonthInfront = monthsInfront(1);
-    logElement("defaultStartTime", oneMonthBack);
-    logElement("defaultEndTime", oneMonthInfront);
-    let filter = {
-      day: {
-        $gte: generateDateFormatWithoutHrs(oneMonthBack),
-        $lte: generateDateFormatWithoutHrs(oneMonthInfront),
-      },
-      "logs.time": { $gte: oneMonthBack, $lte: oneMonthInfront },
-      "logs.site": {},
-    };
-
-    if (site_id) {
-      filter["logs.site_id"]["$in"] = site_id;
-    }
-
-    if (generated_name) {
-      filter["generated_name"] = generated_name;
-    }
-
-    if (network) {
-      filter["network"] = network;
-    }
-
-    if (maintenance_type) {
-      filter["maintenance_type"] = maintenance_type;
-    }
-    if (activity_type) {
-      filter["activity_type"] = activity_type;
-    }
-    if (activity_tags) {
-    }
-
-    if (next_maintenance) {
-    }
-
-    if (startTime) {
-      if (isTimeEmpty(startTime) == false) {
-        let start = new Date(startTime);
-        filter["logs.time"]["$gte"] = start;
-      } else {
-        delete filter["logs.time"];
-      }
-      filter["day"]["$gte"] = generateDateFormatWithoutHrs(startTime);
-    }
-
-    if (id) {
-      filter["_id"] = ObjectId(id);
-    }
-
-    if (generated_name) {
-      filter["generated_name"] = generated_name;
-    }
-
-    if (endTime) {
-      if (isTimeEmpty(endTime) == false) {
-        let end = new Date(endTime);
-        filter["logs.time"]["$lte"] = end;
-      } else {
-        delete filter["logs.time"];
-      }
-      filter["day"]["$lte"] = generateDateFormatWithoutHrs(endTime);
-    }
-
-    if (startTime && !endTime) {
-      if (isTimeEmpty(startTime) == false) {
-        filter["logs.time"]["$lte"] = addMonthsToProvideDateTime(startTime, 1);
-      } else {
-        delete filter["logs.time"];
-      }
-      let addedOneMonthToProvidedDateTime = addMonthsToProvideDateTime(
-        startTime,
-        1
-      );
-      filter["day"]["$lte"] = generateDateFormatWithoutHrs(
-        addedOneMonthToProvidedDateTime
-      );
-    }
-
-    if (!startTime && endTime) {
-      if (isTimeEmpty(endTime) == false) {
-        filter["logs.time"]["$gte"] = addMonthsToProvideDateTime(endTime, -1);
-      } else {
-        delete filter["logs.time"];
-      }
-      let removedOneMonthFromProvidedDateTime = addMonthsToProvideDateTime(
-        endTime,
-        -1
-      );
-      filter["day"]["$gte"] = generateDateFormatWithoutHrs(
-        removedOneMonthFromProvidedDateTime
-      );
-    }
-
-    if (device) {
-      filter["logs.device"]["$in"] = device;
-    }
-
-    return filter;
-  },
-
-  activities_v0: (req) => {
-    let {
-      device,
-      id,
       activity_type,
       activity_tags,
       maintenance_type,
@@ -974,9 +858,7 @@ const generateFilter = {
       _id,
     } = req.query;
 
-    let filter = {
-      tags: {},
-    };
+    let filter = {};
 
     if (maintenance_type) {
       filter["maintenanceType"] = maintenance_type;
@@ -992,16 +874,14 @@ const generateFilter = {
     }
 
     if (activity_codes) {
-      let activityCodesArray = activity_codes.split(",");
+      const activityCodesArray = activity_codes.split(",");
       filter["activity_codes"] = {};
       filter["activity_codes"]["$in"] = activityCodesArray;
     }
 
     if (activity_tags) {
+      filter["tags"] = {};
       filter["tags"]["$in"] = activity_tags;
-    }
-    if (!activity_tags) {
-      delete filter["tags"];
     }
 
     if (id) {
