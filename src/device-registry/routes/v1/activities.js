@@ -253,7 +253,7 @@ router.get(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["preventive", "corrective"])
+        .isIn(constants.MAINTENANCE_TYPES)
         .withMessage(
           "the maintenance_type value is not among the expected ones which are: corrective and preventive"
         ),
