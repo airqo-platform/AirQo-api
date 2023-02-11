@@ -4,15 +4,15 @@
   tasks:
     - name: Create the remove node script on master
       template:
-        src: templates/remove_preemptive_node.sh.j2
-        dest: /root/remove_preemptive_node.sh
+        src: templates/remove_hourly_preemptive_node.sh.j2
+        dest: /root/remove_hourly_preemptive_node.sh
         mode: a+x
 
-    - name: Create cronjob to run the remove_preemptive_node script at minute 8 of every hour
+    - name: Create cronjob to run the remove_hourly_preemptive_node script at minute 8 of every hour
       cron:
         name: "Remove preemptive k8s node from cluster"
         minute: "8"
-        job: "/bin/bash /root/remove_preemptive_node.sh"
+        job: "/bin/bash /root/remove_hourly_preemptive_node.sh"
 
     - name: Get join command with a token that expires in 30 days (720 hours)
       shell: kubeadm token create --print-join-command --ttl 720h
@@ -22,7 +22,7 @@
       set_fact:
         join_command: "{{ join_command_raw.stdout_lines[0] }}"
 
-- hosts: preemptive_node
+- hosts: hourly_preemptive_node
   become: true
   tasks:
     - name: Create the add node and reset node scripts on preemptive worker
