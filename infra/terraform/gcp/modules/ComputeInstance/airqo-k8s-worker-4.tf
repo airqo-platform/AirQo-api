@@ -3,7 +3,7 @@ resource "google_compute_instance" "airqo_k8s_worker_4" {
   project = var.project_id
   zone    = var.zone
 
-  machine_type = "c2-standard-4"
+  machine_type = "c2-standard-8"
 
   boot_disk {
     auto_delete = false
