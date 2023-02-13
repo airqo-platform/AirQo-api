@@ -313,40 +313,42 @@ NetworkSchema.statics = {
         .allowDiskUse(true);
 
       if (!isEmpty(response)) {
-        let data = response;
         return {
           success: true,
           message: "successfully retrieved the networks",
-          data,
+          data: response,
           status: httpStatus.OK,
         };
       } else if (isEmpty(response)) {
         return {
-          success: false,
-          message: "network/s do not exist, please crosscheck",
-          status: httpStatus.NOT_FOUND,
+          success: true,
+          message: "no search result, please crosscheck",
+          status: httpStatus.OK,
           data: [],
-          errors: { message: "unable to retrieve networks" },
         };
       }
     } catch (err) {
       let response = {};
-      let errors = {};
       let message = "Internal Server Error";
       let status = httpStatus.INTERNAL_SERVER_ERROR;
-      if (err.code === 11000 || err.code === 11001) {
-        errors = err.keyValue;
+      if (
+        !isEmpty(err.keyValue) &&
+        (err.code === 11000 || err.code === 11001)
+      ) {
         message = "duplicate values provided";
         status = httpStatus.CONFLICT;
-        Object.entries(errors).forEach(([key, value]) => {
-          return (response[key] = value);
+        Object.entries(err.keyValue).forEach(([key, value]) => {
+          response[key] = value;
+          response["message"] = value;
+          return response;
         });
-      } else {
+      } else if (!isEmpty(err.errors)) {
         message = "validation errors for some of the provided fields";
         status = httpStatus.CONFLICT;
-        errors = err.errors;
-        Object.entries(errors).forEach(([key, value]) => {
-          return (response[key] = value.message);
+        Object.entries(err.errors).forEach(([key, value]) => {
+          response[key] = value.message;
+          response["message"] = value.message;
+          return response;
         });
       }
       return {
@@ -464,10 +466,17 @@ NetworkSchema.statics = {
       } else {
         message = "validation errors for some of the provided fields";
         status = httpStatus.CONFLICT;
-        errors = err.errors;
-        Object.entries(errors).forEach(([key, value]) => {
-          return (response[key] = value.message);
-        });
+        if (!isEmpty(err.errors)) {
+          Object.entries(err.errors).forEach(([key, value]) => {
+            response[key] = value.message;
+            response["message"] = value.message;
+            return response;
+          });
+        } else if (err.code === 13 || err.codeName === "Unauthorized") {
+          response["message"] = "Unauthorized to carry out DB operation";
+          return response;
+        }
+        logObject("err", err);
       }
       return {
         errors: response,
