@@ -903,7 +903,11 @@ const generateFilter = {
     let { id, device_id, device_number, device_name, network } = request.query;
     let filter = {};
     if (id) {
-      filter["_id"] = ObjectId(id);
+      let photoArray = id.split(",");
+      let modifiedPhotoArray = photoArray.map((id) => {
+        return ObjectId(id);
+      });
+      filter["_id"]["$in"] = modifiedPhotoArray;
     }
 
     if (device_id) {
