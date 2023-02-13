@@ -129,9 +129,7 @@ const createPhoto = {
         const imageURL = photoDetails.image_url;
         device_name = photoDetails.device_name;
         arrayOfOneImage.push(imageURL);
-      }
-
-      if (responseFromExtractPhotoDetails.success === false) {
+      } else if (responseFromExtractPhotoDetails.success === false) {
         return responseFromExtractPhotoDetails;
       }
 
