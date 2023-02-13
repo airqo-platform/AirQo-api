@@ -79,7 +79,7 @@ const createPhoto = {
   },
   extractPhotoDetails: async (request) => {
     try {
-      let responseFromListPhotos = await createPhoto.list(request);
+      const responseFromListPhotos = await createPhoto.list(request);
       logObject("responseFromListPhotos", responseFromListPhotos);
       if (responseFromListPhotos.success === true) {
         const photoDetails = responseFromListPhotos.data[0];
@@ -115,7 +115,7 @@ const createPhoto = {
       const { id } = request.query;
       let arrayOfOneImage = [];
       let device_name = "";
-      let responseFromExtractPhotoDetails = await createPhoto.extractPhotoDetails(
+      const responseFromExtractPhotoDetails = await createPhoto.extractPhotoDetails(
         request
       );
 
@@ -129,9 +129,7 @@ const createPhoto = {
         const imageURL = photoDetails.image_url;
         device_name = photoDetails.device_name;
         arrayOfOneImage.push(imageURL);
-      }
-
-      if (responseFromExtractPhotoDetails.success === false) {
+      } else if (responseFromExtractPhotoDetails.success === false) {
         return responseFromExtractPhotoDetails;
       }
 
