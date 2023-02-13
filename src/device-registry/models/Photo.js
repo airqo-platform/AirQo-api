@@ -162,9 +162,9 @@ photoSchema.statics = {
         };
       } else if (isEmpty(response)) {
         return {
-          success: false,
+          success: true,
           message: "this photo does not exist, please crosscheck",
-          status: HTTPStatus.NOT_FOUND,
+          status: HTTPStatus.OK,
           errors: { message: "this photo does not exist, please crosscheck" },
         };
       }
