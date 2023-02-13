@@ -153,11 +153,10 @@ photoSchema.statics = {
 
       if (!isEmpty(response)) {
         logObject("response", response);
-        let data = response;
         return {
           success: true,
           message: "successfully retrieved the photo(s)",
-          data,
+          data: response,
           status: HTTPStatus.OK,
         };
       } else if (isEmpty(response)) {
@@ -165,7 +164,7 @@ photoSchema.statics = {
           success: true,
           message: "this photo does not exist, please crosscheck",
           status: HTTPStatus.OK,
-          errors: { message: "this photo does not exist, please crosscheck" },
+          data: [],
         };
       }
     } catch (err) {
