@@ -85,10 +85,12 @@ class EventsModel(BasePyMongoModel):
         )
 
         if len(devices) != 0:
+            # Adding device information, start and end times
             query = (
                 f" {pollutants_query} , "
                 f" {devices_table}.device_id AS device_name , "
                 f" {devices_table}.site_id AS site_id , "
+                f" {devices_table}.tenant AS tenant , "
                 f" {devices_table}.approximate_latitude AS device_latitude , "
                 f" {devices_table}.approximate_longitude  AS device_longitude , "
                 f" FROM {data_table} "
@@ -98,9 +100,9 @@ class EventsModel(BasePyMongoModel):
                 f" AND {devices_table}.device_id IN UNNEST({devices}) "
             )
 
+            # Adding site information
             query = (
                 f" SELECT "
-                f" {sites_table}.tenant AS tenant , "
                 f" {sites_table}.name AS site_name , "
                 f" {sites_table}.approximate_latitude AS site_latitude , "
                 f" {sites_table}.approximate_longitude  AS site_longitude , "
@@ -110,6 +112,7 @@ class EventsModel(BasePyMongoModel):
             )
 
         elif len(sites) != 0:
+            # Adding site information, start and end times
             query = (
                 f" {pollutants_query} , "
                 f" {sites_table}.tenant AS tenant , "
@@ -125,6 +128,7 @@ class EventsModel(BasePyMongoModel):
                 f" AND {sites_table}.id IN UNNEST({sites}) "
             )
 
+            # Adding device information
             query = (
                 f" SELECT "
                 f" {devices_table}.approximate_latitude AS device_latitude , "
@@ -145,6 +149,7 @@ class EventsModel(BasePyMongoModel):
                 f" WHERE {airqlouds_sites_table}.airqloud_id IN UNNEST({airqlouds}) "
             )
 
+            # Adding airqloud information
             meta_data_query = (
                 f" SELECT "
                 f" {airqlouds_table}.name  AS airqloud_name , "
@@ -153,6 +158,7 @@ class EventsModel(BasePyMongoModel):
                 f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.airqloud_id = {airqlouds_table}.id "
             )
 
+            # Adding site information
             meta_data_query = (
                 f" SELECT "
                 f" {sites_table}.approximate_latitude AS site_latitude , "
@@ -163,6 +169,7 @@ class EventsModel(BasePyMongoModel):
                 f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.site_id = {sites_table}.id "
             )
 
+            # Adding device information
             meta_data_query = (
                 f" SELECT "
                 f" {devices_table}.approximate_latitude AS device_latitude , "
@@ -173,6 +180,7 @@ class EventsModel(BasePyMongoModel):
                 f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.site_id = {devices_table}.site_id "
             )
 
+            # Adding start and end times
             query = (
                 f" {pollutants_query} , "
                 f" meta_data.* "
