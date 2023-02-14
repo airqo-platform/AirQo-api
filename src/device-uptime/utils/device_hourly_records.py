@@ -19,7 +19,6 @@ class DeviceSensorReadings:
 
 
 class DeviceChannelRecords:
-
     def __init__(self, tenant, device_name, channel_id):
         self.tenant = tenant
         self.device_name = device_name
@@ -27,7 +26,7 @@ class DeviceChannelRecords:
         self.record = self.get_recent_event()
 
     def get_recent_event(self):
-        api_url = f'{configuration.DEVICE_RECENT_EVENTS_URL}?tenant={self.tenant}&channel={self.channel_id}'
+        api_url = f"{configuration.DEVICE_RECENT_EVENTS_URL}?tenant={self.tenant}&channel={self.channel_id}"
 
         recent_event = requests.get(api_url, verify=False)
 
@@ -43,7 +42,7 @@ class DeviceChannelRecords:
                 time=datetime.utcnow(),
                 sensor_one_pm2_5=0,
                 sensor_two_pm2_5=0,
-                battery_voltage=0
+                battery_voltage=0,
             )
 
         time = self.record.get("created_at")
@@ -58,15 +57,14 @@ class DeviceChannelRecords:
                 time=time,
                 sensor_one_pm2_5=0,
                 sensor_two_pm2_5=0,
-                battery_voltage=self.record.get("battery")
+                battery_voltage=self.record.get("battery"),
             )
 
         return DeviceSensorReadings(
-
             time=time,
             sensor_one_pm2_5=self.record.get("pm2_5"),
             sensor_two_pm2_5=self.record.get("s2_pm2_5"),
-            battery_voltage=self.record.get("battery")
+            battery_voltage=self.record.get("battery"),
         )
 
     def calculate_uptime(self):

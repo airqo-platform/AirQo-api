@@ -1,6 +1,8 @@
+import traceback
 from concurrent.futures import ThreadPoolExecutor
 
 import logging
+import numpy as np
 import pandas as pd
 import requests
 import statistics
@@ -53,7 +55,7 @@ def save_device_uptime(tenant):
     for device in devices:
         if device.get("network", "") != "airqo":
             continue
-        if device.get('isActive', None):
+        if device.get("isActive", None):
             active_device_count += 1
 
         channel_id = device.get("device_number", None)
@@ -124,6 +126,7 @@ class Uptime:
     ):
         self.__client = bigquery.Client()
         self.__raw_data_table = f"`{Config.BIGQUERY_RAW_DATA}`"
+        self.__device_uptime_table = Config.BIGQUERY_DEVICE_UPTIME_TABLE
         self.__devices = devices
 
         self.__data_points_threshold = data_points_per_30_minutes
@@ -153,13 +156,28 @@ class Uptime:
             "overall_downtime": self.__overall_downtime,
             "start_date_time": date_to_str(self.__start_date_time),
             "end_date_time": date_to_str(self.__end_date_time),
-            "devices_uptime": self.__devices_uptime.to_dict("records"),
+            "devices_uptime": self.__devices_uptime.sort_values(
+                by=["timestamp", "device", "data_points"]
+            ).to_dict("records"),
         }
 
         return self.__results
 
     def save(self):
-        pass
+        job_config = bigquery.LoadJobConfig(
+            write_disposition="WRITE_APPEND",
+        )
+
+        job = self.__client.load_table_from_dataframe(
+            self.__devices_uptime, self.__device_uptime_table, job_config=job_config
+        )
+        job.result()
+
+        destination_table = self.__client.get_table(self.__device_uptime_table)
+        print(
+            f"Loaded {len(self.__devices_uptime.index)} rows to {self.__device_uptime_table}"
+        )
+        print(f"Total rows after load :  {destination_table.num_rows}")
 
     def __format_timestamp(self, timestamp: datetime):
 
@@ -176,8 +194,8 @@ class Uptime:
         return datetime.strptime(timestamp_str, timestamp_format)
 
     @staticmethod
-    def dates_array(start_date_time, end_date_time):
-        dates = pd.date_range(start_date_time, end_date_time, freq="30min")
+    def dates_array(start_date_time, end_date_time, frequency="30min"):
+        dates = pd.date_range(start_date_time, end_date_time, freq=frequency)
         freq = dates.freq
 
         if dates.values.size == 1:
@@ -208,8 +226,8 @@ class Uptime:
 
                 data.extend(
                     [
-                        {"timestamp": start, "device": device},
-                        {"timestamp": end, "device": device},
+                        {"timestamp": start, "device": device["name"]},
+                        {"timestamp": end, "device": device["name"]},
                     ]
                 )
 
@@ -257,10 +275,14 @@ class Uptime:
         uptime_data.drop_duplicates(subset=["device", "timestamp"], inplace=True)
         uptime_data.fillna(0, inplace=True)
 
-        uptime_data["timestamp"] = uptime_data["timestamp"].apply(date_to_str)
+        uptime_data["timestamp"] = pd.to_datetime(uptime_data["timestamp"])
         uptime_data[["uptime", "downtime"]] = uptime_data["data_points"].apply(
             lambda x: self.__calculate_uptime(x)
         )
+        uptime_data["data_points_threshold"] = self.__data_points_threshold
+        uptime_data[["data_points_threshold", "data_points"]] = uptime_data[
+            ["data_points_threshold", "data_points"]
+        ].apply(np.int64)
 
         self.__overall_uptime = statistics.mean(uptime_data["uptime"].to_list())
         self.__overall_downtime = statistics.mean(uptime_data["downtime"].to_list())
@@ -289,7 +311,7 @@ class Uptime:
             f" AND {self.__raw_data_table}.timestamp <= '{date_to_str(self.__end_date_time, str_format=self.__date_format)}' "
             f" AND ( {self.__raw_data_table}.s1_pm2_5 is not null  "
             f" OR {self.__raw_data_table}.s2_pm2_5 is not null ) "
-            f" AND device_id IN UNNEST({self.__devices})"
+            f" AND device_id IN UNNEST({[device['name'] for device in self.__devices]})"
         )
 
         dataframe = self.__client.query(query=query).result().to_dataframe()
@@ -320,26 +342,31 @@ def compute_and_save_device_uptime(
         end_date_time = datetime.utcnow()
 
     if start_date_time is None:
-        start_date_time = end_date_time - timedelta(hours=2)
+        start_date_time = end_date_time - timedelta(days=350)
 
     if devices is None:
-        devices = []
         response = requests.get(
             "https://platform.airqo.net/api/v1/devices?tenant=airqo&network=airqo"
         ).json()
-        for device in response["devices"]:
-            if device.get("isActive", False):
-                devices.append(device["name"])
+        devices = [{"name": device["name"]} for device in response["devices"]]
 
-    uptime = Uptime(
-        devices=devices,
-        start_date_time=start_date_time,
-        end_date_time=end_date_time,
-        data_points_per_30_minutes=expected_data_points,
-    )
-    uptime.compute()
-    print(uptime.results())
-    uptime.save()
+    dates = Uptime.dates_array(start_date_time, end_date_time, frequency="D")
+
+    for start, end in dates:
+        print(f"{start} : {end}")
+
+        try:
+            uptime = Uptime(
+                devices=devices,
+                start_date_time=start,
+                end_date_time=end,
+                data_points_per_30_minutes=expected_data_points,
+            )
+            uptime.compute()
+            uptime.save()
+        except Exception as ex:
+            print(ex)
+            traceback.print_exc()
 
 
 if __name__ == "__main__":
