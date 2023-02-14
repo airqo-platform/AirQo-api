@@ -3,7 +3,7 @@ const constants = require("./constants");
 const { initializeApp } = require("firebase-admin/app");
 const serviceAccount = require(`${constants.GOOGLE_APPLICATION_CREDENTIALS}`);
 const functions = require("firebase-functions");
-const joinUtil = require("../utils/join");
+const createUserUtil = require("../utils/create-user");
 const { logObject } = require("../utils/log");
 const { default: isEmail } = require("validator/lib/isEmail");
 const isEmpty = require("is-empty");
@@ -13,6 +13,11 @@ initializeApp({
   databaseURL: constants.FIREBASE_DATABASE_URL,
 });
 
+const log4js = require("log4js");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- firebase-admin-config`
+);
+
 exports.newUserSignUp = functions.auth.user().onCreate(async (user) => {
   try {
     let email = user.email;
@@ -21,7 +26,7 @@ exports.newUserSignUp = functions.auth.user().onCreate(async (user) => {
     const subject = "Welcome to AirQo!";
 
     if (!isEmpty(email)) {
-      return await joinUtil.sendFeedback({
+      return await createUserUtil.sendFeedback({
         email,
         message,
         subject,
@@ -29,6 +34,7 @@ exports.newUserSignUp = functions.auth.user().onCreate(async (user) => {
     }
   } catch (error) {
     logObject("error", error);
+    logger.error(`internal server error -- ${error.message}`);
   }
 });
 
@@ -47,6 +53,7 @@ exports.userDeleted = functions.auth.user().onDelete(async (user) => {
         .delete();
     } catch (error) {
       logObject("error", error);
+      logger.error(`internal server error -- ${error.message}`);
     }
     try {
       admin
@@ -56,6 +63,7 @@ exports.userDeleted = functions.auth.user().onDelete(async (user) => {
         .delete();
     } catch (error) {
       logObject("error", error);
+      logger.error(`internal server error -- ${error.message}`);
     }
 
     try {
@@ -66,6 +74,7 @@ exports.userDeleted = functions.auth.user().onDelete(async (user) => {
         .delete();
     } catch (error) {
       logObject("error", error);
+      logger.error(`internal server error -- ${error.message}`);
     }
 
     try {
@@ -76,6 +85,7 @@ exports.userDeleted = functions.auth.user().onDelete(async (user) => {
         .delete();
     } catch (error) {
       logObject("error", error);
+      logger.error(`internal server error -- ${error.message}`);
     }
 
     try {
@@ -86,10 +96,11 @@ exports.userDeleted = functions.auth.user().onDelete(async (user) => {
         .delete();
     } catch (error) {
       logObject("error", error);
+      logger.error(`internal server error -- ${error.message}`);
     }
 
     if (!isEmpty(email)) {
-      return await joinUtil.sendFeedback({
+      return await createUserUtil.sendFeedback({
         email,
         message,
         subject,
@@ -97,5 +108,6 @@ exports.userDeleted = functions.auth.user().onDelete(async (user) => {
     }
   } catch (error) {
     logObject("error", error);
+    logger.error(`internal server error -- ${error.message}`);
   }
 });

@@ -34,6 +34,34 @@ class MetaDataUtils:
         return dataframe
 
     @staticmethod
+    def extract_airqlouds_from_api(tenant: Tenant = Tenant.ALL) -> pd.DataFrame:
+        airqlouds = AirQoApi().get_airqlouds_temp(tenant=tenant)
+        airqlouds = [
+            {**airqloud, **{"sites": ",".join(map(str, airqloud.get("sites", [""])))}}
+            for airqloud in airqlouds
+        ]
+
+        return pd.DataFrame(airqlouds)
+
+    @staticmethod
+    def merge_airqlouds_and_sites(data: pd.DataFrame) -> pd.DataFrame:
+        merged_data = []
+        data = data.dropna(subset=["sites", "id"])
+
+        for _, row in data.iterrows():
+            merged_data.extend(
+                [
+                    {
+                        **{"airqloud_id": row["id"], "tenant": row["tenant"]},
+                        **{"site_id": site},
+                    }
+                    for site in row["sites"].split(",")
+                ]
+            )
+
+        return pd.DataFrame(merged_data)
+
+    @staticmethod
     def extract_sites_from_api(tenant: Tenant = Tenant.ALL) -> pd.DataFrame:
 
         sites = AirQoApi().get_sites(tenant=tenant)

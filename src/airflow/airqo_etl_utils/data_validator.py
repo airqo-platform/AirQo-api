@@ -1,3 +1,5 @@
+import traceback
+
 import numpy as np
 import pandas as pd
 
@@ -146,6 +148,20 @@ class DataValidationUtils:
         return dataframe[columns]
 
     @staticmethod
+    def process_for_message_broker_v2(data: pd.DataFrame) -> pd.DataFrame:
+        data["timestamp"] = pd.to_datetime(data["timestamp"])
+        data["timestamp"] = data["timestamp"].apply(date_to_str)
+        data.rename(
+            columns={
+                "mongo_id": "device_id",
+                "device_id": "device_name",
+                "tenant": "network",
+            },
+            inplace=True,
+        )
+        return data
+
+    @staticmethod
     def process_for_message_broker(
         data: pd.DataFrame, tenant: Tenant, frequency: Frequency = Frequency.HOURLY
     ) -> pd.DataFrame:
@@ -162,3 +178,78 @@ class DataValidationUtils:
             return float(value) * 0.1
         except Exception:
             return value
+
+    @staticmethod
+    def process_data_for_api(data: pd.DataFrame) -> list:
+
+        restructured_data = []
+
+        data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
+        data["timestamp"] = data["timestamp"].apply(date_to_str)
+
+        bigquery_api = BigQueryApi()
+        cols = bigquery_api.get_columns(bigquery_api.hourly_measurements_table)
+        cols.append("battery")
+        data = DataValidationUtils.fill_missing_columns(data, cols=cols)
+
+        for _, row in data.iterrows():
+            try:
+                row_data = {
+                    "device": row["device_id"],
+                    "device_id": row["mongo_id"],
+                    "site_id": row["site_id"],
+                    "device_number": row["device_number"],
+                    "tenant": str(Tenant.AIRQO),
+                    "network": row["tenant"],
+                    "location": {
+                        "latitude": {"value": row["latitude"]},
+                        "longitude": {"value": row["longitude"]},
+                    },
+                    "frequency": row["frequency"],
+                    "time": row["timestamp"],
+                    "pm2_5": {
+                        "value": row["pm2_5"],
+                        "calibratedValue": row["pm2_5_calibrated_value"],
+                    },
+                    "pm10": {
+                        "value": row["pm10"],
+                        "calibratedValue": row["pm10_calibrated_value"],
+                    },
+                    "average_pm2_5": {
+                        "value": row["pm2_5"],
+                        "calibratedValue": row["pm2_5_calibrated_value"],
+                    },
+                    "average_pm10": {
+                        "value": row["pm10"],
+                        "calibratedValue": row["pm10_calibrated_value"],
+                    },
+                    "no2": {
+                        "value": row["no2"],
+                        "calibratedValue": row["no2_calibrated_value"],
+                    },
+                    "s1_pm2_5": {"value": row["s1_pm2_5"]},
+                    "s1_pm10": {"value": row["s1_pm10"]},
+                    "s2_pm2_5": {"value": row["s2_pm2_5"]},
+                    "s2_pm10": {"value": row["s2_pm10"]},
+                    "battery": {"value": row["battery"]},
+                    "altitude": {"value": row["altitude"]},
+                    "speed": {"value": row["wind_speed"]},
+                    "satellites": {"value": row["satellites"]},
+                    "hdop": {"value": row["hdop"]},
+                    "externalTemperature": {"value": row["temperature"]},
+                    "externalHumidity": {"value": row["humidity"]},
+                    "internalTemperature": {"value": row["device_temperature"]},
+                    "internalHumidity": {"value": row["device_humidity"]},
+                    "externalPressure": {"value": row["vapor_pressure"]},
+                }
+
+                if row_data["site_id"] is None or row_data["site_id"] is np.nan:
+                    row_data.pop("site_id")
+
+                restructured_data.append(row_data)
+
+            except Exception as ex:
+                traceback.print_exc()
+                print(ex)
+
+        return restructured_data

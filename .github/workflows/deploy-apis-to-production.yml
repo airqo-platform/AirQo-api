@@ -8,7 +8,7 @@ on:
       - closed
 
 env:
-  REGISTRY_URL: gcr.io
+  REGISTRY_URL: eu.gcr.io
   PROJECT_ID: airqo-250220
   DEPLOY_BRANCH: deployment/argocd
 
@@ -534,12 +534,6 @@ jobs:
           username: _json_key
           password: ${{ secrets.GCR_CONFIG }}
 
-      - name: Login to K8S
-        uses: azure/k8s-set-context@v2
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
-
       - name: Build and push app
         uses: docker/build-push-action@v3
         with:
@@ -556,6 +550,17 @@ jobs:
           target: xcom-setup
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-apache-airflow-xcom:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-apache-airflow-xcom:latest
 
+      - name: Update corresponding helm values file(with retry)
+        uses: Wandalen/wretry.action@master # Retries action on fail
+        with:
+          action: fjogeleit/yaml-update-action@main # Action to retry
+          with: |
+            valueFile: "k8s/airflow/values-prod.yaml"
+            propertyPath: "images.tag"
+            value: ${{ needs.image-tag.outputs.build_id }}
+            branch: ${{ env.DEPLOY_BRANCH }}
+            message: "Update airflow prod image tag to ${{ needs.image-tag.outputs.build_id }}"
+
       - name: Login to GCP
         uses: google-github-actions/auth@v0
         with:
@@ -564,16 +569,17 @@ jobs:
       - name: Setup Cloud SDK
         uses: google-github-actions/setup-gcloud@v0
 
+      - name: Login to K8S
+        uses: azure/k8s-set-context@v2
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
+
       - name: Update the corresponding k8s configmap(s)
         run: |
           cd src/airflow/
           gcloud secrets versions access latest --secret="prod-env-airflow" > .env
           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env airflow-config | kubectl replace -f - -n pipeline
-
-      - name: Deploy to K8S
-        run: |
-          kubectl apply -f k8s/airflow/airflow-app.yaml
-          kubectl rollout restart deployment airflow  -n pipeline
 
   #### Device Registry ######
   device-registry:
@@ -827,6 +833,33 @@ jobs:
           kubectl apply -f k8s/analytics/prod-analytics-api.yaml -n production
           kubectl set image deployment/airqo-analytics-api analytics-api=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-api:${{ needs.image-tag.outputs.build_id }} -n production
           kubectl annotate deployment/airqo-analytics-api kubernetes.io/change-cause="Image updated to ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
+
+      ######################### Analytics report job CI ##################################
+      - name: Build and Push Job's Docker Image
+        run: |
+          cd src/analytics/jobs/reports
+          docker build --target=production --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-report-job:${{ needs.image-tag.outputs.build_id }} .
+          docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-report-job:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-report-job:latest
+          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-report-job:${{ needs.image-tag.outputs.build_id }}
+          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-report-job:latest
+
+      - name: Update corresponding helm values file
+        uses: fjogeleit/yaml-update-action@main
+        with:
+          valueFile: "k8s/analytics/job/values-prod.yaml"
+          propertyPath: "image.tag"
+          value: ${{ needs.image-tag.outputs.build_id }}
+          updateFile: true
+          branch: deployment/argocd
+          message: "Update analytics report job production image tag to ${{ needs.image-tag.outputs.build_id }}"
+
+      - name: Update the corresponding k8s configmap(s)
+        run: |
+          cd src/analytics/jobs/reports
+          gcloud secrets versions access latest --secret="prod-env-analytics-report-job" > .env
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-analytics-report-production | kubectl replace -f - -n production
+          gcloud secrets versions access latest --secret="prod-key-analytics-report-job-service-account" > google_application_credentials.json
+          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json env-analytics-report-production-files | kubectl replace -f - -n production
 
   ### device uptime ###
   device-uptime:
