@@ -6,3 +6,5 @@ gpflow
 tensorflow
 requests
 shapely
+kafka-python
+pymongo

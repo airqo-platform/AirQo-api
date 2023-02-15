@@ -26,3 +26,6 @@ FROM base as dev
 ENV ENV=development
 # run application
 CMD ["python", "main.py", "--tenant=airqo"]
+
+FROM base as sites-consumer
+CMD ["python", "message-broker.py", "--tenant=airqo"]

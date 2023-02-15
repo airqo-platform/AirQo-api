@@ -1,10 +1,14 @@
 import os
+
+import urllib3
 from pymongo import MongoClient
 from dotenv import load_dotenv
 from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent
 dotenv_path = os.path.join(BASE_DIR, '.env')
 load_dotenv(dotenv_path)
+
+urllib3.disable_warnings()
 
 
 class Config:
@@ -13,7 +17,12 @@ class Config:
     CSRF_ENABLED = True
     SECRET_KEY = os.getenv("SECRET_KEY")
     CREDENTIALS = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
-
+    MEASUREMENTS_TOPIC = os.getenv('MEASUREMENTS_TOPIC')
+    AIRQLOUDS_TOPIC = os.getenv('AIRQLOUDS_TOPIC')
+    DEVICES_TOPIC = os.getenv('DEVICES_TOPIC')
+    BOOTSTRAP_SERVERS = os.getenv('BOOTSTRAP_SERVERS')
+    GP_MODEL_DB = os.getenv('GP_MODEL_DB')
+    GP_MODEL_DB_URI = os.getenv('GP_MODEL_DB_URI')
 
 class ProductionConfig(Config):
     MONGO_URI_NETMANAGER = os.getenv('MONGO_GCE_URI_NETMANAGER')
