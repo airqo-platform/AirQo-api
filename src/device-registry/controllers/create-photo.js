@@ -45,13 +45,12 @@ const processImage = {
         const status = responseFromCreatePhoto.status
           ? responseFromCreatePhoto.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
-        const errors = responseFromCreatePhoto.errors
-          ? responseFromCreatePhoto.errors
-          : "";
         res.status(status).json({
           success: false,
           message: responseFromCreatePhoto.message,
-          errors,
+          errors: responseFromCreatePhoto.errors
+            ? responseFromCreatePhoto.errors
+            : { message: "" },
         });
       }
     } catch (error) {
@@ -97,13 +96,12 @@ const processImage = {
         const status = responseFromUpdatePhoto.status
           ? responseFromUpdatePhoto.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
-        const errors = responseFromUpdatePhoto.errors
-          ? responseFromUpdatePhoto.errors
-          : "";
         res.status(status).json({
           success: false,
           message: responseFromUpdatePhoto.message,
-          errors,
+          errors: responseFromUpdatePhoto.errors
+            ? responseFromUpdatePhoto.errors
+            : { message: "" },
         });
       }
     } catch (error) {
@@ -420,7 +418,7 @@ const processImage = {
           message: responseFromUpdatePhotoOnPlatform.message,
           errors: responseFromUpdatePhotoOnPlatform.errors
             ? responseFromUpdatePhotoOnPlatform.errors
-            : status,
+            : { message: "" },
         });
       }
     } catch (error) {

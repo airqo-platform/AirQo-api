@@ -670,7 +670,7 @@ const createEvent = {
   deleteValuesOnPlatform: async (req, res) => {
     try {
       logText("the delete values operation starts....");
-      logger.info(`the delete values operation starts....`);
+      // logger.info(`the delete values operation starts....`);
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -688,15 +688,15 @@ const createEvent = {
       const { body } = req;
       let request = {};
       request["query"] = { ...req.query, body };
-      logger.info(`the request -- ${JSON.stringify(request)}`);
-      let responseFromClearValuesOnPlatform = await createEventUtil.clearEventsOnPlatform(
-        request
-      );
-      logger.info(
-        `responseFromClearValuesOnPlatform -- ${JSON.stringify(
-          responseFromClearValuesOnPlatform
-        )}`
-      );
+      // logger.info(`the request -- ${JSON.stringify(request)}`);
+      // let responseFromClearValuesOnPlatform = await createEventUtil.clearEventsOnPlatform(
+      //   request
+      // );
+      // logger.info(
+      //   `responseFromClearValuesOnPlatform -- ${JSON.stringify(
+      //     responseFromClearValuesOnPlatform
+      //   )}`
+      // );
 
       if (responseFromClearValuesOnPlatform.success === false) {
         const status = responseFromClearValuesOnPlatform.status
@@ -731,7 +731,7 @@ const createEvent = {
 
   addEvents: async (req, res) => {
     try {
-      logger.info(`adding values...`);
+      // logger.info(`adding values...`);
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -750,7 +750,7 @@ const createEvent = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      logger.info(`adding values...`);
+      // logger.info(`adding values...`);
       const { device, tenant } = req.query;
       const { body } = req;
 
@@ -764,11 +764,11 @@ const createEvent = {
 
       logObject("responseFromAddEventsUtil", responseFromAddEventsUtil);
 
-      logger.info(
-        `responseFromAddEventsUtil -- ${JSON.stringify(
-          responseFromAddEventsUtil
-        )}`
-      );
+      // logger.info(
+      //   `responseFromAddEventsUtil -- ${JSON.stringify(
+      //     responseFromAddEventsUtil
+      //   )}`
+      // );
 
       if (responseFromAddEventsUtil.success === false) {
         const status = responseFromAddEventsUtil.status
@@ -802,7 +802,7 @@ const createEvent = {
   },
   viewEvents: async (req, res) => {
     try {
-      logger.info(`viewing events...`);
+      // logger.info(`viewing events...`);
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -824,9 +824,9 @@ const createEvent = {
 
       let responseFromEventsUtil = await createEventUtil.viewEvents(req);
       logObject("responseFromEventsUtil", responseFromEventsUtil);
-      logger.info(
-        `responseFromEventsUtil -- ${JSON.stringify(responseFromEventsUtil)}`
-      );
+      // logger.info(
+      //   `responseFromEventsUtil -- ${JSON.stringify(responseFromEventsUtil)}`
+      // );
       if (responseFromEventsUtil.success === true) {
         res.status(HTTPStatus.OK).json({
           success: true,

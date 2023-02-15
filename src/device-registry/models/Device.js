@@ -352,12 +352,12 @@ deviceSchema.statics = {
 
   async list({ _skip = 0, _limit = 1000, filter = {} } = {}) {
     try {
-      logger.info(
-        `the filter received in the model -- ${JSON.stringify(filter)}`
-      );
-      logger.info(
-        `the type of filter received in the model -- ${typeof filter}`
-      );
+      // logger.info(
+      //   `the filter received in the model -- ${JSON.stringify(filter)}`
+      // );
+      // logger.info(
+      //   `the type of filter received in the model -- ${typeof filter}`
+      // );
       let response = await this.aggregate()
         .match(filter)
         .lookup({
@@ -441,7 +441,7 @@ deviceSchema.statics = {
         .limit(_limit)
         .allowDiskUse(true);
 
-      logger.info(`the data produced in the model -- ${response}`);
+      // logger.info(`the data produced in the model -- ${response}`);
       if (!isEmpty(response)) {
         let data = response;
         return {

@@ -307,11 +307,11 @@ const device = {
       request.query.tenant = tenant;
 
       let responseFromCreateDevice = await createDeviceUtil.create(request);
-      logger.info(
-        `responseFromCreateDevice -- ${JSON.stringify(
-          responseFromCreateDevice
-        )}`
-      );
+      // logger.info(
+      //   `responseFromCreateDevice -- ${JSON.stringify(
+      //     responseFromCreateDevice
+      //   )}`
+      // );
       if (responseFromCreateDevice.success === true) {
         const status = responseFromCreateDevice.status
           ? responseFromCreateDevice.status
@@ -345,7 +345,7 @@ const device = {
   },
   generateQRCode: async (req, res) => {
     try {
-      logger.info(`the generate QR Code operation starts here....`);
+      // logger.info(`the generate QR Code operation starts here....`);
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -378,9 +378,9 @@ const device = {
       let responseFromGenerateQRCode = await createDeviceUtil.generateQR(
         request
       );
-      logger.info(
-        `responseFromGenerateQRCode -- ${responseFromGenerateQRCode}`
-      );
+      // logger.info(
+      //   `responseFromGenerateQRCode -- ${responseFromGenerateQRCode}`
+      // );
       if (responseFromGenerateQRCode.success === true) {
         const status = responseFromGenerateQRCode.status
           ? responseFromGenerateQRCode.status
@@ -413,7 +413,7 @@ const device = {
   },
   delete: async (req, res) => {
     try {
-      logger.info(`the general delete device operation starts....`);
+      // logger.info(`the general delete device operation starts....`);
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -447,11 +447,11 @@ const device = {
         requestObject
       );
 
-      logger.info(
-        `responseFromRemoveDevice -- ${JSON.stringify(
-          responseFromRemoveDevice
-        )}`
-      );
+      // logger.info(
+      //   `responseFromRemoveDevice -- ${JSON.stringify(
+      //     responseFromRemoveDevice
+      //   )}`
+      // );
 
       if (responseFromRemoveDevice.success === true) {
         const status = responseFromRemoveDevice.status
@@ -486,7 +486,7 @@ const device = {
 
   update: async (req, res) => {
     try {
-      logger.info(`the device update operation starts....`);
+      // logger.info(`the device update operation starts....`);
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -517,9 +517,9 @@ const device = {
       requestBody["body"] = body;
 
       let responseFromUpdateDevice = await createDeviceUtil.update(requestBody);
-      logger.info(
-        `responseFromUpdateDevice ${JSON.stringify(responseFromUpdateDevice)}`
-      );
+      // logger.info(
+      //   `responseFromUpdateDevice ${JSON.stringify(responseFromUpdateDevice)}`
+      // );
       if (responseFromUpdateDevice.success === true) {
         const status = responseFromUpdateDevice.status
           ? responseFromUpdateDevice.status
@@ -554,7 +554,7 @@ const device = {
   encryptKeys: async (req, res) => {
     try {
       logText("the soft update operation starts....");
-      logger.info(`the soft update operation starts....`);
+      // logger.info(`the soft update operation starts....`);
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -589,9 +589,9 @@ const device = {
         requestObject
       );
 
-      logger.info(
-        `responseFromEncryptKeys ${JSON.stringify(responseFromEncryptKeys)}`
-      );
+      // logger.info(
+      //   `responseFromEncryptKeys ${JSON.stringify(responseFromEncryptKeys)}`
+      // );
 
       if (responseFromEncryptKeys.success === true) {
         const status = responseFromEncryptKeys.status
@@ -628,6 +628,7 @@ const device = {
     try {
       logText(".....................................");
       logText("list devices based on query params...");
+      // logger.info("we are listing devices...", "yeah");
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -752,7 +753,7 @@ const device = {
   updateOnPlatform: async (req, res) => {
     try {
       logText("the soft update operation starts....");
-      logger.info(`the soft update operation starts....`);
+      // logger.info(`the soft update operation starts....`);
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -787,11 +788,11 @@ const device = {
         requestObject
       );
 
-      logger.info(
-        `responseFromUpdateDeviceOnPlatform ${JSON.stringify(
-          responseFromUpdateDeviceOnPlatform
-        )}`
-      );
+      // logger.info(
+      //   `responseFromUpdateDeviceOnPlatform ${JSON.stringify(
+      //     responseFromUpdateDeviceOnPlatform
+      //   )}`
+      // );
 
       if (responseFromUpdateDeviceOnPlatform.success === true) {
         const status = responseFromUpdateDeviceOnPlatform.status
@@ -826,7 +827,7 @@ const device = {
 
   deleteOnPlatform: async (req, res) => {
     try {
-      logger.info(`the soft delete operation starts....`);
+      // logger.info(`the soft delete operation starts....`);
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -860,11 +861,11 @@ const device = {
         requestObject
       );
 
-      logger.info(
-        `responseFromRemoveDevice -- ${JSON.stringify(
-          responseFromRemoveDevice
-        )}`
-      );
+      // logger.info(
+      //   `responseFromRemoveDevice -- ${JSON.stringify(
+      //     responseFromRemoveDevice
+      //   )}`
+      // );
 
       if (responseFromRemoveDevice.success === true) {
         const status = responseFromRemoveDevice.status
@@ -933,11 +934,11 @@ const device = {
       let responseFromCreateOnPlatform = await createDeviceUtil.createOnPlatform(
         requestBody
       );
-      logger.info(
-        `responseFromCreateOnPlatform -- ${JSON.stringify(
-          responseFromCreateOnPlatform
-        )}`
-      );
+      // logger.info(
+      //   `responseFromCreateOnPlatform -- ${JSON.stringify(
+      //     responseFromCreateOnPlatform
+      //   )}`
+      // );
       if (responseFromCreateOnPlatform.success === true) {
         const status = responseFromCreateOnPlatform.status
           ? responseFromCreateOnPlatform.status

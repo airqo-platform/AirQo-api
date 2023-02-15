@@ -70,7 +70,7 @@ const createEvent = {
         ) {
           deviceDetails = responseFromGetDeviceDetails.data[0];
         } else {
-          logger.info(`unable to retrieve details for ONE device`);
+          // logger.info(`unable to retrieve details for ONE device`);
         }
       } else if (responseFromGetDeviceDetails.success === false) {
         try {
@@ -1160,8 +1160,7 @@ const createEvent = {
           callback({
             success: false,
             message: "no cache present",
-            data: resultJSON,
-            errors: { message: err.message },
+            errors: { message: "no cache present" },
           });
         }
       });
@@ -1226,11 +1225,11 @@ const createEvent = {
   },
   enrichOneEvent: async (transformedEvent) => {
     try {
-      logger.info(
-        `the transformedEvent received for enrichment -- ${JSON.stringify(
-          transformedEvent
-        )}`
-      );
+      // logger.info(
+      //   `the transformedEvent received for enrichment -- ${JSON.stringify(
+      //     transformedEvent
+      //   )}`
+      // );
       let request = {};
       let enrichedEvent = transformedEvent;
       request["query"] = {};
@@ -1238,11 +1237,11 @@ const createEvent = {
       request["query"]["tenant"] = transformedEvent.tenant;
 
       const responseFromGetDeviceDetails = await list(request);
-      logger.info(
-        `responseFromGetDeviceDetails ${JSON.stringify(
-          responseFromGetDeviceDetails
-        )}`
-      );
+      // logger.info(
+      //   `responseFromGetDeviceDetails ${JSON.stringify(
+      //     responseFromGetDeviceDetails
+      //   )}`
+      // );
       if (responseFromGetDeviceDetails.success === true) {
         if (responseFromGetDeviceDetails.data.length === 1) {
           let deviceDetails = responseFromGetDeviceDetails.data[0];
@@ -1297,9 +1296,9 @@ const createEvent = {
     try {
       const { body } = request;
 
-      logger.info(
-        `the body received for transformation -- ${JSON.stringify(body)}`
-      );
+      // logger.info(
+      //   `the body received for transformation -- ${JSON.stringify(body)}`
+      // );
       let promises = body.map(async (event) => {
         let data = event;
         let map = constants.EVENT_MAPPINGS;
@@ -1313,15 +1312,15 @@ const createEvent = {
           context,
         });
 
-        logger.info(
-          `responseFromTransformEvent -- ${JSON.stringify(
-            responseFromTransformEvent
-          )}`
-        );
+        // logger.info(
+        //   `responseFromTransformEvent -- ${JSON.stringify(
+        //     responseFromTransformEvent
+        //   )}`
+        // );
         if (responseFromTransformEvent.success === true) {
-          logger.info(
-            `responseFromTransformEvent is a success -- ${responseFromTransformEvent.message}`
-          );
+          // logger.info(
+          //   `responseFromTransformEvent is a success -- ${responseFromTransformEvent.message}`
+          // );
           return {
             success: true,
             data: responseFromTransformEvent.data,
@@ -1351,7 +1350,7 @@ const createEvent = {
         let transforms = [];
         let errors = [];
         if (results.every((res) => res.success === true)) {
-          logger.info(`success tranformEvents -- ${JSON.stringify(results)}`);
+          // logger.info(`success tranformEvents -- ${JSON.stringify(results)}`);
           for (const result of results) {
             transforms.push(result.data);
           }
@@ -1361,9 +1360,9 @@ const createEvent = {
             errors.push(error);
           }
           try {
-            logger.error(
-              `unsuccessful tranformEvents -- ${JSON.stringify(errors)}}`
-            );
+            // logger.error(
+            //   `unsuccessful tranformEvents -- ${JSON.stringify(errors)}}`
+            // );
           } catch (error) {
             logger.error(`internal server error -- ${error.message}`);
           }
@@ -1387,7 +1386,7 @@ const createEvent = {
   addEvents: async (request) => {
     try {
       logText("adding the events insertTransformedEvents to the util.....");
-      logger.info(`adding events in the util.....`);
+      // logger.info(`adding events in the util.....`);
       const { tenant } = request.query;
       const responseFromTransformEvents = await createEvent.transformManyEvents(
         request
@@ -1433,18 +1432,18 @@ const createEvent = {
           modifiedFilter = event.modifiedFilter;
 
           dot.object(filter);
-          logger.info(`the filter -- ${JSON.stringify(filter)}`);
+          // logger.info(`the filter -- ${JSON.stringify(filter)}`);
 
           dot.delete(
             ["filter", "update", "options", "modifiedFilter", "tenant", "day"],
             value
           );
-          logger.info(`the value -- ${JSON.stringify(value)}`);
+          // logger.info(`the value -- ${JSON.stringify(value)}`);
 
           update["$push"] = { values: value };
-          logger.info(`the update -- ${JSON.stringify(update)}`);
+          // logger.info(`the update -- ${JSON.stringify(update)}`);
 
-          logger.info(`the options -- ${JSON.stringify(options)}`);
+          // logger.info(`the options -- ${JSON.stringify(options)}`);
 
           const addedEvents = await Model(tenant).updateOne(
             modifiedFilter,
@@ -1452,11 +1451,11 @@ const createEvent = {
             options
           );
 
-          logger.info(`addedEvents -- ${JSON.stringify(addedEvents)}`);
+          // logger.info(`addedEvents -- ${JSON.stringify(addedEvents)}`);
 
           dot.delete("nValues", filter);
           if (!isEmpty(addedEvents)) {
-            logger.info(`successfuly added the event`);
+            // logger.info(`successfuly added the event`);
             let insertion = {
               msg: "successfuly added the event",
               event_details: filter,
@@ -1472,11 +1471,11 @@ const createEvent = {
               status: HTTPStatus.NOT_MODIFIED,
             };
             errors.push(errMsg);
-            logger.info(
-              `nothing added, empty response -- duplicate event -- ${JSON.stringify(
-                event
-              )}`
-            );
+            // logger.info(
+            //   `nothing added, empty response -- duplicate event -- ${JSON.stringify(
+            //     event
+            //   )}`
+            // );
           }
         } catch (error) {
           logger.error(`internal server error -- ${error.message}`);
