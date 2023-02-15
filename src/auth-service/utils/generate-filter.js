@@ -71,8 +71,6 @@ const filter = {
   },
   networks: (req) => {
     try {
-      logObject("req.query", req.query);
-      logObject("req.params", req.params);
       const {
         net_email,
         net_category,

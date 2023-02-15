@@ -65,6 +65,24 @@ router.put(
   createNetworkController.assignOneUser
 );
 
+router.get(
+  "/",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  createNetworkController.list
+);
+
 router.put(
   "/:net_id/set-manager/:user_id",
   oneOf([
@@ -274,7 +292,7 @@ router.post(
 );
 
 router.post(
-  "/:net_id/assign-user",
+  "/:net_id/assign-users",
   oneOf([
     [
       query("tenant")
@@ -319,7 +337,7 @@ router.post(
   ]),
   setJWTAuth,
   authJWT,
-  createNetworkController.assignUser
+  createNetworkController.assignUsers
 );
 
 router.post(

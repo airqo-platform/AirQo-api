@@ -1,5 +1,4 @@
 const NetworkSchema = require("../models/Network");
-const UserSchema = require("../models/User");
 const { getModelByTenant } = require("./multitenancy");
 const { logElement, logText, logObject } = require("./log");
 const generateFilter = require("./generate-filter");
@@ -8,16 +7,6 @@ const companyEmailValidator = require("company-email-validator");
 const isEmpty = require("is-empty");
 const mongoose = require("mongoose").set("debug", true);
 const ObjectId = mongoose.Types.ObjectId;
-
-const UserModel = (tenant) => {
-  try {
-    const users = mongoose.model("users");
-    return users;
-  } catch (error) {
-    const users = getModelByTenant(tenant, "user", UserSchema);
-    return users;
-  }
-};
 
 const NetworkModel = (tenant) => {
   try {
@@ -67,12 +56,16 @@ const createNetwork = {
         });
 
         if (responseFromListNetworks.success === true) {
-          let data = responseFromListNetworks.data;
-          let storedNetwork = data[0].net_name || data[0].net_acronym;
+          const data = responseFromListNetworks.data;
+          const storedNetwork = data[0]
+            ? data[0].net_name || data[0].net_acronym
+            : "";
           return {
             success: true,
             data: storedNetwork,
-            message: "successfully retrieved the network",
+            message: data[0]
+              ? "successfully retrieved the network"
+              : "No network exists for this operation",
             status: httpStatus.OK,
           };
         } else if (responseFromListNetworks.success === false) {
@@ -179,43 +172,63 @@ const createNetwork = {
   },
   update: async (request) => {
     try {
-      let { body, query, params } = request;
+      const { body, query, params } = request;
+      const { action } = request;
       const { tenant } = query;
-      let update = body;
-      const actionBefore = request.path.split("/");
-      const action = request.path.split("/")[2];
-      logElement("actionBefore", actionBefore);
+      let update = Object.assign({}, body);
       logElement("action", action);
       update["action"] = action;
+
       let filter = {};
-      let responseFromGeneratefilter = generateFilter.networks(request);
+      const responseFromGeneratefilter = generateFilter.networks(request);
+
+      if (responseFromGeneratefilter.success === true) {
+        filter = responseFromGeneratefilter.data;
+      } else if (responseFromGeneratefilter.success === false) {
+        return responseFromGeneratefilter;
+      }
 
       if (!isEmpty(params.user_id)) {
-        logElement("params.user_id", params.user_id);
-        let usersArray = params.user_id.toString().split(",");
-        let modifiedUsersArray = usersArray.map((user_id) => {
+        /**
+         * we also need to update the Users?
+         */
+        const usersArray = params.user_id.toString().split(",");
+        const modifiedUsersArray = usersArray.map((user_id) => {
           return ObjectId(user_id);
         });
         update.net_users = modifiedUsersArray;
       } else if (!isEmpty(update.user_ids)) {
-        let usersArray = update.user_ids.toString().split(",");
-        let modifiedUsersArray = usersArray.map((user_id) => {
+        /**
+         * we also need to update the Users?
+         */
+        const usersArray = update.user_ids.toString().split(",");
+        const modifiedUsersArray = usersArray.map((user_id) => {
           return ObjectId(user_id);
         });
         update.net_users = modifiedUsersArray;
       }
 
-      if (responseFromGeneratefilter.success === true) {
-        filter = responseFromGeneratefilter.data;
-        if (
-          !isEmpty(params.user_id) &&
-          !isEmpty(action) &&
-          action === "unassign-user"
-        ) {
-          filter["net_users"] = ObjectId(params.user_id);
+      if (!isEmpty(action)) {
+        if (action === "assignUsers" || action === "assignOneUser") {
+          update["$addToSet"] = {};
+          update["$addToSet"]["net_users"] = {};
+          update["$addToSet"]["net_users"]["$each"] = update.net_users;
+          delete update.net_users;
+        } else if (action === "unAssignUser") {
+          update["$pull"] = {};
+          update["$pull"]["net_users"] = {};
+          update["$pull"]["net_users"]["$in"] = update.net_users;
+          delete update.net_users;
+        } else if (action === "setManager") {
+          /**
+           * we could also first check if they belong to the network?
+           */
+          update["$addToSet"] = {};
+          update["$addToSet"]["net_users"] = {};
+          update["$addToSet"]["net_users"]["$each"] = update.net_users;
+          update["net_manager"] = update.net_users[0];
+          delete update.net_users;
         }
-      } else if (responseFromGeneratefilter.success === false) {
-        return responseFromGeneratefilter;
       }
 
       const responseFromModifyNetwork = await NetworkModel(tenant).modify({
@@ -296,8 +309,6 @@ const createNetwork = {
         limit,
         skip,
       });
-
-      // logObject("responseFromListNetworks", responseFromListNetworks);
 
       if (responseFromListNetworks.success === true) {
         return responseFromListNetworks;
