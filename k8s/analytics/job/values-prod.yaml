@@ -4,7 +4,7 @@ app:
   configmap: env-analytics-report-production
 image:
   repository: eu.gcr.io/airqo-250220/airqo-analytics-report-job
-  tag: prod-bfec5269-1675866864
+  tag: prod-21fefced-1676463955
 nameOverride: ''
 fullnameOverride: ''
 resources:
