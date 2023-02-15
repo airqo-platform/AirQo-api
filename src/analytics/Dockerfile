@@ -1,24 +1,22 @@
-# Inherit from the Python Docker image
-FROM python:3.7.7 as base
+# syntax=docker/dockerfile:1
 
-# Copy the source code to app folder
-COPY . /app/
-# Change the working directory
+FROM python:3.8-slim-buster as base
+
 WORKDIR /app/
 
-# Install the Flask package via pip
-RUN pip install -r requirements.txt
+COPY requirements.txt requirements.txt
 
-# Set "python" as the entry point
-# Set environment variables
+RUN pip install --upgrade pip setuptools wheel
+RUN pip3 install -r requirements.txt
+
+COPY . /app/
+
 ENV FLASK_APP=manage.py
-
-# Expose the application's port, default is 5000 for python flask
 EXPOSE 5000
 
 FROM base as dev
 ENV FLASK_ENV=development
-# Run the application
+
 CMD ["flask", "run", "--host=0.0.0.0"]
 
 FROM base as staging
