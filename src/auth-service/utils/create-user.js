@@ -106,15 +106,7 @@ const join = {
       if (responseFromGenerateFilter.success === true) {
         filter = responseFromGenerateFilter.data;
       } else if (responseFromGenerateFilter.success === false) {
-        return {
-          status: responseFromGenerateFilter.status
-            ? responseFromGenerateFilter.status
-            : "",
-          error: responseFromGenerateFilter.error
-            ? responseFromGenerateFilter.error
-            : "",
-          message: responseFromGenerateFilter.message,
-        };
+        return responseFromGenerateFilter;
       }
       let responseFromModifyUser = await UserModel(tenant.toLowerCase()).modify(
         {
@@ -137,30 +129,17 @@ const join = {
             data: responseFromModifyUser.data,
           };
         } else if (responseFromSendEmail.success === false) {
-          const error = responseFromSendEmail.error
-            ? responseFromSendEmail.error
-            : "";
-          return {
-            success: false,
-            message: responseFromSendEmail.message,
-            error,
-          };
+          return responseFromSendEmail;
         }
       } else if (responseFromModifyUser.success === false) {
-        return {
-          success: false,
-          message: responseFromModifyUser.message,
-          error: responseFromModifyUser.error
-            ? responseFromModifyUser.error
-            : "",
-        };
+        return responseFromModifyUser;
       }
     } catch (e) {
-      logElement("update users util", e.message);
+      logElement("update users util", e);
       return {
         success: false,
-        message: "util server error",
-        error: e.message,
+        message: "Internal Server Error",
+        errors: { message: e.message },
       };
     }
   },
@@ -187,7 +166,7 @@ const join = {
               success: true,
               message: "Successfully fetched user data",
               status: httpStatus.OK,
-              data:[],
+              data: [],
             });
           });
 
