@@ -6,7 +6,7 @@ app:
 replicaCount: 2
 image:
   repository: eu.gcr.io/airqo-250220/airqo-stage-device-monitor-api
-  tag: stage-a986baa8-1675769529
+  tag: stage-c5e8d556-1676632967
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
@@ -17,6 +17,13 @@ resources:
   requests:
     cpu: 5m
     memory: 40Mi
+volumeMounts:
+  - name: config-volume
+    mountPath: /etc/config
+volumes:
+  - name: config-volume
+    configMap:
+      name: device-monitor-config-files
 ingress:
   enabled: false
 service:
