@@ -98,57 +98,54 @@ const createDevice = {
       });
     }
   },
-  generateQR: async (request) => {
+  generateQR: async (request, callback) => {
     try {
-      let { include_site } = request.query;
-      let responseFromListDevice = await createDevice.list(request);
-      if (responseFromListDevice.success) {
-        let deviceBody = responseFromListDevice.data;
+      const { include_site } = request.query;
+      const responseFromListDevice = await createDevice.list(request);
+      logObject("responseFromListDevice", responseFromListDevice);
+      if (responseFromListDevice.success === true) {
+        const deviceBody = responseFromListDevice.data;
         if (isEmpty(deviceBody)) {
-          return {
+          return callback({
             success: false,
             message: "device does not exist",
-          };
+          });
         }
         if (!isEmpty(include_site) && include_site === "no") {
-          // logger.info(`the site details have been removed from the data`);
+          delete deviceBody[0].site;
+        } else if (isEmpty(include_site)) {
           delete deviceBody[0].site;
         }
-        if (isEmpty(include_site)) {
-          delete deviceBody[0].site;
-        }
-        // logger.info(`deviceBody -- ${deviceBody}`);
+
         const stringifiedJSON = JSON.stringify(deviceBody[0]);
-        let responseFromQRCode = await QRCode.toDataURL(stringifiedJSON, {
-          type: String,
-        });
-        // logger.info(`responseFromQRCode -- ${responseFromQRCode}`);
-        if (!isEmpty(responseFromQRCode)) {
-          return {
+        return QRCode.toDataURL(stringifiedJSON, (err, url) => {
+          if (err) {
+            logger.error(`Internal Server Error -- ${err}`);
+            return callback({
+              success: false,
+              errors: { message: err },
+              message: "unable to generate QR code",
+              status: HTTPStatus.INTERNAL_SERVER_ERROR,
+            });
+          }
+          return callback({
             success: true,
             message: "successfully generated the QR Code",
-            data: responseFromQRCode,
+            data: url,
             status: HTTPStatus.OK,
-          };
-        } else if (isEmpty(responseFromQRCode)) {
-          logObject("responseFromQRCode", responseFromQRCode);
-          return {
-            success: true,
-            message: "unable to generate the QR code",
-            status: HTTPStatus.ACCEPTED,
-          };
-        }
+          });
+        });
       } else if (responseFromListDevice.success === false) {
-        return responseFromListDevice;
+        return callback(responseFromListDevice);
       }
     } catch (err) {
       logger.error(`Internal Server Error -- ${err.message}`);
-      return {
+      return callback({
         success: false,
         message: "Internal Server Error",
         errors: { message: err.message },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
-      };
+      });
     }
   },
   create: async (request) => {
