@@ -700,6 +700,8 @@ jobs:
           cd src/device-monitoring/
           gcloud secrets versions access latest --secret="prod-env-device-monitoring" > .env
           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-device-monitoring-production | kubectl replace -f - -n production
+          gcloud secrets versions access latest --secret="prod-key-device-monitoring-service-account" > google_application_credentials.json
+          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json device-monitor-config-files | kubectl replace -f - -n production
 
       - name: Deploy to K8S
         run: |

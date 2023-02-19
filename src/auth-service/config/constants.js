@@ -50,6 +50,7 @@ const stageConfig = {
 };
 
 const defaultConfig = {
+  DEFAULT_TENANT: process.env.DEFAULT_TENANT,
   CLIENT_ID_LENGTH: 26,
   CLIENT_SECRET_LENGTH: 31,
   MOBILE_APP_USERS_TOPIC: process.env.MOBILE_APP_USERS_TOPIC,
@@ -57,7 +58,6 @@ const defaultConfig = {
   EMAIL_VERIFICATION_HOURS: 1,
   EMAIL_VERIFICATION_MIN: 0,
   EMAIL_VERIFICATION_SEC: 0,
-  DEFAULT_TENANT: "airqo",
   TWITTER_ACCOUNT: "https://twitter.com/AirQoProject",
   SLACK_TOKEN: process.env.SLACK_TOKEN,
   SLACK_CHANNEL: process.env.SLACK_CHANNEL,

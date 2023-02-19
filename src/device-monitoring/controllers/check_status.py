@@ -1,17 +1,18 @@
-from flask import Blueprint, request, jsonify
 import logging
+
+from flask import Blueprint, request, jsonify
+
+import routes
 from helpers.convert_dates import validate_datetime
 from helpers.convert_object_ids import convert_model_ids
-from helpers.utils import str_to_bool
 from models import DeviceStatus, NetworkUptime, DeviceUptime
-import routes
 
 _logger = logging.getLogger(__name__)
 
 device_status_bp = Blueprint('device_status', __name__)
 
 
-@device_status_bp.route(routes.DEVICE_STATUS, methods=['GET'])
+@device_status_bp.route(routes.DEVICE_COLLOCATION, methods=['GET'])
 def get_device_status():
     errors = {}
     tenant = request.args.get('tenant')
