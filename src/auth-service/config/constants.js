@@ -14,6 +14,7 @@ const devConfig = {
   KAFKA_CLIENT_ID: process.env.KAFKA_CLIENT_ID_DEV,
   KAFKA_CLIENT_GROUP: process.env.KAFKA_CLIENT_GROUP_DEV,
 };
+
 const prodConfig = {
   DEFAULT_NETWORK: process.env.PRODUCTION_DEFAULT_NETWORK,
   MONGO_URI: process.env.MONGO_PROD_URI,
@@ -50,6 +51,9 @@ const stageConfig = {
 };
 
 const defaultConfig = {
+  UNIQUE_CONSUMER_GROUP: process.env.UNIQUE_CONSUMER_GROUP,
+  UNIQUE_PRODUCER_GROUP: process.env.UNIQUE_PRODUCER_GROUP,
+  NEW_MOBILE_APP_USER_TOPIC: process.env.NEW_MOBILE_APP_USER_TOPIC,
   DEFAULT_TENANT: process.env.DEFAULT_TENANT,
   CLIENT_ID_LENGTH: 26,
   CLIENT_SECRET_LENGTH: 31,

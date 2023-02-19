@@ -7,51 +7,13 @@ const dotenv = require("dotenv");
 dotenv.config();
 const cookieParser = require("cookie-parser");
 const bodyParser = require("body-parser");
-const routes = require("./routes/index");
-const constants = require("./config/constants");
+const routes = require("@routes/index");
+const constants = require("@config/constants");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- app entry`);
-const mongodb = require("./config/dbConnection");
+const mongodb = require("@config/dbConnection");
 mongodb;
 
 const { logText } = require("@utils/log");
-
-const { Kafka } = require("kafkajs");
-const kafka = new Kafka({
-  clientId: constants.KAFKA_CLIENT_ID,
-  brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
-});
-
-const runKafkaConsumer = async () => {
-  try {
-    const kafkaConsumer = kafka.consumer({
-      groupId: constants.UNIQUE_CONSUMER_GROUP,
-    });
-    await kafkaConsumer.connect();
-    await kafkaConsumer.subscribe({
-      topic: constants.MOBILE_APP_USERS_TOPIC,
-      fromBeginning: true,
-    });
-    await kafkaConsumer.run({
-      eachMessage: async ({ message }) => {
-        const receivedData = JSON.parse(message.value).data;
-        if (isEmpty(receivedData)) {
-          logger.error(
-            `KAFKA: the sent receivedData is just empty (undefined) --- ${JSON.stringify(
-              receivedData
-            )}`
-          );
-        }
-      },
-    });
-    await kafkaConsumer.disconnect();
-  } catch (error) {
-    logger.error("KAFKA: internal server error", error.message);
-  }
-};
-
-if (constants.ENVIRONMENT === "STAGING ENVIRONMENT") {
-  runKafkaConsumer();
-}
 
 const app = express();
 

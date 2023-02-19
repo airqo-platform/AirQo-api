@@ -5,15 +5,26 @@
  */
 
 var app = require("../app");
-const constants = require("../config/constants");
-const middlewareConfig = require("../config/middleware");
+const constants = require("@config/constants");
+const middlewareConfig = require("@config/middleware");
 var debug = require("debug")("auth-service:server");
 var http = require("http");
 var isEmpty = require("is-empty");
 const log4js = require('log4js');
-const log4jsConfiguration = require("../config/log4js")
+const log4jsConfiguration = require("@config/log4js")
 log4js.configure(log4jsConfiguration);
 const logger = log4js.getLogger("start-script");
+const { logText, logObject, logElement } = require("@utils/log")
+
+
+/**
+ * KAFKA configuration
+ */
+const { Kafka } = require("kafkajs");
+const kafka = new Kafka({
+    clientId: constants.KAFKA_CLIENT_ID,
+    brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
+});
 
 
 /***
@@ -37,8 +48,30 @@ try {
 try {
     middlewareConfig(app);
 } catch (e) {
-    console.log("middleware error", e.message);
+    logElement("middleware error", e.message)
 }
+
+
+const consumer = kafka.consumer({ groupId: constants.UNIQUE_CONSUMER_GROUP });
+
+// Function to start consuming messages
+const run = async() => {
+    await consumer.connect();
+    await consumer.subscribe({ topic: constants.NEW_MOBILE_APP_USER_TOPIC, fromBeginning: true });
+    await consumer.run({
+        eachMessage: async({ topic, partition, message }) => {
+            logger.info(
+                `KAFKA: successfully received the new User --- ${JSON.stringify({
+                    value: message.value.toString(),
+                })}`
+            );
+            logElement("message.value.toString()", message.value.toString())
+
+        },
+    });
+};
+
+
 
 /**
  * Get port from environment and store in Express.
@@ -57,7 +90,16 @@ var server = http.createServer(app);
  * Listen on provided port, on all network interfaces.
  */
 
-server.listen(port);
+server.listen(port, function() {
+    if (constants.ENVIRONMENT === "STAGING ENVIRONMENT") {
+        run().catch(error => {
+            logger.error(`KAFKA: internal server error -- ${JSON.stringify(error)}`);
+        });
+    }
+    /**
+     * we can also listen for mobile app new users from here
+     */
+});
 server.on("error", onError);
 server.on("listening", onListening);
 
@@ -119,8 +161,8 @@ if (isEmpty(process.env.NODE_ENV)) {
 }
 
 function onListening() {
-    console.log(`server is running on port: ${constants.PORT} ---
-    Running on ${ENV}`);
+    logText(`server is running on port: ${constants.PORT}`)
+    console.log(`The server is running on the ${ENV} environment`)
     var addr = server.address();
     var bind = typeof addr === "string" ? "pipe " + addr : "port " + addr.port;
     debug("Listening on " + bind);
