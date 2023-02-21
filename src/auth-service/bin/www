@@ -21,6 +21,7 @@ const { logText, logObject, logElement } = require("@utils/log")
  * KAFKA configuration
  */
 const { Kafka } = require("kafkajs");
+logObject("KAFKA_BOOTSTRAP_SERVERS", constants.KAFKA_BOOTSTRAP_SERVERS)
 const kafka = new Kafka({
     clientId: constants.KAFKA_CLIENT_ID,
     brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
@@ -39,7 +40,6 @@ try {
         process.exit(1);
     }
 }
-
 
 
 /****
@@ -65,13 +65,10 @@ const run = async() => {
                     value: message.value.toString(),
                 })}`
             );
-            logElement("message.value.toString()", message.value.toString())
-
+            logObject("message.value.toString()", message.value.toString())
         },
     });
 };
-
-
 
 /**
  * Get port from environment and store in Express.
@@ -97,8 +94,9 @@ server.listen(port, function() {
         });
     }
     /**
-     * we can also listen for mobile app new users from here
+     * we can also listen for mobile app Firebase new users from here
      */
+
 });
 server.on("error", onError);
 server.on("listening", onListening);
