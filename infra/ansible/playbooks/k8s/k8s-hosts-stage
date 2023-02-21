@@ -2,7 +2,7 @@ k8s_cluster:
   children:
     k8s_master:
       hosts:
-        10.240.0.100:
+        10.240.0.100
     k8s_workers:
       hosts:
         10.240.0.102
