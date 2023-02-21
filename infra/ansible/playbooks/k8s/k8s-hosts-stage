@@ -14,3 +14,7 @@ k8s_cluster:
               hosts:
                 10.240.0.36:
                   name: airqo-stage-k8s-worker-0
+            monthly:
+              hosts:
+                10.240.0.39:
+                  name: airqo-stage-k8s-worker-3

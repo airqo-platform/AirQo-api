@@ -7,6 +7,8 @@
         src: templates/remove_preemptives.sh.j2
         dest: /root/remove_preemptives.sh
         mode: a+x
+      vars:
+        preemptive_node: "{{ hostvars[groups['hourly'].0].name }}"
 
     - name: Create cronjob to run the remove_preemptives script at minute 8 of every hour
       cron:
