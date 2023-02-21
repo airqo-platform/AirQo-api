@@ -8,8 +8,9 @@ k8s_cluster:
         10.240.0.102
         10.240.0.70
       children:
-        hourly_preemptive_node:
-          hosts:
-            10.240.0.36:
-  vars:
-    hourly_preemptive_node_name: airqo-stage-k8s-worker-0
+        preemptive_nodes:
+          children:
+            hourly:
+              hosts:
+                10.240.0.36:
+                  name: airqo-stage-k8s-worker-0

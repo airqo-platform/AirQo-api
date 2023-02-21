@@ -22,7 +22,7 @@
       set_fact:
         join_command: "{{ join_command_raw.stdout_lines[0] }}"
 
-- hosts: hourly_preemptive_node
+- hosts: preemptive_nodes
   become: true
   tasks:
     - name: Create the add node and reset node scripts on preemptive worker
