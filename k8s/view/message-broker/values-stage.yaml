@@ -6,7 +6,7 @@ app:
 replicaCount: 2
 image:
   repository: eu.gcr.io/airqo-250220/airqo-stage-view-message-broker
-  tag: stage-a986baa8-1675769529
+  tag: stage-81e38af9-1676976444
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations:
