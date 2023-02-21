@@ -84,3 +84,27 @@
             job: "/bin/bash /root/leave_k8s_cluster.sh",
           }
       when: inventory_hostname in groups['hourly']
+
+    - name: Create cronjobs for monthly preemptive for joining and leaving cluster
+      cron:
+        name: "{{ item.name }}"
+        day: "{{ item.day }}"
+        hour: "{{ item.hour }}"
+        minute: "{{ item.minute }}"
+        job: "{{ item.job }}"
+      with_items:
+        - {
+            name: "Add node to k8s cluster",
+            day: "1",
+            hour: "2",
+            minute: "57",
+            job: "sudo /bin/bash /root/join_k8s_cluster.sh",
+          }
+        - {
+            name: "Reset k8s node",
+            day: "1",
+            hour: "5",
+            minute: "0",
+            job: "/bin/bash /root/leave_k8s_cluster.sh",
+          }
+      when: inventory_hostname in groups['monthly']
