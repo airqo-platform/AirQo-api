@@ -2,11 +2,11 @@ app:
   name: airqo-view-api
   label: view-api
   namespace: production
-  configmap: prod-view-api-config
+  configmap: stage-view-api-config
 replicaCount: 2
 image:
   repository: eu.gcr.io/airqo-250220/airqo-view-api
-  tag: prod-bfec5269-1675866864
+  tag: prod-05dd7525-1677074761
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
