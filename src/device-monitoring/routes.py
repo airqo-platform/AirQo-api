@@ -1,13 +1,13 @@
-BASE_URL = "/api/v1/monitor"
+BASE_URL = '/api/v1/monitor'
 
-HEALTH = f"{BASE_URL}/health"
+HEALTH = f'{BASE_URL}/health'
 
-DEVICE_STATUS = f"{BASE_URL}/devices/status"
+DEVICE_STATUS = f'{BASE_URL}/devices/status'
 
-DEVICE_COLLOCATION = f"{BASE_URL}/devices/collocation"
+DEVICE_COLLOCATION = f'{BASE_URL}/devices/collocation'
 
-NETWORK_UPTIME = f"{BASE_URL}/network/uptime"
+NETWORK_UPTIME = f'{BASE_URL}/network/uptime'
 
-DEVICE_UPTIME = f"{BASE_URL}/devices/uptime"
+DEVICE_UPTIME = f'{BASE_URL}/devices/uptime'
 
-DEVICE_UPTIME_LEADERBOARD = f"{BASE_URL}/device/uptime/leaderboard"
+DEVICE_UPTIME_LEADERBOARD = f'{BASE_URL}/device/uptime/leaderboard'
