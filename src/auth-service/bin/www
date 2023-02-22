@@ -16,7 +16,6 @@ log4js.configure(log4jsConfiguration);
 const logger = log4js.getLogger("start-script");
 const { logText, logObject, logElement } = require("@utils/log")
 
-
 /**
  * KAFKA configuration
  */
@@ -93,10 +92,6 @@ server.listen(port, function() {
             logger.error(`KAFKA: internal server error -- ${JSON.stringify(error)}`);
         });
     }
-    /**
-     * we can also listen for mobile app Firebase new users from here
-     */
-
 });
 server.on("error", onError);
 server.on("listening", onListening);

@@ -59,9 +59,6 @@ app.use("/api/v2/users/defaults", routes.v2.defaults);
 app.use("/api/v2/users", routes.v2.users);
 
 require("@config/firebase-admin");
-const firebaseFuncs = require("@config/firebase-admin");
-// firebaseFuncs.newUserSignUp();
-// firebaseFuncs.userDeleted();
 
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {
