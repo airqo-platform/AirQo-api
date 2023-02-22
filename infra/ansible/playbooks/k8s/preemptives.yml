@@ -36,8 +36,8 @@
         - {
             name: "Remove monthly preemptive k8s node from cluster",
             day: "1",
-            hour: "4",
-            minute: "59",
+            hour: "2",
+            minute: "58",
             job: "/bin/bash /root/remove_preemptive_monthly.sh",
           }
 
@@ -96,15 +96,15 @@
         - {
             name: "Add node to k8s cluster",
             day: "1",
-            hour: "2",
+            hour: "0",
             minute: "57",
             job: "sudo /bin/bash /root/join_k8s_cluster.sh",
           }
         - {
             name: "Reset k8s node",
             day: "1",
-            hour: "5",
-            minute: "0",
+            hour: "2",
+            minute: "59",
             job: "/bin/bash /root/leave_k8s_cluster.sh",
           }
       when: inventory_hostname in groups['monthly']

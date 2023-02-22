@@ -5,10 +5,10 @@ resource "google_compute_resource_policy" "monthly_k8s_runners" {
   description = "Start and stop instances that run the Kubernetes monthly cronjobs"
   instance_schedule_policy {
     vm_start_schedule {
-      schedule = "40 2 1 * *"
+      schedule = "40 0 1 * *"
     }
     vm_stop_schedule {
-      schedule = "0 5 1 * *"
+      schedule = "0 3 1 * *"
     }
     time_zone = "UTC"
   }
