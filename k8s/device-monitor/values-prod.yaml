@@ -6,7 +6,7 @@ app:
 replicaCount: 3
 image:
   repository: eu.gcr.io/airqo-250220/airqo-device-monitor-api
-  tag: prod-bfec5269-1675866864
+  tag: prod-05dd7525-1677074761
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
@@ -17,6 +17,13 @@ resources:
   requests:
     cpu: 5m
     memory: 50Mi
+volumeMounts:
+  - name: config-volume
+    mountPath: /etc/config
+volumes:
+  - name: config-volume
+    configMap:
+      name: device-monitor-config-files
 ingress:
   enabled: false
 service:
