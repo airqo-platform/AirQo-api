@@ -81,7 +81,7 @@
         - {
             name: "Reset k8s node",
             minute: "9",
-            job: "/bin/bash /root/leave_k8s_cluster.sh",
+            job: "sudo /bin/bash /root/leave_k8s_cluster.sh",
           }
       when: inventory_hostname in groups['hourly']
 
@@ -105,6 +105,6 @@
             day: "1",
             hour: "2",
             minute: "59",
-            job: "/bin/bash /root/leave_k8s_cluster.sh",
+            job: "sudo /bin/bash /root/leave_k8s_cluster.sh",
           }
       when: inventory_hostname in groups['monthly']
