@@ -3,7 +3,7 @@ app:
   namespace: staging
   configmap: env-train-job-staging
 
-schedule: 0 5 * * 1
+schedule: 0 1 1 * *
 
 image:
   repository: eu.gcr.io/airqo-250220/stage-airqo-train-job
