@@ -2,10 +2,10 @@ app:
   name: stage-airqo-train-job
   namespace: staging
   configmap: env-train-job-staging
-schedule: 0 5 * * 1
+schedule: 0 1 1 * *
 image:
   repository: eu.gcr.io/airqo-250220/stage-airqo-train-job
-  tag: stage-ce845393-1675841271
+  tag: stage-5189fb0f-1677154122
 nameOverride: ''
 fullnameOverride: ''
 resources:
