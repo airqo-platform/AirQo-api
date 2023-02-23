@@ -69,12 +69,6 @@ class MessageBrokerUtils:
             ).add_callback(self.__on_success).add_errback(self.__on_error)
 
     @staticmethod
-    def update_measurements_topic(data: pd.DataFrame):
-        MessageBrokerUtils().__send_data(
-            topic=configuration.HOURLY_MEASUREMENTS_TOPIC, data=data
-        )
-
-    @staticmethod
     def update_hourly_data_topic(data: pd.DataFrame):
 
         devices = AirQoApi().get_devices(tenant=Tenant.ALL)
