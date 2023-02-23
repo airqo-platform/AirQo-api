@@ -150,3 +150,17 @@ spec:
   replicas: 2
   config:
     retention.ms: 86400000
+
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: new-mobile-app-user-topic
+  namespace: message-broker
+  labels:
+    strimzi.io/cluster: kafka-cluster
+spec:
+  partitions: 3
+  replicas: 2
+  config:
+    retention.ms: 86400000

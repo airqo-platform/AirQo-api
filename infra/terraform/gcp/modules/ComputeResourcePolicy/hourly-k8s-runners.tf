@@ -10,7 +10,7 @@ resource "google_compute_resource_policy" "hourly_k8s_runners" {
     vm_stop_schedule {
       schedule = "10 * * * *"
     }
-    time_zone = "Africa/Kampala"
+    time_zone = "UTC"
   }
 }
 # terraform import google_compute_resource_policy.hourly_k8s_runners projects/${var.project_id}/regions/${var.region}/resourcePolicies/hourly-k8s-runners
