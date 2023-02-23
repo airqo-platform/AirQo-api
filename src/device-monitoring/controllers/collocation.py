@@ -102,6 +102,7 @@ def get_device_collocation():
             400,
         )
 
+
     collocation = Collocation(
         devices=list(set(devices)),
         start_date=start_date,
