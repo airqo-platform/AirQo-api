@@ -47,6 +47,7 @@ class MessageBrokerUtils:
         print(data.info())
         print("Dataframe description : ")
         print(data.describe())
+        data = data.replace(np.nan, None)
 
         chunks = int(len(data) / 50)
         chunks = chunks if chunks > 0 else 1
@@ -66,12 +67,6 @@ class MessageBrokerUtils:
                 value=json.dumps(message, allow_nan=True).encode("utf-8"),
                 partition=current_partition,
             ).add_callback(self.__on_success).add_errback(self.__on_error)
-
-    @staticmethod
-    def update_measurements_topic(data: pd.DataFrame):
-        MessageBrokerUtils().__send_data(
-            topic=configuration.HOURLY_MEASUREMENTS_TOPIC, data=data
-        )
 
     @staticmethod
     def update_hourly_data_topic(data: pd.DataFrame):
