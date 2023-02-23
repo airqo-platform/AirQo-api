@@ -1,5 +1,6 @@
 process.env.NODE_ENV = "development";
 
+require('dotenv').config();
 require("module-alias/register");
 const chai = require("chai");
 const chaiHttp = require("chai-http");
@@ -37,17 +38,18 @@ let stubValue = {
   distance_to_nearest_city: faker.datatype.float(),
   distance_to_nearest_road: faker.datatype.float(),
   lat_long: `${faker.datatype.float()}_${faker.datatype.float()}`,
+  altitude: faker.datatype.float(),
+  aspect: faker.datatype.float(),
+  greenness: faker.datatype.float(),
+  roadStatus: faker.datatype.float(),
+  landUse: faker.datatype.float(),
+  terrain:faker.datatype.float(),
+  trafficFactor:faker.datatype.float(),
 };
 stubValue.name = stubValue.name.replaceAll(" ", "-");
 
 
 describe("create Site utils", function () {
-  // afterEach(() => {
-  //   if (Modelstub != null) {
-  //     Modelstub.reset();
-  //   }
-         
-  // });
 
   describe("create", function () {
       it("should create a new site", async function () {
@@ -119,7 +121,6 @@ describe("create Site utils", function () {
       expect(stub.calledOnce).to.be.true;
       expect(deletedSite).to.not.be.empty;
       expect(deletedSite).to.be.a("object");
-      // assert.equal(deletedSite.success, true, "the site has been deleted");
     });
   });
   /**
@@ -263,8 +264,8 @@ describe("create Site utils", function () {
         stubValue.longitude
       );
       mock.verify();
-      // expect(altitude).to.not.be.empty;
-      // expect(altitude).to.be.a("number");
+      expect(altitude.altitude).to.not.be.null;
+      expect(altitude.altitude).to.be.a("number");
     });
   });
 
@@ -276,8 +277,8 @@ describe("create Site utils", function () {
         stubValue.latitude,
         stubValue.longitude
       );
-      // expect(trafficFactor).to.not.be.empty;
-      // expect(trafficFactor).to.be.a("number");
+      expect(trafficFactor.trafficFactor).to.not.be.null;
+      expect(trafficFactor.trafficFactor).to.be.a("number");
     });
   });
 
@@ -289,8 +290,8 @@ describe("create Site utils", function () {
         stubValue.latitude,
         stubValue.longitude
       );
-      // expect(greenness).to.not.be.empty;
-      // expect(greenness).to.be.a("number");
+      expect(greenness.greenness).to.not.be.null;
+      expect(greenness.greenness).to.be.a("number");
     });
   });
 
@@ -302,8 +303,8 @@ describe("create Site utils", function () {
         stubValue.latitude,
         stubValue.longitude
       );
-      // expect(terrain).to.not.be.empty;
-      // expect(terrain).to.be.a("number");
+      expect(terrain.terrain).to.not.be.null;
+      expect(terrain.terrain).to.be.a("number");
     });
   });
 
@@ -312,8 +313,8 @@ describe("create Site utils", function () {
       let mock = sinon.mock(siteUtil).expects("getAspect")
         .withExactArgs(stubValue.latitude, stubValue.longitude).returns(stubValue);
       let aspect = siteUtil.getAspect(stubValue.latitude, stubValue.longitude);
-      // expect(aspect).to.not.be.empty;
-      // expect(aspect).to.be.a("number");
+      expect(aspect.aspect).to.not.be.null;
+      expect(aspect.aspect).to.be.a("number");
     });
   });
 
@@ -325,8 +326,8 @@ describe("create Site utils", function () {
         stubValue.latitude,
         stubValue.longitude
       );
-      // expect(roadIntesity).to.not.be.empty;
-      // expect(roadIntesity).to.be.a("number");
+      expect(roadIntesity.road_intensity).to.not.be.null;
+      expect(roadIntesity.road_intensity).to.be.a("number");
     });
   });
 
@@ -338,8 +339,8 @@ describe("create Site utils", function () {
         stubValue.latitude,
         stubValue.longitude
       );
-      // expect(roadStatus).to.not.be.empty;
-      // expect(roadStatus).to.be.a("number");
+      expect(roadStatus.roadStatus).to.not.be.null;
+      expect(roadStatus.roadStatus).to.be.a("number");
     });
   });
 
@@ -351,8 +352,8 @@ describe("create Site utils", function () {
         stubValue.latitude,
         stubValue.longitude
       );
-      // expect(landUse).to.not.be.empty;
-      // expect(landUse).to.be.a("number");
+      expect(landUse.landUse).to.not.be.null;
+      expect(landUse.landUse).to.be.a("number");
     });
   });
 
