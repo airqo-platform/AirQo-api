@@ -6,14 +6,14 @@ app:
 replicaCount: 2
 image:
   repository: eu.gcr.io/airqo-250220/airqo-stage-device-monitor-api
-  tag: latest
+  tag: stage-f06212e1-1677156245
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
 resources:
   limits:
-    cpu: 50m
-    memory: 80Mi
+    cpu: 500m
+    memory: 800Mi
   requests:
     cpu: 5m
     memory: 40Mi
