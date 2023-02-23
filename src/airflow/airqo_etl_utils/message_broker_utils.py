@@ -47,6 +47,7 @@ class MessageBrokerUtils:
         print(data.info())
         print("Dataframe description : ")
         print(data.describe())
+        data = data.replace(np.nan, None)
 
         chunks = int(len(data) / 50)
         chunks = chunks if chunks > 0 else 1
