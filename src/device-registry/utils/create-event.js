@@ -1160,8 +1160,7 @@ const createEvent = {
           callback({
             success: false,
             message: "no cache present",
-            data: resultJSON,
-            errors: { message: err.message },
+            errors: { message: "no cache present" },
           });
         }
       });
@@ -1397,7 +1396,7 @@ const createEvent = {
         logElement("responseFromTransformEvents was false?", true);
         return responseFromTransformEvents;
       } else if (responseFromTransformEvents.success === true) {
-        let transformedMeasurements = responseFromTransformEvents.data;
+        const transformedMeasurements = responseFromTransformEvents.data;
         const responseFromInsertEvents = await createEvent.insertTransformedEvents(
           tenant,
           transformedMeasurements
