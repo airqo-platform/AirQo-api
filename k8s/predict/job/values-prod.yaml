@@ -5,7 +5,7 @@ app:
 schedule: 0 * * * *
 image:
   repository: eu.gcr.io/airqo-250220/airqo-predict-job
-  tag: prod-bfec5269-1675866864
+  tag: prod-ffd6c4c3-1677156304
 nameOverride: ''
 fullnameOverride: ''
 resources:
