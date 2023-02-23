@@ -1,4 +1,4 @@
-const { logElement } = require("../utils/log");
+const { logElement } = require("@utils/log");
 const constants = require("./constants");
 
 const log4js = {
@@ -32,7 +32,8 @@ const log4js = {
     },
   },
   categories: {
-    default: { appenders: ["alerts", "errors"], level: "error" },
+    default: { appenders: ["alerts"], level: "info" },
+    error: { appenders: ["alerts", "errors"], level: "error" },
     http: { appenders: ["access"], level: "DEBUG" },
   },
 };

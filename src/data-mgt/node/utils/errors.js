@@ -24,5 +24,10 @@ const errors = {
       },
     });
   },
+  badRequest: (res, message, errors) => {
+    res
+      .status(HTTPStatus.BAD_REQUEST)
+      .json({ success: false, message, errors });
+  },
 };
 module.exports = errors;

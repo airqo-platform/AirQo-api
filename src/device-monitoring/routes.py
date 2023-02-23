@@ -4,6 +4,8 @@ HEALTH = f'{BASE_URL}/health'
 
 DEVICE_STATUS = f'{BASE_URL}/devices/status'
 
+DEVICE_COLLOCATION = f'{BASE_URL}/devices/collocation'
+
 NETWORK_UPTIME = f'{BASE_URL}/network/uptime'
 
 DEVICE_UPTIME = f'{BASE_URL}/devices/uptime'

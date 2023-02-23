@@ -1,4 +1,4 @@
-const ActivitySchema = require("../models/SiteActivity");
+const ActivitySchema = require("@models/SiteActivity");
 const { logObject, logElement, logText } = require("./log");
 const { getModelByTenant } = require("./multitenancy");
 const ActivityModel = (tenant) => {
@@ -9,7 +9,7 @@ const createSiteUtil = require("./create-site");
 const httpStatus = require("http-status");
 const { addMonthsToProvideDateTime } = require("./date");
 const generateFilter = require("./generate-filter");
-const constants = require("../config/constants");
+const constants = require("@config/constants");
 const distance = require("./distance");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
@@ -86,11 +86,11 @@ const createActivity = {
 
   list: async (request) => {
     try {
-      let { query } = request;
-      let { tenant } = query;
+      const { query } = request;
+      const { tenant } = query;
       const limit = 1000;
       const skip = parseInt(query.skip) || 0;
-      let filter = generateFilter.activities_v0(request);
+      const filter = generateFilter.activities(request);
 
       let responseFromListActivity = await getModelByTenant(
         tenant.toLowerCase(),
@@ -101,33 +101,7 @@ const createActivity = {
         limit,
         skip,
       });
-
-      if (responseFromListActivity.success === false) {
-        let errors = responseFromListActivity.errors
-          ? responseFromListActivity.errors
-          : "";
-
-        let status = responseFromListActivity.status
-          ? responseFromListActivity.status
-          : "";
-        return {
-          success: false,
-          message: responseFromListActivity.message,
-          errors,
-          status,
-        };
-      } else if (responseFromListActivity.success === true) {
-        let status = responseFromListActivity.status
-          ? responseFromListActivity.status
-          : "";
-        let data = responseFromListActivity.data;
-        return {
-          success: true,
-          message: responseFromListActivity.message,
-          data,
-          status,
-        };
-      }
+      return responseFromListActivity;
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
       return {
@@ -140,13 +114,13 @@ const createActivity = {
 
   update: async (request) => {
     try {
-      let { query, body } = request;
-      let { tenant } = query;
+      const { query, body } = request;
+      const { tenant } = query;
 
-      let update = body;
-      let filter = generateFilter.activities_v0(request);
+      const update = body;
+      const filter = generateFilter.activities(request);
 
-      let responseFromModifyActivity = await getModelByTenant(
+      const responseFromModifyActivity = await getModelByTenant(
         tenant.toLowerCase(),
         "activity",
         ActivitySchema
@@ -155,32 +129,7 @@ const createActivity = {
         update,
       });
 
-      if (responseFromModifyActivity.success === true) {
-        let status = responseFromModifyActivity.status
-          ? responseFromModifyActivity.status
-          : "";
-        return {
-          success: true,
-          message: responseFromModifyActivity.message,
-          data: responseFromModifyActivity.data,
-          status,
-        };
-      } else if (responseFromModifyActivity.success === false) {
-        let errors = responseFromModifyActivity.errors
-          ? responseFromModifyActivity.errors
-          : "";
-
-        let status = responseFromModifyActivity.status
-          ? responseFromModifyActivity.status
-          : "";
-
-        return {
-          success: false,
-          message: responseFromModifyActivity.message,
-          errors,
-          status,
-        };
-      }
+      return responseFromModifyActivity;
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
       return {
@@ -194,10 +143,11 @@ const createActivity = {
 
   delete: async (request) => {
     try {
-      let { query } = request;
-      let { tenant } = query;
-      let filter = generateFilter.activities_v0(request);
-      let responseFromRemoveActivity = await getModelByTenant(
+      const { query } = request;
+      const { tenant } = query;
+      const filter = generateFilter.activities(request);
+
+      const responseFromRemoveActivity = await getModelByTenant(
         tenant.toLowerCase(),
         "activity",
         ActivitySchema
@@ -205,32 +155,7 @@ const createActivity = {
         filter,
       });
 
-      if (responseFromRemoveActivity.success === true) {
-        let status = responseFromRemoveActivity.status
-          ? responseFromRemoveActivity.status
-          : "";
-        return {
-          success: true,
-          message: responseFromRemoveActivity.message,
-          data: responseFromRemoveActivity.data,
-          status,
-        };
-      } else if (responseFromRemoveActivity.success === false) {
-        let errors = responseFromRemoveActivity.errors
-          ? responseFromRemoveActivity.errors
-          : "";
-
-        let status = responseFromRemoveActivity.status
-          ? responseFromRemoveActivity.status
-          : "";
-
-        return {
-          success: false,
-          message: responseFromRemoveActivity.message,
-          errors,
-          status,
-        };
-      }
+      return responseFromRemoveActivity;
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
       return {

@@ -109,21 +109,3 @@ class AirnowDataUtils:
 
         air_now_data = pd.DataFrame(air_now_data)
         return DataValidationUtils.remove_outliers(air_now_data)
-
-    @staticmethod
-    def process_latest_bam_data(data: pd.DataFrame) -> pd.DataFrame:
-        data["s1_pm2_5"] = data["pm2_5"]
-        data["pm2_5_raw_value"] = data["pm2_5"]
-        data["pm2_5_calibrated_value"] = data["pm2_5"]
-
-        data["s1_pm10"] = data["pm10"]
-        data["pm10_raw_value"] = data["pm10"]
-        data["pm10_calibrated_value"] = data["pm10"]
-
-        data["no2_raw_value"] = data["no2"]
-        data["no2_calibrated_value"] = data["no2"]
-
-        data.loc[:, "tenant"] = str(Tenant.US_EMBASSY)
-        data.loc[:, "device_category"] = str(DeviceCategory.BAM)
-
-        return data

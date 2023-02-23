@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 const app = require("../app");
-const constants = require("../config/constants");
+const constants = require("@config/constants");
 const middlewareConfig = require("../config/app.middleware");
 const debug = require('debug')('log4js-example');
 const cluster = require('express-cluster');
@@ -10,9 +10,24 @@ const isEmpty = require("is-empty");
 const log4js = require('log4js');
 const log4jsConfiguration = require("../config/log4js")
 log4js.configure(log4jsConfiguration);
-const logger = log4js.getLogger("start-script");
+const logger = log4js.getLogger(
+    `${constants.ENVIRONMENT} -- start-script`
+);
 const server = http.createServer(app);
+const { logText, logObject, logElement } = require("@utils/log")
 
+const createEvent = require("@utils/create-event");
+
+
+const { Kafka } = require('kafkajs');
+
+logObject("KAFKA_BOOTSTRAP_SERVERS", constants.KAFKA_BOOTSTRAP_SERVERS)
+
+// Set up the Kafka client
+const kafka = new Kafka({
+    clientId: constants.KAFKA_CLIENT_ID,
+    brokers: constants.KAFKA_BOOTSTRAP_SERVERS
+});
 
 /***
  *  make a log directory, just in case it isn't there.
@@ -33,9 +48,52 @@ try {
 try {
     middlewareConfig(app);
 } catch (e) {
-    console.log("middleware error", e.message);
+    logElement("middleware error", e.message)
 }
 
+// Set up the Kafka consumer
+const consumer = kafka.consumer({ groupId: constants.UNIQUE_CONSUMER_GROUP });
+
+// Function to start consuming KAFKA messages
+const run = async() => {
+    await consumer.connect();
+    await consumer.subscribe({ topic: constants.HOURLY_MEASUREMENTS_TOPIC, fromBeginning: true });
+    await consumer.run({
+        eachMessage: async({ topic, partition, message }) => {
+            const measurements = JSON.parse(message.value).data;
+            if (!Array.isArray(measurements) || isEmpty(measurements)) {
+                logger.error(
+                    `KAFKA: the sent measurements are not an array or they are just empty (undefined) --- ${JSON.stringify(
+              measurements
+            )}`
+                );
+            }
+            const responseFromInsertMeasurements = await createEvent.insert(
+                "airqo",
+                measurements
+            );
+
+            logObject("responseFromInsertMeasurements", responseFromInsertMeasurements)
+            logObject("value: message.value.toString()", {
+                value: message.value.toString(),
+            })
+
+            if (responseFromInsertMeasurements.success === false) {
+                logger.error(
+                    `KAFKA: responseFromInsertMeasurements --- ${JSON.stringify(
+              responseFromInsertMeasurements
+            )}`
+                );
+            } else if (responseFromInsertMeasurements.success === true) {
+                logger.info(
+                    `KAFKA: successfully inserted the measurements --- ${JSON.stringify(responseFromInsertMeasurements.message ?
+                        responseFromInsertMeasurements.message :
+                        "")}`
+                );
+            }
+        },
+    });
+};
 /***
  * start up a cluster
  */
@@ -47,7 +105,15 @@ cluster(function() {
     //Create HTTP server.
     //Listen on provided port, on all network interfaces.
     server.listen(port, function() {
-        logger.info('Express server listening on port ', server.address().port, " with pid ", process.pid);
+        /**
+         * only run KAFKA in staging for now --- as we continue to do QA tests
+         */
+        if (constants.ENVIRONMENT === "STAGING ENVIRONMENT") {
+            run().catch(error => {
+                logger.error(`KAFKA: internal server error -- ${JSON.stringify(error)}`);
+            });
+        }
+        // logger.info('Express server listening on port ', server.address().port, " with pid ", process.pid);
     });
     server.on("error", onError);
     server.on("listening", onListening);
@@ -116,8 +182,8 @@ if (isEmpty(process.env.NODE_ENV)) {
 }
 
 function onListening() {
-    console.log(`server is running on port: ${constants.PORT} ---
-Running on ${ENV}`);
+    logText(`server is running on port: ${constants.PORT}`)
+    console.log(`The server is running on the ${ENV} environment`)
     const addr = server.address();
     const bind = typeof addr === "string" ? "pipe " + addr : "port " + addr.port;
     debug("Listening on " + bind);

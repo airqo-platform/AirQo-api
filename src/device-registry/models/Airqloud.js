@@ -1,10 +1,10 @@
 const { Schema } = require("mongoose");
 const ObjectId = Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
-const { logElement, logObject, logText } = require("../utils/log");
+const { logElement, logObject, logText } = require("@utils/log");
 const isEmpty = require("is-empty");
 const HTTPStatus = require("http-status");
-const constants = require("../config/constants");
+const constants = require("@config/constants");
 const log4js = require("log4js");
 const { stringify } = require("qs");
 const logger = log4js.getLogger(
@@ -170,14 +170,14 @@ const airqloudSchema = new Schema(
   }
 );
 
-airqloudSchema.pre("save", function (next) {
+airqloudSchema.pre("save", function(next) {
   if (this.isModified("_id")) {
     delete this._id;
   }
   return next();
 });
 
-airqloudSchema.pre("update", function (next) {
+airqloudSchema.pre("update", function(next) {
   if (this.isModified("_id")) {
     delete this._id;
   }
@@ -254,7 +254,9 @@ airqloudSchema.statics = {
       message = "validation errors for some of the provided fields";
       const status = HTTPStatus.CONFLICT;
       Object.entries(err.errors).forEach(([key, value]) => {
-        return (response[value.path] = value.message);
+        response.message = value.message;
+        response[value.path] = value.message;
+        return response;
       });
 
       return {
@@ -268,7 +270,7 @@ airqloudSchema.statics = {
   async list({ filter = {}, _limit = 1000, _skip = 0 } = {}) {
     try {
       logElement("the limit in the model", _limit);
-      const { summary } = filter;
+      const { summary, dashboard } = filter;
 
       let projectAll = {
         _id: 1,
@@ -300,11 +302,30 @@ airqloudSchema.statics = {
         },
       };
 
+      const projectDashboard = {
+        _id: 1,
+        name: 1,
+        long_name: 1,
+        description: 1,
+        airqloud_tags: 1,
+        admin_level: 1,
+        isCustom: 1,
+        metadata: 1,
+        center_point: 1,
+        airqloud_codes: 1,
+        sites: "$sites",
+      };
+
       let projection = projectAll;
 
       if (!isEmpty(summary)) {
         projection = projectSummary;
         delete filter.summary;
+      }
+
+      if (!isEmpty(dashboard)) {
+        projection = projectDashboard;
+        delete filter.dashboard;
       }
 
       let data = await this.aggregate()

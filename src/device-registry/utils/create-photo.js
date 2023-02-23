@@ -1,10 +1,10 @@
 const HTTPStatus = require("http-status");
-const PhotoSchema = require("../models/Photo");
+const PhotoSchema = require("@models/Photo");
 const { getModelByTenant } = require("./multitenancy");
 const isEmpty = require("is-empty");
 const axios = require("axios");
-const constants = require("../config/constants");
-const cloudinary = require("../config/cloudinary");
+const constants = require("@config/constants");
+const cloudinary = require("@config/cloudinary");
 const { logObject, logElement, logText } = require("./log");
 const generateFilter = require("./generate-filter");
 const log4js = require("log4js");
@@ -32,47 +32,11 @@ const createPhoto = {
         const responseFromCreatePhotoOnPlatform = await createPhoto.createPhotoOnPlatform(
           enrichedRequest
         );
-
-        if (responseFromCreatePhotoOnPlatform.success === true) {
-          const status = responseFromCreatePhotoOnPlatform.status
-            ? responseFromCreatePhotoOnPlatform.status
-            : "";
-          return {
-            success: true,
-            message: responseFromCreatePhotoOnPlatform.message,
-            status,
-          };
-        }
-
-        if (responseFromCreatePhotoOnPlatform.success === false) {
-          const status = responseFromCreatePhotoOnPlatform.status
-            ? responseFromCreatePhotoOnPlatform.status
-            : "";
-          const errors = responseFromCreatePhotoOnPlatform.errors
-            ? responseFromCreatePhotoOnPlatform.errors
-            : "";
-          return {
-            success: false,
-            message: responseFromCreatePhotoOnPlatform.message,
-            errors,
-            status,
-          };
-        }
+        return responseFromCreatePhotoOnPlatform;
       }
 
       if (responseFromCreatePhotoOnCloudinary.success === false) {
-        const status = responseFromCreatePhotoOnCloudinary.status
-          ? responseFromCreatePhotoOnCloudinary.status
-          : "";
-        const errors = responseFromCreatePhotoOnCloudinary.errors
-          ? responseFromCreatePhotoOnCloudinary.errors
-          : "";
-        return {
-          success: false,
-          message: responseFromCreatePhotoOnCloudinary.message,
-          errors,
-          status,
-        };
+        return responseFromCreatePhotoOnCloudinary;
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
@@ -88,7 +52,7 @@ const createPhoto = {
   },
   update: async (request) => {
     try {
-      const responseFromUpdatePhotoOnCloudinary = await createPhoto.updatePhotoOnPlatform(
+      const responseFromUpdatePhotoOnCloudinary = await createPhoto.updatePhotoOnCloudinary(
         request
       );
 
@@ -96,47 +60,10 @@ const createPhoto = {
         const responseFromUpdatePhotoOnPlatform = await createPhoto.updatePhotoOnPlatform(
           request
         );
-
-        if (responseFromUpdatePhotoOnPlatform.success === true) {
-          const status = responseFromUpdatePhotoOnPlatform.status
-            ? responseFromUpdatePhotoOnPlatform.status
-            : "";
-          return {
-            success: true,
-            message: responseFromUpdatePhotoOnPlatform.message,
-            data: responseFromUpdatePhotoOnPlatform.data,
-          };
-        }
-
-        if (responseFromUpdatePhotoOnPlatform.success === false) {
-          const status = responseFromUpdatePhotoOnPlatform.status
-            ? responseFromUpdatePhotoOnPlatform.status
-            : "";
-          const errors = responseFromUpdatePhotoOnPlatform.errors
-            ? responseFromUpdatePhotoOnPlatform.errors
-            : "";
-          return {
-            success: false,
-            message: responseFromUpdatePhotoOnPlatform.message,
-            errors,
-            status,
-          };
-        }
+        return responseFromUpdatePhotoOnPlatform;
       }
-
       if (responseFromUpdatePhotoOnCloudinary.success === false) {
-        const status = responseFromUpdatePhotoOnCloudinary.status
-          ? responseFromUpdatePhotoOnCloudinary.status
-          : "";
-        const errors = responseFromUpdatePhotoOnCloudinary.errors
-          ? responseFromUpdatePhotoOnCloudinary.errors
-          : "";
-        return {
-          success: false,
-          message: responseFromUpdatePhotoOnCloudinary.message,
-          errors,
-          status,
-        };
+        return responseFromUpdatePhotoOnCloudinary;
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
@@ -152,7 +79,7 @@ const createPhoto = {
   },
   extractPhotoDetails: async (request) => {
     try {
-      let responseFromListPhotos = await createPhoto.list(request);
+      const responseFromListPhotos = await createPhoto.list(request);
       logObject("responseFromListPhotos", responseFromListPhotos);
       if (responseFromListPhotos.success === true) {
         const photoDetails = responseFromListPhotos.data[0];
@@ -160,7 +87,7 @@ const createPhoto = {
           return {
             success: false,
             message: "unable to find photo from the system",
-            error: {
+            errors: {
               message: "realized more than one photo from the system",
             },
           };
@@ -188,7 +115,7 @@ const createPhoto = {
       const { id } = request.query;
       let arrayOfOneImage = [];
       let device_name = "";
-      let responseFromExtractPhotoDetails = await createPhoto.extractPhotoDetails(
+      const responseFromExtractPhotoDetails = await createPhoto.extractPhotoDetails(
         request
       );
 
@@ -202,9 +129,7 @@ const createPhoto = {
         const imageURL = photoDetails.image_url;
         device_name = photoDetails.device_name;
         arrayOfOneImage.push(imageURL);
-      }
-
-      if (responseFromExtractPhotoDetails.success === false) {
+      } else if (responseFromExtractPhotoDetails.success === false) {
         return responseFromExtractPhotoDetails;
       }
 
@@ -227,53 +152,9 @@ const createPhoto = {
         const responseFromDeletePhotoOnPlatform = await createPhoto.deletePhotoOnPlatform(
           request
         );
-
-        logObject(
-          "responseFromDeletePhotoOnPlatform",
-          responseFromDeletePhotoOnPlatform
-        );
-
-        if (responseFromDeletePhotoOnPlatform.success === true) {
-          const status = responseFromDeletePhotoOnPlatform.status
-            ? responseFromDeletePhotoOnPlatform.status
-            : "";
-          return {
-            success: true,
-            message: responseFromDeletePhotoOnPlatform.message,
-            data: responseFromDeletePhotoOnPlatform.data,
-            status,
-          };
-        }
-
-        if (responseFromDeletePhotoOnPlatform.success === false) {
-          const status = responseFromDeletePhotoOnPlatform.status
-            ? responseFromDeletePhotoOnPlatform.status
-            : "";
-          const errors = responseFromDeletePhotoOnPlatform.errors
-            ? responseFromDeletePhotoOnPlatform.errors
-            : "";
-          return {
-            success: false,
-            message: responseFromDeletePhotoOnPlatform.message,
-            status,
-            errors,
-          };
-        }
-      }
-
-      if (responseFromDeletePhotoOnCloudinary.success === false) {
-        const status = responseFromDeletePhotoOnCloudinary.status
-          ? responseFromDeletePhotoOnCloudinary.status
-          : "";
-        const errors = responseFromDeletePhotoOnCloudinary.errors
-          ? responseFromDeletePhotoOnCloudinary.errors
-          : "";
-        return {
-          success: false,
-          message: responseFromDeletePhotoOnCloudinary.message,
-          status,
-          errors,
-        };
+        return responseFromDeletePhotoOnPlatform;
+      } else if (responseFromDeletePhotoOnCloudinary.success === false) {
+        return responseFromDeletePhotoOnCloudinary;
       }
     } catch (e) {
       logger.error(`internal server error -- ${e.message}`);
@@ -289,10 +170,13 @@ const createPhoto = {
   },
   list: async (request) => {
     try {
-      let { query } = request;
-      let filter = generateFilter.photos(request);
-      let { limit, skip, tenant } = query;
-      let responseFromListPhotos = await getModelByTenant(
+      const { query } = request;
+      const { tenant } = query;
+      const limit = parseInt(request.query.limit, 0);
+      const skip = parseInt(request.query.skip, 0);
+      const filter = generateFilter.photos(request);
+
+      const responseFromListPhotos = await getModelByTenant(
         tenant,
         "photo",
         PhotoSchema
@@ -302,32 +186,7 @@ const createPhoto = {
         skip,
       });
       logObject("responseFromListPhotos", responseFromListPhotos);
-      if (responseFromListPhotos.success === true) {
-        let status = responseFromListPhotos.status
-          ? responseFromListPhotos.status
-          : "";
-        return {
-          success: true,
-          message: responseFromListPhotos.message,
-          status,
-          data: responseFromListPhotos.data,
-        };
-      }
-
-      if (responseFromListPhotos.success === false) {
-        let status = responseFromListPhotos.status
-          ? responseFromListPhotos.status
-          : "";
-        let errors = responseFromListPhotos.errors
-          ? responseFromListPhotos.errors
-          : "";
-        return {
-          success: false,
-          message: responseFromListPhotos.message,
-          status,
-          errors,
-        };
-      }
+      return responseFromListPhotos;
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
       return {
@@ -418,30 +277,17 @@ const createPhoto = {
   },
   updatePhotoOnCloudinary: async (request) => {
     try {
-      let responseFromUpdateOnCloudinary = {};
+      let responseFromUpdateOnCloudinary = { success: true };
 
       if (responseFromUpdateOnCloudinary.success === true) {
         return {
           success: true,
-          message: "",
+          message: "successfully updated photo on cloudinary",
           data: responseFromUpdateOnCloudinary.data,
           status: responseFromUpdateOnCloudinary.status,
         };
-      }
-
-      if (responseFromUpdateOnCloudinary.success === false) {
-        let status = responseFromUpdateOnCloudinary.status
-          ? responseFromUpdateOnCloudinary.status
-          : HTTPStatus.BAD_GATEWAY;
-        let errors = responseFromUpdateOnCloudinary.errors
-          ? responseFromUpdateOnCloudinary.errors
-          : status;
-        return {
-          success: true,
-          message: responseFromUpdateOnCloudinary.message,
-          status,
-          errors,
-        };
+      } else if (responseFromUpdateOnCloudinary.success === false) {
+        return responseFromUpdateOnCloudinary;
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
@@ -534,21 +380,8 @@ const createPhoto = {
             status: HTTPStatus.OK,
           };
         }
-      }
-
-      if (responseFromExtractImageIds.success === false) {
-        const status = responseFromExtractImageIds.status
-          ? responseFromExtractImageIds.status
-          : "";
-        const errors = responseFromExtractImageIds.errors
-          ? responseFromExtractImageIds.errors
-          : "";
-        return {
-          success: false,
-          message: responseFromExtractImageIds.message,
-          status,
-          errors,
-        };
+      } else if (responseFromExtractImageIds.success === false) {
+        return responseFromExtractImageIds;
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
@@ -579,17 +412,12 @@ const createPhoto = {
           photoNamesWithoutExtension.push(
             prependFolderNameToCloudinaryPublicId
           );
-        }
-        if (responseFromGetLastPath.success === false) {
+        } else if (responseFromGetLastPath.success === false) {
           logObject(
             "runtime error -- unable to extract the last path",
             responseFromGetLastPath
           );
-          return {
-            success: false,
-            message: responseFromGetLastPath.message,
-            errors: responseFromGetLastPath.errors,
-          };
+          return responseFromGetLastPath;
         }
       });
       logObject("photoNamesWithoutExtension", photoNamesWithoutExtension);
@@ -654,33 +482,7 @@ const createPhoto = {
         PhotoSchema
       ).remove({ filter });
       logObject("responseFromRemovePhoto", responseFromRemovePhoto);
-      if (responseFromRemovePhoto.success === true) {
-        const status = responseFromRemovePhoto.status
-          ? responseFromRemovePhoto.status
-          : "";
-        const data = responseFromRemovePhoto.data;
-        return {
-          success: true,
-          message: responseFromRemovePhoto.message,
-          status,
-          data,
-        };
-      }
-
-      if (responseFromRemovePhoto.success === false) {
-        const status = responseFromRemovePhoto.status
-          ? responseFromRemovePhoto.status
-          : "";
-        const errors = responseFromRemovePhoto.errors
-          ? responseFromRemovePhoto.errors
-          : "";
-        return {
-          success: false,
-          message: responseFromRemovePhoto.message,
-          errors,
-          status,
-        };
-      }
+      return responseFromRemovePhoto;
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
       return {
@@ -701,36 +503,13 @@ const createPhoto = {
       logObject("filter ", filter);
       const update = body;
       const opts = { new: true };
-      let responseFromModifyPhoto = await getModelByTenant(
+      const responseFromModifyPhoto = await getModelByTenant(
         tenant,
         "photo",
         PhotoSchema
       ).modify({ filter, update, opts });
-      if (responseFromModifyPhoto.success === true) {
-        const status = responseFromModifyPhoto.status
-          ? responseFromModifyPhoto.status
-          : "";
-        const data = responseFromModifyPhoto.data;
-        return {
-          success: true,
-          message: responseFromModifyPhoto.message,
-          status,
-          data,
-        };
-      } else if (responseFromModifyPhoto.success === false) {
-        const status = responseFromModifyPhoto.status
-          ? responseFromModifyPhoto.status
-          : "";
-        const errors = responseFromModifyPhoto.errors
-          ? responseFromModifyPhoto.errors
-          : "";
-        return {
-          success: false,
-          message: responseFromModifyPhoto.message,
-          errors,
-          status,
-        };
-      }
+
+      return responseFromModifyPhoto;
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
       return {
@@ -770,12 +549,7 @@ const createPhoto = {
         modifiedRequestBody["metadata"]["url"] = image_url;
       } else if (responseFromExtractImage.success === false) {
         logObject("responseFromExtractImage", responseFromExtractImage);
-        return {
-          success: false,
-          message: responseFromExtractImage.message,
-          errors: responseFromExtractImage.errors,
-          status: responseFromExtractImage.status,
-        };
+        return responseFromExtractImage;
       }
 
       const responseFromRegisterPhoto = await getModelByTenant(
@@ -787,8 +561,6 @@ const createPhoto = {
       logObject("responseFromRegisterPhoto", responseFromRegisterPhoto);
 
       if (responseFromRegisterPhoto.success === true) {
-        let data = responseFromRegisterPhoto.data;
-
         try {
           const kafkaProducer = kafka.producer({
             groupId: constants.UNIQUE_PRODUCER_GROUP,
@@ -808,29 +580,16 @@ const createPhoto = {
           logger.error(`internal server error -- ${error.message}`);
         }
 
-        let status = responseFromRegisterPhoto.status
-          ? responseFromRegisterPhoto.status
-          : "";
-
         return {
           success: true,
           message: responseFromRegisterPhoto.message,
-          status,
-          data,
+          status: responseFromRegisterPhoto.status
+            ? responseFromRegisterPhoto.status
+            : "",
+          data: responseFromRegisterPhoto.data,
         };
       } else if (responseFromRegisterPhoto.success === false) {
-        let status = responseFromRegisterPhoto.status
-          ? responseFromRegisterPhoto.status
-          : "";
-        let errors = responseFromRegisterPhoto.errors
-          ? responseFromRegisterPhoto.errors
-          : "";
-        return {
-          success: false,
-          message: responseFromRegisterPhoto.message,
-          errors,
-          status,
-        };
+        return responseFromRegisterPhoto;
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);

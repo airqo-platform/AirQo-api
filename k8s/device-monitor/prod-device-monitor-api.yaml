@@ -42,7 +42,7 @@ spec:
                       - high-memory
       containers:
         - name: dev-monitor-api
-          image: us.gcr.io/airqo-250220/airqo-device-monitor-api:latest
+          image: eu.gcr.io/airqo-250220/airqo-device-monitor-api:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 4001
@@ -57,6 +57,9 @@ spec:
           envFrom:
             - configMapRef:
                 name: env-device-monitoring-production
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/config
           resources:
             requests:
               # Average usage was 0.0005 vCPU and 50Mi over the last 30 days
@@ -65,6 +68,10 @@ spec:
             limits:
               cpu: 50m
               memory: 100Mi
+      volumes:
+        - name: config-volume
+          configMap:
+            name: device-monitor-config-files
 
 ---
 kind: Service

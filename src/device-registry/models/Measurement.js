@@ -3,12 +3,12 @@ This Schema is not in use at the moment
 */
 const { Schema, model } = require("mongoose");
 const uniqueValidator = require("mongoose-unique-validator");
-const { logObject, logElement, logText } = require("../utils/log");
+const { logObject, logElement, logText } = require("@utils/log");
 const ObjectId = Schema.Types.ObjectId;
-const constants = require("../config/constants");
+const constants = require("@config/constants");
 const { isElement, isEmpty } = require("underscore");
 const httpStatus = require("http-status");
-const { getModelByTenant } = require("../utils/multitenancy");
+const { getModelByTenant } = require("@utils/multitenancy");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- event-model`);
 
@@ -341,7 +341,7 @@ measurementSchema.index(
   }
 );
 
-measurementSchema.pre("save", function () {
+measurementSchema.pre("save", function() {
   const err = new Error("something went wrong");
   next(err);
 });

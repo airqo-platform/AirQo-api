@@ -7,19 +7,19 @@ app:
 initContainers:
   container1:
     image:
-      repository: gcr.io/airqo-250220/stage-train-catboost-model
+      repository: eu.gcr.io/airqo-250220/stage-train-catboost-model
       pullPolicy: Always
       tag: latest
   container2:
     image:
-      repository: gcr.io/airqo-250220/stage-train-lstm-model
+      repository: eu.gcr.io/airqo-250220/stage-train-lstm-model
       pullPolicy: Always
       tag: latest
 
 replicaCount: 2
 
 image:
-  repository: gcr.io/airqo-250220/stage-fault-detection-api
+  repository: eu.gcr.io/airqo-250220/stage-fault-detection-api
   tag: latest
 
 nameOverride: ""

@@ -3,7 +3,7 @@ const constants = require("./constants");
 const { initializeApp } = require("firebase-admin/app");
 const serviceAccount = require(`${constants.GOOGLE_APPLICATION_CREDENTIALS}`);
 const functions = require("firebase-functions");
-const joinUtil = require("../utils/join");
+const createUserUtil = require("../utils/create-user");
 const { logObject } = require("../utils/log");
 const { default: isEmail } = require("validator/lib/isEmail");
 const isEmpty = require("is-empty");
@@ -26,7 +26,7 @@ exports.newUserSignUp = functions.auth.user().onCreate(async (user) => {
     const subject = "Welcome to AirQo!";
 
     if (!isEmpty(email)) {
-      return await joinUtil.sendFeedback({
+      return await createUserUtil.sendFeedback({
         email,
         message,
         subject,
@@ -100,7 +100,7 @@ exports.userDeleted = functions.auth.user().onDelete(async (user) => {
     }
 
     if (!isEmpty(email)) {
-      return await joinUtil.sendFeedback({
+      return await createUserUtil.sendFeedback({
         email,
         message,
         subject,

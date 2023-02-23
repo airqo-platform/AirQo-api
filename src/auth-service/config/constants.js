@@ -1,4 +1,5 @@
 const devConfig = {
+  DEFAULT_NETWORK: process.env.DEVELOPMENT_DEFAULT_NETWORK,
   MONGO_URI: process.env.MONGO_DEV_URI,
   DB_NAME: process.env.MONGO_DEV,
   PWD_RESET: `${process.env.PLATFORM_DEV_BASE_URL}/reset`,
@@ -8,6 +9,7 @@ const devConfig = {
   ENVIRONMENT: "DEVELOPMENT ENVIRONMENT",
 };
 const prodConfig = {
+  DEFAULT_NETWORK: process.env.PRODUCTION_DEFAULT_NETWORK,
   MONGO_URI: process.env.MONGO_PROD_URI,
   DB_NAME: process.env.MONGO_PROD,
   PWD_RESET: `${process.env.PLATFORM_PRODUCTION_BASE_URL}/reset`,
@@ -18,6 +20,7 @@ const prodConfig = {
 };
 
 const stageConfig = {
+  DEFAULT_NETWORK: process.env.STAGING_DEFAULT_NETWORK,
   MONGO_URI: process.env.MONGO_STAGE_URI,
   DB_NAME: process.env.MONGO_STAGE,
   PWD_RESET: `${process.env.PLATFORM_STAGING_BASE_URL}/reset`,
@@ -28,6 +31,14 @@ const stageConfig = {
 };
 
 const defaultConfig = {
+  DEFAULT_TENANT: process.env.DEFAULT_TENANT,
+  CLIENT_ID_LENGTH: 26,
+  CLIENT_SECRET_LENGTH: 31,
+  TOKEN_LENGTH: 16,
+  EMAIL_VERIFICATION_HOURS: 1,
+  EMAIL_VERIFICATION_MIN: 0,
+  EMAIL_VERIFICATION_SEC: 0,
+  TWITTER_ACCOUNT: "https://twitter.com/AirQoProject",
   SLACK_TOKEN: process.env.SLACK_TOKEN,
   SLACK_CHANNEL: process.env.SLACK_CHANNEL,
   SLACK_USERNAME: process.env.SLACK_USERNAME,
@@ -63,6 +74,7 @@ const defaultConfig = {
       uppercase: true,
       lowercase: true,
       strict: true,
+      excludeSimilarCharacters: true,
     };
   },
   SALT_ROUNDS: 10,

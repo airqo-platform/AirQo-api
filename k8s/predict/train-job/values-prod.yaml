@@ -3,10 +3,10 @@ app:
   namespace: production
   configmap: env-train-job-production
 
-schedule: 0 5 * * 1
+schedule: 0 1 1 * *
 
 image:
-  repository: gcr.io/airqo-250220/airqo-train-job
+  repository: eu.gcr.io/airqo-250220/airqo-train-job
   tag: latest
 
 nameOverride: ""

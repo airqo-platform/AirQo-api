@@ -30,10 +30,12 @@ def create_app(environment):
     # import blueprints
     from controllers.check_health import health_check_bp
     from controllers.check_status import device_status_bp
+    from controllers.collocation import collocation_bp
 
     # register blueprints
     app.register_blueprint(health_check_bp)
     app.register_blueprint(device_status_bp)
+    app.register_blueprint(collocation_bp)
 
     return app
 

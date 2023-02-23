@@ -20,7 +20,7 @@ class AirQoApi:
         )
         self.AIRQO_API_KEY = f"JWT {configuration.AIRQO_API_KEY}"
 
-    def save_events(self, measurements: list, tenant: str) -> None:
+    def save_events(self, measurements: list) -> None:
         #  Temporarily disabling usage of the API to store measurements.
         if (
             "staging" in self.AIRQO_BASE_URL.lower()
@@ -32,7 +32,7 @@ class AirQoApi:
             data = measurements[i : i + int(configuration.POST_EVENTS_BODY_SIZE)]
             response = self.__request(
                 endpoint="devices/events",
-                params={"tenant": tenant},
+                params={"tenant": str(Tenant.AIRQO)},
                 method="post",
                 body=data,
             )
@@ -336,6 +336,64 @@ class AirQoApi:
                 print(ex)
 
         return meta_data
+
+    def get_airqlouds_temp(self, tenant: Tenant = Tenant.ALL) -> list:
+        airqlouds = []
+        if tenant == Tenant.ALL:
+            for tenant_enum in Tenant:
+                if tenant_enum == Tenant.ALL:
+                    continue
+                try:
+                    response = self.__request(
+                        "devices/airqlouds", {"tenant": str(tenant_enum)}
+                    )
+                    tenant_airqlouds = [
+                        {
+                            "id": airqloud.get("_id", None),
+                            "name": airqloud.get("name", None),
+                            "tenant": str(tenant_enum),
+                            "sites": [
+                                site["_id"] for site in airqloud.get("sites", [])
+                            ],
+                        }
+                        for airqloud in response.get("airqlouds", [])
+                    ]
+                    airqlouds.extend(tenant_airqlouds)
+                except Exception:
+                    continue
+
+        else:
+            response = self.__request("devices/airqlouds", {"tenant": str(tenant)})
+            if response:
+                airqlouds = [
+                    {
+                        "id": airqloud.get("_id", None),
+                        "name": airqloud.get("name", None),
+                        "tenant": str(tenant),
+                        "sites": [site["_id"] for site in airqloud.get("sites", [])],
+                    }
+                    for airqloud in response.get("airqlouds", [])
+                ]
+
+        return airqlouds
+
+    def get_airqlouds(self, tenant: Tenant = Tenant.ALL) -> list:
+        query_params = {"tenant": str(Tenant.AIRQO)}
+
+        if tenant == Tenant.ALL:
+            query_params["network"] = str(tenant)
+
+        response = self.__request("devices/airqlouds", query_params)
+
+        return [
+            {
+                "id": airqloud.get("_id", None),
+                "name": airqloud.get("name", None),
+                "tenant": airqloud.get("network", airqloud.get("tenant", None)),
+                "sites": [site["_id"] for site in airqloud.get("sites", [])],
+            }
+            for airqloud in response.get("airqlouds", [])
+        ]
 
     def get_sites(self, tenant: Tenant = Tenant.ALL) -> list:
         sites = []
