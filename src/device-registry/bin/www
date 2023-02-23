@@ -3,30 +3,27 @@
 const app = require("../app");
 const constants = require("@config/constants");
 const middlewareConfig = require("../config/app.middleware");
-const debug = require('debug')('log4js-example');
-const cluster = require('express-cluster');
+const debug = require("debug")("log4js-example");
+const cluster = require("express-cluster");
 const http = require("http");
 const isEmpty = require("is-empty");
-const log4js = require('log4js');
-const log4jsConfiguration = require("../config/log4js")
+const log4js = require("log4js");
+const log4jsConfiguration = require("../config/log4js");
 log4js.configure(log4jsConfiguration);
-const logger = log4js.getLogger(
-    `${constants.ENVIRONMENT} -- start-script`
-);
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- start-script`);
 const server = http.createServer(app);
-const { logText, logObject, logElement } = require("@utils/log")
+const { logText, logObject, logElement } = require("@utils/log");
 
 const createEvent = require("@utils/create-event");
 
+const { Kafka } = require("kafkajs");
 
-const { Kafka } = require('kafkajs');
-
-logObject("KAFKA_BOOTSTRAP_SERVERS", constants.KAFKA_BOOTSTRAP_SERVERS)
+logObject("KAFKA_BOOTSTRAP_SERVERS", constants.KAFKA_BOOTSTRAP_SERVERS);
 
 // Set up the Kafka client
 const kafka = new Kafka({
-    clientId: constants.KAFKA_CLIENT_ID,
-    brokers: constants.KAFKA_BOOTSTRAP_SERVERS
+  clientId: constants.KAFKA_CLIENT_ID,
+  brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
 });
 
 /***
@@ -34,114 +31,135 @@ const kafka = new Kafka({
  */
 
 try {
-    require('fs').mkdirSync('./log');
+  require("fs").mkdirSync("./log");
 } catch (e) {
-    if (e.code != 'EEXIST') {
-        console.error("Could not set up log directory, error was: ", e);
-        process.exit(1);
-    }
+  if (e.code != "EEXIST") {
+    console.error("Could not set up log directory, error was: ", e);
+    process.exit(1);
+  }
 }
 
 /****
  * pass the app instance to the middleware configuration
  */
 try {
-    middlewareConfig(app);
+  middlewareConfig(app);
 } catch (e) {
-    logElement("middleware error", e.message)
+  logElement("middleware error", e.message);
 }
 
 // Set up the Kafka consumer
 const consumer = kafka.consumer({ groupId: constants.UNIQUE_CONSUMER_GROUP });
 
 // Function to start consuming KAFKA messages
-const run = async() => {
-    await consumer.connect();
-    await consumer.subscribe({ topic: constants.HOURLY_MEASUREMENTS_TOPIC, fromBeginning: true });
-    await consumer.run({
-        eachMessage: async({ topic, partition, message }) => {
-            const measurements = JSON.parse(message.value).data;
-            if (!Array.isArray(measurements) || isEmpty(measurements)) {
-                logger.error(
-                    `KAFKA: the sent measurements are not an array or they are just empty (undefined) --- ${JSON.stringify(
+const run = async () => {
+  await consumer.connect();
+  await consumer.subscribe({
+    topic: constants.HOURLY_MEASUREMENTS_TOPIC,
+    fromBeginning: true,
+  });
+  await consumer.run({
+    eachMessage: async ({ topic, partition, message }) => {
+      try {
+        const measurements = JSON.parse(message.value).data;
+        if (!Array.isArray(measurements) || isEmpty(measurements)) {
+          logger.error(
+            `KAFKA: the sent measurements are not an array or they are just empty (undefined) --- ${JSON.stringify(
               measurements
             )}`
-                );
-            }
-            const responseFromInsertMeasurements = await createEvent.insert(
-                "airqo",
-                measurements
-            );
+          );
+        }
+        const responseFromInsertMeasurements = await createEvent.insert(
+          "airqo",
+          measurements
+        );
 
-            logObject("responseFromInsertMeasurements", responseFromInsertMeasurements)
-            logObject("value: message.value.toString()", {
-                value: message.value.toString(),
-            })
+        logObject(
+          "responseFromInsertMeasurements",
+          responseFromInsertMeasurements
+        );
+        logObject("value: message.value.toString()", {
+          value: message.value.toString(),
+        });
 
-            if (responseFromInsertMeasurements.success === false) {
-                logger.error(
-                    `KAFKA: responseFromInsertMeasurements --- ${JSON.stringify(
+        if (responseFromInsertMeasurements.success === false) {
+          logger.error(
+            `KAFKA: responseFromInsertMeasurements --- ${JSON.stringify(
               responseFromInsertMeasurements
             )}`
-                );
-            } else if (responseFromInsertMeasurements.success === true) {
-                logger.info(
-                    `KAFKA: successfully inserted the measurements --- ${JSON.stringify(responseFromInsertMeasurements.message ?
-                        responseFromInsertMeasurements.message :
-                        "")}`
-                );
-            }
-        },
-    });
+          );
+        } else if (responseFromInsertMeasurements.success === true) {
+          logger.info(
+            `KAFKA: successfully inserted the measurements --- ${JSON.stringify(
+              responseFromInsertMeasurements.message
+                ? responseFromInsertMeasurements.message
+                : ""
+            )}`
+          );
+        }
+      } catch (error) {
+        logObject("error", error);
+        logObject("topic", topic);
+        logObject("message", message);
+        logger.error(
+          `KAFKA: internal server error -- ${JSON.stringify(error)}`
+        );
+      }
+    },
+  });
 };
 /***
  * start up a cluster
  */
 
-cluster(function() {
+cluster(
+  function() {
     //Get port from environment and store in Express.
     const port = normalizePort(constants.PORT);
     app.set("port", port);
     //Create HTTP server.
     //Listen on provided port, on all network interfaces.
     server.listen(port, function() {
-        /**
-         * only run KAFKA in staging for now --- as we continue to do QA tests
-         */
-        if (constants.ENVIRONMENT === "STAGING ENVIRONMENT") {
-            run().catch(error => {
-                logger.error(`KAFKA: internal server error -- ${JSON.stringify(error)}`);
-            });
-        }
-        // logger.info('Express server listening on port ', server.address().port, " with pid ", process.pid);
+      /**
+       * only run KAFKA in staging for now --- as we continue to do QA tests
+       */
+      if (constants.ENVIRONMENT === "STAGING ENVIRONMENT") {
+        run().catch((error) => {
+          logger.error(
+            `KAFKA: internal server error -- ${JSON.stringify(error)}`
+          );
+        });
+      }
+      // logger.info('Express server listening on port ', server.address().port, " with pid ", process.pid);
     });
     server.on("error", onError);
     server.on("listening", onListening);
-}, {
+  },
+  {
     count: 1,
     respawn: false,
     verbose: false,
-});
-
+  }
+);
 
 /**
  * Normalize a port into a number, string, or false.
  */
 
 function normalizePort(val) {
-    const port = parseInt(val, 10);
+  const port = parseInt(val, 10);
 
-    if (isNaN(port)) {
-        // named pipe
-        return val;
-    }
+  if (isNaN(port)) {
+    // named pipe
+    return val;
+  }
 
-    if (port >= 0) {
-        // port number
-        return port;
-    }
+  if (port >= 0) {
+    // port number
+    return port;
+  }
 
-    return false;
+  return false;
 }
 
 /**
@@ -149,25 +167,25 @@ function normalizePort(val) {
  */
 
 function onError(error) {
-    if (error.syscall !== "listen") {
-        throw error;
-    }
+  if (error.syscall !== "listen") {
+    throw error;
+  }
 
-    const bind = typeof port === "string" ? "Pipe " + port : "Port " + port;
+  const bind = typeof port === "string" ? "Pipe " + port : "Port " + port;
 
-    // handle specific listen errors with friendly messages
-    switch (error.code) {
-        case "EACCES":
-            console.error(bind + " requires elevated privileges");
-            process.exit(1);
-            break;
-        case "EADDRINUSE":
-            console.error(bind + " is already in use");
-            process.exit(1);
-            break;
-        default:
-            throw error;
-    }
+  // handle specific listen errors with friendly messages
+  switch (error.code) {
+    case "EACCES":
+      console.error(bind + " requires elevated privileges");
+      process.exit(1);
+      break;
+    case "EADDRINUSE":
+      console.error(bind + " is already in use");
+      process.exit(1);
+      break;
+    default:
+      throw error;
+  }
 }
 
 /**
@@ -176,15 +194,15 @@ function onError(error) {
 
 let ENV = "";
 if (isEmpty(process.env.NODE_ENV)) {
-    ENV = "production";
+  ENV = "production";
 } else {
-    ENV = process.env.NODE_ENV;
+  ENV = process.env.NODE_ENV;
 }
 
 function onListening() {
-    logText(`server is running on port: ${constants.PORT}`)
-    console.log(`The server is running on the ${ENV} environment`)
-    const addr = server.address();
-    const bind = typeof addr === "string" ? "pipe " + addr : "port " + addr.port;
-    debug("Listening on " + bind);
+  logText(`server is running on port: ${constants.PORT}`);
+  console.log(`The server is running on the ${ENV} environment`);
+  const addr = server.address();
+  const bind = typeof addr === "string" ? "pipe " + addr : "port " + addr.port;
+  debug("Listening on " + bind);
 }
