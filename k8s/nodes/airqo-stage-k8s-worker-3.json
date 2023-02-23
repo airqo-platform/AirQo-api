@@ -1,0 +1,10 @@
+{
+  "kind": "Node",
+  "apiVersion": "v1",
+  "metadata": {
+    "name": "airqo-stage-k8s-worker-3",
+    "labels": {
+      "node-type": "gpu"
+    }
+  }
+}
