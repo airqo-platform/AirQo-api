@@ -11,7 +11,7 @@ _logger = logging.getLogger(__name__)
 collocation_bp = Blueprint("collocation", __name__)
 
 
-@collocation_bp.route(routes.DEVICE_COLLOCATION, methods=["POST"])
+# @collocation_bp.route(routes.DEVICE_COLLOCATION, methods=["POST"])
 def get_device_collocation():
     json_data = request.get_json()
     devices = json_data.get("devices", [])
