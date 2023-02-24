@@ -86,11 +86,11 @@ const createActivity = {
 
   list: async (request) => {
     try {
-      let { query } = request;
-      let { tenant } = query;
+      const { query } = request;
+      const { tenant } = query;
       const limit = 1000;
       const skip = parseInt(query.skip) || 0;
-      let filter = generateFilter.activities_v0(request);
+      const filter = generateFilter.activities(request);
 
       let responseFromListActivity = await getModelByTenant(
         tenant.toLowerCase(),
@@ -114,13 +114,13 @@ const createActivity = {
 
   update: async (request) => {
     try {
-      let { query, body } = request;
-      let { tenant } = query;
+      const { query, body } = request;
+      const { tenant } = query;
 
-      let update = body;
-      let filter = generateFilter.activities_v0(request);
+      const update = body;
+      const filter = generateFilter.activities(request);
 
-      let responseFromModifyActivity = await getModelByTenant(
+      const responseFromModifyActivity = await getModelByTenant(
         tenant.toLowerCase(),
         "activity",
         ActivitySchema
@@ -143,10 +143,11 @@ const createActivity = {
 
   delete: async (request) => {
     try {
-      let { query } = request;
-      let { tenant } = query;
-      let filter = generateFilter.activities_v0(request);
-      let responseFromRemoveActivity = await getModelByTenant(
+      const { query } = request;
+      const { tenant } = query;
+      const filter = generateFilter.activities(request);
+
+      const responseFromRemoveActivity = await getModelByTenant(
         tenant.toLowerCase(),
         "activity",
         ActivitySchema

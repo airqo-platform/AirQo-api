@@ -17,12 +17,20 @@ podAnnotations: {}
 
 resources:
   limits:
-    cpu: 50m
-    memory: 100Mi
+    cpu: 500m
+    memory: 800Mi
   requests:
-    # Average usage was 0.0005 vCPU and 1Gi over the last 30 days
     cpu: 5m
     memory: 50Mi
+
+volumeMounts:
+  - name: config-volume
+    mountPath: /etc/config
+
+volumes:
+  - name: config-volume
+    configMap:
+      name: device-monitor-config-files
 
 ingress:
   enabled: false
