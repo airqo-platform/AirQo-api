@@ -1,6 +1,7 @@
 process.env.NODE_ENV = "development";
+
 require("module-alias/register");
-require("@root/app.js");
+require('dotenv').config();
 const chai = require("chai");
 const chaiHttp = require("chai-http");
 const should = chai.should();
