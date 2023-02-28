@@ -81,7 +81,7 @@ def airnow_bam_realtime_data():
         from airqo_etl_utils.data_validator import DataValidationUtils
 
         data = DataValidationUtils.process_for_message_broker_v2(data)
-        MessageBrokerUtils.update_measurements_topic(data=data)
+        MessageBrokerUtils.update_hourly_data_topic(data=data)
 
     @task()
     def send_to_bigquery(data: pd.DataFrame):
