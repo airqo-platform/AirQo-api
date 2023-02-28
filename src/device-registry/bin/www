@@ -60,6 +60,13 @@ const run = async() => {
     await consumer.subscribe({ topic: constants.HOURLY_MEASUREMENTS_TOPIC, fromBeginning: true });
     await consumer.run({
         eachMessage: async({ topic, partition, message }) => {
+            if (isEmpty(message)) {
+                logger.error(
+                    `KAFKA: the sent message in undefined --- ${JSON.stringify(
+                        message
+            )}`
+                );
+            }
             const measurements = JSON.parse(message.value).data;
             if (!Array.isArray(measurements) || isEmpty(measurements)) {
                 logger.error(
