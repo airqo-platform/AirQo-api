@@ -1,10 +1,11 @@
-from flask import Blueprint, request, jsonify
 import logging
+
+from flask import Blueprint, request, jsonify
+
+import routes
 from helpers.convert_dates import validate_datetime
 from helpers.convert_object_ids import convert_model_ids
-from helpers.utils import str_to_bool
 from models import DeviceStatus, NetworkUptime, DeviceUptime
-import routes
 
 _logger = logging.getLogger(__name__)
 

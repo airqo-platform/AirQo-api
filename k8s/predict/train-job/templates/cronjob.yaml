@@ -6,9 +6,9 @@ metadata:
 spec:
   concurrencyPolicy: Allow
   successfulJobsHistoryLimit: 1
-  failedJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 0
   schedule: '{{ .Values.schedule }}'
-  suspend: false
+  suspend: {{ .Values.suspend }}
   jobTemplate:
     metadata:
       name: {{ .Values.app.name }}
@@ -21,14 +21,13 @@ spec:
           terminationGracePeriodSeconds: 30
           affinity:
             nodeAffinity:
-              preferredDuringSchedulingIgnoredDuringExecution:
-                - weight: 10
-                  preference:
-                    matchExpressions:
-                      - key: node-type
-                        operator: In
-                        values:
-                          - compute
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                - matchExpressions:
+                  - key: node-type
+                    operator: In
+                    values:
+                      - compute
           containers:
             - name: {{ .Values.app.name }}
               image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"

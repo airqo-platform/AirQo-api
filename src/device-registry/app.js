@@ -1,3 +1,4 @@
+require("module-alias/register");
 const log4js = require("log4js");
 const express = require("express");
 const path = require("path");
@@ -6,63 +7,14 @@ const bodyParser = require("body-parser");
 dotenv.config();
 require("app-module-path").addPath(__dirname);
 const cookieParser = require("cookie-parser");
-const apiV1 = require("./routes/api-v1");
-const apiV2 = require("./routes/api-v2");
-const constants = require("./config/constants");
+const constants = require("@config/constants");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- app entry`);
-const { mongodb } = require("./config/database");
-const createEvent = require("./utils/create-event");
+const { mongodb } = require("@config/database");
+const createEvent = require("@utils/create-event");
 const isEmpty = require("is-empty");
+const routes = require("@routes");
 
 mongodb;
-
-const { Kafka } = require("kafkajs");
-const kafka = new Kafka({
-  clientId: constants.KAFKA_CLIENT_ID,
-  brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
-});
-
-const runKafkaConsumer = async () => {
-  try {
-    const kafkaConsumer = kafka.consumer({
-      groupId: constants.UNIQUE_CONSUMER_GROUP,
-    });
-    await kafkaConsumer.connect();
-    await kafkaConsumer.subscribe({
-      topic: constants.HOURLY_MEASUREMENTS_TOPIC,
-      fromBeginning: true,
-    });
-    await kafkaConsumer.run({
-      eachMessage: async ({ message }) => {
-        const measurements = JSON.parse(message.value).data;
-        if (!Array.isArray(measurements) || isEmpty(measurements)) {
-          logger.error(
-            `KAFKA: the sent measurements are not an array or they are just empty (undefined) --- ${JSON.stringify(
-              measurements
-            )}`
-          );
-        }
-        const responseFromInsertMeasurements = await createEvent.insert(
-          "airqo",
-          measurements
-        );
-        if (responseFromInsertMeasurements.success === false) {
-          logger.error(
-            `responseFromInsertMeasurements --- ${JSON.stringify(
-              responseFromInsertMeasurements
-            )}`
-          );
-        }
-      },
-    });
-  } catch (error) {
-    logger.error("KAFKA: internal server error", error.message);
-  }
-};
-
-if (constants.ENVIRONMENT === "STAGING ENVIRONMENT") {
-  runKafkaConsumer();
-}
 
 const moesif = require("moesif-nodejs");
 const compression = require("compression");
@@ -92,8 +44,25 @@ app.use(
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, "public")));
 
-app.use("/api/v1/devices/", apiV1);
-app.use("/api/v2/devices/", apiV2);
+/****** the V1 endpoints ****************/
+app.use("/api/v1/devices/activities", routes.v1.activities);
+app.use("/api/v1/devices/airqlouds", routes.v1.airqlouds);
+app.use("/api/v1/devices/sites", routes.v1.sites);
+app.use("/api/v1/devices/events", routes.v1.events);
+app.use("/api/v1/devices/locations", routes.v1.locations);
+app.use("/api/v1/devices/photos", routes.v1.photos);
+app.use("/api/v1/devices/sensors", routes.v1.sensors);
+app.use("/api/v1/devices", routes.v1.devices);
+
+/****** the V2 endpoints ****************/
+app.use("/api/v2/devices/activities", routes.v2.activities);
+app.use("/api/v2/devices/airqlouds", routes.v2.airqlouds);
+app.use("/api/v2/devices/sites", routes.v2.sites);
+app.use("/api/v2/devices/events", routes.v2.events);
+app.use("/api/v2/devices/locations", routes.v2.locations);
+app.use("/api/v2/devices/photos", routes.v2.photos);
+app.use("/api/v2/devices/sensors", routes.v2.sensors);
+app.use("/api/v2/devices", routes.v2.devices);
 
 app.use(function(req, res, next) {
   const err = new Error("Not Found");

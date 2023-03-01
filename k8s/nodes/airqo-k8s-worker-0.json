@@ -1,0 +1,10 @@
+{
+  "kind": "Node",
+  "apiVersion": "v1",
+  "metadata": {
+    "name": "airqo-k8s-worker-0",
+    "labels": {
+      "node-type": "compute"
+    }
+  }
+}

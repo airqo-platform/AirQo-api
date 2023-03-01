@@ -26,8 +26,8 @@ spec:
     spec:
       containers:
         - name: prod-kcca-raw-measurements-stream
-          image: us.gcr.io/airqo-250220/prod-raw-device-measurements-stream:latest
-          imagePullPolicy: Always
+          image: eu.gcr.io/airqo-250220/prod-raw-device-measurements-stream:latest
+          imagePullPolicy: IfNotPresent
           resources:
             requests:
               cpu: 100m
@@ -52,9 +52,9 @@ spec:
   minReplicas: 1
   maxReplicas: 2
   metrics:
-  - type: Resource
-    resource:
-      name: cpu
-      target:
-        type: Utilization
-        averageUtilization: 80
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 80

@@ -8,8 +8,8 @@ replicaCount: 3
 
 images:
   repositories:
-    api: gcr.io/airqo-250220/airqo-meta-data-api
-    sitesConsumer: gcr.io/airqo-250220/airqo-meta-data-sites-consumer
+    api: eu.gcr.io/airqo-250220/airqo-meta-data-api
+    sitesConsumer: eu.gcr.io/airqo-250220/airqo-meta-data-sites-consumer
   tag: latest
 
 nameOverride: ""

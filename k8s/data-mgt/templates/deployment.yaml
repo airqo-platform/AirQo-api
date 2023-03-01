@@ -35,7 +35,7 @@ spec:
                   - key: node-type
                     operator: In
                     values:
-                      - general-purpose
+                      - compute
             - weight: 1
               preference:
                 matchExpressions:
@@ -47,7 +47,7 @@ spec:
       containers:
         - name: {{ .Values.app.label }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: {{ .Values.service.targetPort }}
               name: {{ .Values.app.label }}
