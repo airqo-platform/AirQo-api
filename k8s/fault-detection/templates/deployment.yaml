@@ -39,7 +39,7 @@ spec:
       initContainers:
         - name: train-catboost-model
           image: "{{ .Values.initContainers.container1.image.repository }}:{{ .Values.initContainers.container1.image.tag }}"
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           resources: {}
           envFrom:
             - configMapRef:
@@ -53,7 +53,7 @@ spec:
           {{- end }}
         - name: train-lstm-model
           image: "{{ .Values.initContainers.container2.image.repository }}:{{ .Values.initContainers.container2.image.tag }}"
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           resources: {}
           envFrom:
             - configMapRef:
@@ -70,7 +70,7 @@ spec:
       containers:
         - name: {{ .Values.app.label }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: {{ .Values.service.targetPort }}
               name: {{ .Values.app.label }}
