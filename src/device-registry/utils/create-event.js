@@ -1396,7 +1396,7 @@ const createEvent = {
         logElement("responseFromTransformEvents was false?", true);
         return responseFromTransformEvents;
       } else if (responseFromTransformEvents.success === true) {
-        let transformedMeasurements = responseFromTransformEvents.data;
+        const transformedMeasurements = responseFromTransformEvents.data;
         const responseFromInsertEvents = await createEvent.insertTransformedEvents(
           tenant,
           transformedMeasurements

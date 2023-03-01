@@ -6,7 +6,7 @@ metadata:
 spec:
   concurrencyPolicy: Allow
   successfulJobsHistoryLimit: 1
-  failedJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 0
   schedule: '{{ .Values.schedule }}'
   suspend: false
   jobTemplate:

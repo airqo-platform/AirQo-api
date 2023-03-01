@@ -1,0 +1,10 @@
+{
+  "kind": "Node",
+  "apiVersion": "v1",
+  "metadata": {
+    "name": "airqo-stage-k8s-worker-2",
+    "labels": {
+      "node-type": "general-purpose"
+    }
+  }
+}
