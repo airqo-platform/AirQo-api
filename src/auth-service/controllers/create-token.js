@@ -146,23 +146,16 @@ const createAccessToken = {
       );
 
       if (responseFromListAccessToken.success === true) {
-        let tokenDetails = {};
         const status = responseFromListAccessToken.status
           ? responseFromListAccessToken.status
           : httpStatus.OK;
-        if (responseFromListAccessToken.status === httpStatus.BAD_REQUEST) {
-          tokenDetails = {};
-        } else if (responseFromListAccessToken.status === httpStatus.OK) {
-          tokenDetails = responseFromListAccessToken.data
-            ? responseFromListAccessToken.data
-            : {};
-        }
-        return res.status(status).json({
-          message: responseFromListAccessToken.message
-            ? responseFromListAccessToken.message
-            : "",
-          token: tokenDetails,
-        });
+        return res
+          .status(status)
+          .send(
+            responseFromListAccessToken.message
+              ? responseFromListAccessToken.message
+              : ""
+          );
       } else if (responseFromListAccessToken.success === false) {
         const status = responseFromListAccessToken.status
           ? responseFromListAccessToken.status
