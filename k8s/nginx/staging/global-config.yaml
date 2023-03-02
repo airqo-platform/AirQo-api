@@ -41,9 +41,9 @@ data:
       set $method POST;
       set $verification_path verify?tenant=airqo;
 
-      if ($arg_token) {
+      if ($request_uri ~* 'token=(?<token>[^&]+)') {
         set $method GET;
-        set $verification_path tokens/$arg_token/verify;
+        set $verification_path tokens/$token/verify;
       }
 
       internal;
