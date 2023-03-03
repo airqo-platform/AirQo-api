@@ -9,8 +9,12 @@ from flask_restx import Resource
 from api.models import (
     EventsModel,
 )
+
 # Middlewares
-from api.utils.data_formatters import format_to_aqcsv_v2
+from api.utils.data_formatters import (
+    format_to_aqcsv_v2,
+    compute_airqloud_data_statistics,
+)
 from api.utils.http import create_response, Status
 from api.utils.request_validators import validate_request_json
 from main import rest_api
@@ -151,7 +155,6 @@ class DataSummaryResource(Resource):
         "airqloud|optional:str",
     )
     def post(self):
-
         try:
             json_data = request.get_json()
 
@@ -168,15 +171,25 @@ class DataSummaryResource(Resource):
                     Status.HTTP_400_BAD_REQUEST,
                 )
 
-            summary = EventsModel.data_summary(
+            data = EventsModel.get_data_for_summary(
                 airqloud=airqloud,
+                start_date_time=start_date_time,
+                end_date_time=end_date_time,
+            )
+
+            summary = compute_airqloud_data_statistics(
+                data=data,
                 start_date_time=start_date_time,
                 end_date_time=end_date_time,
             )
 
             if len(summary) == 0:
                 return (
-                    create_response("No data found", data={}, success=False),
+                    create_response(
+                        f"No data found for airqloud {airqloud} from {start_date_time} to {end_date_time}",
+                        data={},
+                        success=False,
+                    ),
                     Status.HTTP_404_NOT_FOUND,
                 )
 
@@ -189,8 +202,10 @@ class DataSummaryResource(Resource):
             print(ex)
             traceback.print_exc()
             return (
-                create_response("An Error occurred while processing your request. Please contact support", data={}, success=False),
+                create_response(
+                    "An Error occurred while processing your request. Please contact support",
+                    data={},
+                    success=False,
+                ),
                 Status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
-
-

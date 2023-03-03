@@ -46,7 +46,6 @@ class EventsModel(BasePyMongoModel):
         frequency,
         pollutants,
     ) -> pd.DataFrame:
-
         decimal_places = cls.DATA_EXPORT_DECIMAL_PLACES
 
         # Data sources
@@ -208,13 +207,12 @@ class EventsModel(BasePyMongoModel):
 
     @classmethod
     @cache.memoize()
-    def data_summary(
+    def get_data_for_summary(
         cls,
         airqloud,
         start_date_time,
         end_date_time,
-    ) -> dict:
-
+    ) -> pd.DataFrame:
         data_table = cls.BIGQUERY_HOURLY_DATA
 
         # Data sources
@@ -279,32 +277,13 @@ class EventsModel(BasePyMongoModel):
         dataframe = bigquery.Client().query(query, job_config).result().to_dataframe()
 
         if len(dataframe.index) == 0:
-            return {}
+            return pd.DataFrame()
 
         dataframe.drop_duplicates(
             subset=["datetime", "device"], inplace=True, keep="first"
         )
 
-        total_records = len(dataframe.index)
-        calibrated_records = int(dataframe.pm2_5_calibrated_value.count())
-        un_calibrated_records = int(dataframe.pm2_5_calibrated_value.isna().sum())
-        sites = list(set(dataframe.site.to_list()))
-        devices = list(set(dataframe.device.to_list()))
-        airqloud = list(set(dataframe.airqloud.to_list()))[0]
-
-
-        return {
-            "airqloud": airqloud,
-            "sites": sites,
-            "devices": devices,
-            "no_of_hourly_records": total_records,
-            "no_of_calibrated_records": calibrated_records,
-            "no_of_uncalibrated_records": un_calibrated_records,
-            "%age_of_calibrated_records": (calibrated_records/total_records) * 100,
-            "%age_of_uncalibrated_records": (un_calibrated_records/total_records) * 100,
-            "start_date_time": start_date_time,
-            "end_date_time": end_date_time,
-        }
+        return dataframe
 
     @classmethod
     @cache.memoize()
@@ -417,7 +396,6 @@ class EventsModel(BasePyMongoModel):
     def bigquery_mobile_device_measurements(
         cls, tenant, device_numbers: list, start_date_time, end_date_time
     ):
-
         query = (
             f"SELECT * "
             f"FROM {cls.BIGQUERY_MOBILE_EVENTS} "
@@ -557,7 +535,6 @@ class EventsModel(BasePyMongoModel):
 
     @cache.memoize()
     def get_averages_by_pollutant_from_bigquery(self, start_date, end_date, pollutant):
-
         if pollutant not in ["pm2_5", "pm10", "no2", "pm1"]:
             raise Exception("Invalid pollutant")
 
@@ -636,7 +613,6 @@ class EventsModel(BasePyMongoModel):
 
     @cache.memoize()
     def get_d3_chart_events(self, sites, start_date, end_date, pollutant, frequency):
-
         diurnal_end_date = datetime.strptime(end_date, "%Y-%m-%dT%H:%M:%S.%fZ").replace(
             tzinfo=pytz.utc
         )
@@ -700,7 +676,6 @@ class EventsModel(BasePyMongoModel):
     def get_d3_chart_events_v2(
         self, sites, start_date, end_date, pollutant, frequency, tenant
     ):
-
         if pollutant not in ["pm2_5", "pm10", "no2", "pm1"]:
             raise Exception("Invalid pollutant")
 
@@ -741,7 +716,6 @@ class EventsModel(BasePyMongoModel):
             resample_value = "1H"
 
         for _, site_group in site_groups:
-
             values = site_group[["value", "time"]]
             ave_values = pd.DataFrame(values.resample(resample_value, on="time").mean())
             ave_values["time"] = ave_values.index
