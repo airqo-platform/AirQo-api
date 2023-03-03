@@ -8,27 +8,64 @@ const isEmpty = require("is-empty");
 const mongoose = require("mongoose").set("debug", true);
 const ObjectId = mongoose.Types.ObjectId;
 
+const NetworkModel = (tenant) => {
+  try {
+    const networks = mongoose.model("networks");
+    return networks;
+  } catch (error) {
+    const networks = getModelByTenant(tenant, "network", NetworkSchema);
+    return networks;
+  }
+};
+
 const createNetwork = {
   getNetworkFromEmail: async (request) => {
     try {
-      let responseFromExtractOneNetwork =
+      const responseFromExtractOneNetwork =
         createNetwork.extractOneAcronym(request);
 
+      logObject("responseFromExtractOneNetwork", responseFromExtractOneNetwork);
+
       if (responseFromExtractOneNetwork.success === true) {
-        let net_acronym = responseFromExtractOneNetwork.data;
-        let modifiedRequest = request;
+        const { tenant } = request.query;
+        let filter = {};
+        const skip = 0;
+        const limit = 1;
+
+        let modifiedRequest = Object.assign({}, request);
         modifiedRequest["query"] = {};
-        modifiedRequest["query"]["net_acronym"] = net_acronym;
-        let responseFromListNetworks = await createNetwork.list(
-          modifiedRequest
-        );
+        modifiedRequest["query"]["net_acronym"] =
+          responseFromExtractOneNetwork.data;
+
+        const responseFromGenerateFilter =
+          generateFilter.networks(modifiedRequest);
+
+        logObject("responseFromGenerateFilter", responseFromGenerateFilter);
+
+        if (responseFromGenerateFilter.success === true) {
+          filter = responseFromGenerateFilter.data;
+          logObject("filter", filter);
+        } else if (responseFromGenerateFilter.success === false) {
+          return responseFromGenerateFilter;
+        }
+
+        const responseFromListNetworks = await NetworkModel(tenant).list({
+          filter,
+          limit,
+          skip,
+        });
+
         if (responseFromListNetworks.success === true) {
-          let data = responseFromListNetworks.data;
-          let storedNetwork = data[0].net_name || data[0].net_acronym;
+          const data = responseFromListNetworks.data;
+          const storedNetwork = data[0]
+            ? data[0].net_name || data[0].net_acronym
+            : "";
           return {
             success: true,
             data: storedNetwork,
-            message: "successfully retrieved the network",
+            message: data[0]
+              ? "successfully retrieved the network"
+              : "No network exists for this operation",
             status: httpStatus.OK,
           };
         } else if (responseFromListNetworks.success === false) {
@@ -92,8 +129,10 @@ const createNetwork = {
   },
   create: async (request) => {
     try {
-      let { body } = request;
-      let modifiedBody = body;
+      const { body, query } = request;
+      const { tenant } = query;
+
+      let modifiedBody = Object.assign({}, body);
 
       const responseFromExtractNetworkName =
         createNetwork.extractOneAcronym(request);
@@ -111,143 +150,111 @@ const createNetwork = {
       }
 
       logObject("modifiedBody", modifiedBody);
-      let responseFromRegisterNetwork = await getModelByTenant(
-        "airqo",
-        "network",
-        NetworkSchema
-      ).register(modifiedBody);
+      const responseFromRegisterNetwork = await NetworkModel(tenant).register(
+        modifiedBody
+      );
 
       logObject("responseFromRegisterNetwork", responseFromRegisterNetwork);
 
       if (responseFromRegisterNetwork.success === true) {
-        let status = responseFromRegisterNetwork.status
-          ? responseFromRegisterNetwork.status
-          : "";
-        return {
-          success: true,
-          message: responseFromRegisterNetwork.message,
-          data: responseFromRegisterNetwork.data,
-          status,
-        };
+        return responseFromRegisterNetwork;
       } else if (responseFromRegisterNetwork.success === false) {
-        let errors = responseFromRegisterNetwork.errors
-          ? responseFromRegisterNetwork.errors
-          : "";
-
-        let status = responseFromRegisterNetwork.status
-          ? responseFromRegisterNetwork.status
-          : "";
-
-        return {
-          success: false,
-          message: responseFromRegisterNetwork.message,
-          errors,
-          status,
-        };
+        return responseFromRegisterNetwork;
       }
     } catch (err) {
       return {
         success: false,
         message: "network util server errors",
-        errors: err.message,
+        errors: { message: err.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
   update: async (request) => {
     try {
-      let { body, query, params } = request;
-      let tenant = "airqo";
-      let update = body;
-      const action = request.path.split("/")[3];
+      const { body, query, params } = request;
+      const { action } = request;
+      const { tenant } = query;
+      let update = Object.assign({}, body);
       logElement("action", action);
       update["action"] = action;
+
       let filter = {};
-      let responseFromGeneratefilter = generateFilter.networks(request);
+      const responseFromGeneratefilter = generateFilter.networks(request);
+
+      if (responseFromGeneratefilter.success === true) {
+        filter = responseFromGeneratefilter.data;
+      } else if (responseFromGeneratefilter.success === false) {
+        return responseFromGeneratefilter;
+      }
 
       if (!isEmpty(params.user_id)) {
-        logElement("params.user_id", params.user_id);
-        let usersArray = params.user_id.toString().split(",");
-        let modifiedUsersArray = usersArray.map((user_id) => {
+        /**
+         * we also need to update the Users?
+         */
+        const usersArray = params.user_id.toString().split(",");
+        const modifiedUsersArray = usersArray.map((user_id) => {
           return ObjectId(user_id);
         });
         update.net_users = modifiedUsersArray;
       } else if (!isEmpty(update.user_ids)) {
-        let usersArray = update.user_ids.toString().split(",");
-        let modifiedUsersArray = usersArray.map((user_id) => {
+        /**
+         * we also need to update the Users?
+         */
+        const usersArray = update.user_ids.toString().split(",");
+        const modifiedUsersArray = usersArray.map((user_id) => {
           return ObjectId(user_id);
         });
         update.net_users = modifiedUsersArray;
       }
 
-      if (responseFromGeneratefilter.success === true) {
-        filter = responseFromGeneratefilter.data;
-        if (
-          !isEmpty(params.user_id) &&
-          !isEmpty(action) &&
-          action === "unassign-user"
-        ) {
-          filter["net_users"] = ObjectId(params.user_id);
+      if (!isEmpty(action)) {
+        if (action === "assignUsers" || action === "assignOneUser") {
+          update["$addToSet"] = {};
+          update["$addToSet"]["net_users"] = {};
+          update["$addToSet"]["net_users"]["$each"] = update.net_users;
+          delete update.net_users;
+        } else if (action === "unAssignUser") {
+          update["$pull"] = {};
+          update["$pull"]["net_users"] = {};
+          update["$pull"]["net_users"]["$in"] = update.net_users;
+          delete update.net_users;
+        } else if (action === "setManager") {
+          /**
+           * we could also first check if they belong to the network?
+           */
+          update["$addToSet"] = {};
+          update["$addToSet"]["net_users"] = {};
+          update["$addToSet"]["net_users"]["$each"] = update.net_users;
+          update["net_manager"] = update.net_users[0];
+          delete update.net_users;
         }
-      } else if (responseFromGeneratefilter.success === false) {
-        let status = responseFromGeneratefilter.status
-          ? responseFromGeneratefilter.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        let errors = responseFromGeneratefilter.errors
-          ? responseFromGeneratefilter.errors
-          : "";
-        return {
-          message: "Internal Server Error",
-          errors,
-          status,
-          success: false,
-        };
       }
 
-      let responseFromModifyNetwork = await getModelByTenant(
-        "airqo",
-        "network",
-        NetworkSchema
-      ).modify({ update, filter });
+      const responseFromModifyNetwork = await NetworkModel(tenant).modify({
+        update,
+        filter,
+      });
 
       if (responseFromModifyNetwork.success === true) {
-        let status = responseFromModifyNetwork.status
-          ? responseFromModifyNetwork.status
-          : "";
-        return {
-          message: responseFromModifyNetwork.message,
-          status,
-          data: responseFromModifyNetwork.data,
-          success: true,
-        };
+        return responseFromModifyNetwork;
       } else if (responseFromModifyNetwork.success === false) {
-        let status = responseFromModifyNetwork.status
-          ? responseFromModifyNetwork.status
-          : "";
-        let errors = responseFromModifyNetwork.errors
-          ? responseFromModifyNetwork.errors
-          : "";
-        return {
-          success: false,
-          message: responseFromModifyNetwork.message,
-          errors,
-          status,
-        };
+        return responseFromModifyNetwork;
       }
     } catch (error) {
       logObject("error", error);
       return {
         success: false,
         message: "Internal Server Error",
-        errors: error,
+        errors: { message: error.message },
       };
     }
   },
   delete: async (request) => {
     try {
       logText("the delete operation.....");
-      let { query, body } = request;
-      let tenant = "airqo";
+      const { query } = request;
+      const { tenant } = query;
       let filter = {};
 
       const responseFromGenerateFilter = generateFilter.networks(request);
@@ -257,120 +264,56 @@ const createNetwork = {
       if (responseFromGenerateFilter.success === true) {
         filter = responseFromGenerateFilter.data;
       } else if (responseFromGenerateFilter.success === false) {
-        let status = responseFromGenerateFilter.status
-          ? responseFromGenerateFilter.status
-          : "";
-        let errors = responseFromGenerateFilter.errors
-          ? responseFromGenerateFilter.errors
-          : "";
-        return {
-          status,
-          errors,
-          message: responseFromGenerateFilter.message,
-        };
+        return responseFromGenerateFilter;
       }
 
       logObject("the filter", filter);
 
-      let responseFromRemoveNetwork = await getModelByTenant(
-        "airqo",
-        "network",
-        NetworkSchema
-      ).remove({ filter });
+      const responseFromRemoveNetwork = await NetworkModel(tenant).remove({
+        filter,
+      });
 
       logObject("responseFromRemoveNetwork", responseFromRemoveNetwork);
 
       if (responseFromRemoveNetwork.success === true) {
-        let status = responseFromRemoveNetwork.status
-          ? responseFromRemoveNetwork.status
-          : "";
-
-        return {
-          status,
-          message: responseFromRemoveNetwork.message,
-          data: responseFromRemoveNetwork.data,
-          success: true,
-        };
+        return responseFromRemoveNetwork;
       } else if (responseFromRemoveNetwork.success === false) {
-        let status = responseFromRemoveNetwork.status
-          ? responseFromRemoveNetwork.status
-          : "";
-        let errors = responseFromRemoveNetwork.errors
-          ? responseFromRemoveNetwork.errors
-          : "";
-
-        return {
-          message: responseFromRemoveNetwork.message,
-          errors,
-          status,
-          success: false,
-        };
+        return responseFromRemoveNetwork;
       }
     } catch (error) {
       return {
         message: "Internal Server Error",
         status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: error.message,
+        errors: { message: error.message },
         success: false,
       };
     }
   },
   list: async (request) => {
     try {
-      let { skip, limit } = request.query;
-      let tenant = "airqo";
+      let { skip, limit, tenant } = request.query;
       let filter = {};
 
-      let responseFromGenerateFilter = generateFilter.networks(request);
+      const responseFromGenerateFilter = generateFilter.networks(request);
       if (responseFromGenerateFilter.success === true) {
         filter = responseFromGenerateFilter.data;
         logObject("filter", filter);
       }
 
       if (responseFromGenerateFilter.success === false) {
-        let errors = responseFromGenerateFilter.errors
-          ? responseFromGenerateFilter.errors
-          : "";
-        return {
-          success: false,
-          message: responseFromGenerateFilter.message,
-          errors,
-        };
+        return responseFromGenerateFilter;
       }
 
-      let responseFromListNetworks = await getModelByTenant(
-        "airqo",
-        "network",
-        NetworkSchema
-      ).list({ filter, limit, skip });
-
-      // logObject("responseFromListNetworks", responseFromListNetworks);
+      const responseFromListNetworks = await NetworkModel(tenant).list({
+        filter,
+        limit,
+        skip,
+      });
 
       if (responseFromListNetworks.success === true) {
-        let status = responseFromListNetworks.status
-          ? responseFromListNetworks.status
-          : "";
-
-        return {
-          success: true,
-          status,
-          message: responseFromListNetworks.message,
-          data: responseFromListNetworks.data,
-        };
+        return responseFromListNetworks;
       } else if (responseFromListNetworks.success === false) {
-        let status = responseFromListNetworks.status
-          ? responseFromListNetworks.status
-          : "";
-        let errors = responseFromListNetworks.errors
-          ? responseFromListNetworks.errors
-          : "";
-
-        return {
-          success: false,
-          status,
-          errors,
-          message: responseFromListNetworks.message,
-        };
+        return responseFromListNetworks;
       }
     } catch (error) {
       logElement("internal server error", error.message);
@@ -378,7 +321,7 @@ const createNetwork = {
         success: false,
         status: httpStatus.INTERNAL_SERVER_ERROR,
         message: "Internal Server Error",
-        errors: error.message,
+        errors: { message: error.message },
       };
     }
   },
