@@ -1,4 +1,4 @@
-resource "google_compute_instance_template" "shard_template" {
+resource "google_compute_instance_template" "mongod_shard" {
   confidential_instance_config {
     enable_confidential_compute = false
   }
@@ -8,7 +8,7 @@ resource "google_compute_instance_template" "shard_template" {
   disk {
     auto_delete  = true
     boot         = true
-    device_name  = "shard-template"
+    device_name  = "mongod-shard"
     disk_size_gb = var.disk_size["medium"]
     disk_type    = "pd-balanced"
     mode         = "READ_WRITE"
@@ -21,7 +21,7 @@ resource "google_compute_instance_template" "shard_template" {
   }
 
   machine_type = "e2-custom-4-8192"
-  name         = "shard-template"
+  name         = "mongod-shard"
 
   network_interface {
     access_config {
@@ -55,4 +55,4 @@ resource "google_compute_instance_template" "shard_template" {
 
   tags = ["airqo-shard", "http-server", "https-server"]
 }
-# terraform import google_compute_instance_template.shard_template projects/${var.project_id}/global/instanceTemplates/shard-instance-template
+# terraform import google_compute_instance_template.mongod_shard projects/${var.project_id}/global/instanceTemplates/shard-instance-template

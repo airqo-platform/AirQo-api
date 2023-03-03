@@ -10,9 +10,9 @@ all:
         config_servers:
           hosts:
             mongod-cfgsvr-[1:3].europe-west1-b.c.airqo-250220.internal
-        shards_prod:
+        shards_1:
           hosts:
-            shard-prod-[1:3].europe-west1-b.c.airqo-250220.internal
+            mongod-shard-1-[1:3].europe-west1-b.c.airqo-250220.internal
     k8s_cluster:
       children:
         k8s_master:

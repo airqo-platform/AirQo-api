@@ -10,8 +10,8 @@
     userPass: "userPass" # encrypt with ansible-vault
     roles: ["readWrite", "userAdmin"]
     new_shard:
-      name: shard-prod
-      server: shard-prod-1.europe-west1-b.c.airqo-250220.internal
+      name: mongod-shard-1
+      server: mongod-shard-1-1.europe-west1-b.c.airqo-250220.internal
 
   roles:
     - { role: isaackehle.ansible_mongodb, flags: ["install"] }
