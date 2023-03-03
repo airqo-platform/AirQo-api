@@ -27,8 +27,8 @@ module_utils/             # if any custom module_utils to support modules, put t
 filter_plugins/           # if any custom filter plugins, put them here (optional)
 
 site.yml                  # master playbook
-webservers.yml            # playbook for webserver tier
-dbservers.yml             # playbook for dbserver tier
+control_node_init.yml     # playbook for configuring all nodes
+mongo_sharded_cluster.yml # playbook for configuring mongodb sharded cluster
 
 roles/
     common/               # this hierarchy represents a "role"
