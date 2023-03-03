@@ -1,8 +1,8 @@
 cluster_role: "shard"
 
 cfg_server:
-  name: "cfgsvr-prod"
-  group: "cfgsvrs_prod"
+  name: "cfgsvr"
+  group: "config_servers"
 
 replica_set:
   name: "shard-prod"

@@ -1,4 +1,4 @@
-resource "google_compute_instance_template" "cfgsvr_template" {
+resource "google_compute_instance_template" "mongod_cfgsvr_template" {
   confidential_instance_config {
     enable_confidential_compute = false
   }
@@ -8,7 +8,7 @@ resource "google_compute_instance_template" "cfgsvr_template" {
   disk {
     auto_delete  = true
     boot         = true
-    device_name  = "cfgsvr-template"
+    device_name  = "mongod-cfgsvr-template"
     disk_size_gb = var.disk_size["small"]
     disk_type    = "pd-balanced"
     mode         = "READ_WRITE"
@@ -21,7 +21,7 @@ resource "google_compute_instance_template" "cfgsvr_template" {
   }
 
   machine_type = "e2-custom-4-8192"
-  name         = "cfgsvr-template"
+  name         = "mongod-cfgsvr-template"
 
   network_interface {
     access_config {
@@ -55,4 +55,4 @@ resource "google_compute_instance_template" "cfgsvr_template" {
 
   tags = ["airqo-shard", "http-server", "https-server"]
 }
-# terraform import google_compute_instance_template.cfgsvr_template projects/${var.project_id}/global/instanceTemplates/cfgsvr-template
+# terraform import google_compute_instance_template.mongod_cfgsvr_template projects/${var.project_id}/global/instanceTemplates/mongod-cfgsvr-template

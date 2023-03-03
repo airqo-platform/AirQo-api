@@ -1,5 +1,5 @@
 cluster_role: "router"
 
 cfg_server:
-  name: "cfgsvr-prod"
-  group: "cfgsvrs_prod"
+  name: "cfgsvr"
+  group: "config_servers"

@@ -1,7 +1,7 @@
-resource "google_compute_instance" "cfgsvr_prod_3" {
+resource "google_compute_instance" "mongod_cfgsvr_2" {
   boot_disk {
     auto_delete = true
-    source      = "cfgsvr-prod-3"
+    source      = "mongod-cfgsvr-2"
   }
 
   labels = {
@@ -15,7 +15,7 @@ resource "google_compute_instance" "cfgsvr_prod_3" {
     startup-script = "sudo ufw allow ssh"
   }
 
-  name = "cfgsvr-prod-3"
+  name = "mongod-cfgsvr-2"
 
   network_interface {
     access_config {
@@ -23,7 +23,7 @@ resource "google_compute_instance" "cfgsvr_prod_3" {
     }
 
     network = "default"
-    network_ip = "10.132.0.50"
+    network_ip = "10.132.0.48"
   }
 
   project = var.project_id
@@ -45,4 +45,4 @@ resource "google_compute_instance" "cfgsvr_prod_3" {
 
   zone = var.zone
 }
-# terraform import google_compute_instance.cfgsvr_prod_3 projects/${var.project_id}/zones/${var.zone}/instances/cfgsvr-prod-3
+# terraform import google_compute_instance.mongod_cfgsvr_2 projects/${var.project_id}/zones/${var.zone}/instances/mongod-cfgsvr-2
