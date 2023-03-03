@@ -5,7 +5,7 @@ all:
   children:
     mongo_cluster_prod:
       hosts:
-        mongos-prod-1.europe-west1-b.c.airqo-250220.internal
+        mongos-router.europe-west1-b.c.airqo-250220.internal
       children:
         cfgsvrs_prod:
           hosts:
