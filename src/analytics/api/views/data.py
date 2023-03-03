@@ -2,6 +2,7 @@ import json
 import traceback
 
 import flask_excel as excel
+import pandas as pd
 from flasgger import swag_from
 from flask import request
 from flask_restx import Resource
@@ -178,7 +179,7 @@ class DataSummaryResource(Resource):
             )
 
             summary = compute_airqloud_data_statistics(
-                data=data,
+                data=pd.DataFrame(data),
                 start_date_time=start_date_time,
                 end_date_time=end_date_time,
             )

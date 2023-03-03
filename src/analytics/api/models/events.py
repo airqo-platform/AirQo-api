@@ -212,7 +212,7 @@ class EventsModel(BasePyMongoModel):
         airqloud,
         start_date_time,
         end_date_time,
-    ) -> pd.DataFrame:
+    ) -> list:
         data_table = cls.BIGQUERY_HOURLY_DATA
 
         # Data sources
@@ -277,13 +277,13 @@ class EventsModel(BasePyMongoModel):
         dataframe = bigquery.Client().query(query, job_config).result().to_dataframe()
 
         if len(dataframe.index) == 0:
-            return pd.DataFrame()
+            return []
 
         dataframe.drop_duplicates(
             subset=["datetime", "device"], inplace=True, keep="first"
         )
 
-        return dataframe
+        return dataframe.to_dict(orient="records")
 
     @classmethod
     @cache.memoize()
