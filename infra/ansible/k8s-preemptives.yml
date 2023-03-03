@@ -4,7 +4,7 @@
   tasks:
     - name: Create the script to remove hourly preemptive node
       template:
-        src: templates/remove_preemptives.sh.j2
+        src: roles/k8s/templates/remove_preemptives.sh.j2
         dest: /root/remove_preemptive_hourly.sh
         mode: a+x
       vars:
@@ -12,7 +12,7 @@
 
     - name: Create the script to remove monthly preemptive node
       template:
-        src: templates/remove_preemptives.sh.j2
+        src: roles/k8s/templates/remove_preemptives.sh.j2
         dest: /root/remove_preemptive_monthly.sh
         mode: a+x
       vars:
@@ -42,7 +42,7 @@
           }
 
     - name: Get join command
-      include_tasks: tasks/master_join_command.yml
+      include_tasks: roles/k8s/tasks/configure_master.yml
 
 - hosts: preemptive_nodes
   become: true
@@ -54,11 +54,11 @@
         mode: a+x
       with_items:
         - {
-            src: templates/join_k8s_cluster.sh.j2,
+            src: roles/k8s/templates/join_k8s_cluster.sh.j2,
             dest: /root/join_k8s_cluster.sh,
           }
         - {
-            src: templates/leave_k8s_cluster.sh.j2,
+            src: roles/k8s/templates/leave_k8s_cluster.sh.j2,
             dest: /root/leave_k8s_cluster.sh,
           }
 

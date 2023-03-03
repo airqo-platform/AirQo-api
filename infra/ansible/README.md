@@ -26,7 +26,6 @@ library/                  # if any custom modules, put them here (optional)
 module_utils/             # if any custom module_utils to support modules, put them here (optional)
 filter_plugins/           # if any custom filter plugins, put them here (optional)
 
-site.yml                  # master playbook
 control_node_init.yml     # playbook for configuring all nodes
 mongo_sharded_cluster.yml # playbook for configuring mongodb sharded cluster
 
