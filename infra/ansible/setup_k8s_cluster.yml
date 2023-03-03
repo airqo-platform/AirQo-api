@@ -7,9 +7,9 @@
   become: true
   tasks:
     - include_tasks: roles/k8s/tasks/configure_master.yml
-    - include_tasks: master_join_command.yml
+    - include_tasks: roles/k8s/tasks/master_join_command.yml
 
 - hosts: k8s_workers
   become: true
   tasks:
-    - include_tasks: worker_join_cluster.yml
+    - include_tasks: roles/k8s/tasks/worker_join_cluster.yml
