@@ -422,6 +422,7 @@ const createEvent = {
       request["body"] = body;
       request["query"] = query;
       const responseFromCreateEvents = await createEventUtil.create(request);
+      logObject("responseFromCreateEvents util", responseFromCreateEvents);
       if (responseFromCreateEvents.success === true) {
         const status = responseFromCreateEvents.status
           ? responseFromCreateEvents.status
@@ -442,6 +443,7 @@ const createEvent = {
         });
       }
     } catch (error) {
+      logObject("error", error);
       logger.error(`internal server error -- ${error.message}`);
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,

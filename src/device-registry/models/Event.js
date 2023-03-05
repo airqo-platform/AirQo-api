@@ -945,6 +945,7 @@ eventSchema.statics = {
 };
 
 const eventsModel = (tenant) => {
+  logObject("tenant.toLowerCase()", tenant.toLowerCase());
   return getModelByTenant(tenant.toLowerCase(), "event", eventSchema);
 };
 
