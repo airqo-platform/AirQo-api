@@ -683,6 +683,4 @@ router.delete(
   eventController.deleteValuesOnPlatform
 );
 
-router.post("/consume", eventController.consume);
-
 module.exports = router;
