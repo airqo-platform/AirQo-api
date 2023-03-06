@@ -28,6 +28,7 @@ filter_plugins/           # if any custom filter plugins, put them here (optiona
 
 control_node_init.yml     # playbook for configuring all nodes
 mongo_sharded_cluster.yml # playbook for configuring mongodb sharded cluster
+hello_world.yml           # any other playbooks
 
 roles/
     common/               # this hierarchy represents a "role"
