@@ -84,9 +84,10 @@ class Collocation(BaseModel):
                 {
                     "start_date": date_to_str(self.__start_date),
                     "end_date": date_to_str(self.__end_date),
-                    "devices": self.__devices,
+                    "devices": {"$in": self.__devices},
                 }
             )
+
             if results is not None:
                 data = dict(results)
                 data.pop("_id")

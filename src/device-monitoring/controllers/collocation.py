@@ -119,20 +119,20 @@ def get_device_collocation():
     return jsonify({"data": results}), 200
 
 
-@collocation_bp.route(routes.DEVICE_COLLOCATION_RESULTS, methods=["POST"])
+@collocation_bp.route(routes.DEVICE_COLLOCATION_RESULTS, methods=["GET"])
 def get_collocation_results():
-    json_data = request.get_json()
-    devices = json_data.get("devices", [])
-    start_date = json_data.get("startDate", None)
-    end_date = json_data.get("endDate", None)
+    devices = request.args.get("devices", "")
+    start_date = request.args.get("startDate", "")
+    end_date = request.args.get("endDate", "")
 
     errors = {}
 
     try:
         if not devices or not isinstance(
-            devices, list
+            devices, str
         ):  # TODO add device restrictions e.g not more that 3 devices
             raise Exception
+        devices = devices.split(",")
     except Exception:
         errors["devices"] = "Provide a list of devices"
 
