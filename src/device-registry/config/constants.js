@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const log4js = require("log4js");
+const { isEmpty } = require("underscore");
 const logger = log4js.getLogger(`${this.ENVIRONMENT} -- constants-config`);
 
 const devConfig = {
@@ -477,7 +478,10 @@ const defaultConfig = {
 
       {
         run: function(device_number) {
-          return parseInt(device_number);
+          if (!isEmpty(device_number)) {
+            return parseInt(device_number);
+          }
+          return device_number;
         },
         on: "device_number",
       },

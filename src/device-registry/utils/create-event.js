@@ -692,7 +692,6 @@ const createEvent = {
       const responseFromTransformEvent = await createEvent.transformManyEvents(
         request
       );
-      let { tenant } = request.query;
       logObject("responseFromTransformEvent man", responseFromTransformEvent);
       if (responseFromTransformEvent.success === true) {
         let transformedEvents = responseFromTransformEvent.data;
@@ -1329,6 +1328,7 @@ const createEvent = {
       // );
       let request = {};
       let enrichedEvent = transformedEvent;
+
       logObject("transformed event received for enrichment", transformedEvent);
       logObject(
         "transformedEvent[filter][$or]",
