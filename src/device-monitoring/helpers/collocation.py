@@ -158,13 +158,13 @@ class Collocation(BaseModel):
         aggregated_data = pd.DataFrame()
         data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
 
-        for _, group in data.groupby("device_id"):
-            device_id = group.iloc[0]["device_id"]
-            del group["device_id"]
+        for _, group in data.groupby("device_name"):
+            device_name = group.iloc[0]["device_name"]
+            del group["device_name"]
 
             averages = group.resample("1H", on="timestamp").mean()
             averages["timestamp"] = averages.index
-            averages["device_id"] = device_id
+            averages["device_name"] = device_name
 
             aggregated_data = pd.concat([aggregated_data, averages], ignore_index=True)
 
@@ -174,12 +174,12 @@ class Collocation(BaseModel):
     def __load_device_data(self):
         """
         SELECT
-        timestamp, device_id, s1_pm2_5, s2_pm2_5, s1_pm10,
+        timestamp, device_name, s1_pm2_5, s2_pm2_5, s1_pm10,
         s2_pm10, device_temperature as internal_temperature, device_humidity as internal_humidity,
         temperature as external_temperature, humidity as external_humidity, altitude, vapor_pressure
         FROM `airqo-250220.averaged_data.hourly_device_measurements`
         WHERE DATE(timestamp) >= "2023-01-15" and
-        device_id in UNNEST(["aq_g5_38", "aq_g519", "aq_g5_63"])
+        device_name in UNNEST(["aq_g5_38", "aq_g519", "aq_g5_63"])
         """
 
         col_mappings = {
@@ -217,6 +217,7 @@ class Collocation(BaseModel):
         dataframe.drop_duplicates(
             subset=["timestamp", "device_id"], keep="first", inplace=True
         )
+        dataframe.rename(columns={"device_id": "device_name"}, inplace=True)
 
         self.__data = dataframe
         return self.__data
@@ -237,9 +238,9 @@ class Collocation(BaseModel):
 
         """
         correlation = []
-        device_groups = self.__data.groupby("device_id")
+        device_groups = self.__data.groupby("device_name")
         for _, group in device_groups:
-            device_id = group.iloc[0].device_id
+            device_name = group.iloc[0].device_name
             pm2_5_pearson_correlation = (
                 self.__data[["s1_pm2_5", "s2_pm2_5"]].corr().round(4)
             )
@@ -248,7 +249,7 @@ class Collocation(BaseModel):
             )
             correlation.append(
                 {
-                    "device_id": device_id,
+                    "device_name": device_name,
                     "pm2_5_pearson_correlation": pm2_5_pearson_correlation.iloc[0][
                         "s2_pm2_5"
                     ],
@@ -285,7 +286,7 @@ class Collocation(BaseModel):
         Steps:
         1. Querying tha data from the API or data warehouse
             user devices, start date, end date
-            NB: remove duplicates (timestamp, device_id or name)
+            NB: remove duplicates (timestamp, device_name or name)
                 Use hourly data
         2. Calculate number of expected records in the period for all devices. 24 * number of days (expected)
         3. Calculate number of Hourly Actual records that we sent by each device (actual)
@@ -295,7 +296,7 @@ class Collocation(BaseModel):
         """
 
         completeness_report = []
-        data = self.__data.drop_duplicates(subset=["device_id", "timestamp"])
+        data = self.__data.drop_duplicates(subset=["device_name", "timestamp"])
         date_diff = (self.__end_date - self.__start_date).days
         expected_records = (
             self.__expected_records_per_day
@@ -303,7 +304,7 @@ class Collocation(BaseModel):
             else self.__expected_records_per_day * date_diff
         )
 
-        device_groups = data.groupby("device_id")
+        device_groups = data.groupby("device_name")
         for _, group in device_groups:
             actual_number_of_records = len(group.index)
             completeness = 1
@@ -315,7 +316,7 @@ class Collocation(BaseModel):
 
             completeness_report.append(
                 {
-                    "device_id": group.iloc[0].device_id,
+                    "device_name": group.iloc[0].device_name,
                     "expected_number_of_records": expected_records,
                     "actual_number_of_records": actual_number_of_records,
                     "completeness": completeness,
@@ -343,9 +344,9 @@ class Collocation(BaseModel):
         """
 
         statistics = []
-        device_groups = self.__data.groupby("device_id")
+        device_groups = self.__data.groupby("device_name")
         for _, group in device_groups:
-            device_id = group.iloc[0].device_id
+            device_name = group.iloc[0].device_name
             device_statistics = {}
 
             for col in self.__parameters:
@@ -363,7 +364,7 @@ class Collocation(BaseModel):
                     },
                 }
 
-            statistics.append({**{"device_id": device_id}, **device_statistics})
+            statistics.append({**{"device_name": device_name}, **device_statistics})
         self.__statistics = pd.DataFrame(statistics)
         return self.__statistics
 
@@ -381,13 +382,13 @@ class Collocation(BaseModel):
         device_pairs = self.device_pairs(self.__data)
 
         for device_pair in device_pairs:
-            device_x_data = self.__data[self.__data["device_id"] == device_pair[0]]
+            device_x_data = self.__data[self.__data["device_name"] == device_pair[0]]
             device_x_data = device_x_data.add_prefix(f"{device_pair[0]}_")
             device_x_data.rename(
                 columns={f"{device_pair[0]}_timestamp": "timestamp"}, inplace=True
             )
 
-            device_y_data = self.__data[self.__data["device_id"] == device_pair[1]]
+            device_y_data = self.__data[self.__data["device_name"] == device_pair[1]]
             device_y_data = device_y_data.add_prefix(f"{device_pair[1]}_")
             device_y_data.rename(
                 columns={f"{device_pair[1]}_timestamp": "timestamp"}, inplace=True
@@ -426,7 +427,7 @@ class Collocation(BaseModel):
 
     @staticmethod
     def device_pairs(data: pd.DataFrame) -> list:
-        devices = list(set(data["device_id"].tolist()))
+        devices = list(set(data["device_name"].tolist()))
         device_pairs = []
         for device_x in devices:
             for device_y in devices:
@@ -444,7 +445,7 @@ class Collocation(BaseModel):
         data = pd.merge(
             left=self.__data_completeness,
             right=self.__intra_sensor_correlation,
-            on="device_id",
+            on="device_name",
             suffixes=("_data_completeness", "_intra_sensor_correlation"),
         )
 
@@ -460,7 +461,7 @@ class Collocation(BaseModel):
                 "status",
                 "start_date",
                 "end_date",
-                "device_id",
+                "device_name",
                 "added_by",
                 "passed_intra_sensor_correlation",
                 "passed_data_completeness",
@@ -489,11 +490,11 @@ class Collocation(BaseModel):
         device_pairs = self.device_pairs(data)
 
         for device_pair in device_pairs:
-            device_x_data = data[data["device_id"] == device_pair[0]]
+            device_x_data = data[data["device_name"] == device_pair[0]]
             device_x_data = device_x_data.add_prefix(f"{device_pair[0]}_")
             device_x_data = device_x_data.reset_index()
 
-            device_y_data = data[data["device_id"] == device_pair[1]]
+            device_y_data = data[data["device_name"] == device_pair[1]]
             device_y_data = device_y_data.add_prefix(f"{device_pair[1]}_")
             device_y_data = device_y_data.reset_index()
 
@@ -503,7 +504,7 @@ class Collocation(BaseModel):
             differences_map = {}
 
             for col in data.columns.to_list():
-                if col == "device_id":
+                if col == "device_name":
                     continue
                 cols = [f"{device_pair[0]}_{col}", f"{device_pair[1]}_{col}"]
 
