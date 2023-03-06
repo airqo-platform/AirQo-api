@@ -476,9 +476,14 @@ eventSchema.statics = {
           },
         },
         pages: {
-          $ceil: {
-            $divide: [{ $arrayElemAt: ["$total.device", 0] }, limit],
-          },
+          $ifNull: [
+            {
+              $ceil: {
+                $divide: [{ $arrayElemAt: ["$total.device", 0] }, limit],
+              },
+            },
+            1,
+          ],
         },
       };
       let siteProjection = {};
@@ -945,6 +950,7 @@ eventSchema.statics = {
 };
 
 const eventsModel = (tenant) => {
+  logObject("tenant.toLowerCase()", tenant.toLowerCase());
   return getModelByTenant(tenant.toLowerCase(), "event", eventSchema);
 };
 
