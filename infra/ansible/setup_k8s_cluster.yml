@@ -1,15 +1,15 @@
 - hosts: k8s_cluster
   become: true
-  tasks:
-    - include_tasks: roles/k8s/tasks/install_dependencies.yml
+  roles:
+    - { role: k8s, flags: ["install_dependencies"] }
 
 - hosts: k8s_master
   become: true
-  tasks:
-    - include_tasks: roles/k8s/tasks/configure_master.yml
-    - include_tasks: roles/k8s/tasks/master_join_command.yml
+  roles:
+    - { role: k8s, flags: ["configure_master"] }
+    - { role: k8s, flags: ["get_join_command"] }
 
 - hosts: k8s_workers
   become: true
-  tasks:
-    - include_tasks: roles/k8s/tasks/worker_join_cluster.yml
+  roles:
+    - { role: k8s, flags: ["join_cluster"] }
