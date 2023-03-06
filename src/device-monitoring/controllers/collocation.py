@@ -115,4 +115,4 @@ def get_device_collocation():
     collocation.compute_correlation()
     results = collocation.results()
 
-    return jsonify(results), 200
+    return jsonify({"data": results}), 200

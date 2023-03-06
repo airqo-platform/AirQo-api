@@ -8,9 +8,10 @@ import pandas as pd
 
 from config.constants import Config
 from helpers.convert_dates import date_to_str
+from models import BaseModel
 
 
-class Collocation:
+class Collocation(BaseModel):
     @staticmethod
     def valid_parameters():
         return [
@@ -25,17 +26,11 @@ class Collocation:
             "battery_voltage",
         ]
 
-    def __init__(
-        self,
-        devices: list,
-        start_date: datetime,
-        end_date: datetime,
-        correlation_threshold: float,
-        completeness_threshold: float,
-        expected_records_per_day: int,
-        verbose: bool = False,
-        parameters: list = None,
-    ):
+    def __init__(self, devices: list, start_date: datetime, end_date: datetime, correlation_threshold: float,
+                 completeness_threshold: float, expected_records_per_day: int,
+                 verbose: bool = False, parameters: list = None):
+
+        super().__init__("airqo", "collocation")
 
         if parameters is None:
             parameters = self.valid_parameters()
@@ -56,8 +51,12 @@ class Collocation:
         self.__data_completeness = pd.DataFrame()
         self.__statistics = pd.DataFrame()
         self.__differences = pd.DataFrame()
+        self.__summary = pd.DataFrame()
         self.__data_query = ""
         self.__results = {}
+
+    def __save_collocation(self):
+        return self.db.collocation.insert_one(self.__results.copy())
 
     def results(self):
         return self.__results
@@ -77,15 +76,25 @@ class Collocation:
             self.compute_intra_sensor_correlation()
             self.compute_statistics()
             self.compute_differences()
+            self.compute_summary()
 
         self.__data_completeness = self.__data_completeness.replace(np.nan, None)
         self.__statistics = self.__statistics.replace(np.nan, None)
-        self.__intra_sensor_correlation = self.__intra_sensor_correlation.replace(np.nan, None)
-        self.__inter_sensor_correlation = self.__inter_sensor_correlation.replace(np.nan, None)
+        self.__intra_sensor_correlation = self.__intra_sensor_correlation.replace(
+            np.nan, None
+        )
+        self.__inter_sensor_correlation = self.__inter_sensor_correlation.replace(
+            np.nan, None
+        )
         self.__differences = self.__differences.replace(np.nan, None)
+        self.__summary = self.__summary.replace(np.nan, None)
 
         self.__results = {
+            "devices": self.__devices,
+            "start_date": date_to_str(self.__start_date),
+            "end_date": date_to_str(self.__end_date),
             "data_completeness": self.__data_completeness.to_dict("records"),
+            "summary": self.__summary.to_dict("records"),
             "statistics": self.__statistics.to_dict("records"),
             "differences": self.__differences.to_dict("records"),
             "intra_sensor_correlation": self.__intra_sensor_correlation.to_dict(
@@ -95,10 +104,11 @@ class Collocation:
                 "records"
             ),
             "errors": errors,
+            "data_source": self.__data_query
         }
 
-        if self.__verbose:
-            self.__results["data_source"] = self.__data_query
+        if not self.__verbose:
+            self.__results.pop("data_source")
 
         return self.__results
 
@@ -108,7 +118,6 @@ class Collocation:
         data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
 
         for _, group in data.groupby("device_id"):
-
             device_id = group.iloc[0]["device_id"]
             del group["device_id"]
 
@@ -255,7 +264,6 @@ class Collocation:
 
         device_groups = data.groupby("device_id")
         for _, group in device_groups:
-
             actual_number_of_records = len(group.index)
             completeness = 1
             missing = 0
@@ -278,7 +286,6 @@ class Collocation:
         return self.__data_completeness
 
     def compute_statistics(self):
-
         """
         Ref : https://docs.google.com/document/d/14Lli_xCeCq1a1JM2JkbCuF2FSqX3BtqkacxQWs9HCPc/edit#heading=h.3jnb6ajjwl2
         Compute correlation of a device
@@ -297,7 +304,6 @@ class Collocation:
         statistics = []
         device_groups = self.__data.groupby("device_id")
         for _, group in device_groups:
-
             device_id = group.iloc[0].device_id
             device_statistics = {}
 
@@ -321,7 +327,6 @@ class Collocation:
         return self.__statistics
 
     def compute_inter_sensor_correlation(self):
-
         """
         Compute correlation between devices
         inputs: statistics (device, s1_pm2_5 | s2_pm2_5 | s1_pm10 | s2_pm10, external_humidity, internal_humidity)
@@ -335,7 +340,6 @@ class Collocation:
         device_pairs = self.device_pairs(self.__data)
 
         for device_pair in device_pairs:
-
             device_x_data = self.__data[self.__data["device_id"] == device_pair[0]]
             device_x_data = device_x_data.add_prefix(f"{device_pair[0]}_")
             device_x_data.rename(
@@ -391,8 +395,30 @@ class Collocation:
 
         return device_pairs
 
-    def compute_differences(self) -> pd.DataFrame:
+    def compute_summary(self) -> pd.DataFrame:
+        """
+        Computes summary
+        """
 
+        data = pd.merge(
+            left=self.__data_completeness,
+            right=self.__intra_sensor_correlation,
+            on="device_id",
+            suffixes=("_data_completeness", "_intra_sensor_correlation"),
+        )
+
+        data["status"] = data["passed_data_completeness"] & data["passed_intra_sensor_correlation"]
+        data["start_date"] = date_to_str(self.__start_date)
+        data["end_date"] = date_to_str(self.__end_date)
+        data["added_by"] = ""
+
+        self.__summary = data[
+            ["status", "start_date", "end_date", "device_id", "added_by", "passed_intra_sensor_correlation", "passed_data_completeness"]
+        ]
+
+        return self.__summary
+
+    def compute_differences(self) -> pd.DataFrame:
         """
         Computes differences
         inputs: statistics
@@ -412,7 +438,6 @@ class Collocation:
         device_pairs = self.device_pairs(data)
 
         for device_pair in device_pairs:
-
             device_x_data = data[data["device_id"] == device_pair[0]]
             device_x_data = device_x_data.add_prefix(f"{device_pair[0]}_")
             device_x_data = device_x_data.reset_index()
