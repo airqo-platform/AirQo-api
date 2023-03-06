@@ -26,10 +26,17 @@ class Collocation(BaseModel):
             "battery_voltage",
         ]
 
-    def __init__(self, devices: list, start_date: datetime, end_date: datetime, correlation_threshold: float,
-                 completeness_threshold: float, expected_records_per_day: int,
-                 verbose: bool = False, parameters: list = None):
-
+    def __init__(
+        self,
+        devices: list,
+        start_date: datetime,
+        end_date: datetime,
+        correlation_threshold: float,
+        completeness_threshold: float,
+        expected_records_per_day: int,
+        verbose: bool = False,
+        parameters: list = None,
+    ):
         super().__init__("airqo", "collocation")
 
         if parameters is None:
@@ -58,11 +65,42 @@ class Collocation(BaseModel):
     def __save_collocation(self):
         return self.db.collocation.insert_one(self.__results.copy())
 
-    def results(self):
+    def summary(self):
+        results = self.db.collocation.find()
+        documents = list(results)
+        summary = []
+
+        for document in documents:
+            document_data = dict(document)
+            summary.extend(list(document_data.get("summary", [])))
+
+        self.__results = summary
+
         return self.__results
 
-    def compute_correlation(self):
+    def results(self):
+        if len(self.__results) == 0:
+            results = self.db.collocation.find_one(
+                {
+                    "start_date": date_to_str(self.__start_date),
+                    "end_date": date_to_str(self.__end_date),
+                    "devices": self.__devices,
+                }
+            )
+            if results is not None:
+                data = dict(results)
+                data.pop("_id")
+                self.__results = data
+
+        return self.__results
+
+    def perform_collocation(self):
         errors = {}
+        self.__results = self.results()
+
+        if len(self.__results) != 0:
+            return self.__results
+
         if self.__data.empty:
             self.__load_device_data()
             if not self.__data.empty:
@@ -104,8 +142,10 @@ class Collocation(BaseModel):
                 "records"
             ),
             "errors": errors,
-            "data_source": self.__data_query
+            "data_source": self.__data_query,
         }
+
+        self.__save_collocation()
 
         if not self.__verbose:
             self.__results.pop("data_source")
@@ -407,13 +447,23 @@ class Collocation(BaseModel):
             suffixes=("_data_completeness", "_intra_sensor_correlation"),
         )
 
-        data["status"] = data["passed_data_completeness"] & data["passed_intra_sensor_correlation"]
+        data["status"] = (
+            data["passed_data_completeness"] & data["passed_intra_sensor_correlation"]
+        )
         data["start_date"] = date_to_str(self.__start_date)
         data["end_date"] = date_to_str(self.__end_date)
         data["added_by"] = ""
 
         self.__summary = data[
-            ["status", "start_date", "end_date", "device_id", "added_by", "passed_intra_sensor_correlation", "passed_data_completeness"]
+            [
+                "status",
+                "start_date",
+                "end_date",
+                "device_id",
+                "added_by",
+                "passed_intra_sensor_correlation",
+                "passed_data_completeness",
+            ]
         ]
 
         return self.__summary

@@ -1,3 +1,4 @@
+import datetime
 import logging
 
 from flask import Blueprint, request, jsonify
@@ -112,7 +113,99 @@ def get_device_collocation():
         expected_records_per_day=expected_records_per_day,
         verbose=verbose,
     )
-    collocation.compute_correlation()
+    collocation.perform_collocation()
     results = collocation.results()
 
     return jsonify({"data": results}), 200
+
+
+@collocation_bp.route(routes.DEVICE_COLLOCATION_RESULTS, methods=["POST"])
+def get_collocation_results():
+    json_data = request.get_json()
+    devices = json_data.get("devices", [])
+    start_date = json_data.get("startDate", None)
+    end_date = json_data.get("endDate", None)
+
+    errors = {}
+
+    try:
+        if not devices or not isinstance(
+            devices, list
+        ):  # TODO add device restrictions e.g not more that 3 devices
+            raise Exception
+    except Exception:
+        errors["devices"] = "Provide a list of devices"
+
+    try:
+        start_date = validate_date(start_date)
+    except Exception:
+        errors["startDate"] = (
+            "This query param is required."
+            "Please provide a valid date formatted datetime string (%Y-%m-%d)"
+        )
+
+    try:
+        end_date = validate_date(end_date)
+    except Exception:
+        errors["endDate"] = (
+            "This query param is required."
+            "Please provide a valid date formatted datetime string (%Y-%m-%d)"
+        )
+
+    if errors:
+        return (
+            jsonify(
+                {
+                    "message": "Some errors occurred while processing this request",
+                    "errors": errors,
+                }
+            ),
+            400,
+        )
+
+    if (
+        start_date > end_date
+    ):  # TODO add interval restrictions e.g not more that 10 days
+        errors["dates"] = "endDate must be greater or equal to the startDate"
+        return (
+            jsonify(
+                {
+                    "message": "Some errors occurred while processing this request",
+                    "errors": errors,
+                }
+            ),
+            400,
+        )
+
+    collocation = Collocation(
+        devices=list(set(devices)),
+        start_date=start_date,
+        end_date=end_date,
+        correlation_threshold=0,
+        completeness_threshold=0,
+        parameters=None,
+        expected_records_per_day=0,
+        verbose=False,
+    )
+
+    results = collocation.results()
+
+    return jsonify({"data": results}), 200
+
+
+@collocation_bp.route(routes.DEVICE_COLLOCATION_SUMMARY, methods=["GET"])
+def get_collocation_summary():
+    collocation = Collocation(
+        devices=[],
+        start_date=datetime.datetime.utcnow(),
+        end_date=datetime.datetime.utcnow(),
+        correlation_threshold=0,
+        completeness_threshold=0,
+        parameters=None,
+        expected_records_per_day=0,
+        verbose=False,
+    )
+
+    summary = collocation.summary()
+
+    return jsonify({"data": summary}), 200
