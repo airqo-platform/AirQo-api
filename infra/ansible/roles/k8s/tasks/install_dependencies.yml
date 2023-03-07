@@ -3,7 +3,6 @@
   apt:
     name: docker.io
     state: present
-    update_cache: true
 
 - name: Enable Docker service
   systemd:
@@ -39,5 +38,5 @@
 
 - name: Install kubectl
   apt:
-    name: kubectl=1.23.6-00
+    name: kubectl
     state: present
