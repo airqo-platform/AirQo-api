@@ -162,7 +162,10 @@ const run = async() => {
                 logger.info(`incoming KAFKA value which is causing errors --- ${message.value.toString()}`)
                 logger.info(`incoming KAFKA value's TYPE which is causing errors --- ${typeof message.value}`)
                 logger.error(
-                    `KAFKA: error --- ${error.message}`
+                    `KAFKA: error message --- ${error.message}`
+                );
+                logger.error(
+                    `KAFKA: full error object --- ${JSON.stringify(error)}`
                 );
             }
 
