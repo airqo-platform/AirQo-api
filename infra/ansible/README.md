@@ -3,6 +3,8 @@
 This is the directory layout of this folder as defined in [these Ansible docs](https://docs.ansible.com/ansible/2.8/user_guide/playbooks_best_practices.html#alternative-directory-layout) explanation.
 
 ```
+configs/                  # all ansible contoller configuration files go here
+
 inventories/
    production/
       hosts               # inventory file for production servers
@@ -51,9 +53,6 @@ roles/
         module_utils/     # roles can also include custom module_utils
         lookup_plugins/   # or other types of plugins, like lookup in this case
 
-    webtier/              # same kind of structure as "common" was above, done for the webtier role
-    monitoring/           # ""
-    fooapp/               # ""
-
-setup/
+    k8s/                  # same kind of structure as "common" was above, done for the k8s role
+    hello_world/          # ""
 ```
