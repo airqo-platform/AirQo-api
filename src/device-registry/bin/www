@@ -24,7 +24,7 @@ const ObjectId = mongoose.Types.ObjectId;
 const eventSchema = Joi.object({
     "s2_pm2_5": Joi.number().optional(),
     "s2_pm10": Joi.number().optional(),
-    "longitude": Joi.number().precision(5).greater(0).optional(),
+    "longitude": Joi.number().precision(5).optional(),
     "satellites": Joi.number().optional(),
     "hdop": Joi.number().optional(),
     "altitude": Joi.number().optional(),
@@ -33,7 +33,7 @@ const eventSchema = Joi.object({
     "device_humidity": Joi.number().optional(),
     "s1_pm10": Joi.number().optional(),
     "device_temperature": Joi.number().optional(),
-    "latitude": Joi.number().precision(5).greater(0).optional(),
+    "latitude": Joi.number().precision(5).optional(),
     "pm2_5_raw_value": Joi.number().optional(),
     "pm2_5": Joi.number().optional(),
     "pm10_raw_value": Joi.number().optional(),
@@ -106,7 +106,7 @@ const run = async() => {
             }
             try {
                 // logObject("JSON.parse(message.value.toString()", JSON.parse(message.value))
-                const measurements = JSON.parse(message.value).data;
+                const measurements = JSON.parse(message.value.toString()).data;
                 // const measurements = JSON.parse(message.value);
                 if (!Array.isArray(measurements) || isEmpty(measurements)) {
                     logger.error(
@@ -114,44 +114,46 @@ const run = async() => {
                   measurements
                 )}`
                     );
-                }
-
-                const { error, value } = eventsSchema.validate(measurements);
-
-                if (error) {
-                    logObject("error.details[0].message", error.details[0].message)
-                    logger.error(
-                        `KAFKA: there is an input validation error --- ${error.details[0].message}`
-                    );
                 } else {
-                    logObject("value", value)
-                    logObject("measurements", measurements)
-                    const request = {
-                        body: measurements
-                    }
-                    const responseFromInsertMeasurements = await createEvent.create(
-                        request
-                    );
+                    const { error, value } = eventsSchema.validate(measurements);
 
-                    logObject("responseFromInsertMeasurements", responseFromInsertMeasurements)
-                    logObject("value: message.value.toString()", {
-                        value: message.value.toString(),
-                    })
-
-                    if (responseFromInsertMeasurements.success === false) {
+                    if (error) {
+                        logObject("error.details[0].message", error.details[0].message)
                         logger.error(
-                            `KAFKA: responseFromInsertMeasurements --- ${JSON.stringify(
+                            `KAFKA: there is an input validation error --- ${error.details[0].message}`
+                        );
+                    } else {
+                        logObject("value", value)
+                        logObject("measurements", measurements)
+                        const request = {
+                            body: measurements
+                        }
+                        const responseFromInsertMeasurements = await createEvent.create(
+                            request
+                        );
+
+                        logObject("responseFromInsertMeasurements", responseFromInsertMeasurements)
+                        logObject("value: message.value.toString()", {
+                            value: message.value.toString(),
+                        })
+
+                        if (responseFromInsertMeasurements.success === false) {
+                            logger.error(
+                                `KAFKA: responseFromInsertMeasurements --- ${JSON.stringify(
                       responseFromInsertMeasurements
                     )}`
-                        );
-                    } else if (responseFromInsertMeasurements.success === true) {
-                        logger.info(
-                            `KAFKA: successfully inserted the measurements --- ${JSON.stringify(responseFromInsertMeasurements.message ?
+                            );
+                        } else if (responseFromInsertMeasurements.success === true) {
+                            logger.info(
+                                `KAFKA: successfully inserted the measurements --- ${JSON.stringify(responseFromInsertMeasurements.message ?
                                 responseFromInsertMeasurements.message :
                                 "")}`
-                        );
+                            );
+                        }
                     }
+
                 }
+
             } catch (error) {
                 logObject("error", error)
                 logger.info(`incoming KAFKA value which is causing errors --- ${message.value.toString()}`)
