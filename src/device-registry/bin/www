@@ -21,6 +21,8 @@ const Joi = require('joi');
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 
+const { jsonrepair } = require('jsonrepair')
+
 const eventSchema = Joi.object({
     "s2_pm2_5": Joi.number().optional(),
     "s2_pm10": Joi.number().optional(),
@@ -106,7 +108,8 @@ const run = async() => {
             }
             try {
                 // logObject("JSON.parse(message.value.toString()", JSON.parse(message.value))
-                const measurements = JSON.parse(message.value.toString()).data;
+                const repairedJSONString = jsonrepair(message.value.toString())
+                const measurements = JSON.parse(repairedJSONString).data;
                 // const measurements = JSON.parse(message.value);
                 if (!Array.isArray(measurements) || isEmpty(measurements)) {
                     logger.error(
