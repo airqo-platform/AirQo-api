@@ -109,8 +109,10 @@ const run = async() => {
             try {
                 // logObject("JSON.parse(message.value.toString()", JSON.parse(message.value))
                 const repairedJSONString = jsonrepair(message.value.toString())
+                logObject("original string", message.value.toString())
+                logObject("repaired string", repairedJSONString)
                 const measurements = JSON.parse(repairedJSONString).data;
-                // const measurements = JSON.parse(message.value);
+                // const measurements = JSON.parse(repairedJSONString);
                 if (!Array.isArray(measurements) || isEmpty(measurements)) {
                     logger.error(
                         `KAFKA: the sent measurements are not an array or they are just empty (undefined) --- ${JSON.stringify(
@@ -122,8 +124,9 @@ const run = async() => {
 
                     if (error) {
                         logObject("error.details[0].message", error.details[0].message)
+                        logObject("error.details[0]", error.details[0])
                         logger.error(
-                            `KAFKA: there is an input validation error --- ${error.details[0].message}`
+                            `KAFKA: there is an input validation error --- ${error.details[0].message} --- value: ${error.details[0].context.value}`
                         );
                     } else {
                         logObject("value", value)
