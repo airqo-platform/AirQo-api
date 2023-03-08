@@ -197,7 +197,9 @@ cluster(function() {
                 logger.error(`KAFKA: internal server error -- ${JSON.stringify(error)}`);
             });
         }
-        // logger.info('Express server listening on port ', server.address().port, " with pid ", process.pid);
+        logElement('Express server listening on port ', server.address().port)
+        logElement('Express server listening with pid ', process.pid)
+            // logger.info('Express server listening on port ', server.address().port, " with pid ", process.pid);
     });
     server.on("error", onError);
     server.on("listening", onListening);
