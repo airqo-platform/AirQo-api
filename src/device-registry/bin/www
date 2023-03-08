@@ -22,6 +22,7 @@ const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 
 const { jsonrepair } = require('jsonrepair')
+const cleanDeep = require('clean-deep');
 
 const eventSchema = Joi.object({
     "s2_pm2_5": Joi.number().optional(),
@@ -120,7 +121,9 @@ const run = async() => {
                 )}`
                     );
                 } else {
-                    const { error, value } = eventsSchema.validate(measurements);
+
+                    const cleanedMeasurements = data.map(obj => cleanDeep(obj));
+                    const { error, value } = eventsSchema.validate(cleanedMeasurements);
 
                     if (error) {
                         logObject("error.details[0].message", error.details[0].message)
@@ -130,9 +133,9 @@ const run = async() => {
                         );
                     } else {
                         logObject("value", value)
-                        logObject("measurements", measurements)
+                        logObject("cleanedMeasurements", cleanedMeasurements)
                         const request = {
-                            body: measurements
+                            body: cleanedMeasurements
                         }
                         const responseFromInsertMeasurements = await createEvent.create(
                             request
