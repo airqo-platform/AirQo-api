@@ -302,6 +302,16 @@ const eventSchema = new Schema(
       trim: true,
       default: null,
     },
+    network: {
+      type: String,
+      trim: true,
+      default: "airqo",
+    },
+    tenant: {
+      type: String,
+      trim: true,
+      default: "airqo",
+    },
     is_device_primary: {
       type: Boolean,
       trim: true,

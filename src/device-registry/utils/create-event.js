@@ -710,12 +710,11 @@ const createEvent = {
             let update = event.update;
             dot.delete(["filter", "update", "options"], value);
             update["$push"] = { values: value };
-            /**
-             * at this point, we could also allow the update to include
-             * some other fields outside the values field
-             */
 
             logObject("event.tenant", event.tenant);
+            logObject("update", update);
+            logObject("filter", filter);
+            logObject("options", options);
 
             const addedEvents = await EventModel(event.tenant).updateOne(
               filter,
