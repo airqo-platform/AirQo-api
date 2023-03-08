@@ -271,7 +271,7 @@ const generateFilter = {
         filter["external"] = "yes";
       }
       if (network) {
-        filter["values.network"] = network;
+        filter["network"] = network;
       }
       if (tenant) {
         filter["tenant"] = tenant;

@@ -219,10 +219,11 @@ const defaultConfig = {
       time: "timestamp",
       day: "timestamp",
       frequency: "frequency",
-      device: "device_id",
+      device: "device_name",
       device_number: "device_number",
       site: "site",
       site_id: "site_id",
+      device_id: "device_id",
       tenant: "tenant",
       network: "network",
       is_test_data: "is_test_data",
@@ -345,6 +346,7 @@ const defaultConfig = {
     defaults: {
       time: null,
       tenant: "airqo",
+      network: "airqo",
       device: null,
       device_id: null,
       site_id: null,
@@ -491,6 +493,7 @@ const defaultConfig = {
       item.update = {};
       item.options = {};
       item["filter"]["device"] = item.device;
+      item["filter"]["device_id"] = item.device_id;
       item["filter"]["site_id"] = item.site_id;
       item["filter"]["nValues"] = { $lt: parseInt(defaultConfig.N_VALUES) };
       item["filter"]["day"] = item.day;
