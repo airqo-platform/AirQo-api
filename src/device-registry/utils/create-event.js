@@ -710,6 +710,10 @@ const createEvent = {
             let update = event.update;
             dot.delete(["filter", "update", "options"], value);
             update["$push"] = { values: value };
+            /**
+             * at this point, we could also allow the update to include
+             * some other fields outside the values field
+             */
 
             logObject("event.tenant", event.tenant);
 
@@ -1272,6 +1276,13 @@ const createEvent = {
 
       let result = {};
       let transformedEvent = transform(data, map, context);
+
+      return {
+        success: true,
+        message: "successfully transformed the provided event",
+        data: transformedEvent,
+      };
+
       const responseFromEnrichOneEvent = await createEvent.enrichOneEvent(
         transformedEvent
       );
