@@ -57,7 +57,7 @@ const eventSchema = Joi.object({
     "station_code": Joi.string().empty('').optional(),
     "pm2_5_calibrated_value": Joi.number().optional(),
     "pm10_calibrated_value": Joi.number().optional()
-});
+}).unknown(true);
 
 const eventsSchema = Joi.array().items(eventSchema);
 
@@ -121,15 +121,18 @@ const run = async() => {
                 )}`
                     );
                 } else {
-
-                    const cleanedMeasurements = measurements.map(obj => cleanDeep(obj));
-                    const { error, value } = eventsSchema.validate(cleanedMeasurements);
+                    const cleanedMeasurements = measurements.map(obj => cleanDeep(obj, { cleanValues: ["NaN"] }));
+                    const options = {
+                        abortEarly: false,
+                    };
+                    const { error, value } = eventsSchema.validate(cleanedMeasurements, options);
 
                     if (error) {
                         logObject("error.details[0].message", error.details[0].message)
                         logObject("error.details[0]", error.details[0])
+                        logObject("error.details", error.details)
                         logger.error(
-                            `KAFKA: there is an input validation error --- ${error.details[0].message} --- value: ${error.details[0].context.value}`
+                            `KAFKA: ALL the input validation errors --- ${JSON.stringify(error.details)}`
                         );
                     } else {
                         logObject("value", value)
@@ -142,9 +145,6 @@ const run = async() => {
                         );
 
                         logObject("responseFromInsertMeasurements", responseFromInsertMeasurements)
-                        logObject("value: message.value.toString()", {
-                            value: message.value.toString(),
-                        })
 
                         if (responseFromInsertMeasurements.success === false) {
                             logger.error(
