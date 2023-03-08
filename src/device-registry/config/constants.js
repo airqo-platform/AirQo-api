@@ -234,6 +234,16 @@ const defaultConfig = {
       "pm2_5.uncertaintyValue": "pm2_5_uncertainty_value",
       "pm2_5.standardDeviationValue": "pm2_5_standard_deviation_value",
 
+      "average_pm2_5.value": "pm2_5_raw_value",
+      "average_pm2_5.calibratedValue": "pm2_5_calibrated_value",
+      "average_pm2_5.uncertaintyValue": "pm2_5_uncertainty_value",
+      "average_pm2_5.standardDeviationValue": "pm2_5_standard_deviation_value",
+
+      "average_pm10.value": "pm10_raw_value",
+      "average_pm10.calibratedValue": "pm10_calibrated_value",
+      "average_pm10.uncertaintyValue": "pm10_uncertainty_value",
+      "average_pm10.standardDeviationValue": "pm10_standard_deviation_value",
+
       "s1_pm2_5.value": "s1_pm2_5",
       "s1_pm2_5.calibratedValue": "s1_pm2_5_calibrated_value",
       "s1_pm2_5.uncertaintyValue": "s1_pm2_5_uncertainty_value",
@@ -245,7 +255,7 @@ const defaultConfig = {
       "s2_pm2_5.standardDeviationValue": "s2_pm2_5_standard_deviation_value",
 
       "pm10.value": "pm10_raw_value",
-      "pm10.calibratedValue": "pm10._calibrated_value",
+      "pm10.calibratedValue": "pm10_calibrated_value",
       "pm10.uncertaintyValue": "pm10_uncertainty_value",
       "pm10.standardDeviationValue": "pm10_standard_deviation_value",
 
@@ -361,6 +371,16 @@ const defaultConfig = {
       "pm10.calibratedValue": null,
       "pm10.uncertaintyValue": null,
       "pm10.standardDeviationValue": null,
+
+      "average_pm2_5.value": null,
+      "average_pm2_5.calibratedValue": null,
+      "average_pm2_5.uncertaintyValue": null,
+      "average_pm2_5.standardDeviationValue": null,
+
+      "average_pm10.value": null,
+      "average_pm10.calibratedValue": null,
+      "average_pm10.uncertaintyValue": null,
+      "average_pm10.standardDeviationValue": null,
 
       "s1_pm10.value": null,
       "s1_pm10.calibratedValue": null,
