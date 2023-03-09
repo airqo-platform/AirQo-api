@@ -29,11 +29,13 @@ async function list(request) {
     const limit = parseInt(request.query.limit, 0);
     const skip = parseInt(request.query.skip, 0);
     let filter = {};
+    logObject("the request for the filter", request);
     let responseFromFilter = generateFilter.devices(request);
     // logger.info(`responseFromFilter -- ${responseFromFilter}`);
 
     if (responseFromFilter.success === true) {
       filter = responseFromFilter.data;
+      logObject("the filter being used", filter);
       // logger.info(`the filter in list -- ${filter}`);
     } else if (responseFromFilter.success === false) {
       let errors = responseFromFilter.errors

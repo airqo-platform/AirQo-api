@@ -42,7 +42,7 @@ spec:
               value: dns
           name: {{ .Values.app.name }}
           image: redis:latest
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 6379
           resources:

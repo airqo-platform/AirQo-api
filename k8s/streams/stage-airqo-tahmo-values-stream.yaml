@@ -27,7 +27,7 @@ spec:
       containers:
         - name: stage-airqo-tahmo-values-stream
           image: eu.gcr.io/airqo-250220/stage-tahmo-values-stream:latest
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           resources:
             requests:
               cpu: 100m

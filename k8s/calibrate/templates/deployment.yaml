@@ -46,7 +46,7 @@ spec:
       initContainers:
         - name: calibrate-pickle
           image: "{{ .Values.initContainer.image.repository }}:{{ .Values.initContainer.image.tag }}"
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           resources: {}
           envFrom:
             - configMapRef:
@@ -63,7 +63,7 @@ spec:
       containers:
         - name: {{ .Values.app.label }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: {{ .Values.service.targetPort }}
               name: {{ .Values.app.label }}
