@@ -26,7 +26,8 @@ all:
                       name: airqo-k8s-worker-4                
     mongo_cluster:
       hosts:
-        mongos-router.europe-west1-b.c.airqo-250220.internal
+        mongos_router:
+          ansible_host: mongos-router.europe-west1-b.c.airqo-250220.internal
       children:
         config_servers:
           hosts:
