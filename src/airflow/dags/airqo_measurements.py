@@ -455,33 +455,6 @@ def airqo_realtime_measurements():
         )
         DataWarehouseUtils.update_latest_measurements(data=data, tenant=Tenant.AIRQO)
 
-    @task()
-    def update_latest_data_topic(data: pd.DataFrame):
-        from airqo_etl_utils.airqo_utils import AirQoDataUtils
-        from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
-        from airqo_etl_utils.constants import DeviceCategory
-
-        data = AirQoDataUtils.process_latest_data(
-            data=data, device_category=DeviceCategory.LOW_COST
-        )
-        MessageBrokerUtils.update_hourly_data_topic(data=data)
-
-    raw_data = extract_raw_data()
-    clean_data = clean_data_raw_data(raw_data)
-    test_data = save_test_data(clean_data)
-    averaged_airqo_data = aggregate(clean_data)
-    send_raw_measurements_to_bigquery(clean_data)
-    extracted_weather_data = extract_hourly_weather_data()
-    merged_data = merge_data(
-        averaged_hourly_data=averaged_airqo_data, weather_data=extracted_weather_data
-    )
-    calibrated_data = calibrate(merged_data)
-    send_hourly_measurements_to_api(calibrated_data)
-    send_hourly_measurements_to_message_broker(calibrated_data)
-    send_hourly_measurements_to_bigquery(calibrated_data)
-    update_latest_data_table(calibrated_data)
-    update_latest_data_topic(calibrated_data)
-
 
 @dag(
     "AirQo-Raw-Data-Low-Cost-Measurements",
