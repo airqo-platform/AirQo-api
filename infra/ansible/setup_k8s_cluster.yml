@@ -1,0 +1,19 @@
+- hosts: k8s_cluster
+  become: true
+  roles:
+    - { role: k8s, flags: ["install_dependencies"] }
+    - {
+        role: k8s,
+        flags: ["configure_master"],
+        when: "inventory_hostname in groups['k8s_master']",
+      }
+    - {
+        role: k8s,
+        flags: ["get_join_command"],
+        when: "inventory_hostname in groups['k8s_master']",
+      }
+    - {
+        role: k8s,
+        flags: ["join_cluster"],
+        when: "inventory_hostname in groups['k8s_workers']",
+      }
