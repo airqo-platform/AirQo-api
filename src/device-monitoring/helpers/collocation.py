@@ -11,6 +11,13 @@ from helpers.convert_dates import date_to_str
 from models import BaseModel
 
 
+def get_status(passed: bool):
+    if passed:
+        return "passed"
+
+    return "failed"
+
+
 class Collocation(BaseModel):
     @staticmethod
     def valid_parameters():
@@ -63,6 +70,7 @@ class Collocation(BaseModel):
         self.__data_query = ""
         self.__results = {}
         self.__added_by = added_by
+        self.__errors = []
 
     def __save_collocation(self):
         return self.db.collocation.insert_one(self.__results.copy())
@@ -107,7 +115,6 @@ class Collocation(BaseModel):
         return self.__results
 
     def perform_collocation(self):
-        errors = {}
         self.__results = self.results()
 
         if len(self.__results) != 0:
@@ -118,12 +125,9 @@ class Collocation(BaseModel):
 
         if self.__data.empty:
             self.__load_device_data()
-            if not self.__data.empty:
-                self.__aggregate_data()
-            else:
-                errors["data"] = "There is no data for the supplied devices"
 
         if not self.__data.empty:
+            self.__aggregate_data()
             self.compute_data_completeness()
             self.compute_inter_sensor_correlation()
             self.compute_intra_sensor_correlation()
@@ -156,13 +160,14 @@ class Collocation(BaseModel):
             "inter_sensor_correlation": self.__inter_sensor_correlation.to_dict(
                 "records"
             ),
-            "errors": errors,
+            "errors": self.__errors,
             "data_source": self.__data_query,
             "added_by": self.__added_by,
             "date_added": date_to_str(datetime.utcnow()),
         }
 
-        self.__save_collocation()
+        if len(self.__errors) == 0:
+            self.__save_collocation()
 
         if not self.__verbose:
             del self.__results["data_source"]
@@ -227,6 +232,19 @@ class Collocation(BaseModel):
         dataframe = self.__client.query(query=query).result().to_dataframe()
 
         if dataframe.empty:
+            self.__errors.append(
+                f"{', '.join(self.__devices)} dont have data between {self.__start_date} and {self.__end_date}"
+            )
+            return
+
+        devices = dataframe["device_id"].tolist()
+        devices_without_data = set(self.__devices).difference(set(devices))
+
+        if len(devices_without_data) != 0:
+            error = f"{', '.join(devices_without_data) } does not have data between {self.__start_date} and {self.__end_date}"
+            if len(devices_without_data) > 1:
+                error = f"{devices_without_data} dont have data between {self.__start_date} and {self.__end_date}"
+            self.__errors.append(error)
             return
 
         dataframe["timestamp"] = dataframe["timestamp"].apply(pd.to_datetime)
@@ -468,6 +486,7 @@ class Collocation(BaseModel):
         data["status"] = (
             data["passed_data_completeness"] & data["passed_intra_sensor_correlation"]
         )
+        data["status"] = data["status"].apply(lambda x: get_status(x))
         data["start_date"] = date_to_str(self.__start_date)
         data["end_date"] = date_to_str(self.__end_date)
         data[

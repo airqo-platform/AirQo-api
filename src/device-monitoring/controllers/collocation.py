@@ -1,5 +1,6 @@
 import datetime
 import logging
+import traceback
 
 from flask import Blueprint, request, jsonify
 
@@ -104,22 +105,30 @@ def collocate():
             ),
             400,
         )
-    user_details = decode_user_token(token)
-    collocation = Collocation(
-        devices=list(set(devices)),
-        start_date=start_date,
-        end_date=end_date,
-        correlation_threshold=correlation_threshold,
-        completeness_threshold=completeness_threshold,
-        parameters=None,  # Temporarily disabled parameters
-        expected_records_per_day=expected_records_per_day,
-        verbose=verbose,
-        added_by=user_details,
-    )
-    collocation.perform_collocation()
-    results = collocation.results()
+    try:
+        user_details = decode_user_token(token)
+        collocation = Collocation(
+            devices=list(set(devices)),
+            start_date=start_date,
+            end_date=end_date,
+            correlation_threshold=correlation_threshold,
+            completeness_threshold=completeness_threshold,
+            parameters=None,  # Temporarily disabled parameters
+            expected_records_per_day=expected_records_per_day,
+            verbose=verbose,
+            added_by=user_details,
+        )
+        collocation.perform_collocation()
+        results = collocation.results()
+        errors = results.get("errors", {})
+        if len(errors) != 0:
+            return jsonify({"errors": errors}), 400
 
-    return jsonify({"data": results}), 200
+        return jsonify({"data": results}), 200
+    except Exception as ex:
+        traceback.print_exc()
+        print(ex)
+        return jsonify({"error": "Error occurred. Contact support"}), 500
 
 
 @collocation_bp.route(routes.DEVICE_COLLOCATION_RESULTS, methods=["GET"])
@@ -180,37 +189,47 @@ def get_collocation_results():
             400,
         )
 
-    collocation = Collocation(
-        devices=list(set(devices)),
-        start_date=start_date,
-        end_date=end_date,
-        correlation_threshold=0,
-        completeness_threshold=0,
-        parameters=None,
-        expected_records_per_day=0,
-        verbose=False,
-        added_by={},
-    )
+    try:
+        collocation = Collocation(
+            devices=list(set(devices)),
+            start_date=start_date,
+            end_date=end_date,
+            correlation_threshold=0,
+            completeness_threshold=0,
+            parameters=None,
+            expected_records_per_day=0,
+            verbose=False,
+            added_by={},
+        )
 
-    results = collocation.results()
+        results = collocation.results()
 
-    return jsonify({"data": results}), 200
+        return jsonify({"data": results}), 200
+    except Exception as ex:
+        traceback.print_exc()
+        print(ex)
+        return jsonify({"error": "Error occurred. Contact support"}), 500
 
 
 @collocation_bp.route(routes.DEVICE_COLLOCATION_SUMMARY, methods=["GET"])
 def get_collocation_summary():
-    collocation = Collocation(
-        devices=[],
-        start_date=datetime.datetime.utcnow(),
-        end_date=datetime.datetime.utcnow(),
-        correlation_threshold=0,
-        completeness_threshold=0,
-        parameters=None,
-        expected_records_per_day=0,
-        verbose=False,
-        added_by={},
-    )
+    try:
+        collocation = Collocation(
+            devices=[],
+            start_date=datetime.datetime.utcnow(),
+            end_date=datetime.datetime.utcnow(),
+            correlation_threshold=0,
+            completeness_threshold=0,
+            parameters=None,
+            expected_records_per_day=0,
+            verbose=False,
+            added_by={},
+        )
 
-    summary = collocation.summary()
+        summary = collocation.summary()
 
-    return jsonify({"data": summary}), 200
+        return jsonify({"data": summary}), 200
+    except Exception as ex:
+        traceback.print_exc()
+        print(ex)
+        return jsonify({"error": "Error occurred. Contact support"}), 500
