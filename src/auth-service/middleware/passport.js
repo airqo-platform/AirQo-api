@@ -119,6 +119,10 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
         }
         req.auth.success = true;
         req.auth.message = "successful login";
+        logger.info(`successful login`, {
+          username: user.userName,
+          email: user.email,
+        });
         return done(null, user);
       } catch (e) {
         req.auth.success = false;
@@ -148,6 +152,10 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
         }
         req.auth.success = true;
         req.auth.message = "successful login";
+        logger.info(`successful login`, {
+          username: user.userName,
+          email: user.email,
+        });
         return done(null, user);
       } catch (e) {
         req.auth.success = false;
