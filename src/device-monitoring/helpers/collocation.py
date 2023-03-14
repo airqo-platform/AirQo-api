@@ -34,6 +34,7 @@ class Collocation(BaseModel):
         correlation_threshold: float,
         completeness_threshold: float,
         expected_records_per_day: int,
+        added_by: dict,
         verbose: bool = False,
         parameters: list = None,
     ):
@@ -61,6 +62,7 @@ class Collocation(BaseModel):
         self.__summary = pd.DataFrame()
         self.__data_query = ""
         self.__results = {}
+        self.__added_by = added_by
 
     def __save_collocation(self):
         return self.db.collocation.insert_one(self.__results.copy())
@@ -80,13 +82,22 @@ class Collocation(BaseModel):
 
     def results(self):
         if len(self.__results) == 0:
-            results = self.db.collocation.find_one(
-                {
-                    "start_date": date_to_str(self.__start_date),
-                    "end_date": date_to_str(self.__end_date),
-                    "devices": {"$in": self.__devices},
-                }
-            )
+            if len(self.__devices) == 1:
+                results = self.db.collocation.find_one(
+                    {
+                        "start_date": date_to_str(self.__start_date),
+                        "end_date": date_to_str(self.__end_date),
+                        "devices": {"$in": self.__devices},
+                    }
+                )
+            else:
+                results = self.db.collocation.find_one(
+                    {
+                        "start_date": date_to_str(self.__start_date),
+                        "end_date": date_to_str(self.__end_date),
+                        "devices": self.__devices,
+                    }
+                )
 
             if results is not None:
                 data = dict(results)
@@ -100,6 +111,9 @@ class Collocation(BaseModel):
         self.__results = self.results()
 
         if len(self.__results) != 0:
+            if not self.__verbose:
+                del self.__results["data_source"]
+
             return self.__results
 
         if self.__data.empty:
@@ -144,12 +158,14 @@ class Collocation(BaseModel):
             ),
             "errors": errors,
             "data_source": self.__data_query,
+            "added_by": self.__added_by,
+            "date_added": date_to_str(datetime.utcnow()),
         }
 
         self.__save_collocation()
 
         if not self.__verbose:
-            self.__results.pop("data_source")
+            del self.__results["data_source"]
 
         return self.__results
 
@@ -454,7 +470,9 @@ class Collocation(BaseModel):
         )
         data["start_date"] = date_to_str(self.__start_date)
         data["end_date"] = date_to_str(self.__end_date)
-        data["added_by"] = ""
+        data[
+            "added_by"
+        ] = f"{self.__added_by.get('first_name', '')} {self.__added_by.get('last_name', '')}".strip()
 
         self.__summary = data[
             [

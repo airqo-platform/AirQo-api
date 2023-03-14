@@ -6,6 +6,7 @@ from flask import Blueprint, request, jsonify
 import routes
 from helpers.collocation import Collocation
 from helpers.convert_dates import validate_date
+from helpers.utils import decode_user_token
 
 _logger = logging.getLogger(__name__)
 
@@ -13,7 +14,8 @@ collocation_bp = Blueprint("collocation", __name__)
 
 
 @collocation_bp.route(routes.DEVICE_COLLOCATION, methods=["POST"])
-def get_device_collocation():
+def collocate():
+    token = request.headers.get("Authorization", "")
     json_data = request.get_json()
     devices = json_data.get("devices", [])
     start_date = json_data.get("startDate", None)
@@ -102,7 +104,7 @@ def get_device_collocation():
             ),
             400,
         )
-
+    user_details = decode_user_token(token)
     collocation = Collocation(
         devices=list(set(devices)),
         start_date=start_date,
@@ -112,6 +114,7 @@ def get_device_collocation():
         parameters=None,  # Temporarily disabled parameters
         expected_records_per_day=expected_records_per_day,
         verbose=verbose,
+        added_by=user_details,
     )
     collocation.perform_collocation()
     results = collocation.results()
@@ -186,6 +189,7 @@ def get_collocation_results():
         parameters=None,
         expected_records_per_day=0,
         verbose=False,
+        added_by={},
     )
 
     results = collocation.results()
@@ -204,6 +208,7 @@ def get_collocation_summary():
         parameters=None,
         expected_records_per_day=0,
         verbose=False,
+        added_by={},
     )
 
     summary = collocation.summary()
