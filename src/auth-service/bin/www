@@ -15,6 +15,16 @@ const log4jsConfiguration = require("@config/log4js")
 log4js.configure(log4jsConfiguration);
 const logger = log4js.getLogger("start-script");
 const { logText, logObject, logElement } = require("@utils/log")
+const mailer = require("@utils/mailer");
+const emailMessages = require("@utils/email.msgs");
+const emailTemplates = require("@utils/email.templates");
+const Joi = require('joi');
+
+
+const userSchema = Joi.object({
+    "email": Joi.string().email().empty('').required(),
+}).unknown(true);
+
 
 /**
  * KAFKA configuration
@@ -65,6 +75,45 @@ const run = async() => {
                 })}`
             );
             logObject("message.value.toString()", message.value.toString())
+
+            /**
+             * We might need to "clean" the JSON from here
+             */
+
+            logObject("message.value", JSON.parse(message.value.toString()))
+
+            let emailDetailsToSend = JSON.parse(message.value.toString())
+            emailDetailsToSend.message = emailTemplates.mobileAppWelcome();
+            emailDetailsToSend.subject = "Welcome to AirQo!"
+
+            const options = {
+                abortEarly: false,
+            };
+
+            const { error, value } = userSchema.validate(emailDetailsToSend, options);
+
+            if (error) {
+                logObject("error.details[0].message", error.details[0].message)
+                logObject("error.details[0]", error.details[0])
+                logObject("error.details", error.details)
+                logger.error(
+                    `KAFKA: ALL the input validation errors --- ${JSON.stringify(error.details)}`
+                );
+            } else {
+                const responseFromSendEmail = await mailer.newMobileAppUser(emailDetailsToSend);
+
+                if (responseFromSendEmail.success === true) {
+                    logger.info(
+                        `KAFKA: successfully received the new Mobile App User --- ${JSON.stringify(responseFromSendEmail)}`
+                    );
+                } else if (responseFromSendEmail.success === false) {
+                    logger.error(
+                        `KAFKA: unable to send email for new Mobile App User --- ${JSON.stringify(responseFromSendEmail)}`
+                    );
+                }
+
+            }
+
         },
     });
 };
@@ -87,11 +136,11 @@ var server = http.createServer(app);
  */
 
 server.listen(port, function() {
-    if (constants.ENVIRONMENT === "STAGING ENVIRONMENT") {
-        run().catch(error => {
-            logger.error(`KAFKA: internal server error -- ${JSON.stringify(error)}`);
-        });
-    }
+
+    run().catch(error => {
+        logger.error(`KAFKA: internal server error -- ${JSON.stringify(error)}`);
+    });
+
 });
 server.on("error", onError);
 server.on("listening", onListening);
