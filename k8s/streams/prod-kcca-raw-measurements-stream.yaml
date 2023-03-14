@@ -27,7 +27,7 @@ spec:
       containers:
         - name: prod-kcca-raw-measurements-stream
           image: eu.gcr.io/airqo-250220/prod-raw-device-measurements-stream:latest
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           resources:
             requests:
               cpu: 100m

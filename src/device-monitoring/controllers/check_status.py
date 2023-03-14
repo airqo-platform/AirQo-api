@@ -12,7 +12,7 @@ _logger = logging.getLogger(__name__)
 device_status_bp = Blueprint('device_status', __name__)
 
 
-@device_status_bp.route(routes.DEVICE_COLLOCATION, methods=['GET'])
+@device_status_bp.route(routes.DEVICE_STATUS, methods=['GET'])
 def get_device_status():
     errors = {}
     tenant = request.args.get('tenant')

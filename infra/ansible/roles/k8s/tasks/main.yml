@@ -1,0 +1,16 @@
+---
+- name: Install dependencies
+  include_tasks: install_dependencies.yml
+  when: ((['install_dependencies'] | intersect(flags)) | length > 0)
+
+- name: Configure master
+  include_tasks: configure_master.yml
+  when: ((['configure_master'] | intersect(flags)) | length > 0)
+
+- name: Get join command
+  include_tasks: master_join_command.yml
+  when: ((['get_join_command'] | intersect(flags)) | length > 0)
+
+- name: Join workers to k8s cluster
+  include_tasks: worker_join_cluster.yml
+  when: ((['join_cluster'] | intersect(flags)) | length > 0)

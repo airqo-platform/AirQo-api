@@ -1,0 +1,3 @@
+#!/bin/bash
+kubectl cordon {{ preemptive_node }} --kubeconfig=/etc/kubernetes/admin.conf
+kubectl delete node {{ preemptive_node }} --kubeconfig=/etc/kubernetes/admin.conf

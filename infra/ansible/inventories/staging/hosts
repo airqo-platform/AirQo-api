@@ -1,0 +1,25 @@
+# Dynamic hosts source at /opt/ansible/inventory/gcp.yaml
+all:
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+  children:
+    k8s_cluster:
+      children:
+        k8s_master:
+          hosts:
+            10.240.0.100:
+        k8s_workers:
+          hosts:
+            10.240.0.102:
+            10.240.0.70:
+          children:
+            preemptive_nodes:
+              children:
+                hourly:
+                  hosts:
+                    10.240.0.36:
+                      name: airqo-stage-k8s-worker-0
+                monthly:
+                  hosts:
+                    10.240.0.39:
+                      name: airqo-stage-k8s-worker-4

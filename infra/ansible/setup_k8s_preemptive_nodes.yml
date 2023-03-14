@@ -1,0 +1,105 @@
+- hosts: k8s_master
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Create the script to remove hourly preemptive node
+      template:
+        src: roles/k8s/templates/remove_preemptives.sh.j2
+        dest: /root/remove_preemptive_hourly.sh
+        mode: a+x
+      vars:
+        preemptive_node: "{{ hostvars[groups['hourly'].0].name }}"
+
+    - name: Create the script to remove monthly preemptive node
+      template:
+        src: roles/k8s/templates/remove_preemptives.sh.j2
+        dest: /root/remove_preemptive_monthly.sh
+        mode: a+x
+      vars:
+        preemptive_node: "{{ hostvars[groups['monthly'].0].name }}"
+
+    - name: Create cronjobs to run the remove_preemptive scripts
+      cron:
+        name: "{{ item.name }}"
+        day: "{{ item.day }}"
+        hour: "{{ item.hour }}"
+        minute: "{{ item.minute }}"
+        job: "{{ item.job }}"
+      with_items:
+        - {
+            name: "Remove hourly preemptive k8s node from cluster",
+            day: "*",
+            hour: "*",
+            minute: "8",
+            job: "/bin/bash /root/remove_preemptive_hourly.sh",
+          }
+        - {
+            name: "Remove monthly preemptive k8s node from cluster",
+            day: "1",
+            hour: "2",
+            minute: "58",
+            job: "/bin/bash /root/remove_preemptive_monthly.sh",
+          }
+
+    - name: Get join command
+      include_tasks: roles/k8s/tasks/configure_master.yml
+
+- hosts: preemptive_nodes
+  become: true
+  tasks:
+    - name: Create the add node and reset node scripts on preemptive worker
+      template:
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"
+        mode: a+x
+      with_items:
+        - {
+            src: roles/k8s/templates/join_k8s_cluster.sh.j2,
+            dest: /root/join_k8s_cluster.sh,
+          }
+        - {
+            src: roles/k8s/templates/leave_k8s_cluster.sh.j2,
+            dest: /root/leave_k8s_cluster.sh,
+          }
+
+    - name: Create cronjobs for hourly preemptive for joining and leaving cluster
+      cron:
+        name: "{{ item.name }}"
+        minute: "{{ item.minute }}"
+        job: "{{ item.job }}"
+      with_items:
+        - {
+            name: "Add node to k8s cluster",
+            minute: "57",
+            job: "sudo /bin/bash /root/join_k8s_cluster.sh",
+          }
+        - {
+            name: "Reset k8s node",
+            minute: "9",
+            job: "sudo /bin/bash /root/leave_k8s_cluster.sh",
+          }
+      when: inventory_hostname in groups['hourly']
+
+    - name: Create cronjobs for monthly preemptive for joining and leaving cluster
+      cron:
+        name: "{{ item.name }}"
+        day: "{{ item.day }}"
+        hour: "{{ item.hour }}"
+        minute: "{{ item.minute }}"
+        job: "{{ item.job }}"
+      with_items:
+        - {
+            name: "Add node to k8s cluster",
+            day: "1",
+            hour: "0",
+            minute: "57",
+            job: "sudo /bin/bash /root/join_k8s_cluster.sh",
+          }
+        - {
+            name: "Reset k8s node",
+            day: "1",
+            hour: "2",
+            minute: "59",
+            job: "sudo /bin/bash /root/leave_k8s_cluster.sh",
+          }
+      when: inventory_hostname in groups['monthly']

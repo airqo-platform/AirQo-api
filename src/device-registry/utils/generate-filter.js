@@ -271,7 +271,7 @@ const generateFilter = {
         filter["external"] = "yes";
       }
       if (network) {
-        filter["values.network"] = network;
+        filter["network"] = network;
       }
       if (tenant) {
         filter["tenant"] = tenant;
@@ -537,6 +537,7 @@ const generateFilter = {
         id,
         device_name,
         device_id,
+        device,
         device_codes,
         device_number,
         category,
@@ -548,6 +549,13 @@ const generateFilter = {
         //   name
         // );
         filter["name"] = name;
+      }
+
+      if (device) {
+        // let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
+        //   name
+        // );
+        filter["name"] = device;
       }
 
       if (device_name) {
@@ -578,7 +586,7 @@ const generateFilter = {
       }
 
       if (device_id) {
-        filter["name"] = device_id;
+        filter["_id"] = ObjectId(device_id);
       }
 
       if (device_codes) {

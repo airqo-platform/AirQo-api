@@ -1,3 +1,4 @@
+import numpy as np
 from datetime import datetime
 from google.cloud import bigquery
 
@@ -76,6 +77,12 @@ class Collocation:
             self.compute_intra_sensor_correlation()
             self.compute_statistics()
             self.compute_differences()
+
+        self.__data_completeness = self.__data_completeness.replace(np.nan, None)
+        self.__statistics = self.__statistics.replace(np.nan, None)
+        self.__intra_sensor_correlation = self.__intra_sensor_correlation.replace(np.nan, None)
+        self.__inter_sensor_correlation = self.__inter_sensor_correlation.replace(np.nan, None)
+        self.__differences = self.__differences.replace(np.nan, None)
 
         self.__results = {
             "data_completeness": self.__data_completeness.to_dict("records"),
