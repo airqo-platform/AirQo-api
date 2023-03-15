@@ -2,39 +2,29 @@ app:
   name: airqo-view-api
   label: view-api
   namespace: production
-  configmap: stage-view-api-config
-
+  configmap: prod-view-api-config
 replicaCount: 2
-
 image:
   repository: eu.gcr.io/airqo-250220/airqo-view-api
-  tag: latest
-
-nameOverride: ""
-fullnameOverride: ""
-
+  tag: prod-81d3f591-1678362351
+nameOverride: ''
+fullnameOverride: ''
 podAnnotations: {}
-
 resources:
   limits:
     cpu: 100m
     memory: 1500Mi
   requests:
-    # Average usage was 0.01 vCPU and 500Mi over the last 30 days
     cpu: 10m
     memory: 500Mi
-
 ingress:
   enabled: false
-
 service:
   type: NodePort
   port: 8080
   protocol: TCP
   targetPort: 8080
-
 autoscaling:
   minReplicas: 1
   maxReplicas: 3
   targetCPUUtilizationPercentage: 70
-  # targetMemoryUtilizationPercentage: 70

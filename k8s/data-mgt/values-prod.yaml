@@ -3,39 +3,29 @@ app:
   label: data-mgt-api
   namespace: production
   configmap: data-mgt-api-config
-
 replicaCount: 2
-
 image:
   repository: eu.gcr.io/airqo-250220/airqo-data-mgt-api
-  tag: latest
-
-nameOverride: ""
-fullnameOverride: ""
-
+  tag: prod-81d3f591-1678362351
+nameOverride: ''
+fullnameOverride: ''
 podAnnotations: {}
-
 resources:
   limits:
     cpu: 50m
     memory: 120Mi
   requests:
-    # Average usage was 0.0005 vCPU and 80Mi over the last 30 days
     cpu: 5m
     memory: 70Mi
-
 ingress:
   enabled: false
-
 service:
   type: NodePort
   port: 3000
   protocol: TCP
   targetPort: 3000
   nodePort: 30001
-
 autoscaling:
   minReplicas: 1
   maxReplicas: 3
-  # targetCPUUtilizationPercentage: 70
   targetMemoryUtilizationPercentage: 70
