@@ -122,7 +122,7 @@ const createSite = {
               success: true,
               message: "no associated AirQlouds found",
               data: airqloud_ids,
-              status: HTTPStatus.NOT_FOUND,
+              status: HTTPStatus.OK,
             };
           }
         } else if (responseFromListAirQlouds.success === false) {
