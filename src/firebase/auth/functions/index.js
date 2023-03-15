@@ -92,7 +92,6 @@ async function produceMessage(user) {
     });
 
     console.log("sending", message);
-    await producer.disconnect();
   } catch (error) {
     console.log(error);
   }
