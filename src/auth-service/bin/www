@@ -80,9 +80,10 @@ const run = async() => {
              * We might need to "clean" the JSON from here
              */
 
-            logObject("message.value", JSON.parse(message.value.toString()))
+            const repairedJSONString = jsonrepair(message.value.toString())
+            logObject("message.value", JSON.parse(repairedJSONString))
 
-            let emailDetailsToSend = JSON.parse(message.value.toString())
+            let emailDetailsToSend = JSON.parse(repairedJSONString)
             emailDetailsToSend.message = emailTemplates.mobileAppWelcome();
             emailDetailsToSend.subject = "Welcome to AirQo!"
 
@@ -138,7 +139,7 @@ var server = http.createServer(app);
 server.listen(port, function() {
 
     run().catch(error => {
-        logger.error(`KAFKA: internal server error -- ${JSON.stringify(error)}`);
+        logger.error(`${ENV} environment:KAFKA: internal server error -- ${JSON.stringify(error)}`);
     });
 
 });
