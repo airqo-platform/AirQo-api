@@ -26,7 +26,7 @@ spec:
     spec:
       containers:
         - name: stage-airqo-tahmo-values-stream
-          image: us.gcr.io/airqo-250220/stage-tahmo-values-stream:latest
+          image: eu.gcr.io/airqo-250220/stage-tahmo-values-stream:latest
           imagePullPolicy: IfNotPresent
           resources:
             requests:

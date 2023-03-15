@@ -26,7 +26,7 @@ spec:
     spec:
       containers:
         - name: schema-registry
-          image: us.gcr.io/airqo-250220/prod-schema-registry:latest
+          image: eu.gcr.io/airqo-250220/prod-schema-registry:latest
           imagePullPolicy: IfNotPresent
           resources:
             {}

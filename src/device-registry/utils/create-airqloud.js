@@ -175,36 +175,15 @@ const createAirqloud = {
           logger.error(`internal server error -- ${error.message}`);
         }
 
-        let status = responseFromRegisterAirQloud.status
-          ? responseFromRegisterAirQloud.status
-          : "";
-        return {
-          success: true,
-          message: responseFromRegisterAirQloud.message,
-          data: responseFromRegisterAirQloud.data,
-          status,
-        };
+        return responseFromRegisterAirQloud;
       } else if (responseFromRegisterAirQloud.success === false) {
-        let errors = responseFromRegisterAirQloud.errors
-          ? responseFromRegisterAirQloud.errors
-          : "";
-
-        let status = responseFromRegisterAirQloud.status
-          ? responseFromRegisterAirQloud.status
-          : "";
-
-        return {
-          success: false,
-          message: responseFromRegisterAirQloud.message,
-          errors,
-          status,
-        };
+        return responseFromRegisterAirQloud;
       }
     } catch (err) {
       logger.error(`internal server error -- ${err.message}`);
       return {
         success: false,
-        message: "unable to create airqloud",
+        message: "Internal Server Error",
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
         errors: { message: err.message },
       };
@@ -226,40 +205,12 @@ const createAirqloud = {
         filter,
         update,
       });
-
-      if (responseFromModifyAirQloud.success === true) {
-        let status = responseFromModifyAirQloud.status
-          ? responseFromModifyAirQloud.status
-          : "";
-        return {
-          success: true,
-          message: responseFromModifyAirQloud.message,
-          data: responseFromModifyAirQloud.data,
-          status,
-        };
-      }
-
-      if (responseFromModifyAirQloud.success === false) {
-        let errors = responseFromModifyAirQloud.errors
-          ? responseFromModifyAirQloud.errors
-          : "";
-
-        let status = responseFromModifyAirQloud.status
-          ? responseFromModifyAirQloud.status
-          : "";
-
-        return {
-          success: false,
-          message: responseFromModifyAirQloud.message,
-          errors,
-          status,
-        };
-      }
+      return responseFromModifyAirQloud;
     } catch (err) {
       logger.error(`internal server error -- ${err.message}`);
       return {
         success: false,
-        message: "unable to update airqloud",
+        message: "Internal Server Error",
         errors: { message: err.message },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
@@ -278,34 +229,7 @@ const createAirqloud = {
         filter,
       });
 
-      if (responseFromRemoveAirQloud.success === true) {
-        let status = responseFromRemoveAirQloud.status
-          ? responseFromRemoveAirQloud.status
-          : "";
-        return {
-          success: true,
-          message: responseFromRemoveAirQloud.message,
-          data: responseFromRemoveAirQloud.data,
-          status,
-        };
-      }
-
-      if (responseFromRemoveAirQloud.success === false) {
-        let errors = responseFromRemoveAirQloud.errors
-          ? responseFromRemoveAirQloud.errors
-          : "";
-
-        let status = responseFromRemoveAirQloud.status
-          ? responseFromRemoveAirQloud.status
-          : "";
-
-        return {
-          success: false,
-          message: responseFromRemoveAirQloud.message,
-          errors,
-          status,
-        };
-      }
+      return responseFromRemoveAirQloud;
     } catch (err) {
       logger.error(`internal server error -- ${err.message}`);
       return {
@@ -347,18 +271,7 @@ const createAirqloud = {
         const sites = responseFromFindSites.data;
         requestForUpdateAirQloud["body"]["sites"] = sites;
       } else if (responseFromFindSites.success === false) {
-        const status = responseFromFindSites.status
-          ? responseFromFindSites.status
-          : "";
-        const errors = responseFromFindSites.errors
-          ? responseFromFindSites.errors
-          : "";
-        return {
-          success: false,
-          message: responseFromFindSites.message,
-          status,
-          errors,
-        };
+        return responseFromFindSites;
       }
 
       let requestForCalucaltionAirQloudCenter = {};
@@ -389,18 +302,7 @@ const createAirqloud = {
           data: responseFromUpdateAirQloud.data,
         };
       } else if (responseFromUpdateAirQloud.success === false) {
-        const status = responseFromUpdateAirQloud.status
-          ? responseFromUpdateAirQloud.status
-          : "";
-        const errors = responseFromUpdateAirQloud.errors
-          ? responseFromUpdateAirQloud.errors
-          : "";
-        return {
-          success: false,
-          message: responseFromUpdateAirQloud.message,
-          status,
-          errors,
-        };
+        return responseFromUpdateAirQloud;
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
@@ -527,11 +429,11 @@ const createAirqloud = {
               if (isSiteInAirQloud === true) {
                 site_ids.push(site._id);
               } else if (isSiteInAirQloud === false) {
-                logger.info(
-                  `Site ${site._id} does not belong to this AirQloud`
-                );
+                // logger.info(
+                //   `Site ${site._id} does not belong to this AirQloud`
+                // );
               } else {
-                logger.info(`unable to categorise this Site ${site._id} `);
+                // logger.info(`unable to categorise this Site ${site._id} `);
               }
             } else {
               logger.error(
@@ -563,18 +465,7 @@ const createAirqloud = {
           };
         }
       } else if (responseFromListAirQlouds.success === false) {
-        const status = responseFromListAirQlouds.status
-          ? responseFromListAirQlouds.status
-          : "";
-        const errors = responseFromListAirQlouds.errors
-          ? responseFromListAirQlouds.errors
-          : "";
-        return {
-          success: false,
-          message: responseFromListAirQlouds.message,
-          errors,
-          status,
-        };
+        return responseFromListAirQlouds;
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
@@ -604,27 +495,7 @@ const createAirqloud = {
         skip,
       });
 
-      if (responseFromListAirQloud.success === false) {
-        return {
-          success: false,
-          message: responseFromListAirQloud.message,
-          errors: responseFromListAirQloud.errors
-            ? responseFromListAirQloud.errors
-            : "",
-          status: responseFromListAirQloud.status
-            ? responseFromListAirQloud.status
-            : "",
-        };
-      } else if (responseFromListAirQloud.success === true) {
-        return {
-          success: true,
-          message: responseFromListAirQloud.message,
-          data: responseFromListAirQloud.data,
-          status: responseFromListAirQloud.status
-            ? responseFromListAirQloud.status
-            : "",
-        };
-      }
+      return responseFromListAirQloud;
     } catch (err) {
       logger.error(`internal server error -- ${err.message}`);
       return {

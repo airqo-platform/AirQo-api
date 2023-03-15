@@ -124,6 +124,9 @@ class WeatherDataUtils:
     @staticmethod
     def transform_raw_data(data: pd.DataFrame) -> pd.DataFrame:
 
+        if data.empty:
+            return data
+
         data["value"] = pd.to_numeric(data["value"], errors="coerce", downcast="float")
         data["time"] = pd.to_datetime(data["time"], errors="coerce")
         parameter_mappings = {
@@ -168,6 +171,9 @@ class WeatherDataUtils:
 
     @staticmethod
     def aggregate_data(data: pd.DataFrame) -> pd.DataFrame:
+
+        if data.empty:
+            return data
 
         data = data.dropna(subset=["timestamp"])
         data["timestamp"] = data["timestamp"].apply(pd.to_datetime)

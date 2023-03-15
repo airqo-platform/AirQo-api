@@ -70,27 +70,9 @@ const createLocation = {
           logger.error(`internal server error -- ${error.message}`);
         }
 
-        return {
-          success: true,
-          message: responseFromRegisterLocation.message,
-          data: responseFromRegisterLocation.data,
-          status,
-        };
+        return responseFromRegisterLocation;
       } else if (responseFromRegisterLocation.success === false) {
-        let errors = responseFromRegisterLocation.errors
-          ? responseFromRegisterLocation.errors
-          : "";
-
-        let status = responseFromRegisterLocation.status
-          ? responseFromRegisterLocation.status
-          : "";
-
-        return {
-          success: false,
-          message: responseFromRegisterLocation.message,
-          errors,
-          status,
-        };
+        return responseFromRegisterLocation;
       }
     } catch (err) {
       logger.error(`internal server error -- ${err.message}`);
@@ -98,6 +80,7 @@ const createLocation = {
         success: false,
         message: "unable to create location",
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: err.message },
       };
     }
   },
@@ -119,38 +102,13 @@ const createLocation = {
         update,
       });
 
-      if (responseFromModifyLocation.success === true) {
-        let status = responseFromModifyLocation.status
-          ? responseFromModifyLocation.status
-          : "";
-        return {
-          success: true,
-          message: responseFromModifyLocation.message,
-          data: responseFromModifyLocation.data,
-          status,
-        };
-      } else if (responseFromModifyLocation.success === false) {
-        let errors = responseFromModifyLocation.errors
-          ? responseFromModifyLocation.errors
-          : "";
-
-        let status = responseFromModifyLocation.status
-          ? responseFromModifyLocation.status
-          : "";
-
-        return {
-          success: false,
-          message: responseFromModifyLocation.message,
-          errors,
-          status,
-        };
-      }
+      return responseFromModifyLocation;
     } catch (err) {
       logger.error(`internal server error -- ${err.message}`);
       return {
         success: false,
         message: "unable to update location",
-        errors: err.message,
+        errors: { message: err.message },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -168,38 +126,13 @@ const createLocation = {
         filter,
       });
 
-      if (responseFromRemoveLocation.success === true) {
-        let status = responseFromRemoveLocation.status
-          ? responseFromRemoveLocation.status
-          : "";
-        return {
-          success: true,
-          message: responseFromRemoveLocation.message,
-          data: responseFromRemoveLocation.data,
-          status,
-        };
-      } else if (responseFromRemoveLocation.success === false) {
-        let errors = responseFromRemoveLocation.errors
-          ? responseFromRemoveLocation.errors
-          : "";
-
-        let status = responseFromRemoveLocation.status
-          ? responseFromRemoveLocation.status
-          : "";
-
-        return {
-          success: false,
-          message: responseFromRemoveLocation.message,
-          errors,
-          status,
-        };
-      }
+      return responseFromRemoveLocation;
     } catch (err) {
       logger.error(`internal server error -- ${err.message}`);
       return {
         success: false,
         message: "unable to delete location",
-        errors: err.message,
+        errors: { message: err.message },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -212,7 +145,7 @@ const createLocation = {
       const skip = parseInt(query.skip) || 0;
       let filter = generateFilter.locations(request);
 
-      let responseFromListLocation = await getModelByTenant(
+      const responseFromListLocation = await getModelByTenant(
         tenant.toLowerCase(),
         "location",
         LocationSchema
@@ -222,32 +155,7 @@ const createLocation = {
         skip,
       });
 
-      if (responseFromListLocation.success === false) {
-        let errors = responseFromListLocation.errors
-          ? responseFromListLocation.errors
-          : "";
-
-        let status = responseFromListLocation.status
-          ? responseFromListLocation.status
-          : "";
-        return {
-          success: false,
-          message: responseFromListLocation.message,
-          errors,
-          status,
-        };
-      } else if (responseFromListLocation.success === true) {
-        let status = responseFromListLocation.status
-          ? responseFromListLocation.status
-          : "";
-        data = responseFromListLocation.data;
-        return {
-          success: true,
-          message: responseFromListLocation.message,
-          data,
-          status,
-        };
-      }
+      return responseFromListLocation;
     } catch (err) {
       logger.error(`internal server error -- ${err.message}`);
       return {

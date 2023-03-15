@@ -5,6 +5,8 @@ pymongo
 flask_pymongo
 python-dotenv
 redis
-
+google-cloud-bigquery[pandas]
+db-dtypes
+gunicorn
 # Ports for stable python 3 functionality
 dataclasses # for py < 3.7

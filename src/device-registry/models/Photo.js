@@ -88,22 +88,21 @@ photoSchema.statics = {
   async register(args) {
     try {
       logText("registering a new photo....");
-      let modifiedArgs = args;
-      let createdPhoto = await this.create({ ...modifiedArgs });
+      let modifiedArgs = Object.assign({}, args);
+      const createdPhoto = await this.create({ ...modifiedArgs });
       if (!isEmpty(createdPhoto)) {
-        const data = createdPhoto._doc;
-        logObject("data", data);
         return {
           success: true,
-          data,
+          data: createdPhoto._doc,
           message: "photo created",
           status: HTTPStatus.CREATED,
         };
-      } else {
+      } else if (isEmpty(createdPhoto)) {
         return {
           success: false,
           message: "photo not created despite successful operation",
-          status: HTTPStatus.ACCEPTED,
+          status: HTTPStatus.INTERNAL_SERVER_ERROR,
+          errors: { message: "photo not created despite successful operation" },
         };
       }
     } catch (err) {
@@ -111,13 +110,17 @@ photoSchema.statics = {
       let response = {};
       let message = "validation errors for some of the provided fields";
       let status = HTTPStatus.CONFLICT;
-      if (err.code === 11000) {
+      if (!isEmpty(err.keyPattern) && err.code === 11000) {
         Object.entries(err.keyPattern).forEach(([key, value]) => {
-          return (response[key] = "duplicate value");
+          response[key] = "duplicate value";
+          response["message"] = "duplicate value";
+          return response;
         });
-      } else {
+      } else if (!isEmpty(err.errors)) {
         Object.entries(err.errors).forEach(([key, value]) => {
-          return (response[key] = value.message);
+          response.message = value.message;
+          response[key] = value.message;
+          return response;
         });
       }
       return {
@@ -128,11 +131,7 @@ photoSchema.statics = {
       };
     }
   },
-  async list({
-    _skip = 0,
-    _limit = parseInt(constants.DEFAULT_LIMIT_FOR_QUERYING_PHOTOS),
-    filter = {},
-  } = {}) {
+  async list({ skip = 0, limit = 1000, filter = {} } = {}) {
     try {
       let response = await this.aggregate()
         .match(filter)
@@ -149,39 +148,46 @@ photoSchema.statics = {
           metadata: 1,
           network: 1,
         })
-        .skip(_skip)
-        .limit(_limit)
+        .skip(skip ? skip : 0)
+        .limit(limit ? limit : 1000)
         .allowDiskUse(true);
 
       if (!isEmpty(response)) {
         logObject("response", response);
-        let data = response;
         return {
           success: true,
           message: "successfully retrieved the photo(s)",
-          data,
+          data: response,
           status: HTTPStatus.OK,
         };
-      } else {
+      } else if (isEmpty(response)) {
         return {
-          success: false,
-          message: "this photo does not exist, please crosscheck",
-          status: HTTPStatus.NOT_FOUND,
-          errors: filter,
+          success: true,
+          message: "No images found for this operation",
+          status: HTTPStatus.OK,
+          data: [],
         };
       }
     } catch (err) {
       logObject("the error", err);
-      let response = {};
+      let response = { message: err.message };
       let message = "validation errors for some of the provided fields";
       let status = HTTPStatus.CONFLICT;
       if (err.code === 11000) {
-        Object.entries(err.keyPattern).forEach(([key, value]) => {
-          return (response[key] = "duplicate value");
-        });
-      } else {
+        if (!isEmpty(err.keyPattern)) {
+          Object.entries(err.keyPattern).forEach(([key, value]) => {
+            response["message"] = "duplicate value";
+            response[key] = "duplicate value";
+            return response;
+          });
+        } else {
+          response.message = "duplicate value";
+        }
+      } else if (!isEmpty(err.errors)) {
         Object.entries(err.errors).forEach(([key, value]) => {
-          return (response[key] = value.message);
+          response[key] = value.message;
+          response["message"] = value.message;
+          return response;
         });
       }
       return {
@@ -213,27 +219,25 @@ photoSchema.statics = {
       const projection = setProjection(modifiedUpdateBody);
       logObject("projection", projection);
       options["projection"] = projection;
-      let updatedPhoto = await this.findOneAndUpdate(
+      const updatedPhoto = await this.findOneAndUpdate(
         filter,
         modifiedUpdateBody,
         options
       );
       logObject("updatedPhoto", updatedPhoto);
       if (!isEmpty(updatedPhoto)) {
-        let data = updatedPhoto._doc;
-        logObject("the updated data", data);
         return {
           success: true,
           message: "successfully modified the photo",
-          data,
+          data: updatedPhoto._doc,
           status: HTTPStatus.OK,
         };
-      } else {
+      } else if (isEmpty(updatedPhoto)) {
         return {
-          success: false,
-          message: "this photo does not exist, please crosscheck",
-          status: HTTPStatus.NOT_FOUND,
-          errors: filter,
+          success: true,
+          message: "No images found for this operation",
+          status: HTTPStatus.OK,
+          data: [],
         };
       }
     } catch (err) {
@@ -241,13 +245,17 @@ photoSchema.statics = {
       let response = {};
       let message = "validation errors for some of the provided fields";
       let status = HTTPStatus.CONFLICT;
-      if (err.code === 11000) {
+      if (!isEmpty(err.code) && err.code === 11000) {
         Object.entries(err.keyPattern).forEach(([key, value]) => {
-          return (response[key] = "duplicate value");
+          response[key] = "duplicate value";
+          response["message"] = "duplicate value";
+          return response;
         });
-      } else {
+      } else if (!isEmpty(err.errors)) {
         Object.entries(err.errors).forEach(([key, value]) => {
-          return (response[key] = value.message);
+          response[key] = value.message;
+          response["message"] = value.message;
+          return response;
         });
       }
       return {
@@ -271,22 +279,20 @@ photoSchema.statics = {
           image_url: 1,
         },
       };
-      let removedPhoto = await this.findOneAndRemove(filter, options).exec();
+      const removedPhoto = await this.findOneAndRemove(filter, options).exec();
       if (!isEmpty(removedPhoto)) {
-        let data = removedPhoto._doc;
-        logObject("the removed photo data", data);
         return {
           success: true,
           message: "successfully removed the photo",
-          data,
+          data: removedPhoto._doc,
           status: HTTPStatus.OK,
         };
-      } else {
+      } else if (isEmpty(removedPhoto)) {
         return {
-          success: false,
-          message: "this photo does not exist, please crosscheck",
-          status: HTTPStatus.NOT_FOUND,
-          errors: filter,
+          success: true,
+          message: "No images found for this operation",
+          status: HTTPStatus.OK,
+          data: [],
         };
       }
     } catch (err) {
@@ -294,13 +300,17 @@ photoSchema.statics = {
       let response = {};
       let message = "validation errors for some of the provided fields";
       let status = HTTPStatus.CONFLICT;
-      if (err.code === 11000) {
+      if (!isEmpty(err.code) && err.code === 11000) {
         Object.entries(err.keyPattern).forEach(([key, value]) => {
-          return (response[key] = "duplicate value");
+          response[key] = "duplicate value";
+          response["message"] = "duplicate value";
+          return response;
         });
-      } else {
+      } else if (!isEmpty(err.errors)) {
         Object.entries(err.errors).forEach(([key, value]) => {
-          return (response[key] = value.message);
+          response[key] = value.message;
+          response["message"] = value.message;
+          return response;
         });
       }
       return {

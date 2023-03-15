@@ -26,7 +26,7 @@ spec:
     spec:
       containers:
         - name: prod-kcca-raw-measurements-stream
-          image: us.gcr.io/airqo-250220/prod-raw-device-measurements-stream:latest
+          image: eu.gcr.io/airqo-250220/prod-raw-device-measurements-stream:latest
           imagePullPolicy: IfNotPresent
           resources:
             requests:

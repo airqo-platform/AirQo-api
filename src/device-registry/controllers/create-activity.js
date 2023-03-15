@@ -9,8 +9,6 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-activity-controller`
 );
 const createActivityUtil = require("@utils/create-activity");
-// const { runActivitiesUpdates } = require("@scripts/bulk-update");
-// const { runActivitiesAdditions } = require("@scripts/bulk-create");
 const errors = require("@utils/errors");
 
 const activity = {
@@ -45,7 +43,11 @@ const activity = {
         site_id,
         network,
       } = body;
-      const { tenant, deviceName } = query;
+      let { tenant } = query;
+      const { deviceName } = query;
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
       let request = {};
 
       request["body"] = {};
@@ -67,24 +69,22 @@ const activity = {
         const status = responseFromDeployDevice.status
           ? responseFromDeployDevice.status
           : HTTPStatus.OK;
-        const data = responseFromDeployDevice.data;
         return res.status(status).json({
           success: true,
           message: responseFromDeployDevice.message,
-          createdActivity: data.createdActivity,
-          updatedDevice: data.updatedDevice,
+          createdActivity: responseFromDeployDevice.data.createdActivity,
+          updatedDevice: responseFromDeployDevice.data.updatedDevice,
         });
       } else if (responseFromDeployDevice.success === false) {
         const status = responseFromDeployDevice.status
           ? responseFromDeployDevice.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
-        const errors = responseFromDeployDevice.errors
-          ? responseFromDeployDevice.errors
-          : "";
         return res.status(status).json({
           success: false,
           message: responseFromDeployDevice.message,
-          errors,
+          errors: responseFromDeployDevice.errors
+            ? responseFromDeployDevice.errors
+            : { message: "" },
         });
       }
     } catch (error) {
@@ -98,55 +98,42 @@ const activity = {
   },
   recall: async (req, res) => {
     try {
-      const { body, query } = req;
-      const {
-        date,
-        height,
-        mountType,
-        powerType,
-        isPrimaryInLocation,
-        site_id,
-        network,
-      } = body;
-      const { tenant, deviceName } = query;
+      const { query } = req;
+      let { tenant } = query;
+      const { deviceName } = query;
+
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
       let request = {};
 
       request["body"] = {};
       request["query"] = {};
-      request["body"]["date"] = date;
-      request["body"]["height"] = height;
-      request["body"]["mountType"] = mountType;
-      request["body"]["powerType"] = powerType;
-      request["body"]["network"] = network;
-      request["body"]["isPrimaryInLocation"] = isPrimaryInLocation;
-      request["body"]["site_id"] = site_id;
       request["query"]["tenant"] = tenant;
       request["query"]["deviceName"] = deviceName;
       request["query"]["type"] = "recall";
 
-      const responseFromDeployDevice = await createActivityUtil.create(request);
-      if (responseFromDeployDevice.success === true) {
-        const status = responseFromDeployDevice.status
-          ? responseFromDeployDevice.status
+      const responseFromRecallDevice = await createActivityUtil.create(request);
+      if (responseFromRecallDevice.success === true) {
+        const status = responseFromRecallDevice.status
+          ? responseFromRecallDevice.status
           : HTTPStatus.OK;
-        const data = responseFromDeployDevice.data;
         return res.status(status).json({
           success: true,
-          message: responseFromDeployDevice.message,
-          createdActivity: data.createdActivity,
-          updatedDevice: data.updatedDevice,
+          message: responseFromRecallDevice.message,
+          createdActivity: responseFromRecallDevice.data.createdActivity,
+          updatedDevice: responseFromRecallDevice.data.updatedDevice,
         });
-      } else if (responseFromDeployDevice.success === false) {
-        const status = responseFromDeployDevice.status
-          ? responseFromDeployDevice.status
+      } else if (responseFromRecallDevice.success === false) {
+        const status = responseFromRecallDevice.status
+          ? responseFromRecallDevice.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
-        const errors = responseFromDeployDevice.errors
-          ? responseFromDeployDevice.errors
-          : "";
         return res.status(status).json({
           success: false,
-          message: responseFromDeployDevice.message,
-          errors,
+          message: responseFromRecallDevice.message,
+          errors: responseFromRecallDevice.errors
+            ? responseFromRecallDevice.errors
+            : { message: "" },
         });
       }
     } catch (error) {
@@ -171,8 +158,16 @@ const activity = {
         description,
         site_id,
         network,
+        maintenanceType,
       } = body;
-      const { tenant, deviceName } = query;
+
+      let { tenant } = query;
+      const { deviceName } = query;
+
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+
       let request = {};
 
       request["body"] = {};
@@ -186,33 +181,34 @@ const activity = {
       request["body"]["site_id"] = site_id;
       request["body"]["description"] = description;
       request["body"]["tags"] = tags;
+      request["body"]["maintenanceType"] = maintenanceType;
       request["query"]["tenant"] = tenant;
       request["query"]["deviceName"] = deviceName;
       request["query"]["type"] = "maintain";
 
-      const responseFromDeployDevice = await createActivityUtil.create(request);
-      if (responseFromDeployDevice.success === true) {
-        const status = responseFromDeployDevice.status
-          ? responseFromDeployDevice.status
+      const responseFromMaintainDevice = await createActivityUtil.create(
+        request
+      );
+      if (responseFromMaintainDevice.success === true) {
+        const status = responseFromMaintainDevice.status
+          ? responseFromMaintainDevice.status
           : HTTPStatus.OK;
-        const data = responseFromDeployDevice.data;
         return res.status(status).json({
           success: true,
-          message: responseFromDeployDevice.message,
-          createdActivity: data.createdActivity,
-          updatedDevice: data.updatedDevice,
+          message: responseFromMaintainDevice.message,
+          createdActivity: responseFromMaintainDevice.data.createdActivity,
+          updatedDevice: responseFromMaintainDevice.data.updatedDevice,
         });
-      } else if (responseFromDeployDevice.success === false) {
-        const status = responseFromDeployDevice.status
-          ? responseFromDeployDevice.status
+      } else if (responseFromMaintainDevice.success === false) {
+        const status = responseFromMaintainDevice.status
+          ? responseFromMaintainDevice.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
-        const errors = responseFromDeployDevice.errors
-          ? responseFromDeployDevice.errors
-          : "";
         return res.status(status).json({
           success: false,
-          message: responseFromDeployDevice.message,
-          errors,
+          message: responseFromMaintainDevice.message,
+          errors: responseFromMaintainDevice.errors
+            ? responseFromMaintainDevice.errors
+            : { message: "" },
         });
       }
     } catch (error) {
@@ -255,36 +251,6 @@ const activity = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      request["body"] = body;
-      request["query"] = query;
-      let responseFromCreateActivities = await runActivitiesAdditions({
-        network,
-      });
-      logObject("responseFromCreateActivities", responseFromCreateActivities);
-      if (responseFromCreateActivities.success === true) {
-        let status = responseFromCreateActivities.status
-          ? responseFromCreateActivities.status
-          : HTTPStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: responseFromCreateActivities.message,
-          updated_activities: responseFromCreateActivities.data,
-        });
-      } else if (responseFromCreateActivities.success === false) {
-        let errors = responseFromCreateActivities.errors
-          ? responseFromCreateActivities.errors
-          : "";
-
-        let status = responseFromCreateActivities.status
-          ? responseFromCreateActivities.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
-
-        return res.status(status).json({
-          success: false,
-          message: responseFromCreateActivities.message,
-          errors,
-        });
-      }
     } catch (error) {
       logObject("error", error);
       logger.error(`internal server error -- ${error.message}`);
@@ -326,35 +292,6 @@ const activity = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      request["body"] = body;
-      request["query"] = query;
-      let responseFromUpdateActivities = await runActivitiesUpdates({
-        network,
-      });
-      if (responseFromUpdateActivities.success === true) {
-        let status = responseFromUpdateActivities.status
-          ? responseFromUpdateActivities.status
-          : HTTPStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: responseFromUpdateActivities.message,
-          updated_activities: responseFromUpdateActivities.data,
-        });
-      } else if (responseFromUpdateActivities.success === false) {
-        let errors = responseFromUpdateActivities.errors
-          ? responseFromUpdateActivities.errors
-          : "";
-
-        let status = responseFromUpdateActivities.status
-          ? responseFromUpdateActivities.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
-
-        return res.status(status).json({
-          success: false,
-          message: responseFromUpdateActivities.message,
-          errors,
-        });
-      }
     } catch (error) {
       logObject("error", error);
       logger.error(`internal server error -- ${error.message}`);
@@ -390,12 +327,20 @@ const activity = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
+
+      let { tenant } = query;
+
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+
       request["body"] = body;
       request["query"] = query;
+      request["query"]["tenant"] = tenant;
       let responseFromUpdateActivity = await createActivityUtil.update(request);
       logObject("responseFromUpdateActivity", responseFromUpdateActivity);
       if (responseFromUpdateActivity.success === true) {
-        let status = responseFromUpdateActivity.status
+        const status = responseFromUpdateActivity.status
           ? responseFromUpdateActivity.status
           : HTTPStatus.OK;
         return res.status(status).json({
@@ -404,18 +349,16 @@ const activity = {
           updated_activity: responseFromUpdateActivity.data,
         });
       } else if (responseFromUpdateActivity.success === false) {
-        let errors = responseFromUpdateActivity.errors
-          ? responseFromUpdateActivity.errors
-          : "";
-
-        let status = responseFromUpdateActivity.status
+        const status = responseFromUpdateActivity.status
           ? responseFromUpdateActivity.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
 
         return res.status(status).json({
           success: false,
           message: responseFromUpdateActivity.message,
-          errors,
+          errors: responseFromUpdateActivity.errors
+            ? responseFromUpdateActivity.errors
+            : { message: "" },
         });
       }
     } catch (error) {
@@ -433,7 +376,6 @@ const activity = {
       let request = {};
       logText(".................................................");
       logText("inside delete activity............");
-      const { tenant } = req.query;
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -452,11 +394,19 @@ const activity = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
+
+      let { tenant } = query;
+
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+
       request["query"] = query;
+      request["query"]["tenant"] = tenant;
       let responseFromRemoveActivity = await createActivityUtil.delete(request);
 
       if (responseFromRemoveActivity.success === true) {
-        let status = responseFromRemoveActivity.status
+        const status = responseFromRemoveActivity.status
           ? responseFromRemoveActivity.status
           : HTTPStatus.OK;
         return res.status(status).json({
@@ -465,16 +415,15 @@ const activity = {
           deleted_activity: responseFromRemoveActivity.data,
         });
       } else if (responseFromRemoveActivity.success === false) {
-        let errors = responseFromRemoveActivity.errors
-          ? responseFromRemoveActivity.errors
-          : "";
-        let status = responseFromRemoveActivity.status
+        const status = responseFromRemoveActivity.status
           ? responseFromRemoveActivity.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
           message: responseFromRemoveActivity.message,
-          errors,
+          errors: responseFromRemoveActivity.errors
+            ? responseFromRemoveActivity.errors
+            : { message: "" },
         });
       }
     } catch (error) {
@@ -489,10 +438,13 @@ const activity = {
   list: async (req, res) => {
     try {
       const { query } = req;
+      let { tenant } = query;
       let request = {};
       logText(".....................................");
       logText("list all activities by query params provided");
       const hasErrors = !validationResult(req).isEmpty();
+      logObject("req.query", req.query);
+      logElement("hasErrors", hasErrors);
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         try {
@@ -510,14 +462,19 @@ const activity = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
+
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
       request["query"] = query;
+      request["query"]["tenant"] = tenant;
       let responseFromListActivities = await createActivityUtil.list(request);
       logElement(
         "has the response for listing activities been successful?",
         responseFromListActivities.success
       );
       if (responseFromListActivities.success === true) {
-        let status = responseFromListActivities.status
+        const status = responseFromListActivities.status
           ? responseFromListActivities.status
           : HTTPStatus.OK;
         res.status(status).json({
@@ -526,16 +483,15 @@ const activity = {
           site_activities: responseFromListActivities.data,
         });
       } else if (responseFromListActivities.success === false) {
-        let errors = responseFromListActivities.errors
-          ? responseFromListActivities.errors
-          : "";
-        let status = responseFromListActivities.status
+        const status = responseFromListActivities.status
           ? responseFromListActivities.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
           message: responseFromListActivities.message,
-          errors,
+          errors: responseFromListActivities.errors
+            ? responseFromListActivities.errors
+            : { message: "" },
         });
       }
     } catch (error) {

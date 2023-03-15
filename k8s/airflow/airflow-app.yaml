@@ -39,7 +39,7 @@ spec:
       serviceAccountName: airflow-sa
       initContainers:
         - name: airflow-xcom
-          image: gcr.io/airqo-250220/airqo-apache-airflow-xcom:latest
+          image: eu.gcr.io/airqo-250220/airqo-apache-airflow-xcom:latest
           imagePullPolicy: IfNotPresent
           resources: {}
           envFrom:
@@ -50,7 +50,7 @@ spec:
               mountPath: /etc/airflow_xcom
       containers:
         - name: airflow-scheduler
-          image: gcr.io/airqo-250220/airqo-apache-airflow:latest
+          image: eu.gcr.io/airqo-250220/airqo-apache-airflow:latest
           imagePullPolicy: IfNotPresent
           envFrom:
             - configMapRef:
@@ -71,7 +71,7 @@ spec:
             - name: xcom-config-volume
               mountPath: /etc/airflow_xcom
         - name: airflow-webserver
-          image: gcr.io/airqo-250220/airqo-apache-airflow:latest
+          image: eu.gcr.io/airqo-250220/airqo-apache-airflow:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080

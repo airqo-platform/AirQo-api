@@ -34,7 +34,7 @@ spec:
                       - general-purpose
       containers:
         - name: sta-notification-api
-          image: us.gcr.io/airqo-250220/airqo-stage-notification-api:latest
+          image: eu.gcr.io/airqo-250220/airqo-stage-notification-api:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080

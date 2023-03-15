@@ -16,54 +16,6 @@ const routes = require("@routes");
 
 mongodb;
 
-const { Kafka } = require("kafkajs");
-const kafka = new Kafka({
-  clientId: constants.KAFKA_CLIENT_ID,
-  brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
-});
-
-const runKafkaConsumer = async () => {
-  try {
-    const kafkaConsumer = kafka.consumer({
-      groupId: constants.UNIQUE_CONSUMER_GROUP,
-    });
-    await kafkaConsumer.connect();
-    await kafkaConsumer.subscribe({
-      topic: constants.HOURLY_MEASUREMENTS_TOPIC,
-      fromBeginning: true,
-    });
-    await kafkaConsumer.run({
-      eachMessage: async ({ message }) => {
-        const measurements = JSON.parse(message.value).data;
-        if (!Array.isArray(measurements) || isEmpty(measurements)) {
-          logger.error(
-            `KAFKA: the sent measurements are not an array or they are just empty (undefined) --- ${JSON.stringify(
-              measurements
-            )}`
-          );
-        }
-        const responseFromInsertMeasurements = await createEvent.insert(
-          "airqo",
-          measurements
-        );
-        if (responseFromInsertMeasurements.success === false) {
-          logger.error(
-            `responseFromInsertMeasurements --- ${JSON.stringify(
-              responseFromInsertMeasurements
-            )}`
-          );
-        }
-      },
-    });
-  } catch (error) {
-    logger.error("KAFKA: internal server error", error.message);
-  }
-};
-
-if (constants.ENVIRONMENT === "STAGING ENVIRONMENT") {
-  runKafkaConsumer();
-}
-
 const moesif = require("moesif-nodejs");
 const compression = require("compression");
 
