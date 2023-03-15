@@ -79,7 +79,7 @@ async function produceMessage(user) {
 
     await producer.connect();
 
-    const topic = process.env.MOBILE_APP_USERS_TOPIC;
+    const topic = process.env.NEW_MOBILE_APP_USER_TOPIC;
     const message = {
       value: `{email:${emailAddress}}`,
     };
@@ -90,8 +90,7 @@ async function produceMessage(user) {
         message,
       ],
     });
-
-    console.log("sending", message);
+    await producer.disconnect();
   } catch (error) {
     console.log(error);
   }

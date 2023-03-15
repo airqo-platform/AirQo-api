@@ -13,13 +13,13 @@ var isEmpty = require("is-empty");
 const log4js = require('log4js');
 const log4jsConfiguration = require("@config/log4js")
 log4js.configure(log4jsConfiguration);
-const logger = log4js.getLogger("start-script");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} --start-script`);
 const { logText, logObject, logElement } = require("@utils/log")
 const mailer = require("@utils/mailer");
 const emailMessages = require("@utils/email.msgs");
 const emailTemplates = require("@utils/email.templates");
 const Joi = require('joi');
-
+const { jsonrepair } = require('jsonrepair')
 
 const userSchema = Joi.object({
     "email": Joi.string().email().empty('').required(),
@@ -139,7 +139,7 @@ var server = http.createServer(app);
 server.listen(port, function() {
 
     run().catch(error => {
-        logger.error(`${ENV} environment:KAFKA: internal server error -- ${JSON.stringify(error)}`);
+        logger.error(`KAFKA: internal server error -- ${JSON.stringify(error)}`);
     });
 
 });
