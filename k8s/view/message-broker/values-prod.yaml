@@ -1,7 +1,7 @@
 app:
   name: airqo-view-message-broker
   label: view-msg-brokr
-  namespace: staging
+  namespace: production
   configmap: prod-view-message-broker-config
 replicaCount: 2
 image:
