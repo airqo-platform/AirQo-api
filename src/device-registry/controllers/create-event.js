@@ -54,33 +54,6 @@ const createEvent = {
       },
     });
   },
-  consume: async (req, res) => {
-    try {
-      const responseFromConsumeMeasurements = await createEventUtil.consume();
-      if (responseFromConsumeMeasurements.success === true) {
-        return res.status(HTTPStatus.OK).json({
-          success: true,
-          message: responseFromConsumeMeasurements.message,
-          response: responseFromConsumeMeasurements.data,
-        });
-      } else {
-        return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-          success: false,
-          message: responseFromConsumeMeasurements.message,
-          errors: responseFromConsumeMeasurements.errors
-            ? responseFromConsumeMeasurements.errors
-            : { message: "" },
-        });
-      }
-    } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
-    }
-  },
   addValues: async (req, res) => {
     try {
       logText("adding values...");
@@ -1049,6 +1022,7 @@ const createEvent = {
       request["body"] = body;
       request["query"] = query;
       const responseFromCreateEvents = await createEventUtil.create(request);
+      logObject("responseFromCreateEvents util", responseFromCreateEvents);
       if (responseFromCreateEvents.success === true) {
         const status = responseFromCreateEvents.status
           ? responseFromCreateEvents.status
@@ -1069,6 +1043,7 @@ const createEvent = {
         });
       }
     } catch (error) {
+      logObject("error", error);
       logger.error(`internal server error -- ${error.message}`);
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,

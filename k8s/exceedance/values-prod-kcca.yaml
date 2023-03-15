@@ -2,10 +2,8 @@ app:
   name: kcca-exceedance-job
   namespace: staging
   configmap: env-exceedance-production
-
 image:
   repository: eu.gcr.io/airqo-250220/kcca-exceedance-job
-  tag: latest
-
-nameOverride: ""
-fullnameOverride: ""
+  tag: prod-bfec5269-1675866864
+nameOverride: ''
+fullnameOverride: ''

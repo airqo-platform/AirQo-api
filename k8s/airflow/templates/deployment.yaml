@@ -48,7 +48,7 @@ spec:
       initContainers:
         - name: '{{ .Values.app.name }}-xcom'
           image: "{{ .Values.images.repositories.initContainer }}:{{ .Values.images.tag }}"
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           envFrom:
             - configMapRef:
                 name: {{ .Values.app.configmap }} 
@@ -59,7 +59,7 @@ spec:
       containers:
         - name: '{{ .Values.app.name }}-scheduler'
           image: "{{ .Values.images.repositories.containers }}:{{ .Values.images.tag }}"
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           envFrom:
             - configMapRef:
                 name: {{ .Values.app.configmap }} 
@@ -73,7 +73,7 @@ spec:
             {{- toYaml .Values.resources | nindent 12 }}
         - name: '{{ .Values.app.name }}-webserver'
           image: "{{ .Values.images.repositories.containers }}:{{ .Values.images.tag }}"
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: {{ .Values.service.targetPort }}
               name: {{ .Values.app.label }}

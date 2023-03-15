@@ -4,23 +4,19 @@ app:
   configmap: env-update-channel-data-staging
 image:
   repository: eu.gcr.io/airqo-250220/airqo-stage-update-channel-data-job
-  tag: latest
-
-nameOverride: ""
-fullnameOverride: ""
+  tag: stage-a93d73e8-1677156910
+nameOverride: ''
+fullnameOverride: ''
 resources:
   limits:
     cpu: 500m
     memory: 500Mi
   requests:
-    # Average usage was 0.02 vCPU and 100Mi over the last 30 days
     cpu: 20m
     memory: 200Mi
-
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config
-
 volumes:
   - name: config-volume
     configMap:

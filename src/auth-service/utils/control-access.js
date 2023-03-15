@@ -337,9 +337,9 @@ const controlAccess = {
       if (responseFromListAccessToken.success === true) {
         if (responseFromListAccessToken.status === httpStatus.NOT_FOUND) {
           let newResponse = Object.assign({}, responseFromListAccessToken);
-          newResponse.message = "invalid token";
-          newResponse.status = httpStatus.BAD_REQUEST;
-          newResponse.errors = { message: "invalid token" };
+          newResponse.message = "Unauthorized";
+          newResponse.status = httpStatus.UNAUTHORIZED;
+          newResponse.errors = { message: "Unauthorized" };
           return newResponse;
         } else if (responseFromListAccessToken.status === httpStatus.OK) {
           let newResponse = Object.assign({}, responseFromListAccessToken);
