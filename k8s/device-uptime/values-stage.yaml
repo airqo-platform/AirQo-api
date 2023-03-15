@@ -2,13 +2,11 @@ app:
   name: stage-device-uptime-job
   namespace: staging
   configmap: env-device-uptime-staging
-
 image:
   repository: eu.gcr.io/airqo-250220/airqo-stage-device-uptime-job
-  tag: latest
-
-nameOverride: ""
-fullnameOverride: ""
+  tag: stage-1341fe37-1675679212
+nameOverride: ''
+fullnameOverride: ''
 resources:
   limits:
     cpu: 1000m

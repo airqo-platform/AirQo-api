@@ -3,39 +3,29 @@ app:
   label: locate-api
   namespace: production
   configmap: env-locate-production
-
 replicaCount: 3
-
 image:
   repository: eu.gcr.io/airqo-250220/airqo-locate-api
-  tag: latest
-
-nameOverride: ""
-fullnameOverride: ""
-
+  tag: prod-81d3f591-1678362351
+nameOverride: ''
+fullnameOverride: ''
 podAnnotations: {}
-
 resources:
   limits:
     cpu: 50m
     memory: 500Mi
   requests:
-    # Average usage was 0.0005 vCPU and 1Gi over the last 30 days
     cpu: 5m
     memory: 300Mi
-
 ingress:
   enabled: false
-
 service:
   type: NodePort
   port: 4001
   protocol: TCP
   targetPort: 4001
   nodePort: 30004
-
 autoscaling:
   minReplicas: 1
   maxReplicas: 3
-  # targetCPUUtilizationPercentage: 70
   targetMemoryUtilizationPercentage: 70
