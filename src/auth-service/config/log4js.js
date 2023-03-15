@@ -1,8 +1,14 @@
 const { logElement } = require("../utils/log");
 const constants = require("./constants");
-
 const log4js = {
   appenders: {
+    console: { type: "console" },
+    mongo: {
+      type: "log4js-node-mongodb",
+      connectionString: "mongodb://localhost:27017/auth-service_airqo",
+      category: "auth",
+      collectionName: "activities",
+    },
     access: {
       type: "dateFile",
       filename: "log/access.log",
@@ -32,8 +38,10 @@ const log4js = {
     },
   },
   categories: {
-    default: { appenders: ["alerts", "errors"], level: "error" },
+    default: { appenders: ["alerts", "mongo"], level: "info" },
+    error: { appenders: ["alerts", "errors"], level: "error" },
     http: { appenders: ["access"], level: "DEBUG" },
   },
 };
+
 module.exports = log4js;
