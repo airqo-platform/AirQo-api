@@ -9,6 +9,56 @@ from config.constants import Config
 from helpers.convert_dates import date_to_str
 
 
+class MetaData:
+    def __init__(
+        self,
+        airqlouds: list,
+        sites: list,
+        tenant: str,
+    ):
+        self.airqlouds = airqlouds
+        self.sites = sites
+        self.tenant = tenant
+        self.__devices_table = f"`{Config.BIGQUERY_DEVICES}`"
+        self.__airqlouds_sites_table = f"`{Config.BIGQUERY_AIRQLOUDS_SITES}`"
+        self.__client = bigquery.Client()
+
+    def get_devices(self):
+        if self.sites:
+            query = (
+                f" SELECT device_id, "
+                f" FROM {self.__devices_table} "
+                f" WHERE {self.__devices_table}.site_id IN UNNEST({self.sites}) "
+                f" AND {self.__devices_table}.tenant = '{self.tenant}' "
+            )
+
+            dataframe = self.__client.query(query=query).result().to_dataframe()
+
+        elif self.airqlouds:
+            sites = (
+                f" SELECT {self.__airqlouds_sites_table}.site_id "
+                f" FROM {self.__airqlouds_sites_table} "
+                f" WHERE {self.__airqlouds_sites_table}.airqloud_id IN UNNEST({self.airqlouds}) "
+            )
+
+            query = (
+                f" SELECT device_id "
+                f" FROM {self.__devices_table} "
+                f" RIGHT JOIN ({sites}) sites ON sites.site_id = {self.__devices_table}.site_id "
+                f" AND {self.__devices_table}.tenant = '{self.tenant}' "
+            )
+
+            dataframe = self.__client.query(query=query).result().to_dataframe()
+
+        else:
+            return []
+
+        if dataframe.empty:
+            return []
+        dataframe.dropna(inplace=True)
+        return dataframe["device_id"].to_list()
+
+
 class DeviceUptime:
     def __init__(
         self,
@@ -37,9 +87,14 @@ class DeviceUptime:
         return self.__results
 
     def compute(self):
-
         if self.__data.empty:
             self.__load_devices_data()
+
+        if self.__data.empty:
+            self.__results = {
+                "errors": f"No data for devices {self.__devices}",
+            }
+            return self.__results
 
         self.__aggregate_data()
 
@@ -48,6 +103,7 @@ class DeviceUptime:
             "overall_downtime": self.__overall_downtime,
             "start_date_time": date_to_str(self.__start_date_time),
             "end_date_time": date_to_str(self.__end_date_time),
+            "devices": self.__devices,
             "uptime": self.__devices_uptime.sort_values(
                 by=["timestamp", "device", "data_points"]
             ).to_dict("records"),
@@ -56,7 +112,6 @@ class DeviceUptime:
         return self.__results
 
     def __format_timestamp(self, timestamp: datetime):
-
         if 0 <= timestamp.minute <= 30:
             timestamp_format = "%Y-%m-%dT%H:00:00Z"
             timestamp_str = date_to_str(timestamp, str_format=timestamp_format)
@@ -99,7 +154,6 @@ class DeviceUptime:
         data = []
         for start, end in dates:
             for device in self.__devices:
-
                 data.extend(
                     [
                         {"timestamp": start, "device": device},
@@ -113,7 +167,6 @@ class DeviceUptime:
         return data
 
     def __aggregate_data(self) -> pd.DataFrame:
-
         uptime_data = self.__create_data()
         data = self.__data.copy()
         data["timestamp"] = data["timestamp"].apply(self.__format_timestamp)
@@ -179,7 +232,6 @@ class DeviceUptime:
         return series
 
     def __load_devices_data(self):
-
         query = (
             f" SELECT timestamp, device_id as device, battery "
             f" FROM {self.__raw_data_table} "

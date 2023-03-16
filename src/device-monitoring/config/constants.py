@@ -4,14 +4,14 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-dotenv_path = os.path.join(BASE_DIR, '.env')
+dotenv_path = os.path.join(BASE_DIR, ".env")
 load_dotenv(dotenv_path)
 
-print('Environment', os.getenv("FLASK_ENV"))
+print("Environment", os.getenv("FLASK_ENV"))
 
-THIRTY_MINUTES = 1800 # seconds
+THIRTY_MINUTES = 1800  # seconds
 
-TWO_HOURS = 7200 # seconds
+TWO_HOURS = 7200  # seconds
 
 
 class Config:
@@ -19,17 +19,19 @@ class Config:
     TESTING = False
     CSRF_ENABLED = True
 
-    CACHE_TYPE = 'RedisCache'
+    CACHE_TYPE = "RedisCache"
     CACHE_DEFAULT_TIMEOUT = THIRTY_MINUTES
-    CACHE_KEY_PREFIX = 'device-monitoring'
-    CACHE_REDIS_URL = os.getenv('REDIS_URL_PROD')
+    CACHE_KEY_PREFIX = "device-monitoring"
+    CACHE_REDIS_URL = os.getenv("REDIS_URL_PROD")
 
     SECRET_KEY = os.getenv("SECRET_KEY")
 
     DB_NAME = os.getenv("DB_NAME_PROD")
-    MONGO_URI = os.getenv('MONGO_GCE_URI')
+    MONGO_URI = os.getenv("MONGO_GCE_URI")
 
-    BIGQUERY_RAW_DATA = os.getenv('BIGQUERY_RAW_DATA')
+    BIGQUERY_RAW_DATA = os.getenv("BIGQUERY_RAW_DATA")
+    BIGQUERY_DEVICES = os.getenv("BIGQUERY_DEVICES")
+    BIGQUERY_AIRQLOUDS_SITES = os.getenv("BIGQUERY_AIRQLOUDS_SITES")
 
 
 class ProductionConfig(Config):
@@ -39,7 +41,7 @@ class ProductionConfig(Config):
 class DevelopmentConfig(Config):
     DEVELOPMENT = True
     DEBUG = True
-    CACHE_REDIS_URL = os.getenv('REDIS_URL_DEV')
+    CACHE_REDIS_URL = os.getenv("REDIS_URL_DEV")
     MONGO_URI = os.getenv("MONGO_DEV_URI")
     DB_NAME = os.getenv("DB_NAME_DEV")
 
@@ -47,8 +49,8 @@ class DevelopmentConfig(Config):
 class TestingConfig(Config):
     DEBUG = True
     TESTING = True
-    CACHE_REDIS_URL = os.getenv('REDIS_URL_STAGE')
-    MONGO_URI = os.getenv('MONGO_GCE_URI')
+    CACHE_REDIS_URL = os.getenv("REDIS_URL_STAGE")
+    MONGO_URI = os.getenv("MONGO_GCE_URI")
     DB_NAME = os.getenv("DB_NAME_STAGE")
 
 
@@ -56,5 +58,5 @@ app_config = {
     "development": DevelopmentConfig,
     "testing": TestingConfig,
     "production": ProductionConfig,
-    "staging": TestingConfig
+    "staging": TestingConfig,
 }
