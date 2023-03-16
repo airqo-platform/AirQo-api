@@ -9,7 +9,6 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-airqloud-controller`
 );
 const httpStatus = require("http-status");
-// const bulkCreateUtil = require("@scripts/bulk-create");
 
 const createAirqloud = {
   bulkCreate: async (req, res) => {
@@ -36,19 +35,6 @@ const createAirqloud = {
           "bad request errors",
           errors.convertErrorArrayToObject(nestedErrors)
         );
-      }
-      const { network } = req.query;
-      const responseFromUpdateAirQloudsMetadata = await bulkCreateUtil.runAirQloudAdditions(
-        {
-          network,
-        }
-      );
-      if (responseFromUpdateAirQloudsMetadata.success === true) {
-        return res.status(httpStatus.OK).json({ message: "update site" });
-      } else if (responseFromUpdateAirQloudsMetadata.success === false) {
-        return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-          message: "unable to update the sites",
-        });
       }
     } catch (error) {
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({

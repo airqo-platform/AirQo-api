@@ -3,47 +3,36 @@ app:
   label: auth-api
   namespace: production
   configmap: prod-auth-api-config
-
 replicaCount: 3
 image:
   repository: eu.gcr.io/airqo-250220/airqo-auth-api
-  tag: latest
-
-nameOverride: ""
-fullnameOverride: ""
-
+  tag: prod-cafcca31-1678883897
+nameOverride: ''
+fullnameOverride: ''
 podAnnotations: {}
-
 resources:
   limits:
     cpu: 100m
     memory: 350Mi
   requests:
-    # Average usage was 0.002 vCPU and 250Mi over the last 30 days
     cpu: 10m
     memory: 250Mi
-
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config
-
 volumes:
   - name: config-volume
     configMap:
       name: prod-auth-api-config-files
-
 ingress:
   enabled: false
-
 service:
   type: NodePort
   port: 3000
   protocol: TCP
   targetPort: 3000
   nodePort: 30000
-
 autoscaling:
   minReplicas: 1
   maxReplicas: 3
-  # targetCPUUtilizationPercentage: 70
   targetMemoryUtilizationPercentage: 70

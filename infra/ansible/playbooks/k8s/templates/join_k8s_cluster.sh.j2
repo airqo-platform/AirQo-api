@@ -1,3 +1,0 @@
-#!/bin/bash
-{{ hostvars[groups['k8s_master'].0].join_command }} > node_joined.txt && \
-kubectl label nodes {{ preemptive_node_name }} node-type=compute --kubeconfig=/etc/kubernetes/kubelet.conf

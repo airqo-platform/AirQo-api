@@ -302,6 +302,16 @@ const eventSchema = new Schema(
       trim: true,
       default: null,
     },
+    network: {
+      type: String,
+      trim: true,
+      default: "airqo",
+    },
+    tenant: {
+      type: String,
+      trim: true,
+      default: "airqo",
+    },
     is_device_primary: {
       type: Boolean,
       trim: true,
@@ -476,9 +486,14 @@ eventSchema.statics = {
           },
         },
         pages: {
-          $ceil: {
-            $divide: [{ $arrayElemAt: ["$total.device", 0] }, limit],
-          },
+          $ifNull: [
+            {
+              $ceil: {
+                $divide: [{ $arrayElemAt: ["$total.device", 0] }, limit],
+              },
+            },
+            1,
+          ],
         },
       };
       let siteProjection = {};
@@ -945,6 +960,7 @@ eventSchema.statics = {
 };
 
 const eventsModel = (tenant) => {
+  logObject("tenant.toLowerCase()", tenant.toLowerCase());
   return getModelByTenant(tenant.toLowerCase(), "event", eventSchema);
 };
 

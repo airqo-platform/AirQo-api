@@ -1,0 +1,9 @@
+cluster_role: "config"
+
+cfg_server:
+  name: "cfgsvr"
+  group: "config_servers"
+
+replica_set:
+  name: "cfgsvr"
+  group: "config_servers"

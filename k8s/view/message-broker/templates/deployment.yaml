@@ -45,7 +45,7 @@ spec:
       containers:
         - name: {{ .Values.app.label }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           envFrom:
             - configMapRef:
                 name: {{ .Values.app.configmap }}

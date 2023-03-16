@@ -37,16 +37,21 @@ router.post(
   oneOf([
     [
       body("*.device_id")
-        .exists()
-        .trim()
-        .withMessage("device_id is missing")
-        .bail()
-        .isMongoId()
-        .withMessage("device_id must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
+        .optional()
+        .notEmpty()
+        .withMessage("the device should not be empty if/when provided")
+        .trim(),
+      // body("*.device_id")
+      //   .exists()
+      //   .trim()
+      //   .withMessage("device_id is missing")
+      //   .bail()
+      //   .isMongoId()
+      //   .withMessage("device_id must be an object ID")
+      //   .bail()
+      //   .customSanitizer((value) => {
+      //     return ObjectId(value);
+      //   }),
       body("*.is_device_primary")
         .optional()
         .notEmpty()
@@ -68,14 +73,14 @@ router.post(
         .customSanitizer((value) => {
           return ObjectId(value);
         }),
-      body("*.time")
+      body("*.timestamp")
         .exists()
         .trim()
-        .withMessage("time is missing")
+        .withMessage("timestamp is missing")
         .bail()
         .toDate()
         .isISO8601({ strict: true, strictSeparator: true })
-        .withMessage("time must be a valid datetime."),
+        .withMessage("timestamp must be a valid datetime."),
       body("*.frequency")
         .optional()
         .notEmpty()
@@ -228,18 +233,32 @@ router.post(
         .withMessage("the wind_speed should be a number")
         .bail()
         .trim(),
-      body("*.external_temperature")
+      body("*.temperature")
         .optional()
         .notEmpty()
         .isFloat()
-        .withMessage("the external_temperature should be a number")
+        .withMessage("the temperature should be a number")
         .bail()
         .trim(),
-      body("*.external_humidity")
+      body("*.humidity")
         .optional()
         .notEmpty()
         .isFloat()
-        .withMessage("the external_humidity should be a number")
+        .withMessage("the humidity should be a number")
+        .bail()
+        .trim(),
+      body("*.device_temperature")
+        .optional()
+        .notEmpty()
+        .isFloat()
+        .withMessage("the temperature should be a number")
+        .bail()
+        .trim(),
+      body("*.device_humidity")
+        .optional()
+        .notEmpty()
+        .isFloat()
+        .withMessage("the humidity should be a number")
         .bail()
         .trim(),
     ],
@@ -682,7 +701,5 @@ router.delete(
   ]),
   eventController.deleteValuesOnPlatform
 );
-
-router.post("/consume", eventController.consume);
 
 module.exports = router;

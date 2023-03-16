@@ -33,6 +33,8 @@ class Config:
     BIGQUERY_DEVICES = os.getenv("BIGQUERY_DEVICES")
     BIGQUERY_AIRQLOUDS_SITES = os.getenv("BIGQUERY_AIRQLOUDS_SITES")
 
+    BIGQUERY_RAW_DATA = os.getenv("BIGQUERY_RAW_DATA")
+
 
 class ProductionConfig(Config):
     DEVELOPMENT = False

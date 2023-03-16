@@ -46,7 +46,7 @@ spec:
       containers:
         - name: {{ .Values.app.label }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: {{ .Values.service.targetPort }}
               name: {{ .Values.app.label }}

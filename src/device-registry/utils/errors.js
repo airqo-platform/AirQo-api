@@ -1,4 +1,5 @@
 const HTTPStatus = require("http-status");
+const { logObject } = require("@utils/log");
 
 const errors = {
   convertErrorArrayToObject: (array) => {
@@ -34,7 +35,7 @@ const errors = {
         error: error.message,
       });
     }
-    console.log(error.config);
+    logObject("error.config", error.config);
   },
 
   tryCatchErrors: (res, error, message) => {
