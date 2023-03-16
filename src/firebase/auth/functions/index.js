@@ -144,7 +144,7 @@ async function checkIfUserExists(data) {
 }
 
 exports.onUserSignUp = functions.auth.user().onCreate(async (user) => {
-  if (user.email != null) {
+  if (user.email !== null) {
     return await produceMessage(user);
   }
 });
