@@ -29,6 +29,8 @@ class Config:
     DB_NAME = os.getenv("DB_NAME_PROD")
     MONGO_URI = os.getenv('MONGO_GCE_URI')
 
+    BIGQUERY_RAW_DATA = os.getenv('BIGQUERY_RAW_DATA')
+
 
 class ProductionConfig(Config):
     DEVELOPMENT = False

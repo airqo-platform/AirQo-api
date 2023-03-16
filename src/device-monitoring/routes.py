@@ -8,4 +8,6 @@ NETWORK_UPTIME = f'{BASE_URL}/network/uptime'
 
 DEVICE_UPTIME = f'{BASE_URL}/devices/uptime'
 
+UPTIME = f'{BASE_URL}/uptime'
+
 DEVICE_UPTIME_LEADERBOARD = f'{BASE_URL}/device/uptime/leaderboard'
