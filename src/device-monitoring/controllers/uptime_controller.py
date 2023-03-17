@@ -33,7 +33,9 @@ def get_uptime():
     errors = {}
 
     if len(devices) != 0 and site != "" and airqloud != "":
-        errors = "You cannot specify airqlouds, sites and devices in one go"
+        errors = {
+            "inputs": "You cannot specify an airqloud, site and devices in one go"
+        }
 
     if errors:
         return (
@@ -87,6 +89,9 @@ def get_uptime():
             data_points_per_30_minutes=expected_data_points,
         )
     else:
+        errors = {
+            "inputs": "You must specify an airqloud, site or list of device names"
+        }
         return (
             jsonify(
                 {
