@@ -70,7 +70,6 @@ class MessageBrokerUtils:
 
     @staticmethod
     def update_hourly_data_topic(data: pd.DataFrame):
-
         devices = AirQoApi().get_devices(tenant=Tenant.ALL)
         devices = pd.DataFrame(devices)
         devices = devices[["mongo_id", "name", "device_number", "site_id"]]
