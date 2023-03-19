@@ -21,7 +21,7 @@ const createUser = {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         logger.error(
           `input validation errors ${JSON.stringify(
-            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+            convertErrorArrayToObject(nestedErrors)
           )}`
         );
         return badRequest(
@@ -158,7 +158,7 @@ const createUser = {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         logger.error(
           `input validation errors ${JSON.stringify(
-            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+            convertErrorArrayToObject(nestedErrors)
           )}`
         );
         return badRequest(
@@ -234,7 +234,7 @@ const createUser = {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         logger.error(
           `input validation errors ${JSON.stringify(
-            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+            convertErrorArrayToObject(nestedErrors)
           )}`
         );
         return badRequest(
@@ -292,7 +292,7 @@ const createUser = {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         logger.error(
           `input validation errors ${JSON.stringify(
-            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+            convertErrorArrayToObject(nestedErrors)
           )}`
         );
         return badRequest(
@@ -367,7 +367,7 @@ const createUser = {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         logger.error(
           `input validation errors ${JSON.stringify(
-            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+            convertErrorArrayToObject(nestedErrors)
           )}`
         );
         return badRequest(
@@ -496,7 +496,7 @@ const createUser = {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         logger.error(
           `input validation errors ${JSON.stringify(
-            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+            convertErrorArrayToObject(nestedErrors)
           )}`
         );
         return badRequest(
@@ -564,12 +564,13 @@ const createUser = {
     logText("..................................");
     logText("user login......");
     try {
+      const tenant = req.query;
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         logger.error(
           `input validation errors ${JSON.stringify(
-            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+            convertErrorArrayToObject(nestedErrors)
           )}`
         );
         return badRequest(
@@ -577,6 +578,19 @@ const createUser = {
           "bad request errors",
           convertErrorArrayToObject(nestedErrors)
         );
+      }
+
+      if (!isEmpty(tenant) && tenant !== "airqo") {
+        res.status(httpStatus.MOVED_PERMANENTLY).json({
+          message:
+            "The account has been moved permanently to a new location, please reach out to: info@airqo.net",
+          location: "https://platform.airqo.net/",
+          errors: {
+            message:
+              "The account has been moved permanently to a new location, please reach out to: info@airqo.net",
+            location: "https://platform.airqo.net/",
+          },
+        });
       }
 
       if (req.auth.success === true) {
@@ -608,7 +622,7 @@ const createUser = {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         logger.error(
           `input validation errors ${JSON.stringify(
-            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+            convertErrorArrayToObject(nestedErrors)
           )}`
         );
         return badRequest(
@@ -718,7 +732,7 @@ const createUser = {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         logger.error(
           `input validation errors ${JSON.stringify(
-            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+            convertErrorArrayToObject(nestedErrors)
           )}`
         );
         return badRequest(
@@ -761,7 +775,7 @@ const createUser = {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         logger.error(
           `input validation errors ${JSON.stringify(
-            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+            convertErrorArrayToObject(nestedErrors)
           )}`
         );
         return badRequest(
@@ -818,7 +832,7 @@ const createUser = {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         logger.error(
           `input validation errors ${JSON.stringify(
-            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+            convertErrorArrayToObject(nestedErrors)
           )}`
         );
         return badRequest(
@@ -875,7 +889,7 @@ const createUser = {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         logger.error(
           `input validation errors ${JSON.stringify(
-            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+            convertErrorArrayToObject(nestedErrors)
           )}`
         );
         return badRequest(
@@ -953,7 +967,7 @@ const createUser = {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         logger.error(
           `input validation errors ${JSON.stringify(
-            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+            convertErrorArrayToObject(nestedErrors)
           )}`
         );
         return badRequest(
@@ -1025,7 +1039,7 @@ const createUser = {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         logger.error(
           `input validation errors ${JSON.stringify(
-            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+            convertErrorArrayToObject(nestedErrors)
           )}`
         );
         return badRequest(
