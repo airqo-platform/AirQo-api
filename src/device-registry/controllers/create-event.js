@@ -418,7 +418,7 @@ const createEvent = {
       request["query"]["recent"] = recent;
       request["query"]["lat_long"] = lat_long;
       request["query"]["skip"] = parseInt(skip);
-      request["query"]["limit"] = parseInt(limit);
+      request["query"]["limit"] = parseInt(limit ? limit : 2);
       request["query"]["page"] = parseInt(page);
 
       await createEventUtil.list(request, (result) => {
@@ -518,7 +518,7 @@ const createEvent = {
       request["query"]["recent"] = recent;
       request["query"]["lat_long"] = lat_long;
       request["query"]["skip"] = parseInt(skip);
-      request["query"]["limit"] = parseInt(limit);
+      request["query"]["limit"] = parseInt(limit ? limit : 2);
       request["query"]["page"] = parseInt(page);
 
       await createEventUtil.list(request, (result) => {
@@ -618,7 +618,7 @@ const createEvent = {
       request["query"]["recent"] = recent;
       request["query"]["lat_long"] = lat_long;
       request["query"]["skip"] = parseInt(skip);
-      request["query"]["limit"] = parseInt(limit);
+      request["query"]["limit"] = parseInt(limit ? limit : 2);
       request["query"]["page"] = parseInt(page);
 
       await createEventUtil.list(request, (result) => {
@@ -718,7 +718,7 @@ const createEvent = {
       request["query"]["recent"] = recent;
       request["query"]["lat_long"] = lat_long;
       request["query"]["skip"] = parseInt(skip);
-      request["query"]["limit"] = parseInt(limit);
+      request["query"]["limit"] = parseInt(limit ? limit : 2);
       request["query"]["page"] = parseInt(page);
 
       await createEventUtil.list(request, (result) => {
@@ -818,7 +818,7 @@ const createEvent = {
       request["query"]["recent"] = recent;
       request["query"]["lat_long"] = lat_long;
       request["query"]["skip"] = parseInt(skip);
-      request["query"]["limit"] = parseInt(limit);
+      request["query"]["limit"] = parseInt(limit ? limit : 2);
       request["query"]["page"] = parseInt(page);
 
       await createEventUtil.list(request, (result) => {
@@ -918,7 +918,7 @@ const createEvent = {
       request["query"]["recent"] = recent;
       request["query"]["lat_long"] = lat_long;
       request["query"]["skip"] = parseInt(skip);
-      request["query"]["limit"] = parseInt(limit);
+      request["query"]["limit"] = parseInt(limit ? limit : 2);
       request["query"]["page"] = parseInt(page);
 
       await createEventUtil.list(request, (result) => {
