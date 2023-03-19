@@ -564,7 +564,7 @@ const createUser = {
     logText("..................................");
     logText("user login......");
     try {
-      const tenant = req.query;
+      const { tenant } = req.query;
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -580,7 +580,8 @@ const createUser = {
         );
       }
 
-      if (!isEmpty(tenant) && tenant !== "airqo") {
+      if (!isEmpty(tenant) && tenant != "airqo") {
+        logObject("tenant", tenant);
         res.status(httpStatus.MOVED_PERMANENTLY).json({
           message:
             "The account has been moved permanently to a new location, please reach out to: info@airqo.net",

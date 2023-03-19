@@ -302,7 +302,7 @@ UserSchema.statics = {
           "groups.updatedAt": 0,
         })
         .skip(skip ? skip : 0)
-        .limit(limit ? limit : 100)
+        .limit(limit ? limit : parseInt(constants.DEFAULT_LIMIT))
         .allowDiskUse(true);
 
       if (!isEmpty(response)) {
