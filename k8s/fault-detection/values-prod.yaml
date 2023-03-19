@@ -7,17 +7,17 @@ initContainers:
   container1:
     image:
       repository: eu.gcr.io/airqo-250220/prod-train-catboost-model
-      tag: prod-81d3f591-1678362351
+      tag: prod-cafcca31-1678883897
   container2:
     image:
       repository: eu.gcr.io/airqo-250220/prod-train-lstm-model
-      tag: prod-81d3f591-1678362351
-replicaCount: 2
+      tag: prod-cafcca31-1678883897
+replicaCount: 1
 image:
-  repository: eu.gcr.io/airqo-250220/stage-fault-detection-api
-  tag: prod-81d3f591-1678362351
-nameOverride: ''
-fullnameOverride: ''
+  repository: eu.gcr.io/airqo-250220/prod-fault-detection-api
+  tag: prod-cafcca31-1678883897
+nameOverride: ""
+fullnameOverride: ""
 podAnnotations: {}
 resources:
   limits:
@@ -42,5 +42,5 @@ service:
   nodePort: 30013
 autoscaling:
   minReplicas: 1
-  maxReplicas: 3
+  maxReplicas: 2
   targetMemoryUtilizationPercentage: 70
