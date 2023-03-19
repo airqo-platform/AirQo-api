@@ -908,7 +908,14 @@ const generateFilter = {
   },
 
   photos: (request) => {
-    let { id, device_id, device_number, device_name, network } = request.query;
+    let {
+      id,
+      device_id,
+      device_number,
+      device_name,
+      network,
+      tags,
+    } = request.query;
     let filter = {};
     if (id) {
       filter["_id"] = ObjectId(id);
@@ -916,6 +923,12 @@ const generateFilter = {
 
     if (device_id) {
       filter["device_id"] = ObjectId(device_id);
+    }
+
+    if (tags) {
+      let tagsArray = tags.split(",");
+      filter["tags"] = {};
+      filter["tags"]["$in"] = tagsArray;
     }
 
     if (device_number) {
