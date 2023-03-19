@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM python:3.8-slim-buster as base
+FROM python:3.9-slim-buster as base
 
 COPY . /app/
 WORKDIR /app/
@@ -18,8 +18,8 @@ CMD ["flask", "run", "--host=0.0.0.0"]
 
 FROM base as staging
 ENV FLASK_ENV=staging
-CMD ["flask", "run", "--host=0.0.0.0"]
+CMD ["gunicorn", "--bind=0.0.0.0:4001", "app:app"]
 
 FROM base as production
 ENV FLASK_ENV=production
-CMD ["flask", "run", "--host=0.0.0.0"]
+CMD ["gunicorn", "--bind=0.0.0.0:4001", "app:app"]

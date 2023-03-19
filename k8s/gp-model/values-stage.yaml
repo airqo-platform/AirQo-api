@@ -2,13 +2,11 @@ app:
   name: stage-gpmodel
   namespace: staging
   configmap: env-gp-model-staging
-
 image:
   repository: eu.gcr.io/airqo-250220/airqo-stage-gp-model-job
-  tag: latest
-
-nameOverride: ""
-fullnameOverride: ""
+  tag: stage-24564183-1678882968
+nameOverride: ''
+fullnameOverride: ''
 resources:
   limits:
     cpu: 1000m
