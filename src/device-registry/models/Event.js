@@ -574,6 +574,12 @@ eventSchema.statics = {
           .match(search)
           .replaceRoot("values")
           .lookup({
+            from: "photos",
+            localField: "device",
+            foreignField: "device_name",
+            as: "images",
+          })
+          .lookup({
             from,
             localField,
             foreignField,
@@ -584,6 +590,7 @@ eventSchema.statics = {
             _id: "$device",
             device: { $first: "$device" },
             device_id: { $first: "$device_id" },
+            image: { $first: { $arrayElemAt: ["$images", 0] } },
             device_number: { $first: "$device_number" },
             site: { $first: "$site" },
             site_id: { $first: "$site_id" },
@@ -619,7 +626,20 @@ eventSchema.statics = {
             stc: { $first: "$stc" },
             [as]: elementAtIndex0,
           })
-          .project(projection)
+          .project({
+            ...projection,
+            ...{
+              "image.createdAt": 0,
+              "image.updatedAt": 0,
+              "image.metadata": 0,
+              "image.__v": 0,
+              "image.device_name": 0,
+              "image.device_id": 0,
+              "image._id": 0,
+              "image.tags": 0,
+              "image.image_code": 0,
+            },
+          })
           .facet({
             total: [{ $count: "device" }],
             data: [{ $addFields: { device: "$device" } }],
