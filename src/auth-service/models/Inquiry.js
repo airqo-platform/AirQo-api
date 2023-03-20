@@ -23,6 +23,16 @@ const InquirySchema = new mongoose.Schema(
       required: [true, "fullName is required!"],
       trim: true,
     },
+    firstName: {
+      type: String,
+      required: [true, "firstName is required!"],
+      trim: true,
+    },
+    lastName: {
+      type: String,
+      required: [true, "lastName is required!"],
+      trim: true,
+    },
     message: { type: String, required: [true, "message is required"] },
     category: { type: String, required: [true, "category is required"] },
     network: {
@@ -58,21 +68,20 @@ InquirySchema.statics = {
   },
   async list({ skip = 0, limit = 5, filter = {} } = {}) {
     try {
-      let inquiries = await this.find(filter)
+      const inquiries = await this.find(filter)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .exec();
 
       if (!isEmpty(inquiries)) {
-        let data = inquiries;
         return {
           success: true,
-          data,
+          data: inquiries,
           message: "successfully listed the inquiries",
           status: httpStatus.OK,
         };
-      } else {
+      } else if (isEmpty(inquiries)) {
         return {
           success: true,
           message: "no inquiries exist for this search",
@@ -158,6 +167,8 @@ InquirySchema.methods = {
       message: this.message,
       category: this.category,
       status: this.status,
+      firstName: this.firstName,
+      lastName: this.lastName,
       network: this.network,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
