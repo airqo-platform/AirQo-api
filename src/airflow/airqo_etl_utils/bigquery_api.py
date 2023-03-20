@@ -95,7 +95,6 @@ class BigQueryApi:
     def get_columns(
         self, table: str, column_type: ColumnDataType = ColumnDataType.NONE
     ) -> list:
-
         if (
             table == self.hourly_measurements_table
             or table == self.daily_measurements_table
@@ -264,7 +263,6 @@ class BigQueryApi:
         table: str,
         component: str,
     ) -> None:
-
         dataframe.reset_index(drop=True, inplace=True)
         dataframe = self.validate_data(dataframe=dataframe, table=table)
 
@@ -308,7 +306,6 @@ class BigQueryApi:
         )
 
     def update_sites_meta_data(self, dataframe: pd.DataFrame) -> None:
-
         dataframe.reset_index(drop=True, inplace=True)
         table = self.sites_meta_data_table
         dataframe = self.validate_data(dataframe=dataframe, table=table)
@@ -324,7 +321,6 @@ class BigQueryApi:
         if available_data.empty:
             up_to_date_data = dataframe
         else:
-
             available_data.drop_duplicates(
                 subset=[unique_id], inplace=True, keep="first"
             )
@@ -389,7 +385,6 @@ class BigQueryApi:
         null_cols: list = None,
         columns: list = None,
     ) -> str:
-
         null_cols = [] if null_cols is None else null_cols
         where_fields = {} if where_fields is None else where_fields
 
@@ -441,7 +436,6 @@ class BigQueryApi:
         where_fields: dict = None,
         null_cols: list = None,
     ) -> None:
-
         if start_date_time is None or end_date_time is None:
             data = dataframe.copy()
             data["timestamp"] = pd.to_datetime(data["timestamp"])
@@ -472,7 +466,6 @@ class BigQueryApi:
         where_fields: dict = None,
         null_cols: list = None,
     ) -> pd.DataFrame:
-
         query = self.compose_query(
             QueryType.GET,
             table=table,

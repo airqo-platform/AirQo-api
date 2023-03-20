@@ -111,5 +111,6 @@ def airnow_bam_realtime_data():
     send_to_message_broker(processed_bam_data)
     send_to_api(processed_bam_data)
 
+
 airnow_bam_realtime_data()
 airnow_bam_historical_data()
