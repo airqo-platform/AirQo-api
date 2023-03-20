@@ -50,44 +50,76 @@ const ClientModel = (tenant) => {
 };
 
 const join = {
-  list: async (tenant, filter, limit, skip) => {
+  listStatistics: async (tenant) => {
     try {
-      let responseFromListUser = await UserModel(tenant).list({
-        filter,
-        limit,
-        skip,
-      });
-      if (responseFromListUser.success === true) {
-        const status = responseFromListUser.status
-          ? responseFromListUser.status
-          : httpStatus.OK;
+      const responseFromListStatistics = await UserModel(tenant).listStatistics(
+        tenant
+      );
+      if (responseFromListStatistics.success === true) {
         return {
           success: true,
-          message: responseFromListUser.message,
-          data: responseFromListUser.data,
-          status,
+          message: responseFromListStatistics.message,
+          data: responseFromListStatistics.data,
+          status: responseFromListStatistics.status
+            ? responseFromListStatistics.status
+            : httpStatus.OK,
         };
-      } else if (responseFromListUser.success === false) {
-        const status = responseFromListUser.status
-          ? responseFromListUser.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        const errors = responseFromListUser.errors
-          ? responseFromListUser.errors
-          : { message: "Internal Server Error" };
-
+      } else if (responseFromListStatistics.success === false) {
         return {
           success: false,
-          message: responseFromListUser.message,
-          errors,
-          status,
+          message: responseFromListStatistics.message,
+          errors: responseFromListStatistics.errors
+            ? responseFromListStatistics.errors
+            : { message: "Internal Server Error" },
+          status: responseFromListStatistics.status
+            ? responseFromListStatistics.status
+            : httpStatus.INTERNAL_SERVER_ERROR,
         };
       }
     } catch (e) {
       logElement("list users util", e.message);
       return {
         success: false,
-        message: "list users util server error",
-        error: e.message,
+        message: "Internal Server Error",
+        errors: { message: e.message },
+      };
+    }
+  },
+
+  list: async (tenant, filter, limit, skip) => {
+    try {
+      const responseFromListUser = await UserModel(tenant).list({
+        filter,
+        limit,
+        skip,
+      });
+      if (responseFromListUser.success === true) {
+        return {
+          success: true,
+          message: responseFromListUser.message,
+          data: responseFromListUser.data,
+          status: responseFromListUser.status
+            ? responseFromListUser.status
+            : httpStatus.OK,
+        };
+      } else if (responseFromListUser.success === false) {
+        return {
+          success: false,
+          message: responseFromListUser.message,
+          errors: responseFromListUser.errors
+            ? responseFromListUser.errors
+            : { message: "Internal Server Error" },
+          status: responseFromListUser.status
+            ? responseFromListUser.status
+            : httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+    } catch (e) {
+      logElement("list users util", e.message);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: e.message },
       };
     }
   },

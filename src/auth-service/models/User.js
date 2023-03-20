@@ -203,6 +203,47 @@ UserSchema.statics = {
       };
     }
   },
+  async listStatistics() {
+    try {
+      const response = await this.aggregate()
+        .match({})
+        .sort({ createdAt: -1 })
+        .group({
+          _id: null,
+          count: { $sum: 1 },
+          active: { $sum: { $cond: ["$isActive", 1, 0] } },
+        })
+        .project({
+          count: 1,
+          active: 1,
+        })
+        .allowDiskUse(true);
+
+      if (!isEmpty(response)) {
+        return {
+          success: true,
+          message: "successfully retrieved the user statistics",
+          data: response,
+          status: httpStatus.OK,
+        };
+      } else if (isEmpty(response)) {
+        return {
+          success: true,
+          message: "no users statistics exist",
+          data: [],
+          status: httpStatus.OK,
+        };
+      }
+    } catch (error) {
+      logObject("error", error);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
   async list({ skip = 0, limit = 5, filter = {} } = {}) {
     try {
       logText("we are inside the model/collection....");
@@ -318,7 +359,7 @@ UserSchema.statics = {
           success: true,
           message: "no users exist",
           data: [],
-          status: httpStatus.NOT_FOUND,
+          status: httpStatus.OK,
         };
       }
     } catch (error) {

@@ -14,6 +14,64 @@ const logger = log4js.getLogger(
 );
 
 const createUser = {
+  listStatistics: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        logger.error(
+          `input validation errors ${JSON.stringify(
+            convertErrorArrayToObject(nestedErrors)
+          )}`
+        );
+        return badRequest(
+          res,
+          "bad request errors",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      logText(".....................................");
+      logText("list all users by query params provided");
+      let { tenant, id } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT;
+      }
+
+      const responseFromListStatistics = await createUserUtil.listStatistics(
+        tenant
+      );
+
+      if (responseFromListStatistics.success === true) {
+        res.status(httpStatus.OK).json({
+          success: true,
+          message: responseFromListStatistics.message,
+          users_stats: responseFromListStatistics.data,
+        });
+      } else if (responseFromListStatistics.success === false) {
+        const status = responseFromListStatistics.status
+          ? responseFromListStatistics.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+
+        return res.status(status).json({
+          success: false,
+          message: responseFromListStatistics.message,
+          errors: {
+            message: responseFromListStatistics.errors
+              ? responseFromListStatistics.errors
+              : "",
+          },
+        });
+      }
+    } catch (error) {
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: {
+          message: error.message,
+        },
+      });
+    }
+  },
   list: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -38,55 +96,59 @@ const createUser = {
       }
       const limit = parseInt(req.query.limit, 0);
       const skip = parseInt(req.query.skip, 0);
-
-      let responseFromFilter = generateFilter.users(req);
+      let filter = {};
+      const responseFromFilter = generateFilter.users(req);
       logObject("responseFromFilter", responseFromFilter);
       if (responseFromFilter.success === true) {
-        let filter = responseFromFilter.data;
+        filter = responseFromFilter.data;
         logObject("Zi filter", filter);
-        let responseFromListUsers = await createUserUtil.list(
-          tenant,
-          filter,
-          limit,
-          skip
-        );
-
-        if (responseFromListUsers.success === true) {
-          res.status(httpStatus.OK).json({
-            success: true,
-            message: responseFromListUsers.message,
-            users: responseFromListUsers.data,
-          });
-        } else if (responseFromListUsers.success === false) {
-          if (responseFromListUsers.error) {
-            return res.status(httpStatus.BAD_GATEWAY).json({
-              success: false,
-              message: responseFromListUsers.message,
-              error: responseFromListUsers.error,
-            });
-          } else {
-            return res.status(httpStatus.BAD_GATEWAY).json({
-              success: false,
-              message: responseFromListUsers.message,
-            });
-          }
-        }
       } else if (responseFromFilter.success === false) {
-        if (responseFromFilter.error) {
-          return res.status(httpStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromFilter.message,
-            error: responseFromFilter.error,
-          });
-        } else {
-          return res.status(httpStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromFilter.message,
-          });
-        }
+        return res.status(httpStatus.BAD_GATEWAY).json({
+          success: false,
+          message: responseFromFilter.message,
+          error: responseFromFilter.error
+            ? responseFromFilter.error
+            : { message: "" },
+        });
+      }
+
+      const responseFromListUsers = await createUserUtil.list(
+        tenant,
+        filter,
+        limit,
+        skip
+      );
+
+      if (responseFromListUsers.success === true) {
+        const status = responseFromListUsers.status
+          ? responseFromListUsers.status
+          : httpStatus.OK;
+        res.status(status).json({
+          success: true,
+          message: responseFromListUsers.message,
+          users: responseFromListUsers.data,
+        });
+      } else if (responseFromListUsers.success === false) {
+        const status = responseFromListUsers.status
+          ? responseFromListUsers.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+
+        return res.status(status).json({
+          success: false,
+          message: responseFromListUsers.message,
+          errors: responseFromListUsers.errors
+            ? responseFromListUsers.errors
+            : { message: "" },
+        });
       }
     } catch (error) {
-      tryCatchErrors(res, error, "createUser controller");
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: {
+          message: error.message,
+        },
+      });
     }
   },
   verify: (req, res) => {
