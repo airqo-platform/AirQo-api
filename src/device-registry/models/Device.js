@@ -143,6 +143,9 @@ const deviceSchema = new mongoose.Schema(
       type: Date,
       default: monthsInfront(3),
     },
+    /**
+     *this defaults were put in place to address some challenge I am yet to remember
+     */
     deployment_date: {
       type: Date,
       default: Date.now,
@@ -349,7 +352,6 @@ deviceSchema.statics = {
       };
     }
   },
-
   async list({ _skip = 0, _limit = 1000, filter = {} } = {}) {
     try {
       // logger.info(
