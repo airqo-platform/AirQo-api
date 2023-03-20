@@ -3,24 +3,39 @@
 /**
  * Module dependencies.
  */
-
-var app = require("../app");
+const log4js = require('log4js');
+const app = require("../app");
 const constants = require("@config/constants");
 const middlewareConfig = require("@config/middleware");
-var debug = require("debug")("auth-service:server");
-var http = require("http");
-var isEmpty = require("is-empty");
-const log4js = require('log4js');
+const debug = require("debug")("auth-service:server");
+const http = require("http");
+const isEmpty = require("is-empty");
+
 const log4jsConfiguration = require("@config/log4js")
 log4js.configure(log4jsConfiguration);
-const mongoAppender = require('log4js-node-mongodb');
 
-log4js.addAppender(
-    mongoAppender.appender({ connectionString: "mongodb://localhost:27017/auth-service_airqo", collectionName: "activities", layout: "colored" }),
-    'cheese'
-);
+const winston = require('winston');
+const { combine, timestamp, printf } = winston.format;
 
-const logger = log4js.getLogger("start-script");
+
+const logger = winston.createLogger({
+    level: 'info',
+    format: combine(
+        timestamp(),
+        printf(info => `${info.timestamp} [${info.level.toUpperCase()}] ${info.message}`)
+    ),
+    transports: [
+        new winston.transports.Console(),
+        new winston.transports.MongoDB({
+            level: 'info',
+            db: constants.MONGO_URI,
+            collection: 'logs'
+        })
+    ]
+});
+
+
+// const logger = log4js.getLogger("start-script");
 
 
 /***

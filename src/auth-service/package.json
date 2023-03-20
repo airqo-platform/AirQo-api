@@ -59,8 +59,6 @@
         "joi": "^14.3.1",
         "jsonwebtoken": "^8.5.1",
         "log4js": "^6.9.1",
-        "log4js-mongodb": "0.0.1",
-        "log4js-node-mongodb": "^2.2.1",
         "md5": "^2.3.0",
         "module-alias": "^2.2.2",
         "mongoose": "^5.13.16",
@@ -75,6 +73,7 @@
         "serve-favicon": "~2.4.5",
         "tslib": "^2.4.0",
         "validator": "^11.1.0",
+        "winston": "^3.8.2",
         "xoauth2": "^1.2.0"
     },
     "devDependencies": {
