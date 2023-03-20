@@ -653,26 +653,26 @@ const join = {
 
   forgotPassword: async (tenant, filter) => {
     try {
-      let responseFromGenerateResetToken = join.generateResetToken();
+      const responseFromGenerateResetToken = join.generateResetToken();
       logObject(
         "responseFromGenerateResetToken",
         responseFromGenerateResetToken
       );
       logObject("filter", filter);
       if (responseFromGenerateResetToken.success === true) {
-        let token = responseFromGenerateResetToken.data;
-        let update = {
+        const token = responseFromGenerateResetToken.data;
+        const update = {
           resetPasswordToken: token,
           resetPasswordExpires: Date.now() + 3600000,
         };
-        let responseFromModifyUser = await UserModel(
+        const responseFromModifyUser = await UserModel(
           tenant.toLowerCase()
         ).modify({
           filter,
           update,
         });
         if (responseFromModifyUser.success === true) {
-          let responseFromSendEmail = await mailer.forgot(
+          const responseFromSendEmail = await mailer.forgot(
             filter.email,
             token,
             tenant
@@ -682,64 +682,42 @@ const join = {
             return {
               success: true,
               message: "forgot email successfully sent",
+              status: httpStatus.OK,
             };
           } else if (responseFromSendEmail.success === false) {
-            if (responseFromSendEmail.error) {
-              return {
-                success: false,
-                error: responseFromSendEmail.error,
-                message: "unable to send the email request",
-              };
-            } else {
-              return {
-                success: false,
-                message: responseFromSendEmail.message,
-              };
-            }
-          }
-        }
-
-        if (responseFromModifyUser.success === false) {
-          if (responseFromModifyUser.error) {
             return {
+              status: httpStatus.INTERNAL_SERVER_ERROR,
               success: false,
-              error: responseFromModifyUser.error,
-              message: responseFromModifyUser.message,
-            };
-          } else {
-            return {
-              success: false,
-              message: responseFromModifyUser.message,
+              error: responseFromSendEmail.error
+                ? responseFromSendEmail.error
+                : "",
+              message: "unable to send the email request",
+              errors: responseFromSendEmail.error
+                ? responseFromSendEmail.error
+                : { message: "unable to send the email request" },
             };
           }
+        } else if (responseFromModifyUser.success === false) {
+          return responseFromModifyUser;
         }
       } else if (responseFromGenerateResetToken.success === false) {
-        if (responseFromGenerateResetToken.error) {
-          return {
-            success: false,
-            error: responseFromGenerateResetToken.error,
-            message: responseFromGenerateResetToken.message,
-          };
-        } else {
-          return {
-            success: false,
-            message: responseFromGenerateResetToken.message,
-          };
-        }
+        return responseFromGenerateResetToken;
       }
     } catch (e) {
       logElement("forgot password util", e.message);
       return {
         success: false,
-        message: "util server error",
+        message: "Internal Server Error",
         error: e.message,
+        errors: { message: e.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
 
   updateForgottenPassword: async (tenant, filter, update) => {
     try {
-      let responseFromCheckTokenValidity = await join.isPasswordTokenValid(
+      const responseFromCheckTokenValidity = await join.isPasswordTokenValid(
         tenant.toLowerCase(),
         filter
       );
@@ -748,12 +726,12 @@ const join = {
         responseFromCheckTokenValidity
       );
       if (responseFromCheckTokenValidity.success === true) {
-        let modifiedUpdate = {
+        const modifiedUpdate = {
           ...update,
           resetPasswordToken: null,
           resetPasswordExpires: null,
         };
-        let responseFromUpdateUser = await join.update(
+        const responseFromUpdateUser = await join.update(
           tenant.toLowerCase(),
           filter,
           modifiedUpdate
@@ -762,46 +740,16 @@ const join = {
           "responseFromUpdateUser in update forgotten password",
           responseFromUpdateUser
         );
-        if (responseFromUpdateUser.success === true) {
-          return {
-            success: true,
-            message: responseFromUpdateUser.message,
-            data: responseFromUpdateUser.data,
-          };
-        } else if (responseFromUpdateUser === false) {
-          return {
-            success: false,
-            status: responseFromUpdateUser.status
-              ? responseFromUpdateUser.status
-              : "",
-            message: responseFromUpdateUser.message
-              ? responseFromUpdateUser.message
-              : "",
-            error: responseFromUpdateUser.error
-              ? responseFromUpdateUser.error
-              : "",
-          };
-        }
+        return responseFromUpdateUser;
       } else if (responseFromCheckTokenValidity.success === false) {
-        return {
-          success: false,
-          status: responseFromCheckTokenValidity.status
-            ? responseFromCheckTokenValidity.status
-            : "",
-          message: responseFromCheckTokenValidity.message
-            ? responseFromCheckTokenValidity.message
-            : "",
-          error: responseFromCheckTokenValidity.error
-            ? responseFromCheckTokenValidity.error
-            : "",
-        };
+        return responseFromCheckTokenValidity;
       }
     } catch (error) {
       logElement("update forgotten password", error.message);
       return {
         success: false,
         message: "util server error",
-        error: error.message,
+        errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -924,43 +872,32 @@ const join = {
 
   isPasswordTokenValid: async (tenant, filter) => {
     try {
-      let responseFromListUser = await UserModel(tenant.toLowerCase()).list({
+      const responseFromListUser = await UserModel(tenant.toLowerCase()).list({
         filter,
       });
       logObject("responseFromListUser", responseFromListUser);
-      if (responseFromListUser.success == true) {
+      if (responseFromListUser.success === true) {
         if (isEmpty(responseFromListUser.data)) {
           return {
+            status: httpStatus.BAD_REQUEST,
             success: false,
             message: "password reset link is invalid or has expired",
+            errors: {
+              message: "password reset link is invalid or has expired",
+            },
           };
         } else {
-          return {
-            success: true,
-            message: responseFromListUser.message,
-            data: responseFromListUser.data,
-          };
+          return responseFromListUser;
         }
-      } else if (responseFromListUser.success == false) {
-        if (responseFromListUser.error) {
-          return {
-            success: false,
-            message: responseFromListUser.message,
-            error: responseFromListUser.error,
-          };
-        } else {
-          return {
-            success: false,
-            message: responseFromListUser.message,
-          };
-        }
+      } else if (responseFromListUser.success === false) {
+        return responseFromListUser;
       }
     } catch (error) {
-      logElement("is password token valid", error.message);
       return {
+        status: httpStatus.INTERNAL_SERVER_ERROR,
         success: false,
         message: "util server error",
-        error: error.message,
+        errors: { message: error.message },
       };
     }
   },

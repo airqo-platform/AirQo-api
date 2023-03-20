@@ -325,11 +325,10 @@ UserSchema.statics = {
         .allowDiskUse(true);
 
       if (!isEmpty(response)) {
-        let data = response;
         return {
           success: true,
           message: "successfully retrieved the user details",
-          data,
+          data: response,
           status: httpStatus.OK,
         };
       } else if (isEmpty(response)) {
@@ -337,7 +336,7 @@ UserSchema.statics = {
           success: true,
           message: "no users exist",
           data: [],
-          status: httpStatus.NOT_FOUND,
+          status: httpStatus.OK,
         };
       }
     } catch (error) {

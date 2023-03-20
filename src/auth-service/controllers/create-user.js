@@ -884,64 +884,61 @@ const createUser = {
           convertErrorArrayToObject(nestedErrors)
         );
       }
-      let { tenant } = req.query;
+      const { tenant } = req.query;
 
       if (isEmpty(tenant)) {
         tenant = constants.DEFAULT_TENANT;
       }
       const { password, resetPasswordToken } = req.body;
-      let responseFromFilter = generateFilter.users(req);
+      const responseFromFilter = generateFilter.users(req);
       // logObject("responseFromFilter", responseFromFilter);
+      let filter = {};
       if (responseFromFilter.success === true) {
-        let update = {
-          password,
-          resetPasswordToken,
-        };
-        let filter = responseFromFilter.data;
-        // logObject("the filter in controller", filter);
-        // logObject("the update in controller", update);
-        let responseFromUpdateForgottenPassword =
-          await createUserUtil.updateForgottenPassword(tenant, filter, update);
-        logObject(
-          "responseFromUpdateForgottenPassword",
-          responseFromUpdateForgottenPassword
-        );
-        if (responseFromUpdateForgottenPassword.success === true) {
-          return res.status(httpStatus.OK).json({
-            success: true,
-            message: responseFromUpdateForgottenPassword.message,
-            user: responseFromUpdateForgottenPassword.data,
-          });
-        } else if (responseFromUpdateForgottenPassword.success === false) {
-          if (responseFromUpdateForgottenPassword.error) {
-            res.status(httpStatus.BAD_GATEWAY).json({
-              success: false,
-              message: responseFromUpdateForgottenPassword.message,
-              error: responseFromUpdateForgottenPassword.error,
-            });
-          } else {
-            res.status(httpStatus.BAD_GATEWAY).json({
-              success: false,
-              message: responseFromUpdateForgottenPassword.message,
-            });
-          }
-        }
+        filter = responseFromFilter.data;
       } else if (responseFromFilter.success === false) {
-        if (responseFromFilter.error) {
-          res.status(httpStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromFilter.message,
-            error: responseFromFilter.error,
-          });
-        } else {
-          res.status(httpStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromFilter.message,
-          });
-        }
+        return responseFromFilter;
+      }
+
+      const update = {
+        password,
+        resetPasswordToken,
+      };
+
+      // logObject("the filter in controller", filter);
+      // logObject("the update in controller", update);
+      const responseFromUpdateForgottenPassword =
+        await createUserUtil.updateForgottenPassword(tenant, filter, update);
+      logObject(
+        "responseFromUpdateForgottenPassword",
+        responseFromUpdateForgottenPassword
+      );
+      if (responseFromUpdateForgottenPassword.success === true) {
+        const status = responseFromUpdateForgottenPassword.status
+          ? responseFromUpdateForgottenPassword.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromUpdateForgottenPassword.message,
+          user: responseFromUpdateForgottenPassword.data,
+        });
+      } else if (responseFromUpdateForgottenPassword.success === false) {
+        const status = responseFromUpdateForgottenPassword.status
+          ? responseFromUpdateForgottenPassword.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+
+        res.status(status).json({
+          success: false,
+          message: responseFromUpdateForgottenPassword.message,
+          errors: responseFromUpdateForgottenPassword.errors
+            ? responseFromUpdateForgottenPassword.errors
+            : { message: "Internal Server Error" },
+        });
       }
     } catch (error) {
-      tryCatchErrors(res, error, "createUser controller");
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
     }
   },
 
