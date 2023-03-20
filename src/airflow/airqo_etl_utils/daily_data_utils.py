@@ -8,7 +8,6 @@ from airqo_etl_utils.data_validator import DataValidationUtils
 class DailyDataUtils:
     @staticmethod
     def average_data(data: pd.DataFrame) -> pd.DataFrame:
-
         averaged_data = pd.DataFrame()
         data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
 

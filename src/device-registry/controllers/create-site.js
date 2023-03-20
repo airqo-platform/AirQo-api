@@ -13,9 +13,6 @@ const httpStatus = require("http-status");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-site-controller`
 );
-// const bulkUpdateUtil = require("@scripts/bulk-update");
-// const bulkDeleteUtil = require("@scripts/bulk-delete");
-// const bulkCreateUtil = require("@scripts/bulk-create");
 
 const manageSite = {
   bulkCreate: async (req, res) => {
@@ -42,19 +39,6 @@ const manageSite = {
           "bad request errors",
           errors.convertErrorArrayToObject(nestedErrors)
         );
-      }
-      const { network } = req.query;
-      const responseFromAddSiteMetadata = await bulkCreateUtil.runSiteAdditions(
-        {
-          network,
-        }
-      );
-      if (responseFromAddSiteMetadata.success === true) {
-        return res.status(httpStatus.OK).json({ message: "update site" });
-      } else if (responseFromAddSiteMetadata.success === false) {
-        return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-          message: "unable to update the sites",
-        });
       }
     } catch (error) {
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
@@ -89,17 +73,6 @@ const manageSite = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { network } = req.query;
-      const responseFromUpdateSiteMetadata = await bulkUpdateUtil.runSiteUpdates(
-        { network }
-      );
-      if (responseFromUpdateSiteMetadata.success === true) {
-        return res.status(httpStatus.OK).json({ message: "update site" });
-      } else if (responseFromUpdateSiteMetadata.success === false) {
-        return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-          message: "unable to update the sites",
-        });
-      }
     } catch (error) {
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
@@ -133,14 +106,6 @@ const manageSite = {
           "bad request errors",
           errors.convertErrorArrayToObject(nestedErrors)
         );
-      }
-      const responseFromDeleteSiteMetadata = await bulkDeleteUtil.runSiteDeletions();
-      if (responseFromDeleteSiteMetadata.success === true) {
-        return res.status(httpStatus.OK).json(responseFromDeleteSiteMetadata);
-      } else if (responseFromDeleteSiteMetadata.success === false) {
-        return res
-          .status(httpStatus.INTERNAL_SERVER_ERROR)
-          .json(responseFromDeleteSiteMetadata);
       }
     } catch (error) {
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({

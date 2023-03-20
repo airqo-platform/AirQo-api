@@ -55,7 +55,6 @@ class MainClass:
             dataframe.to_csv(f"{file_name}.csv", index=False)
 
     def calibrate_historical_airqo_data(self):
-
         hourly_uncalibrated_data = AirQoDataUtils.extract_uncalibrated_data(
             start_date_time=self.start_date_time, end_date_time=self.end_date_time
         )
@@ -188,7 +187,6 @@ class MainClass:
         )
 
     def data_warehouse(self):
-
         hourly_low_cost_data = DataWarehouseUtils.extract_hourly_low_cost_data(
             start_date_time=self.start_date_time, end_date_time=self.end_date_time
         )
@@ -292,7 +290,6 @@ class MainClass:
         )
 
     def kcca_realtime_data(self):
-
         kcca_data = KccaUtils.extract_data(
             start_date_time=self.start_date_time, end_date_time=self.end_date_time
         )
@@ -435,7 +432,6 @@ def data_warehouse(start_date_time: str, end_date_time: str):
 
 
 def airqo_historical_hourly_data():
-
     start_date_time = "2022-01-01T10:00:00Z"
     end_date_time = "2022-01-01T17:00:00Z"
 
@@ -491,7 +487,6 @@ def airqo_historical_raw_data():
 
 
 def weather_data(start_date_time, end_date_time, file):
-
     # start_date_time = "2022-01-01T10:00:00Z"
     # end_date_time = "2022-01-01T17:00:00Z"
 
@@ -734,7 +729,6 @@ def airqo_mobile_device_measurements():
 
 
 def airqo_historical_csv_bam_data():
-
     """
     Processes AirQo reference monitors data from a csv file "airqo_historical_bam_data.csv"
     into a format that is required for storage in BigQuery reference monitors data table.
@@ -820,7 +814,6 @@ def airqo_historical_api_bam_data():
 
 
 def download_weather_data():
-
     bigquery_api = BigQueryApi()
 
     for year in [2019, 2020, 2021]:
@@ -839,7 +832,6 @@ def download_weather_data():
 
 
 if __name__ == "__main__":
-
     from airqo_etl_utils.date import date_to_str_hours
 
     hour_of_day = datetime.utcnow() - timedelta(days=14)

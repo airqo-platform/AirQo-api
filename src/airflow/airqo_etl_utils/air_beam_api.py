@@ -21,7 +21,6 @@ class AirBeamApi:
         username: str,
         pollutant: str,
     ):
-
         request = requests.get(
             url=f"{self.AIR_BEAM_BASE_URL}mobile/sessions.json",
             params={
@@ -59,7 +58,6 @@ class AirBeamApi:
         end_date_time: datetime.datetime,
         stream_id: int,
     ) -> pd.DataFrame:
-
         params = {
             "start_time": int(start_date_time.timestamp()) * 1000,
             "end_time": int(end_date_time.timestamp()) * 1000,
@@ -71,7 +69,6 @@ class AirBeamApi:
         )
 
     def __request(self, endpoint, params):
-
         api_request = requests.get(
             "%s/%s" % (self.AIR_BEAM_BASE_URL, endpoint),
             params=params,

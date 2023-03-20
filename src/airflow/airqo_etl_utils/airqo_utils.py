@@ -54,7 +54,6 @@ class AirQoDataUtils:
 
     @staticmethod
     def remove_duplicates(data: pd.DataFrame) -> pd.DataFrame:
-
         cols = data.columns.to_list()
         cols.remove("timestamp")
         cols.remove("device_number")
@@ -176,7 +175,6 @@ class AirQoDataUtils:
     def extract_aggregated_mobile_devices_weather_data(
         data: pd.DataFrame,
     ) -> pd.DataFrame:
-
         weather_data = pd.DataFrame()
         for _, station_data in data.groupby(
             by=["station_code", "start_date_time", "end_date_time"]
@@ -225,7 +223,6 @@ class AirQoDataUtils:
     def merge_aggregated_mobile_devices_data_and_weather_data(
         measurements: pd.DataFrame, weather_data: pd.DataFrame
     ) -> pd.DataFrame:
-
         airqo_data_cols = list(measurements.columns)
         weather_data_cols = list(weather_data.columns)
         intersecting_cols = list(set(airqo_data_cols) & set(weather_data_cols))
@@ -262,7 +259,6 @@ class AirQoDataUtils:
 
     @staticmethod
     def restructure_airqo_mobile_data_for_bigquery(data: pd.DataFrame) -> pd.DataFrame:
-
         data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
         data["tenant"] = "airqo"
         big_query_api = BigQueryApi()
@@ -279,7 +275,6 @@ class AirQoDataUtils:
         device_numbers: list = None,
         remove_outliers: bool = True,
     ) -> pd.DataFrame:
-
         """
         Returns a dataframe of AiQo sensors measurements.
 
@@ -337,7 +332,6 @@ class AirQoDataUtils:
         )
 
         for device in devices:
-
             device_number = device.get("device_number", None)
             read_key = read_keys.get(device_number, None)
 
@@ -346,7 +340,6 @@ class AirQoDataUtils:
                 continue
 
             for start, end in dates:
-
                 data = thingspeak_api.query_data(
                     device_number=device_number,
                     start_date_time=start,
@@ -409,7 +402,6 @@ class AirQoDataUtils:
 
     @staticmethod
     def aggregate_low_cost_sensors_data(data: pd.DataFrame) -> pd.DataFrame:
-
         aggregated_data = pd.DataFrame()
         data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
 
@@ -434,7 +426,6 @@ class AirQoDataUtils:
 
     @staticmethod
     def clean_bam_data(data: pd.DataFrame) -> pd.DataFrame:
-
         data = DataValidationUtils.remove_outliers(data)
         data.drop_duplicates(
             subset=["timestamp", "device_number"], keep="first", inplace=True
@@ -456,7 +447,6 @@ class AirQoDataUtils:
 
     @staticmethod
     def clean_low_cost_sensor_data(data: pd.DataFrame) -> pd.DataFrame:
-
         data = DataValidationUtils.remove_outliers(data)
         data.loc[:, "timestamp"] = data["timestamp"].apply(pd.to_datetime)
         data.drop_duplicates(
@@ -515,7 +505,6 @@ class AirQoDataUtils:
     def process_latest_data(
         data: pd.DataFrame, device_category: DeviceCategory
     ) -> pd.DataFrame:
-
         cols = data.columns.to_list()
         if device_category == DeviceCategory.BAM:
             if "pm2_5" not in cols:
@@ -555,7 +544,6 @@ class AirQoDataUtils:
 
     @staticmethod
     def process_data_for_api(data: pd.DataFrame, frequency: Frequency) -> list:
-
         """
         Formats device measurements into a format required by the events endpoint.
 
@@ -644,7 +632,6 @@ class AirQoDataUtils:
     def merge_aggregated_weather_data(
         airqo_data: pd.DataFrame, weather_data: pd.DataFrame
     ) -> pd.DataFrame:
-
         if weather_data.empty:
             return airqo_data
 
@@ -835,7 +822,6 @@ class AirQoDataUtils:
         devices = airqo_api.get_devices(tenant=Tenant.AIRQO)
         devices_history = pd.DataFrame()
         for device in devices:
-
             try:
                 maintenance_logs = airqo_api.get_maintenance_logs(
                     tenant="airqo",
@@ -908,7 +894,6 @@ class AirQoDataUtils:
         )
 
         for _, device_log in deployment_logs.iterrows():
-
             device_data = data.loc[
                 (data["timestamp"] >= device_log["start_date_time"])
                 & (data["timestamp"] <= device_log["end_date_time"])

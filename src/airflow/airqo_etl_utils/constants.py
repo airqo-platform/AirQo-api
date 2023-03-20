@@ -99,7 +99,7 @@ class Tenant(Enum):
         elif self == self.KCCA:
             return "kcca"
         elif self == self.US_EMBASSY:
-            return "us_embassy"
+            return "usembassy"
         else:
             return ""
 
@@ -111,7 +111,7 @@ class Tenant(Enum):
             return Tenant.URBAN_BETTER
         elif string.lower() == "kcca":
             return Tenant.KCCA
-        elif string.lower() == "us_embassy":
+        elif string.lower() == "usembassy":
             return Tenant.US_EMBASSY
         else:
             return Tenant.AIRQO

@@ -11,8 +11,7 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-device-controller`
 );
-// const bulkUpdateUtil = require("@scripts/bulk-update");
-// const bulkCreateUtil = require("@scripts/bulk-create");
+
 const httpStatus = require("http-status");
 const isEmpty = require("is-empty");
 
@@ -42,20 +41,6 @@ const device = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { network } = req.query;
-      const responseFromBulkUpdate = await bulkCreateUtil.runDeviceAdditions({
-        network,
-      });
-      logObject("responseFromBulkUpdate", responseFromBulkUpdate);
-      const message = responseFromBulkUpdate.message
-        ? responseFromBulkUpdate.message
-        : "";
-      const status = responseFromBulkUpdate.status
-        ? responseFromBulkUpdate.status
-        : httpStatus.OK;
-      res.status(status).json({
-        message,
-      });
     } catch (error) {
       logObject("error", error);
       res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
@@ -90,19 +75,6 @@ const device = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { network } = req.query;
-      const responseFromBulkUpdate = await bulkUpdateUtil.runDeviceUpdates({
-        network,
-      });
-      const message = responseFromBulkUpdate.message
-        ? responseFromBulkUpdate.message
-        : "";
-      const status = responseFromBulkUpdate.status
-        ? responseFromBulkUpdate.status
-        : httpStatus.OK;
-      res.status(status).json({
-        message,
-      });
     } catch (error) {
       logObject("error", error);
       res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
