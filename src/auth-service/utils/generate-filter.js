@@ -29,9 +29,9 @@ const filter = {
       }
       if (resetPasswordToken) {
         filter["resetPasswordToken"] = resetPasswordToken;
-        filter["resetPasswordExpires"] = {
-          $gt: Date.now(),
-        };
+        // filter["resetPasswordExpires"] = {
+        //   $gt: Date.now(),
+        // };
       }
       if (privilege) {
         filter["privilege"] = privilege;
