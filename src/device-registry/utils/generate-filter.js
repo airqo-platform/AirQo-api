@@ -904,6 +904,15 @@ const generateFilter = {
 
     return filter;
   },
+
+  tips: (request) => {
+    let { id } = request.query;
+    let filter = {};
+    if (id) {
+      filter["_id"] = ObjectId(id);
+    }
+    return filter;
+  },
 };
 
 module.exports = generateFilter;

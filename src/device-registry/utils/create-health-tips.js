@@ -24,7 +24,7 @@ const createHealthTips = {
       const { tenant } = query;
       const limit = parseInt(request.query.limit, 0);
       const skip = parseInt(request.query.skip, 0);
-      const filter = generateFilter.photos(request);
+      const filter = generateFilter.tips(request);
 
       const responseFromListHealthTips = await getModelByTenant(
         tenant,
@@ -53,7 +53,7 @@ const createHealthTips = {
     try {
       const { query, body } = request;
       const { tenant } = query;
-      const filter = generateFilter.photos(request);
+      const filter = generateFilter.tips(request);
       logObject("filter ", filter);
       const update = body;
       const opts = { new: true };
@@ -80,7 +80,7 @@ const createHealthTips = {
     try {
       const { query, body } = request;
       const { tenant } = query;
-      const filter = generateFilter.photos(request);
+      const filter = generateFilter.tips(request);
       logObject("filter ", filter);
       const update = body;
       const opts = { new: true };
@@ -147,7 +147,7 @@ const createHealthTips = {
           });
           await kafkaProducer.connect();
           await kafkaProducer.send({
-            topic: constants.PHOTOS_TOPIC,
+            topic: constants.TIPS_TOPIC,
             messages: [
               {
                 action: "create",
