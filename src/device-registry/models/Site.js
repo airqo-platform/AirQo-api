@@ -652,19 +652,17 @@ siteSchema.statics = {
       ).exec();
 
       if (!isEmpty(updatedSite)) {
-        let data = updatedSite._doc;
-
         return {
           success: true,
           message: "successfully modified the site",
-          data,
+          data: updatedSite._doc,
           status: HTTPStatus.OK,
         };
-      } else {
+      } else if (isEmpty(updatedSite)) {
         return {
           success: false,
           message: "site does not exist, please crosscheck",
-          status: HTTPStatus.NOT_FOUND,
+          status: HTTPStatus.BAD_REQUEST,
           errors: { message: "site does not exist" },
         };
       }
@@ -689,27 +687,27 @@ siteSchema.statics = {
           district: 1,
         },
       };
-      let removedSite = await this.findOneAndRemove(filter, options).exec();
-      let data = removedSite._doc;
-      if (!isEmpty(data)) {
+      const removedSite = await this.findOneAndRemove(filter, options).exec();
+      if (!isEmpty(removedSite)) {
         return {
           success: true,
           message: "successfully removed the site",
-          data,
+          data: removedSite._doc,
           status: HTTPStatus.OK,
         };
-      } else {
+      } else if (isEmpty(removedSite)) {
         return {
           success: false,
-          message: "site does not exist, please crosscheck",
-          status: HTTPStatus.NOT_FOUND,
+          message: "Internal Server Error",
+          status: HTTPStatus.BAD_REQUEST,
+          errors: { message: "site does not exist, please crosscheck" },
         };
       }
     } catch (error) {
       return {
         success: false,
-        message: "Site model server error - remove",
-        error: error.message,
+        message: "Internal Server Error",
+        errors: { message: error.message },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }

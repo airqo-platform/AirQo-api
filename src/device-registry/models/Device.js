@@ -497,18 +497,18 @@ deviceSchema.statics = {
       if (!isEmpty(updatedDevice)) {
         let data = updatedDevice._doc;
         delete data.__v;
-
         return {
           success: true,
           message: "successfully modified the device",
           data,
           status: HTTPStatus.OK,
         };
-      } else {
+      } else if (isEmpty(updatedDevice)) {
         return {
           success: false,
-          message: "device does not exist, please crosscheck",
-          status: HTTPStatus.NOT_FOUND,
+          message: "Internal Server Error",
+          status: HTTPStatus.BAD_REQUEST,
+          errors: { message: "device does not exist, please crosscheck" },
         };
       }
     } catch (error) {
@@ -559,18 +559,18 @@ deviceSchema.statics = {
       ).exec();
 
       if (!isEmpty(updatedDevice)) {
-        let data = updatedDevice._doc;
         return {
           success: true,
           message: "successfully modified the device",
-          data,
+          data: updatedDevice._doc,
           status: HTTPStatus.OK,
         };
-      } else {
+      } else if (isEmpty(updatedDevice)) {
         return {
           success: false,
-          message: "device does not exist, please crosscheck",
-          status: HTTPStatus.NOT_FOUND,
+          message: "Internal Server Error",
+          status: HTTPStatus.BAD_REQUEST,
+          errors: { message: "device does not exist, please crosscheck" },
         };
       }
     } catch (error) {
@@ -597,18 +597,17 @@ deviceSchema.statics = {
       let removedDevice = await this.findOneAndRemove(filter, options).exec();
 
       if (!isEmpty(removedDevice)) {
-        let data = removedDevice._doc;
         return {
           success: true,
           message: "successfully deleted device from the platform",
-          data,
+          data: removedDevice._doc,
           status: HTTPStatus.OK,
         };
-      } else {
+      } else if (isEmpty(removedDevice)) {
         return {
           success: false,
           message: "device does not exist, please crosscheck",
-          status: HTTPStatus.NOT_FOUND,
+          status: HTTPStatus.BAD_REQUEST,
           errors: { message: "device does not exist, please crosscheck" },
         };
       }
