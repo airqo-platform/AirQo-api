@@ -11,6 +11,7 @@ const siteSchema = new Schema(
     name: {
       type: String,
       trim: true,
+      unique: true,
       required: [true, "name is required!"],
     },
     share_links: {
@@ -26,6 +27,7 @@ const siteSchema = new Schema(
     search_name: {
       type: String,
       trim: true,
+      unique: true,
     },
     network: {
       type: String,
@@ -35,6 +37,7 @@ const siteSchema = new Schema(
     location_name: {
       type: String,
       trim: true,
+      unique: true,
     },
     generated_name: {
       type: String,
@@ -65,6 +68,7 @@ const siteSchema = new Schema(
     description: {
       type: String,
       trim: true,
+      unique: true,
     },
     site_codes: [
       {
