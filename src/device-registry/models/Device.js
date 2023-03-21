@@ -143,20 +143,14 @@ const deviceSchema = new mongoose.Schema(
       type: Date,
       default: monthsInfront(3),
     },
-    /**
-     *this defaults were put in place to address some challenge I am yet to remember
-     */
     deployment_date: {
       type: Date,
-      default: Date.now,
     },
     maintenance_date: {
       type: Date,
-      default: Date.now,
     },
     recall_date: {
       type: Date,
-      default: Date.now,
     },
     device_number: {
       type: Number,
@@ -445,11 +439,10 @@ deviceSchema.statics = {
 
       // logger.info(`the data produced in the model -- ${response}`);
       if (!isEmpty(response)) {
-        let data = response;
         return {
           success: true,
           message: "successfully retrieved the device details",
-          data,
+          data: response,
           status: HTTPStatus.OK,
         };
       } else {
