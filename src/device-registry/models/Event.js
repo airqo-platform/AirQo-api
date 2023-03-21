@@ -563,10 +563,21 @@ eventSchema.statics = {
 
       logObject("the query for this request", search);
       if (!recent || recent === "yes") {
-        let data = await this.aggregate()
+        /**
+         * look up the health tips and attach them to
+         * measurements as you return each one of them
+         * what is the direct relationship between measurement and pm2.5?
+         */
+        const data = await this.aggregate()
           .unwind("values")
           .match(search)
           .replaceRoot("values")
+          .lookup({
+            from: "healthtips",
+            localField: "pm2_5",
+            foreignField: "aqi_category",
+            as: "healthtip",
+          })
           .lookup({
             from,
             localField,
@@ -579,6 +590,7 @@ eventSchema.statics = {
             device: { $first: "$device" },
             device_id: { $first: "$device_id" },
             device_number: { $first: "$device_number" },
+            health_tip: { $first: "$health_tip" },
             site: { $first: "$site" },
             site_id: { $first: "$site_id" },
             time: { $first: "$time" },
