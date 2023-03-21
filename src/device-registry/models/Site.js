@@ -30,6 +30,7 @@ const siteSchema = new Schema(
     network: {
       type: String,
       trim: true,
+      required: [true, "network is required!"],
     },
     location_name: {
       type: String,
@@ -59,7 +60,7 @@ const siteSchema = new Schema(
       type: String,
       trim: true,
       unique: true,
-      required: [true, "lat_long is required is required!"],
+      required: [true, "lat_long is required!"],
     },
     description: {
       type: String,
@@ -398,6 +399,10 @@ siteSchema.statics = {
     try {
       let modifiedArgs = args;
       modifiedArgs.description = modifiedArgs.name;
+
+      if (isEmpty(modifiedArgs.network)) {
+        modifiedArgs.network = constants.DEFAULT_NETWORK;
+      }
 
       logObject("modifiedArgs", modifiedArgs);
       let createdSite = await this.create({
