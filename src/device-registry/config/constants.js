@@ -55,6 +55,9 @@ const stageConfig = {
 const defaultConfig = {
   NETWORKS: process.env.NETWORKS.split(","),
   ACTIVITY_TYPES: process.env.ACTIVITY_TYPES.split(","),
+  AQI_CATEGORIES: "good,moderate,u4sg,unhealthy,very_unhealthy,hazardous".split(
+    ","
+  ),
   MAINTENANCE_TYPES: process.env.MAINTENANCE_TYPES.split(","),
   DEFAULT_NETWORK: process.env.DEFAULT_NETWORK,
   DEFAULT_NEAREST_SITE_RADIUS: process.env.DEFAULT_NEAREST_SITE_RADIUS,
@@ -173,6 +176,7 @@ const defaultConfig = {
     process.env.DEFAULT_LIMIT_FOR_QUERYING_SITES,
   DEFAULT_LIMIT_FOR_QUERYING_PHOTOS:
     process.env.DEFAULT_LIMIT_FOR_QUERYING_PHOTOS,
+  DEFAULT_LIMIT_FOR_QUERYING_TIPS: process.env.DEFAULT_LIMIT_FOR_QUERYING_TIPS,
   DEFAULT_LIMIT_FOR_QUERYING_AIRQLOUDS:
     process.env.DEFAULT_LIMIT_FOR_QUERYING_AIRQLOUDS,
   DEFAULT_EVENTS_LIMIT: process.env.DEFAULT_EVENTS_LIMIT,
