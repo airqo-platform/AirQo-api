@@ -67,7 +67,6 @@ class WeatherDataUtils:
 
     @staticmethod
     def extract_raw_data_from_bigquery(start_date_time, end_date_time) -> pd.DataFrame:
-
         bigquery_api = BigQueryApi()
         measurements = bigquery_api.query_data(
             start_date_time=start_date_time,
@@ -123,7 +122,6 @@ class WeatherDataUtils:
 
     @staticmethod
     def transform_raw_data(data: pd.DataFrame) -> pd.DataFrame:
-
         if data.empty:
             return data
 
@@ -171,7 +169,6 @@ class WeatherDataUtils:
 
     @staticmethod
     def aggregate_data(data: pd.DataFrame) -> pd.DataFrame:
-
         if data.empty:
             return data
 

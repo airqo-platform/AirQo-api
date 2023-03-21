@@ -59,7 +59,6 @@ class CalibrationUtils:
         )
 
         for _, time_group in data_for_calibration.groupby("timestamp"):
-
             timestamp = date_to_str(time_group.iloc[0]["timestamp"])
             response = airqo_api.calibrate_data(time=timestamp, data=time_group.copy())
 
