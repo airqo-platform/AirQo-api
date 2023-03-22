@@ -118,8 +118,7 @@ def collocate():
             verbose=verbose,
             added_by=user_details,
         )
-        collocation.perform_collocation()
-        results = collocation.results()
+        results = collocation.collocate()
         errors = results.get("errors", {})
         if len(errors) != 0:
             return jsonify({"errors": errors}), 400
@@ -146,10 +145,14 @@ def schedule_collocation():
     if not isinstance(verbose, bool):
         verbose = False
 
-    errors = validate_collocation_request(start_date=start_date, end_date=end_date, devices=devices,
-                                          completeness_threshold=completeness_threshold,
-                                          expected_records_per_day=expected_records_per_day,
-                                          correlation_threshold=correlation_threshold)
+    errors = validate_collocation_request(
+        start_date=start_date,
+        end_date=end_date,
+        devices=devices,
+        completeness_threshold=completeness_threshold,
+        expected_records_per_day=expected_records_per_day,
+        correlation_threshold=correlation_threshold,
+    )
 
     if errors:
         return (
@@ -164,8 +167,8 @@ def schedule_collocation():
 
     try:
         user_details = decode_user_token(token)
-        start_date = str_to_date(start_date, str_format='%Y-%m-%d')
-        end_date = str_to_date(end_date, str_format='%Y-%m-%d')
+        start_date = str_to_date(start_date, str_format="%Y-%m-%d")
+        end_date = str_to_date(end_date, str_format="%Y-%m-%d")
         collocation = Collocation(
             devices=list(set(devices)),
             start_date=start_date,
@@ -287,14 +290,3 @@ def get_collocation_summary():
         traceback.print_exc()
         print(ex)
         return jsonify({"error": "Error occurred. Contact support"}), 500
-
-
-def run_scheduled_collocated_devices():
-    """
-     get scheduled tasks
-     set status to running
-     collocate the devices
-     save the results
-    """
-
-    pass

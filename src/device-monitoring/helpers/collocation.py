@@ -13,7 +13,112 @@ from helpers.convert_dates import date_to_str, validate_date
 from models import BaseModel
 
 
-def validate_collocation_request(completeness_threshold, correlation_threshold, expected_records_per_day, devices, start_date, end_date) -> dict:
+class CollocationStatus(Enum):
+    SCHEDULED = 1
+    RUNNING = 2
+    PASSED = 3
+    FAILED = 4
+    COMPLETED = 5
+
+    def __str__(self) -> str:
+        if self == self.SCHEDULED:
+            return "scheduled"
+        elif self == self.RUNNING:
+            return "running"
+        elif self == self.PASSED:
+            return "passed"
+        elif self == self.FAILED:
+            return "failed"
+        elif self == self.COMPLETED:
+            return "completed"
+        else:
+            return ""
+
+
+class CollocationScheduling(BaseModel):
+    def __init__(
+        self,
+    ):
+        super().__init__("airqo", "collocation")
+
+    def __get_running_records(self):
+        results = self.db.collocation.find(
+            {
+                "start_date": {"$lte": datetime.utcnow()},
+                "end_date": {"$gte": datetime.utcnow()},
+            }
+        )
+        return results
+
+    def __get_scheduled_records(self):
+        results = self.db.collocation.find(
+            {
+                "scheduled_date": {"$lte": datetime.utcnow()},
+                "status": str(CollocationStatus.SCHEDULED),
+            }
+        )
+        return results
+
+    def __replace_record(self, record_id, data):
+        self.db.collocation.replace_one(
+            {
+                "_id": record_id,
+            },
+            data,
+        )
+        # self.db.collocation.delete_many(
+        #     {
+        #         "start_date": data["start_date"],
+        #         "end_date": data["end_date"],
+        #         "devices": data["devices"],
+        #     }
+        # )
+
+    def run_scheduled_collocated_devices(self):
+        results = self.__get_scheduled_records()
+        for result in results:
+            data = dict(result)
+            devices = data.get("devices")
+            start_date = data.get("start_date")
+            end_date = data.get("end_date")
+            completeness_threshold = data.get("completeness_threshold")
+            expected_records_per_day = data.get("expected_records_per_day")
+            correlation_threshold = data.get("correlation_threshold")
+            added_by = data.get("added_by")
+            record_id = data.get("_id")
+
+            collocation = Collocation(
+                devices=list(set(devices)),
+                start_date=start_date,
+                end_date=end_date,
+                correlation_threshold=correlation_threshold,
+                completeness_threshold=completeness_threshold,
+                parameters=None,  # Temporarily disabled parameters
+                expected_records_per_day=expected_records_per_day,
+                verbose=True,
+                added_by=added_by,
+            )
+            collocation_results = collocation.collocate()
+            if len(collocation_results) != 0:
+                self.__replace_record(record_id, collocation_results)
+
+    def update_scheduled_status(self):
+        results = self.__get_running_records()
+        for result in results:
+            data = dict(result)
+            record_id = data.pop("_id")
+            data["status"] = str(CollocationStatus.RUNNING)
+            self.__replace_record(record_id, data)
+
+
+def validate_collocation_request(
+    completeness_threshold,
+    correlation_threshold,
+    expected_records_per_day,
+    devices,
+    start_date,
+    end_date,
+) -> dict:
     errors = {}
     try:
         if not (0 <= completeness_threshold <= 1):
@@ -63,27 +168,6 @@ def validate_collocation_request(completeness_threshold, correlation_threshold, 
         errors["dates"] = "endDate must be greater or equal to the startDate"
 
     return errors
-
-class CollocationStatus (Enum):
-    SCHEDULED  = 1
-    RUNNING = 2
-    PASSED = 3
-    FAILED = 4
-    COMPLETED = 5
-
-    def __str__(self) -> str:
-        if self == self.SCHEDULED:
-            return "scheduled"
-        elif self == self.RUNNING:
-            return "running"
-        elif self == self.PASSED:
-            return "passed"
-        elif self == self.FAILED:
-            return "failed"
-        elif self == self.COMPLETED:
-            return "completed"
-        else:
-            return ""
 
 
 def get_status(passed: bool):
@@ -147,8 +231,8 @@ class Collocation(BaseModel):
         self.__added_by = added_by
         self.__errors = []
 
-    def __save_collocation(self):
-        return self.db.collocation.insert_one(self.__results.copy())
+    def __save_collocation(self, results):
+        return self.db.collocation.insert_one(results.copy())
 
     def summary(self):
         results = self.db.collocation.find()
@@ -157,49 +241,65 @@ class Collocation(BaseModel):
 
         for document in documents:
             document_data = dict(document)
-            summary.extend(list(document_data.get("summary", [])))
+            doc_summary = list(document_data.get("summary", []))
+            if doc_summary:
+                summary.extend(doc_summary)
+            else:
+                for device in document_data.get("devices", []):
+                    added_by = f'{document_data.get("added_by", {}).get("first_name", "")} {document_data.get("added_by", {}).get("last_name", "")}'
+
+                    summary.append(
+                        {
+                            "device_name": device,
+                            "added_by": added_by,
+                            "start_date": document_data.get("start_date", ""),
+                            "end_date": document_data.get("end_date", ""),
+                            "status": document_data.get("status", ""),
+                            "passed_intra_sensor_correlation": False,
+                            "passed_data_completeness": False,
+                        }
+                    )
 
         self.__results = summary
 
         return self.__results
 
     def results(self):
-        if len(self.__results) == 0:
-            if len(self.__devices) == 1:
-                results = self.db.collocation.find_one(
-                    {
-                        "start_date": date_to_str(self.__start_date),
-                        "end_date": date_to_str(self.__end_date),
-                        "devices": {"$in": self.__devices},
-                    }
-                )
-            else:
-                results = self.db.collocation.find_one(
-                    {
-                        "start_date": date_to_str(self.__start_date),
-                        "end_date": date_to_str(self.__end_date),
-                        "devices": self.__devices,
-                    }
-                )
+        if len(self.__devices) == 1:
+            results = self.db.collocation.find_one(
+                {
+                    "start_date": self.__start_date,
+                    "end_date": self.__end_date,
+                    "devices": {"$in": self.__devices},
+                }
+            )
+        else:
+            results = self.db.collocation.find_one(
+                {
+                    "start_date": self.__start_date,
+                    "end_date": self.__end_date,
+                    "devices": self.__devices,
+                }
+            )
 
-            if results is not None:
-                data = dict(results)
-                data.pop("_id")
-                self.__results = data
+        if results is None:
+            return {}
 
-        return self.__results
+        data = dict(results)
+        data.pop("_id")
+        return data
 
-    def __create_results_object(self):
+    def __create_results_object(self, status: CollocationStatus):
         return {
             "devices": self.__devices,
-            "start_date": date_to_str(self.__start_date),
-            "end_date": date_to_str(self.__end_date),
+            "start_date": self.__start_date,
+            "end_date": self.__end_date,
             "correlation_threshold": self.__correlation_threshold,
             "completeness_threshold": self.__completeness_threshold,
             "expected_records_per_day": self.__expected_records_per_day,
             "added_by": self.__added_by,
             "date_added": datetime.utcnow(),
-            "status": str(CollocationStatus.SCHEDULED),
+            "status": str(status),
             "scheduled_date": self.__end_date + timedelta(hours=2),
             "data_completeness": self.__data_completeness.to_dict("records"),
             "summary": self.__summary.to_dict("records"),
@@ -216,29 +316,20 @@ class Collocation(BaseModel):
         }
 
     def schedule(self):
-        self.__results = self.results()
+        results = self.results()
 
-        if len(self.__results) != 0:
+        if len(results) != 0:
             if not self.__verbose:
-                del self.__results["data_source"]
+                del results["data_source"]
 
-            return self.__results
+            return results
 
-        self.__results = self.__create_results_object()
-        self.__save_collocation()
-        return self.__results
+        results = self.__create_results_object(status=CollocationStatus.SCHEDULED)
+        self.__save_collocation(results)
+        return results
 
-    def perform_collocation(self):
-        self.__results = self.results()
-
-        if len(self.__results) != 0:
-            if not self.__verbose:
-                del self.__results["data_source"]
-
-            return self.__results
-
-        if self.__data.empty:
-            self.__load_device_data()
+    def collocate(self):
+        self.__load_device_data()
 
         if not self.__data.empty:
             self.__aggregate_data()
@@ -249,44 +340,20 @@ class Collocation(BaseModel):
             self.compute_differences()
             self.compute_summary()
 
-        self.__data_completeness = self.__data_completeness.replace(np.nan, None)
-        self.__statistics = self.__statistics.replace(np.nan, None)
-        self.__intra_sensor_correlation = self.__intra_sensor_correlation.replace(
-            np.nan, None
-        )
-        self.__inter_sensor_correlation = self.__inter_sensor_correlation.replace(
-            np.nan, None
-        )
-        self.__differences = self.__differences.replace(np.nan, None)
-        self.__summary = self.__summary.replace(np.nan, None)
+            self.__data_completeness = self.__data_completeness.replace(np.nan, None)
+            self.__statistics = self.__statistics.replace(np.nan, None)
+            self.__intra_sensor_correlation = self.__intra_sensor_correlation.replace(
+                np.nan, None
+            )
+            self.__inter_sensor_correlation = self.__inter_sensor_correlation.replace(
+                np.nan, None
+            )
+            self.__differences = self.__differences.replace(np.nan, None)
+            self.__summary = self.__summary.replace(np.nan, None)
 
-        self.__results = {
-            "devices": self.__devices,
-            "start_date": date_to_str(self.__start_date),
-            "end_date": date_to_str(self.__end_date),
-            "data_completeness": self.__data_completeness.to_dict("records"),
-            "summary": self.__summary.to_dict("records"),
-            "statistics": self.__statistics.to_dict("records"),
-            "differences": self.__differences.to_dict("records"),
-            "intra_sensor_correlation": self.__intra_sensor_correlation.to_dict(
-                "records"
-            ),
-            "inter_sensor_correlation": self.__inter_sensor_correlation.to_dict(
-                "records"
-            ),
-            "errors": self.__errors,
-            "data_source": self.__data_query,
-            "added_by": self.__added_by,
-            "date_added": date_to_str(datetime.utcnow()),
-        }
+            return self.__create_results_object(status=CollocationStatus.COMPLETED)
 
-        if len(self.__errors) == 0:
-            self.__save_collocation()
-
-        if not self.__verbose:
-            del self.__results["data_source"]
-
-        return self.__results
+        return {}
 
     def __aggregate_data(self) -> pd.DataFrame:
         data = self.__data

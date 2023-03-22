@@ -49,16 +49,18 @@ app = create_app(os.getenv("FLASK_ENV"))
 
 
 def make_celery(application):
-    application.config['broker_url'] = f'{Config.REDIS_URL}/0'
-    application.config['result_backend'] = f'{Config.REDIS_URL}/0'
-    application.config['beat_schedule'] = {
-        'collocation_periodic_task': {
-            'task': 'collocation_periodic_task',
-            'schedule': timedelta(seconds=15),
+    application.config["broker_url"] = f"{Config.REDIS_URL}/0"
+    application.config["result_backend"] = f"{Config.REDIS_URL}/0"
+    application.config["beat_schedule"] = {
+        "collocation_periodic_task": {
+            "task": "collocation_periodic_task",
+            "schedule": timedelta(seconds=5),
         }
     }
 
-    celery_app = Celery(application.import_name, broker=application.config['broker_url'])
+    celery_app = Celery(
+        application.import_name, broker=application.config["broker_url"]
+    )
     celery_app.conf.update(application.config)
     task_base = celery_app.Task
 
@@ -68,6 +70,7 @@ def make_celery(application):
         def __call__(self, *args, **kwargs):
             with application.app_context():
                 return task_base.__call__(self, *args, **kwargs)
+
     celery_app.Task = ContextTask
     return celery_app
 
@@ -78,8 +81,11 @@ celery = make_celery(app)
 @celery.task(name="collocation_periodic_task")
 def collocation_task():
     celery_logger.info("Collocation periodic task running")
-    from controllers.collocation import run_scheduled_collocated_devices
-    run_scheduled_collocated_devices()
+    from helpers.collocation import CollocationScheduling
+
+    scheduling = CollocationScheduling()
+    scheduling.run_scheduled_collocated_devices()
+    scheduling.update_scheduled_status()
 
 
 @app.before_request
@@ -87,5 +93,5 @@ def check_tenant_param():
     return PreRequest.check_tenant()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     app.run()
