@@ -11,6 +11,10 @@ const HTTPStatus = require("http-status");
  * we need to have a field
  * that maps the air quality reading (NOT CATEGORY) to a health tip
  */
+const aqiRangeSchema = new Schema({
+  min: { type: Number, required: true },
+  max: { type: Number, required: true },
+});
 
 const tipsSchema = new Schema(
   {
@@ -24,7 +28,7 @@ const tipsSchema = new Schema(
       trim: true,
     },
     aqi_category: {
-      type: String,
+      type: aqiRangeSchema,
       required: [true, "the aqi_category is required!"],
     },
   },
@@ -56,6 +60,30 @@ tipsSchema.statics = {
     try {
       logText("registering a new tip....");
       let modifiedArgs = Object.assign({}, args);
+      delete modifiedArgs.aqi_category;
+
+      switch (args.aqi_category) {
+        case "good":
+          modifiedArgs.aqi_category = { min: 0, max: 50 };
+          break;
+        case "moderate":
+          modifiedArgs.aqi_category = { min: 51, max: 100 };
+          break;
+        case "u4sg":
+          modifiedArgs.aqi_category = { min: 101, max: 150 };
+          break;
+        case "unhealthy":
+          modifiedArgs.aqi_category = { min: 151, max: 200 };
+          break;
+        case "very_unhealthy":
+          modifiedArgs.aqi_category = { min: 201, max: 300 };
+          break;
+        case "hazardous":
+          modifiedArgs.aqi_category = { min: 301, max: 500 };
+          break;
+        default:
+        // code block
+      }
       const createdTip = await this.create({ ...modifiedArgs });
       if (!isEmpty(createdTip)) {
         return {

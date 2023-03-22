@@ -55,7 +55,7 @@ const createHealthTips = {
         res.status(status).json({
           success: true,
           message: responseFromListHealthTip.message,
-          photos: responseFromListHealthTip.data,
+          tips: responseFromListHealthTip.data,
         });
       } else if (responseFromListHealthTip.success === false) {
         const status = responseFromListHealthTip.status
@@ -122,7 +122,7 @@ const createHealthTips = {
         res.status(status).json({
           success: true,
           message: responseFromCreateHealthTip.message,
-          created_photo: responseFromCreateHealthTip.data
+          created_tip: responseFromCreateHealthTip.data
             ? responseFromCreateHealthTip.data
             : [],
         });
@@ -191,7 +191,7 @@ const createHealthTips = {
         res.status(status).json({
           success: true,
           message: responseFromDeleteHealthTip.message,
-          deleted_photo: responseFromDeleteHealthTip.data,
+          deleted_tip: responseFromDeleteHealthTip.data,
         });
       } else if (responseFromDeleteHealthTip.success === false) {
         const status = responseFromDeleteHealthTip.status
@@ -259,7 +259,7 @@ const createHealthTips = {
         res.status(status).json({
           success: true,
           message: responseFromUpdateHealthTip.message,
-          updated_photo: responseFromUpdateHealthTip.data,
+          updated_tip: responseFromUpdateHealthTip.data,
         });
       } else if (responseFromUpdateHealthTip.success === false) {
         const status = responseFromUpdateHealthTip.status

@@ -107,31 +107,7 @@ const createHealthTips = {
     try {
       let { body, query } = request;
       let { tenant } = query;
-      let { image_url, device_name, device_id } = body;
-      let requestForImageIdExtraction = {};
-      requestForImageIdExtraction["body"] = {};
-      requestForImageIdExtraction["query"] = {};
-      requestForImageIdExtraction["query"]["device_name"] = device_name;
-      requestForImageIdExtraction["query"]["device_id"] = device_id;
-      requestForImageIdExtraction["body"]["image_urls"] = [];
-      requestForImageIdExtraction["body"]["image_urls"].push(image_url);
-      const responseFromExtractImage = await createHealthTips.extractImageIds(
-        requestForImageIdExtraction
-      );
-      let photoId = [];
-      let modifiedRequestBody = body;
-      if (responseFromExtractImage.success === true) {
-        photoId = responseFromExtractImage.data;
-        logObject("photoId", photoId);
-        modifiedRequestBody["image_code"] = photoId[0];
-        modifiedRequestBody["metadata"] = {};
-        modifiedRequestBody["metadata"]["public_id"] = photoId[0];
-        modifiedRequestBody["metadata"]["url"] = image_url;
-      } else if (responseFromExtractImage.success === false) {
-        logObject("responseFromExtractImage", responseFromExtractImage);
-        return responseFromExtractImage;
-      }
-
+      let modifiedRequestBody = Object.assign({}, body);
       const responseFromRegisterHealthTip = await getModelByTenant(
         tenant,
         "healthtip",
@@ -160,14 +136,7 @@ const createHealthTips = {
           logger.error(`internal server error -- ${error.message}`);
         }
 
-        return {
-          success: true,
-          message: responseFromRegisterHealthTip.message,
-          status: responseFromRegisterHealthTip.status
-            ? responseFromRegisterHealthTip.status
-            : "",
-          data: responseFromRegisterHealthTip.data,
-        };
+        return responseFromRegisterHealthTip;
       } else if (responseFromRegisterHealthTip.success === false) {
         return responseFromRegisterHealthTip;
       }

@@ -574,8 +574,8 @@ eventSchema.statics = {
           .replaceRoot("values")
           .lookup({
             from: "healthtips",
-            localField: "pm2_5",
-            foreignField: "aqi_category",
+            localField: "pm2_5.value",
+            foreignField: "aqi_category.min",
             as: "healthtip",
           })
           .lookup({
@@ -590,7 +590,7 @@ eventSchema.statics = {
             device: { $first: "$device" },
             device_id: { $first: "$device_id" },
             device_number: { $first: "$device_number" },
-            health_tip: { $first: "$health_tip" },
+            health_tip: { $first: "$healthtip" },
             site: { $first: "$site" },
             site_id: { $first: "$site_id" },
             time: { $first: "$time" },
