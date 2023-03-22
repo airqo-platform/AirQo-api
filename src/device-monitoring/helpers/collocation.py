@@ -7,6 +7,7 @@ from google.cloud import bigquery
 import math
 
 import pandas as pd
+from app import cache
 
 from config.constants import Config
 from helpers.convert_dates import date_to_str, validate_date
@@ -264,6 +265,87 @@ class Collocation(BaseModel):
 
         return self.__results
 
+    def get_collocation_results(self):
+        results = self.results()
+
+        if results.get("status", "") != str(CollocationStatus.COMPLETED):
+            return {
+                "data_completeness": [],
+                "intra_sensor_correlation": {},
+                "inter_sensor_correlation": {},
+                "statue": results.get("status", ""),
+            }
+
+        data_completeness = []
+        intra_sensor_correlation = []
+        inter_sensor_correlation = []
+
+        devices_data_completeness = list(
+            filter(
+                lambda x: x["device_name"] in self.__devices,
+                results.get("data_completeness", []),
+            )
+        )
+        for device_data_completeness in devices_data_completeness:
+            data_completeness.append(
+                {
+                    **device_data_completeness,
+                    **{
+                        "start_date": results.get("start_date"),
+                        "end_date": results.get("end_date"),
+                    },
+                }
+            )
+
+        data = self.query_data(results.get("data_source"))
+        data = data.replace(np.nan, None)
+        for device in self.__devices:
+            device_data = data[data["device_name"] == device]
+            correlation_data = device_data.copy()
+            data_groups = correlation_data.set_index("timestamp", drop=False).groupby(
+                pd.Grouper(freq="D")
+            )
+            device_intra_sensor_correlation = {"device_name": device, "data": []}
+            device_inter_sensor_correlation = {"device_name": device, "data": []}
+
+            for _, group in data_groups:
+                if group.empty:
+                    continue
+                device_inter_sensor_correlation["data"].extend(group.to_dict("records"))
+
+                timestamp = group.iloc[0]["timestamp"]
+                pm2_5_pearson_correlation = (
+                    group[["s1_pm2_5", "s2_pm2_5"]].corr().round(4)
+                )
+                pm10_pearson_correlation = group[["s1_pm10", "s2_pm10"]].corr().round(4)
+                device_intra_sensor_correlation["data"].append(
+                    {
+                        "timestamp": date_to_str(
+                            timestamp, str_format="%Y-%m-%dT%H:00:00.000000Z"
+                        ),
+                        "pm2_5_pearson_correlation": pm2_5_pearson_correlation.iloc[0][
+                            "s2_pm2_5"
+                        ],
+                        "pm10_pearson_correlation": pm10_pearson_correlation.iloc[0][
+                            "s2_pm10"
+                        ],
+                        "pm2_5_r2": math.sqrt(
+                            pm2_5_pearson_correlation.iloc[0]["s2_pm2_5"]
+                        ),
+                        "pm10_r2": math.sqrt(
+                            pm10_pearson_correlation.iloc[0]["s2_pm10"]
+                        ),
+                    }
+                )
+            intra_sensor_correlation.append(device_intra_sensor_correlation)
+            inter_sensor_correlation.append(device_inter_sensor_correlation)
+
+        return {
+            "data_completeness": data_completeness,
+            "intra_sensor_correlation": intra_sensor_correlation,
+            "inter_sensor_correlation": inter_sensor_correlation,
+        }
+
     def results(self):
         if len(self.__devices) == 1:
             results = self.db.collocation.find_one(
@@ -373,6 +455,22 @@ class Collocation(BaseModel):
         self.__data = aggregated_data
         return self.__data
 
+    @cache.memoize()
+    def query_data(self, query):
+        dataframe = self.__client.query(query=query).result().to_dataframe()
+
+        if dataframe.empty:
+            return pd.DataFrame()
+
+        dataframe["timestamp"] = dataframe["timestamp"].apply(pd.to_datetime)
+        dataframe.drop_duplicates(
+            subset=["timestamp", "device_id"], keep="first", inplace=True
+        )
+        dataframe.rename(columns={"device_id": "device_name"}, inplace=True)
+
+        self.__data = dataframe
+        return self.__data
+
     def __load_device_data(self):
         """
         SELECT
@@ -474,7 +572,7 @@ class Collocation(BaseModel):
                     "pm2_5_r2": math.sqrt(
                         pm2_5_pearson_correlation.iloc[0]["s2_pm2_5"]
                     ),
-                    "pm10_r2": pm10_pearson_correlation.iloc[0]["s2_pm10"],
+                    "pm10_r2": math.sqrt(pm10_pearson_correlation.iloc[0]["s2_pm10"]),
                     "passed": pm2_5_pearson_correlation.iloc[0]["s2_pm2_5"]
                     > self.__correlation_threshold,
                 }

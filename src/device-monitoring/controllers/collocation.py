@@ -259,7 +259,7 @@ def get_collocation_results():
             added_by={},
         )
 
-        results = collocation.results()
+        results = collocation.get_collocation_results()
 
         return jsonify({"data": results}), 200
     except Exception as ex:
