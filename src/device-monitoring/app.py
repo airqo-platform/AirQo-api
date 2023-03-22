@@ -77,7 +77,9 @@ celery = make_celery(app)
 
 @celery.task(name="collocation_periodic_task")
 def collocation_task():
-    celery_logger.info("Collocation periodic task")
+    celery_logger.info("Collocation periodic task running")
+    from controllers.collocation import run_scheduled_collocated_devices
+    run_scheduled_collocated_devices()
 
 
 @app.before_request

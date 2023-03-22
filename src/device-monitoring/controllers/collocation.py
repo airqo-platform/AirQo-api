@@ -5,8 +5,8 @@ import traceback
 from flask import Blueprint, request, jsonify
 
 import routes
-from helpers.collocation import Collocation
-from helpers.convert_dates import validate_date
+from helpers.collocation import Collocation, validate_collocation_request
+from helpers.convert_dates import validate_date, str_to_date
 from helpers.utils import decode_user_token
 
 _logger = logging.getLogger(__name__)
@@ -131,6 +131,60 @@ def collocate():
         return jsonify({"error": "Error occurred. Contact support"}), 500
 
 
+@collocation_bp.route(routes.SCHEDULE_COLLOCATION, methods=["POST"])
+def schedule_collocation():
+    token = request.headers.get("Authorization", "")
+    json_data = request.get_json()
+    devices = json_data.get("devices", [])
+    start_date = json_data.get("startDate", None)
+    end_date = json_data.get("endDate", None)
+    completeness_threshold = json_data.get("completenessThreshold", 90)
+    expected_records_per_day = json_data.get("expectedRecordsPerDay", 24)
+    correlation_threshold = json_data.get("correlationThreshold", 80)
+    verbose = json_data.get("verbose", False)
+
+    if not isinstance(verbose, bool):
+        verbose = False
+
+    errors = validate_collocation_request(start_date=start_date, end_date=end_date, devices=devices,
+                                          completeness_threshold=completeness_threshold,
+                                          expected_records_per_day=expected_records_per_day,
+                                          correlation_threshold=correlation_threshold)
+
+    if errors:
+        return (
+            jsonify(
+                {
+                    "message": "Some errors occurred while processing this request",
+                    "errors": errors,
+                }
+            ),
+            400,
+        )
+
+    try:
+        user_details = decode_user_token(token)
+        start_date = str_to_date(start_date, str_format='%Y-%m-%d')
+        end_date = str_to_date(end_date, str_format='%Y-%m-%d')
+        collocation = Collocation(
+            devices=list(set(devices)),
+            start_date=start_date,
+            end_date=end_date,
+            correlation_threshold=correlation_threshold,
+            completeness_threshold=completeness_threshold,
+            parameters=None,  # Temporarily disabled parameters
+            expected_records_per_day=expected_records_per_day,
+            verbose=verbose,
+            added_by=user_details,
+        )
+        results = collocation.schedule()
+        return jsonify({"data": results}), 200
+    except Exception as ex:
+        traceback.print_exc()
+        print(ex)
+        return jsonify({"error": "Error occurred. Contact support"}), 500
+
+
 @collocation_bp.route(routes.DEVICE_COLLOCATION_RESULTS, methods=["GET"])
 def get_collocation_results():
     devices = request.args.get("devices", "")
@@ -233,3 +287,14 @@ def get_collocation_summary():
         traceback.print_exc()
         print(ex)
         return jsonify({"error": "Error occurred. Contact support"}), 500
+
+
+def run_scheduled_collocated_devices():
+    """
+     get scheduled tasks
+     set status to running
+     collocate the devices
+     save the results
+    """
+
+    pass

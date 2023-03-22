@@ -1,5 +1,7 @@
+from enum import Enum
+
 import numpy as np
-from datetime import datetime
+from datetime import datetime, timedelta
 from google.cloud import bigquery
 
 import math
@@ -7,8 +9,81 @@ import math
 import pandas as pd
 
 from config.constants import Config
-from helpers.convert_dates import date_to_str
+from helpers.convert_dates import date_to_str, validate_date
 from models import BaseModel
+
+
+def validate_collocation_request(completeness_threshold, correlation_threshold, expected_records_per_day, devices, start_date, end_date) -> dict:
+    errors = {}
+    try:
+        if not (0 <= completeness_threshold <= 1):
+            raise Exception
+    except Exception:
+        errors["completenessThreshold"] = f"Must be a value between 0 and 1"
+
+    try:
+        if not (0 <= correlation_threshold <= 1):
+            raise Exception
+    except Exception:
+        errors["correlationThreshold"] = f"Must be a value between 0 and 1"
+
+    try:
+        if not (1 <= expected_records_per_day <= 24):
+            raise Exception
+    except Exception:
+        errors["expectedRecordsPerDay"] = f"Must be a value between 1 and 24"
+
+    try:
+        if not devices or not isinstance(
+            devices, list
+        ):  # TODO add device restrictions e.g not more that 3 devices
+            raise Exception
+    except Exception:
+        errors["devices"] = "Provide a list of devices"
+
+    try:
+        start_date = validate_date(start_date)
+    except Exception:
+        errors["startDate"] = (
+            "This query param is required."
+            "Please provide a valid date formatted datetime string (%Y-%m-%d)"
+        )
+
+    try:
+        end_date = validate_date(end_date)
+    except Exception:
+        errors["endDate"] = (
+            "This query param is required."
+            "Please provide a valid date formatted datetime string (%Y-%m-%d)"
+        )
+
+    if (
+        start_date > end_date
+    ):  # TODO add interval restrictions e.g not more that 10 days
+        errors["dates"] = "endDate must be greater or equal to the startDate"
+
+    return errors
+
+class CollocationStatus (Enum):
+    SCHEDULED  = 1
+    RUNNING = 2
+    PASSED = 3
+    FAILED = 4
+    COMPLETED = 5
+
+    def __str__(self) -> str:
+        if self == self.SCHEDULED:
+            return "scheduled"
+        elif self == self.RUNNING:
+            return "running"
+        elif self == self.PASSED:
+            return "passed"
+        elif self == self.FAILED:
+            return "failed"
+        elif self == self.COMPLETED:
+            return "completed"
+        else:
+            return ""
 
 
 def get_status(passed: bool):
@@ -112,6 +187,45 @@ class Collocation(BaseModel):
                 data.pop("_id")
                 self.__results = data
 
+        return self.__results
+
+    def __create_results_object(self):
+        return {
+            "devices": self.__devices,
+            "start_date": date_to_str(self.__start_date),
+            "end_date": date_to_str(self.__end_date),
+            "correlation_threshold": self.__correlation_threshold,
+            "completeness_threshold": self.__completeness_threshold,
+            "expected_records_per_day": self.__expected_records_per_day,
+            "added_by": self.__added_by,
+            "date_added": datetime.utcnow(),
+            "status": str(CollocationStatus.SCHEDULED),
+            "scheduled_date": self.__end_date + timedelta(hours=2),
+            "data_completeness": self.__data_completeness.to_dict("records"),
+            "summary": self.__summary.to_dict("records"),
+            "statistics": self.__statistics.to_dict("records"),
+            "differences": self.__differences.to_dict("records"),
+            "intra_sensor_correlation": self.__intra_sensor_correlation.to_dict(
+                "records"
+            ),
+            "inter_sensor_correlation": self.__inter_sensor_correlation.to_dict(
+                "records"
+            ),
+            "errors": self.__errors,
+            "data_source": self.__data_query,
+        }
+
+    def schedule(self):
+        self.__results = self.results()
+
+        if len(self.__results) != 0:
+            if not self.__verbose:
+                del self.__results["data_source"]
+
+            return self.__results
+
+        self.__results = self.__create_results_object()
+        self.__save_collocation()
         return self.__results
 
     def perform_collocation(self):
