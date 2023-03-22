@@ -241,25 +241,25 @@ class Collocation(BaseModel):
         summary = []
 
         for document in documents:
-            document_data = dict(document)
-            doc_summary = list(document_data.get("summary", []))
-            if doc_summary:
-                summary.extend(doc_summary)
-            else:
-                for device in document_data.get("devices", []):
-                    added_by = f'{document_data.get("added_by", {}).get("first_name", "")} {document_data.get("added_by", {}).get("last_name", "")}'
-
+            status = document.get("status", "")
+            added_by = f'{document.get("added_by", {}).get("first_name", "")} {document.get("added_by", {}).get("last_name", "")}'
+            if status == "running" or status == "scheduled":
+                for device in document.get("devices", []):
                     summary.append(
                         {
                             "device_name": device,
                             "added_by": added_by,
-                            "start_date": document_data.get("start_date", ""),
-                            "end_date": document_data.get("end_date", ""),
-                            "status": document_data.get("status", ""),
+                            "start_date": document.get("start_date"),
+                            "end_date": document.get("end_date"),
+                            "status": document.get("status"),
                             "passed_intra_sensor_correlation": False,
                             "passed_data_completeness": False,
                         }
                     )
+
+            elif status == "completed":
+                doc_summary = list(document.get("summary", []))
+                summary.extend(doc_summary)
 
         self.__results = summary
 
@@ -398,12 +398,16 @@ class Collocation(BaseModel):
         }
 
     def schedule(self):
-        results = self.results()
+        results = self.db.collocation.find_one(
+            {
+                "start_date": self.__start_date,
+                "end_date": self.__end_date,
+                "devices": {"$in": self.__devices},
+            }
+        )
 
-        if len(results) != 0:
-            if not self.__verbose:
-                del results["data_source"]
-
+        if results:
+            del results["_id"]
             return results
 
         results = self.__create_results_object(status=CollocationStatus.SCHEDULED)
@@ -766,8 +770,8 @@ class Collocation(BaseModel):
             data["passed_data_completeness"] & data["passed_intra_sensor_correlation"]
         )
         data["status"] = data["status"].apply(lambda x: get_status(x))
-        data["start_date"] = date_to_str(self.__start_date)
-        data["end_date"] = date_to_str(self.__end_date)
+        data["start_date"] = self.__start_date
+        data["end_date"] = self.__end_date
         data[
             "added_by"
         ] = f"{self.__added_by.get('first_name', '')} {self.__added_by.get('last_name', '')}".strip()
