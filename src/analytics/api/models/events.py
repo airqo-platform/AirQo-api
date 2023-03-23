@@ -28,6 +28,7 @@ class EventsModel(BasePyMongoModel):
 
     BIGQUERY_RAW_DATA = f"`{CONFIGURATIONS.BIGQUERY_RAW_DATA}`"
     BIGQUERY_HOURLY_DATA = f"`{CONFIGURATIONS.BIGQUERY_HOURLY_DATA}`"
+    BIGQUERY_BAM_DATA = f"`{CONFIGURATIONS.BIGQUERY_BAM_DATA}`"
     BIGQUERY_DAILY_DATA = f"`{CONFIGURATIONS.BIGQUERY_DAILY_DATA}`"
 
     def __init__(self, tenant):
@@ -84,6 +85,12 @@ class EventsModel(BasePyMongoModel):
             f" FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', {data_table}.timestamp) AS datetime "
         )
 
+        bam_pollutants_query = (
+            f" SELECT pm2_5 as  pm2_5_raw_value, pm10 as  pm10_raw_value, no2 as no2_raw_value, "
+            f" pm2_5 as  pm2_5_calibrated_value, pm10 as  pm10_calibrated_value, no2 as no2_calibrated_value,"
+            f" FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', {cls.BIGQUERY_BAM_DATA}.timestamp) AS datetime "
+        )
+
         if len(devices) != 0:
             # Adding device information, start and end times
             query = (
@@ -100,6 +107,20 @@ class EventsModel(BasePyMongoModel):
                 f" AND {devices_table}.device_id IN UNNEST({devices}) "
             )
 
+            bam_query = (
+                f" {bam_pollutants_query} , "
+                f" {devices_table}.device_id AS device_name , "
+                f" {devices_table}.site_id AS site_id , "
+                f" {devices_table}.tenant AS tenant , "
+                f" {devices_table}.approximate_latitude AS device_latitude , "
+                f" {devices_table}.approximate_longitude  AS device_longitude , "
+                f" FROM {cls.BIGQUERY_BAM_DATA} "
+                f" JOIN {devices_table} ON {devices_table}.device_id = {cls.BIGQUERY_BAM_DATA}.device_id "
+                f" WHERE {cls.BIGQUERY_BAM_DATA}.timestamp >= '{start_date}' "
+                f" AND {cls.BIGQUERY_BAM_DATA}.timestamp <= '{end_date}' "
+                f" AND {devices_table}.device_id IN UNNEST({devices}) "
+            )
+
             # Adding site information
             query = (
                 f" SELECT "
@@ -110,6 +131,20 @@ class EventsModel(BasePyMongoModel):
                 f" FROM {sites_table} "
                 f" RIGHT JOIN ({query}) data ON data.site_id = {sites_table}.id "
             )
+
+            bam_query = (
+                f" SELECT "
+                f" {sites_table}.name AS site_name , "
+                f" {sites_table}.approximate_latitude AS site_latitude , "
+                f" {sites_table}.approximate_longitude  AS site_longitude , "
+                f" data.* "
+                f" FROM {sites_table} "
+                f" RIGHT JOIN ({bam_query}) data ON data.site_id = {sites_table}.id "
+            )
+
+            if frequency == "hourly":
+                query = f"{query} UNION ALL {bam_query}"
+
 
         elif len(sites) != 0:
             # Adding site information, start and end times
