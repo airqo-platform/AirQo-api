@@ -867,6 +867,8 @@ jobs:
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
             message: "Update device monitor staging image tag to ${{ needs.image-tag.outputs.build_id }}"
+            message: "Update device monitor celery beat image tag to ${{ needs.image-tag.outputs.build_id }}"
+            message: "Update device monitor celery worker image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
         uses: google-github-actions/auth@v0

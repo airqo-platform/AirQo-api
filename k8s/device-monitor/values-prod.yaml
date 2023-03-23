@@ -1,11 +1,15 @@
 app:
   name: airqo-device-monitor-api
   label: device-monitor
+  celeryBeatLabel: celery-beat
+  celeryWorkerLabel: celery-worker
   namespace: production
   configmap: env-device-monitoring-production
 replicaCount: 3
 image:
   repository: eu.gcr.io/airqo-250220/airqo-device-monitor-api
+  celeryBeatRepository: eu.gcr.io/airqo-250220/airqo-device-monitor-celery-beat
+  celeryWorkerRepository: eu.gcr.io/airqo-250220/airqo-device-monitor-celery-worker
   tag: prod-cafcca31-1678883897
 nameOverride: ''
 fullnameOverride: ''
