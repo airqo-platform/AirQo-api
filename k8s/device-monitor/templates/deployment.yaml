@@ -59,7 +59,7 @@ spec:
           {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-        - name: {{ .Values.app.celeryBeatLabel }}
+        - name: celery-beat
           image: "{{ .Values.image.celeryBeatRepository }}:{{ .Values.image.tag }}"
           imagePullPolicy: IfNotPresent
           envFrom:
@@ -71,7 +71,7 @@ spec:
           {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-        - name: {{ .Values.app.celeryWorkerLabel }}
+        - name: celery-worker
           image: "{{ .Values.image.celeryWorkerRepository }}:{{ .Values.image.tag }}"
           imagePullPolicy: IfNotPresent
           envFrom:
