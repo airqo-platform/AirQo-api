@@ -23,3 +23,9 @@ CMD ["gunicorn", "--bind=0.0.0.0:4001", "app:app"]
 FROM base as production
 ENV FLASK_ENV=production
 CMD ["gunicorn", "--bind=0.0.0.0:4001", "app:app"]
+
+FROM base as celery-beat
+CMD ["celery -A app.celery beat"]
+
+FROM base as celery-worker
+CMD ["celery -A app.celery worker --loglevel=info"]
