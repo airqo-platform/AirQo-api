@@ -274,6 +274,16 @@ def get_collocation_summary():
     end_date = request.args.get("endDate", None)
 
     try:
+        start_date = validate_date(start_date)
+    except Exception:
+        start_date = None
+
+    try:
+        end_date = validate_date(end_date)
+    except Exception:
+        end_date = None
+
+    try:
         collocation = Collocation(
             devices=[],
             start_date=start_date,
