@@ -833,13 +833,29 @@ jobs:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
 
-      - name: Build and Push Docker Image
-        run: |
-          cd src/device-monitoring/
-          docker build --target=staging --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-monitor-api:${{ needs.image-tag.outputs.build_id }} .
-          docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-monitor-api:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-monitor-api:latest
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-monitor-api:${{ needs.image-tag.outputs.build_id }}
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-monitor-api:latest
+      - name: Build and push  API
+        uses: docker/build-push-action@v3
+        with:
+          push: true
+          context: src/device-monitoring/
+          target: staging
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-monitor-api:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-monitor-api:latest
+
+      - name: Build and push  API
+        uses: docker/build-push-action@v3
+        with:
+          push: true
+          context: src/device-monitoring/
+          target: celery-beat
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-monitor-celery-beat:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-monitor-celery-beat:latest
+
+      - name: Build and push  API
+        uses: docker/build-push-action@v3
+        with:
+          push: true
+          context: src/device-monitoring/
+          target: celery-worker
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-monitor-celery-worker:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-monitor-celery-worker:latest
 
       - name: Update corresponding helm values file(with retry)
         uses: Wandalen/wretry.action@master # Retries action on fail
