@@ -651,7 +651,7 @@ jobs:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
 
-      - name: Build and push  API
+      - name: Build and push API
         uses: docker/build-push-action@v3
         with:
           push: true
@@ -659,7 +659,7 @@ jobs:
           target: production
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-monitor-api:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-monitor-api:latest
 
-      - name: Build and push  API
+      - name: Build and push celery-beat
         uses: docker/build-push-action@v3
         with:
           push: true
@@ -667,7 +667,7 @@ jobs:
           target: celery-beat
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-monitor-celery-beat:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-monitor-celery-beat:latest
 
-      - name: Build and push  API
+      - name: Build and push celery-worker
         uses: docker/build-push-action@v3
         with:
           push: true
@@ -684,9 +684,7 @@ jobs:
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
-            message: "Update device monitor production image tag to ${{ needs.image-tag.outputs.build_id }}"
-            message: "Update device monitor celery beat image tag to ${{ needs.image-tag.outputs.build_id }}"
-            message: "Update device monitor celery worker image tag to ${{ needs.image-tag.outputs.build_id }}"
+            message: "Update device monitor production image tags to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
         uses: google-github-actions/auth@v0
