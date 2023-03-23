@@ -242,9 +242,9 @@ class Collocation(BaseModel):
                     "start_date": self.__start_date,
                     "end_date": self.__end_date,
                 }
-            )
+            ).sort("date_added", -1)
         else:
-            results = self.db.collocation.find()
+            results = self.db.collocation.find().sort("date_added", -1)
 
         documents = list(results)
         summary = []
@@ -263,6 +263,7 @@ class Collocation(BaseModel):
                             "status": document.get("status"),
                             "passed_intra_sensor_correlation": False,
                             "passed_data_completeness": False,
+                            "date_added": document.get("date_added"),
                         }
                     )
 
@@ -270,9 +271,7 @@ class Collocation(BaseModel):
                 doc_summary = list(document.get("summary", []))
                 summary.extend(doc_summary)
 
-        self.__results = summary
-
-        return self.__results
+        return summary
 
     def get_collocation_results(self):
         results = self.results()
