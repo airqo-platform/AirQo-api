@@ -281,6 +281,8 @@ class Collocation(BaseModel):
         inter_sensor_correlation = []
         self.__load_device_data()
         data = self.__data
+        if data.empty:
+            return None
         data = data.replace(np.nan, None)
         if results.get("status", "") != str(CollocationStatus.COMPLETED):
             self.compute_data_completeness()

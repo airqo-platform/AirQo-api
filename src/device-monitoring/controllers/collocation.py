@@ -260,6 +260,8 @@ def get_collocation_results():
         )
 
         results = collocation.get_collocation_results()
+        if results is None:
+            return jsonify({"message": "No data found", "data": None}), 400
 
         return jsonify({"data": results}), 200
     except Exception as ex:
