@@ -3,7 +3,7 @@ app:
   label: meta-data-api
   namespace: staging
   configmap: stage-meta-data-api-config
-replicaCount: 2
+replicaCount: 1
 images:
   repositories:
     api: eu.gcr.io/airqo-250220/airqo-stage-meta-data-api
@@ -14,11 +14,11 @@ fullnameOverride: ""
 podAnnotations: {}
 resources:
   limits:
-    cpu: 300m
-    memory: 400Mi
+    cpu: 400m
+    memory: 700Mi
   requests:
-    cpu: 100m
-    memory: 200Mi
+    cpu: 50m
+    memory: 100Mi
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config
