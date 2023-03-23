@@ -3,13 +3,13 @@ const requestAccessUtil = require("@utils/request-access");
 const generateFilter = require("@utils/generate-filter");
 const { validationResult } = require("express-validator");
 const { badRequest, convertErrorArrayToObject } = require("@utils/errors");
-const { logObject } = require("@utils/log");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- request-controller`
 );
+const { logText, logObject, logElement } = require("@utils/log");
 
 const requestAccess = {
   create: async (req, res) => {
@@ -161,7 +161,7 @@ const requestAccess = {
     }
   },
   confirm: async (req, res) => {
-    console.log("inside the confirm candidate");
+    logText("inside the confirm candidate......");
     try {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {

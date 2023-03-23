@@ -112,7 +112,6 @@ class ScheduleDag:
         )
 
     def post_dag(self, payload: dict, dag: str) -> bool:
-
         api_request = requests.post(
             f"{self.BASE_URL}api/v1/dags/{dag}/dagRuns",
             data=json.dumps(payload),

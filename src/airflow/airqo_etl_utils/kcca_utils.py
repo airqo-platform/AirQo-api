@@ -35,7 +35,6 @@ class KccaUtils:
 
     @staticmethod
     def extract_data(start_date_time: str, end_date_time: str) -> pd.DataFrame:
-
         measurements = []
         dates = Utils.query_dates_array(
             start_date_time=start_date_time,
@@ -144,7 +143,6 @@ class KccaUtils:
         devices = airqo_api.get_devices(tenant=Tenant.KCCA)
 
         for _, row in data.iterrows():
-
             device_id = row["device_id"]
             device_details = list(
                 filter(
