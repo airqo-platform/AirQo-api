@@ -863,10 +863,10 @@ jobs:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
             valueFile: "k8s/device-monitor/values-stage.yaml"
-            propertyPath: "image.tag"
+            propertyPath: "images.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
-            message: "Update device monitor staging image tags to ${{ needs.image-tag.outputs.build_id }}"
+            message: "Update device monitor staging images' tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
         uses: google-github-actions/auth@v0

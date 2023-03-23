@@ -45,7 +45,7 @@ spec:
                       - high-memory
       containers:
         - name: {{ .Values.app.label }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          image: "{{ .Values.images.repositories.deviceMonitor }}:{{ .Values.images.tag }}"
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: {{ .Values.service.targetPort }}
@@ -60,7 +60,7 @@ spec:
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
         - name: celery-beat
-          image: "{{ .Values.image.celeryBeatRepository }}:{{ .Values.image.tag }}"
+          image: "{{ .Values.images.repositories.celeryBeat }}:{{ .Values.images.tag }}"
           imagePullPolicy: IfNotPresent
           envFrom:
             - configMapRef:
@@ -72,7 +72,7 @@ spec:
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
         - name: celery-worker
-          image: "{{ .Values.image.celeryWorkerRepository }}:{{ .Values.image.tag }}"
+          image: "{{ .Values.images.repositories.celeryWorker }}:{{ .Values.images.tag }}"
           imagePullPolicy: IfNotPresent
           envFrom:
             - configMapRef:
