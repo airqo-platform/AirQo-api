@@ -1,5 +1,7 @@
 {
   "projects": {
-    "default": "airqo"
-  }
+    "default": "airqo-250220"
+  },
+  "targets": {},
+  "etags": {}
 }

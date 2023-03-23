@@ -18,7 +18,6 @@ class ThingspeakApi:
         end_date_time: str,
         read_key: str,
     ) -> pd.DataFrame:
-
         data = pd.DataFrame([])
 
         try:

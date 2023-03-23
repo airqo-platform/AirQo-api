@@ -44,7 +44,6 @@ class ForecastDataUtils:
             tenant = device_dict.get("tenant", None)
 
             if device_number:
-
                 forecast = airqo_api.get_forecast(
                     channel_id=device_number, timestamp=time
                 )
