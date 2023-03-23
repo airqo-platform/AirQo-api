@@ -290,15 +290,15 @@ tipsSchema.statics = {
           description: 1,
         },
       };
-      const removedPhoto = await this.findOneAndRemove(filter, options).exec();
-      if (!isEmpty(removedPhoto)) {
+      const removedTip = await this.findOneAndRemove(filter, options).exec();
+      if (!isEmpty(removedTip)) {
         return {
           success: true,
           message: "successfully removed the tip",
-          data: removedPhoto._doc,
+          data: removedTip._doc,
           status: HTTPStatus.OK,
         };
-      } else if (isEmpty(removedPhoto)) {
+      } else if (isEmpty(removedTip)) {
         return {
           success: false,
           message: "No tips found for this operation",
