@@ -7,14 +7,13 @@ const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const HTTPStatus = require("http-status");
 
-/**
- * we need to have a field
- * that maps the air quality reading (NOT CATEGORY) to a health tip
- */
-const aqiRangeSchema = new Schema({
-  min: { type: Number, required: true },
-  max: { type: Number, required: true },
-});
+const aqiRangeSchema = new Schema(
+  {
+    min: { type: Number, required: true },
+    max: { type: Number, required: true },
+  },
+  { _id: false }
+);
 
 const tipsSchema = new Schema(
   {
@@ -194,10 +193,36 @@ tipsSchema.statics = {
       logObject("the filter in the model", filter);
       logObject("the update in the model", update);
       logObject("the opts in the model", opts);
-      let modifiedUpdateBody = update;
+      let modifiedUpdateBody = Object.assign({}, update);
       if (modifiedUpdateBody._id) {
         delete modifiedUpdateBody._id;
       }
+
+      delete modifiedUpdateBody.aqi_category;
+
+      switch (update.aqi_category) {
+        case "good":
+          modifiedUpdateBody.aqi_category = { min: 0, max: 50 };
+          break;
+        case "moderate":
+          modifiedUpdateBody.aqi_category = { min: 51, max: 100 };
+          break;
+        case "u4sg":
+          modifiedUpdateBody.aqi_category = { min: 101, max: 150 };
+          break;
+        case "unhealthy":
+          modifiedUpdateBody.aqi_category = { min: 151, max: 200 };
+          break;
+        case "very_unhealthy":
+          modifiedUpdateBody.aqi_category = { min: 201, max: 300 };
+          break;
+        case "hazardous":
+          modifiedUpdateBody.aqi_category = { min: 301, max: 500 };
+          break;
+        default:
+        // code block
+      }
+
       let options = opts;
       let keys = {};
       const setProjection = (object) => {
@@ -206,10 +231,8 @@ tipsSchema.statics = {
         });
         return keys;
       };
-      logObject("modifiedUpdateBody", modifiedUpdateBody);
-      const projection = setProjection(modifiedUpdateBody);
-      logObject("projection", projection);
-      options["projection"] = projection;
+      logObject("the new modifiedUpdateBody", modifiedUpdateBody);
+
       const updatedTip = await this.findOneAndUpdate(
         filter,
         modifiedUpdateBody,
