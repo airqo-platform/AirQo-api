@@ -2,7 +2,6 @@ from curses import meta
 from google.cloud import storage
 from google.cloud import bigquery
 import numpy as np
-import pandas as pd
 import gcsfs
 import numpy as np
 import pandas as pd
@@ -128,6 +127,9 @@ def train_model(train):
 
   trn = train.groupby('device_number').apply(lambda x: x[:-24*7]).reset_index(drop=True)
   val = train.groupby('device_number').apply(lambda x: x[-24*7:]).reset_index(drop=True)
+  #change devie number to int
+  trn['device_number'] = trn['device_number'].astype(int)
+  val['device_number'] = val['device_number'].astype(int)
   y_trn, y_val  = trn[TARGET_COL], val[TARGET_COL]
 
   # start training the model
@@ -183,6 +185,8 @@ def train_model(train):
 
     best_iter = clf.best_iteration_
     clf = LGBMRegressor(n_estimators=best_iter, learning_rate=0.05, colsample_bytree=0.4, reg_alpha=2, reg_lambda=1, max_depth=-1, random_state=1)
+    #change devie number to int
+    train['device_number'] = train['device_number'].astype(int)
     clf.fit(train[features], train[TARGET_COL])
 
   return clf
