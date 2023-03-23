@@ -563,7 +563,7 @@ eventSchema.statics = {
 
       logObject("the query for this request", search);
       if (!recent || recent === "yes") {
-        let data = await this.aggregate()
+        const data = await this.aggregate()
           .unwind("values")
           .match(search)
           .replaceRoot("values")
@@ -573,12 +573,34 @@ eventSchema.statics = {
             foreignField,
             as,
           })
+          .lookup({
+            from: "healthtips",
+            let: { pollutantValue: { $toInt: "$pm2_5.value" } },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      {
+                        $lte: ["$aqi_category.min", "$$pollutantValue"],
+                      },
+                      {
+                        $gte: ["$aqi_category.max", "$$pollutantValue"],
+                      },
+                    ],
+                  },
+                },
+              },
+            ],
+            as: "healthTips",
+          })
           .sort({ time: -1 })
           .group({
             _id: "$device",
             device: { $first: "$device" },
             device_id: { $first: "$device_id" },
             device_number: { $first: "$device_number" },
+            health_tips: { $first: "$healthTips" },
             site: { $first: "$site" },
             site_id: { $first: "$site_id" },
             time: { $first: "$time" },
@@ -612,6 +634,13 @@ eventSchema.statics = {
             stc_v: { $first: "$stc_v" },
             stc: { $first: "$stc" },
             [as]: elementAtIndex0,
+          })
+          .project({
+            "health_tips.aqi_category": 0,
+            "health_tips.value": 0,
+            "health_tips.createdAt": 0,
+            "health_tips.updatedAt": 0,
+            "health_tips.__v": 0,
           })
           .project(projection)
           .facet({
