@@ -79,8 +79,11 @@ def airnow_bam_realtime_data():
     def send_to_message_broker(data: pd.DataFrame):
         from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
         from airqo_etl_utils.data_validator import DataValidationUtils
+        from airqo_etl_utils.constants import Tenant
 
-        data = DataValidationUtils.process_for_message_broker_v2(data)
+        data = DataValidationUtils.process_for_message_broker(
+            data=data, tenant=Tenant.US_EMBASSY
+        )
         MessageBrokerUtils.update_hourly_data_topic(data=data)
 
     @task()
@@ -110,6 +113,7 @@ def airnow_bam_realtime_data():
     send_to_bigquery(processed_bam_data)
     send_to_message_broker(processed_bam_data)
     send_to_api(processed_bam_data)
+
 
 airnow_bam_realtime_data()
 airnow_bam_historical_data()

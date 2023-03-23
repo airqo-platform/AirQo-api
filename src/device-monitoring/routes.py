@@ -6,6 +6,8 @@ DEVICE_STATUS = f"{BASE_URL}/devices/status"
 
 DEVICE_COLLOCATION = f"{BASE_URL}/devices/collocation"
 
+SCHEDULE_COLLOCATION = f"{BASE_URL}/devices/collocation/schedule"
+
 DEVICE_COLLOCATION_RESULTS = f"{BASE_URL}/devices/collocation/results"
 
 DEVICE_COLLOCATION_SUMMARY = f"{BASE_URL}/devices/collocation/summary"

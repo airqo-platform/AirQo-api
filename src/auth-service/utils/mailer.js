@@ -430,6 +430,54 @@ const mailer = {
     }
   },
 
+  newMobileAppUser: async ({ email, message, subject } = {}) => {
+    try {
+      logObject("the values to send to email function", {
+        email,
+        message,
+        subject,
+      });
+      const bcc = constants.REQUEST_ACCESS_EMAILS;
+      const mailOptions = {
+        from: {
+          name: constants.EMAIL_NAME,
+          address: constants.EMAIL,
+        },
+        subject,
+        html: message,
+        to: email,
+        bcc,
+      };
+
+      const response = await transporter.sendMail(mailOptions);
+
+      const data = response;
+      if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
+        return {
+          success: true,
+          message: "email successfully sent",
+          data,
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: false,
+          message: "email not sent",
+          status: httpStatus.BAD_GATEWAY,
+        };
+      }
+    } catch (error) {
+      return {
+        message: "internal server error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        success: false,
+        errors: {
+          message: error.message,
+        },
+      };
+    }
+  },
+
   feedback: async ({ email, message, subject } = {}) => {
     try {
       let bcc = constants.REQUEST_ACCESS_EMAILS;

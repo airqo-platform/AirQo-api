@@ -12,7 +12,6 @@ urllib3.disable_warnings()
 
 
 class Config:
-
     # Kcca
     CLARITY_API_KEY = os.getenv("CLARITY_API_KEY")
     CLARITY_API_BASE_URL = os.getenv("CLARITY_API_BASE_URL")

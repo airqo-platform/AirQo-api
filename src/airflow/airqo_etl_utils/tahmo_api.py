@@ -13,7 +13,6 @@ class TahmoApi:
         self.API_SECRET = configuration.TAHMO_API_SECRET
 
     def get_measurements(self, start_time, end_time, station_codes=None):
-
         if station_codes is None:
             station_codes = []
 
@@ -27,7 +26,6 @@ class TahmoApi:
         measurements = pd.DataFrame(columns=columns)
 
         for code in stations:
-
             try:
                 response = self.__request(
                     f"services/measurements/v2/stations/{code}/measurements/controlled",

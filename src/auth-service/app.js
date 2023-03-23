@@ -7,11 +7,13 @@ const dotenv = require("dotenv");
 dotenv.config();
 const cookieParser = require("cookie-parser");
 const bodyParser = require("body-parser");
-const routes = require("./routes/index");
-const constants = require("./config/constants");
+const routes = require("@routes/index");
+const constants = require("@config/constants");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- app entry`);
-const mongodb = require("./config/dbConnection");
+const mongodb = require("@config/dbConnection");
 mongodb;
+
+const { logText } = require("@utils/log");
 
 const app = express();
 
@@ -56,7 +58,7 @@ app.use("/api/v2/users/defaults", routes.v2.defaults);
 // app.use("/api/v2/users/groups", routes.v2.groups);
 app.use("/api/v2/users", routes.v2.users);
 
-require("./config/firebase-admin");
+require("@config/firebase-admin");
 
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {
