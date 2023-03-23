@@ -336,8 +336,8 @@ class MainClass:
         )
         bigquery_data.to_csv("airnow_bigquery_data.csv", index=False)
 
-        message_broker_data = DataValidationUtils.process_for_message_broker_v2(
-            processed_bam_data
+        message_broker_data = DataValidationUtils.process_for_message_broker(
+            data=processed_bam_data, tenant=Tenant.US_EMBASSY
         )
         message_broker_data.to_csv("airnow_message_broker_data.csv", index=False)
 
