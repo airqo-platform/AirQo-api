@@ -1,7 +1,7 @@
 import pandas as pd
 from transform import get_forecast_data
 
-from lightgbm import LGBMRegressor
+from lightgbm import LGBMRegressor, early_stopping
 from sklearn.metrics import mean_squared_error
 import mlflow
 import mlflow.sklearn
@@ -27,19 +27,19 @@ def preprocess_forecast_data():
         ['device_number']).resample('D').mean(numeric_only=True)
     forecast_data = forecast_data.reset_index()
     forecast_data['device_number'] = forecast_data['device_number'].astype(int)
-
+    print('forecast_data', forecast_data.head())
     return forecast_data
 
 
 def initialise_training_constants():
-    TRAIN_MODEL_NOW = True
-    TARGET_COL = 'pm2_5'
+    train_model_now = True
+    target_col = 'pm2_5'
 
     forecast_data = preprocess_forecast_data()
 
-    if TRAIN_MODEL_NOW == True:
+    if train_model_now == True:
         print(forecast_data.columns)
-        train = preprocess_df(forecast_data, TARGET_COL)
+        train = preprocess_df(forecast_data, target_col)
         clf = train_model(train)
 
         # load new model
@@ -53,17 +53,31 @@ def initialise_training_constants():
 
 
 def train_model(train):
-    '''
+    """
     Perform the actual training
-    '''
+    """
+    print('feature selection started.....')
     features = [c for c in train.columns if c not in ["created_at", "pm2_5"]]
     TARGET_COL = "pm2_5"
 
     # change devie number to int
-    trn['device_number'] = trn['device_number'].astype(int)
-    val['device_number'] = val['device_number'].astype(int)
-    y_trn, y_val = trn[TARGET_COL], val[TARGET_COL]
 
+    train_data, test_data = pd.DataFrame(), pd.DataFrame()
+
+    for device_number in train['device_number'].unique():
+        device_df = train[train['device_number'] == device_number]
+        train_df = device_df[device_df['created_at'].dt.month <= 9]
+        test_df = device_df[device_df['created_at'].dt.month > 9]
+        train_data = pd.concat([train_data, train_df])
+        test_data = pd.concat([test_data, test_df])
+
+    train_data['device_number'] = train_data['device_number'].astype(int)
+    test_data['device_number'] = test_data['device_number'].astype(int)
+    # drop 'created_at' column for both datasets
+    train_data.drop(columns=['created_at'], axis=1, inplace=True)
+    test_data.drop(columns=['created_at'], axis=1, inplace=True)
+
+    train_target, test_target = train_data[TARGET_COL], test_data[TARGET_COL]
     # start training the model
     with mlflow.start_run():
         print("Model training started.....")
@@ -72,7 +86,7 @@ def train_model(train):
         colsample_bytree = 0.4
         reg_alpha = 0
         reg_lambda = 1
-        max_depth = -1
+        max_depth = 1
         random_state = 1
 
         clf = LGBMRegressor(
@@ -84,7 +98,7 @@ def train_model(train):
             max_depth=max_depth,
             random_state=random_state)
 
-        clf.fit(trn[features], y_trn, eval_set=[(val[features], y_val)], verbose=50, early_stopping_rounds=150,
+        clf.fit(train_data[features], train_target , eval_set=[(test_data[features], test_target)], callbacks=[early_stopping(stopping_rounds=150)], verbose=50,
                 eval_metric='rmse')
         print("Model training completed.....")
 
@@ -107,8 +121,8 @@ def train_model(train):
         # model validation
         print("Being model validation.....")
 
-        val_preds = clf.predict(val[features])
-        rmse_val = mean_squared_error(val[TARGET_COL], val_preds) ** 0.5
+        val_preds = clf.predict(test_data[features])
+        rmse_val = mean_squared_error(test_data[TARGET_COL], val_preds) ** 0.5
 
         print("Model validation completed.....")
         print(f'Validation RMSE is {rmse_val}')
@@ -125,20 +139,6 @@ def train_model(train):
 
     return clf
 
-
-def get_agg_channel_data_train(chan_num, train_forecast_data, freq='1H'):
-    '''
-    Get Hourly Aggregates using Mean of the Data for training.
-    '''
-
-    chan = train_forecast_data[train_forecast_data['device_number'] == chan_num]
-    chan = chan.sort_values(by='created_at')[['created_at', 'pm2_5']].set_index('created_at')
-    chan = chan.interpolate('time', limit_direction='both')
-
-    chan_agg = chan.resample(freq).mean().reset_index()
-    chan_agg['device_number'] = chan_num
-
-    return chan_agg
 
 
 def get_lag_features(df_tmp, TARGET_COL):

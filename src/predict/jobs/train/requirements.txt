@@ -10,6 +10,6 @@ gcsfs
 pymongo
 pyarrow
 joblib
-lightgbm==3.2.1
+lightgbm
 requests
 mlflow
