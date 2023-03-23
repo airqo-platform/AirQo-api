@@ -47,7 +47,6 @@ class EventsModel(BasePyMongoModel):
         frequency,
         pollutants,
     ) -> pd.DataFrame:
-
         decimal_places = cls.DATA_EXPORT_DECIMAL_PLACES
 
         # Data sources
@@ -243,6 +242,86 @@ class EventsModel(BasePyMongoModel):
 
     @classmethod
     @cache.memoize()
+    def get_data_for_summary(
+        cls,
+        airqloud,
+        start_date_time,
+        end_date_time,
+    ) -> list:
+        data_table = cls.BIGQUERY_HOURLY_DATA
+
+        # Data sources
+        sites_table = cls.BIGQUERY_SITES
+        airqlouds_sites_table = cls.BIGQUERY_AIRQLOUDS_SITES
+        airqlouds_table = cls.BIGQUERY_AIRQLOUDS
+        devices_table = cls.BIGQUERY_DEVICES
+
+        data_query = (
+            f" SELECT {data_table}.pm2_5_calibrated_value , {data_table}.pm2_5_raw_value , "
+            f" FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', {data_table}.timestamp) AS datetime "
+        )
+
+        meta_data_query = (
+            f" SELECT {airqlouds_sites_table}.airqloud_id , "
+            f" {airqlouds_sites_table}.site_id , "
+            f" FROM {airqlouds_sites_table} "
+            f" WHERE {airqlouds_sites_table}.airqloud_id = '{airqloud}' "
+        )
+
+        # Adding airqloud information
+        meta_data_query = (
+            f" SELECT "
+            f" {airqlouds_table}.name AS airqloud , "
+            f" meta_data.* "
+            f" FROM {airqlouds_table} "
+            f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.airqloud_id = {airqlouds_table}.id "
+        )
+
+        # Adding site information
+        meta_data_query = (
+            f" SELECT "
+            f" {sites_table}.name AS site , "
+            f" meta_data.* "
+            f" FROM {sites_table} "
+            f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.site_id = {sites_table}.id "
+        )
+
+        # Adding device information
+        meta_data_query = (
+            f" SELECT "
+            f" {devices_table}.device_id AS device , "
+            f" meta_data.* "
+            f" FROM {devices_table} "
+            f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.site_id = {devices_table}.site_id "
+        )
+
+        # Adding start and end times
+        query = (
+            f" {data_query} , "
+            f" meta_data.* "
+            f" FROM {data_table} "
+            f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.site_id = {data_table}.site_id "
+            f" WHERE {data_table}.timestamp >= '{start_date_time}' "
+            f" AND {data_table}.timestamp <= '{end_date_time}' "
+            f" AND {data_table}.pm2_5_raw_value is not null "
+        )
+
+        job_config = bigquery.QueryJobConfig()
+        job_config.use_query_cache = True
+
+        dataframe = bigquery.Client().query(query, job_config).result().to_dataframe()
+
+        if len(dataframe.index) == 0:
+            return []
+
+        dataframe.drop_duplicates(
+            subset=["datetime", "device"], inplace=True, keep="first"
+        )
+
+        return dataframe.to_dict(orient="records")
+
+    @classmethod
+    @cache.memoize()
     def from_bigquery(
         cls,
         tenant,
@@ -352,7 +431,6 @@ class EventsModel(BasePyMongoModel):
     def bigquery_mobile_device_measurements(
         cls, tenant, device_numbers: list, start_date_time, end_date_time
     ):
-
         query = (
             f"SELECT * "
             f"FROM {cls.BIGQUERY_MOBILE_EVENTS} "
@@ -492,7 +570,6 @@ class EventsModel(BasePyMongoModel):
 
     @cache.memoize()
     def get_averages_by_pollutant_from_bigquery(self, start_date, end_date, pollutant):
-
         if pollutant not in ["pm2_5", "pm10", "no2", "pm1"]:
             raise Exception("Invalid pollutant")
 
@@ -571,7 +648,6 @@ class EventsModel(BasePyMongoModel):
 
     @cache.memoize()
     def get_d3_chart_events(self, sites, start_date, end_date, pollutant, frequency):
-
         diurnal_end_date = datetime.strptime(end_date, "%Y-%m-%dT%H:%M:%S.%fZ").replace(
             tzinfo=pytz.utc
         )
@@ -635,7 +711,6 @@ class EventsModel(BasePyMongoModel):
     def get_d3_chart_events_v2(
         self, sites, start_date, end_date, pollutant, frequency, tenant
     ):
-
         if pollutant not in ["pm2_5", "pm10", "no2", "pm1"]:
             raise Exception("Invalid pollutant")
 
@@ -676,7 +751,6 @@ class EventsModel(BasePyMongoModel):
             resample_value = "1H"
 
         for _, site_group in site_groups:
-
             values = site_group[["value", "time"]]
             ave_values = pd.DataFrame(values.resample(resample_value, on="time").mean())
             ave_values["time"] = ave_values.index
