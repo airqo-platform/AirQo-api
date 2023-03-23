@@ -58,7 +58,7 @@ async function sendGoodByeMessage(_user) {
 // kafka configuration
 const kafka = new Kafka({
   clientId: process.env.KAFKA_CLIENT_ID,
-  brokers: process.env.KAFKA_BOOTSTRAP_SERVERS_PROD.split(","),
+  brokers: process.env.KAFKA_BOOTSTRAP_SERVERS.split(","),
   // clientId: process.env.KAFKA_CLIENT_ID_DEV,
   // brokers: ["localhost:9092"],
 });
