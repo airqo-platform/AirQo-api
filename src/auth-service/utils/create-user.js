@@ -115,8 +115,8 @@ const join = {
         }
       );
       if (responseFromModifyUser.success === true) {
-        let user = responseFromModifyUser.data;
-        let responseFromSendEmail = await mailer.update(
+        const user = responseFromModifyUser.data;
+        const responseFromSendEmail = await mailer.update(
           user.email,
           user.firstName,
           user.lastName
@@ -251,14 +251,12 @@ const join = {
                 emailLinkCode,
               },
             });
-          }
-
-          if (responseFromSendEmail.success === false) {
+          } else if (responseFromSendEmail.success === false) {
             callback({
               success: false,
               message: "email sending process unsuccessful",
               errors: responseFromSendEmail.errors,
-              status: httpStatus.BAD_GATEWAY,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
             });
           }
         })
@@ -350,7 +348,7 @@ const join = {
 
   sendFeedback: async ({ email, message, subject }) => {
     try {
-      let responseFromSendEmail = await mailer.feedback({
+      const responseFromSendEmail = await mailer.feedback({
         email,
         message,
         subject,
@@ -364,18 +362,7 @@ const join = {
           message: "email successfully sent",
         };
       } else if (responseFromSendEmail.success === false) {
-        let status = responseFromSendEmail.status
-          ? responseFromSendEmail.status
-          : "";
-        let errors = responseFromSendEmail.errors
-          ? responseFromSendEmail.errors
-          : "";
-        return {
-          success: false,
-          message: responseFromSendEmail.message,
-          errors,
-          status,
-        };
+        return responseFromSendEmail;
       }
     } catch (error) {
       return {
@@ -450,7 +437,7 @@ const join = {
           logObject("created user in util", createdUser._doc);
           const user_id = createdUser._doc._id;
 
-          let responseFromSendEmail = await mailer.verifyEmail({
+          const responseFromSendEmail = await mailer.verifyEmail({
             user_id,
             token,
             email,
@@ -468,40 +455,13 @@ const join = {
                 : "",
             };
           } else if (responseFromSendEmail.success === false) {
-            return {
-              success: false,
-              message: responseFromSendEmail.message,
-              errors: responseFromSendEmail.errors
-                ? responseFromSendEmail.errors
-                : "",
-              status: responseFromSendEmail.status
-                ? responseFromSendEmail.status
-                : "",
-            };
+            return responseFromSendEmail;
           }
         } else if (responseFromSaveToken.success === false) {
-          return {
-            success: false,
-            message: responseFromSaveToken.message,
-            status: responseFromSaveToken.status
-              ? responseFromSaveToken.status
-              : "",
-            errors: responseFromSaveToken.errors
-              ? responseFromSaveToken.errors
-              : "",
-          };
+          return responseFromSaveToken;
         }
       } else if (responseFromCreateUser.success === false) {
-        return {
-          success: false,
-          message: responseFromCreateUser.message,
-          errors: responseFromCreateUser.error
-            ? responseFromCreateUser.error
-            : "",
-          status: responseFromCreateUser.status
-            ? responseFromCreateUser.status
-            : "",
-        };
+        return responseFromCreateUser;
       }
     } catch (e) {
       logObject("e", e);
@@ -550,7 +510,7 @@ const join = {
       if (responseFromCreateUser.success === true) {
         const createdUser = await responseFromCreateUser.data;
         logObject("created user in util", createdUser._doc);
-        let responseFromSendEmail = await mailer.user(
+        const responseFromSendEmail = await mailer.user(
           firstName,
           lastName,
           email,
@@ -569,34 +529,17 @@ const join = {
               : "",
           };
         } else if (responseFromSendEmail.success === false) {
-          return {
-            success: false,
-            message: responseFromSendEmail.message,
-            error: responseFromSendEmail.error
-              ? responseFromSendEmail.error
-              : "",
-            status: responseFromSendEmail.status
-              ? responseFromSendEmail.status
-              : "",
-          };
+          return responseFromSendEmail;
         }
       } else if (responseFromCreateUser.success === false) {
-        return {
-          success: false,
-          message: responseFromCreateUser.message,
-          error: responseFromCreateUser.error
-            ? responseFromCreateUser.error
-            : "",
-          status: responseFromCreateUser.status
-            ? responseFromCreateUser.status
-            : "",
-        };
+        return responseFromCreateUser;
       }
     } catch (e) {
       return {
         success: false,
         message: "Internal Server Error",
         error: e.message,
+        errors: { message: e.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -685,17 +628,7 @@ const join = {
               status: httpStatus.OK,
             };
           } else if (responseFromSendEmail.success === false) {
-            return {
-              status: httpStatus.INTERNAL_SERVER_ERROR,
-              success: false,
-              error: responseFromSendEmail.error
-                ? responseFromSendEmail.error
-                : "",
-              message: "unable to send the email request",
-              errors: responseFromSendEmail.error
-                ? responseFromSendEmail.error
-                : { message: "unable to send the email request" },
-            };
+            return responseFromSendEmail;
           }
         } else if (responseFromModifyUser.success === false) {
           return responseFromModifyUser;
@@ -896,7 +829,7 @@ const join = {
       return {
         status: httpStatus.INTERNAL_SERVER_ERROR,
         success: false,
-        message: "util server error",
+        message: "Internal Server Error",
         errors: { message: error.message },
       };
     }
@@ -945,7 +878,7 @@ const join = {
       } else {
         return {
           success: false,
-          status: httpStatus.BAD_GATEWAY,
+          status: httpStatus.INTERNAL_SERVER_ERROR,
           message: "unable to subscribe user to the AirQo newsletter",
           errors: {
             message:
