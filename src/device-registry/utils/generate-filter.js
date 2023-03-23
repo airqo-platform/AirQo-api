@@ -906,10 +906,16 @@ const generateFilter = {
   },
 
   tips: (request) => {
-    let { id } = request.query;
+    let { id, pm25, pm10 } = request.query;
     let filter = {};
     if (id) {
       filter["_id"] = ObjectId(id);
+    }
+    if (pm25) {
+      filter["$and"] = [
+        { "aqi_category.min": { $lte: parseInt(pm25) } },
+        { "aqi_category.max": { $gte: parseInt(pm25) } },
+      ];
     }
     return filter;
   },
