@@ -270,11 +270,14 @@ def get_collocation_results():
 
 @collocation_bp.route(routes.DEVICE_COLLOCATION_SUMMARY, methods=["GET"])
 def get_collocation_summary():
+    start_date = request.args.get("startDate", None)
+    end_date = request.args.get("endDate", None)
+
     try:
         collocation = Collocation(
             devices=[],
-            start_date=datetime.datetime.utcnow(),
-            end_date=datetime.datetime.utcnow(),
+            start_date=start_date,
+            end_date=end_date,
             correlation_threshold=0,
             completeness_threshold=0,
             parameters=None,

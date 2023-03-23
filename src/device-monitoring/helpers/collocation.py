@@ -236,7 +236,16 @@ class Collocation(BaseModel):
         return self.db.collocation.insert_one(results.copy())
 
     def summary(self):
-        results = self.db.collocation.find()
+        if self.__start_date and self.__end_date:
+            results = self.db.collocation.find(
+                {
+                    "start_date": self.__start_date,
+                    "end_date": self.__end_date,
+                }
+            )
+        else:
+            results = self.db.collocation.find()
+
         documents = list(results)
         summary = []
 
@@ -268,37 +277,33 @@ class Collocation(BaseModel):
     def get_collocation_results(self):
         results = self.results()
 
-        if results.get("status", "") != str(CollocationStatus.COMPLETED):
-            return {
-                "data_completeness": [],
-                "intra_sensor_correlation": {},
-                "inter_sensor_correlation": {},
-                "statue": results.get("status", ""),
-            }
-
         data_completeness = []
         intra_sensor_correlation = []
         inter_sensor_correlation = []
-
-        devices_data_completeness = list(
-            filter(
-                lambda x: x["device_name"] in self.__devices,
-                results.get("data_completeness", []),
-            )
-        )
-        for device_data_completeness in devices_data_completeness:
-            data_completeness.append(
-                {
-                    **device_data_completeness,
-                    **{
-                        "start_date": results.get("start_date"),
-                        "end_date": results.get("end_date"),
-                    },
-                }
-            )
-
-        data = self.query_data(results.get("data_source"))
+        self.__load_device_data()
+        data = self.__data
         data = data.replace(np.nan, None)
+        if results.get("status", "") != str(CollocationStatus.COMPLETED):
+            self.compute_data_completeness()
+            data_completeness = self.__data_completeness.to_dict("records")
+        else:
+            devices_data_completeness = list(
+                filter(
+                    lambda x: x["device_name"] in self.__devices,
+                    results.get("data_completeness", []),
+                )
+            )
+            for device_data_completeness in devices_data_completeness:
+                data_completeness.append(
+                    {
+                        **device_data_completeness,
+                        **{
+                            "start_date": results.get("start_date"),
+                            "end_date": results.get("end_date"),
+                        },
+                    }
+                )
+
         for device in self.__devices:
             device_data = data[data["device_name"] == device]
             correlation_data = device_data.copy()
