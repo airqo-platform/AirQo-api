@@ -204,6 +204,7 @@ photoSchema.statics = {
       logObject("the update in the model", update);
       logObject("the opts in the model", opts);
       let modifiedUpdateBody = update;
+
       if (modifiedUpdateBody._id) {
         delete modifiedUpdateBody._id;
       }
@@ -219,6 +220,15 @@ photoSchema.statics = {
       const projection = setProjection(modifiedUpdateBody);
       logObject("projection", projection);
       options["projection"] = projection;
+
+      modifiedUpdateBody["$addToSet"] = {};
+      if (modifiedUpdateBody.tags) {
+        modifiedUpdateBody["$addToSet"]["tags"] = {};
+        modifiedUpdateBody["$addToSet"]["tags"]["$each"] =
+          modifiedUpdateBody.tags;
+        delete modifiedUpdateBody["tags"];
+      }
+
       const updatedPhoto = await this.findOneAndUpdate(
         filter,
         modifiedUpdateBody,

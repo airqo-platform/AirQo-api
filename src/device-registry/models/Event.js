@@ -509,6 +509,12 @@ eventSchema.statics = {
       delete search["page"];
       delete search["running"];
 
+      /**
+       * The Alternative Flows present in this Events entity:
+       * 1. Based on tenant, which PM values should we showcase?
+       * 2. Which metadata should we show? Sites or Devices? etc....
+       * 3. Should we show recent or historical measurements?
+       */
       if (tenant !== "airqo") {
         pm2_5 = "$pm2_5";
         pm10 = "$pm10";
@@ -608,6 +614,12 @@ eventSchema.statics = {
           .match(search)
           .replaceRoot("values")
           .lookup({
+            from: "photos",
+            localField: "device",
+            foreignField: "device_name",
+            as: "images",
+          })
+          .lookup({
             from,
             localField,
             foreignField,
@@ -639,6 +651,7 @@ eventSchema.statics = {
             _id: "$device",
             device: { $first: "$device" },
             device_id: { $first: "$device_id" },
+            image: { $first: { $arrayElemAt: ["$images", 0] } },
             device_number: { $first: "$device_number" },
             health_tips: { $first: "$healthTips" },
             site: { $first: "$site" },
@@ -681,6 +694,17 @@ eventSchema.statics = {
             "health_tips.createdAt": 0,
             "health_tips.updatedAt": 0,
             "health_tips.__v": 0,
+          })
+          .project({
+            "image.createdAt": 0,
+            "image.updatedAt": 0,
+            "image.metadata": 0,
+            "image.__v": 0,
+            "image.device_name": 0,
+            "image.device_id": 0,
+            "image._id": 0,
+            "image.tags": 0,
+            "image.image_code": 0,
           })
           .project(projection)
           .facet({
