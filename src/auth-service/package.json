@@ -63,6 +63,7 @@
         "log4js": "^6.7.0",
         "md5": "^2.3.0",
         "module-alias": "^2.2.2",
+        "moment-timezone": "^0.5.41",
         "mongoose": "^5.12.14",
         "mongoose-unique-validator": "^2.0.3",
         "morgan": "~1.9.0",

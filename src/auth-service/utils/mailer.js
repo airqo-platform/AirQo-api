@@ -42,14 +42,16 @@ const mailer = {
         return {
           success: false,
           message: "email not sent",
-          status: httpStatus.BAD_GATEWAY,
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: { message: data },
         };
       }
     } catch (error) {
       return {
         success: false,
-        message: "mailer server error",
+        message: "Internal Server Error",
         error: error.message,
+        errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -121,14 +123,16 @@ const mailer = {
         return {
           success: false,
           message: "email not sent",
-          status: httpStatus.BAD_GATEWAY,
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: { message: data },
         };
       }
     } catch (error) {
       return {
         success: false,
-        message: "mailer server error",
+        message: "Internal Server Error",
         error: error.message,
+        errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -173,18 +177,22 @@ const mailer = {
           success: true,
           message: "email successfully sent",
           data,
+          status: httpStatus.OK,
         };
       } else {
         return {
           success: false,
-          message: "email not sent",
+          message: "Internal Server Error",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: { message: data },
         };
       }
     } catch (error) {
       return {
         success: false,
-        message: "mailer server error",
+        message: "Internal Server Error",
         error: error.message,
+        errors: { message: error.message },
       };
     }
   },
@@ -223,13 +231,13 @@ const mailer = {
           success: false,
           message: "email not sent",
           errors: { message: data },
-          status: httpStatus.BAD_GATEWAY,
+          status: httpStatus.INTERNAL_SERVER_ERROR,
         };
       }
     } catch (error) {
       return {
         success: false,
-        message: "mailer server error",
+        message: "Internal Server Error",
         errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
@@ -274,13 +282,13 @@ const mailer = {
           success: false,
           message: "email not sent",
           errors: { message: data },
-          status: httpStatus.BAD_GATEWAY,
+          status: httpStatus.INTERNAL_SERVER_ERROR,
         };
       }
     } catch (error) {
       return {
         success: false,
-        message: "mailer server error",
+        message: "Internal Server Error",
         errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
@@ -305,18 +313,22 @@ const mailer = {
           success: true,
           message: "email successfully sent",
           data,
+          status: httpStatus.OK,
         };
       } else {
         return {
           success: false,
-          message: "email not sent",
+          message: "Internal Server Error",
+          errors: { message: data },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
         };
       }
     } catch (error) {
       return {
         success: false,
-        message: "mailer server error",
+        message: "Internal Server Error",
         error: error.message,
+        errors: { message: error.message },
       };
     }
   },
@@ -339,14 +351,13 @@ const mailer = {
           success: true,
           message: "email successfully sent",
           data,
+          status: httpStatus.OK,
         };
       } else {
         return {
           success: false,
-          message: "email not sent",
-          errors: {
-            message: "email not sent",
-          },
+          message: "Internal Server Error",
+          errors: { message: data },
         };
       }
     } catch (error) {
@@ -377,14 +388,14 @@ const mailer = {
           success: true,
           message: "email successfully sent",
           data,
+          status: httpStatus.OK,
         };
       } else {
         return {
           success: false,
-          message: "email not sent",
-          errors: {
-            message: "email not sent",
-          },
+          message: "Internal Server Error",
+          errors: { message: data },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
         };
       }
     } catch (error) {
@@ -392,6 +403,7 @@ const mailer = {
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -414,18 +426,23 @@ const mailer = {
           success: true,
           message: "email successfully sent",
           data,
+          status: httpStatus.OK,
         };
       } else {
         return {
           success: false,
-          message: "email not sent",
+          message: "Internal Server Error",
+          errors: { message: data },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
         };
       }
     } catch (error) {
       return {
         success: false,
-        message: "mailer server error",
+        message: "Internal Server Error",
         error: error.message,
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -463,7 +480,8 @@ const mailer = {
         return {
           success: false,
           message: "email not sent",
-          status: httpStatus.BAD_GATEWAY,
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: { message: data },
         };
       }
     } catch (error) {
@@ -508,12 +526,13 @@ const mailer = {
         return {
           success: false,
           message: "email not sent",
-          status: httpStatus.BAD_GATEWAY,
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: { message: data },
         };
       }
     } catch (error) {
       return {
-        message: "",
+        message: "Internal Server Error",
         status: httpStatus.INTERNAL_SERVER_ERROR,
         success: false,
         errors: {
