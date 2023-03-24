@@ -39,7 +39,7 @@ router.put(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "unep"])
+      .isIn(["kcca", "airqo", "urban_better", "usembassy", "nasa", "unep"])
       .withMessage("the network value is not among the expected ones"),
   ]),
   siteController.bulkUpdate
@@ -56,7 +56,7 @@ router.post(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "unep"])
+      .isIn(["kcca", "airqo", "urban_better", "usembassy", "nasa", "unep"])
       .withMessage("the network value is not among the expected ones"),
   ]),
   siteController.bulkCreate

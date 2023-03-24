@@ -112,6 +112,12 @@ router.post(
         .withMessage("the device_number should be an integer value")
         .bail()
         .trim(),
+      body("*.network")
+        .optional()
+        .notEmpty()
+        .toLowerCase()
+        .isIn(["kcca", "airqo", "urban_better", "usembassy", "nasa", "unep"])
+        .withMessage("the network value is not among the expected ones"),
     ],
   ]),
   eventController.addValues
