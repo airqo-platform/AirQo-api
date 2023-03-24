@@ -132,7 +132,6 @@ class AirflowUtils:
         return dag_runs
 
     def remove_old_dag_runs(self, days: int):
-
         execution_date_time = datetime.utcnow() - timedelta(days=days)
 
         dags_response = requests.get(

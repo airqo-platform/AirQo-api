@@ -50,7 +50,6 @@ class DateUtils:
 
     @staticmethod
     def get_query_date_time_values(hours=1, days=0):
-
         start_date_time = datetime.utcnow() - timedelta(hours=hours)
         end_date_time = start_date_time + timedelta(hours=hours)
 

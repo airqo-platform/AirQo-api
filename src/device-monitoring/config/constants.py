@@ -23,6 +23,7 @@ class Config:
     CACHE_DEFAULT_TIMEOUT = THIRTY_MINUTES
     CACHE_KEY_PREFIX = 'device-monitoring'
     CACHE_REDIS_URL = os.getenv('REDIS_URL_PROD')
+    REDIS_URL = os.getenv('REDIS_URL')
 
     SECRET_KEY = os.getenv("SECRET_KEY")
 

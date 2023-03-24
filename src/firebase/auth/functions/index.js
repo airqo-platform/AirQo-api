@@ -1,12 +1,14 @@
 "use strict";
 require("dotenv").config();
 
+// eslint-disable-next-line no-unused-vars
 const axios = require("axios");
 const {initializeApp} = require("firebase-admin/app");
 const {getFirestore} = require("firebase-admin/firestore");
 
 const functions = require("firebase-functions");
 const {getAuth} = require("firebase-admin/auth");
+const {Kafka} = require("kafkajs");
 
 initializeApp();
 const firestoreDb = getFirestore();
@@ -22,34 +24,76 @@ async function sendGoodByeMessage(_user) {
 /**
  * @param {any} user The new user
  */
-async function sendWelcomeMessage(user) {
+// async function sendWelcomeMessage(user) {
+// try {
+//   const emailAddress = user.emailAddress == null ? "" : user.emailAddress;
+//   if (emailAddress === "") {
+//     return null;
+//   }
+
+//   const displayName = user.displayName == null ? "" : user.displayName;
+//   const endPoint = process.env.WELCOME_MESSAGE_ENDPOINT;
+//   const body = {
+//     "platform": "mobile",
+//     "firstName": displayName,
+//     "emailAddress": emailAddress,
+//   };
+
+// eslint-disable-next-line max-len
+//     axios.post(endPoint, JSON.stringify(body), {headers: {"Content-Type": "application/json"}})
+//         .then((res) => {
+//           console.log(`Welcome message status code: ${res.status}`);
+//         })
+//         .catch((error) => {
+//           console.error(error);
+//         });
+//   } catch (error) {
+//     console.log(error);
+//   }
+
+//   return null;
+// }
+
+
+// kafka configuration
+const kafka = new Kafka({
+  clientId: process.env.KAFKA_CLIENT_ID,
+  brokers: process.env.KAFKA_BOOTSTRAP_SERVERS.split(","),
+  // clientId: process.env.KAFKA_CLIENT_ID_DEV,
+  // brokers: ["localhost:9092"],
+});
+
+
+// Function to produce messages
+
+/**
+ * @param {any} user The new user
+ */
+async function produceMessage(user) {
   try {
-    const emailAddress = user.emailAddress == null ? "" : user.emailAddress;
+    const producer = kafka.producer();
+    const emailAddress = user.email == null ? "" : user.email;
     if (emailAddress === "") {
       return null;
     }
 
-    const displayName = user.displayName == null ? "" : user.displayName;
-    const endPoint = process.env.WELCOME_MESSAGE_ENDPOINT;
-    const body = {
-      "platform": "mobile",
-      "firstName": displayName,
-      "emailAddress": emailAddress,
+    await producer.connect();
+
+    const topic = process.env.NEW_MOBILE_APP_USER_TOPIC;
+    const message = {
+      value: `{email:${emailAddress}}`,
     };
 
-    // eslint-disable-next-line max-len
-    axios.post(endPoint, JSON.stringify(body), {headers: {"Content-Type": "application/json"}})
-        .then((res) => {
-          console.log(`Welcome message status code: ${res.status}`);
-        })
-        .catch((error) => {
-          console.error(error);
-        });
+    await producer.send({
+      topic,
+      messages: [
+        message,
+      ],
+    });
+    await producer.disconnect();
   } catch (error) {
     console.log(error);
   }
-
-  return null;
 }
 
 /**
@@ -99,6 +143,12 @@ async function checkIfUserExists(data) {
   }
 }
 
+exports.onUserSignUp = functions.auth.user().onCreate(async (user) => {
+  if (user.email !== null) {
+    return await produceMessage(user);
+  }
+});
+
 exports.httpCheckIfUserExists = functions.https.onRequest(async (req, res) => {
   try {
     let exists;
@@ -138,7 +188,7 @@ exports.appCheckIfUserExists = functions.https.onCall(async (data, _) => {
 
 exports.sendWelcomeMessages = functions.https.onCall(async (data, _) => {
   await sendWelcomeNotification(data);
-  await sendWelcomeMessage(data);
+  // await sendWelcomeMessage(data);
   return null;
 });
 

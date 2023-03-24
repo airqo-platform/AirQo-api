@@ -192,7 +192,7 @@ UserSchema.statics = {
           success: true,
           data,
           message: "operation successful but user NOT successfully created",
-          status: httpStatus.NOT_FOUND,
+          status: httpStatus.BAD_REQUEST,
         };
       }
     } catch (err) {
@@ -325,11 +325,10 @@ UserSchema.statics = {
         .allowDiskUse(true);
 
       if (!isEmpty(response)) {
-        let data = response;
         return {
           success: true,
           message: "successfully retrieved the user details",
-          data,
+          data: response,
           status: httpStatus.OK,
         };
       } else if (isEmpty(response)) {
@@ -337,7 +336,7 @@ UserSchema.statics = {
           success: true,
           message: "no users exist",
           data: [],
-          status: httpStatus.NOT_FOUND,
+          status: httpStatus.OK,
         };
       }
     } catch (error) {
@@ -405,7 +404,7 @@ UserSchema.statics = {
         return {
           success: true,
           message: "user does not exist, please crosscheck",
-          status: httpStatus.NOT_FOUND,
+          status: httpStatus.BAD_REQUEST,
           data: [],
         };
       }
@@ -414,6 +413,7 @@ UserSchema.statics = {
         success: false,
         message: "INTERNAL SERVER ERROR",
         error: error.message,
+        errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -436,7 +436,7 @@ UserSchema.statics = {
         return {
           success: true,
           message: "user does not exist, please crosscheck",
-          status: httpStatus.NOT_FOUND,
+          status: httpStatus.BAD_REQUEST,
           data: [],
         };
       }
@@ -492,7 +492,7 @@ UserSchema.statics = {
           success: true,
           message: "no users exist",
           data: [],
-          status: httpStatus.NOT_FOUND,
+          status: httpStatus.BAD_REQUEST,
         };
       }
     } catch (error) {

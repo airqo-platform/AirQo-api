@@ -459,6 +459,7 @@ eventSchema.statics = {
         tenant,
         network,
         device,
+        running,
         recent,
       } = filter;
       let search = filter;
@@ -506,6 +507,7 @@ eventSchema.statics = {
       delete search["device"];
       delete search["recent"];
       delete search["page"];
+      delete search["running"];
 
       /**
        * The Alternative Flows present in this Events entity:
@@ -567,9 +569,47 @@ eventSchema.statics = {
         projection[as] = 0;
       }
 
+      if (running === "yes") {
+        Object.assign(projection, {
+          average_pm2_5: 0,
+          pm2_5: 0,
+          average_pm10: 0,
+          pm10: 0,
+          frequency: 0,
+          network: 0,
+          location: 0,
+          altitude: 0,
+          speed: 0,
+          satellites: 0,
+          hdop: 0,
+          internalTemperature: 0,
+          externalTemperature: 0,
+          internalHumidity: 0,
+          externalHumidity: 0,
+          externalAltitude: 0,
+          pm1: 0,
+          no2: 0,
+          site: 0,
+          site_id: 0,
+          health_tips: 0,
+          s1_pm2_5: 0,
+          s2_pm2_5: 0,
+          s1_pm10: 0,
+          s2_pm10: 0,
+          battery: 0,
+          rtc_adc: 0,
+          rtc_v: 0,
+          rtc: 0,
+          stc_adc: 0,
+          stc_v: 0,
+          stc: 0,
+          siteDetails: 0,
+        });
+      }
+
       logObject("the query for this request", search);
       if (!recent || recent === "yes") {
-        let data = await this.aggregate()
+        const data = await this.aggregate()
           .unwind("values")
           .match(search)
           .replaceRoot("values")
@@ -585,6 +625,27 @@ eventSchema.statics = {
             foreignField,
             as,
           })
+          .lookup({
+            from: "healthtips",
+            let: { pollutantValue: { $toInt: "$pm2_5.value" } },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      {
+                        $lte: ["$aqi_category.min", "$$pollutantValue"],
+                      },
+                      {
+                        $gte: ["$aqi_category.max", "$$pollutantValue"],
+                      },
+                    ],
+                  },
+                },
+              },
+            ],
+            as: "healthTips",
+          })
           .sort({ time: -1 })
           .group({
             _id: "$device",
@@ -592,6 +653,7 @@ eventSchema.statics = {
             device_id: { $first: "$device_id" },
             image: { $first: { $arrayElemAt: ["$images", 0] } },
             device_number: { $first: "$device_number" },
+            health_tips: { $first: "$healthTips" },
             site: { $first: "$site" },
             site_id: { $first: "$site_id" },
             time: { $first: "$time" },
@@ -638,6 +700,11 @@ eventSchema.statics = {
               "image._id": 0,
               "image.tags": 0,
               "image.image_code": 0,
+              "health_tips.aqi_category": 0,
+              "health_tips.value": 0,
+              "health_tips.createdAt": 0,
+              "health_tips.updatedAt": 0,
+              "health_tips.__v": 0,
             },
           })
           .facet({
