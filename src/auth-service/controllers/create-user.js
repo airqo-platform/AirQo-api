@@ -1,13 +1,13 @@
 const httpStatus = require("http-status");
-const { logElement, logText, logObject } = require("../utils/log");
-const { tryCatchErrors, missingQueryParams } = require("../utils/errors");
-const createUserUtil = require("../utils/create-user");
-const generateFilter = require("../utils/generate-filter");
+const { logElement, logText, logObject } = require("@utils/log");
+const { tryCatchErrors, missingQueryParams } = require("@utils/errors");
+const createUserUtil = require("@utils/create-user");
+const generateFilter = require("@utils/generate-filter");
 const { validationResult } = require("express-validator");
-const { badRequest, convertErrorArrayToObject } = require("../utils/errors");
+const { badRequest, convertErrorArrayToObject } = require("@utils/errors");
 const isEmpty = require("is-empty");
-const controlAccessUtil = require("../utils/control-access");
-const constants = require("../config/constants");
+const controlAccessUtil = require("@utils/control-access");
+const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-user-controller`
@@ -217,12 +217,15 @@ const createUser = {
       const { email, phoneNumber, uid, providerId, providerUid } = req.body;
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
+        logObject("hasErrors", hasErrors);
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+
         logger.error(
           `input validation errors ${JSON.stringify(
             convertErrorArrayToObject(nestedErrors)
           )}`
         );
+
         return badRequest(
           res,
           "User does not exist",
@@ -962,63 +965,46 @@ const createUser = {
         );
       }
       let { tenant } = req.query;
+      const { body } = req;
 
       if (isEmpty(tenant)) {
         tenant = constants.DEFAULT_TENANT;
       }
-      const { password, resetPasswordToken } = req.body;
-      let responseFromFilter = generateFilter.users(req);
-      // logObject("responseFromFilter", responseFromFilter);
-      if (responseFromFilter.success === true) {
-        let update = {
-          password,
-          resetPasswordToken,
-        };
-        let filter = responseFromFilter.data;
-        // logObject("the filter in controller", filter);
-        // logObject("the update in controller", update);
-        let responseFromUpdateForgottenPassword =
-          await createUserUtil.updateForgottenPassword(tenant, filter, update);
-        logObject(
-          "responseFromUpdateForgottenPassword",
-          responseFromUpdateForgottenPassword
-        );
-        if (responseFromUpdateForgottenPassword.success === true) {
-          return res.status(httpStatus.OK).json({
-            success: true,
-            message: responseFromUpdateForgottenPassword.message,
-            user: responseFromUpdateForgottenPassword.data,
-          });
-        } else if (responseFromUpdateForgottenPassword.success === false) {
-          if (responseFromUpdateForgottenPassword.error) {
-            res.status(httpStatus.BAD_GATEWAY).json({
-              success: false,
-              message: responseFromUpdateForgottenPassword.message,
-              error: responseFromUpdateForgottenPassword.error,
-            });
-          } else {
-            res.status(httpStatus.BAD_GATEWAY).json({
-              success: false,
-              message: responseFromUpdateForgottenPassword.message,
-            });
-          }
-        }
-      } else if (responseFromFilter.success === false) {
-        if (responseFromFilter.error) {
-          res.status(httpStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromFilter.message,
-            error: responseFromFilter.error,
-          });
-        } else {
-          res.status(httpStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromFilter.message,
-          });
-        }
+
+      let request = {};
+      request["body"] = body;
+      request["tenant"] = tenant;
+      const responseFromUpdateForgottenPassword =
+        await createUserUtil.updateForgottenPassword(request);
+
+      if (responseFromUpdateForgottenPassword.success === true) {
+        const status = responseFromUpdateForgottenPassword.status
+          ? responseFromUpdateForgottenPassword.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: "successfully updated the password",
+          user: responseFromUpdateForgottenPassword.data,
+        });
+      } else if (responseFromUpdateForgottenPassword.success === false) {
+        const status = responseFromUpdateForgottenPassword.status
+          ? responseFromUpdateForgottenPassword.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+
+        res.status(status).json({
+          success: false,
+          message: responseFromUpdateForgottenPassword.message,
+          errors: responseFromUpdateForgottenPassword.errors
+            ? responseFromUpdateForgottenPassword.errors
+            : { message: "Internal Server Error" },
+        });
       }
     } catch (error) {
-      tryCatchErrors(res, error, "createUser controller");
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
     }
   },
 

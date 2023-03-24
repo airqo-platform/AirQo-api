@@ -52,15 +52,73 @@ try {
 }
 
 
-
 /****
  * pass the app instance to the middleware configuration
  */
 try {
     middlewareConfig(app);
 } catch (e) {
-    console.log("middleware error", e.message);
+    logElement("middleware error", e.message)
 }
+
+
+const consumer = kafka.consumer({ groupId: constants.UNIQUE_CONSUMER_GROUP });
+
+// Function to start consuming messages
+const run = async() => {
+    await consumer.connect();
+    await consumer.subscribe({ topic: constants.NEW_MOBILE_APP_USER_TOPIC, fromBeginning: true });
+    await consumer.run({
+        eachMessage: async({ topic, partition, message }) => {
+            logger.info(
+                `KAFKA: successfully received the new User --- ${JSON.stringify({
+                    value: message.value.toString(),
+                })}`
+            );
+            logObject("message.value.toString()", message.value.toString())
+
+            /**
+             * We might need to "clean" the JSON from here
+             */
+
+            const repairedJSONString = jsonrepair(message.value.toString())
+            logObject("message.value", JSON.parse(repairedJSONString))
+
+            let emailDetailsToSend = JSON.parse(repairedJSONString)
+            emailDetailsToSend.message = emailTemplates.mobileAppWelcome();
+            emailDetailsToSend.subject = "Welcome to AirQo!"
+
+            const options = {
+                abortEarly: false,
+            };
+
+            const { error, value } = userSchema.validate(emailDetailsToSend, options);
+
+            if (error) {
+                logObject("error.details[0].message", error.details[0].message)
+                logObject("error.details[0]", error.details[0])
+                logObject("error.details", error.details)
+                logger.error(
+                    `KAFKA: ALL the input validation errors --- ${JSON.stringify(error.details)}`
+                );
+            } else {
+                const responseFromSendEmail = await mailer.newMobileAppUser(emailDetailsToSend);
+
+                if (responseFromSendEmail.success === true) {
+                    logger.info(
+                        `KAFKA: successfully received the new Mobile App User --- ${JSON.stringify(responseFromSendEmail)}`
+                    );
+                } else if (responseFromSendEmail.success === false) {
+                    logger.error(
+                        `KAFKA: unable to send email for new Mobile App User --- ${JSON.stringify(responseFromSendEmail)}`
+                    );
+                }
+
+            }
+
+        },
+    });
+};
 
 /**
  * Get port from environment and store in Express.
@@ -79,7 +137,13 @@ var server = http.createServer(app);
  * Listen on provided port, on all network interfaces.
  */
 
-server.listen(port);
+server.listen(port, function() {
+
+    run().catch(error => {
+        logger.error(`KAFKA: internal server error -- ${JSON.stringify(error)}`);
+    });
+
+});
 server.on("error", onError);
 server.on("listening", onListening);
 
@@ -141,8 +205,8 @@ if (isEmpty(process.env.NODE_ENV)) {
 }
 
 function onListening() {
-    console.log(`server is running on port: ${constants.PORT} ---
-    Running on ${ENV}`);
+    logText(`server is running on port: ${constants.PORT}`)
+    console.log(`The server is running on the ${ENV} environment`)
     var addr = server.address();
     var bind = typeof addr === "string" ? "pipe " + addr : "port " + addr.port;
     debug("Listening on " + bind);

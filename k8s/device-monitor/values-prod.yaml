@@ -4,11 +4,14 @@ app:
   namespace: production
   configmap: env-device-monitoring-production
 replicaCount: 3
-image:
-  repository: eu.gcr.io/airqo-250220/airqo-device-monitor-api
+images:
+  repositories:
+    deviceMonitor: eu.gcr.io/airqo-250220/airqo-device-monitor-api
+    celeryBeat: eu.gcr.io/airqo-250220/airqo-device-monitor-celery-beat
+    celeryWorker: eu.gcr.io/airqo-250220/airqo-device-monitor-celery-worker
   tag: prod-cafcca31-1678883897
-nameOverride: ''
-fullnameOverride: ''
+nameOverride: ""
+fullnameOverride: ""
 podAnnotations: {}
 resources:
   limits:

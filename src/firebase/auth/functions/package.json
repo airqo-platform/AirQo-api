@@ -14,11 +14,12 @@
   },
   "main": "index.js",
   "dependencies": {
-    "firebase-functions": "^3.14.1",
     "axios": "^0.24.0",
     "dotenv": "^10.0.0",
     "firebase": "^9.4.1",
-    "firebase-admin": "^10.0.0"
+    "firebase-admin": "^10.0.0",
+    "firebase-functions": "^3.14.1",
+    "kafkajs": "^1.16.0"
   },
   "devDependencies": {
     "eslint": "^7.6.0",
