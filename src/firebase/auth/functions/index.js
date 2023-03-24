@@ -52,13 +52,6 @@ async function sendWelcomeEmail(email) {
   return null;
 }
 
-exports.sendWelcomeEmail = functions.auth.user().onCreate((user) => {
-  if (user.email !== null) {
-    const email = user.email;
-    return sendWelcomeEmail(email);
-  }
-});
-
 
 // kafka configuration
 const kafka = new Kafka({
@@ -147,6 +140,13 @@ async function checkIfUserExists(data) {
     return false;
   }
 }
+
+exports.sendWelcomeEmail = functions.auth.user().onCreate((user) => {
+  if (user.email !== null) {
+    const email = user.email;
+    return sendWelcomeEmail(email);
+  }
+});
 
 exports.onUserSignUp = functions.auth.user().onCreate(async (user) => {
   if (user.email !== null) {
