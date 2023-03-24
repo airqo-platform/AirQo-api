@@ -689,24 +689,24 @@ eventSchema.statics = {
             [as]: elementAtIndex0,
           })
           .project({
-            ...projection,
-            ...{
-              "image.createdAt": 0,
-              "image.updatedAt": 0,
-              "image.metadata": 0,
-              "image.__v": 0,
-              "image.device_name": 0,
-              "image.device_id": 0,
-              "image._id": 0,
-              "image.tags": 0,
-              "image.image_code": 0,
-              "health_tips.aqi_category": 0,
-              "health_tips.value": 0,
-              "health_tips.createdAt": 0,
-              "health_tips.updatedAt": 0,
-              "health_tips.__v": 0,
-            },
+            "health_tips.aqi_category": 0,
+            "health_tips.value": 0,
+            "health_tips.createdAt": 0,
+            "health_tips.updatedAt": 0,
+            "health_tips.__v": 0,
           })
+          .project({
+            "image.createdAt": 0,
+            "image.updatedAt": 0,
+            "image.metadata": 0,
+            "image.__v": 0,
+            "image.device_name": 0,
+            "image.device_id": 0,
+            "image._id": 0,
+            "image.tags": 0,
+            "image.image_code": 0,
+          })
+          .project(projection)
           .facet({
             total: [{ $count: "device" }],
             data: [{ $addFields: { device: "$device" } }],
