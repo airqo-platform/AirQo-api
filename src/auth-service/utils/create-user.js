@@ -5,6 +5,8 @@ const { getModelByTenant } = require("./multitenancy");
 const { logObject, logElement, logText } = require("./log");
 const mailer = require("./mailer");
 const bcrypt = require("bcrypt");
+const mongoose = require("mongoose").set("debug", true);
+const ObjectId = mongoose.Types.ObjectId;
 const crypto = require("crypto");
 const isEmpty = require("is-empty");
 const { getAuth, sendSignInLinkToEmail } = require("firebase-admin/auth");
@@ -15,6 +17,7 @@ const mailchimp = require("../config/mailchimp");
 const md5 = require("md5");
 const accessCodeGenerator = require("generate-password");
 const generateFilter = require("./generate-filter");
+const moment = require("moment-timezone");
 
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- join-util`);
@@ -96,24 +99,31 @@ const join = {
       let filter = {};
       const { query, body } = request;
       let update = body;
-      delete update.password;
-      delete update._id;
+
+      if (!isEmpty(update.password)) {
+        delete update.password;
+      }
+      if (!isEmpty(update._id)) {
+        delete update._id;
+      }
+
       const { tenant } = query;
 
       const responseFromGenerateFilter = generateFilter.users(request);
-      logObject("responseFromGenerateFilter", responseFromGenerateFilter);
 
       if (responseFromGenerateFilter.success === true) {
         filter = responseFromGenerateFilter.data;
       } else if (responseFromGenerateFilter.success === false) {
         return responseFromGenerateFilter;
       }
-      let responseFromModifyUser = await UserModel(tenant.toLowerCase()).modify(
-        {
-          filter,
-          update,
-        }
-      );
+
+      const responseFromModifyUser = await UserModel(
+        tenant.toLowerCase()
+      ).modify({
+        filter,
+        update,
+      });
+
       if (responseFromModifyUser.success === true) {
         const user = responseFromModifyUser.data;
         const responseFromSendEmail = await mailer.update(
@@ -135,7 +145,6 @@ const join = {
         return responseFromModifyUser;
       }
     } catch (e) {
-      logElement("update users util", e);
       return {
         success: false,
         message: "Internal Server Error",
@@ -648,37 +657,47 @@ const join = {
     }
   },
 
-  updateForgottenPassword: async (tenant, filter, update) => {
+  updateForgottenPassword: async (request) => {
     try {
-      const responseFromCheckTokenValidity = await join.isPasswordTokenValid(
-        tenant.toLowerCase(),
-        filter
-      );
+      const { tenant, body } = request;
+      const { resetPasswordToken } = body;
+      const timeZone = moment.tz.guess();
+      let filter = {
+        resetPasswordToken,
+        resetPasswordExpires: {
+          $gt: moment().tz(timeZone).toDate(),
+        },
+      };
+
+      logObject("isPasswordTokenValid FILTER", filter);
+      const responseFromCheckTokenValidity = await join.isPasswordTokenValid({
+        tenant,
+        filter,
+      });
+
       logObject(
         "responseFromCheckTokenValidity",
         responseFromCheckTokenValidity
       );
+
       if (responseFromCheckTokenValidity.success === true) {
-        const modifiedUpdate = {
-          ...update,
+        const update = {
           resetPasswordToken: null,
           resetPasswordExpires: null,
         };
-        const responseFromUpdateUser = await join.update(
-          tenant.toLowerCase(),
+        const userDetails = responseFromCheckTokenValidity.data;
+        filter = { _id: ObjectId(userDetails._id) };
+        logObject("updateForgottenPassword FILTER", filter);
+        const responseFromModifyUser = await UserModel(tenant).modify({
           filter,
-          modifiedUpdate
-        );
-        logObject(
-          "responseFromUpdateUser in update forgotten password",
-          responseFromUpdateUser
-        );
-        return responseFromUpdateUser;
+          update,
+        });
+        return responseFromModifyUser;
       } else if (responseFromCheckTokenValidity.success === false) {
         return responseFromCheckTokenValidity;
       }
     } catch (error) {
-      logElement("update forgotten password", error.message);
+      logObject("error updateForgottenPassword UTIL", error);
       return {
         success: false,
         message: "util server error",
@@ -803,14 +822,17 @@ const join = {
     }
   },
 
-  isPasswordTokenValid: async (tenant, filter) => {
+  isPasswordTokenValid: async ({ tenant = "airqo", filter = {} } = {}) => {
     try {
       const responseFromListUser = await UserModel(tenant.toLowerCase()).list({
         filter,
       });
       logObject("responseFromListUser", responseFromListUser);
       if (responseFromListUser.success === true) {
-        if (isEmpty(responseFromListUser.data)) {
+        if (
+          isEmpty(responseFromListUser.data) ||
+          responseFromListUser.data.length > 1
+        ) {
           return {
             status: httpStatus.BAD_REQUEST,
             success: false,
@@ -819,8 +841,13 @@ const join = {
               message: "password reset link is invalid or has expired",
             },
           };
-        } else {
-          return responseFromListUser;
+        } else if (responseFromListUser.data.length === 1) {
+          return {
+            success: true,
+            message: "password reset link is valid",
+            status: httpStatus.OK,
+            data: responseFromListUser.data[0],
+          };
         }
       } else if (responseFromListUser.success === false) {
         return responseFromListUser;

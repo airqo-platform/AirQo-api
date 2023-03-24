@@ -1,13 +1,13 @@
 const httpStatus = require("http-status");
-const { logElement, logText, logObject } = require("../utils/log");
-const { tryCatchErrors, missingQueryParams } = require("../utils/errors");
-const createUserUtil = require("../utils/create-user");
-const generateFilter = require("../utils/generate-filter");
+const { logElement, logText, logObject } = require("@utils/log");
+const { tryCatchErrors, missingQueryParams } = require("@utils/errors");
+const createUserUtil = require("@utils/create-user");
+const generateFilter = require("@utils/generate-filter");
 const { validationResult } = require("express-validator");
-const { badRequest, convertErrorArrayToObject } = require("../utils/errors");
+const { badRequest, convertErrorArrayToObject } = require("@utils/errors");
 const isEmpty = require("is-empty");
-const controlAccessUtil = require("../utils/control-access");
-const constants = require("../config/constants");
+const controlAccessUtil = require("@utils/control-access");
+const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-user-controller`
@@ -44,7 +44,8 @@ const createUser = {
       if (responseFromFilter.success === true) {
         let filter = responseFromFilter.data;
         logObject("Zi filter", filter);
-        let responseFromListUsers = await createUserUtil.list(
+
+        const responseFromListUsers = await createUserUtil.list(
           tenant,
           filter,
           limit,
@@ -884,41 +885,26 @@ const createUser = {
           convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { tenant } = req.query;
+      let { tenant } = req.query;
+      const { body } = req;
 
       if (isEmpty(tenant)) {
         tenant = constants.DEFAULT_TENANT;
       }
-      const { password, resetPasswordToken } = req.body;
-      const responseFromFilter = generateFilter.users(req);
-      // logObject("responseFromFilter", responseFromFilter);
-      let filter = {};
-      if (responseFromFilter.success === true) {
-        filter = responseFromFilter.data;
-      } else if (responseFromFilter.success === false) {
-        return responseFromFilter;
-      }
 
-      const update = {
-        password,
-        resetPasswordToken,
-      };
-
-      // logObject("the filter in controller", filter);
-      // logObject("the update in controller", update);
+      let request = {};
+      request["body"] = body;
+      request["tenant"] = tenant;
       const responseFromUpdateForgottenPassword =
-        await createUserUtil.updateForgottenPassword(tenant, filter, update);
-      logObject(
-        "responseFromUpdateForgottenPassword",
-        responseFromUpdateForgottenPassword
-      );
+        await createUserUtil.updateForgottenPassword(request);
+
       if (responseFromUpdateForgottenPassword.success === true) {
         const status = responseFromUpdateForgottenPassword.status
           ? responseFromUpdateForgottenPassword.status
           : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromUpdateForgottenPassword.message,
+          message: "successfully updated the password",
           user: responseFromUpdateForgottenPassword.data,
         });
       } else if (responseFromUpdateForgottenPassword.success === false) {
@@ -936,6 +922,7 @@ const createUser = {
       }
     } catch (error) {
       res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
       });
