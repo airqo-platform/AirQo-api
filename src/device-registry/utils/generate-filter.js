@@ -239,6 +239,7 @@ const generateFilter = {
         recent,
         page,
         network,
+        running,
       } = query;
 
       let oneMonthBack = monthsInfront(-1);
@@ -285,6 +286,10 @@ const generateFilter = {
           delete filter["values.time"];
         }
         filter["day"]["$gte"] = generateDateFormatWithoutHrs(startTime);
+      }
+
+      if (running) {
+        filter["running"] = running;
       }
 
       if (endTime) {

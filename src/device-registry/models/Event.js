@@ -459,6 +459,7 @@ eventSchema.statics = {
         tenant,
         network,
         device,
+        running,
         recent,
       } = filter;
       let search = filter;
@@ -506,6 +507,7 @@ eventSchema.statics = {
       delete search["device"];
       delete search["recent"];
       delete search["page"];
+      delete search["running"];
 
       if (tenant !== "airqo") {
         pm2_5 = "$pm2_5";
@@ -559,6 +561,44 @@ eventSchema.statics = {
         projection["stc_v"] = 0;
         projection["stc"] = 0;
         projection[as] = 0;
+      }
+
+      if (running === "yes") {
+        Object.assign(projection, {
+          average_pm2_5: 0,
+          pm2_5: 0,
+          average_pm10: 0,
+          pm10: 0,
+          frequency: 0,
+          network: 0,
+          location: 0,
+          altitude: 0,
+          speed: 0,
+          satellites: 0,
+          hdop: 0,
+          internalTemperature: 0,
+          externalTemperature: 0,
+          internalHumidity: 0,
+          externalHumidity: 0,
+          externalAltitude: 0,
+          pm1: 0,
+          no2: 0,
+          site: 0,
+          site_id: 0,
+          health_tips: 0,
+          s1_pm2_5: 0,
+          s2_pm2_5: 0,
+          s1_pm10: 0,
+          s2_pm10: 0,
+          battery: 0,
+          rtc_adc: 0,
+          rtc_v: 0,
+          rtc: 0,
+          stc_adc: 0,
+          stc_v: 0,
+          stc: 0,
+          siteDetails: 0,
+        });
       }
 
       logObject("the query for this request", search);
