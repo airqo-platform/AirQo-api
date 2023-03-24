@@ -21,7 +21,7 @@ const createUser = {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         logger.error(
           `input validation errors ${JSON.stringify(
-            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+            convertErrorArrayToObject(nestedErrors)
           )}`
         );
         return badRequest(
@@ -156,12 +156,15 @@ const createUser = {
       const { email, phoneNumber, uid, providerId, providerUid } = req.body;
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
+        logObject("hasErrors", hasErrors);
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+
         logger.error(
           `input validation errors ${JSON.stringify(
-            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+            convertErrorArrayToObject(nestedErrors)
           )}`
         );
+
         return badRequest(
           res,
           "User does not exist",
@@ -235,7 +238,7 @@ const createUser = {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         logger.error(
           `input validation errors ${JSON.stringify(
-            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+            convertErrorArrayToObject(nestedErrors)
           )}`
         );
         return badRequest(
@@ -293,7 +296,7 @@ const createUser = {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         logger.error(
           `input validation errors ${JSON.stringify(
-            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+            convertErrorArrayToObject(nestedErrors)
           )}`
         );
         return badRequest(
@@ -368,7 +371,7 @@ const createUser = {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         logger.error(
           `input validation errors ${JSON.stringify(
-            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+            convertErrorArrayToObject(nestedErrors)
           )}`
         );
         return badRequest(
@@ -497,7 +500,7 @@ const createUser = {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         logger.error(
           `input validation errors ${JSON.stringify(
-            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+            convertErrorArrayToObject(nestedErrors)
           )}`
         );
         return badRequest(
@@ -570,7 +573,7 @@ const createUser = {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         logger.error(
           `input validation errors ${JSON.stringify(
-            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+            convertErrorArrayToObject(nestedErrors)
           )}`
         );
         return badRequest(
@@ -609,7 +612,7 @@ const createUser = {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         logger.error(
           `input validation errors ${JSON.stringify(
-            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+            convertErrorArrayToObject(nestedErrors)
           )}`
         );
         return badRequest(
@@ -719,7 +722,7 @@ const createUser = {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         logger.error(
           `input validation errors ${JSON.stringify(
-            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+            convertErrorArrayToObject(nestedErrors)
           )}`
         );
         return badRequest(
@@ -762,7 +765,7 @@ const createUser = {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         logger.error(
           `input validation errors ${JSON.stringify(
-            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+            convertErrorArrayToObject(nestedErrors)
           )}`
         );
         return badRequest(
@@ -819,7 +822,7 @@ const createUser = {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         logger.error(
           `input validation errors ${JSON.stringify(
-            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+            convertErrorArrayToObject(nestedErrors)
           )}`
         );
         return badRequest(
@@ -876,7 +879,7 @@ const createUser = {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         logger.error(
           `input validation errors ${JSON.stringify(
-            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+            convertErrorArrayToObject(nestedErrors)
           )}`
         );
         return badRequest(
@@ -937,7 +940,7 @@ const createUser = {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         logger.error(
           `input validation errors ${JSON.stringify(
-            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+            convertErrorArrayToObject(nestedErrors)
           )}`
         );
         return badRequest(
@@ -1009,7 +1012,7 @@ const createUser = {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         logger.error(
           `input validation errors ${JSON.stringify(
-            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+            convertErrorArrayToObject(nestedErrors)
           )}`
         );
         return badRequest(
