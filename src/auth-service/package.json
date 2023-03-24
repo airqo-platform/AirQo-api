@@ -77,6 +77,7 @@
         "tslib": "^2.4.0",
         "validator": "^11.1.0",
         "winston": "^3.8.2",
+        "winston-mongodb": "^5.1.1",
         "xoauth2": "^1.2.0"
     },
     "devDependencies": {
