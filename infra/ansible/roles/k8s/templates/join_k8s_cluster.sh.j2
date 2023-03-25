@@ -1,0 +1,3 @@
+#!/bin/bash
+{{ hostvars[groups['k8s_master'].0].join_command }} > node_joined.txt && \
+kubectl label nodes {{ ansible_hostname }} node-type=compute --kubeconfig=/etc/kubernetes/kubelet.conf

@@ -15,6 +15,7 @@ const mailer = require("@utils/mailer");
 const generateFilter = require("@utils/generate-filter");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
+const moment = require("moment-timezone");
 
 const log4js = require("log4js");
 const logger = log4js.getLogger(
@@ -121,10 +122,13 @@ const controlAccess = {
       const { user_id, token } = params;
       const limit = parseInt(request.query.limit, 0);
       const skip = parseInt(request.query.skip, 0);
-
+      const timeZone = moment.tz.guess();
       let filter = {
         token,
         user_id,
+        expires: {
+          $gt: moment().tz(timeZone).toDate(),
+        },
       };
 
       // expires: { $gt: new Date().toISOString() },
@@ -337,9 +341,9 @@ const controlAccess = {
       if (responseFromListAccessToken.success === true) {
         if (responseFromListAccessToken.status === httpStatus.NOT_FOUND) {
           let newResponse = Object.assign({}, responseFromListAccessToken);
-          newResponse.message = "invalid token";
-          newResponse.status = httpStatus.BAD_REQUEST;
-          newResponse.errors = { message: "invalid token" };
+          newResponse.message = "Unauthorized";
+          newResponse.status = httpStatus.UNAUTHORIZED;
+          newResponse.errors = { message: "Unauthorized" };
           return newResponse;
         } else if (responseFromListAccessToken.status === httpStatus.OK) {
           let newResponse = Object.assign({}, responseFromListAccessToken);

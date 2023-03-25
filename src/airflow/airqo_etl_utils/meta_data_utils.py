@@ -35,7 +35,7 @@ class MetaDataUtils:
 
     @staticmethod
     def extract_airqlouds_from_api(tenant: Tenant = Tenant.ALL) -> pd.DataFrame:
-        airqlouds = AirQoApi().get_airqlouds_temp(tenant=tenant)
+        airqlouds = AirQoApi().get_airqlouds(tenant=tenant)
         airqlouds = [
             {**airqloud, **{"sites": ",".join(map(str, airqloud.get("sites", [""])))}}
             for airqloud in airqlouds
@@ -63,7 +63,6 @@ class MetaDataUtils:
 
     @staticmethod
     def extract_sites_from_api(tenant: Tenant = Tenant.ALL) -> pd.DataFrame:
-
         sites = AirQoApi().get_sites(tenant=tenant)
         dataframe = pd.json_normalize(sites)
         dataframe = dataframe[
@@ -100,7 +99,6 @@ class MetaDataUtils:
 
     @staticmethod
     def extract_sites_meta_data_from_api(tenant: Tenant = Tenant.ALL) -> pd.DataFrame:
-
         sites = AirQoApi().get_sites(tenant=tenant)
         dataframe = pd.json_normalize(sites)
         big_query_api = BigQueryApi()

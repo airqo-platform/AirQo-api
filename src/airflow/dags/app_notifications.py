@@ -24,7 +24,6 @@ def monday_morning_notifications():
 
     @task()
     def create_notifications(data):
-
         from airqo_etl_utils.app_notification_utils import (
             create_notification_messages,
             get_notification_templates,
@@ -67,7 +66,6 @@ def friday_evening_notifications():
 
     @task()
     def create_notifications(data):
-
         from airqo_etl_utils.app_notification_utils import (
             create_notification_messages,
             get_notification_templates,
@@ -111,7 +109,6 @@ def morning_notifications():
 
     @task()
     def create_notifications(data):
-
         from airqo_etl_utils.app_notification_utils import (
             create_notification_messages,
             get_notification_templates,
@@ -157,7 +154,6 @@ def evening_notifications():
 
     @task()
     def create_notifications(data):
-
         from airqo_etl_utils.app_notification_utils import (
             create_notification_messages,
             get_notification_templates,

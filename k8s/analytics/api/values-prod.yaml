@@ -1,52 +1,36 @@
-# Default values for airqo-analytics-api.
-# This is a YAML-formatted file.
-# Declare variables to be passed into your templates.
-
 replicaCount: 3
-
 image:
   repository: eu.gcr.io/airqo-250220/airqo-analytics-api
-  tag: latest
-
-nameOverride: ""
-fullnameOverride: ""
-
+  tag: prod-67eadff4-1679580630
+nameOverride: ''
+fullnameOverride: ''
 podAnnotations: {}
-
 resources:
   limits:
     cpu: 100m
     memory: 400Mi
   requests:
-    # Average usage was 0.001 vCPU and 250Mi over the last 30 days
     cpu: 10m
     memory: 250Mi
-
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config
-
 volumes:
   - name: config-volume
     configMap:
       name: prod-analytics-config-files
-
 service:
   type: NodePort
   port: 5000
   protocol: TCP
   targetPort: 5000
   nodePort: 30003
-
 ingress:
   enabled: false
-
 autoscaling:
   minReplicas: 1
   maxReplicas: 3
-  # targetCPUUtilizationPercentage: 70
   targetMemoryUtilizationPercentage: 70
-
 app:
   name: airqo-analytics-api
   label: analytics-api

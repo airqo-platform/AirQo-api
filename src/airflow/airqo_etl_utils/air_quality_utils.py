@@ -7,7 +7,6 @@ from .utils import Utils
 class AirQualityUtils:
     @staticmethod
     def add_categorisation(data: pd.DataFrame) -> pd.DataFrame:
-
         if "pm2_5" in list(data.columns):
             data["pm2_5_category"] = data["pm2_5"].apply(
                 lambda x: Utils.epa_pollutant_category(

@@ -23,11 +23,14 @@ class Config:
     CACHE_DEFAULT_TIMEOUT = THIRTY_MINUTES
     CACHE_KEY_PREFIX = 'device-monitoring'
     CACHE_REDIS_URL = os.getenv('REDIS_URL_PROD')
+    REDIS_URL = os.getenv('REDIS_URL')
 
     SECRET_KEY = os.getenv("SECRET_KEY")
 
     DB_NAME = os.getenv("DB_NAME_PROD")
     MONGO_URI = os.getenv('MONGO_GCE_URI')
+
+    BIGQUERY_RAW_DATA = os.getenv("BIGQUERY_RAW_DATA")
 
 
 class ProductionConfig(Config):

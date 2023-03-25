@@ -5,6 +5,8 @@ const { getModelByTenant } = require("./multitenancy");
 const { logObject, logElement, logText } = require("./log");
 const mailer = require("./mailer");
 const bcrypt = require("bcrypt");
+const mongoose = require("mongoose").set("debug", true);
+const ObjectId = mongoose.Types.ObjectId;
 const crypto = require("crypto");
 const isEmpty = require("is-empty");
 const { getAuth, sendSignInLinkToEmail } = require("firebase-admin/auth");
@@ -15,6 +17,7 @@ const mailchimp = require("../config/mailchimp");
 const md5 = require("md5");
 const accessCodeGenerator = require("generate-password");
 const generateFilter = require("./generate-filter");
+const moment = require("moment-timezone");
 
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- join-util`);
@@ -96,35 +99,34 @@ const join = {
       let filter = {};
       const { query, body } = request;
       let update = body;
-      delete update.password;
-      delete update._id;
+
+      if (!isEmpty(update.password)) {
+        delete update.password;
+      }
+      if (!isEmpty(update._id)) {
+        delete update._id;
+      }
+
       const { tenant } = query;
 
       const responseFromGenerateFilter = generateFilter.users(request);
-      logObject("responseFromGenerateFilter", responseFromGenerateFilter);
 
       if (responseFromGenerateFilter.success === true) {
         filter = responseFromGenerateFilter.data;
       } else if (responseFromGenerateFilter.success === false) {
-        return {
-          status: responseFromGenerateFilter.status
-            ? responseFromGenerateFilter.status
-            : "",
-          error: responseFromGenerateFilter.error
-            ? responseFromGenerateFilter.error
-            : "",
-          message: responseFromGenerateFilter.message,
-        };
+        return responseFromGenerateFilter;
       }
-      let responseFromModifyUser = await UserModel(tenant.toLowerCase()).modify(
-        {
-          filter,
-          update,
-        }
-      );
+
+      const responseFromModifyUser = await UserModel(
+        tenant.toLowerCase()
+      ).modify({
+        filter,
+        update,
+      });
+
       if (responseFromModifyUser.success === true) {
-        let user = responseFromModifyUser.data;
-        let responseFromSendEmail = await mailer.update(
+        const user = responseFromModifyUser.data;
+        const responseFromSendEmail = await mailer.update(
           user.email,
           user.firstName,
           user.lastName
@@ -137,30 +139,16 @@ const join = {
             data: responseFromModifyUser.data,
           };
         } else if (responseFromSendEmail.success === false) {
-          const error = responseFromSendEmail.error
-            ? responseFromSendEmail.error
-            : "";
-          return {
-            success: false,
-            message: responseFromSendEmail.message,
-            error,
-          };
+          return responseFromSendEmail;
         }
       } else if (responseFromModifyUser.success === false) {
-        return {
-          success: false,
-          message: responseFromModifyUser.message,
-          error: responseFromModifyUser.error
-            ? responseFromModifyUser.error
-            : "",
-        };
+        return responseFromModifyUser;
       }
     } catch (e) {
-      logElement("update users util", e.message);
       return {
         success: false,
-        message: "util server error",
-        error: e.message,
+        message: "Internal Server Error",
+        errors: { message: e.message },
       };
     }
   },
@@ -187,7 +175,7 @@ const join = {
               success: true,
               message: "Successfully fetched user data",
               status: httpStatus.OK,
-              data:[],
+              data: [],
             });
           });
 
@@ -272,14 +260,12 @@ const join = {
                 emailLinkCode,
               },
             });
-          }
-
-          if (responseFromSendEmail.success === false) {
+          } else if (responseFromSendEmail.success === false) {
             callback({
               success: false,
               message: "email sending process unsuccessful",
               errors: responseFromSendEmail.errors,
-              status: httpStatus.BAD_GATEWAY,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
             });
           }
         })
@@ -371,7 +357,7 @@ const join = {
 
   sendFeedback: async ({ email, message, subject }) => {
     try {
-      let responseFromSendEmail = await mailer.feedback({
+      const responseFromSendEmail = await mailer.feedback({
         email,
         message,
         subject,
@@ -385,18 +371,7 @@ const join = {
           message: "email successfully sent",
         };
       } else if (responseFromSendEmail.success === false) {
-        let status = responseFromSendEmail.status
-          ? responseFromSendEmail.status
-          : "";
-        let errors = responseFromSendEmail.errors
-          ? responseFromSendEmail.errors
-          : "";
-        return {
-          success: false,
-          message: responseFromSendEmail.message,
-          errors,
-          status,
-        };
+        return responseFromSendEmail;
       }
     } catch (error) {
       return {
@@ -471,7 +446,7 @@ const join = {
           logObject("created user in util", createdUser._doc);
           const user_id = createdUser._doc._id;
 
-          let responseFromSendEmail = await mailer.verifyEmail({
+          const responseFromSendEmail = await mailer.verifyEmail({
             user_id,
             token,
             email,
@@ -489,40 +464,13 @@ const join = {
                 : "",
             };
           } else if (responseFromSendEmail.success === false) {
-            return {
-              success: false,
-              message: responseFromSendEmail.message,
-              errors: responseFromSendEmail.errors
-                ? responseFromSendEmail.errors
-                : "",
-              status: responseFromSendEmail.status
-                ? responseFromSendEmail.status
-                : "",
-            };
+            return responseFromSendEmail;
           }
         } else if (responseFromSaveToken.success === false) {
-          return {
-            success: false,
-            message: responseFromSaveToken.message,
-            status: responseFromSaveToken.status
-              ? responseFromSaveToken.status
-              : "",
-            errors: responseFromSaveToken.errors
-              ? responseFromSaveToken.errors
-              : "",
-          };
+          return responseFromSaveToken;
         }
       } else if (responseFromCreateUser.success === false) {
-        return {
-          success: false,
-          message: responseFromCreateUser.message,
-          errors: responseFromCreateUser.error
-            ? responseFromCreateUser.error
-            : "",
-          status: responseFromCreateUser.status
-            ? responseFromCreateUser.status
-            : "",
-        };
+        return responseFromCreateUser;
       }
     } catch (e) {
       logObject("e", e);
@@ -571,7 +519,7 @@ const join = {
       if (responseFromCreateUser.success === true) {
         const createdUser = await responseFromCreateUser.data;
         logObject("created user in util", createdUser._doc);
-        let responseFromSendEmail = await mailer.user(
+        const responseFromSendEmail = await mailer.user(
           firstName,
           lastName,
           email,
@@ -590,34 +538,17 @@ const join = {
               : "",
           };
         } else if (responseFromSendEmail.success === false) {
-          return {
-            success: false,
-            message: responseFromSendEmail.message,
-            error: responseFromSendEmail.error
-              ? responseFromSendEmail.error
-              : "",
-            status: responseFromSendEmail.status
-              ? responseFromSendEmail.status
-              : "",
-          };
+          return responseFromSendEmail;
         }
       } else if (responseFromCreateUser.success === false) {
-        return {
-          success: false,
-          message: responseFromCreateUser.message,
-          error: responseFromCreateUser.error
-            ? responseFromCreateUser.error
-            : "",
-          status: responseFromCreateUser.status
-            ? responseFromCreateUser.status
-            : "",
-        };
+        return responseFromCreateUser;
       }
     } catch (e) {
       return {
         success: false,
         message: "Internal Server Error",
         error: e.message,
+        errors: { message: e.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -674,26 +605,26 @@ const join = {
 
   forgotPassword: async (tenant, filter) => {
     try {
-      let responseFromGenerateResetToken = join.generateResetToken();
+      const responseFromGenerateResetToken = join.generateResetToken();
       logObject(
         "responseFromGenerateResetToken",
         responseFromGenerateResetToken
       );
       logObject("filter", filter);
       if (responseFromGenerateResetToken.success === true) {
-        let token = responseFromGenerateResetToken.data;
-        let update = {
+        const token = responseFromGenerateResetToken.data;
+        const update = {
           resetPasswordToken: token,
           resetPasswordExpires: Date.now() + 3600000,
         };
-        let responseFromModifyUser = await UserModel(
+        const responseFromModifyUser = await UserModel(
           tenant.toLowerCase()
         ).modify({
           filter,
           update,
         });
         if (responseFromModifyUser.success === true) {
-          let responseFromSendEmail = await mailer.forgot(
+          const responseFromSendEmail = await mailer.forgot(
             filter.email,
             token,
             tenant
@@ -703,126 +634,74 @@ const join = {
             return {
               success: true,
               message: "forgot email successfully sent",
+              status: httpStatus.OK,
             };
           } else if (responseFromSendEmail.success === false) {
-            if (responseFromSendEmail.error) {
-              return {
-                success: false,
-                error: responseFromSendEmail.error,
-                message: "unable to send the email request",
-              };
-            } else {
-              return {
-                success: false,
-                message: responseFromSendEmail.message,
-              };
-            }
+            return responseFromSendEmail;
           }
-        }
-
-        if (responseFromModifyUser.success === false) {
-          if (responseFromModifyUser.error) {
-            return {
-              success: false,
-              error: responseFromModifyUser.error,
-              message: responseFromModifyUser.message,
-            };
-          } else {
-            return {
-              success: false,
-              message: responseFromModifyUser.message,
-            };
-          }
+        } else if (responseFromModifyUser.success === false) {
+          return responseFromModifyUser;
         }
       } else if (responseFromGenerateResetToken.success === false) {
-        if (responseFromGenerateResetToken.error) {
-          return {
-            success: false,
-            error: responseFromGenerateResetToken.error,
-            message: responseFromGenerateResetToken.message,
-          };
-        } else {
-          return {
-            success: false,
-            message: responseFromGenerateResetToken.message,
-          };
-        }
+        return responseFromGenerateResetToken;
       }
     } catch (e) {
       logElement("forgot password util", e.message);
       return {
         success: false,
-        message: "util server error",
+        message: "Internal Server Error",
         error: e.message,
+        errors: { message: e.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
 
-  updateForgottenPassword: async (tenant, filter, update) => {
+  updateForgottenPassword: async (request) => {
     try {
-      let responseFromCheckTokenValidity = await join.isPasswordTokenValid(
-        tenant.toLowerCase(),
-        filter
-      );
+      const { tenant, body } = request;
+      const { resetPasswordToken } = body;
+      const timeZone = moment.tz.guess();
+      let filter = {
+        resetPasswordToken,
+        resetPasswordExpires: {
+          $gt: moment().tz(timeZone).toDate(),
+        },
+      };
+
+      logObject("isPasswordTokenValid FILTER", filter);
+      const responseFromCheckTokenValidity = await join.isPasswordTokenValid({
+        tenant,
+        filter,
+      });
+
       logObject(
         "responseFromCheckTokenValidity",
         responseFromCheckTokenValidity
       );
+
       if (responseFromCheckTokenValidity.success === true) {
-        let modifiedUpdate = {
-          ...update,
+        const update = {
           resetPasswordToken: null,
           resetPasswordExpires: null,
         };
-        let responseFromUpdateUser = await join.update(
-          tenant.toLowerCase(),
+        const userDetails = responseFromCheckTokenValidity.data;
+        filter = { _id: ObjectId(userDetails._id) };
+        logObject("updateForgottenPassword FILTER", filter);
+        const responseFromModifyUser = await UserModel(tenant).modify({
           filter,
-          modifiedUpdate
-        );
-        logObject(
-          "responseFromUpdateUser in update forgotten password",
-          responseFromUpdateUser
-        );
-        if (responseFromUpdateUser.success === true) {
-          return {
-            success: true,
-            message: responseFromUpdateUser.message,
-            data: responseFromUpdateUser.data,
-          };
-        } else if (responseFromUpdateUser === false) {
-          return {
-            success: false,
-            status: responseFromUpdateUser.status
-              ? responseFromUpdateUser.status
-              : "",
-            message: responseFromUpdateUser.message
-              ? responseFromUpdateUser.message
-              : "",
-            error: responseFromUpdateUser.error
-              ? responseFromUpdateUser.error
-              : "",
-          };
-        }
+          update,
+        });
+        return responseFromModifyUser;
       } else if (responseFromCheckTokenValidity.success === false) {
-        return {
-          success: false,
-          status: responseFromCheckTokenValidity.status
-            ? responseFromCheckTokenValidity.status
-            : "",
-          message: responseFromCheckTokenValidity.message
-            ? responseFromCheckTokenValidity.message
-            : "",
-          error: responseFromCheckTokenValidity.error
-            ? responseFromCheckTokenValidity.error
-            : "",
-        };
+        return responseFromCheckTokenValidity;
       }
     } catch (error) {
-      logElement("update forgotten password", error.message);
+      logObject("error updateForgottenPassword UTIL", error);
       return {
         success: false,
         message: "util server error",
-        error: error.message,
+        errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -943,45 +822,42 @@ const join = {
     }
   },
 
-  isPasswordTokenValid: async (tenant, filter) => {
+  isPasswordTokenValid: async ({ tenant = "airqo", filter = {} } = {}) => {
     try {
-      let responseFromListUser = await UserModel(tenant.toLowerCase()).list({
+      const responseFromListUser = await UserModel(tenant.toLowerCase()).list({
         filter,
       });
       logObject("responseFromListUser", responseFromListUser);
-      if (responseFromListUser.success == true) {
-        if (isEmpty(responseFromListUser.data)) {
+      if (responseFromListUser.success === true) {
+        if (
+          isEmpty(responseFromListUser.data) ||
+          responseFromListUser.data.length > 1
+        ) {
           return {
+            status: httpStatus.BAD_REQUEST,
             success: false,
             message: "password reset link is invalid or has expired",
+            errors: {
+              message: "password reset link is invalid or has expired",
+            },
           };
-        } else {
+        } else if (responseFromListUser.data.length === 1) {
           return {
             success: true,
-            message: responseFromListUser.message,
-            data: responseFromListUser.data,
+            message: "password reset link is valid",
+            status: httpStatus.OK,
+            data: responseFromListUser.data[0],
           };
         }
-      } else if (responseFromListUser.success == false) {
-        if (responseFromListUser.error) {
-          return {
-            success: false,
-            message: responseFromListUser.message,
-            error: responseFromListUser.error,
-          };
-        } else {
-          return {
-            success: false,
-            message: responseFromListUser.message,
-          };
-        }
+      } else if (responseFromListUser.success === false) {
+        return responseFromListUser;
       }
     } catch (error) {
-      logElement("is password token valid", error.message);
       return {
+        status: httpStatus.INTERNAL_SERVER_ERROR,
         success: false,
-        message: "util server error",
-        error: error.message,
+        message: "Internal Server Error",
+        errors: { message: error.message },
       };
     }
   },
@@ -1029,7 +905,7 @@ const join = {
       } else {
         return {
           success: false,
-          status: httpStatus.BAD_GATEWAY,
+          status: httpStatus.INTERNAL_SERVER_ERROR,
           message: "unable to subscribe user to the AirQo newsletter",
           errors: {
             message:

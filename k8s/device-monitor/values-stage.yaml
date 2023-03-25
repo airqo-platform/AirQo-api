@@ -3,39 +3,39 @@ app:
   label: device-monitor
   namespace: staging
   configmap: env-device-monitoring-staging
-
 replicaCount: 2
-
-image:
-  repository: eu.gcr.io/airqo-250220/airqo-stage-device-monitor-api
-  tag: latest
-
-nameOverride: ""
-fullnameOverride: ""
-
+images:
+  repositories:
+    deviceMonitor: eu.gcr.io/airqo-250220/airqo-stage-device-monitor-api
+    celeryBeat: eu.gcr.io/airqo-250220/airqo-stage-device-monitor-celery-beat
+    celeryWorker: eu.gcr.io/airqo-250220/airqo-stage-device-monitor-celery-worker
+  tag: stage-f8679d75-1679577164
+nameOverride: ''
+fullnameOverride: ''
 podAnnotations: {}
-
 resources:
   limits:
-    cpu: 50m
-    memory: 80Mi
+    cpu: 500m
+    memory: 800Mi
   requests:
-    # Average usage was 0.0001 vCPU and 35Mi over the last 30 days
     cpu: 5m
     memory: 40Mi
-
+volumeMounts:
+  - name: config-volume
+    mountPath: /etc/config
+volumes:
+  - name: config-volume
+    configMap:
+      name: device-monitor-config-files
 ingress:
   enabled: false
-
 service:
   type: NodePort
   port: 4001
   protocol: TCP
   targetPort: 4001
   nodePort: 31006
-
 autoscaling:
   minReplicas: 1
   maxReplicas: 2
-  # targetCPUUtilizationPercentage: 80
   targetMemoryUtilizationPercentage: 80
