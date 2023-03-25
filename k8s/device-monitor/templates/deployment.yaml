@@ -59,30 +59,6 @@ spec:
           {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-        - name: celery-beat
-          image: "{{ .Values.images.repositories.celeryBeat }}:{{ .Values.images.tag }}"
-          imagePullPolicy: IfNotPresent
-          envFrom:
-            - configMapRef:
-                name: {{ .Values.app.configmap }} 
-          {{- with .Values.volumeMounts }}
-          volumeMounts:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
-          resources:
-            {{- toYaml .Values.resources | nindent 12 }}
-        - name: celery-worker
-          image: "{{ .Values.images.repositories.celeryWorker }}:{{ .Values.images.tag }}"
-          imagePullPolicy: IfNotPresent
-          envFrom:
-            - configMapRef:
-                name: {{ .Values.app.configmap }} 
-          {{- with .Values.volumeMounts }}
-          volumeMounts:
-            {{- toYaml . | nindent 12 }}
-          {{- end }}
-          resources:
-            {{- toYaml .Values.resources | nindent 12 }}
       {{- with .Values.volumes }}
       volumes:
         {{- toYaml . | nindent 8 }}
