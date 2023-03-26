@@ -1,5 +1,6 @@
 const passport = require("passport");
 const LocalStrategy = require("passport-local");
+const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const httpStatus = require("http-status");
 const Validator = require("validator");
 const UserSchema = require("../models/User");
@@ -79,6 +80,14 @@ const jwtOpts = {
   secretOrKey: constants.JWT_SECRET,
 };
 
+/**
+ * using the strategies
+ * @param {*} tenant
+ * @param {*} req
+ * @param {*} res
+ * @param {*} next
+ * @returns
+ */
 const useLocalStrategy = (tenant, req, res, next) => {
   let localOptions = setLocalOptions(req);
   logObject("the localOptions", localOptions);
@@ -157,7 +166,42 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
       }
     }
   );
-
+const useGoogleStrategy = (tenant, req, res, next) =>
+  new GoogleStrategy(
+    {
+      clientID: constants.GOOGLE_CLIENT_ID,
+      clientSecret: constants.GOOGLE_CLIENT_SECRET,
+      callbackURL: `${constants.PLATFORM_BASE_URL}/users/auth/google/callback`,
+      passReqToCallback: true,
+    },
+    function (accessToken, refreshToken, profile, cb) {
+      req.auth = {};
+      UserModel(tenant.toLowerCase())
+        .findOneAndUpdate(
+          { google_id: profile.id },
+          {
+            google_id: profile.id,
+            firstName: profile.givenName,
+            lastName: profile.familyName,
+            profilePicture: profile.photos[0].value,
+            email: profile.emails[0].value,
+            userName: profile.displayName,
+          },
+          { upsert: true, new: true }
+        )
+        .then((user) => {
+          req.auth.success = true;
+          req.auth.message = "successful login or registration";
+          return cb(null, user);
+        })
+        .catch((error) => {
+          req.auth.success = false;
+          req.auth.message = "Server Error";
+          req.auth.error = error.message;
+          next();
+        });
+    }
+  );
 const useJWTStrategy = (tenant, req, res, next) =>
   new JwtStrategy(jwtOpts, async (payload, done) => {
     try {
@@ -172,7 +216,6 @@ const useJWTStrategy = (tenant, req, res, next) =>
       return done(e, false);
     }
   });
-
 const useAuthTokenStrategy = (tenant, req, res, next) =>
   new AuthTokenStrategy(async function (token, done) {
     await AccessTokenModel(tenant.toLowerCase()).findOne(
@@ -212,8 +255,19 @@ const useAuthTokenStrategy = (tenant, req, res, next) =>
     );
   });
 
+/**
+ * setting the strategies
+ * @param {*} tenant
+ * @param {*} req
+ * @param {*} res
+ * @param {*} next
+ */
 const setLocalStrategy = (tenant, req, res, next) => {
   passport.use("user-local", useLocalStrategy(tenant, req, res, next));
+};
+
+const setGoogleStrategy = (tenant, req, res, next) => {
+  passport.use("google", useGoogleStrategy(tenant, req, res, next));
 };
 
 const setJWTStrategy = (tenant, req, res, next) => {
@@ -226,6 +280,10 @@ const setAuthTokenStrategy = (tenant, req, res, next) => {
 
 function setLocalAuth(req, res, next) {
   try {
+    /**
+     * do input validations and then just call the set
+     * set local strategy afterwards -- the function is called from here
+     */
     const hasErrors = !validationResult(req).isEmpty();
     if (hasErrors) {
       let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -247,6 +305,32 @@ function setLocalAuth(req, res, next) {
   }
 }
 
+function setGoogleAuth(req, res, next) {
+  try {
+    /**
+     * do input validations and then just call the set
+     * set local strategy afterwards -- the function is called from here
+     */
+    const hasErrors = !validationResult(req).isEmpty();
+    if (hasErrors) {
+      let nestedErrors = validationResult(req).errors[0].nestedErrors;
+      return badRequest(
+        res,
+        "bad request errors",
+        convertErrorArrayToObject(nestedErrors)
+      );
+    }
+    let tenant = "airqo";
+    if (req.query.tenant) {
+      tenant = req.query.tenant;
+    }
+    setGoogleStrategy(tenant, req, res, next);
+    next();
+  } catch (e) {
+    console.log("the error in setLocalAuth is: ", e.message);
+    res.json({ success: false, message: e.message });
+  }
+}
 function setJWTAuth(req, res, next) {
   try {
     const hasErrors = !validationResult(req).isEmpty();
@@ -272,10 +356,24 @@ function setJWTAuth(req, res, next) {
       .json({ success: false, message: e.message });
   }
 }
+const setGuestToken = (req, res) => {
+  const guest = { guest: true, role: "guest" };
+  const token = jwt.sign(guest, constants.JWT_SECRET);
+  res.json({ token });
+};
 
+/**
+ * utilising the strategies after setting them in the routes
+ */
 const authLocal = passport.authenticate("user-local", {
   session: false,
   failureFlash: true,
+});
+
+const authGoogle = passport.authenticate("google", { scope: ["profile"] });
+
+const authGoogleCallback = passport.authenticate("google", {
+  failureRedirect: "/login",
 });
 
 const authGuest = (req, res, next) => {
@@ -292,25 +390,18 @@ const authGuest = (req, res, next) => {
   }
 };
 
-const setGuestToken = (req, res) => {
-  const guest = { guest: true, role: "guest" };
-  const token = jwt.sign(guest, constants.JWT_SECRET);
-  res.json({ token });
-};
-
 const authJWT = passport.authenticate("jwt", {
   session: false,
 });
 
-/**
- * we are going to utilise strategies for social media logins
- */
-
 module.exports = {
   setLocalAuth,
   setJWTAuth,
+  setGoogleAuth,
   setGuestToken,
   authLocal,
   authJWT,
+  authGoogle,
+  authGoogleCallback,
   authGuest,
 };
