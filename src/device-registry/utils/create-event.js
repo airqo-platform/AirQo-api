@@ -626,31 +626,24 @@ const createEvent = {
                   }
                 });
 
-                const status = responseFromListEvents.status
-                  ? responseFromListEvents.status
-                  : "";
-
                 try {
                   callback({
                     success: true,
                     message: !isEmpty(missingDataMessage)
                       ? missingDataMessage
+                      : isEmpty(data[0].data)
+                      ? "no measurements for this search"
                       : responseFromListEvents.message,
                     data,
-                    status,
+                    status: responseFromListEvents.status
+                      ? responseFromListEvents.status
+                      : "",
                     isCache: false,
                   });
                 } catch (error) {
                   logger.error(`listing events -- ${JSON.stringify(error)}`);
                 }
               } else if (responseFromListEvents.success === false) {
-                const status = responseFromListEvents.status
-                  ? responseFromListEvents.status
-                  : "";
-                const errors = responseFromListEvents.errors
-                  ? responseFromListEvents.errors
-                  : { message: "" };
-
                 logger.error(
                   `unable to retrieve events --- ${JSON.stringify(errors)}`
                 );
@@ -659,8 +652,12 @@ const createEvent = {
                   callback({
                     success: false,
                     message: responseFromListEvents.message,
-                    errors,
-                    status,
+                    errors: responseFromListEvents.errors
+                      ? responseFromListEvents.errors
+                      : { message: "" },
+                    status: responseFromListEvents.status
+                      ? responseFromListEvents.status
+                      : "",
                     isCache: false,
                   });
                 } catch (error) {

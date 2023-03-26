@@ -1,7 +1,7 @@
+/* eslint-disable no-unused-vars */
 "use strict";
 require("dotenv").config();
 
-// eslint-disable-next-line no-unused-vars
 const axios = require("axios");
 const {initializeApp} = require("firebase-admin/app");
 const {getFirestore} = require("firebase-admin/firestore");
@@ -9,6 +9,18 @@ const {getFirestore} = require("firebase-admin/firestore");
 const functions = require("firebase-functions");
 const {getAuth} = require("firebase-admin/auth");
 const {Kafka} = require("kafkajs");
+const nodemailer = require("nodemailer");
+
+const emailTemplate = require("../config/emailTemplates");
+
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: `${process.env.MAIL_USER}`,
+    pass: `${process.env.MAIL_PASS}`,
+  },
+});
+
 
 initializeApp();
 const firestoreDb = getFirestore();
@@ -22,37 +34,23 @@ async function sendGoodByeMessage(_user) {
 }
 
 /**
- * @param {any} user The new user
+ * @param {any} email The user's email
  */
-// async function sendWelcomeMessage(user) {
-// try {
-//   const emailAddress = user.emailAddress == null ? "" : user.emailAddress;
-//   if (emailAddress === "") {
-//     return null;
-//   }
+async function sendWelcomeEmail(email) {
+  const mailOptions = {
+    from: {
+      name: "AirQo Data Team",
+      address: process.env.MAIL_USER,
+    },
+    to: email,
+    subject: "Welcome to AirQo!",
+    html: emailTemplate.mobileAppWelcome(),
+  };
 
-//   const displayName = user.displayName == null ? "" : user.displayName;
-//   const endPoint = process.env.WELCOME_MESSAGE_ENDPOINT;
-//   const body = {
-//     "platform": "mobile",
-//     "firstName": displayName,
-//     "emailAddress": emailAddress,
-//   };
-
-// eslint-disable-next-line max-len
-//     axios.post(endPoint, JSON.stringify(body), {headers: {"Content-Type": "application/json"}})
-//         .then((res) => {
-//           console.log(`Welcome message status code: ${res.status}`);
-//         })
-//         .catch((error) => {
-//           console.error(error);
-//         });
-//   } catch (error) {
-//     console.log(error);
-//   }
-
-//   return null;
-// }
+  await transporter.sendMail(mailOptions);
+  functions.logger.log("New welcome email sent to:", email);
+  return null;
+}
 
 
 // kafka configuration
@@ -143,9 +141,16 @@ async function checkIfUserExists(data) {
   }
 }
 
+exports.sendWelcomeEmail = functions.auth.user().onCreate((user) => {
+  if (user.email !== null) {
+    const email = user.email;
+    return sendWelcomeEmail(email);
+  }
+});
+
 exports.onUserSignUp = functions.auth.user().onCreate(async (user) => {
   if (user.email !== null) {
-    return await produceMessage(user);
+    // return await produceMessage(user);
   }
 });
 
