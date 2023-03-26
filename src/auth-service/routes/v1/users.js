@@ -7,12 +7,16 @@ const {
   setJWTAuth,
   authJWT,
   setLocalAuth,
-  authLocal,
+  setGoogleAuth,
   setGuestToken,
+  authLocal,
   authGuest,
+  authGoogle,
 } = require("@middleware/passport");
 
 const mongoose = require("mongoose");
+const { authGoogle } = require("../../middleware/passport");
+const { login } = require("../../controllers/create-user");
 const ObjectId = mongoose.Types.ObjectId;
 
 const headers = (req, res, next) => {
@@ -200,6 +204,19 @@ router.get(
     ],
   ]),
   createUserController.verifyEmail
+);
+
+router.get(
+  "/users/auth/google/callback",
+  authGoogle,
+  createUserController.googleCallback
+);
+
+router.get(
+  "/users/auth/google",
+  setGoogleAuth,
+  authGoogle,
+  createUserController.login
 );
 
 router.get(
