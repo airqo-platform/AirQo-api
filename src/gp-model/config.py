@@ -47,6 +47,7 @@ class TestingConfig(Config):
     VIEW_AIRQLOUD_URI = os.getenv('VIEW_AIRQLOUD_URI_STAGE')
     LIST_DEVICES_URI = os.getenv('LIST_DEVICES_URI_STAGE')
     EVENTS_URI = os.getenv('EVENTS_URI_STAGE')
+    API_TOKEN = os.getenv('STAGE_TOKEN')
 
 
 app_config = {
