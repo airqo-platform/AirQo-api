@@ -5,8 +5,8 @@ app:
 image:
   repository: eu.gcr.io/airqo-250220/airqo-stage-analytics-report-job
   tag: stage-f8679d75-1679577164
-nameOverride: ''
-fullnameOverride: ''
+nameOverride: ""
+fullnameOverride: ""
 resources:
   limits:
     cpu: 1000m
