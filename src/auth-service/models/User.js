@@ -197,6 +197,7 @@ UserSchema.statics = {
       }
       return {
         error: response,
+        errors: response,
         message,
         success: false,
         status,

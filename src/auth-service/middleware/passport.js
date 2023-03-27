@@ -2,15 +2,16 @@ const passport = require("passport");
 const LocalStrategy = require("passport-local");
 const httpStatus = require("http-status");
 const Validator = require("validator");
-const UserSchema = require("../models/User");
-const AccessTokenSchema = require("../models/AccessToken");
-const constants = require("../config/constants");
-const { logElement, logText, logObject } = require("../utils/log");
+const UserSchema = require("@models/User");
+const AccessTokenSchema = require("@models/AccessToken");
+const constants = require("@config/constants");
+const { logElement, logText, logObject } = require("@utils/log");
 const { Strategy: JwtStrategy, ExtractJwt } = require("passport-jwt");
 const AuthTokenStrategy = require("passport-auth-token");
 const jwt = require("jsonwebtoken");
 
-const { getModelByTenant } = require("../utils/multitenancy");
+const { getModelByTenant } = require("@config/dbConnection");
+
 const UserModel = (tenant) => {
   return getModelByTenant(tenant, "user", UserSchema);
 };
@@ -20,7 +21,7 @@ const AccessTokenModel = (tenant) => {
 };
 
 const { validationResult } = require("express-validator");
-const { badRequest, convertErrorArrayToObject } = require("../utils/errors");
+const { badRequest, convertErrorArrayToObject } = require("@utils/errors");
 
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- auth-service`);

@@ -1,7 +1,7 @@
 const UserSchema = require("../models/User");
 const AccessTokenSchema = require("@models/AccessToken");
 const ClientSchema = require("@models/Client");
-const { getModelByTenant } = require("./multitenancy");
+const { getModelByTenant } = require("@config/dbConnection");
 const { logObject, logElement, logText } = require("./log");
 const mailer = require("./mailer");
 const bcrypt = require("bcrypt");
