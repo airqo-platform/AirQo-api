@@ -11,29 +11,8 @@ const isEmpty = require("is-empty");
 const log4jsConfiguration = require("@config/log4js")
 log4js.configure(log4jsConfiguration);
 
-const winston = require('winston');
-const { combine, timestamp, printf } = winston.format;
-const MongoDB = require('winston-mongodb').MongoDB;
 
-
-const logger = winston.createLogger({
-    level: 'info',
-    transports: [
-        new winston.transports.MongoDB({
-            db: 'mongodb://localhost:27017/auth-service_airqo',
-            options: { useNewUrlParser: true, useUnifiedTopology: true },
-            collection: 'logs',
-            format: winston.format.combine(
-                winston.format.timestamp(),
-                winston.format.json()
-            )
-        })
-    ]
-});
-
-// const logger = log4js.getLogger("start-script");
-
-const { logText, logObject, logElement } = require("@utils/log")
+const { logText, logObject, logElement, winstonLogger } = require("@utils/log")
 const mailer = require("@utils/mailer");
 const emailMessages = require("@utils/email.msgs");
 const emailTemplates = require("@utils/email.templates");
@@ -84,6 +63,9 @@ try {
 const consumer = kafka.consumer({ groupId: constants.UNIQUE_CONSUMER_GROUP });
 
 // Function to start consuming messages
+/**
+ * we could also add the Websocket implememtation right here.
+ */
 const run = async() => {
     await consumer.connect();
     await consumer.subscribe({ topic: constants.NEW_MOBILE_APP_USER_TOPIC, fromBeginning: true });
@@ -226,6 +208,7 @@ if (isEmpty(process.env.NODE_ENV)) {
 function onListening() {
     logText(`server is running on port: ${constants.PORT}`)
     console.log(`The server is running on the ${ENV} environment`)
+    winstonLogger.info(`The server is running on the ${ENV} environment`)
     var addr = server.address();
     var bind = typeof addr === "string" ? "pipe " + addr : "port " + addr.port;
     debug("Listening on " + bind);

@@ -1,5 +1,4 @@
 const mongoose = require("mongoose").set("debug", true);
-const { logObject, logText } = require("@utils/log");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const ObjectId = mongoose.Schema.Types.ObjectId;
@@ -9,32 +8,6 @@ const logSchema = new mongoose.Schema(
     timestamp: { type: Date, required: true },
     level: { type: String, required: true },
     message: { type: String, required: true },
-
-    role_name: {
-      type: String,
-      required: [true, "name is required"],
-      unique: true,
-    },
-    role_status: {
-      type: String,
-      required: [true, "name is required"],
-      default: "ACTIVE",
-    },
-    role_code: {
-      type: String,
-      trim: true,
-      unique: true,
-    },
-    role_permissions: {
-      type: Array,
-      default: [],
-    },
-    role_users: [
-      {
-        type: ObjectId,
-        ref: "user",
-      },
-    ],
   },
   { timestamps: false }
 );
@@ -42,25 +15,6 @@ const logSchema = new mongoose.Schema(
 logSchema.pre("save", function (next) {
   return next();
 });
-
-// logSchema.pre("findOneAndUpdate", function () {
-//   let that = this;
-//   const update = that.getUpdate();
-//   if (update.__v != null) {
-//     delete update.__v;
-//   }
-//   const keys = ["$set", "$setOnInsert"];
-//   for (const key of keys) {
-//     if (update[key] != null && update[key].__v != null) {
-//       delete update[key].__v;
-//       if (Object.keys(update[key]).length === 0) {
-//         delete update[key];
-//       }
-//     }
-//   }
-//   update.$inc = update.$inc || {};
-//   update.$inc.__v = 1;
-// });
 
 logSchema.pre("update", function (next) {
   return next();
@@ -71,7 +25,6 @@ logSchema.index({ role_name: 1, role_code: 1 }, { unique: true });
 logSchema.statics = {
   async register(args) {
     try {
-      logText("we are in the role model creating things");
       const newRole = await this.create({
         ...args,
       });
@@ -89,7 +42,6 @@ logSchema.statics = {
         };
       }
     } catch (err) {
-      logObject("the error", err);
       let response = {};
       let message = "validation errors for some of the provided fields";
       let status = httpStatus.CONFLICT;
@@ -102,7 +54,6 @@ logSchema.statics = {
           return (response[key] = value.message);
         });
       } else if (err.code === 11000) {
-        logObject("JSON.parse(err)", JSON.parse(err));
         const duplicate_record = args.role_name
           ? args.role_name
           : args.role_code;
@@ -220,7 +171,6 @@ logSchema.statics = {
       let removedRole = await this.findOneAndRemove(filter, options).exec();
 
       if (!isEmpty(removedRole)) {
-        logObject("removed roleee", removedRole);
         let data = removedRole._doc;
         return {
           success: true,

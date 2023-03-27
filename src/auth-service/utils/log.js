@@ -1,3 +1,13 @@
+const winston = require("winston");
+const { combine, timestamp, printf } = winston.format;
+const MongoDB = require("winston-mongodb").MongoDB;
+const LogSchema = require("@models/Log");
+const { getTenantDB } = require("@config/dbConnection");
+
+const LogDB = (tenant) => {
+  return getTenantDB(tenant, "inquiry", LogSchema);
+};
+
 const logText = (message) => {
   if (process.env.NODE_ENV === "development") {
     console.log(message);
@@ -28,4 +38,19 @@ const logError = (error) => {
   return "log deactivated in prod and stage";
 };
 
-module.exports = { logText, logElement, logObject, logError };
+const winstonLogger = winston.createLogger({
+  level: "info",
+  transports: [
+    new winston.transports.MongoDB({
+      db: LogDB("airqo"),
+      options: { useNewUrlParser: true, useUnifiedTopology: true },
+      collection: "logs",
+      format: winston.format.combine(
+        winston.format.timestamp(),
+        winston.format.json()
+      ),
+    }),
+  ],
+});
+
+module.exports = { logText, logElement, logObject, logError, winstonLogger };
