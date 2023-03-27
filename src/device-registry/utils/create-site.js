@@ -122,7 +122,7 @@ const createSite = {
               success: true,
               message: "no associated AirQlouds found",
               data: airqloud_ids,
-              status: HTTPStatus.NOT_FOUND,
+              status: HTTPStatus.OK,
             };
           }
         } else if (responseFromListAirQlouds.success === false) {
@@ -278,7 +278,7 @@ const createSite = {
         $inc: { COUNT: 1 },
       };
 
-      let responseFromModifyUniqueIdentifierCounter = await getModelByTenant(
+      const responseFromModifyUniqueIdentifierCounter = await getModelByTenant(
         tenant.toLowerCase(),
         "uniqueIdentifierCounter",
         UniqueIdentifierCounterSchema
@@ -300,7 +300,7 @@ const createSite = {
             : { message: "" },
           status: responseFromModifyUniqueIdentifierCounter.status
             ? responseFromModifyUniqueIdentifierCounter.status
-            : "",
+            : HTTPStatus.BAD_REQUEST,
         };
       } else if (responseFromModifyUniqueIdentifierCounter.success === true) {
         const count = responseFromModifyUniqueIdentifierCounter.data.COUNT;
@@ -311,7 +311,7 @@ const createSite = {
           data: siteName,
           status: responseFromModifyUniqueIdentifierCounter.status
             ? responseFromModifyUniqueIdentifierCounter.status
-            : "",
+            : HTTPStatus.OK,
         };
       }
     } catch (e) {

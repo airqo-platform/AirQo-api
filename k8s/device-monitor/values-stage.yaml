@@ -4,9 +4,12 @@ app:
   namespace: staging
   configmap: env-device-monitoring-staging
 replicaCount: 2
-image:
-  repository: eu.gcr.io/airqo-250220/airqo-stage-device-monitor-api
-  tag: stage-24564183-1678882968
+images:
+  repositories:
+    deviceMonitor: eu.gcr.io/airqo-250220/airqo-stage-device-monitor-api
+    celeryBeat: eu.gcr.io/airqo-250220/airqo-stage-device-monitor-celery-beat
+    celeryWorker: eu.gcr.io/airqo-250220/airqo-stage-device-monitor-celery-worker
+  tag: stage-f8679d75-1679577164
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}

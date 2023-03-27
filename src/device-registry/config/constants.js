@@ -55,6 +55,9 @@ const stageConfig = {
 const defaultConfig = {
   NETWORKS: process.env.NETWORKS.split(","),
   ACTIVITY_TYPES: process.env.ACTIVITY_TYPES.split(","),
+  AQI_CATEGORIES: "good,moderate,u4sg,unhealthy,very_unhealthy,hazardous".split(
+    ","
+  ),
   MAINTENANCE_TYPES: process.env.MAINTENANCE_TYPES.split(","),
   DEFAULT_NETWORK: process.env.DEFAULT_NETWORK,
   DEFAULT_NEAREST_SITE_RADIUS: process.env.DEFAULT_NEAREST_SITE_RADIUS,
@@ -74,6 +77,7 @@ const defaultConfig = {
   AIRQLOUDS_TOPIC: process.env.AIRQLOUDS_TOPIC,
   ACTIVITIES_TOPIC: process.env.ACTIVITIES_TOPIC,
   PHOTOS_TOPIC: process.env.PHOTOS_TOPIC,
+  TIPS_TOPIC: process.env.TIPS_TOPIC,
   HOURLY_MEASUREMENTS_TOPIC: process.env.HOURLY_MEASUREMENTS_TOPIC,
   PORT: process.env.PORT || 3000,
   TAHMO_API_GET_STATIONS_URL: process.env.TAHMO_API_GET_STATIONS_URL,
@@ -81,6 +85,14 @@ const defaultConfig = {
   TAHMO_API_CREDENTIALS_PASSWORD: process.env.TAHMO_API_CREDENTIALS_PASSWORD,
   UNIQUE_CONSUMER_GROUP: process.env.UNIQUE_CONSUMER_GROUP,
   UNIQUE_PRODUCER_GROUP: process.env.UNIQUE_PRODUCER_GROUP,
+  AQI_INDEX: {
+    good: [0, 50],
+    moderate: [51, 100],
+    u4sg: [101, 150],
+    unhealthy: [151, 200],
+    very_unhealthy: [201, 300],
+    hazardous: [301],
+  },
   GET_ROAD_METADATA_PATHS: {
     altitude: "altitude",
     greenness: "greenness",
@@ -173,6 +185,7 @@ const defaultConfig = {
     process.env.DEFAULT_LIMIT_FOR_QUERYING_SITES,
   DEFAULT_LIMIT_FOR_QUERYING_PHOTOS:
     process.env.DEFAULT_LIMIT_FOR_QUERYING_PHOTOS,
+  DEFAULT_LIMIT_FOR_QUERYING_TIPS: process.env.DEFAULT_LIMIT_FOR_QUERYING_TIPS,
   DEFAULT_LIMIT_FOR_QUERYING_AIRQLOUDS:
     process.env.DEFAULT_LIMIT_FOR_QUERYING_AIRQLOUDS,
   DEFAULT_EVENTS_LIMIT: process.env.DEFAULT_EVENTS_LIMIT,
@@ -593,7 +606,7 @@ const defaultConfig = {
       projection[as]["altitude"] = 0;
       projection[as]["updatedAt"] = 0;
       projection[as]["airqloud_id"] = 0;
-      projection[as]["airqlouds"] = 0;
+      projection[as]["weather_stations"] = 0;
       projection[as]["sub_county"] = 0;
       projection[as]["parish"] = 0;
       projection[as]["greenness"] = 0;

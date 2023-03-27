@@ -31,30 +31,17 @@ const inquire = {
           tenant
         );
         if (responseFromSendEmail.success === true) {
-          const status = responseFromSendEmail.status
-            ? responseFromSendEmail.status
-            : "";
           callback({
             success: true,
             message: "inquiry successfully created",
             data: createdInquiry,
-            status,
+            status: responseFromSendEmail.status
+              ? responseFromSendEmail.status
+              : "",
           });
         } else if (responseFromSendEmail.success === false) {
           logObject("responseFromSendEmail", responseFromSendEmail);
-          const errors = responseFromSendEmail.error
-            ? responseFromSendEmail.error
-            : "";
-          const status = responseFromSendEmail.status
-            ? responseFromSendEmail.status
-            : "";
-
-          callback({
-            success: false,
-            message: responseFromSendEmail.message,
-            errors,
-            status,
-          });
+          callback(responseFromSendEmail);
         }
       } else if (responseFromCreateInquiry.success === false) {
         const errors = responseFromCreateInquiry.errors

@@ -45,7 +45,7 @@ spec:
                       - high-memory
       containers:
         - name: {{ .Values.app.label }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          image: "{{ .Values.images.repositories.deviceMonitor }}:{{ .Values.images.tag }}"
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: {{ .Values.service.targetPort }}
