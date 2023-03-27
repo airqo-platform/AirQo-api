@@ -379,25 +379,20 @@ airqloudSchema.statics = {
           data,
           status: HTTPStatus.OK,
         };
-      }
-
-      if (isEmpty(data)) {
+      } else if (isEmpty(data)) {
         return {
           success: true,
           message: "there are no records for this search",
-          data,
-          status: HTTPStatus.NOT_FOUND,
+          data: [],
+          status: HTTPStatus.OK,
         };
       }
     } catch (err) {
-      let errors = { message: err.message };
-      let message = "Internal Server Error";
-      let status = HTTPStatus.INTERNAL_SERVER_ERROR;
       return {
-        errors,
-        message,
+        errors: { message: err.message },
+        message: "Internal Server Error",
         success: false,
-        status,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -419,40 +414,35 @@ airqloudSchema.statics = {
         modifiedUpdateBody["$addToSet"] = {};
         modifiedUpdateBody["$addToSet"]["sites"] = {};
         modifiedUpdateBody["$addToSet"]["sites"]["$each"] = update.sites;
-
         delete modifiedUpdateBody["sites"];
       }
-      let updatedAirQloud = await this.findOneAndUpdate(
+      const updatedAirQloud = await this.findOneAndUpdate(
         filter,
         modifiedUpdateBody,
         options
       ).exec();
 
       if (!isEmpty(updatedAirQloud)) {
-        let data = updatedAirQloud._doc;
         return {
           success: true,
           message: "successfully modified the airqloud",
-          data,
+          data: updatedAirQloud._doc,
           status: HTTPStatus.OK,
         };
-      } else {
+      } else if (isEmpty(updatedAirQloud)) {
         return {
           success: false,
           message: "airqloud does not exist, please crosscheck",
-          status: HTTPStatus.NOT_FOUND,
+          status: HTTPStatus.BAD_REQUEST,
           errors: filter,
         };
       }
     } catch (err) {
-      let errors = { message: err.message };
-      let message = "Internal Server Error";
-      let status = HTTPStatus.INTERNAL_SERVER_ERROR;
       return {
-        errors,
-        message,
+        errors: { message: err.message },
+        message: "Internal Server Error",
         success: false,
-        status,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -470,36 +460,32 @@ airqloudSchema.statics = {
           metadata: 1,
         },
       };
-      let removedAirqloud = await this.findOneAndRemove(filter, options).exec();
+      const removedAirqloud = await this.findOneAndRemove(
+        filter,
+        options
+      ).exec();
 
       if (!isEmpty(removedAirqloud)) {
-        let data = removedAirqloud._doc;
         return {
           success: true,
           message: "successfully removed the airqloud",
-          data,
+          data: removedAirqloud._doc,
           status: HTTPStatus.OK,
         };
-      }
-
-      if (isEmpty(removedAirqloud)) {
+      } else if (isEmpty(removedAirqloud)) {
         return {
           success: false,
           message: "airqloud does not exist, please crosscheck",
-          status: HTTPStatus.NOT_FOUND,
+          status: HTTPStatus.BAD_REQUEST,
           errors: filter,
         };
       }
     } catch (err) {
-      let errors = { message: err.message };
-      let message = err.message;
-      let status = HTTPStatus.INTERNAL_SERVER_ERROR;
-
       return {
         success: false,
-        message,
-        errors,
-        status,
+        message: "Internal Server Error",
+        errors: { message: err.message },
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },

@@ -51,6 +51,7 @@ app.use("/api/v1/devices/sites", routes.v1.sites);
 app.use("/api/v1/devices/events", routes.v1.events);
 app.use("/api/v1/devices/locations", routes.v1.locations);
 app.use("/api/v1/devices/photos", routes.v1.photos);
+app.use("/api/v1/devices/tips", routes.v1.tips);
 app.use("/api/v1/devices/sensors", routes.v1.sensors);
 app.use("/api/v1/devices", routes.v1.devices);
 
@@ -61,6 +62,7 @@ app.use("/api/v2/devices/sites", routes.v2.sites);
 app.use("/api/v2/devices/events", routes.v2.events);
 app.use("/api/v2/devices/locations", routes.v2.locations);
 app.use("/api/v2/devices/photos", routes.v2.photos);
+app.use("/api/v2/devices/tips", routes.v2.tips);
 app.use("/api/v2/devices/sensors", routes.v2.sensors);
 app.use("/api/v2/devices", routes.v2.devices);
 

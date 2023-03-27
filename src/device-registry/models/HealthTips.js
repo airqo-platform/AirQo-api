@@ -7,49 +7,28 @@ const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const HTTPStatus = require("http-status");
 
-const photoSchema = new Schema(
+const aqiRangeSchema = new Schema(
   {
-    device_name: { type: String },
-    network: {
+    min: { type: Number, required: true },
+    max: { type: Number, required: true },
+  },
+  { _id: false }
+);
+
+const tipsSchema = new Schema(
+  {
+    title: {
+      type: String,
+      required: [true, "the title is required!"],
+    },
+    description: {
+      required: [true, "the description is required!"],
       type: String,
       trim: true,
     },
-    device_id: {
-      type: ObjectId,
-      required: [true, "the object ID is required!"],
-    },
-    device_number: {},
-    image_url: {
-      type: String,
-      required: [true, "the image_url is required!"],
-    },
-    image_code: {
-      type: String,
-      required: [true, "the code is required!"],
-    },
-    description: {
-      type: String,
-    },
-    tags: [{ type: String }],
-    metadata: {
-      public_id: {
-        type: String,
-        required: [true, "the metadata public_id is required!"],
-      },
-      version: { type: Number },
-      signature: { type: String },
-      width: { type: Number },
-      height: { type: Number },
-      format: { type: String },
-      resource_type: { type: String },
-      created_at: { type: Date },
-      bytes: { type: Number },
-      type: { type: String },
-      url: {
-        type: String,
-        required: [true, "the metadata url is required!"],
-      },
-      secure_url: { type: String },
+    aqi_category: {
+      type: aqiRangeSchema,
+      required: [true, "the aqi_category is required!"],
     },
   },
   {
@@ -57,52 +36,67 @@ const photoSchema = new Schema(
   }
 );
 
-photoSchema.pre("save", function(next) {
+tipsSchema.pre("save", function(next) {
   next();
 });
 
-photoSchema.plugin(uniqueValidator, {
+tipsSchema.plugin(uniqueValidator, {
   message: `{VALUE} already taken!`,
 });
 
-photoSchema.methods = {
+tipsSchema.methods = {
   toJSON() {
     return {
-      image_url: this.image_url,
-      metadata: this.metadata,
-      id: this._id,
-      tags: this.tags,
-      name: this.name,
-      network: this.network,
-      image_url: this.image_url,
-      device_id: this.device_id,
-      device_name: this.device_name,
-      image_code: this.image_code,
+      title: this.title,
+      aqi_category: this.aqi_category,
       description: this.description,
-      metadata: this.metadata,
     };
   },
 };
 
-photoSchema.statics = {
+tipsSchema.statics = {
   async register(args) {
     try {
-      logText("registering a new photo....");
+      logText("registering a new tip....");
       let modifiedArgs = Object.assign({}, args);
-      const createdPhoto = await this.create({ ...modifiedArgs });
-      if (!isEmpty(createdPhoto)) {
+      delete modifiedArgs.aqi_category;
+
+      switch (args.aqi_category) {
+        case "good":
+          modifiedArgs.aqi_category = { min: 0, max: 50 };
+          break;
+        case "moderate":
+          modifiedArgs.aqi_category = { min: 51, max: 100 };
+          break;
+        case "u4sg":
+          modifiedArgs.aqi_category = { min: 101, max: 150 };
+          break;
+        case "unhealthy":
+          modifiedArgs.aqi_category = { min: 151, max: 200 };
+          break;
+        case "very_unhealthy":
+          modifiedArgs.aqi_category = { min: 201, max: 300 };
+          break;
+        case "hazardous":
+          modifiedArgs.aqi_category = { min: 301, max: 500 };
+          break;
+        default:
+        // code block
+      }
+      const createdTip = await this.create({ ...modifiedArgs });
+      if (!isEmpty(createdTip)) {
         return {
           success: true,
-          data: createdPhoto._doc,
-          message: "photo created",
+          data: createdTip._doc,
+          message: "tip created",
           status: HTTPStatus.CREATED,
         };
-      } else if (isEmpty(createdPhoto)) {
+      } else if (isEmpty(createdTip)) {
         return {
           success: false,
-          message: "photo not created despite successful operation",
+          message: "tip not created despite successful operation",
           status: HTTPStatus.INTERNAL_SERVER_ERROR,
-          errors: { message: "photo not created despite successful operation" },
+          errors: { message: "tip not created despite successful operation" },
         };
       }
     } catch (err) {
@@ -138,32 +132,28 @@ photoSchema.statics = {
         .sort({ createdAt: -1 })
         .project({
           _id: 1,
-          tags: 1,
-          name: 1,
-          image_url: 1,
-          device_id: 1,
-          device_name: 1,
-          image_code: 1,
+          title: 1,
+          aqi_category: 1,
           description: 1,
-          metadata: 1,
-          network: 1,
         })
         .skip(skip ? skip : 0)
-        .limit(limit ? limit : 1000)
+        .limit(
+          limit ? limit : parseInt(constants.DEFAULT_LIMIT_FOR_QUERYING_TIPS)
+        )
         .allowDiskUse(true);
 
       if (!isEmpty(response)) {
         logObject("response", response);
         return {
           success: true,
-          message: "successfully retrieved the photo(s)",
+          message: "successfully retrieved the tip(s)",
           data: response,
           status: HTTPStatus.OK,
         };
       } else if (isEmpty(response)) {
         return {
           success: true,
-          message: "No images found for this operation",
+          message: "No tips found for this operation",
           status: HTTPStatus.OK,
           data: [],
         };
@@ -203,11 +193,36 @@ photoSchema.statics = {
       logObject("the filter in the model", filter);
       logObject("the update in the model", update);
       logObject("the opts in the model", opts);
-      let modifiedUpdateBody = update;
-
+      let modifiedUpdateBody = Object.assign({}, update);
       if (modifiedUpdateBody._id) {
         delete modifiedUpdateBody._id;
       }
+
+      delete modifiedUpdateBody.aqi_category;
+
+      switch (update.aqi_category) {
+        case "good":
+          modifiedUpdateBody.aqi_category = { min: 0, max: 50 };
+          break;
+        case "moderate":
+          modifiedUpdateBody.aqi_category = { min: 51, max: 100 };
+          break;
+        case "u4sg":
+          modifiedUpdateBody.aqi_category = { min: 101, max: 150 };
+          break;
+        case "unhealthy":
+          modifiedUpdateBody.aqi_category = { min: 151, max: 200 };
+          break;
+        case "very_unhealthy":
+          modifiedUpdateBody.aqi_category = { min: 201, max: 300 };
+          break;
+        case "hazardous":
+          modifiedUpdateBody.aqi_category = { min: 301, max: 500 };
+          break;
+        default:
+        // code block
+      }
+
       let options = opts;
       let keys = {};
       const setProjection = (object) => {
@@ -216,38 +231,27 @@ photoSchema.statics = {
         });
         return keys;
       };
-      logObject("modifiedUpdateBody", modifiedUpdateBody);
-      const projection = setProjection(modifiedUpdateBody);
-      logObject("projection", projection);
-      options["projection"] = projection;
+      logObject("the new modifiedUpdateBody", modifiedUpdateBody);
 
-      modifiedUpdateBody["$addToSet"] = {};
-      if (modifiedUpdateBody.tags) {
-        modifiedUpdateBody["$addToSet"]["tags"] = {};
-        modifiedUpdateBody["$addToSet"]["tags"]["$each"] =
-          modifiedUpdateBody.tags;
-        delete modifiedUpdateBody["tags"];
-      }
-
-      const updatedPhoto = await this.findOneAndUpdate(
+      const updatedTip = await this.findOneAndUpdate(
         filter,
         modifiedUpdateBody,
         options
       );
-      logObject("updatedPhoto", updatedPhoto);
-      if (!isEmpty(updatedPhoto)) {
+      logObject("updatedTip", updatedTip);
+      if (!isEmpty(updatedTip)) {
         return {
           success: true,
-          message: "successfully modified the photo",
-          data: updatedPhoto._doc,
+          message: "successfully modified the tip",
+          data: updatedTip._doc,
           status: HTTPStatus.OK,
         };
-      } else if (isEmpty(updatedPhoto)) {
+      } else if (isEmpty(updatedTip)) {
         return {
-          success: true,
-          message: "No images found for this operation",
-          status: HTTPStatus.OK,
-          data: [],
+          success: false,
+          message: "No tips found for this operation",
+          status: HTTPStatus.BAD_REQUEST,
+          errors: { message: "No tips found for this operation" },
         };
       }
     } catch (err) {
@@ -281,28 +285,25 @@ photoSchema.statics = {
       let options = {
         projection: {
           _id: 1,
-          device_id: 1,
-          device_number: 1,
-          device_name: 1,
-          network: 1,
-          image_code: 1,
-          image_url: 1,
+          title: 1,
+          aqi_category: 1,
+          description: 1,
         },
       };
-      const removedPhoto = await this.findOneAndRemove(filter, options).exec();
-      if (!isEmpty(removedPhoto)) {
+      const removedTip = await this.findOneAndRemove(filter, options).exec();
+      if (!isEmpty(removedTip)) {
         return {
           success: true,
-          message: "successfully removed the photo",
-          data: removedPhoto._doc,
+          message: "successfully removed the tip",
+          data: removedTip._doc,
           status: HTTPStatus.OK,
         };
-      } else if (isEmpty(removedPhoto)) {
+      } else if (isEmpty(removedTip)) {
         return {
-          success: true,
-          message: "No images found for this operation",
-          status: HTTPStatus.OK,
-          data: [],
+          success: false,
+          message: "No tips found for this operation",
+          status: HTTPStatus.BAD_REQUEST,
+          errors: { message: "No tips found for this operation" },
         };
       }
     } catch (err) {
@@ -333,4 +334,4 @@ photoSchema.statics = {
   },
 };
 
-module.exports = photoSchema;
+module.exports = tipsSchema;
