@@ -6,7 +6,6 @@ from config import configuration, environment
 
 def get_airqloud_sites(airqloud, tenant='airqo'):
 
-    # airqloud_url = 'https://platform.airqo.net/api/v1/devices/airqlouds'
     params = {'tenant': tenant,
               'airqloud': airqloud
 
@@ -32,7 +31,6 @@ def get_site_data(site_id, tenant='airqo'):
     start_time = (datetime.utcnow()-timedelta(days=7)
                   ).strftime('%Y-%m-%dT%H:%M:%SZ'),
     end_time = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
-    event_url = 'https://platform.airqo.net/api/v2/devices/events'
     params = {'tenant': tenant,
               'site_id': site_id,
               'startTime': start_time,
@@ -43,9 +41,9 @@ def get_site_data(site_id, tenant='airqo'):
     if environment == 'staging':
         headers = {'Authorization': configuration.API_TOKEN}
         event_response = requests.get(
-            event_url, params=params, headers=headers)
+            configuration.EVENTS_URI, params=params, headers=headers)
     else:
-        event_response = requests.get(event_url, params=params)
+        event_response = requests.get(configuration.EVENTS_URI, params=params)
     event_response_json = event_response.json()
 
     site_data = event_response_json['measurements']
