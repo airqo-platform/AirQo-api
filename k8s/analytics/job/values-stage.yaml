@@ -3,9 +3,10 @@ app:
   namespace: staging
   configmap: env-analytics-report-staging
 image:
-  tag: stage-f8679d75-1679577164
-nameOverride: ''
-fullnameOverride: ''
+  repository: eu.gcr.io/airqo-250220/airqo-stage-analytics-report-job
+  tag: stage-24cfce91-1679553932
+nameOverride: ""
+fullnameOverride: ""
 resources:
   limits:
     cpu: 1000m
