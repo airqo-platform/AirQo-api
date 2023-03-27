@@ -1,21 +1,36 @@
-const InquirySchema = require("../models/Inquiry");
-const { getModelByTenant } = require("./multitenancy");
+const InquirySchema = require("@models/Inquiry");
+const { getModelByTenant } = require("@config/dbConnection");
 const { logObject, logElement, logText } = require("./log");
 const mailer = require("./mailer");
 const httpStatus = require("http-status");
-constants = require("../config/constants");
+constants = require("@config/constants");
 
 const InquiryModel = (tenant) => {
   return getModelByTenant(tenant, "inquiry", InquirySchema);
 };
 
 const log4js = require("log4js");
+const isEmpty = require("is-empty");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- inquire-util`);
 
 const inquire = {
   create: async (inquire, callback) => {
     try {
-      const { fullName, email, message, category, tenant } = inquire;
+      const {
+        fullName,
+        email,
+        message,
+        category,
+        tenant,
+        firstName,
+        lastName,
+      } = inquire;
+
+      let name = fullName;
+
+      if (isEmpty(fullName)) {
+        name = firstName;
+      }
 
       const responseFromCreateInquiry = await InquiryModel(tenant).register(
         inquire
@@ -23,8 +38,8 @@ const inquire = {
 
       if (responseFromCreateInquiry.success === true) {
         const createdInquiry = await responseFromCreateInquiry.data;
-        let responseFromSendEmail = await mailer.inquiry(
-          fullName,
+        const responseFromSendEmail = await mailer.inquiry(
+          name,
           email,
           category,
           message,

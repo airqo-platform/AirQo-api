@@ -29,7 +29,8 @@ const inquire = {
       if (isEmpty(tenant)) {
         tenant = constants.DEFAULT_TENANT;
       }
-      const { fullName, email, message, category } = req.body;
+      const { fullName, email, message, category, firstName, lastName } =
+        req.body;
 
       let request = {};
       request["tenant"] = tenant.toLowerCase();
@@ -37,6 +38,8 @@ const inquire = {
       request["email"] = email;
       request["message"] = message;
       request["category"] = category;
+      request["firstName"] = firstName;
+      request["lastName"] = lastName;
 
       await createInquiryUtil
         .create(request, (value) => {
@@ -57,7 +60,13 @@ const inquire = {
             });
           }
         })
-        .catch((error) => {});
+        .catch((error) => {
+          return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+            success: false,
+            message: "Internal Server Error",
+            errors: { message: error.message },
+          });
+        });
     } catch (error) {
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
