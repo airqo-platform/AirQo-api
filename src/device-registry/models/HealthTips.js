@@ -26,6 +26,11 @@ const tipsSchema = new Schema(
       type: String,
       trim: true,
     },
+    image:{
+      required:[true, "the image is required!"],
+      type: String,
+      trim: true,
+    },
     aqi_category: {
       type: aqiRangeSchema,
       required: [true, "the aqi_category is required!"],
@@ -50,6 +55,7 @@ tipsSchema.methods = {
       title: this.title,
       aqi_category: this.aqi_category,
       description: this.description,
+      image:this.image
     };
   },
 };
@@ -135,6 +141,7 @@ tipsSchema.statics = {
           title: 1,
           aqi_category: 1,
           description: 1,
+          image:1,
         })
         .skip(skip ? skip : 0)
         .limit(
@@ -288,6 +295,7 @@ tipsSchema.statics = {
           title: 1,
           aqi_category: 1,
           description: 1,
+          image: 1,
         },
       };
       const removedTip = await this.findOneAndRemove(filter, options).exec();
