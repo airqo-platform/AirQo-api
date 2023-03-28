@@ -19,7 +19,7 @@ print(f'mlflow server uri: {mlflow.get_tracking_uri()}')
 
 def preprocess_forecast_data():
     forecast_data = get_forecast_data()
-    #convert 'device_number' to string
+    # convert 'device_number' to string
     forecast_data['created_at'] = pd.to_datetime(forecast_data['created_at'], format='%Y-%m-%d %H:%M:%S')
     forecast_data.set_index('created_at', inplace=True)
     forecast_data['device_number'] = forecast_data['device_number'].astype(str)
@@ -98,7 +98,8 @@ def train_model(train):
             max_depth=max_depth,
             random_state=random_state)
 
-        clf.fit(train_data[features], train_target , eval_set=[(test_data[features], test_target)], callbacks=[early_stopping(stopping_rounds=150)], verbose=50,
+        clf.fit(train_data[features], train_target, eval_set=[(test_data[features], test_target)],
+                callbacks=[early_stopping(stopping_rounds=150)], verbose=50,
                 eval_metric='rmse')
         print("Model training completed.....")
 
@@ -140,15 +141,13 @@ def train_model(train):
     return clf
 
 
-
 def get_lag_features(df_tmp, TARGET_COL):
-    df_tmp = df_tmp.sort_values(by=['device_number','created_at'])
+    df_tmp = df_tmp.sort_values(by=['device_number', 'created_at'])
 
     ### Shift Features
     shifts = [1, 2, 3, 7, 14, 30]
     for s in shifts:
         df_tmp[f'pm2_5_last_{s}_day'] = df_tmp.groupby(['device_number'])[TARGET_COL].shift(s)
-
 
     ### Rolling Features
     shifts = [3, 7, 14, 30]
@@ -170,6 +169,8 @@ def get_other_features(df_tmp):
 
 
 def preprocess_df(df_tmp, target_column):
+    # interpolate missing values
+    df_tmp[target_column] = df_tmp[target_column].interpolate(method='linear', limit_direction='both')
     df_tmp = get_lag_features(df_tmp, target_column)
     df_tmp = get_other_features(df_tmp)
 
