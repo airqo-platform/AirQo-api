@@ -130,13 +130,10 @@ activitySchema.statics = {
         };
       } else if (isEmpty(response)) {
         return {
-          success: false,
+          success: true,
           message: "no activities exist, please crosscheck",
-          status: HTTPStatus.NOT_FOUND,
-          errors: {
-            ...filter,
-            message: "no activities exist, please crosscheck",
-          },
+          status: HTTPStatus.OK,
+          data: [],
         };
       }
     } catch (error) {
@@ -163,24 +160,23 @@ activitySchema.statics = {
           modifiedUpdateBody.tags;
         delete modifiedUpdateBody["tags"];
       }
-      let updatedActivity = await this.findOneAndUpdate(
+      const updatedActivity = await this.findOneAndUpdate(
         filter,
         modifiedUpdateBody,
         options
       );
       if (!isEmpty(updatedActivity)) {
-        let data = updatedActivity._doc;
         return {
           success: true,
           message: "successfully modified the activity",
-          data,
+          data: updatedActivity._doc,
           status: HTTPStatus.OK,
         };
       } else if (isEmpty(updatedActivity)) {
         return {
           success: false,
           message: "activity does not exist, please crosscheck",
-          status: HTTPStatus.NOT_FOUND,
+          status: HTTPStatus.BAD_REQUEST,
           errors: filter,
         };
       }
@@ -210,18 +206,17 @@ activitySchema.statics = {
       let removedActivity = await this.findOneAndRemove(filter, options).exec();
 
       if (!isEmpty(removedActivity)) {
-        let data = removedActivity._doc;
         return {
           success: true,
           message: "successfully removed the activity",
-          data,
+          data: removedActivity._doc,
           status: HTTPStatus.OK,
         };
       } else if (isEmpty(removedActivity)) {
         return {
           success: false,
           message: "activity does not exist, please crosscheck",
-          status: HTTPStatus.NOT_FOUND,
+          status: HTTPStatus.BAD_REQUEST,
           errors: filter,
         };
       }

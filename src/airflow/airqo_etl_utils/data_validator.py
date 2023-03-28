@@ -16,7 +16,6 @@ class DataValidationUtils:
         integers: list = None,
         timestamps: list = None,
     ) -> pd.DataFrame:
-
         floats = [] if floats is None else floats
         integers = [] if integers is None else integers
         timestamps = [] if timestamps is None else timestamps
@@ -35,7 +34,6 @@ class DataValidationUtils:
 
     @staticmethod
     def get_valid_value(value, name):
-
         if (name == "pm2_5" or name == "pm10") and (value < 1 or value > 1000):
             return None
         elif name == "latitude" and (value < -90 or value > 90):
@@ -148,20 +146,6 @@ class DataValidationUtils:
         return dataframe[columns]
 
     @staticmethod
-    def process_for_message_broker_v2(data: pd.DataFrame) -> pd.DataFrame:
-        data["timestamp"] = pd.to_datetime(data["timestamp"])
-        data["timestamp"] = data["timestamp"].apply(date_to_str)
-        data.rename(
-            columns={
-                "mongo_id": "device_id",
-                "device_id": "device_name",
-                "tenant": "network",
-            },
-            inplace=True,
-        )
-        return data
-
-    @staticmethod
     def process_for_message_broker(
         data: pd.DataFrame, tenant: Tenant, frequency: Frequency = Frequency.HOURLY
     ) -> pd.DataFrame:
@@ -181,7 +165,6 @@ class DataValidationUtils:
 
     @staticmethod
     def process_data_for_api(data: pd.DataFrame) -> list:
-
         restructured_data = []
 
         data["timestamp"] = data["timestamp"].apply(pd.to_datetime)

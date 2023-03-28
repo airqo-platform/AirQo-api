@@ -3,47 +3,36 @@ app:
   label: sta-device-reg
   namespace: staging
   configmap: nv-device-registry-staging
-
 replicaCount: 2
 image:
   repository: eu.gcr.io/airqo-250220/airqo-stage-device-registry-api
-  tag: latest
-
-nameOverride: ""
-fullnameOverride: ""
-
+  tag: stage-c4ca4c0f-1679660693
+nameOverride: ''
+fullnameOverride: ''
 podAnnotations: {}
-
 resources:
   limits:
     cpu: 100m
     memory: 550Mi
   requests:
-    # Average usage was 0.002 vCPU and 450Mi over the last 30 days
     cpu: 5m
     memory: 450Mi
-
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config
-
 volumes:
   - name: config-volume
     configMap:
       name: device-registry-config-files
-
 ingress:
   enabled: false
-
 service:
   type: NodePort
   port: 3000
   protocol: TCP
   targetPort: 3000
   nodePort: 31002
-
 autoscaling:
   minReplicas: 1
   maxReplicas: 2
-  # targetCPUUtilizationPercentage: 80
   targetMemoryUtilizationPercentage: 80

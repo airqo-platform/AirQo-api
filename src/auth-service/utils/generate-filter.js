@@ -4,6 +4,7 @@ const ObjectId = mongoose.Types.ObjectId;
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const log4js = require("log4js");
+const isEmpty = require("is-empty");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- generate-filter-util`
 );
@@ -27,11 +28,11 @@ const filter = {
       if (email_address) {
         filter["email"] = email_address;
       }
-      if (resetPasswordToken) {
+      if (!isEmpty(resetPasswordToken)) {
         filter["resetPasswordToken"] = resetPasswordToken;
-        filter["resetPasswordExpires"] = {
-          $gt: Date.now(),
-        };
+        // filter["resetPasswordExpires"] = {
+        //   $gt: Date.now(),
+        // };
       }
       if (privilege) {
         filter["privilege"] = privilege;

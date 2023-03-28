@@ -6,5 +6,4 @@ from .dashboard import (
     MonitoringSiteResource,
 )
 
-from .map import MapDataResource
-
+from .data import DataExportResource, DataSummaryResource

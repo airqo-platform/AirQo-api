@@ -3,18 +3,16 @@ app:
   label: device-monitor
   namespace: production
   configmap: env-device-monitoring-production
-
 replicaCount: 3
-
-image:
-  repository: eu.gcr.io/airqo-250220/airqo-device-monitor-api
-  tag: latest
-
-nameOverride: ""
-fullnameOverride: ""
-
+images:
+  repositories:
+    deviceMonitor: eu.gcr.io/airqo-250220/airqo-device-monitor-api
+    celeryBeat: eu.gcr.io/airqo-250220/airqo-device-monitor-celery-beat
+    celeryWorker: eu.gcr.io/airqo-250220/airqo-device-monitor-celery-worker
+  tag: prod-67eadff4-1679580630
+nameOverride: ''
+fullnameOverride: ''
 podAnnotations: {}
-
 resources:
   limits:
     cpu: 500m
@@ -22,28 +20,22 @@ resources:
   requests:
     cpu: 5m
     memory: 50Mi
-
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config
-
 volumes:
   - name: config-volume
     configMap:
       name: device-monitor-config-files
-
 ingress:
   enabled: false
-
 service:
   type: NodePort
   port: 4001
   protocol: TCP
   targetPort: 4001
   nodePort: 30006
-
 autoscaling:
   minReplicas: 1
   maxReplicas: 3
-  # targetCPUUtilizationPercentage: 70
   targetMemoryUtilizationPercentage: 70

@@ -26,7 +26,6 @@ class PurpleDataUtils:
 
     @staticmethod
     def extract_data(start_date_time: str, end_date_time: str) -> pd.DataFrame:
-
         data = pd.DataFrame()
         bigquery_api = BigQueryApi()
         devices = bigquery_api.query_devices(tenant=Tenant.NASA)
@@ -58,7 +57,6 @@ class PurpleDataUtils:
 
     @staticmethod
     def process_data(data: pd.DataFrame) -> pd.DataFrame:
-
         data.rename(
             columns={
                 "time_stamp": "timestamp",

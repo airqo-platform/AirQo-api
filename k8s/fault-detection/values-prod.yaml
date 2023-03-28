@@ -3,57 +3,44 @@ app:
   label: fault-detection
   namespace: production
   configmap: prod-fault-detection-api-config
-
 initContainers:
   container1:
     image:
       repository: eu.gcr.io/airqo-250220/prod-train-catboost-model
-      tag: latest
+      tag: prod-67eadff4-1679580630
   container2:
     image:
       repository: eu.gcr.io/airqo-250220/prod-train-lstm-model
-      tag: latest
-
-replicaCount: 2
-
+      tag: prod-67eadff4-1679580630
+replicaCount: 1
 image:
-  repository: eu.gcr.io/airqo-250220/stage-fault-detection-api
-  tag: latest
-
-nameOverride: ""
-fullnameOverride: ""
-
+  repository: eu.gcr.io/airqo-250220/prod-fault-detection-api
+  tag: prod-67eadff4-1679580630
+nameOverride: ''
+fullnameOverride: ''
 podAnnotations: {}
-
 resources:
   limits:
     cpu: 500m
     memory: 300Mi
   requests:
-    # Average usage was 0.1 vCPU and 200Mi over the last 30 days
     cpu: 100m
     memory: 200Mi
-
 volumeMounts:
   - name: shared-data
     mountPath: /usr/models
-
 volumes:
   - name: shared-data
     emptyDir: {}
-
 ingress:
   enabled: false
-
 service:
   type: NodePort
   port: 4001
   protocol: TCP
   targetPort: 4001
   nodePort: 30013
-
 autoscaling:
   minReplicas: 1
-  maxReplicas: 3
-  # targetCPUUtilizationPercentage: 70
+  maxReplicas: 2
   targetMemoryUtilizationPercentage: 70

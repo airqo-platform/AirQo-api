@@ -28,15 +28,12 @@ data:
       if ($request_uri ~ '(/api/v1/users/emailLogin)|(/api/v2/users/emailLogin)') { return 200; }
       if ($request_uri ~ '(/api/v1/users/forgotPassword)|(/api/v2/users/forgotPassword)') { return 200; }
       if ($request_uri ~ '(/api/v1/users/candidates/register)|(/api/v2/users/candidates/register)') { return 200; }
+      if ($request_uri ~ '(/api/v1/users/verify)|(/api/v1/users/verify)') { return 200; }
       if ($request_uri ~ '/airflow/api/v') { return 200; }    
       if ($request_uri ~ '/argocd') { return 200; }    
-      if ($request_uri !~ '/api/v') { return 200; } # All none api requests 
+      if ($request_uri ~ '/api/v1') { return 200; } # API v1 endpoint requests
+      if ($request_uri !~ '/api/v') { return 200; } # None API requests 
 
-      # Mobile app specific exemptions. To be authenticated later
-      if ($request_uri ~ '/api/v1/view/measurements/app/insights') { return 200; }
-      if ($request_uri ~ '(/api/v1/devices/events)|(/api/v2/devices/events)') { return 200; }
-      if ($request_uri ~ '(/api/v1/meta-data/mobile-carrier)|(/api/v1/meta-data/ip-geo-coordinates)') { return 200; }
-      
       set $method POST;
       set $verification_path verify?tenant=airqo;
 
@@ -48,7 +45,7 @@ data:
       internal;
       resolver                kube-dns.kube-system.svc.cluster.local valid=5s;
       proxy_method            $method;
-      proxy_pass              http://airqo-auth-api-svc.production.svc.cluster.local:3000/api/v1/users/$verification_path;
+      proxy_pass              http://airqo-auth-api-svc.production.svc.cluster.local:3000/api/v2/users/$verification_path;
       proxy_pass_request_body off;
       proxy_set_header        Content-Length '';
       proxy_set_header        X-Original-URI $request_uri;

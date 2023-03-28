@@ -3,54 +3,43 @@ app:
   label: airflow
   namespace: pipeline
   configmap: airflow-config
-
 replicaCount: 2
 serviceAccountName: stage-airflow-sa
 images:
   repositories:
     initContainer: eu.gcr.io/airqo-250220/airqo-stage-apache-airflow-xcom
     containers: eu.gcr.io/airqo-250220/airqo-stage-apache-airflow
-  tag: latest
-
-nameOverride: ""
-fullnameOverride: ""
-
+  tag: stage-f8679d75-1679577164
+nameOverride: ''
+fullnameOverride: ''
 podAnnotations: {}
-
 resources:
   limits:
     cpu: 1500m
     memory: 4500Mi
   requests:
-    # Average usage was 0.002 vCPU and 250Mi over the last 30 days
     cpu: 150m
     memory: 1400Mi
-
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config
   - name: xcom-config-volume
     mountPath: /etc/airflow_xcom
-
 volumes:
   - name: config-volume
     configMap:
       name: airflow-config-files
   - name: xcom-config-volume
     emptyDir: {}
-
 ingress:
   enabled: false
-
 service:
   type: NodePort
   port: 8080
   protocol: TCP
   targetPort: 8080
   nodePort: 31036
-
 autoscaling:
   minReplicas: 1
   maxReplicas: 2
   targetCPUUtilizationPercentage: 80
-  # targetMemoryUtilizationPercentage: 80

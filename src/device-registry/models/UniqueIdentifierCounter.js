@@ -60,21 +60,25 @@ uniqueIdentifierCounterSchema.statics = {
       logObject("the filter", filter);
       logObject("the update", update);
       let options = { writeConcern: "majority" };
-      let updatedSite = await this.findOneAndUpdate(filter, update, options);
-      logObject("the data", updatedSite);
-      if (!isEmpty(updatedSite)) {
-        const data = updatedSite._doc;
+      const updatedCounter = await this.findOneAndUpdate(
+        filter,
+        update,
+        options
+      );
+      logObject("the data", updatedCounter);
+      if (!isEmpty(updatedCounter)) {
+        const data = updatedCounter._doc;
         return {
           success: true,
           message: "successfully modified the counter document",
           data,
           status: HTTPStatus.OK,
         };
-      } else {
+      } else if (isEmpty(updatedCounter)) {
         return {
           success: false,
           message: "counter does not exist, please crosscheck",
-          status: HTTPStatus.NOT_FOUND,
+          status: HTTPStatus.BAD_REQUEST,
           errors: {
             message: "can't locate the relevant counter document -- site_0",
           },
