@@ -469,7 +469,7 @@ class Collocation(BaseModel):
     @cache.memoize()
     def get_data(
         devices: list, start_date_time: datetime, end_date_time: datetime
-    ) -> dict:
+    ) -> tuple:
         client = bigquery.Client()
         cols = [
             "timestamp",
@@ -496,12 +496,14 @@ class Collocation(BaseModel):
         )
 
         dataframe = client.query(query=query).result().to_dataframe()
-        averaged_data = {}
+        raw_data = {}
+        resampled_data = {}
 
         if dataframe.empty:
             for device in devices:
-                averaged_data[device] = {}
-            return averaged_data
+                raw_data[device] = {}
+                resampled_data[device] = {}
+            return raw_data, resampled_data
 
         dataframe["timestamp"] = dataframe["timestamp"].apply(pd.to_datetime)
         dataframe.drop_duplicates(
@@ -511,28 +513,33 @@ class Collocation(BaseModel):
         cols = set(dataframe.columns.to_list()).difference({"device_name", "timestamp"})
 
         for _, by_device in dataframe.groupby("device_name"):
-            device_name = by_device.iloc[0]["device_name"]
-            del by_device["device_name"]
+            device_data = by_device.copy()
+            device_name = device_data.iloc[0]["device_name"]
+            del device_data["device_name"]
 
-            device_averages = by_device.resample("1H", on="timestamp").mean()
+            raw_data[device_name] = device_data.replace(
+                to_replace=np.nan, value=None
+            ).to_dict("records")
+
+            device_averages = device_data.resample("1H", on="timestamp").mean()
             device_averages["timestamp"] = device_averages.index
             device_averages.dropna(subset=list(cols), inplace=True, how="all")
             device_averages.replace(to_replace=np.nan, value=None, inplace=True)
-            averaged_data[device_name] = device_averages.to_dict("records")
+            resampled_data[device_name] = device_averages.to_dict("records")
 
-        return averaged_data
+        return raw_data, resampled_data
 
     @staticmethod
     def get_inter_sensor_correlation(
         devices: list, start_date_time: datetime, end_date_time: datetime, threshold
     ) -> dict:
-        data = Collocation.get_data(
+        data_data, resampled_data = Collocation.get_data(
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             devices=devices,
         )
 
-        device_pairs = Collocation.get_device_pairs(list(data.keys()))
+        device_pairs = Collocation.get_device_pairs(list(data_data.keys()))
 
         correlation = []
 
@@ -542,14 +549,14 @@ class Collocation(BaseModel):
             device_x = device_pair[0]
             device_y = device_pair[1]
 
-            device_x_data = pd.DataFrame(data.get(device_x))
+            device_x_data = pd.DataFrame(data_data.get(device_x))
             cols.extend(device_x_data.columns.to_list())
             device_x_data = device_x_data.add_prefix(f"{device_x}_")
             device_x_data.rename(
                 columns={f"{device_x}_timestamp": "timestamp"}, inplace=True
             )
 
-            device_y_data = pd.DataFrame(data.get(device_y))
+            device_y_data = pd.DataFrame(data_data.get(device_y))
             cols.extend(device_y_data.columns.to_list())
             device_y_data = device_y_data.add_prefix(f"{device_y}_")
             device_y_data.rename(
@@ -591,7 +598,42 @@ class Collocation(BaseModel):
                 }
             )
 
-        return {"correlation": correlation, "data": data}
+        return {"correlation": correlation, "data": resampled_data}
+
+    @staticmethod
+    def get_intra_sensor_correlation(
+        devices: list, start_date_time: datetime, end_date_time: datetime, threshold
+    ) -> dict:
+        raw_data, resampled_data = Collocation.get_data(
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            devices=devices,
+        )
+
+        correlation = {}
+
+        for device in raw_data.keys():
+            device_data = pd.DataFrame(raw_data.get(device))
+            pm2_5_pearson_correlation = (
+                device_data[["s1_pm2_5", "s2_pm2_5"]].corr().round(4)
+            )
+            pm10_pearson_correlation = (
+                device_data[["s1_pm10", "s2_pm10"]].corr().round(4)
+            )
+            correlation[device] = {
+                "pm2_5_pearson_correlation": pm2_5_pearson_correlation.iloc[0][
+                    "s2_pm2_5"
+                ],
+                "pm10_pearson_correlation": pm10_pearson_correlation.iloc[0]["s2_pm10"],
+                "pm2_5_r2": math.sqrt(pm2_5_pearson_correlation.iloc[0]["s2_pm2_5"]),
+                "pm10_r2": math.sqrt(pm10_pearson_correlation.iloc[0]["s2_pm10"]),
+                "passed": bool(
+                    pm2_5_pearson_correlation.iloc[0]["s2_pm2_5"] > threshold
+                )
+                and bool(pm10_pearson_correlation.iloc[0]["s2_pm10"] > threshold),
+            }
+
+        return {"correlation": correlation, "data": resampled_data}
 
     @staticmethod
     def get_data_completeness(
@@ -601,7 +643,7 @@ class Collocation(BaseModel):
         expected_records_per_hour,
         threshold,
     ) -> dict:
-        data = Collocation.get_data(
+        raw_data, _ = Collocation.get_data(
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             devices=devices,
@@ -612,8 +654,8 @@ class Collocation(BaseModel):
         hours_diff = int(((end_date_time - start_date_time).total_seconds()) / 3600)
         expected_records = expected_records_per_hour * hours_diff
 
-        for device in data.keys():
-            device_data = pd.DataFrame(data[device])
+        for device in raw_data.keys():
+            device_data = pd.DataFrame(raw_data[device])
             device_data.drop_duplicates(
                 inplace=True, keep="first", subset=["timestamp"]
             )
