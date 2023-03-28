@@ -593,6 +593,48 @@ class Collocation(BaseModel):
 
         return {"correlation": correlation, "data": data}
 
+    @staticmethod
+    def get_data_completeness(
+        devices: list,
+        start_date_time: datetime,
+        end_date_time: datetime,
+        expected_records_per_hour,
+        threshold,
+    ) -> dict:
+        data = Collocation.get_data(
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            devices=devices,
+        )
+
+        completeness_report = {}
+
+        hours_diff = int(((end_date_time - start_date_time).total_seconds()) / 3600)
+        expected_records = expected_records_per_hour * hours_diff
+
+        for device in data.keys():
+            device_data = pd.DataFrame(data[device])
+            device_data.drop_duplicates(
+                inplace=True, keep="first", subset=["timestamp"]
+            )
+            actual_number_of_records = len(device_data.index)
+            completeness = 1
+            missing = 0
+
+            if actual_number_of_records < expected_records:
+                completeness = actual_number_of_records / expected_records
+                missing = 1 - completeness
+
+            completeness_report[device] = {
+                "expected_number_of_records": expected_records,
+                "actual_number_of_records": actual_number_of_records,
+                "completeness": completeness,
+                "missing": missing,
+                "passed": bool(completeness > threshold),
+            }
+
+        return completeness_report
+
     @cache.memoize()
     def query_data(self, query):
         dataframe = self.__client.query(query=query).result().to_dataframe()

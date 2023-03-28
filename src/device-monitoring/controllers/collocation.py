@@ -262,7 +262,82 @@ def inter_sensor_correlation():
             devices=devices,
             threshold=threshold,
         )
-        print(results)
+
+        return jsonify({"data": results}), 200
+    except Exception as ex:
+        traceback.print_exc()
+        print(ex)
+        return jsonify({"error": "Error occurred. Contact support"}), 500
+
+
+@collocation_bp.route(routes.COLLOCATION_DATA_COMPLETENESS, methods=["POST"])
+def data_completeness():
+    json_data = request.get_json()
+    devices = json_data.get("devices", [])
+    start_date = json_data.get("startDate", None)
+    end_date = json_data.get("endDate", None)
+    threshold = json_data.get("threshold", 0.5)
+    expected_records_per_hour = json_data.get("expectedRecordsPerHour", 10)
+
+    errors = {}
+
+    try:
+        if not devices or not isinstance(
+            devices, list
+        ):  # TODO add device restrictions e.g not more that 3 devices
+            raise Exception
+    except Exception:
+        errors["devices"] = "Provide a list of devices"
+
+    try:
+        start_date = validate_date(start_date)
+    except Exception:
+        errors["startDate"] = (
+            "This query param is required."
+            "Please provide a valid date formatted datetime string (%Y-%m-%d)"
+        )
+
+    try:
+        end_date = validate_date(end_date)
+    except Exception:
+        errors["endDate"] = (
+            "This query param is required."
+            "Please provide a valid date formatted datetime string (%Y-%m-%d)"
+        )
+
+    if errors:
+        return (
+            jsonify(
+                {
+                    "message": "Some errors occurred while processing this request",
+                    "errors": errors,
+                }
+            ),
+            400,
+        )
+
+    if (
+        start_date > end_date
+    ):  # TODO add interval restrictions e.g not more that 10 days
+        errors["dates"] = "endDate must be greater or equal to the startDate"
+        return (
+            jsonify(
+                {
+                    "message": "Some errors occurred while processing this request",
+                    "errors": errors,
+                }
+            ),
+            400,
+        )
+    try:
+        results = Collocation.get_data_completeness(
+            start_date_time=start_date,
+            end_date_time=end_date,
+            devices=devices,
+            threshold=threshold,
+            expected_records_per_hour=expected_records_per_hour,
+        )
+
         return jsonify({"data": results}), 200
     except Exception as ex:
         traceback.print_exc()
