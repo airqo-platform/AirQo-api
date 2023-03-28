@@ -25,12 +25,10 @@ const InquirySchema = new mongoose.Schema(
     },
     firstName: {
       type: String,
-      required: [true, "firstName is required!"],
       trim: true,
     },
     lastName: {
       type: String,
-      required: [true, "lastName is required!"],
       trim: true,
     },
     message: { type: String, required: [true, "message is required"] },
@@ -47,22 +45,56 @@ const InquirySchema = new mongoose.Schema(
 );
 
 InquirySchema.statics = {
-  register(args) {
+  async register(args) {
     try {
+      let modifiedArgs = Object.assign({}, args);
+      const eitherFirstOrLastName = args.firstName
+        ? args.firstName
+        : args.lastName;
+      if (isEmpty(args.fullName) && !isEmpty(eitherFirstOrLastName)) {
+        modifiedArgs.fullName = eitherFirstOrLastName;
+      }
+
+      const data = await this.create({
+        ...modifiedArgs,
+      });
+      if (!isEmpty(data)) {
+        return {
+          success: true,
+          data,
+          message: "inquiry created",
+          status: httpStatus.OK,
+        };
+      } else if (isEmpty(data)) {
+        return {
+          success: true,
+          data,
+          message: "operation successful but user NOT successfully created",
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+    } catch (err) {
+      logObject("the error", err);
+      let response = {};
+      let message = "validation errors for some of the provided fields";
+      let status = httpStatus.CONFLICT;
+      if (err.keyValue) {
+        Object.entries(err.keyValue).forEach(([key, value]) => {
+          return (response[key] = `the ${key} must be unique`);
+        });
+      } else if (err.errors) {
+        Object.entries(err.errors).forEach(([key, value]) => {
+          return (response[key] = value.message);
+        });
+      } else if (err.code === 11000) {
+        response["message"] = "some duplicate records observed";
+      }
       return {
-        success: true,
-        data: this.create({
-          ...args,
-        }),
-        message: "inquiry created",
-        status: httpStatus.OK,
-      };
-    } catch (error) {
-      return {
-        errors: { message: error.message },
-        message: "unable to create inquiry",
+        error: response,
+        errors: response,
+        message,
         success: false,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
+        status,
       };
     }
   },

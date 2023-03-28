@@ -58,6 +58,62 @@ const createUser = {
           errors: {
             message: responseFromListStatistics.errors
               ? responseFromListStatistics.errors
+              : { message: "Internal Server Error" },
+          },
+        });
+      }
+    } catch (error) {
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: {
+          message: error.message,
+        },
+      });
+    }
+  },
+  listLogs: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        logger.error(
+          `input validation errors ${JSON.stringify(
+            convertErrorArrayToObject(nestedErrors)
+          )}`
+        );
+        return badRequest(
+          res,
+          "bad request errors",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      logText(".....................................");
+      logText("list all users by query params provided");
+      let { tenant, id } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT;
+      }
+
+      const responseFromListStatistics = await createUserUtil.listLogs(tenant);
+
+      if (responseFromListStatistics.success === true) {
+        res.status(httpStatus.OK).json({
+          success: true,
+          message: responseFromListStatistics.message,
+          users_stats: responseFromListStatistics.data,
+        });
+      } else if (responseFromListStatistics.success === false) {
+        const status = responseFromListStatistics.status
+          ? responseFromListStatistics.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+
+        return res.status(status).json({
+          success: false,
+          message: responseFromListStatistics.message,
+          errors: {
+            message: responseFromListStatistics.errors
+              ? responseFromListStatistics.errors
               : "",
           },
         });

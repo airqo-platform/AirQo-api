@@ -59,18 +59,7 @@ const inquire = {
           callback(responseFromSendEmail);
         }
       } else if (responseFromCreateInquiry.success === false) {
-        const errors = responseFromCreateInquiry.errors
-          ? responseFromCreateInquiry.errors
-          : "";
-        const status = responseFromCreateInquiry.status
-          ? responseFromCreateInquiry.status
-          : "";
-        callback({
-          success: false,
-          message: responseFromCreateInquiry.message,
-          errors,
-          status,
-        });
+        callback(responseFromCreateInquiry);
       }
     } catch (e) {
       callback({

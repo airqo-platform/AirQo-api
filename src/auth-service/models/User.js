@@ -158,7 +158,7 @@ UserSchema.index({ userName: 1 }, { unique: true });
 UserSchema.statics = {
   async register(args) {
     try {
-      data = await this.create({
+      const data = await this.create({
         ...args,
       });
       if (!isEmpty(data)) {
@@ -215,8 +215,7 @@ UserSchema.statics = {
           active: { $sum: { $cond: ["$isActive", 1, 0] } },
         })
         .project({
-          count: 1,
-          active: 1,
+          _id: 0,
         })
         .allowDiskUse(true);
 

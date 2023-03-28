@@ -1,4 +1,5 @@
-const UserSchema = require("../models/User");
+const UserSchema = require("@models/User");
+const LogSchema = require("@models/Log");
 const AccessTokenSchema = require("@models/AccessToken");
 const ClientSchema = require("@models/Client");
 const { getModelByTenant } = require("@config/dbConnection");
@@ -10,10 +11,10 @@ const ObjectId = mongoose.Types.ObjectId;
 const crypto = require("crypto");
 const isEmpty = require("is-empty");
 const { getAuth, sendSignInLinkToEmail } = require("firebase-admin/auth");
-const actionCodeSettings = require("../config/firebase-settings");
+const actionCodeSettings = require("@config/firebase-settings");
 const httpStatus = require("http-status");
-const constants = require("../config/constants");
-const mailchimp = require("../config/mailchimp");
+const constants = require("@config/constants");
+const mailchimp = require("@config/mailchimp");
 const md5 = require("md5");
 const accessCodeGenerator = require("generate-password");
 const generateFilter = require("./generate-filter");
@@ -29,6 +30,16 @@ const UserModel = (tenant) => {
   } catch (error) {
     let users = getModelByTenant(tenant, "user", UserSchema);
     return users;
+  }
+};
+
+const LogModel = (tenant) => {
+  try {
+    const logs = mongoose.model("logs");
+    return logs;
+  } catch (error) {
+    const logs = getModelByTenant(tenant, "log", LogSchema);
+    return logs;
   }
 };
 
@@ -53,6 +64,39 @@ const ClientModel = (tenant) => {
 };
 
 const join = {
+  listLogs: async (tenant) => {
+    try {
+      const responseFromListLogs = await LogModel(tenant).list(tenant);
+      if (responseFromListLogs.success === true) {
+        return {
+          success: true,
+          message: responseFromListLogs.message,
+          data: responseFromListLogs.data,
+          status: responseFromListLogs.status
+            ? responseFromListLogs.status
+            : httpStatus.OK,
+        };
+      } else if (responseFromListLogs.success === false) {
+        return {
+          success: false,
+          message: responseFromListLogs.message,
+          errors: responseFromListLogs.errors
+            ? responseFromListLogs.errors
+            : { message: "Internal Server Error" },
+          status: responseFromListLogs.status
+            ? responseFromListLogs.status
+            : httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+    } catch (e) {
+      logElement("list users util", e.message);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: e.message },
+      };
+    }
+  },
   listStatistics: async (tenant) => {
     try {
       const responseFromListStatistics = await UserModel(tenant).listStatistics(

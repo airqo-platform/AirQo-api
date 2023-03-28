@@ -44,19 +44,22 @@ const inquire = {
       await createInquiryUtil
         .create(request, (value) => {
           if (value.success === true) {
-            return res.status(value.status).json({
+            const status = value.status ? value.status : httpStatus.OK;
+            return res.status(status).json({
               success: true,
               message: value.message,
               inquiry: value.data,
             });
-          }
-
-          if (value.success === false) {
-            const errors = value.errors ? value.errors : "";
-            return res.status(value.status).json({
+          } else if (value.success === false) {
+            const status = value.status
+              ? value.status
+              : httpStatus.INTERNAL_SERVER_ERROR;
+            return res.status(status).json({
               success: false,
               message: value.message,
-              errors,
+              errors: value.errors
+                ? value.errors
+                : { message: "Internal Server Error" },
             });
           }
         })

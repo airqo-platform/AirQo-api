@@ -5,7 +5,7 @@ const LogSchema = require("@models/Log");
 const { getTenantDB } = require("@config/dbConnection");
 
 const LogDB = (tenant) => {
-  return getTenantDB(tenant, "inquiry", LogSchema);
+  return getTenantDB(tenant, "log", LogSchema);
 };
 
 const logText = (message) => {

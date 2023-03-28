@@ -663,6 +663,24 @@ router.get(
 );
 
 router.get(
+  "/logs",
+  oneOf([
+    query("tenant")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
+      .trim()
+      .toLowerCase()
+      .bail()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  setJWTAuth,
+  authJWT,
+  createUserController.listLogs
+);
+
+router.get(
   "/:user_id",
   oneOf([
     [
