@@ -465,6 +465,63 @@ class Collocation(BaseModel):
         self.__data = aggregated_data
         return self.__data
 
+    @staticmethod
+    # @cache.memoize()
+    def get_data(
+        devices: list, start_date_time: datetime, end_date_time: datetime
+    ) -> dict:
+        client = bigquery.Client()
+        cols = [
+            "timestamp",
+            "device_id as device_name",
+            "s1_pm2_5",
+            "s2_pm2_5",
+            "s1_pm10",
+            "s2_pm10",
+            "device_temperature as internal_temperature",
+            "device_humidity as internal_humidity",
+            "temperature as external_temperature",
+            "humidity as external_humidity",
+            "battery as battery_voltage",
+        ]
+
+        data_table = f"`{Config.BIGQUERY_RAW_DATA}`"
+
+        query = (
+            f" SELECT {', '.join(map(str, set(cols)))} "
+            f" FROM {data_table} "
+            f" WHERE {data_table}.timestamp >= '{str(start_date_time)}' "
+            f" AND {data_table}.timestamp <= '{str(end_date_time)}' "
+            f" AND device_id IN UNNEST({devices}) "
+        )
+
+        dataframe = client.query(query=query).result().to_dataframe()
+        averaged_data = {}
+
+        if dataframe.empty:
+            for device in devices:
+                averaged_data[device] = {}
+            return averaged_data
+
+        dataframe["timestamp"] = dataframe["timestamp"].apply(pd.to_datetime)
+        dataframe.drop_duplicates(
+            subset=["timestamp", "device_name"], keep="first", inplace=True
+        )
+
+        cols = set(dataframe.columns.to_list()).difference({"device_name", "timestamp"})
+
+        for _, by_device in dataframe.groupby("device_name"):
+            device_name = by_device.iloc[0]["device_name"]
+            del by_device["device_name"]
+
+            device_averages = by_device.resample("1H", on="timestamp").mean()
+            device_averages["timestamp"] = device_averages.index
+            device_averages.dropna(subset=list(cols), inplace=True, how="all")
+            device_averages.replace(to_replace=np.nan, value=None, inplace=True)
+            averaged_data[device_name] = device_averages.to_dict("records")
+
+        return averaged_data
+
     @cache.memoize()
     def query_data(self, query):
         dataframe = self.__client.query(query=query).result().to_dataframe()
