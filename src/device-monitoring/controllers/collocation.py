@@ -197,6 +197,79 @@ def data():
         return jsonify({"error": "Error occurred. Contact support"}), 500
 
 
+@collocation_bp.route(routes.INTER_SENSOR_CORRELATION_DATA, methods=["POST"])
+def inter_sensor_correlation():
+    json_data = request.get_json()
+    devices = json_data.get("devices", [])
+    start_date = json_data.get("startDate", None)
+    end_date = json_data.get("endDate", None)
+    threshold = json_data.get("threshold", 0.5)
+
+    errors = {}
+
+    try:
+        if not devices or not isinstance(
+            devices, list
+        ):  # TODO add device restrictions e.g not more that 3 devices
+            raise Exception
+    except Exception:
+        errors["devices"] = "Provide a list of devices"
+
+    try:
+        start_date = validate_date(start_date)
+    except Exception:
+        errors["startDate"] = (
+            "This query param is required."
+            "Please provide a valid date formatted datetime string (%Y-%m-%d)"
+        )
+
+    try:
+        end_date = validate_date(end_date)
+    except Exception:
+        errors["endDate"] = (
+            "This query param is required."
+            "Please provide a valid date formatted datetime string (%Y-%m-%d)"
+        )
+
+    if errors:
+        return (
+            jsonify(
+                {
+                    "message": "Some errors occurred while processing this request",
+                    "errors": errors,
+                }
+            ),
+            400,
+        )
+
+    if (
+        start_date > end_date
+    ):  # TODO add interval restrictions e.g not more that 10 days
+        errors["dates"] = "endDate must be greater or equal to the startDate"
+        return (
+            jsonify(
+                {
+                    "message": "Some errors occurred while processing this request",
+                    "errors": errors,
+                }
+            ),
+            400,
+        )
+    try:
+        results = Collocation.get_inter_sensor_correlation(
+            start_date_time=start_date,
+            end_date_time=end_date,
+            devices=devices,
+            threshold=threshold,
+        )
+        print(results)
+        return jsonify({"data": results}), 200
+    except Exception as ex:
+        traceback.print_exc()
+        print(ex)
+        return jsonify({"error": "Error occurred. Contact support"}), 500
+
+
 @collocation_bp.route(routes.SCHEDULE_COLLOCATION, methods=["POST"])
 def schedule_collocation():
     token = request.headers.get("Authorization", "")

@@ -8,6 +8,8 @@ DEVICE_COLLOCATION = f"{BASE_URL}/devices/collocation"
 
 COLLOCATION_DATA = f"{BASE_URL}/devices/collocation/data"
 
+INTER_SENSOR_CORRELATION_DATA = f"{BASE_URL}/devices/collocation/inter"
+
 SCHEDULE_COLLOCATION = f"{BASE_URL}/devices/collocation/schedule"
 
 DEVICE_COLLOCATION_RESULTS = f"{BASE_URL}/devices/collocation/results"

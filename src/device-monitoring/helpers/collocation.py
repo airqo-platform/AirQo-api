@@ -84,7 +84,7 @@ class CollocationScheduling(BaseModel):
             end_date = data.get("end_date")
             completeness_threshold = data.get("completeness_threshold")
             expected_records_per_day = data.get("expected_records_per_day")
-            correlation_threshold = data.get("correlation_threshold")
+            correlation_threshold = data.get("threshold")
             added_by = data.get("added_by")
             record_id = data.get("_id")
 
@@ -382,7 +382,7 @@ class Collocation(BaseModel):
             "devices": self.__devices,
             "start_date": self.__start_date,
             "end_date": self.__end_date,
-            "correlation_threshold": self.__correlation_threshold,
+            "threshold": self.__correlation_threshold,
             "completeness_threshold": self.__completeness_threshold,
             "expected_records_per_day": self.__expected_records_per_day,
             "added_by": self.__added_by,
@@ -466,7 +466,7 @@ class Collocation(BaseModel):
         return self.__data
 
     @staticmethod
-    # @cache.memoize()
+    @cache.memoize()
     def get_data(
         devices: list, start_date_time: datetime, end_date_time: datetime
     ) -> dict:
@@ -521,6 +521,77 @@ class Collocation(BaseModel):
             averaged_data[device_name] = device_averages.to_dict("records")
 
         return averaged_data
+
+    @staticmethod
+    def get_inter_sensor_correlation(
+        devices: list, start_date_time: datetime, end_date_time: datetime, threshold
+    ) -> dict:
+        data = Collocation.get_data(
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            devices=devices,
+        )
+
+        device_pairs = Collocation.get_device_pairs(list(data.keys()))
+
+        correlation = []
+
+        cols = []
+
+        for device_pair in device_pairs:
+            device_x = device_pair[0]
+            device_y = device_pair[1]
+
+            device_x_data = pd.DataFrame(data.get(device_x))
+            cols.extend(device_x_data.columns.to_list())
+            device_x_data = device_x_data.add_prefix(f"{device_x}_")
+            device_x_data.rename(
+                columns={f"{device_x}_timestamp": "timestamp"}, inplace=True
+            )
+
+            device_y_data = pd.DataFrame(data.get(device_y))
+            cols.extend(device_y_data.columns.to_list())
+            device_y_data = device_y_data.add_prefix(f"{device_y}_")
+            device_y_data.rename(
+                columns={f"{device_y}_timestamp": "timestamp"}, inplace=True
+            )
+
+            device_pair_data = pd.merge(
+                left=device_x_data,
+                right=device_y_data,
+                on=["timestamp"],
+            )
+
+            device_pair_correlation = {}
+
+            for col in set(cols):
+                try:
+                    cols = [f"{device_x}_{col}", f"{device_y}_{col}"]
+                    device_pair_correlation_data = (
+                        device_pair_data[cols].corr().round(4)
+                    )
+                    correlation_value = device_pair_correlation_data.iloc[0][cols[1]]
+                    device_pair_correlation[col] = correlation_value
+
+                except:
+                    pass
+
+            correlation.append(
+                {
+                    **{
+                        "devices": device_pair,
+                    },
+                    **device_pair_correlation,
+                    **{
+                        "passed": bool(device_pair_correlation["s1_pm2_5"] > threshold)
+                        and bool(device_pair_correlation["s2_pm2_5"] > threshold)
+                        and bool(device_pair_correlation["s1_pm10"] > threshold)
+                        and bool(device_pair_correlation["s2_pm10"] > threshold),
+                    },
+                }
+            )
+
+        return {"correlation": correlation, "data": data}
 
     @cache.memoize()
     def query_data(self, query):
@@ -814,6 +885,17 @@ class Collocation(BaseModel):
                 if (device_x == device_y) or ((device_y, device_x) in device_pairs):
                     continue
                 device_pairs.append([device_x, device_y])
+
+        return device_pairs
+
+    @staticmethod
+    def get_device_pairs(devices: list) -> list:
+        device_pairs = []
+        pairing_devices = devices.copy()
+        for device in devices:
+            pairing_devices.remove(device)
+            for pair_device in pairing_devices:
+                device_pairs.append([device, pair_device])
 
         return device_pairs
 
