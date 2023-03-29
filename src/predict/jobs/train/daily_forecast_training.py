@@ -1,13 +1,14 @@
-import pandas as pd
-from transform import get_forecast_data
+import warnings
 
-from lightgbm import LGBMRegressor, early_stopping
-from sklearn.metrics import mean_squared_error
 import mlflow
 import mlflow.sklearn
+import pandas as pd
+from lightgbm import LGBMRegressor, early_stopping
+from sklearn.metrics import mean_squared_error
+
 from config import environment, configuration
+from transform import get_forecast_data
 from utils import upload_trained_model_to_gcs
-import warnings
 
 warnings.filterwarnings("ignore")
 
@@ -20,7 +21,7 @@ print(f'mlflow server uri: {mlflow.get_tracking_uri()}')
 def preprocess_forecast_data():
     forecast_data = get_forecast_data()
     # convert 'device_number' to string
-    forecast_data['created_at'] = pd.to_datetime(forecast_data['created_at'], format='%Y-%m-%d %H:%M:%S')
+    forecast_data['created_at'] = pd.to_datetime(forecast_data['created_at'], format='%Y-%m-%d')
     forecast_data.set_index('created_at', inplace=True)
     forecast_data['device_number'] = forecast_data['device_number'].astype(str)
     forecast_data = forecast_data.groupby(
@@ -59,15 +60,20 @@ def train_model(train):
     print('feature selection started.....')
     features = [c for c in train.columns if c not in ["created_at", "pm2_5"]]
     TARGET_COL = "pm2_5"
-
-    # change devie number to int
-
     train_data, test_data = pd.DataFrame(), pd.DataFrame()
 
     for device_number in train['device_number'].unique():
         device_df = train[train['device_number'] == device_number]
-        train_df = device_df[device_df['created_at'].dt.month <= 9]
-        test_df = device_df[device_df['created_at'].dt.month > 9]
+        # Sort device_df by created_at in ascending order
+        device_df = device_df.sort_values(by='created_at')
+        # Get the unique months in device_df
+        months = device_df['created_at'].dt.month.unique()
+        # Get the first 9 months and the last 3 months
+        train_months = months[:9]
+        test_months = months[9:]
+        # Filter device_df by train_months and test_months
+        train_df = device_df[device_df['created_at'].dt.month.isin(train_months)]
+        test_df = device_df[device_df['created_at'].dt.month.isin(test_months)]
         train_data = pd.concat([train_data, train_df])
         test_data = pd.concat([test_data, test_df])
 
@@ -169,7 +175,7 @@ def get_other_features(df_tmp):
 
 
 def preprocess_df(df_tmp, target_column):
-    # interpolate missing values
+    # TODO: Reviee this interpolation
     df_tmp[target_column] = df_tmp[target_column].interpolate(method='linear', limit_direction='both')
     df_tmp = get_lag_features(df_tmp, target_column)
     df_tmp = get_other_features(df_tmp)
