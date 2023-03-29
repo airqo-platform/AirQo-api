@@ -469,7 +469,7 @@ class Collocation(BaseModel):
     @cache.memoize()
     def get_data(
         devices: list, start_date_time: datetime, end_date_time: datetime
-    ) -> tuple:
+    ) -> tuple[dict, dict]:
         client = bigquery.Client()
         cols = [
             "timestamp",
@@ -532,14 +532,14 @@ class Collocation(BaseModel):
     @staticmethod
     def get_inter_sensor_correlation(
         devices: list, start_date_time: datetime, end_date_time: datetime, threshold
-    ) -> dict:
-        data_data, resampled_data = Collocation.get_data(
+    ) -> list:
+        data, _ = Collocation.get_data(
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             devices=devices,
         )
 
-        device_pairs = Collocation.get_device_pairs(list(data_data.keys()))
+        device_pairs = Collocation.get_device_pairs(list(data.keys()))
 
         correlation = []
 
@@ -549,14 +549,14 @@ class Collocation(BaseModel):
             device_x = device_pair[0]
             device_y = device_pair[1]
 
-            device_x_data = pd.DataFrame(data_data.get(device_x))
+            device_x_data = pd.DataFrame(data.get(device_x))
             cols.extend(device_x_data.columns.to_list())
             device_x_data = device_x_data.add_prefix(f"{device_x}_")
             device_x_data.rename(
                 columns={f"{device_x}_timestamp": "timestamp"}, inplace=True
             )
 
-            device_y_data = pd.DataFrame(data_data.get(device_y))
+            device_y_data = pd.DataFrame(data.get(device_y))
             cols.extend(device_y_data.columns.to_list())
             device_y_data = device_y_data.add_prefix(f"{device_y}_")
             device_y_data.rename(
@@ -577,6 +577,7 @@ class Collocation(BaseModel):
                     device_pair_correlation_data = (
                         device_pair_data[cols].corr().round(4)
                     )
+                    device_pair_correlation_data.replace(np.nan, None, inplace=True)
                     correlation_value = device_pair_correlation_data.iloc[0][cols[1]]
                     device_pair_correlation[col] = correlation_value
 
@@ -598,7 +599,7 @@ class Collocation(BaseModel):
                 }
             )
 
-        return {"correlation": correlation, "data": resampled_data}
+        return correlation
 
     @staticmethod
     def get_intra_sensor_correlation(
@@ -633,7 +634,7 @@ class Collocation(BaseModel):
                 and bool(pm10_pearson_correlation.iloc[0]["s2_pm10"] > threshold),
             }
 
-        return {"correlation": correlation, "data": resampled_data}
+        return correlation
 
     @staticmethod
     def get_data_completeness(
@@ -642,14 +643,14 @@ class Collocation(BaseModel):
         end_date_time: datetime,
         expected_records_per_hour,
         threshold,
-    ) -> dict:
+    ) -> list:
         raw_data, _ = Collocation.get_data(
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             devices=devices,
         )
 
-        completeness_report = {}
+        completeness_report = []
 
         hours_diff = int(((end_date_time - start_date_time).total_seconds()) / 3600)
         expected_records = expected_records_per_hour * hours_diff
@@ -666,14 +667,18 @@ class Collocation(BaseModel):
             if actual_number_of_records < expected_records:
                 completeness = actual_number_of_records / expected_records
                 missing = 1 - completeness
-
-            completeness_report[device] = {
-                "expected_number_of_records": expected_records,
-                "actual_number_of_records": actual_number_of_records,
-                "completeness": completeness,
-                "missing": missing,
-                "passed": bool(completeness > threshold),
-            }
+            completeness_report.append(
+                {
+                    "device_name": device,
+                    "expected_number_of_records": expected_records,
+                    "start_date": start_date_time,
+                    "end_date": end_date_time,
+                    "actual_number_of_records": actual_number_of_records,
+                    "completeness": completeness,
+                    "missing": missing,
+                    "passed": bool(completeness > threshold),
+                }
+            )
 
         return completeness_report
 
