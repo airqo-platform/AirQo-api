@@ -22,12 +22,12 @@ def get_airqloud_polygon(tenant, airqloud):
     params = {'tenant': tenant,
               'name': airqloud
               }
-    if environment == 'staging':
+    if configuration.API_TOKEN:
         headers = {'Authorization': configuration.API_TOKEN}
         coords = requests.get(configuration.VIEW_AIRQLOUD_URI, params=params, headers=headers).json()[
             'airqlouds'][0]['location']['coordinates']
     else:
-        coords = requests.get(configuration.VIEW_AIRQLOUD_URI, params=params, headers=headers).json()[
+        coords = requests.get(configuration.VIEW_AIRQLOUD_URI, params=params).json()[
             'airqlouds'][0]['location']['coordinates']
     geo = {'type': 'Polygon', 'coordinates': coords}
     polygon = Polygon([tuple(l) for l in geo['coordinates'][0]])
@@ -48,7 +48,8 @@ def train_model(X, Y, airqloud):
         Xtraining = X
         Ytraining = Y
 
-    print('Number of rows in Xtraining', Xtraining.shape[0])
+    print('Number of rows in Xtraining for ' +
+          airqloud + ' airqloud', Xtraining.shape[0])
 
     if airqloud == 'kampala':
         k = gpflow.kernels.RBF(
@@ -167,17 +168,21 @@ def periodic_function(tenant, airqloud, aq_id):
     poly, min_long, max_long, min_lat, max_lat = get_airqloud_polygon(
         tenant, airqloud)
     all_sites_data = get_all_sites_data(airqloud=airqloud, tenant=tenant)
-    train_data_df = data_to_df(data=all_sites_data)
-    train_data_df = drop_missing_value(train_data_df)
-    train_data_preprocessed = preprocess(df=train_data_df)
-    X_features = np.asarray(
-        train_data_preprocessed.drop('pm2_5', axis=1).values)
-    Y_target = np.asarray(train_data_preprocessed['pm2_5'].values)
-    X = X_features
-    Y = Y_target.reshape(-1, 1)
-    m = train_model(X_features, Y_target, airqloud)
-    predict_model(m, tenant, airqloud, aq_id, poly,
-                  min_long, max_long, min_lat, max_lat)
+    if len(all_sites_data) != 0:
+        train_data_df = data_to_df(data=all_sites_data)
+        train_data_df = drop_missing_value(train_data_df)
+        train_data_preprocessed = preprocess(df=train_data_df)
+        X_features = np.asarray(
+            train_data_preprocessed.drop('pm2_5', axis=1).values)
+        Y_target = np.asarray(train_data_preprocessed['pm2_5'].values)
+        X = X_features
+        Y = Y_target.reshape(-1, 1)
+        m = train_model(X_features, Y_target, airqloud)
+        predict_model(m, tenant, airqloud, aq_id, poly,
+                      min_long, max_long, min_lat, max_lat)
+    else:
+        print('No training data available for ' + airqloud +
+              ' airqloud within the specified time range.')
 
 
 def get_all_airqlouds(tenant):
@@ -185,7 +190,8 @@ def get_all_airqlouds(tenant):
     Returns a list of all the airqlouds for a particuar tenant
     '''
     params = {'tenant': tenant}
-    if environment == 'staging':
+
+    if configuration.API_TOKEN != None:
         headers = {'Authorization': configuration.API_TOKEN}
         airqlouds = requests.get(
             configuration.VIEW_AIRQLOUD_URI, params=params, headers=headers).json()['airqlouds']
@@ -213,7 +219,6 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     for index, name in enumerate(airqloud_names):
-        print(f'{name} starting ...')
         exec(
             f'thread{index} = Thread(target=periodic_function, args = [args.tenant, name, aq_ids[index]])')
         exec(f'thread{index}.start()')

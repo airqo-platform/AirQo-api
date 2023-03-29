@@ -11,7 +11,7 @@ def get_airqloud_sites(airqloud, tenant='airqo'):
 
               }
 
-    if environment == 'staging':
+    if configuration.API_TOKEN:
         headers = {'Authorization': configuration.API_TOKEN}
         airqloud_response = requests.get(
             configuration.VIEW_AIRQLOUD_URI, params=params, headers=headers)
@@ -38,7 +38,7 @@ def get_site_data(site_id, tenant='airqo'):
               'frequency': 'hourly'
               }
 
-    if environment == 'staging':
+    if configuration.API_TOKEN:
         headers = {'Authorization': configuration.API_TOKEN}
         event_response = requests.get(
             configuration.EVENTS_URI, params=params, headers=headers)
@@ -58,7 +58,6 @@ def get_site_data(site_id, tenant='airqo'):
 
         site_dd.append({'time': data['timestamp'], 'latitude': data['latitude'],
                         'longitude': data['longitude'], 'pm2_5': pm2_5})
-
     return site_dd
 
 
