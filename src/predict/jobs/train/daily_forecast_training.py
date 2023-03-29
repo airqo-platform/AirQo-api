@@ -3,6 +3,7 @@ import warnings
 import mlflow
 import mlflow.sklearn
 import pandas as pd
+import joblib as joblib
 from lightgbm import LGBMRegressor, early_stopping
 from sklearn.metrics import mean_squared_error
 
@@ -38,10 +39,11 @@ def initialise_training_constants():
 
     forecast_data = preprocess_forecast_data()
 
-    if train_model_now == True:
+    if train_model_now:
         print(forecast_data.columns)
         train = preprocess_df(forecast_data, target_col)
         clf = train_model(train)
+        joblib.dump(clf, 'LGBMmodel.pkl')
 
         # load new model
         upload_trained_model_to_gcs(
@@ -59,7 +61,8 @@ def train_model(train):
     """
     print('feature selection started.....')
     features = [c for c in train.columns if c not in ["created_at", "pm2_5"]]
-    TARGET_COL = "pm2_5"
+    print(features)
+    target_col = "pm2_5"
     train_data, test_data = pd.DataFrame(), pd.DataFrame()
 
     for device_number in train['device_number'].unique():
@@ -83,7 +86,7 @@ def train_model(train):
     train_data.drop(columns=['created_at'], axis=1, inplace=True)
     test_data.drop(columns=['created_at'], axis=1, inplace=True)
 
-    train_target, test_target = train_data[TARGET_COL], test_data[TARGET_COL]
+    train_target, test_target = train_data[target_col], test_data[target_col]
     # start training the model
     with mlflow.start_run():
         print("Model training started.....")
@@ -107,7 +110,7 @@ def train_model(train):
         clf.fit(train_data[features], train_target, eval_set=[(test_data[features], test_target)],
                 callbacks=[early_stopping(stopping_rounds=150)], verbose=50,
                 eval_metric='rmse')
-        print("Model training completed.....")
+        print('Model training completed.....')
 
         # Log parameters
         mlflow.log_param("n_estimators", n_estimators)
@@ -129,7 +132,7 @@ def train_model(train):
         print("Being model validation.....")
 
         val_preds = clf.predict(test_data[features])
-        rmse_val = mean_squared_error(test_data[TARGET_COL], val_preds) ** 0.5
+        rmse_val = mean_squared_error(test_data[target_col], val_preds) ** 0.5
 
         print("Model validation completed.....")
         print(f'Validation RMSE is {rmse_val}')
@@ -142,7 +145,7 @@ def train_model(train):
                             max_depth=-1, random_state=1)
         # change devie number to int
         train['device_number'] = train['device_number'].astype(int)
-        clf.fit(train[features], train[TARGET_COL])
+        clf.fit(train[features], train[target_col])
 
     return clf
 
@@ -150,12 +153,10 @@ def train_model(train):
 def get_lag_features(df_tmp, TARGET_COL):
     df_tmp = df_tmp.sort_values(by=['device_number', 'created_at'])
 
-    ### Shift Features
-    shifts = [1, 2, 3, 7, 14, 30]
+    shifts = [1, 2]
     for s in shifts:
         df_tmp[f'pm2_5_last_{s}_day'] = df_tmp.groupby(['device_number'])[TARGET_COL].shift(s)
 
-    ### Rolling Features
     shifts = [3, 7, 14, 30]
     functions = ['mean', 'std', 'max', 'min']
     for s in shifts:
@@ -166,17 +167,17 @@ def get_lag_features(df_tmp, TARGET_COL):
 
 
 def get_other_features(df_tmp):
-    D_COL = 'created_at'
-    attributes = ['year', 'month', 'day', 'dayofweek', 'week']
+    attributes = ['year', 'month', 'day', 'dayofweek']
     for a in attributes:
         df_tmp[a] = df_tmp['created_at'].dt.__getattribute__(a)
-    df_tmp['week'] = df_tmp['week'].astype('int64')
+    df_tmp['week'] = df_tmp['created_at'].dt.isocalendar().week.astype(int)
     return df_tmp
 
 
 def preprocess_df(df_tmp, target_column):
     # TODO: Reviee this interpolation
-    df_tmp[target_column] = df_tmp[target_column].interpolate(method='linear', limit_direction='both')
+    # df_tmp[target_column] = df_tmp[target_column].interpolate(method='linear', limit_direction='back')
+    df_tmp = df_tmp.dropna()
     df_tmp = get_lag_features(df_tmp, target_column)
     df_tmp = get_other_features(df_tmp)
 

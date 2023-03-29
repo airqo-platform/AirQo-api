@@ -1,9 +1,11 @@
 import os
-from pymongo import MongoClient
-from dotenv import load_dotenv
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
+
 import pandas as pd
+from dotenv import load_dotenv
+from pymongo import MongoClient
+
 BASE_DIR = Path(__file__).resolve().parent
 dotenv_path = os.path.join(BASE_DIR, '.env')
 load_dotenv(dotenv_path)
@@ -26,12 +28,15 @@ class Config:
 
     #set constants
     test_start_datetime = datetime.now().strftime('%Y-%m-%d %H')
+    daily_test_start_datetime = datetime.now().strftime('%Y-%m-%d')
     #test_end_datetime = date_to_str(datetime.now() + timedelta(hours=24))
 
     TEST_DATE_HOUR_START = pd.to_datetime(test_start_datetime)
+    TEST_DATE_DAILY_START = pd.to_datetime(daily_test_start_datetime)
 
     ### Prediction will end at this date-hour
     TEST_DATE_HOUR_END = TEST_DATE_HOUR_START + pd.Timedelta(hours=23)
+    TEST_DATE_DAILY_END = TEST_DATE_DAILY_START + pd.Timedelta(days=6)
     N_HRS_BACK = 24
     SEQ_LEN = 24
     ROLLING_SEQ_LEN = 24*90

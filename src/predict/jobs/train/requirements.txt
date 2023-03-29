@@ -13,3 +13,4 @@ joblib
 lightgbm
 requests
 mlflow
+sklearn
