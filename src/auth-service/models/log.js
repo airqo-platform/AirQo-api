@@ -8,8 +8,20 @@ const logSchema = new mongoose.Schema(
     timestamp: { type: Date, required: true },
     level: { type: String, required: true },
     message: { type: String, required: true },
+    meta: {
+      type: {
+        service: String,
+        version: String,
+        requestId: String,
+        userId: String,
+        username: String,
+        email: String,
+        timestamp: String,
+      },
+      default: {},
+    },
   },
-  { timestamps: false }
+  { timestamps: true }
 );
 
 logSchema.pre("save", function (next) {
@@ -20,25 +32,25 @@ logSchema.pre("update", function (next) {
   return next();
 });
 
-logSchema.index({ role_name: 1, role_code: 1 }, { unique: true });
+logSchema.index({ Log_name: 1, Log_code: 1 }, { unique: true });
 
 logSchema.statics = {
   async register(args) {
     try {
-      const newRole = await this.create({
+      const newLog = await this.create({
         ...args,
       });
-      if (!isEmpty(newRole)) {
+      if (!isEmpty(newLog)) {
         return {
           success: true,
-          data: newRole._doc,
-          message: "Role created",
+          data: newLog._doc,
+          message: "Log created",
         };
-      } else if (isEmpty(newRole)) {
+      } else if (isEmpty(newLog)) {
         return {
           success: true,
           data: [],
-          message: "operation successful but Role NOT successfully created",
+          message: "operation successful but Log NOT successfully created",
         };
       }
     } catch (err) {
@@ -54,12 +66,10 @@ logSchema.statics = {
           return (response[key] = value.message);
         });
       } else if (err.code === 11000) {
-        const duplicate_record = args.role_name
-          ? args.role_name
-          : args.role_code;
+        const duplicate_record = args.Log_name ? args.Log_name : args.Log_code;
         response[duplicate_record] = `${duplicate_record} must be unique`;
         response["message"] =
-          "the role_name and role_code must be unique for every role";
+          "the Log_name and Log_code must be unique for every Log";
       }
 
       return {
@@ -72,49 +82,34 @@ logSchema.statics = {
     }
   },
 
-  async list({ skip = 0, limit = 5, filter = {} } = {}) {
+  async list({ skip = 0, limit = 1000, filter = {} } = {}) {
     try {
-      const roles = await this.aggregate()
+      const logs = await this.aggregate()
         .match(filter)
-        .lookup({
-          from: "networks",
-          localField: "network_id",
-          foreignField: "_id",
-          as: "network",
-        })
-        .lookup({
-          from: "permissions",
-          localField: "role_permissions",
-          foreignField: "permission",
-          as: "role_permissions",
-        })
-        .sort({ createdAt: -1 })
-        .project({
-          "network.__v": 0,
-        })
+        .sort({ timestamp: -1 })
         .skip(skip ? skip : 0)
-        .limit(limit ? limit : 100)
+        .limit(limit ? limit : 1000)
         .allowDiskUse(true);
 
-      if (!isEmpty(roles)) {
+      if (!isEmpty(logs)) {
         return {
           success: true,
-          data: roles,
-          message: "successfully listed the roles",
+          data: logs,
+          message: "successfully listed the logs",
           status: httpStatus.OK,
         };
-      } else if (isEmpty(roles)) {
+      } else if (isEmpty(logs)) {
         return {
           success: true,
-          message: "roles not found for this operation",
+          message: "logs not found for this operation",
           data: [],
-          status: httpStatus.NOT_FOUND,
+          status: httpStatus.OK,
         };
       }
     } catch (error) {
       return {
         success: false,
-        message: "Role model server error - list",
+        message: "Internal Server Errors",
         error: error.message,
         errors: { message: error.message },
       };
@@ -124,33 +119,26 @@ logSchema.statics = {
     try {
       const options = { new: true };
       let modifiedUpdate = Object.assign({}, update);
-      modifiedUpdate["$addToSet"] = {};
 
-      if (modifiedUpdate.permissions) {
-        modifiedUpdate["$addToSet"]["role_permissions"] = {};
-        modifiedUpdate["$addToSet"]["role_permissions"]["$each"] =
-          modifiedUpdate.permissions;
-        delete modifiedUpdate.permissions;
-      }
-      const updatedRole = await this.findOneAndUpdate(
+      const updatedLog = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,
         options
       ).exec();
 
-      if (!isEmpty(updatedRole)) {
+      if (!isEmpty(updatedLog)) {
         return {
           success: true,
-          message: "successfully modified the Role",
-          data: updatedRole._doc,
+          message: "successfully modified the Log",
+          data: updatedLog._doc,
           status: httpStatus.OK,
         };
-      } else if (isEmpty(updatedRole)) {
+      } else if (isEmpty(updatedLog)) {
         return {
-          success: true,
-          message: "role not found",
-          data: [],
-          status: httpStatus.NOT_FOUND,
+          success: false,
+          message: "Log not found",
+          errors: { message: "bad request" },
+          status: httpStatus.BAD_REQUEST,
         };
       }
     } catch (error) {
@@ -166,25 +154,24 @@ logSchema.statics = {
   async remove({ filter = {} } = {}) {
     try {
       let options = {
-        projection: { _id: 0, role_name: 1, role_code: 1, role_status: 1 },
+        projection: { _id: 1 },
       };
-      let removedRole = await this.findOneAndRemove(filter, options).exec();
+      const removedLog = await this.findOneAndRemove(filter, options).exec();
 
-      if (!isEmpty(removedRole)) {
-        let data = removedRole._doc;
+      if (!isEmpty(removedLog)) {
         return {
           success: true,
-          message: "successfully removed the Role",
-          data,
+          message: "successfully removed the Log",
+          data: removedLog._doc,
           status: httpStatus.OK,
         };
-      } else {
+      } else if (isEmpty(removedLog)) {
         return {
           success: false,
-          message: "Role does not exist, please crosscheck",
+          message: "Log does not exist, please crosscheck",
           data: [],
-          status: httpStatus.NOT_FOUND,
-          errors: { message: "Role does not exist, please crosscheck" },
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "Log does not exist, please crosscheck" },
         };
       }
     } catch (error) {
@@ -203,10 +190,10 @@ logSchema.methods = {
   toJSON() {
     return {
       _id: this._id,
-      role_name: this.role_name,
-      role_code: this.role_code,
-      role_status: this.role_status,
-      role_permissions: this.role_permissions,
+      meta: this.meta,
+      timestamp: this.timestamp,
+      level: this.level,
+      message: this.message,
     };
   },
 };

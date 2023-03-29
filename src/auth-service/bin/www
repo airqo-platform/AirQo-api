@@ -10,6 +10,9 @@ const isEmpty = require("is-empty");
 
 const log4jsConfiguration = require("@config/log4js")
 log4js.configure(log4jsConfiguration);
+const logger = log4js.getLogger(
+    `${constants.ENVIRONMENT} -- www-start-script`
+);
 
 
 const { logText, logObject, logElement, winstonLogger } = require("@utils/log")
@@ -63,9 +66,6 @@ try {
 const consumer = kafka.consumer({ groupId: constants.UNIQUE_CONSUMER_GROUP });
 
 // Function to start consuming messages
-/**
- * we could also add the Websocket implememtation right here.
- */
 const run = async() => {
     await consumer.connect();
     await consumer.subscribe({ topic: constants.NEW_MOBILE_APP_USER_TOPIC, fromBeginning: true });
@@ -77,10 +77,6 @@ const run = async() => {
                 })}`
             );
             logObject("message.value.toString()", message.value.toString())
-
-            /**
-             * We might need to "clean" the JSON from here
-             */
 
             const repairedJSONString = jsonrepair(message.value.toString())
             logObject("message.value", JSON.parse(repairedJSONString))
@@ -120,6 +116,10 @@ const run = async() => {
         },
     });
 };
+
+/**
+ * we could also add the WEBSOCKET implememtation right here.
+ */
 
 /**
  * Get port from environment and store in Express.
@@ -208,7 +208,6 @@ if (isEmpty(process.env.NODE_ENV)) {
 function onListening() {
     logText(`server is running on port: ${constants.PORT}`)
     console.log(`The server is running on the ${ENV} environment`)
-    winstonLogger.info(`The server is running on the ${ENV} environment`)
     var addr = server.address();
     var bind = typeof addr === "string" ? "pipe " + addr : "port " + addr.port;
     debug("Listening on " + bind);
