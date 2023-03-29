@@ -28,11 +28,12 @@ data:
       if ($request_uri ~ '(/api/v1/users/emailLogin)|(/api/v2/users/emailLogin)') { return 200; }
       if ($request_uri ~ '(/api/v1/users/forgotPassword)|(/api/v2/users/forgotPassword)') { return 200; }
       if ($request_uri ~ '(/api/v1/users/candidates/register)|(/api/v2/users/candidates/register)') { return 200; }
-      if ($request_uri ~ '(/api/v1/users/verify)|(/api/v1/users/verify)') { return 200; }
+      if ($request_uri ~ '(/api/v1/users/verify)|(/api/v2/users/verify)') { return 200; }
       if ($request_uri ~ '/airflow/api/v') { return 200; }    
       if ($request_uri ~ '/argocd') { return 200; }    
-      if ($request_uri ~ '/api/v1') { return 200; } # API v1 endpoint requests
       if ($request_uri !~ '/api/v') { return 200; } # None API requests 
+      
+      if ($request_uri ~ '/api/v1') { return 200; } # API v1 endpoint requests
 
       set $method POST;
       set $verification_path verify?tenant=airqo;
