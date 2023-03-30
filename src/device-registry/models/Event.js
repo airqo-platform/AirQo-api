@@ -634,10 +634,10 @@ eventSchema.statics = {
                   $expr: {
                     $and: [
                       {
-                        $lte: ["$pm2_5_category.min", "$$pollutantValue"],
+                        $lte: ["$aqi_category.min", "$$pollutantValue"],
                       },
                       {
-                        $gte: ["$pm2_5_category.max", "$$pollutantValue"],
+                        $gte: ["$aqi_category.max", "$$pollutantValue"],
                       },
                     ],
                   },
@@ -689,7 +689,7 @@ eventSchema.statics = {
             [as]: elementAtIndex0,
           })
           .project({
-            "health_tips.pm2_5_category": 0,
+            "health_tips.aqi_category": 0,
             "health_tips.value": 0,
             "health_tips.createdAt": 0,
             "health_tips.updatedAt": 0,

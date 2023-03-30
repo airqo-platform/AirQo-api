@@ -85,15 +85,15 @@ router.post(
         .withMessage("the image is missing in request")
         .bail()
         .trim(),
-      body("pm2_5_category")
+      body("aqi_category")
         .exists()
-        .withMessage("the pm2_5_category is missing in request")
+        .withMessage("the aqi_category is missing in request")
         .bail()
         .trim()
         .toLowerCase()
         .isIn(constants.AQI_CATEGORIES)
         .withMessage(
-          "the pm2_5_category is not among the expected ones: good,moderate,u4sg,unhealthy,very_unhealthy,hazardous"
+          "the aqi_category is not among the expected ones: good,moderate,u4sg,unhealthy,very_unhealthy,hazardous"
         ),
     ],
   ]),
@@ -157,16 +157,16 @@ router.put(
         .withMessage("the image is missing in request")
         .bail()
         .trim(),
-      body("pm2_5_category")
+      body("aqi_category")
         .optional()
         .notEmpty()
-        .withMessage("the pm2_5_category is missing in request")
+        .withMessage("the aqi_category is missing in request")
         .bail()
         .trim()
         .toLowerCase()
         .isIn(constants.AQI_CATEGORIES)
         .withMessage(
-          "the pm2_5_category is not among the expected ones: good,moderate,u4sg,unhealthy,very_unhealthy,hazardous"
+          "the aqi_category is not among the expected ones: good,moderate,u4sg,unhealthy,very_unhealthy,hazardous"
         ),
     ],
   ]),
