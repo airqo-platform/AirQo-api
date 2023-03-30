@@ -1,19 +1,19 @@
-from flask import Blueprint, request, jsonify
-from models.predict import make_prediction, make_prediction_using_averages
-from helpers.utils import checkKey, get_closest_channel, get_gp_predictions, get_gp_predictions_id, get_all_gp_predictions
-from models.predict import make_prediction, make_prediction_using_averages, get_next_24hr_predictions_for_channel
-from helpers.validation import validate_inputs, validate_inputs_for_next_24hour_predictions
-import logging
-from models import datamanagement as dm
 import datetime as dt
-import sys
+import logging
 import os
-from datetime import datetime
-from flask_caching import Cache
-from routes import api
-from flask_cors import CORS
-from config import constants
+
 from dotenv import load_dotenv
+from flask import Blueprint, jsonify, request
+from flask_caching import Cache
+
+from config import constants
+from helpers.utils import get_all_gp_predictions, get_closest_channel, get_gp_predictions, get_gp_predictions_id
+from helpers.validation import validate_inputs, validate_inputs_for_next_24hour_predictions
+from models import datamanagement as dm
+from models.predict import get_next_1_week_predictions_for_channel, get_next_24hr_predictions_for_channel, \
+    make_prediction, make_prediction_using_averages
+from routes import api
+
 load_dotenv()
 
 app_configuration = constants.app_config.get(os.getenv('FLASK_ENV'))
@@ -24,7 +24,6 @@ cache = Cache(config={
     'CACHE_REDIS_PORT': os.getenv('REDIS_PORT'),
     'CACHE_REDIS_URL': f"redis://{app_configuration.REDIS_SERVER}:{os.getenv('REDIS_PORT')}",
 })
-
 
 _logger = logging.getLogger(__name__)
 
@@ -45,7 +44,8 @@ def get_next_24hr_predictions(device_channel_id, prediction_start_time):
                 prediction_start_time = int(prediction_start_time)
             except ValueError:
                 error = {
-                    "message": "Invalid prediction start time. expected unix timestamp format like 1500000000", "success": False}
+                    "message": "Invalid prediction start time. expected unix timestamp format like 1500000000",
+                    "success": False}
                 return jsonify(error, 400)
 
         prediction_start_timestamp = dt.datetime.fromtimestamp(
@@ -80,17 +80,18 @@ def get_next_1_week_prediction(device_channel_id, prediction_start_date):
                 prediction_start_date = int(prediction_start_date)
             except ValueError:
                 error = {
-                    "message": "Invalid prediction start date. expected unix timestamp format like 1500000000", "success": False}
+                    "message": "Invalid prediction start date. expected unix timestamp format like 1500000000",
+                    "success": False}
                 return jsonify(error, 400)
 
-#change prediction_start_date to datetime format
+        # change prediction_start_date to datetime format
         prediction_start_timestamp = dt.datetime.fromtimestamp(
             prediction_start_date)
         prediction_start_datetime = dt.datetime.strftime(
-            prediction_start_timestamp, "%Y-%m-%d")
+            prediction_start_timestamp, "%Y-%m-%d %H:00:00")
 
         print(prediction_start_datetime)
-        result = get_next_1_week_prediction(
+        result = get_next_1_week_predictions_for_channel(
             device_channel_id, prediction_start_datetime)
         if result:
             response = result
@@ -101,6 +102,8 @@ def get_next_1_week_prediction(device_channel_id, prediction_start_date):
         return data, 201
     else:
         return jsonify({"message": "Invalid request method", "success": False}), 400
+
+
 @ml_app.route(api.route['averages_training'], methods=['GET'])
 def train_averages_model():
     if request.method == 'GET':
@@ -249,7 +252,8 @@ def predict_channel_next_24_hours():
 
                 return jsonify({'formatted_results': formatted_results})
             else:
-                return jsonify({'errors': 'Selected channel does not exist, location predictions are not available currently.'}), 404
+                return jsonify({
+                    'errors': 'Selected channel does not exist, location predictions are not available currently.'}), 404
         else:
             _logger.info(f'errors: {errors}')
             return jsonify({'inputs': json_data, 'errors': errors}), 400
@@ -270,19 +274,19 @@ def predictions_for_heatmap():
                 data = get_gp_predictions_id(aq_id)
             except:
                 return {'message': 'Please specify an airqloud', 'success': False}, 400
-        
+
         print(request.args.get('airqloud'))
         if request.args.get('airqloud') == None:
             data = get_all_gp_predictions()
-            if not len(data)>0:
+            if not len(data) > 0:
                 return {'message': 'No predictions available', 'success': False}, 400
-        if len(data)>0:
+        if len(data) > 0:
             return {'success': True, 'data': data}, 200
         else:
             return {'message': 'No data for specified airqloud', 'success': False}, 400
     else:
         return {'message': 'Wrong request method. This is a GET endpoint.', 'success': False}, 400
-        
-if __name__=='__main__':
-    print(predictions_for_heatmap())
 
+
+if __name__ == '__main__':
+    print(predictions_for_heatmap())

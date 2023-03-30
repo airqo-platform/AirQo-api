@@ -1,21 +1,24 @@
-from marshmallow import Schema, fields, ValidationError,validate
-import json
 import typing as t
+
+from marshmallow import Schema, ValidationError, fields, validate
 
 fields.Field.default_error_messages["required"] = "You missed something!"
 
+
 class TemporalSchema(Schema):
-    channel_id = fields.Integer(required=True, error_messages={"required": "channel Id  missing."})    
+    channel_id = fields.Integer(required=True, error_messages={"required": "channel Id  missing."})
     selected_datetime = fields.DateTime(required=True, error_messages={"required": "datetime missing."})
 
 
 class SpatialTemporalSchema(Schema):
-    latitude = fields.Float(required=True, error_messages={"required": "latitude missing."}, validate=validate.Range(min=-90, max=90))
-    longitude = fields.Float(required=True,error_messages={"required": "longitude missing."}, validate=validate.Range(min=-180, max=180))
+    latitude = fields.Float(required=True, error_messages={"required": "latitude missing."},
+                            validate=validate.Range(min=-90, max=90))
+    longitude = fields.Float(required=True, error_messages={"required": "longitude missing."},
+                             validate=validate.Range(min=-180, max=180))
     selected_datetime = fields.DateTime(required=True, error_messages={"required": "datetime missing."})
-		
 
-def _filter_error_rows(errors: dict,validated_input: t.List[dict]) -> t.List[dict]:
+
+def _filter_error_rows(errors: dict, validated_input: t.List[dict]) -> t.List[dict]:
     """
         Remove input data rows with errors.
     """
@@ -48,6 +51,7 @@ def validate_inputs(input_data):
 
     return validated_input, errors
 
+
 def validate_inputs_for_next_24hour_predictions(input_data):
     """Check prediction inputs against schema."""
     schema = TemporalSchema()
@@ -70,8 +74,8 @@ def validate_inputs_for_next_24hour_predictions(input_data):
 
 if __name__ == '__main__':
     input_data = {
-    "selected_datetime":"2020-01-24 00:00",
-    "latitude":"0.4018972",
-    "longitude":"32.0104067" }
+        "selected_datetime": "2020-01-24 00:00",
+        "latitude": "0.4018972",
+        "longitude": "32.0104067"}
     validated_input_data, errors = validate_inputs(input_data)
     print(validated_input_data)
