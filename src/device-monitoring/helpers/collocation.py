@@ -570,16 +570,8 @@ class Collocation(BaseModel):
         return results
 
     @staticmethod
-    def get_inter_sensor_correlation(
-        devices: list, start_date_time: datetime, end_date_time: datetime, threshold
-    ) -> list:
-        data, _ = Collocation.get_data(
-            start_date_time=start_date_time,
-            end_date_time=end_date_time,
-            devices=devices,
-        )
-
-        device_pairs = Collocation.get_device_pairs(list(data.keys()))
+    def get_inter_sensor_correlation(raw_data: dict, threshold) -> list:
+        device_pairs = Collocation.get_device_pairs(list(raw_data.keys()))
 
         correlation = []
 
@@ -589,14 +581,14 @@ class Collocation(BaseModel):
             device_x = device_pair[0]
             device_y = device_pair[1]
 
-            device_x_data = pd.DataFrame(data.get(device_x))
+            device_x_data = pd.DataFrame(raw_data.get(device_x))
             cols.extend(device_x_data.columns.to_list())
             device_x_data = device_x_data.add_prefix(f"{device_x}_")
             device_x_data.rename(
                 columns={f"{device_x}_timestamp": "timestamp"}, inplace=True
             )
 
-            device_y_data = pd.DataFrame(data.get(device_y))
+            device_y_data = pd.DataFrame(raw_data.get(device_y))
             cols.extend(device_y_data.columns.to_list())
             device_y_data = device_y_data.add_prefix(f"{device_y}_")
             device_y_data.rename(
@@ -628,6 +620,7 @@ class Collocation(BaseModel):
                 {
                     **{
                         "devices": device_pair,
+                        "threshold": threshold,
                     },
                     **device_pair_correlation,
                     **{
@@ -642,15 +635,7 @@ class Collocation(BaseModel):
         return correlation
 
     @staticmethod
-    def get_intra_sensor_correlation(
-        devices: list, start_date_time: datetime, end_date_time: datetime, threshold
-    ) -> dict:
-        raw_data, resampled_data = Collocation.get_data(
-            start_date_time=start_date_time,
-            end_date_time=end_date_time,
-            devices=devices,
-        )
-
+    def get_intra_sensor_correlation(raw_data: dict, threshold) -> dict:
         correlation = {}
 
         for device in raw_data.keys():
@@ -668,6 +653,7 @@ class Collocation(BaseModel):
                 "pm10_pearson_correlation": pm10_pearson_correlation.iloc[0]["s2_pm10"],
                 "pm2_5_r2": math.sqrt(pm2_5_pearson_correlation.iloc[0]["s2_pm2_5"]),
                 "pm10_r2": math.sqrt(pm10_pearson_correlation.iloc[0]["s2_pm10"]),
+                "threshold": threshold,
                 "passed": bool(
                     pm2_5_pearson_correlation.iloc[0]["s2_pm2_5"] > threshold
                 )
@@ -678,19 +664,13 @@ class Collocation(BaseModel):
 
     @staticmethod
     def get_data_completeness(
-        devices: list,
+        raw_data: dict,
         start_date_time: datetime,
         end_date_time: datetime,
         expected_records_per_hour,
         threshold,
-    ) -> list:
-        raw_data, _ = Collocation.get_data(
-            start_date_time=start_date_time,
-            end_date_time=end_date_time,
-            devices=devices,
-        )
-
-        completeness_report = []
+    ) -> dict:
+        completeness_report = {}
 
         hours_diff = int(((end_date_time - start_date_time).total_seconds()) / 3600)
         expected_records = expected_records_per_hour * hours_diff
@@ -707,18 +687,86 @@ class Collocation(BaseModel):
             if actual_number_of_records < expected_records:
                 completeness = actual_number_of_records / expected_records
                 missing = 1 - completeness
-            completeness_report.append(
+
+            completeness_report[device] = {
+                "expected_number_of_records": expected_records,
+                "start_date": start_date_time,
+                "end_date": end_date_time,
+                "actual_number_of_records": actual_number_of_records,
+                "completeness": completeness,
+                "missing": missing,
+                "passed": bool(completeness > threshold),
+                "threshold": threshold,
+            }
+
+        return completeness_report
+
+    @staticmethod
+    def get_statistics(
+        raw_data: dict,
+    ) -> dict:
+        statistics = {}
+
+        for device, device_data in raw_data.items():
+            device_data_df = pd.DataFrame(device_data)
+            cols = device_data_df.columns.to_list()
+            cols.remove("timestamp")
+
+            device_statistics = {}
+
+            for col in cols:
+                col_statistics = device_data_df[col].describe()
+
+                device_statistics = {
+                    **device_statistics,
+                    **{
+                        f"{col}_mean": col_statistics.get("mean", None),
+                        f"{col}_std": col_statistics.get("std", None),
+                        f"{col}_min": col_statistics.get("min", None),
+                        f"{col}_max": col_statistics.get("max", None),
+                        f"{col}_25_percentile": col_statistics.get("25%", None),
+                        f"{col}_50_percentile": col_statistics.get("50%", None),
+                        f"{col}_75_percentile": col_statistics.get("75%", None),
+                    },
+                }
+
+            statistics[device] = device_statistics
+
+        return statistics
+
+    @staticmethod
+    def get_differences(statistics: dict) -> list:
+        differences = []
+
+        device_pairs = Collocation.get_device_pairs(list(statistics.keys()))
+
+        for device_pair in device_pairs:
+            device_x = device_pair[0]
+            device_y = device_pair[1]
+
+            device_x_data = pd.DataFrame([statistics.get(device_x)])
+            device_y_data = pd.DataFrame([statistics.get(device_y)])
+
+            differences_df = abs(device_x_data - device_y_data)
+            differences_df.replace(np.nan, None, inplace=True)
+
+            differences.append(
                 {
-                    "device_name": device,
-                    "expected_number_of_records": expected_records,
-                    "start_date": start_date_time,
-                    "end_date": end_date_time,
-                    "actual_number_of_records": actual_number_of_records,
-                    "completeness": completeness,
-                    "missing": missing,
-                    "passed": bool(completeness > threshold),
+                    "devices": device_pair,
+                    "abs_differences": differences_df.to_dict("records"),
                 }
             )
+
+        return differences
+
+    @staticmethod
+    def flatten_completeness(
+        data: dict,
+    ) -> list:
+        completeness_report = []
+
+        for device, device_data in data.items():
+            completeness_report.append({**{"device_name": device}, **device_data})
 
         return completeness_report
 
@@ -1020,8 +1068,8 @@ class Collocation(BaseModel):
     @staticmethod
     def get_device_pairs(devices: list) -> list:
         device_pairs = []
-        pairing_devices = devices.copy()
-        for device in devices:
+        pairing_devices = set(devices.copy())
+        for device in set(devices):
             pairing_devices.remove(device)
             for pair_device in pairing_devices:
                 device_pairs.append([device, pair_device])
