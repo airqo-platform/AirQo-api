@@ -1,23 +1,12 @@
-from curses import meta
-from google.cloud import storage
-from google.cloud import bigquery
-import numpy as np
-import gcsfs
 import numpy as np
 import pandas as pd
 from transform import get_boundary_layer_data, get_forecast_data, get_metadata
-
 from lightgbm import LGBMRegressor, early_stopping
 from sklearn.metrics import mean_squared_error
 import mlflow
 import mlflow.sklearn
 from config import environment, configuration
-import os
-import joblib
 from joblib import Parallel, delayed
-
-import datetime as dt
-from datetime import datetime, timedelta
 from utils import upload_trained_model_to_gcs, date_to_str, upload_csv_file_to_gcs
 import warnings
 
@@ -38,11 +27,6 @@ def preprocess_forecast_data():
     forecast_data['created_at'] = pd.to_datetime(forecast_data['created_at'], format='%Y-%m-%d %H:%M:%S')
     forecast_data['date'] = forecast_data['created_at'].dt.date
     forecast_data = forecast_data[forecast_data['device_number'].isin(metadata['device_number'])].reset_index(drop=True)
-    # channel_max_dates = forecast_data.groupby('device_number').apply(lambda x: x['created_at'].max())
-
-    #   ### Set this as a list of chanels to be used. Can be read from a file.
-    #   use_channels = channel_max_dates[channel_max_dates > pd.to_datetime('2020-07-12')].index.tolist()
-    #   forecast_data = forecast_data[forecast_data['device_number'].isin(use_channels)]
 
     # upload metadata and boundray layer to gcs
     metadata.to_csv('meta.csv')
@@ -78,15 +62,7 @@ def process_metadata(metadata):
 
 
 def initialise_training_constants():
-
-    # These constants must be set before running
-    # Training will start at this date-hour
-    TRAIN_DATE_HOUR_START = pd.to_datetime('2019-06-01 00:00:00')
-
-    # Training will end at this date-hour
-    TRAIN_DATE_HOUR_END = pd.to_datetime(date_to_str(datetime.now()))
-
-    ### Boolean value to indicate whether to train or only predict
+    # Boolean value to indicate whether to train or only predict
     TRAIN_MODEL_NOW = True
     TARGET_COL = 'pm2_5'
 
@@ -98,7 +74,6 @@ def initialise_training_constants():
     forecast_data, metadata, boundary_layer_mapper = preprocess_forecast_data()
 
     if TRAIN_MODEL_NOW == True:
-        #   train_forecast_data = forecast_data[(forecast_data['created_at'] >= TRAIN_DATE_HOUR_START) & (forecast_data['created_at'] <= TRAIN_DATE_HOUR_END)].drop('date', axis=1)
         print(forecast_data.columns)
         train_forecast_data = forecast_data.drop('date', axis=1)
         train = make_train(train_forecast_data)
@@ -118,9 +93,9 @@ def initialise_training_constants():
 
 
 def train_model(train):
-    '''
+    """
   Perform the actual training
-  '''
+  """
     features = [c for c in train.columns if c not in ["created_at", "pm2_5"]]
     TARGET_COL = "pm2_5"
 
@@ -194,10 +169,8 @@ def train_model(train):
 
 
 def make_train(train_forecast_data):
-    ### Aggregate data every 1 hour using mean
+    # Aggregate data every 1 hour using mean
     all_channels = train_forecast_data['device_number'].unique()
-    # joblib.dump(all_channels, 'all_channels.pkl')
-
     # update model
     upload_trained_model_to_gcs(
         all_channels,
@@ -215,9 +188,9 @@ def make_train(train_forecast_data):
 
 
 def get_agg_channel_data_train(chan_num, train_forecast_data, freq='1H'):
-    '''
+    """
   Get Hourly Aggregates using Mean of the Data for training.
-  '''
+  """
 
     chan = train_forecast_data[train_forecast_data['device_number'] == chan_num]
     chan = chan.sort_values(by='created_at')[['created_at', 'pm2_5']].set_index('created_at')
@@ -232,7 +205,7 @@ def get_agg_channel_data_train(chan_num, train_forecast_data, freq='1H'):
 def get_lag_features(df_tmp, TARGET_COL, N_HRS_BACK, SEQ_LEN):
     df_tmp = df_tmp.sort_values(by='created_at')
 
-    ### Shift Features
+    # Shift Features
     df_tmp = df_tmp.assign(**{
         f'{TARGET_COL} (t-{t})': df_tmp.groupby('device_number')[TARGET_COL].shift(t)
         for t in range(N_HRS_BACK + SEQ_LEN - 1, N_HRS_BACK - 1, -1)
@@ -240,7 +213,7 @@ def get_lag_features(df_tmp, TARGET_COL, N_HRS_BACK, SEQ_LEN):
 
     FIRST_SHIFT_COL = f'{TARGET_COL} (t-{N_HRS_BACK})'
 
-    ### Rolling Features
+    # Rolling Features
     periods = [4, 12, 24, 48, 24 * 7, 24 * 14, 24 * 31]
 
     for agg_func in ['min', 'max', 'mean', 'std']:
@@ -282,7 +255,4 @@ def preprocess_df(df_tmp, boundary_layer_mapper, metadata, target_column, n_hrs_
 
 
 if __name__ == '__main__':
-    # upload_blob('airqo_prediction_bucket', 'E:\Work\AirQo\AirQo-api\src\predict\jobs\model.pkl', 'model.pkl')
-    # download_blob('airqo_prediction_bucket','model.pkl','model_downloaded2.pkl')
-
     initialise_training_constants()

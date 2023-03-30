@@ -1,80 +1,77 @@
-from os import name
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor
 from models import Devices, Events, BoundaryLayer, Site
-from utils import is_key_exist
 
-def get_active_devices ():
-    '''
+
+def get_active_devices():
+    """
     Get active devices with their site id
-    '''
+    """
     devices = Devices.get_devices()
 
-    # store device details plus site id 
+    # store device details plus site id
     result = []
     for device in devices:
-       site = {}
-       if is_key_exist(device, 'site') == True:
-           site['device'] =   device['name']  if is_key_exist(device,'name') == True else ''
-           site['device_number'] =   device['device_number']  if is_key_exist(device,'device_number') == True else ''
-           site['device_latitude'] =   device['latitude']  if is_key_exist(device,'latitude') == True else ''
-           site['device_longitude'] =   device['longitude']  if is_key_exist(device,'longitude') == True else ''
-           site['site_id'] =   device['site']['_id']  if is_key_exist(device['site'],'_id') == True else ''
-       else:
+        site = {}
+        if 'site' in device:
+            site['device'] = device.get('name', '')
+            site['device_number'] = device.get('device_number', '')
+            site['device_latitude'] = device.get('latitude', '')
+            site['device_longitude'] = device.get('longitude', '')
+            site['site_id'] = device['site'].get('_id', '')
+        else:
             print(f'device {device} does not have site information')
-       result.append(site)
+        result.append(site)
     return pd.DataFrame(result)
 
+
 def get_sites_details():
-    '''
-    Get site details. Returns sites metadata as a python pandas dataframe 
-    '''
+    """
+    Get site details. Returns sites metadata as a python pandas dataframe
+    """
     sites = Site.get_sites()
 
     # store site details
     result = []
 
     for site in sites:
-        data = {}
-      
-        data['site_id'] = site['_id'] if is_key_exist(site, '_id') == True else ''
-        data['county'] =   site['county']  if is_key_exist(site,'county') == True else ''          
-        data['site_name'] =   site['description'] if is_key_exist(site,'description') == True else ''
-        data['site_latitude'] =   site['latitude'] if is_key_exist(site,'latitude') == True else ''
-        data['site_longitude'] =    site['longitude'] if is_key_exist(site,'longitude') == True else ''
-        data['altitude'] =   site['altitude'] if is_key_exist(site,'altitude') == True else ''
-        data['road_dist'] =   site['distance_to_nearest_road'] if is_key_exist(site,'distance_to_nearest_road') == True else ''         
-        data['land_use'] =   ''
-        data['road_intensity'] =   ''
-        data['road_status'] =   ''
-        data['location_activities'] = ''
-        data['aspect'] =   site['aspect'] if is_key_exist(site,'aspect') == True else ''
-        data['landform_90'] =   site['landform_90'] if is_key_exist(site,'landform_90') == True else ''
-        data['landform_270'] =   site['landform_270']  if is_key_exist(site,'landform_270') == True else ''        
-        data['greeness'] =   site['greenness'] if is_key_exist(site,'greenness') == True else '' ## might need to pass time aspect
-        data['traffic_factor'] =   ''
-        data['parish'] =   site['parish'] if is_key_exist(site,'parish') == True else '' 
-        data['district'] =   site['district'] if is_key_exist(site,'district') == True else '' 
-        data['region'] =   ''
-        data['sub_county'] =   site['sub_county']  if is_key_exist(site,'sub_county') == True else ''
-        data['distance_to_nearest_road'] =   site['distance_to_nearest_road'] if is_key_exist(site,'distance_to_nearest_road') == True else ''
-        data['distance_to_nearest_primary_road'] =   site['distance_to_nearest_primary_road'] if is_key_exist(site,'distance_to_nearest_primary_road') == True else ''
-        data['distance_to_nearest_secondary_road'] =   site['distance_to_nearest_secondary_road'] if is_key_exist(site,'distance_to_nearest_secondary_road') == True else ''
-        data['distance_to_nearest_tertiary_road'] =   site['distance_to_nearest_tertiary_road'] if is_key_exist(site,'distance_to_nearest_tertiary_road') == True else ''
-        data['distance_to_nearest_unclassified_road'] =   site['distance_to_nearest_unclassified_road'] if is_key_exist(site,'distance_to_nearest_unclassified_road') == True else ''
-        data['distance_to_nearest_residential_road'] =   site['distance_to_nearest_residential_road'] if is_key_exist(site,'distance_to_nearest_residential_road') == True else ''
-        data['bearing_to_kampala_center'] =   site['bearing_to_kampala_center'] if is_key_exist(site,'bearing_to_kampala_center') == True else ''
-        data['distance_to_kampala_center'] =   site['distance_to_kampala_center'] if is_key_exist(site,'distance_to_kampala_center') == True else ''
-        # else:
-        #     print(f'site {site} does not have information')
+        data = {
+            'site_id': site.get('_id', ''),
+            'county': site.get('county', ''),
+            'site_name': site.get('description', ''),
+            'site_latitude': site.get('latitude', ''),
+            'site_longitude': site.get('longitude', ''),
+            'altitude': site.get('altitude', ''),
+            'road_dist': site.get('distance_to_nearest_road', ''),
+            'land_use': '',
+            'road_intensity': '',
+            'road_status': '',
+            'location_activities': '',
+            'aspect': site.get('aspect', ''),
+            'landform_90': site.get('landform_90', ''),
+            'landform_270': site.get('landform_270', ''),
+            'greeness': site.get('greenness', ''),  # might need to pass time aspect
+            'traffic_factor': '',
+            'parish': site.get('parish', ''),
+            'district': site.get('district', ''),
+            'region': '',
+            'sub_county': site.get('sub_county', ''),
+            'distance_to_nearest_road': site.get('distance_to_nearest_road', ''),
+            'distance_to_nearest_primary_road': site.get('distance_to_nearest_primary_road', ''),
+            'distance_to_nearest_secondary_road': site.get('distance_to_nearest_secondary_road', ''),
+            'distance_to_nearest_tertiary_road': site.get('distance_to_nearest_tertiary_road', ''),
+            'distance_to_nearest_unclassified_road': site.get('distance_to_nearest_unclassified_road', ''),
+            'distance_to_nearest_residential_road': site.get('distance_to_nearest_residential_road', ''),
+            'bearing_to_kampala_center': site.get('bearing_to_kampala_center', ''),
+            'distance_to_kampala_center': site.get('distance_to_kampala_center', '')
+        }
         result.append(data)
     return pd.DataFrame(result)
 
 
-
 def get_metadata():
-    '''Return device details and corresponding sites meta data'''
-   
+    """Return device details and corresponding sites meta data"""
+
     devices = get_active_devices()
     sites = get_sites_details()
 
@@ -101,13 +98,16 @@ def _transform_events(events):
 
     return pd.DataFrame(transformed_events)
 
+
 def get_boundary_layer_data():
     boundaries = {boundary['hour']: boundary['height'] for boundary in BoundaryLayer().get_boundary_layer()}
-    series =  pd.Series(boundaries)
-    return pd.DataFrame(series, columns=['height']).reset_index().rename(columns={'index':'hour'})
+    series = pd.Series(boundaries)
+    return pd.DataFrame(series, columns=['height']).reset_index().rename(columns={'index': 'hour'})
+
 
 def get_forecast_data():
     return _transform_events(Events().get_events_db())
+
 
 def get_data():
     with ThreadPoolExecutor() as executor:

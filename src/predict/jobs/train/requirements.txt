@@ -10,7 +10,7 @@ gcsfs
 pymongo
 pyarrow
 joblib
-lightgbm
+lightgbm == 3.3.5
 requests
 mlflow
 sklearn
