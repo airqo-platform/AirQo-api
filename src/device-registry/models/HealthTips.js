@@ -31,9 +31,9 @@ const tipsSchema = new Schema(
       type: String,
       trim: true,
     },
-    aqi_category: {
+    pm2_5_category: {
       type: aqiRangeSchema,
-      required: [true, "the aqi_category is required!"],
+      required: [true, "the pm2_5_category is required!"],
     },
   },
   {
@@ -53,7 +53,7 @@ tipsSchema.methods = {
   toJSON() {
     return {
       title: this.title,
-      aqi_category: this.aqi_category,
+      pm2_5_category: this.pm2_5_category,
       description: this.description,
       image:this.image
     };
@@ -65,26 +65,26 @@ tipsSchema.statics = {
     try {
       logText("registering a new tip....");
       let modifiedArgs = Object.assign({}, args);
-      delete modifiedArgs.aqi_category;
+      delete modifiedArgs.pm2_5_category;
 
-      switch (args.aqi_category) {
+      switch (args.pm2_5_category) {
         case "good":
-          modifiedArgs.aqi_category = { min: 0, max: 12.09 };
+          modifiedArgs.pm2_5_category = { min: 0, max: 12.09 };
           break;
         case "moderate":
-          modifiedArgs.aqi_category = { min: 12.1, max: 35.49 };
+          modifiedArgs.pm2_5_category = { min: 12.1, max: 35.49 };
           break;
         case "u4sg":
-          modifiedArgs.aqi_category = { min: 35.5, max: 55.49 };
+          modifiedArgs.pm2_5_category = { min: 35.5, max: 55.49 };
           break;
         case "unhealthy":
-          modifiedArgs.aqi_category = { min: 55.5, max: 150.49 };
+          modifiedArgs.pm2_5_category = { min: 55.5, max: 150.49 };
           break;
         case "very_unhealthy":
-          modifiedArgs.aqi_category = { min: 150.5, max: 250.49 };
+          modifiedArgs.pm2_5_category = { min: 150.5, max: 250.49 };
           break;
         case "hazardous":
-          modifiedArgs.aqi_category = { min: 250.5, max: 500 };
+          modifiedArgs.pm2_5_category = { min: 250.5, max: 500 };
           break;
         default:
         // code block
@@ -139,7 +139,7 @@ tipsSchema.statics = {
         .project({
           _id: 1,
           title: 1,
-          aqi_category: 1,
+          pm2_5_category: 1,
           description: 1,
           image:1,
         })
@@ -205,26 +205,26 @@ tipsSchema.statics = {
         delete modifiedUpdateBody._id;
       }
 
-      delete modifiedUpdateBody.aqi_category;
+      delete modifiedUpdateBody.pm2_5_category;
 
-      switch (update.aqi_category) {
+      switch (update.pm2_5_category) {
         case "good":
-          modifiedUpdateBody.aqi_category = { min: 0, max: 12.09 };
+          modifiedUpdateBody.pm2_5_category = { min: 0, max: 12.09 };
           break;
         case "moderate":
-          modifiedUpdateBody.aqi_category = { min: 12.1, max: 35.49 };
+          modifiedUpdateBody.pm2_5_category = { min: 12.1, max: 35.49 };
           break;
         case "u4sg":
-          modifiedUpdateBody.aqi_category = { min: 35.5, max: 55.49 };
+          modifiedUpdateBody.pm2_5_category = { min: 35.5, max: 55.49 };
           break;
         case "unhealthy":
-          modifiedUpdateBody.aqi_category = { min: 55.5, max: 150.49 };
+          modifiedUpdateBody.pm2_5_category = { min: 55.5, max: 150.49 };
           break;
         case "very_unhealthy":
-          modifiedUpdateBody.aqi_category = { min: 150.5, max: 250.49 };
+          modifiedUpdateBody.pm2_5_category = { min: 150.5, max: 250.49 };
           break;
         case "hazardous":
-          modifiedUpdateBody.aqi_category = { min: 250.5, max: 500 };
+          modifiedUpdateBody.pm2_5_category = { min: 250.5, max: 500 };
           break;
         default:
         // code block
@@ -293,7 +293,7 @@ tipsSchema.statics = {
         projection: {
           _id: 1,
           title: 1,
-          aqi_category: 1,
+          pm2_5_category: 1,
           description: 1,
           image: 1,
         },

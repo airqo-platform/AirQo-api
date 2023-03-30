@@ -959,8 +959,8 @@ const generateFilter = {
     }
     if (pm25) {
       filter["$and"] = [
-        { "aqi_category.min": { $lte: parseInt(pm25) } },
-        { "aqi_category.max": { $gte: parseInt(pm25) } },
+        { "pm2_5_category.min": { $lte: parseInt(pm25) } },
+        { "pm2_5_category.max": { $gte: parseInt(pm25) } },
       ];
     }
     return filter;
