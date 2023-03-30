@@ -14,6 +14,10 @@ INTRA_SENSOR_CORRELATION = f"{BASE_URL}/devices/collocation/intra"
 
 COLLOCATION_DATA_COMPLETENESS = f"{BASE_URL}/devices/collocation/data-completeness"
 
+COLLOCATION_STATISTICS = f"{BASE_URL}/devices/collocation/statistics"
+
+COLLOCATION_DIFFERENCES = f"{BASE_URL}/devices/collocation/differences"
+
 SCHEDULE_COLLOCATION = f"{BASE_URL}/devices/collocation/schedule"
 
 DEVICE_COLLOCATION_RESULTS = f"{BASE_URL}/devices/collocation/results"
