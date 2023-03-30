@@ -116,7 +116,7 @@ def get_agg_channel_data_test(chan_num, test_forecast_data, freq='1H'):
     return chan_agg
 
 
-def save_next_24hrs_prediction_results(data):
+def save_next_24hrs_forecasts(data):
     db.hourly_forecasts.insert_many(data)
 
 
@@ -139,7 +139,7 @@ def make_test_forecast_data(forecast_data, test_lag_last_date_hour, test_end_dat
     return test_forecast_data
 
 
-def get_next_24hrs_predictions():
+def get_next_24hrs_forecasts():
     # load & preprocess test data:
 
     print(configuration.TEST_LAG_LAST_DATE_HOUR)
@@ -177,25 +177,25 @@ def get_next_24hrs_predictions():
     return test_orig, configuration.TEST_DATE_HOUR_START, configuration.TEST_DATE_HOUR_END
 
 
-def get_predictions_for_channel(next_24_hrs, chan_num):
+def get_forecasts_for_channel(next_24_hrs, chan_num):
     return next_24_hrs[next_24_hrs['device_number'] == chan_num]
 
 
 if __name__ == '__main__':
     TARGET_COL = 'pm2_5'
-    next_24hrs_predictions, TEST_DATE_HOUR_START, TEST_DATE_HOUR_END = get_next_24hrs_predictions()
+    next_24hrs_forecasts, TEST_DATE_HOUR_START, TEST_DATE_HOUR_END = get_next_24hrs_forecasts()
 
     all_channels_x = get_trained_model_from_gcs(configuration.GOOGLE_CLOUD_PROJECT_ID,
                                                 configuration.AIRQO_PREDICT_BUCKET, 'all_channels.pkl')
-    prediction_results = []
+    forecast_results = []
 
     created_at = str_to_date_2(date_to_str_2(datetime.now()))
     for channel_id in all_channels_x:
-        result = get_predictions_for_channel(next_24hrs_predictions, channel_id)
+        result = get_forecasts_for_channel(next_24hrs_forecasts, channel_id)
         record = {'channel_id': int(channel_id),
-                  'predictions': result['preds'].tolist(),
+                  'forecasts': result['preds'].tolist(),
                   'created_at': created_at,
-                  'prediction_time': result['created_at'].tolist()}
-        prediction_results.append(record)
+                  'forecast_time': result['created_at'].tolist()}
+        forecast_results.append(record)
 
-    save_next_24hrs_prediction_results(prediction_results)
+    save_next_24hrs_forecasts(forecast_results)

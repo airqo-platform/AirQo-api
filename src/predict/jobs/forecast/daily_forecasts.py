@@ -84,45 +84,45 @@ def get_new_row(df_tmp, device, model):
     return new_row
 
 
-def save_next_1_week_prediction_results(data):
+def save_next_1_week_forecast_results(data):
         db.daily_forecasts.insert_many(data)
         print('saved')
 
 
-def get_next_1week_predictions(target_column, model):
-    print('Getting next 1 week predictions')
+def get_next_1week_forecasts(target_column, model):
+    print('Getting next 1 week forecasts')
     forecast_data = preprocess_forecast_data(target_column)
     test_forecast_data = forecast_data.copy()
     forecast_horizon = 7  # number of days to forecast
-    next_1week_predictions = pd.DataFrame()
+    next_1week_forecasts = pd.DataFrame()
 
     for device in test_forecast_data["device_number"].unique():
         test_copy = test_forecast_data[test_forecast_data["device_number"] == device]
         for i in range(forecast_horizon):
             new_row = get_new_row(test_copy, device, model)
             test_copy = pd.concat([test_copy, new_row.to_frame().T], ignore_index=True)
-        next_1week_predictions = pd.concat([next_1week_predictions, test_copy], ignore_index=True)
+        next_1week_forecasts = pd.concat([next_1week_forecasts, test_copy], ignore_index=True)
 
-    next_1week_predictions['device_number'] = next_1week_predictions['device_number'].astype(int)
-    next_1week_predictions['pm2_5'] = next_1week_predictions['pm2_5'].astype(float)
-    return next_1week_predictions[['created_at', 'pm2_5', 'device_number']][
-        next_1week_predictions['created_at'] > configuration.TEST_DATE_DAILY_START]
+    next_1week_forecasts['device_number'] = next_1week_forecasts['device_number'].astype(int)
+    next_1week_forecasts['pm2_5'] = next_1week_forecasts['pm2_5'].astype(float)
+    return next_1week_forecasts[['created_at', 'pm2_5', 'device_number']][
+        next_1week_forecasts['created_at'] > configuration.TEST_DATE_DAILY_START]
 
 
 if __name__ == '__main__':
     TARGET_COL = 'pm2_5'
     # TODO: Remove for deployment use GCS
     model = joblib.load("/Users/mutabazinble/GitHub/AirQo-api/src/predict/jobs/forecast_training/LGBMmodel.pkl")
-    forecasts = get_next_1week_predictions(TARGET_COL, model)
+    forecasts = get_next_1week_forecasts(TARGET_COL, model)
     forecast_results = []
 
     created_at = pd.to_datetime(datetime.now()).strftime('%Y-%m-%d')
 
     for i in forecasts['device_number'].unique():
         record = {'channel_id': int(i),
-                  'predictions': forecasts[forecasts['device_number'] == i]['pm2_5'].tolist(),
+                  'forecasts': forecasts[forecasts['device_number'] == i]['pm2_5'].tolist(),
                   'created_at': created_at,
-                  'prediction_time': forecasts[forecasts['device_number'] == i]['created_at'].tolist()}
+                  'forecast_day': forecasts[forecasts['device_number'] == i]['created_at'].tolist()}
         forecast_results.append(record)
 
-    save_next_1_week_prediction_results(forecast_results)
+    save_next_1_week_forecast_results(forecast_results)
