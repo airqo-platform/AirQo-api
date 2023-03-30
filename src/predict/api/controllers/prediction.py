@@ -66,6 +66,41 @@ def get_next_24hr_predictions(device_channel_id, prediction_start_time):
         return jsonify({"message": "Invalid request method", "success": False}), 400
 
 
+@ml_app.route(api.route['next_1_week_predictions'], methods=['GET'])
+def get_next_1_week_prediction(device_channel_id, prediction_start_date):
+    """
+    Get predictions for the next 1 week from specified start day.
+    """
+    if request.method == 'GET':
+        if type(device_channel_id) is not int:
+            device_channel_id = int(device_channel_id)
+
+        if type(prediction_start_date) is not int:
+            try:
+                prediction_start_date = int(prediction_start_date)
+            except ValueError:
+                error = {
+                    "message": "Invalid prediction start date. expected unix timestamp format like 1500000000", "success": False}
+                return jsonify(error, 400)
+
+#change prediction_start_date to datetime format
+        prediction_start_timestamp = dt.datetime.fromtimestamp(
+            prediction_start_date)
+        prediction_start_datetime = dt.datetime.strftime(
+            prediction_start_timestamp, "%Y-%m-%d")
+
+        print(prediction_start_datetime)
+        result = get_next_1_week_prediction(
+            device_channel_id, prediction_start_datetime)
+        if result:
+            response = result
+        else:
+            response = {
+                "message": "predictions for channel are not available", "success": False}
+        data = jsonify(response)
+        return data, 201
+    else:
+        return jsonify({"message": "Invalid request method", "success": False}), 400
 @ml_app.route(api.route['averages_training'], methods=['GET'])
 def train_averages_model():
     if request.method == 'GET':

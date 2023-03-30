@@ -73,8 +73,28 @@ def get_next_24hr_predictions_for_channel(channel_id,prediction_start_time):
 
     formated_results = {'predictions':results}
     return formated_results
-    
-    
+
+
+def get_next_1_week_predictions_for_channel(channel_id, prediction_start_date):
+    db = connect_mongo()
+    print(prediction_start_date)
+    print(type(prediction_start_date))
+    channel_predictions = list(db.forecast_predictions.find(
+        {'channel_id': channel_id
+         }, {'_id': 0}).sort([('$natural', -1)]).limit(1))
+
+    results = []
+    if len(channel_predictions) > 0:
+        for i in range(0, len(channel_predictions[0]['predictions'])):
+            prediction_datetime = channel_predictions[0]['prediction_time'][i]
+            prediction_value = channel_predictions[0]['predictions'][i]
+            result = {'prediction_time': prediction_datetime, 'prediction_value': prediction_value,
+                      'lower_ci': 0, 'upper_ci': 0}
+            results.append(result)
+
+    formated_results = {'predictions': results}
+    return formated_results
+
 
 def make_prediction_using_averages_for_all_locations(entered_chan, entered_time, entered_latitude, entered_longitude):
     """

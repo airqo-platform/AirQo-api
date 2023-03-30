@@ -7,6 +7,7 @@ route = {
     'averages_training': f'{base_url}/train',
     'averages_prediction': f'{base_url}/predict/',
     'predict_channel_next_24hrs' : f'{base_url}/channel/predict/',
+    'predict_channel_next_1_week' : f'{base_url}/channel/predict_next_1_week',
     'next_24hr_predictions': f'{base_url_v2}/predict/<int:device_channel_id>/<prediction_start_time>',
     'predict_for_heatmap' : f'{base_url}/predict/heatmap'
 

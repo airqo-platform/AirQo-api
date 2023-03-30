@@ -1,9 +1,14 @@
+from datetime import datetime
+
 import joblib
 import numpy as np
 import pandas as pd
 
 from config import connect_mongo, configuration
 from transform import get_forecast_data
+from utils import (
+    date_to_str_2,
+    str_to_date_2)
 
 db = connect_mongo()
 
@@ -18,7 +23,7 @@ def get_lag_features(df_tmp, TARGET_COL):
     for s in shifts:
         for f in functions:
             df_tmp[f'pm2_5_{f}_{s}_day'] = df_tmp.groupby(['device_number'])[TARGET_COL].shift(1).rolling(s).agg(f)
-
+    print("Adding lag features")
     return df_tmp
 
 
@@ -29,6 +34,7 @@ def get_other_features(df_tmp):
         df_tmp[a] = df_tmp['created_at'].dt.__getattribute__(a)
 
     df_tmp['week'] = df_tmp['created_at'].dt.isocalendar().week
+    print("Adding other features")
     return df_tmp
 
 
@@ -47,7 +53,7 @@ def preprocess_forecast_data(target_column):
     forecast_data.dropna(subset=['pm2_5'], inplace=True)
     forecast_data = get_lag_features(forecast_data, target_column)
     forecast_data = get_other_features(forecast_data)
-
+    print('preprocess_forecast_data done')
     return forecast_data
 
 
@@ -78,13 +84,18 @@ def get_new_row(df_tmp, device, model):
     for a in attributes:
         new_row[a] = new_row['created_at'].__getattribute__(a)
         new_row['week'] = new_row["created_at"].isocalendar().week
+
     return new_row
 
 
-def get_next_1week_predictions(target_column, model):
-    print(configuration.TEST_DATE_DAILY_START)
-    print(configuration.TEST_DATE_DAILY_END)
+def save_next_1_week_prediction_results(data):
+    for i in data:
+        db.daily_forecasts.insert_one(i)
+        print('saved')
 
+
+def get_next_1week_predictions(target_column, model):
+    print('Getting next 1 week predictions')
     forecast_data = preprocess_forecast_data(target_column)
     test_forecast_data = forecast_data.copy()
     horizon = 7
@@ -97,24 +108,28 @@ def get_next_1week_predictions(target_column, model):
             test_copy = pd.concat([test_copy, new_row.to_frame().T], ignore_index=True)
         # Append the forecast for the current device to the forecasts dataframe
         next_1week_predictions = pd.concat([next_1week_predictions, test_copy], ignore_index=True)
+        # change the data type of the device number to int, and pm2_5 to float
+    next_1week_predictions['device_number'] = next_1week_predictions['device_number'].astype(int)
+    next_1week_predictions['pm2_5'] = next_1week_predictions['pm2_5'].astype(float)
 
-    return next_1week_predictions
+    print('get_next_1week_predictions done')
+    return next_1week_predictions[['created_at', 'pm2_5', 'device_number']][
+        next_1week_predictions['created_at'] > configuration.TEST_DATE_DAILY_START]
 
 
 if __name__ == '__main__':
     TARGET_COL = 'pm2_5'
     model = joblib.load("/Users/mutabazinble/GitHub/AirQo-api/src/predict/jobs/train/LGBMmodel.pkl")
     forecasts = get_next_1week_predictions(TARGET_COL, model)
-    print(forecasts)
-    # all_channels_x = get_trained_model_from_gcs(configuration.GOOGLE_CLOUD_PROJECT_ID,
-    #                                             configuration.AIRQO_PREDICT_BUCKET, 'all_channels.pkl')
-    # prediction_results = []
-    #
-    # created_at = str_to_date_2(date_to_str_2(datetime.now()))
-    # for channel_id in all_channels_x:
-    #     result = get_predictions_for_channel(next_1week_predictions, channel_id)
-    #     record = {'channel_id': int(channel_id), 'predictions': result['preds'].tolist(),
-    #               'created_at': created_at, 'prediction_time': result['created_at'].tolist()}
-    #     prediction_results.append(record)
-    #
-    # save_next_24hrs_prediction_results(prediction_results)
+    forecast_results = []
+
+    created_at = pd.to_datetime(datetime.now()).strftime('%Y-%m-%d')
+
+    for i in forecasts['device_number'].unique():
+        record = {'channel_id': int(i),
+                  'created_at': created_at,
+                  'prediction_time': forecasts[forecasts['device_number'] == i]['created_at'].values.tolist(),
+                  'pm2_5': forecasts[forecasts['device_number'] == i]['pm2_5'].values.tolist()}
+        forecast_results.append(record)
+
+    save_next_1_week_prediction_results(forecast_results)
