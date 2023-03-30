@@ -80,6 +80,11 @@ router.post(
         .withMessage("the title is missing in request")
         .bail()
         .trim(),
+      body("image")
+        .exists()
+        .withMessage("the image is missing in request")
+        .bail()
+        .trim(),
       body("aqi_category")
         .exists()
         .withMessage("the aqi_category is missing in request")
@@ -144,6 +149,12 @@ router.put(
         .optional()
         .notEmpty()
         .withMessage("the title is missing in request")
+        .bail()
+        .trim(),
+      body("image")
+        .optional()
+        .notEmpty()
+        .withMessage("the image is missing in request")
         .bail()
         .trim(),
       body("aqi_category")
