@@ -22,27 +22,28 @@ class Config:
     MONTHS_OF_DATA = os.getenv('MONTHS_OF_DATA', 2)
     # prediction configs
 
-    #load & preprocess test data:
+    # load & preprocess test data:
     METADATA_PATH = 'meta.csv'
     BOUNDARY_LAYER_PATH = 'boundary_layer.csv'
 
-    #set constants
+    # set constants
     test_start_datetime = datetime.now().strftime('%Y-%m-%d %H')
     daily_test_start_datetime = datetime.now().strftime('%Y-%m-%d')
-    #test_end_datetime = date_to_str(datetime.now() + timedelta(hours=24))
+    # test_end_datetime = date_to_str(datetime.now() + timedelta(hours=24))
 
     TEST_DATE_HOUR_START = pd.to_datetime(test_start_datetime)
     TEST_DATE_DAILY_START = pd.to_datetime(daily_test_start_datetime)
 
     ### Prediction will end at this date-hour
     TEST_DATE_HOUR_END = TEST_DATE_HOUR_START + pd.Timedelta(hours=23)
-    TEST_DATE_DAILY_END = TEST_DATE_DAILY_START + pd.Timedelta(days=6)
     N_HRS_BACK = 24
     SEQ_LEN = 24
-    ROLLING_SEQ_LEN = 24*90
-    MAX_LAGS = N_HRS_BACK + max(ROLLING_SEQ_LEN, SEQ_LEN) + 48 # Extra 48 or 2 days for safety
-    TEST_LAG_LAST_DATE_HOUR = TEST_DATE_HOUR_START - pd.Timedelta(hours = MAX_LAGS)
+    ROLLING_SEQ_LEN = 24 * 90
+    MAX_LAGS = N_HRS_BACK + max(ROLLING_SEQ_LEN, SEQ_LEN) + 48  # Extra 48 or 2 days for safety
+    TEST_LAG_LAST_DATE_HOUR = TEST_DATE_HOUR_START - pd.Timedelta(hours=MAX_LAGS)
     TARGET_COL = 'pm2_5'
+
+
 class ProductionConfig(Config):
     DB_NAME = os.getenv("DB_NAME_PROD")
     MONGO_URI = os.getenv('MONGO_GCE_URI')
@@ -50,6 +51,7 @@ class ProductionConfig(Config):
     MONGO_URI_DEVICE_REGISTRY = os.getenv('MONGO_GCE_URI_DEVICE_REGISTRY')
     AIRQO_PREDICT_BUCKET = os.getenv('AIRQO_PREDICT_BUCKET_PROD')
     AIRQO_API_BASE_URL = os.getenv('AIRQO_API_BASE_URL_PROD')
+
 
 class TestingConfig(Config):
     DEBUG = True
@@ -60,6 +62,7 @@ class TestingConfig(Config):
     MONGO_URI_DEVICE_REGISTRY = os.getenv('MONGO_GCE_URI_DEVICE_REGISTRY')
     AIRQO_PREDICT_BUCKET = os.getenv('AIRQO_PREDICT_BUCKET_STAGE')
     AIRQO_API_BASE_URL = os.getenv('AIRQO_API_BASE_URL_STAGE')
+
 
 class DevelopmentConfig(Config):
     DEVELOPMENT = True
@@ -90,8 +93,8 @@ def connect_mongo():
     db = client[configuration.DB_NAME]
     return db
 
+
 def connect_mongo_device_registry():
     client = MongoClient(configuration.MONGO_URI_DEVICE_REGISTRY)
     db = client[f'{configuration.DB_NAME_DEVICE_REGISTRY}_{configuration.TENANT.lower()}']
     return db
-

@@ -1,7 +1,7 @@
 import requests
 import pandas as pd
 from config import connect_mongo_device_registry, configuration
-from utils import previous_months_range, date_to_str, str_to_date, is_key_exist
+from utils import previous_months_range, date_to_str, str_to_date
 from datetime import timedelta
 
 

@@ -2,6 +2,7 @@ import pandas as pd
 from concurrent.futures import ThreadPoolExecutor
 from models import Events
 
+
 def _transform_events(events):
     transformed_events = []
     for event in events:
@@ -22,6 +23,7 @@ def _transform_events(events):
 
 def get_forecast_data():
     return _transform_events(Events().get_events_db())
+
 
 def get_data():
     with ThreadPoolExecutor() as executor:
