@@ -1,20 +1,20 @@
 import warnings
 
+import joblib as joblib
 import mlflow
 import mlflow.sklearn
 import pandas as pd
-import joblib as joblib
 from lightgbm import LGBMRegressor, early_stopping
 from sklearn.metrics import mean_squared_error
 
-from config import environment, configuration
+from config import configuration, environment
 from transform import get_forecast_data
 from utils import upload_trained_model_to_gcs
 
 warnings.filterwarnings("ignore")
 
 mlflow.set_tracking_uri(configuration.MLFLOW_TRACKING_URI)
-mlflow.set_experiment(experiment_name=f"predict_{environment}")
+mlflow.set_experiment(experiment_name=f"daily_forecast_{environment}")
 
 print(f'mlflow server uri: {mlflow.get_tracking_uri()}')
 
@@ -118,7 +118,7 @@ def train_model(train):
         # Log model
         mlflow.sklearn.log_model(
             sk_model=clf,
-            artifact_path="predict_model",
+            artifact_path="daily_forecast_model",
             registered_model_name=f"LGBM_daily_forecast_model_{environment}"
         )
 

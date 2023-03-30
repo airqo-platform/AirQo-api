@@ -1,19 +1,21 @@
-import numpy as np
-import pandas as pd
-from transform import get_boundary_layer_data, get_forecast_data, get_metadata
-from lightgbm import LGBMRegressor, early_stopping
-from sklearn.metrics import mean_squared_error
+import warnings
+
 import mlflow
 import mlflow.sklearn
-from config import environment, configuration
+import numpy as np
+import pandas as pd
 from joblib import Parallel, delayed
-from utils import upload_trained_model_to_gcs, date_to_str, upload_csv_file_to_gcs
-import warnings
+from lightgbm import LGBMRegressor, early_stopping
+from sklearn.metrics import mean_squared_error
+
+from config import configuration, environment
+from transform import get_boundary_layer_data, get_forecast_data, get_metadata
+from utils import upload_csv_file_to_gcs, upload_trained_model_to_gcs
 
 warnings.filterwarnings("ignore")
 
 mlflow.set_tracking_uri(configuration.MLFLOW_TRACKING_URI)
-mlflow.set_experiment(experiment_name=f"predict_{environment}")
+mlflow.set_experiment(experiment_name=f"hourly_forecast_{environment}")
 
 print(f'mlflow server uri: {mlflow.get_tracking_uri()}')
 
@@ -68,12 +70,10 @@ def initialise_training_constants():
 
     N_HRS_BACK = 24
     SEQ_LEN = 24
-    ROLLING_SEQ_LEN = 24 * 90
-    MAX_LAGS = N_HRS_BACK + max(ROLLING_SEQ_LEN, SEQ_LEN) + 48  # Extra 48 or 2 days for safety
 
     forecast_data, metadata, boundary_layer_mapper = preprocess_forecast_data()
 
-    if TRAIN_MODEL_NOW == True:
+    if TRAIN_MODEL_NOW:
         print(forecast_data.columns)
         train_forecast_data = forecast_data.drop('date', axis=1)
         train = make_train(train_forecast_data)
@@ -142,8 +142,8 @@ def train_model(train):
         # Log model
         mlflow.sklearn.log_model(
             sk_model=clf,
-            artifact_path="predict_model",
-            registered_model_name=f"lgbr_predict_model_{environment}"
+            artifact_path="hourly_forecast_model",
+            registered_model_name=f"lgbr_hourly_forecast_model_{environment}"
         )
 
         # model validation
