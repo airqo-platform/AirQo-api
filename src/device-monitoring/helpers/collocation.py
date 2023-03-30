@@ -539,27 +539,33 @@ class Collocation(BaseModel):
             data = pd.concat([data, device_data_df])
 
         data["timestamp"] = data["timestamp"].apply(date_to_str)
-        devices = data["device_name"].tolist()
-        timestamps = data["timestamp"].tolist()
-        results = {}
+        devices = set(data["device_name"].tolist())
+        timestamps = set(data["timestamp"].tolist())
+
+        results = []
         for timestamp in timestamps:
-            results[timestamp] = {}
+            result = {"timestamp": timestamp}
             for device in devices:
-                results[timestamp][device] = {
+                result[device] = {
                     "s1_pm10": None,
                     "s1_pm2_5": None,
                     "s2_pm10": None,
                     "s2_pm2_5": None,
                 }
-        data_frames = data.groupby(["timestamp", "device_name"])
-        groups = data_frames.apply(
-            lambda x: x[["s1_pm10", "s1_pm2_5", "s2_pm10", "s2_pm2_5"]].to_dict(
-                "records"
-            )
-        ).to_dict()
+            results.append(result)
 
-        for key, value in groups.items():
-            results[key[0]][key[1]] = value
+        for _, row in data.iterrows():
+            device_timestamp = list(
+                filter(lambda x: x["timestamp"] == row["timestamp"], results)
+            )[0]
+            results.remove(device_timestamp)
+            device_timestamp[row["device_name"]] = {
+                "s1_pm10": row["s1_pm10"],
+                "s1_pm2_5": row["s1_pm2_5"],
+                "s2_pm10": row["s2_pm10"],
+                "s2_pm2_5": row["s2_pm2_5"],
+            }
+            results.append(device_timestamp)
 
         return results
 
