@@ -60,6 +60,7 @@ app.use("/api/v2/devices/activities", routes.v2.activities);
 app.use("/api/v2/devices/airqlouds", routes.v2.airqlouds);
 app.use("/api/v2/devices/sites", routes.v2.sites);
 app.use("/api/v2/devices/events", routes.v2.events);
+app.use("/api/v2/devices/measurements", routes.v2.measurements);
 app.use("/api/v2/devices/locations", routes.v2.locations);
 app.use("/api/v2/devices/photos", routes.v2.photos);
 app.use("/api/v2/devices/tips", routes.v2.tips);
