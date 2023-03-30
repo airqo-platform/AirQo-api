@@ -15,67 +15,46 @@ from models import datamanagement, processing
 _logger = logging.getLogger(__name__)
 
 
-# load_dotenv()
-
-# MONGO_URI = os.getenv('MONGO_URI')
-
-# def connect_mongo():
-#     client = MongoClient(MONGO_URI)
-#     db=client['airqo_netmanager_staging']
-#     return db
-
-
-def get_next_24hr_predictions_for_channel(channel_id, prediction_start_time):
+def get_next_24hr_forecasts_for_channel(channel_id, prediction_start_time):
     db = connect_mongo()
     print(prediction_start_time)
     print(type(prediction_start_time))
     prediction_start_time = utils.str_to_date(prediction_start_time)
-    # channel_predictions = list(db.predictions.find(
-    # {'$and': [{'channel_id':  channel_id},
-    # {'created_at': {'$gte': prediction_start_time}}]},{'_id': 0}).sort([('$natural', -1)]).limit(1))
-
-    # query = {'$match': {'channel_id': channel_id}}
-    # projection =  {'$project':{'_id': 0}}
-    # sort_order = {'$sort': {'$natural', -1}}
-    channel_predictions = list(db.predictions.find(
+    channel_forecasts = list(db.hourly_forecasts.find(
         {'channel_id': channel_id
          }, {'_id': 0}).sort([('$natural', -1)]).limit(1))
-
-    # channel_predictions = list(db.predictions.aggregate(
-    # [query, projection]))
-
     results = []
-    if len(channel_predictions) > 0:
-        for i in range(0, len(channel_predictions[0]['predictions'])):
-            prediction_datetime = channel_predictions[0]['prediction_time'][i]
-            prediction_value = channel_predictions[0]['predictions'][i]
-            result = {'prediction_time': prediction_datetime, 'prediction_value': prediction_value,
+    if len(channel_forecasts) > 0:
+        for i in range(0, len(channel_forecasts[0]['forecasts'])):
+            forecast_datetime = channel_forecasts[0]['forecast_time'][i]
+            forecast_value = channel_forecasts[0]['forecasts'][i]
+            result = {'forecast_time': forecast_datetime, 'forecast_value': forecast_value,
                       'lower_ci': 0, 'upper_ci': 0}
             results.append(result)
 
-    formated_results = {'predictions': results}
+    formated_results = {'forecasts': results}
     return formated_results
 
 
-def get_next_1_week_predictions_for_channel(channel_id, prediction_start_date):
+def get_next_1_week_forecasts_for_channel(channel_id, prediction_start_date):
     db = connect_mongo()
     print(prediction_start_date)
     print(type(prediction_start_date))
 
-    channel_predictions = list(db.forecast_predictions.find(
+    channel_forecasts = list(db.daily_forecasts.find(
         {'channel_id': channel_id
          }, {'_id': 0}).sort([('$natural', -1)]).limit(1))
 
     results = []
-    if len(channel_predictions) > 0:
-        for i in range(0, len(channel_predictions[0]['predictions'])):
-            prediction_datetime = channel_predictions[0]['prediction_time'][i]
-            prediction_value = channel_predictions[0]['predictions'][i]
-            result = {'prediction_time': prediction_datetime, 'prediction_value': prediction_value,
+    if len(channel_forecasts) > 0:
+        for i in range(0, len(channel_forecasts[0]['forecasts'])):
+            forecast_day = channel_forecasts[0]['forecast_day'][i]
+            forecast_value = channel_forecasts[0]['forecasts'][i]
+            result = {'forecast_day': forecast_day, 'forecast': forecast_value,
                       'lower_ci': 0, 'upper_ci': 0}
             results.append(result)
 
-    formatted_results = {'predictions': results}
+    formatted_results = {'forecasts': results}
     return formatted_results
 
 
@@ -413,12 +392,8 @@ def simple_forecast_ci(history, configs, considered_hours):
 
 
 if __name__ == '__main__':
-    # make_prediction("aq_24","2019/07/10/10")
-    # load_json_data(model_config.BEST_CONFIG_FROM_AVERAGES_MODEL)
-    # entered_time = datetime.datetime.now()
     entered_time = datetime.datetime.now() - datetime.timedelta(hours=1)
     entered_time = entered_time.strftime('%Y-%m-%d %H:%M')
     print(entered_time)
     specified_locations = datamanagement.get_all_static_channels()
     all_channel_predictions = make_24hr_predictions_for_specified_locations(specified_locations, entered_time)
-    # all_channel_predictions =  make_24hr_predictions_for_specified_locations(entered_time)

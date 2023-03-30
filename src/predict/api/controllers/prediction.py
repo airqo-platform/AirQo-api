@@ -4,13 +4,12 @@ import os
 
 from dotenv import load_dotenv
 from flask import Blueprint, jsonify, request
-from flask_caching import Cache
 
 from config import constants
 from helpers.utils import get_all_gp_predictions, get_closest_channel, get_gp_predictions, get_gp_predictions_id
 from helpers.validation import validate_inputs, validate_inputs_for_next_24hour_predictions
 from models import datamanagement as dm
-from models.predict import get_next_1_week_predictions_for_channel, get_next_24hr_predictions_for_channel, \
+from models.predict import get_next_1_week_forecasts_for_channel, get_next_24hr_forecasts_for_channel, \
     make_prediction, make_prediction_using_averages
 from routes import api
 
@@ -18,22 +17,22 @@ load_dotenv()
 
 app_configuration = constants.app_config.get(os.getenv('FLASK_ENV'))
 
-cache = Cache(config={
-    'CACHE_TYPE': 'redis',
-    'CACHE_REDIS_HOST': app_configuration.REDIS_SERVER,
-    'CACHE_REDIS_PORT': os.getenv('REDIS_PORT'),
-    'CACHE_REDIS_URL': f"redis://{app_configuration.REDIS_SERVER}:{os.getenv('REDIS_PORT')}",
-})
+# cache = Cache(config={
+#     'CACHE_TYPE': 'redis',
+#     'CACHE_REDIS_HOST': app_configuration.REDIS_SERVER,
+#     'CACHE_REDIS_PORT': os.getenv('REDIS_PORT'),
+#     'CACHE_REDIS_URL': f"redis://{app_configuration.REDIS_SERVER}:{os.getenv('REDIS_PORT')}",
+# })
 
 _logger = logging.getLogger(__name__)
 
 ml_app = Blueprint('ml_app', __name__)
 
 
-@ml_app.route(api.route['next_24hr_predictions'], methods=['GET'])
-def get_next_24hr_predictions(device_channel_id, prediction_start_time):
+@ml_app.route(api.route['next_24hr_forecasts'], methods=['GET'])
+def get_next_24hr_forecasts(device_channel_id, forecast_start_time):
     '''
-    Get predictions for the next 24 hours from specified start time.
+    Get forecasts for the next 24 hours from specified start time.
     '''
     if request.method == 'GET':
         if type(device_channel_id) is not int:
@@ -53,31 +52,31 @@ def get_next_24hr_predictions(device_channel_id, prediction_start_time):
         prediction_start_datetime = dt.datetime.strftime(
             prediction_start_timestamp, "%Y-%m-%d %H:00:00")
         print(prediction_start_datetime)
-        result = get_next_24hr_predictions_for_channel(
+        result = get_next_24hr_forecasts_for_channel(
             device_channel_id, prediction_start_datetime)
         if result:
             response = result
         else:
             response = {
-                "message": "predictions for channel are not available", "success": False}
+                "message": "forecasts for channel are not available", "success": False}
         data = jsonify(response)
         return data, 201
     else:
         return jsonify({"message": "Invalid request method", "success": False}), 400
 
 
-@ml_app.route(api.route['next_1_week_predictions'], methods=['GET'])
-def get_next_1_week_prediction(device_channel_id, prediction_start_date):
+@ml_app.route(api.route['next_1_week_forecasts'], methods=['GET'])
+def get_next_1_week_prediction(device_channel_id, forecast_start_date):
     """
-    Get predictions for the next 1 week from specified start day.
+    Get forecasts for the next 1 week from specified start day.
     """
     if request.method == 'GET':
         if type(device_channel_id) is not int:
             device_channel_id = int(device_channel_id)
 
-        if type(prediction_start_date) is not int:
+        if type(forecast_start_date) is not int:
             try:
-                prediction_start_date = int(prediction_start_date)
+                forecast_start_date = int(forecast_start_date)
             except ValueError:
                 error = {
                     "message": "Invalid prediction start date. expected unix timestamp format like 1500000000",
@@ -86,12 +85,12 @@ def get_next_1_week_prediction(device_channel_id, prediction_start_date):
 
         # change prediction_start_date to datetime format
         prediction_start_timestamp = dt.datetime.fromtimestamp(
-            prediction_start_date)
+            forecast_start_date)
         prediction_start_datetime = dt.datetime.strftime(
             prediction_start_timestamp, "%Y-%m-%d %H:00:00")
 
         print(prediction_start_datetime)
-        result = get_next_1_week_predictions_for_channel(
+        result = get_next_1_week_forecasts_for_channel(
             device_channel_id, prediction_start_datetime)
         if result:
             response = result
