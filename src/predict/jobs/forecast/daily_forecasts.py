@@ -58,7 +58,6 @@ def get_new_row(df_tmp, device, model):
     new_row = pd.Series(index=last_row.index, dtype='float64')
     new_row["created_at"] = last_row["created_at"] + pd.Timedelta(days=1)
     new_row["device_number"] = device
-    new_row["pm2_5"] = model.predict(last_row.drop(["created_at", "pm2_5"]).values.reshape(1, -1))[0]
     new_row[f'pm2_5_last_1_day'] = last_row["pm2_5"]
     new_row[f'pm2_5_last_2_day'] = last_row[f'pm2_5_last_{1}_day']
     shifts = [3, 7, 14, 30]
@@ -81,6 +80,7 @@ def get_new_row(df_tmp, device, model):
         new_row[a] = new_row['created_at'].__getattribute__(a)
         new_row['week'] = new_row["created_at"].isocalendar().week
 
+    new_row["pm2_5"] = model.predict(new_row.drop(["created_at", "pm2_5"]).values.reshape(1, -1))[0]
     return new_row
 
 
@@ -112,7 +112,7 @@ def get_next_1week_predictions(target_column, model):
 if __name__ == '__main__':
     TARGET_COL = 'pm2_5'
     # TODO: Remove for deployment use GCS
-    model = joblib.load("/Users/mutabazinble/GitHub/AirQo-api/src/predict/jobs/train/LGBMmodel.pkl")
+    model = joblib.load("/Users/mutabazinble/GitHub/AirQo-api/src/predict/jobs/forecast_training/LGBMmodel.pkl")
     forecasts = get_next_1week_predictions(TARGET_COL, model)
     forecast_results = []
 

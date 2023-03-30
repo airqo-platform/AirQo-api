@@ -42,14 +42,6 @@ def date_to_str_2(date):
     return datetime.strftime(date, '%Y-%m-%d %H:00:00')
 
 
-def is_key_exist(dict, key):
-    """checks wether specified key is available in the specified dictionary."""
-    if key in dict.keys():
-        return True
-    else:
-        return False
-
-
 def get_csv_file_from_gcs(project_name, bucket_name, source_blob_name):
     """gets csv file from google cloud storage and returns as a pandas dataframe"""
     fs = gcsfs.GCSFileSystem(project=project_name)

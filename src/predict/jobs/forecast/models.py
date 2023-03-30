@@ -9,6 +9,7 @@ class BaseModel:
     def __init__(self):
         self.db = connect_mongo_device_registry()
 
+
 class Events(BaseModel):
     def __init__(self):
         super().__init__()
@@ -36,11 +37,10 @@ class Events(BaseModel):
 
         return list(self.db.events.aggregate([query, projection]))
 
-
     def get_events(self):
         try:
             api_url = f'{configuration.AIRQO_API_BASE_URL}device/events?tenant={configuration.TENANT}&active=yes&startTime=2021-11-19'
-            results = requests.get(api_url,verify=False)
+            results = requests.get(api_url, verify=False)
             events_data = results.json()["measurements"]
         except Exception as ex:
             print("Events Url returned an error : " + str(ex))
