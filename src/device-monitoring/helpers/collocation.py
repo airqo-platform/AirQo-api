@@ -530,6 +530,40 @@ class Collocation(BaseModel):
         return raw_data, resampled_data
 
     @staticmethod
+    def format_collocation_data(data_dict: dict):
+        data = pd.DataFrame()
+
+        for device, device_data in data_dict.items():
+            device_data_df = pd.DataFrame(device_data)
+            device_data_df["device_name"] = device
+            data = pd.concat([data, device_data_df])
+
+        data["timestamp"] = data["timestamp"].apply(date_to_str)
+        devices = data["device_name"].tolist()
+        timestamps = data["timestamp"].tolist()
+        results = {}
+        for timestamp in timestamps:
+            results[timestamp] = {}
+            for device in devices:
+                results[timestamp][device] = {
+                    "s1_pm10": None,
+                    "s1_pm2_5": None,
+                    "s2_pm10": None,
+                    "s2_pm2_5": None,
+                }
+        data_frames = data.groupby(["timestamp", "device_name"])
+        groups = data_frames.apply(
+            lambda x: x[["s1_pm10", "s1_pm2_5", "s2_pm10", "s2_pm2_5"]].to_dict(
+                "records"
+            )
+        ).to_dict()
+
+        for key, value in groups.items():
+            results[key[0]][key[1]] = value
+
+        return results
+
+    @staticmethod
     def get_inter_sensor_correlation(
         devices: list, start_date_time: datetime, end_date_time: datetime, threshold
     ) -> list:

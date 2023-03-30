@@ -190,6 +190,8 @@ def data():
         _, results = Collocation.get_data(
             start_date_time=start_date, end_date_time=end_date, devices=devices
         )
+        results = Collocation.format_collocation_data(results)
+
         return jsonify({"data": results}), 200
     except Exception as ex:
         traceback.print_exc()
