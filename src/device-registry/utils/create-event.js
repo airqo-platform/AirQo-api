@@ -1,7 +1,6 @@
 const EventModel = require("@models/Event");
 const AirQloudSchema = require("@models/Airqloud");
 const { getModelByTenant } = require("./multitenancy");
-const MeasurementModel = require("@models/Measurement");
 const { logObject, logElement, logText } = require("./log");
 const constants = require("@config/constants");
 const generateFilter = require("./generate-filter");
@@ -1183,6 +1182,8 @@ const createEvent = {
       external,
       recent,
       lat_long,
+      index,
+      running,
     } = request.query;
     const currentTime = new Date().toISOString();
     const day = generateDateFormatWithoutHrs(currentTime);
@@ -1200,7 +1201,9 @@ const createEvent = {
       external ? external : "noExternal"
     }_${airqloud ? airqloud : "noAirQloud"}_${
       airqloud_id ? airqloud_id : "noAirQloudID"
-    }_${lat_long ? lat_long : "noLatLong"}`;
+    }_${lat_long ? lat_long : "noLatLong"}_${running ? running : "noRunning"}_${
+      index ? index : "noIndex"
+    }`;
   },
   getEventsCount: async (request) => {},
   setCache: (data, request, callback) => {
@@ -1632,53 +1635,6 @@ const createEvent = {
       };
     }
   },
-  viewEvents: async (request) => {
-    let { tenant } = request.query;
-    const dot = new Dot("-");
-    const limit = parseInt(request.query.limit, 0);
-    const skip = parseInt(request.query.skip, 0);
-
-    let responseFromFilter = generateFilter.events_v2(request);
-    let filter = {};
-    if (responseFromFilter.success === true) {
-      filter = responseFromFilter.data;
-    } else if (responseFromFilter.success === false) {
-      let errors = responseFromFilter.errors
-        ? responseFromFilter.errors
-        : { message: "" };
-      return {
-        success: false,
-        message: responseFromFilter.message,
-        errors,
-      };
-    }
-    let _limit = limit ? limit : 100;
-    let _skip = skip ? skip : 0;
-    let responseFromListEvents = await EventModel(tenant).view({
-      _skip,
-      _limit,
-      filter,
-    });
-
-    if (responseFromListEvents.success === true) {
-      let eventsArray = responseFromListEvents.data;
-      let dottedEventsArray = eventsArray.map((object) => dot.object(object));
-      return {
-        success: true,
-        message: responseFromListEvents.message,
-        data: dottedEventsArray,
-      };
-    } else if (responseFromListEvents.success === false) {
-      let errors = responseFromListEvents.errors
-        ? responseFromListEvents.errors
-        : { message: "" };
-      return {
-        success: false,
-        message: responseFromListEvents.message,
-        errors,
-      };
-    }
-  },
   clearEventsOnClarity: (request) => {
     return {
       success: false,
@@ -2085,6 +2041,81 @@ const createEvent = {
         message: "Internal Server Error",
         errors: { message: e.message },
       };
+    }
+  },
+
+  /***
+   * the new additions
+   */
+  listLatest: async (request) => {
+    try {
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
+  listBySite: async (request) => {
+    try {
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
+  listByAirQloud: async (request) => {
+    try {
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
+  listByDevice: async (request) => {
+    try {
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
+  listByLatLong: async (request) => {
+    try {
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
+  listByTime: async (request) => {
+    try {
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
     }
   },
 };
