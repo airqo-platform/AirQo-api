@@ -4,9 +4,11 @@ mongoose.set("useFindAndModify", false);
 mongoose.set("useCreateIndex", true);
 mongoose.set("debug", false);
 const constants = require("./constants");
-const { logElement, logText, logObject } = require("../utils/log");
 const URI = constants.MONGO_URI;
-logElement("the URI string", URI);
+const log4js = require("log4js");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- dbConnection-config`
+);
 
 const options = {
   useCreateIndex: true,
@@ -27,24 +29,18 @@ const connect = () => mongoose.createConnection(URI, options);
 const connectToMongoDB = () => {
   try {
     const db = connect();
-    db.on("open", () => {
-      logText(`mongoose connection opened on: ${URI}`);
-    });
+    db.on("open", () => {});
 
     db.on("error", (err) => {
-      logElement("Mongoose connection error", err);
       // process.exit(0);
     });
 
-    db.on("disconnection", (err) => {
-      logElement("mongoose disconnected", err);
-    });
+    db.on("disconnection", (err) => {});
 
     process.on("unlimitedRejection", (reason, p) => {
       console.log("Unhandled Rejection at: Promise", p, "reason:", reason);
       // process.exit(0);
       // db.close(() => {
-      //   logText("mongoose is disconnected through the app");
       //   process.exit(0);
       // });
     });
@@ -55,11 +51,32 @@ const connectToMongoDB = () => {
     });
 
     return db;
-  } catch (error) {
-    logElement("dbConnnection server error", error.message);
-  }
+  } catch (error) {}
 };
 
 const mongodb = connectToMongoDB();
 
-module.exports = mongodb;
+/****
+ * creating a new mongoDB connection by switching tenant
+ * using this to create a new connection based on tenant ID
+ */
+function getTenantDB(tenantId, modelName, schema) {
+  const dbName = `${constants.DB_NAME}_${tenantId}`;
+  if (mongodb) {
+    const db = mongodb.useDb(dbName, { useCache: true });
+    db.model(modelName, schema);
+    return db;
+  }
+}
+
+/****
+   * return model as per tenant
+  we shall use this to create the model
+  afterwards, we can be able to use this model to carry out any kinds of CRUD
+   */
+function getModelByTenant(tenantId, modelName, schema) {
+  const tenantDb = getTenantDB(tenantId, modelName, schema);
+  return tenantDb.model(modelName);
+}
+
+module.exports = { getModelByTenant, getTenantDB, mongodb };

@@ -284,7 +284,7 @@ router.post(
         .exists()
         .withMessage("privilege is missing in your request")
         .bail()
-        .isIn(["admin", "netmanager", "superadmin", "user"])
+        .isIn(["admin", "netmanager", "user", "super"])
         .withMessage("the privilege value is not among the expected ones")
         .trim(),
     ],
@@ -340,7 +340,7 @@ router.post(
         .exists()
         .withMessage("privilege is missing in your request")
         .bail()
-        .isIn(["admin", "netmanager", "superadmin", "user"])
+        .isIn(["admin", "netmanager", "user", "super"])
         .withMessage("the privilege value is not among the expected ones")
         .trim(),
     ],
@@ -658,6 +658,42 @@ router.post(
     ],
   ]),
   createUserController.subscribeToNewsLetter
+);
+
+router.get(
+  "/stats",
+  oneOf([
+    query("tenant")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
+      .trim()
+      .toLowerCase()
+      .bail()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  setJWTAuth,
+  authJWT,
+  createUserController.listStatistics
+);
+
+router.get(
+  "/logs",
+  oneOf([
+    query("tenant")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
+      .trim()
+      .toLowerCase()
+      .bail()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  setJWTAuth,
+  authJWT,
+  createUserController.listLogs
 );
 
 router.get(

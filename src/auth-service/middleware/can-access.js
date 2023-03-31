@@ -1,8 +1,8 @@
-import { logElement } from "../utils/log";
+import { logElement } from "@utils/log";
 const httpStatus = require("http-status");
-const RoleSchema = "../models/Role";
-const PermissionSchema = "../models/Permission";
-const { getModelByTenant } = require("../utils/multitenancy");
+const RoleSchema = "@models/Role";
+const PermissionSchema = "@models/Permission";
+const { getModelByTenant } = require("@config/dbConnection");
 
 export default (permission) => async (req, res, next) => {
   const { tenant } = req.query;

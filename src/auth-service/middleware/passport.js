@@ -3,15 +3,16 @@ const LocalStrategy = require("passport-local");
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const httpStatus = require("http-status");
 const Validator = require("validator");
-const UserSchema = require("../models/User");
-const AccessTokenSchema = require("../models/AccessToken");
-const constants = require("../config/constants");
-const { logElement, logText, logObject } = require("../utils/log");
+const UserSchema = require("@models/User");
+const AccessTokenSchema = require("@models/AccessToken");
+const constants = require("@config/constants");
+const { logElement, logText, logObject, winstonLogger } = require("@utils/log");
 const { Strategy: JwtStrategy, ExtractJwt } = require("passport-jwt");
 const AuthTokenStrategy = require("passport-auth-token");
 const jwt = require("jsonwebtoken");
 
-const { getModelByTenant } = require("../utils/multitenancy");
+const { getModelByTenant } = require("@config/dbConnection");
+
 const UserModel = (tenant) => {
   return getModelByTenant(tenant, "user", UserSchema);
 };
@@ -21,7 +22,7 @@ const AccessTokenModel = (tenant) => {
 };
 
 const { validationResult } = require("express-validator");
-const { badRequest, convertErrorArrayToObject } = require("../utils/errors");
+const { badRequest, convertErrorArrayToObject } = require("@utils/errors");
 
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- auth-service`);
@@ -113,6 +114,8 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
     authenticateWithEmailOptions,
     async (email, password, done) => {
       try {
+        const service = req.headers["service"];
+        logObject("Service", service);
         const user = await UserModel(tenant.toLowerCase())
           .findOne({ email })
           .exec();
@@ -128,6 +131,18 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
         }
         req.auth.success = true;
         req.auth.message = "successful login";
+        winstonLogger.info(
+          `successful login through ${service ? service : "unknown"} service`,
+          {
+            username: user.userName,
+            email: user.email,
+            service: service ? service : "none",
+          }
+        );
+        logger.info(`successful login`, {
+          username: user.userName,
+          email: user.email,
+        });
         return done(null, user);
       } catch (e) {
         req.auth.success = false;
@@ -142,6 +157,8 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
     authenticateWithUsernameOptions,
     async (userName, password, done) => {
       try {
+        const service = req.headers["service"];
+        logObject("Service", service);
         const user = await UserModel(tenant.toLowerCase())
           .findOne({ userName })
           .exec();
@@ -157,6 +174,19 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
         }
         req.auth.success = true;
         req.auth.message = "successful login";
+
+        winstonLogger.info(
+          `successful login through ${service ? service : "unknown"} service`,
+          {
+            username: user.userName,
+            email: user.email,
+            service: service ? service : "none",
+          }
+        );
+        logger.info(`successful login`, {
+          username: user.userName,
+          email: user.email,
+        });
         return done(null, user);
       } catch (e) {
         req.auth.success = false;
@@ -205,12 +235,23 @@ const useGoogleStrategy = (tenant, req, res, next) =>
 const useJWTStrategy = (tenant, req, res, next) =>
   new JwtStrategy(jwtOpts, async (payload, done) => {
     try {
+      const service = req.headers["service"];
+      logObject("Service", service);
       const user = await UserModel(tenant.toLowerCase())
         .findOne({ _id: payload._id })
         .exec();
       if (!user) {
         return done(null, false);
       }
+
+      winstonLogger.info(
+        `successful login through ${service ? service : "unknown"} service`,
+        {
+          username: user.userName,
+          email: user.email,
+          service: service ? service : "unknown",
+        }
+      );
       return done(null, user);
     } catch (e) {
       return done(e, false);
@@ -218,6 +259,8 @@ const useJWTStrategy = (tenant, req, res, next) =>
   });
 const useAuthTokenStrategy = (tenant, req, res, next) =>
   new AuthTokenStrategy(async function (token, done) {
+    const service = req.headers["service"];
+    logObject("Service", service);
     await AccessTokenModel(tenant.toLowerCase()).findOne(
       {
         id: token,
@@ -244,7 +287,16 @@ const useAuthTokenStrategy = (tenant, req, res, next) =>
               if (!user) {
                 return done(null, false);
               }
-
+              winstonLogger.info(
+                `successful login through ${
+                  service ? service : "unknown"
+                } service`,
+                {
+                  username: user.userName,
+                  email: user.email,
+                  service: service ? service : "unknown",
+                }
+              );
               return done(null, user);
             }
           );

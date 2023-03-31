@@ -1,20 +1,21 @@
 #!/usr/bin/env node
 
-/**
- * Module dependencies.
- */
-
-var app = require("../app");
+const log4js = require('log4js');
+const app = require("../app");
 const constants = require("@config/constants");
 const middlewareConfig = require("@config/middleware");
-var debug = require("debug")("auth-service:server");
-var http = require("http");
-var isEmpty = require("is-empty");
-const log4js = require('log4js');
+const debug = require("debug")("auth-service:server");
+const http = require("http");
+const isEmpty = require("is-empty");
+
 const log4jsConfiguration = require("@config/log4js")
 log4js.configure(log4jsConfiguration);
-const logger = log4js.getLogger(`${constants.ENVIRONMENT} --start-script`);
-const { logText, logObject, logElement } = require("@utils/log")
+const logger = log4js.getLogger(
+    `${constants.ENVIRONMENT} -- www-start-script`
+);
+
+
+const { logText, logObject, logElement, winstonLogger } = require("@utils/log")
 const mailer = require("@utils/mailer");
 const emailMessages = require("@utils/email.msgs");
 const emailTemplates = require("@utils/email.templates");
@@ -35,6 +36,7 @@ const kafka = new Kafka({
     clientId: constants.KAFKA_CLIENT_ID,
     brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
 });
+
 
 
 /***
@@ -76,10 +78,6 @@ const run = async() => {
             );
             logObject("message.value.toString()", message.value.toString())
 
-            /**
-             * We might need to "clean" the JSON from here
-             */
-
             const repairedJSONString = jsonrepair(message.value.toString())
             logObject("message.value", JSON.parse(repairedJSONString))
 
@@ -118,6 +116,10 @@ const run = async() => {
         },
     });
 };
+
+/**
+ * we could also add the WEBSOCKET implememtation right here.
+ */
 
 /**
  * Get port from environment and store in Express.

@@ -1,7 +1,8 @@
-const UserSchema = require("../models/User");
+const UserSchema = require("@models/User");
+const LogSchema = require("@models/log");
 const AccessTokenSchema = require("@models/AccessToken");
 const ClientSchema = require("@models/Client");
-const { getModelByTenant } = require("./multitenancy");
+const { getModelByTenant } = require("@config/dbConnection");
 const { logObject, logElement, logText } = require("./log");
 const mailer = require("./mailer");
 const bcrypt = require("bcrypt");
@@ -10,10 +11,10 @@ const ObjectId = mongoose.Types.ObjectId;
 const crypto = require("crypto");
 const isEmpty = require("is-empty");
 const { getAuth, sendSignInLinkToEmail } = require("firebase-admin/auth");
-const actionCodeSettings = require("../config/firebase-settings");
+const actionCodeSettings = require("@config/firebase-settings");
 const httpStatus = require("http-status");
-const constants = require("../config/constants");
-const mailchimp = require("../config/mailchimp");
+const constants = require("@config/constants");
+const mailchimp = require("@config/mailchimp");
 const md5 = require("md5");
 const accessCodeGenerator = require("generate-password");
 const generateFilter = require("./generate-filter");
@@ -29,6 +30,16 @@ const UserModel = (tenant) => {
   } catch (error) {
     let users = getModelByTenant(tenant, "user", UserSchema);
     return users;
+  }
+};
+
+const LogModel = (tenant) => {
+  try {
+    const logs = mongoose.model("logs");
+    return logs;
+  } catch (error) {
+    const logs = getModelByTenant(tenant, "log", LogSchema);
+    return logs;
   }
 };
 
@@ -53,44 +64,109 @@ const ClientModel = (tenant) => {
 };
 
 const join = {
-  list: async (tenant, filter, limit, skip) => {
+  listLogs: async (tenant) => {
     try {
-      let responseFromListUser = await UserModel(tenant).list({
-        filter,
-        limit,
-        skip,
-      });
-      if (responseFromListUser.success === true) {
-        const status = responseFromListUser.status
-          ? responseFromListUser.status
-          : httpStatus.OK;
+      const responseFromListLogs = await LogModel(tenant).list(tenant);
+      if (responseFromListLogs.success === true) {
         return {
           success: true,
-          message: responseFromListUser.message,
-          data: responseFromListUser.data,
-          status,
+          message: responseFromListLogs.message,
+          data: responseFromListLogs.data,
+          status: responseFromListLogs.status
+            ? responseFromListLogs.status
+            : httpStatus.OK,
         };
-      } else if (responseFromListUser.success === false) {
-        const status = responseFromListUser.status
-          ? responseFromListUser.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        const errors = responseFromListUser.errors
-          ? responseFromListUser.errors
-          : { message: "Internal Server Error" };
-
+      } else if (responseFromListLogs.success === false) {
         return {
           success: false,
-          message: responseFromListUser.message,
-          errors,
-          status,
+          message: responseFromListLogs.message,
+          errors: responseFromListLogs.errors
+            ? responseFromListLogs.errors
+            : { message: "Internal Server Error" },
+          status: responseFromListLogs.status
+            ? responseFromListLogs.status
+            : httpStatus.INTERNAL_SERVER_ERROR,
         };
       }
     } catch (e) {
       logElement("list users util", e.message);
       return {
         success: false,
-        message: "list users util server error",
-        error: e.message,
+        message: "Internal Server Error",
+        errors: { message: e.message },
+      };
+    }
+  },
+  listStatistics: async (tenant) => {
+    try {
+      const responseFromListStatistics = await UserModel(tenant).listStatistics(
+        tenant
+      );
+      if (responseFromListStatistics.success === true) {
+        return {
+          success: true,
+          message: responseFromListStatistics.message,
+          data: responseFromListStatistics.data,
+          status: responseFromListStatistics.status
+            ? responseFromListStatistics.status
+            : httpStatus.OK,
+        };
+      } else if (responseFromListStatistics.success === false) {
+        return {
+          success: false,
+          message: responseFromListStatistics.message,
+          errors: responseFromListStatistics.errors
+            ? responseFromListStatistics.errors
+            : { message: "Internal Server Error" },
+          status: responseFromListStatistics.status
+            ? responseFromListStatistics.status
+            : httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+    } catch (e) {
+      logElement("list users util", e.message);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: e.message },
+      };
+    }
+  },
+
+  list: async (tenant, filter, limit, skip) => {
+    try {
+      const responseFromListUser = await UserModel(tenant).list({
+        filter,
+        limit,
+        skip,
+      });
+      if (responseFromListUser.success === true) {
+        return {
+          success: true,
+          message: responseFromListUser.message,
+          data: responseFromListUser.data,
+          status: responseFromListUser.status
+            ? responseFromListUser.status
+            : httpStatus.OK,
+        };
+      } else if (responseFromListUser.success === false) {
+        return {
+          success: false,
+          message: responseFromListUser.message,
+          errors: responseFromListUser.errors
+            ? responseFromListUser.errors
+            : { message: "Internal Server Error" },
+          status: responseFromListUser.status
+            ? responseFromListUser.status
+            : httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+    } catch (e) {
+      logElement("list users util", e.message);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: e.message },
       };
     }
   },

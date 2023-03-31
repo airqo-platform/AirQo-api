@@ -29,7 +29,8 @@ const inquire = {
       if (isEmpty(tenant)) {
         tenant = constants.DEFAULT_TENANT;
       }
-      const { fullName, email, message, category } = req.body;
+      const { fullName, email, message, category, firstName, lastName } =
+        req.body;
 
       let request = {};
       request["tenant"] = tenant.toLowerCase();
@@ -37,27 +38,38 @@ const inquire = {
       request["email"] = email;
       request["message"] = message;
       request["category"] = category;
+      request["firstName"] = firstName;
+      request["lastName"] = lastName;
 
       await createInquiryUtil
         .create(request, (value) => {
           if (value.success === true) {
-            return res.status(value.status).json({
+            const status = value.status ? value.status : httpStatus.OK;
+            return res.status(status).json({
               success: true,
               message: value.message,
               inquiry: value.data,
             });
-          }
-
-          if (value.success === false) {
-            const errors = value.errors ? value.errors : "";
-            return res.status(value.status).json({
+          } else if (value.success === false) {
+            const status = value.status
+              ? value.status
+              : httpStatus.INTERNAL_SERVER_ERROR;
+            return res.status(status).json({
               success: false,
               message: value.message,
-              errors,
+              errors: value.errors
+                ? value.errors
+                : { message: "Internal Server Error" },
             });
           }
         })
-        .catch((error) => {});
+        .catch((error) => {
+          return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+            success: false,
+            message: "Internal Server Error",
+            errors: { message: error.message },
+          });
+        });
     } catch (error) {
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
