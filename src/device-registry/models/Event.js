@@ -461,6 +461,7 @@ eventSchema.statics = {
         device,
         running,
         recent,
+        brief,
       } = filter;
       let search = filter;
       let groupId = "$device";
@@ -508,6 +509,7 @@ eventSchema.statics = {
       delete search["recent"];
       delete search["page"];
       delete search["running"];
+      delete search["brief"];
 
       /**
        * The Alternative Flows present in this Events entity:
@@ -518,6 +520,39 @@ eventSchema.statics = {
       if (tenant !== "airqo") {
         pm2_5 = "$pm2_5";
         pm10 = "$pm10";
+      }
+
+      if (external === "yes" || brief === "yes") {
+        projection["s2_pm10"] = 0;
+        projection["s1_pm10"] = 0;
+        projection["s2_pm2_5"] = 0;
+        projection["s1_pm2_5"] = 0;
+        projection["rtc_adc"] = 0;
+        projection["rtc_v"] = 0;
+        projection["rtc"] = 0;
+        projection["stc_adc"] = 0;
+        projection["stc_v"] = 0;
+        projection["stc"] = 0;
+        projection["no2"] = 0;
+        projection["pm1"] = 0;
+        projection["pm10"] = 0;
+        projection["externalHumidity"] = 0;
+        projection["externalAltitude"] = 0;
+        projection["internalHumidity"] = 0;
+        projection["externalTemperature"] = 0;
+        projection["internalTemperature"] = 0;
+        projection["hdop"] = 0;
+        projection["satellites"] = 0;
+        projection["speed"] = 0;
+        projection["altitude"] = 0;
+        projection["location"] = 0;
+        projection["network"] = 0;
+        projection["battery"] = 0;
+        projection["average_pm10"] = 0;
+        projection["average_pm2_5"] = 0;
+        projection["device_number"] = 0;
+        projection["image"] = 0;
+        projection[as] = 0;
       }
 
       if (!metadata || metadata === "device" || metadata === "device_id") {
@@ -551,22 +586,16 @@ eventSchema.statics = {
         _as = "_siteDetails";
         as = "siteDetails";
         elementAtIndex0 = elementAtIndexName(metadata, recent);
-        siteProjection = constants.EVENTS_METADATA_PROJECTION("site", as);
-        Object.assign(projection, siteProjection);
-      }
 
-      if (external === "yes") {
-        projection["s2_pm10"] = 0;
-        projection["s1_pm10"] = 0;
-        projection["s2_pm2_5"] = 0;
-        projection["s1_pm2_5"] = 0;
-        projection["rtc_adc"] = 0;
-        projection["rtc_v"] = 0;
-        projection["rtc"] = 0;
-        projection["stc_adc"] = 0;
-        projection["stc_v"] = 0;
-        projection["stc"] = 0;
-        projection[as] = 0;
+        if (brief === "yes") {
+          siteProjection = constants.EVENTS_METADATA_PROJECTION(
+            "brief_site",
+            as
+          );
+        } else {
+          siteProjection = constants.EVENTS_METADATA_PROJECTION("site", as);
+        }
+        Object.assign(projection, siteProjection);
       }
 
       if (running === "yes") {
