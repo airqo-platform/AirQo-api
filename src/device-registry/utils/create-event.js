@@ -749,8 +749,7 @@ const createEvent = {
               errors.push(errMsg);
             }
           } catch (e) {
-            logObject("e", e);
-            logger.error(`internal server error -- ${e.message}`);
+            // logger.error(`internal server error -- ${e.message}`);
             eventsRejected.push(event);
             let errMsg = {
               message:
@@ -794,7 +793,6 @@ const createEvent = {
         return responseFromTransformEvent;
       }
     } catch (error) {
-      logObject("error", error);
       logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
@@ -1596,7 +1594,7 @@ const createEvent = {
             // );
           }
         } catch (error) {
-          logger.error(`internal server error -- ${error.message}`);
+          // logger.error(`internal server error -- ${error.message}`);
           dot.delete("nValues", filter);
           let errMsg = {
             msg: "duplicate event",
@@ -1624,7 +1622,7 @@ const createEvent = {
         };
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
+      // logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "internal server error",
@@ -1836,7 +1834,7 @@ const createEvent = {
           errors.push(errMsg);
         }
       } catch (e) {
-        logger.error(`internal server serror -- ${e.message}`);
+        // logger.error(`internal server serror -- ${e.message}`);
         eventsRejected.push(measurement);
         let errMsg = {
           msg:
