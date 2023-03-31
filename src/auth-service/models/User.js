@@ -134,6 +134,7 @@ const UserSchema = new Schema(
     profilePicture: {
       type: String,
     },
+    google_id: { type: String, trim: true },
   },
   { timestamps: true }
 );
@@ -371,7 +372,6 @@ UserSchema.statics = {
       };
     }
   },
-
   async modify({ filter = {}, update = {} } = {}) {
     try {
       let options = { new: true };
