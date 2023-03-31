@@ -6,7 +6,7 @@ app:
 replicaCount: 0
 image:
   repository: eu.gcr.io/airqo-250220/airqo-network-uptime-api
-  tag: prod-67eadff4-1679580630
+  tag: prod-bbc70236-1680071543
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
