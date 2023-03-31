@@ -241,6 +241,7 @@ const generateFilter = {
         network,
         index,
         running,
+        brief,
       } = query;
 
       let oneMonthBack = monthsInfront(-1);
@@ -318,6 +319,10 @@ const generateFilter = {
 
       if (running) {
         filter["running"] = running;
+      }
+
+      if (brief) {
+        filter["brief"] = brief;
       }
 
       if (endTime) {

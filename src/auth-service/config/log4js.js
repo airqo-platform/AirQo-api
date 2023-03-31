@@ -1,8 +1,8 @@
 const { logElement } = require("../utils/log");
 const constants = require("./constants");
-
 const log4js = {
   appenders: {
+    console: { type: "console" },
     access: {
       type: "dateFile",
       filename: "log/access.log",
@@ -37,4 +37,5 @@ const log4js = {
     http: { appenders: ["access"], level: "DEBUG" },
   },
 };
+
 module.exports = log4js;

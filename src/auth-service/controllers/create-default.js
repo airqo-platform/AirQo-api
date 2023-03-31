@@ -1,5 +1,5 @@
 const httpStatus = require("http-status");
-const { logElement, logText, logObject } = require("../utils/log");
+const { logElement, logText, logObject } = require("@utils/log");
 const createDefaultUtil = require("../utils/create-default");
 const generateFilter = require("../utils/generate-filter");
 const { validationResult } = require("express-validator");
