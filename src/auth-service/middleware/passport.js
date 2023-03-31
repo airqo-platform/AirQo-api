@@ -171,7 +171,7 @@ const useGoogleStrategy = (tenant, req, res, next) =>
     {
       clientID: constants.GOOGLE_CLIENT_ID,
       clientSecret: constants.GOOGLE_CLIENT_SECRET,
-      callbackURL: `${constants.PLATFORM_BASE_URL}/users/auth/google/callback`,
+      callbackURL: `${constants.PLATFORM_BASE_URL}/api/v1/users/auth/google/callback`,
       passReqToCallback: true,
     },
     function (accessToken, refreshToken, profile, cb) {
