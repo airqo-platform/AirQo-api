@@ -1,6 +1,6 @@
-## AirQo-api
+# AirQo-api
 
-[![deploy-apis-to-production](https://github.com/airqo-platform/AirQo-api/actions/workflows/deploy-apis-to-production.yml/badge.svg?branch=master)](https://github.com/airqo-platform/AirQo-api/actions/workflows/deploy-apis-to-production.yml)
+[![deploy-apis-to-production](https://github.com/airqo-platform/AirQo-api/actions/workflows/deploy-apis-to-production.yml/badge.svg)](https://github.com/airqo-platform/AirQo-api/actions/workflows/deploy-apis-to-production.yml)
 
 [![deploy-apis-to-staging](https://github.com/airqo-platform/AirQo-api/actions/workflows/deploy-apis-to-staging.yml/badge.svg)](https://github.com/airqo-platform/AirQo-api/actions/workflows/deploy-apis-to-staging.yml)
 
