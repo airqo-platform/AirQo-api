@@ -90,6 +90,17 @@ const createUser = {
       tryCatchErrors(res, error, "createUser controller");
     }
   },
+  googleCallback: async (req, res) => {
+    try {
+      res.redirect("/");
+    } catch (error) {
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
   verify: (req, res) => {
     return res.status(httpStatus.OK).json({
       success: true,
@@ -587,19 +598,22 @@ const createUser = {
         res.status(httpStatus.OK).json(req.user.toAuthJSON());
       } else {
         if (req.auth.error) {
-          res.status(httpStatus.BAD_GATEWAY).json({
+          res.status(httpStatus.BAD_REQUEST).json({
             success: req.auth.success,
             error: req.auth.error,
             message: req.auth.message,
           });
         }
-        res.status(httpStatus.BAD_GATEWAY).json({
+        res.status(httpStatus.BAD_REQUEST).json({
           success: req.auth.success,
           message: req.auth.message,
         });
       }
     } catch (error) {
-      tryCatchErrors(res, error, "createUser controller");
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
     }
   },
 
