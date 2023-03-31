@@ -1,5 +1,5 @@
 const UserSchema = require("@models/User");
-const LogSchema = require("@models/Log");
+const LogSchema = require("@models/log");
 const AccessTokenSchema = require("@models/AccessToken");
 const ClientSchema = require("@models/Client");
 const { getModelByTenant } = require("@config/dbConnection");
