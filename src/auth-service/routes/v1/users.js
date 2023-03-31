@@ -206,13 +206,13 @@ router.get(
 );
 
 router.get(
-  "/users/auth/google/callback",
+  "/auth/google/callback",
   authGoogle,
   createUserController.googleCallback
 );
 
 router.get(
-  "/users/auth/google",
+  "/auth/google",
   setGoogleAuth,
   authGoogle,
   createUserController.login
