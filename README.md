@@ -1,6 +1,6 @@
-## AirQo-api
+# AirQo-api
 
-[![BCH compliance](https://bettercodehub.com/edge/badge/airqo-platform/AirQo-api?branch=master)](https://bettercodehub.com/) [![Build Status](https://travis-ci.com/airqo-platform/AirQo-api.svg?branch=master)](https://travis-ci.com/airqo-platform/AirQo-api) [![codecov](https://codecov.io/gh/airqo-platform/AirQo-api/branch/master/graph/badge.svg)](https://codecov.io/gh/airqo-platform/AirQo-api)[![Codacy Badge](https://api.codacy.com/project/badge/Grade/e6e0c200907b455cadee042f1277a44e)](https://www.codacy.com/manual/bbaalmart/AirQo-api?utm_source=github.com&utm_medium=referral&utm_content=airqo-platform/AirQo-api&utm_campaign=Badge_Grade)
+[![deploy-apis-to-production](https://github.com/airqo-platform/AirQo-api/actions/workflows/deploy-apis-to-production.yml/badge.svg)](https://github.com/airqo-platform/AirQo-api/actions/workflows/deploy-apis-to-production.yml) [![deploy-apis-to-staging](https://github.com/airqo-platform/AirQo-api/actions/workflows/deploy-apis-to-staging.yml/badge.svg)](https://github.com/airqo-platform/AirQo-api/actions/workflows/deploy-apis-to-staging.yml) [![run-tests](https://github.com/airqo-platform/AirQo-api/actions/workflows/test-changes.yml/badge.svg)](https://github.com/airqo-platform/AirQo-api/actions/workflows/test-changes.yml)
 
 ## What is AirQo?
 
