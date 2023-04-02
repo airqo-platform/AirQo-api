@@ -38,7 +38,7 @@ def get_next_1_week_forecasts_for_channel(channel_id, forecast_start_date):
         for i in range(0, len(channel_forecasts[0]['pm2_5_value'])):
             forecast_time = channel_forecasts[0]['forecast_time'][i]
             pm2_5_value = channel_forecasts[0]['pm2_5_value'][i]
-            result = {'forecast_time': forecast_time, 'pm2.5 value': pm2_5_value}
+            result = {'forecast_time': forecast_time, 'pm2_5_value': pm2_5_value}
             results.append(result)
 
     formatted_results = {'Forecasts': results}
