@@ -4,7 +4,6 @@ import os
 
 from dotenv import load_dotenv
 from flask import Blueprint, jsonify, request
-from flask_caching import Cache
 
 from config import constants
 from helpers.utils import get_all_gp_predictions, get_gp_predictions, get_gp_predictions_id
@@ -83,9 +82,7 @@ def get_next_1_week_forecasts(device_channel_id, forecast_start_date):
 
         # change prediction_start_date to datetime format
         forecast_start_timestamp = dt.datetime.fromtimestamp(
-            forecast_start_date)
-        forecast_start_timestamp = dt.datetime.strftime(
-            forecast_start_timestamp, "%Y-%m-%d %H:00:00")
+            forecast_start_date).isoformat()
 
         print(forecast_start_timestamp)
         result = get_next_1_week_forecasts_for_channel(
