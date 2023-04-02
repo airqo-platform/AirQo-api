@@ -29,7 +29,6 @@ class Config:
     # set constants
     test_start_datetime = datetime.now().strftime('%Y-%m-%d %H')
     daily_test_start_datetime = datetime.now().strftime('%Y-%m-%d')
-    # test_end_datetime = date_to_str(datetime.now() + timedelta(hours=24))
 
     TEST_DATE_HOUR_START = pd.to_datetime(test_start_datetime)
     TEST_DATE_DAILY_START = pd.to_datetime(daily_test_start_datetime)
