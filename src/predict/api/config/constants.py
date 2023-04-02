@@ -30,7 +30,7 @@ class DevelopmentConfig(Config):
     DEBUG = True
     MONGO_URI = os.getenv("MONGO_DEV_URI")
     DB_NAME = os.getenv("DB_NAME_DEV")
-    # REDIS_SERVER = os.getenv('REDIS_SERVER_DEV')
+    REDIS_SERVER = os.getenv('REDIS_SERVER_DEV')
 
 
 class TestingConfig(Config):
