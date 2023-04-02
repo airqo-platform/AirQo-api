@@ -7,8 +7,8 @@ route = {
     'averages_training': f'{base_url}/train',
     'averages_prediction': f'{base_url}/predict/',
     'predict_channel_next_24hrs': f'{base_url}/channel/predict/',
-    'next_24hr_forecasts': f'{base_url_v2}/hourly_forecast/<int:device_channel_id>/<forecast_start_time>',
-    'next_1_week_forecasts': f'{base_url_v2}/daily_forecast/<int:device_channel_id>/<forecast_start_date>',
+    'next_24hr_forecasts': f'{base_url_v2}/hourly-forecast/<int:device_channel_id>/<forecast_start_time>',
+    'next_1_week_forecasts': f'{base_url_v2}/daily-forecast/<int:device_channel_id>/<forecast_start_date>',
     'predict_for_heatmap': f'{base_url}/predict/heatmap'
 
 }

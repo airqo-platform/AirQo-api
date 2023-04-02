@@ -4,6 +4,7 @@ import os
 
 from dotenv import load_dotenv
 from flask import Blueprint, jsonify, request
+from flask_caching import Cache
 
 from config import constants
 from helpers.utils import get_all_gp_predictions, get_gp_predictions, get_gp_predictions_id
@@ -13,13 +14,13 @@ from routes import api
 load_dotenv()
 
 app_configuration = constants.app_config.get(os.getenv('FLASK_ENV'))
-#
-# cache = Cache(config={
-#     'CACHE_TYPE': 'redis',
-#     'CACHE_REDIS_HOST': app_configuration.REDIS_SERVER,
-#     'CACHE_REDIS_PORT': os.getenv('REDIS_PORT'),
-#     'CACHE_REDIS_URL': f"redis://{app_configuration.REDIS_SERVER}:{os.getenv('REDIS_PORT')}",
-# })
+
+cache = Cache(config={
+    'CACHE_TYPE': 'redis',
+    'CACHE_REDIS_HOST': app_configuration.REDIS_SERVER,
+    'CACHE_REDIS_PORT': os.getenv('REDIS_PORT'),
+    'CACHE_REDIS_URL': f"redis://{app_configuration.REDIS_SERVER}:{os.getenv('REDIS_PORT')}",
+})
 
 _logger = logging.getLogger(__name__)
 
@@ -28,9 +29,9 @@ ml_app = Blueprint('ml_app', __name__)
 
 @ml_app.route(api.route['next_24hr_forecasts'], methods=['GET'])
 def get_next_24hr_forecasts(device_channel_id, forecast_start_time):
-    '''
+    """
     Get forecasts for the next 24 hours from specified start time.
-    '''
+    """
     if request.method == 'GET':
         if type(device_channel_id) is not int:
             device_channel_id = int(device_channel_id)

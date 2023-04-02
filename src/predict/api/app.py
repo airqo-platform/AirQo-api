@@ -7,7 +7,7 @@ from flask_cors import CORS
 from flask_pymongo import PyMongo
 
 from config import constants
-from controllers.prediction import ml_app
+from controllers.prediction import cache, ml_app
 
 load_dotenv()
 
@@ -19,7 +19,7 @@ mongo = PyMongo()
 def create_app(environment):
     app = Flask(__name__)
     app.config.from_object(constants.app_config[environment])
-    # cache.init_app(app)
+    cache.init_app(app)
     mongo.init_app(app)
     CORS(app)
     app.register_blueprint(ml_app)
