@@ -104,6 +104,9 @@ def get_next_1week_forecasts(target_column, model):
         next_1week_forecasts = pd.concat([next_1week_forecasts, test_copy], ignore_index=True)
 
     next_1week_forecasts['device_number'] = next_1week_forecasts['device_number'].astype(int)
+
+#convert 'created_at' to isoformat
+
     next_1week_forecasts['pm2_5'] = next_1week_forecasts['pm2_5'].astype(float)
     return next_1week_forecasts[['created_at', 'pm2_5', 'device_number']][
         next_1week_forecasts['created_at'] > configuration.TEST_DATE_DAILY_START]
@@ -114,15 +117,16 @@ if __name__ == '__main__':
     model = get_trained_model_from_gcs(configuration.GOOGLE_CLOUD_PROJECT_ID, configuration.AIRQO_PREDICT_BUCKET,
                                        'daily_forecast_model.pkl')
     forecasts = get_next_1week_forecasts(TARGET_COL, model)
+    forecasts['created_at'] = forecasts['created_at'].apply(lambda x: x.isoformat())
     forecast_results = []
 
-    created_at = pd.to_datetime(datetime.now()).strftime('%Y-%m-%d')
+    created_at = pd.to_datetime(datetime.now()).isoformat()
 
     for i in forecasts['device_number'].unique():
         record = {'channel_id': int(i),
-                  'forecasts': forecasts[forecasts['device_number'] == i]['pm2_5'].tolist(),
+                  'pm2.5 value': forecasts[forecasts['device_number'] == i]['pm2_5'].tolist(),
                   'created_at': created_at,
-                  'forecast_day': forecasts[forecasts['device_number'] == i]['created_at'].tolist()}
+                  'forecast_time': forecasts[forecasts['device_number'] == i]['created_at'].tolist()}
         forecast_results.append(record)
 
     save_next_1_week_forecast_results(forecast_results)

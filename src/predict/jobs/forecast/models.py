@@ -14,10 +14,9 @@ class Events(BaseModel):
         super().__init__()
 
     def get_events_db(self):
-        # TODO add two/three months data filtering
         start_date, _ = previous_months_range(int(configuration.MONTHS_OF_DATA))
         created_at = str_to_date(date_to_str(
-            start_date.replace(microsecond=0, second=0, minute=0) - timedelta(days=4)))
+            start_date.replace(microsecond=0, second=0, minute=0)))
         print("created at", created_at)
         time_format = '%Y-%m-%dT%H:%M:%S%z'
         query = {'$match': {'first': {'$gte': created_at}}}
