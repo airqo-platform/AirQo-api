@@ -1,6 +1,5 @@
 import warnings
 
-import joblib as joblib
 import mlflow
 import mlflow.sklearn
 import pandas as pd
@@ -42,10 +41,7 @@ def initialise_training_constants():
         train = preprocess_df(forecast_data, target_col)
         clf = train_model(train)
 
-        # TODO: Remove when model is deployed
-        joblib.dump(clf, 'LGBMmodel.pkl')
 
-        # load new model
         upload_trained_model_to_gcs(
             clf,
             configuration.GOOGLE_CLOUD_PROJECT_ID,

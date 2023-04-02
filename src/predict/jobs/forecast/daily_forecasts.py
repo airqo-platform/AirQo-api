@@ -1,11 +1,11 @@
 from datetime import datetime
 
-import joblib
 import numpy as np
 import pandas as pd
 
 from config import connect_mongo, configuration
 from transform import get_forecast_data
+from utils import get_trained_model_from_gcs
 
 db = connect_mongo()
 
@@ -85,8 +85,8 @@ def get_new_row(df_tmp, device, model):
 
 
 def save_next_1_week_forecast_results(data):
-        db.daily_forecasts.insert_many(data)
-        print('saved')
+    db.daily_forecasts.insert_many(data)
+    print('saved')
 
 
 def get_next_1week_forecasts(target_column, model):
@@ -111,8 +111,8 @@ def get_next_1week_forecasts(target_column, model):
 
 if __name__ == '__main__':
     TARGET_COL = 'pm2_5'
-    # TODO: Remove for deployment use GCS
-    model = joblib.load("/Users/mutabazinble/GitHub/AirQo-api/src/predict/jobs/forecast_training/LGBMmodel.pkl")
+    model = get_trained_model_from_gcs(configuration.GOOGLE_CLOUD_PROJECT_ID, configuration.AIRQO_PREDICT_BUCKET,
+                                       'daily_forecast_model.pkl')
     forecasts = get_next_1week_forecasts(TARGET_COL, model)
     forecast_results = []
 
