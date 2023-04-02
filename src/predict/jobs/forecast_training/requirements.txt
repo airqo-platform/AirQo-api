@@ -1,16 +1,11 @@
-google-api-core
-google-auth
-google-cloud-bigquery
-google-cloud
-numpy
-pandas
-python-dateutil
-python-dotenv
-gcsfs
-pymongo
-pyarrow
-joblib
-lightgbm == 3.3.5
-requests
-mlflow
-scikit-learn
+gcsfs~=2023.3.0
+requests~=2.28.2
+joblib~=1.2.0
+pandas~=1.5.3
+python-dateutil~=2.8.2
+numpy==1.24.2
+mlflow~=2.2.2
+scikit-learn~=1.2.2
+lightgbm~=3.3.5
+python-dotenv~=1.0.0
+pymongo~=4.3.3

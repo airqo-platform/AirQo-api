@@ -102,9 +102,9 @@ def get_other_features(df_tmp, boundary_layer_mapper, metadata):
 
 
 def get_agg_channel_data_test(chan_num, test_forecast_data, freq='1H'):
-    '''
+    """
   Get Hourly Aggregates using Mean of the Data for testing.
-  '''
+  """
 
     chan = test_forecast_data[test_forecast_data['device_number'] == chan_num]
     chan = chan.sort_values(by='created_at')[['created_at', 'pm2_5']].set_index('created_at')

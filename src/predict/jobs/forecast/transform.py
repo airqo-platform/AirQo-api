@@ -1,5 +1,4 @@
 import pandas as pd
-from concurrent.futures import ThreadPoolExecutor
 from models import Events
 
 
@@ -23,17 +22,3 @@ def _transform_events(events):
 
 def get_forecast_data():
     return _transform_events(Events().get_events_db())
-
-
-def get_data():
-    with ThreadPoolExecutor() as executor:
-        forecast = executor.submit(get_forecast_data())
-
-        try:
-            forecast_data = forecast.result()
-            return forecast_data
-
-        except Exception as exc:
-            print("Could not retrieve data")
-            print("Reason -", exc)
-            return [], [], []

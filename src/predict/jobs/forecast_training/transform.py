@@ -1,5 +1,4 @@
 import pandas as pd
-from concurrent.futures import ThreadPoolExecutor
 from models import Devices, Events, BoundaryLayer, Site
 
 
@@ -107,21 +106,3 @@ def get_boundary_layer_data():
 
 def get_forecast_data():
     return _transform_events(Events().get_events_db())
-
-
-def get_data():
-    with ThreadPoolExecutor() as executor:
-        forecast = executor.submit(get_forecast_data())
-        boundary_layer = executor.submit(get_boundary_layer_data())
-        meta = executor.submit(get_metadata())
-
-        try:
-            boundary_layer_data = boundary_layer.result()
-            meta_data = meta.result()
-            forecast_data = forecast.result()
-            return boundary_layer_data, meta_data, forecast_data
-
-        except Exception as exc:
-            print("Could not retrieve data")
-            print("Reason -", exc)
-            return [], [], []
