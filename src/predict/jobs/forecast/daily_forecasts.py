@@ -124,9 +124,9 @@ if __name__ == '__main__':
 
     for i in forecasts['device_number'].unique():
         record = {'channel_id': int(i),
-                  'pm2_5_value': forecasts[forecasts['device_number'] == i]['pm2_5'].tolist(),
+                  'pm2_5': forecasts[forecasts['device_number'] == i]['pm2_5'].tolist(),
                   'created_at': created_at,
-                  'forecast_time': forecasts[forecasts['device_number'] == i]['created_at'].tolist()}
+                  'time': forecasts[forecasts['device_number'] == i]['created_at'].tolist()}
         forecast_results.append(record)
 
     save_next_1_week_forecast_results(forecast_results)
