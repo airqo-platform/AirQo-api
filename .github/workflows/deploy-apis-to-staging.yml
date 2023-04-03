@@ -622,7 +622,7 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           push: true
-          context: src/predict/jobs/predict
+          context: src/predict/jobs/forecast
           target: staging
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-airqo-predict-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-airqo-predict-job:latest
 
