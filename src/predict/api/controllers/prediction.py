@@ -9,6 +9,7 @@ from config import constants
 from helpers.utils import get_all_gp_predictions, get_gp_predictions, get_gp_predictions_id
 from models.predict import get_next_1_week_forecasts_for_channel, get_next_24hr_forecasts_for_channel
 from routes import api
+from flask_caching import Cache
 
 load_dotenv()
 
