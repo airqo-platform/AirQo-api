@@ -1,10 +1,9 @@
 import gcsfs
 import joblib
 import pandas as pd
-from datetime import date, datetime
+from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from google.cloud import storage
-from config import environment
 
 
 def previous_months_range(n):
@@ -28,14 +27,6 @@ def str_to_date(st):
 def date_to_str(date):
     """converts datetime to a string"""
     return datetime.strftime(date, '%Y-%m-%dT%H:%M:%S.%fZ')
-
-
-def is_key_exist(dict, key):
-        """checks wether specified key is available in the specified dictionary."""
-        if key in dict.keys(): 
-            return True 
-        else: 
-            return False
 
 def get_csv_file_from_gcs(project_name, bucket_name, source_blob_name):
     """gets csv file from google cloud storage and returns as a pandas dataframe"""
