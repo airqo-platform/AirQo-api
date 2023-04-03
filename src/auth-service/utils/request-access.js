@@ -1,6 +1,6 @@
 const UserSchema = require("../models/User");
 const CandidateSchema = require("../models/Candidate");
-const { getModelByTenant } = require("./multitenancy");
+const { getModelByTenant } = require("@config/dbConnection");
 const { logObject, logElement, logText } = require("./log");
 const mailer = require("./mailer");
 const isEmpty = require("is-empty");
