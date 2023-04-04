@@ -2,10 +2,10 @@ app:
   name: airqo-predict-job
   namespace: production
   configmap: env-predict-job-production
-schedule: 0 * * * *
+schedule: 0 0 * * *
 image:
   repository: eu.gcr.io/airqo-250220/airqo-predict-job
-  tag: prod-6d727c2d-1680259714
+  tag: prod-1b374202-1680594926
 nameOverride: ''
 fullnameOverride: ''
 resources:
