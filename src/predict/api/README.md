@@ -2,30 +2,30 @@
 
 ## 1. fetch and checkout branch from github.
 
-- `bash git fetch origin [branchname]`
-- ` bash git checkout [branchname]`
+- ` git fetch origin [branchname]`
+- ` git checkout [branchname]`
 
 ## 2. Create local python environment
 
 ### windows
 
-    - ```bash python -m venv [local_env_name]```
+    - ``` python -m venv [local_env_name]```
 
 ### linux/mac
 
-    - ```bash python3 -m venv [local_env_name]```
+    - ``` python3 -m venv [local_env_name]```
 
 ## 3. Activate the environment
 
     ### windows
-    -  ``` bash [local_env_name]\Scripts\activate```
+    -  ```  [local_env_name]\Scripts\activate```
 
     ### linux/mac
-    -  ``` bash source [local_env_name]/bin/activate```
+    -  ```  source [local_env_name]/bin/activate```
 
 ## 4. Install dependencies using the requirements.txt
 
-    -  ``` bash pip install -r requirements.txt ```
+    -  ```  pip install -r requirements.txt ```
 
 ## 5. Set environment variables
 
@@ -49,7 +49,7 @@
 
 ## 6. Run the Flask App
 
-    - ```bash flask run```
+    - ``` flask run```
 
 ## To build and run application with docker (Uses "" dockerfile.)
 
