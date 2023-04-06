@@ -8,7 +8,7 @@ from airqo_etl_utils.airflow_custom_utils import AirflowUtils
     schedule=None,
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
-    tags=["bam", "airnow", "historical"],
+    tags=["bam", "usembassy", "historical"],
 )
 def airnow_bam_historical_data():
     import pandas as pd
@@ -53,7 +53,7 @@ def airnow_bam_historical_data():
     schedule="30 * * * *",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
-    tags=["bam", "airnow", "realtime"],
+    tags=["bam", "usembassy", "realtime"],
 )
 def airnow_bam_realtime_data():
     import pandas as pd
@@ -84,6 +84,7 @@ def airnow_bam_realtime_data():
         data = DataValidationUtils.process_for_message_broker(
             data=data, tenant=Tenant.US_EMBASSY
         )
+        print(data)
         MessageBrokerUtils.update_hourly_data_topic(data=data)
 
     @task()
