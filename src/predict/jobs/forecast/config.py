@@ -31,7 +31,7 @@ class Config:
     daily_test_start_datetime = datetime.now().strftime('%Y-%m-%d')
 
     TEST_DATE_HOUR_START = pd.to_datetime(test_start_datetime)
-    TEST_DATE_DAILY_START = pd.to_datetime(daily_test_start_datetime)
+    TEST_DATE_DAILY_START = pd.to_datetime(daily_test_start_datetime, utc=True)
 
     ### Prediction will end at this date-hour
     TEST_DATE_HOUR_END = TEST_DATE_HOUR_START + pd.Timedelta(hours=23)
