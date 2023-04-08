@@ -1,47 +1,58 @@
+from datetime import datetime, timedelta
 import requests
-from config import connect_mongo_device_registry, configuration
-from utils import previous_months_range, date_to_str, str_to_date
-from datetime import timedelta
+from config import configuration
+import concurrent.futures
+import pandas as pd
 
 
-class BaseModel:
-    def __init__(self):
-        self.db = connect_mongo_device_registry()
-
-
-class Events(BaseModel):
+class Events:
     def __init__(self):
         super().__init__()
 
-    def get_events_db(self):
-        start_date, _ = previous_months_range(int(configuration.MONTHS_OF_DATA))
-        created_at = str_to_date(date_to_str(
-            start_date.replace(microsecond=0, second=0, minute=0)))
-        print("created at", created_at)
-        time_format = '%Y-%m-%dT%H:%M:%S%z'
-        query = {'$match': {'first': {'$gte': created_at}}}
-        projection = {'$project': {
-            '_id': 0,
-            'first': {
-                '$dateToString': {
-                    'format': time_format, 'date': '$first', 'timezone': 'Africa/Kampala'
-                }},
-            'values': {
-                'pm2_5': 1,
-                'device_number': 1,
-                'time': 1
+    events_url = f"{configuration.AIRQO_API_BASE_URL}devices/events"
+
+    @staticmethod
+    def fetch_data_from_events_api():
+        """gets data from the events api in batches"""
+        start_date = datetime.now() - timedelta(days=30)
+        end_date = datetime.now()
+        batch_size = timedelta(days=5)
+        data = []
+        batches = []
+        while start_date < end_date:
+            batch_start = start_date.strftime('%Y-%m-%d')
+            batch_end = (start_date + batch_size).strftime('%Y-%m-%d')
+            batches.append((batch_start, batch_end))
+            start_date += batch_size
+
+        def fetch_batch(batch):
+            start, end = batch
+            params = {
+                'tenant': configuration.TENANT,
+                'startTime': start,
+                'endTime': end
             }
-        }}
+            response = requests.get(Events.events_url, params=params)
+            if response.status_code != 200:
+                raise Exception(f'Error fetching data from events api: {response.text}')
+            else:
+                return response.json()
 
-        return list(self.db.events.aggregate([query, projection]))
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+            futures = [executor.submit(fetch_batch, batch) for batch in batches]
+            for future in concurrent.futures.as_completed(futures):
+                data.append(future.result())
+        return data
 
-    def get_events(self):
-        try:
-            api_url = f'{configuration.AIRQO_API_BASE_URL}device/events?tenant={configuration.TENANT}&active=yes&startTime=2021-11-19'
-            results = requests.get(api_url, verify=False)
-            events_data = results.json()["measurements"]
-        except Exception as ex:
-            print("Events Url returned an error : " + str(ex))
-            events_data = {}
-
-        return events_data
+    @staticmethod
+    def get_forecast_data():
+        """transforms the events json data to a pandas dataframe"""
+        data = Events.fetch_data_from_events_api()
+        final_df = pd.DataFrame()
+        for batch in data:
+            df = pd.DataFrame(batch['measurements'], columns=['time', 'site_id', 'pm2_5', 'deviceDetails'])
+            df['deviceDetails'] = df['deviceDetails'].apply(lambda x: list(x.values())[-2][0])
+            df['pm2_5'] = df['pm2_5'].apply(lambda x: list(x.values())[1])
+            df.rename(columns={'time': 'created_at', 'deviceDetails': 'device_number'}, inplace=True)
+            final_df = pd.concat([final_df, df], ignore_index=True)
+        return final_df

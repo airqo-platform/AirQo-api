@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed
 from config import connect_mongo, configuration
-from transform import get_forecast_data
+from models import Events
 from utils import (
     get_csv_file_from_gcs,
     get_trained_model_from_gcs,
@@ -21,7 +21,7 @@ def preprocess_forecast_data(metadata_path, boundary_layer_path, test_lag_last_d
     boundary_layer_mapper = get_boundary_layer_mapper(boundary_layer_path)
 
     # getting forecast data
-    forecast_data = get_forecast_data()
+    forecast_data = Events.get_forecast_data()
 
     forecast_data['created_at'] = pd.to_datetime(forecast_data['created_at'], format='%Y-%m-%d %H:%M:%S')
     forecast_data['date'] = forecast_data['created_at'].dt.date
