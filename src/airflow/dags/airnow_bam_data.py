@@ -72,7 +72,7 @@ def airnow_bam_realtime_data():
     @task()
     def process_data(data: pd.DataFrame):
         from airqo_etl_utils.airnow_utils import AirnowDataUtils
-
+        print(data)
         return AirnowDataUtils.process_bam_data(data=data)
 
     @task()
@@ -84,7 +84,7 @@ def airnow_bam_realtime_data():
         data = DataValidationUtils.process_for_message_broker(
             data=data, tenant=Tenant.US_EMBASSY
         )
-        print(data)
+
         MessageBrokerUtils.update_hourly_data_topic(data=data)
 
     @task()
