@@ -38,6 +38,7 @@ def preprocess_forecast_data(target_column):
     """preprocess data before making forecasts"""
     forecast_data = Events.get_forecast_data()
     forecast_data['created_at'] = pd.to_datetime(forecast_data['created_at'], format='%Y-%m-%d')
+    forecast_data = forecast_data.groupby(['site_id']).first().reset_index()
     forecast_data = forecast_data[forecast_data['device_number'].apply(lambda x: x.isnumeric())]
     forecast_data['device_number'] = forecast_data['device_number'].astype(str)
     forecast_data = forecast_data.groupby(
