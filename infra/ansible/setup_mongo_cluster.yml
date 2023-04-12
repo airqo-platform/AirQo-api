@@ -13,6 +13,14 @@
       name: mongod-shard-1
       server: mongod-shard-1-1.europe-west1-b.c.airqo-250220.internal
 
+  pre_tasks:
+    - name: Generate random string with OpenSSL on ansible controller
+      shell: openssl rand -base64 756 > mongo-keyfile
+      delegate_to: localhost
+      run_once: true
+      args:
+        creates: mongo-keyfile
+
   roles:
     - { role: 123mwanjemike.ansible_mongodb, flags: ["install"] }
     - { role: 123mwanjemike.ansible_mongodb, flags: ["save_config"] }
