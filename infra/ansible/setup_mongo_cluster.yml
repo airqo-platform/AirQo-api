@@ -14,10 +14,10 @@
       server: mongod-shard-1-1.europe-west1-b.c.airqo-250220.internal
 
   roles:
-    - { role: isaackehle.ansible_mongodb, flags: ["install"] }
-    - { role: isaackehle.ansible_mongodb, flags: ["save_config"] }
-    - { role: isaackehle.ansible_mongodb, flags: ["reset_storage"] }
-    - { role: isaackehle.ansible_mongodb, flags: ["configure_tls"] }
-    - { role: isaackehle.ansible_mongodb, flags: ["init_replica_set"] }
-    - { role: isaackehle.ansible_mongodb, flags: ["add_shard_to_cluster"] }
-    - { role: isaackehle.ansible_mongodb, flags: ["create_database"] }
+    - { role: 123mwanjemike.ansible_mongodb, flags: ["install"] }
+    - { role: 123mwanjemike.ansible_mongodb, flags: ["save_config"] }
+    - { role: 123mwanjemike.ansible_mongodb, flags: ["reset_storage"] }
+    - { role: 123mwanjemike.ansible_mongodb, flags: ["configure_tls"] }
+    - { role: 123mwanjemike.ansible_mongodb, flags: ["init_replica_set"] }
+    - { role: 123mwanjemike.ansible_mongodb, flags: ["add_shard_to_cluster"] }
+    - { role: 123mwanjemike.ansible_mongodb, flags: ["create_database"] }
