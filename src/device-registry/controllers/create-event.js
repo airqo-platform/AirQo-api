@@ -343,6 +343,8 @@ const createEvent = {
       request["query"]["limit"] = parseInt(limit);
       request["query"]["page"] = parseInt(page);
       request["query"]["recent"] = "no";
+      request["query"]["brief"] = "yes";
+      request["query"]["metadata"] = "device";
 
       await createEventUtil.list(request, (result) => {
         logObject("the result for listing events", result);
