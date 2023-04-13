@@ -1,4 +1,6 @@
 import pandas as pd
+from google.oauth2 import service_account
+from config import configuration
 from models import Devices, Events, BoundaryLayer, Site
 
 
@@ -106,3 +108,14 @@ def get_boundary_layer_data():
 
 def get_forecast_data():
     return _transform_events(Events().get_events_db())
+
+
+def fetch_bigquery_data():
+    """gets data from the bigquery table"""
+    credentials = service_account.Credentials.from_service_account_file(configuration.CREDENTIALS)
+    query = f"""
+    SELECT DISTINCT timestamp, site_id, device_number,pm2_5_calibrated_value FROM `{configuration.GOOGLE_CLOUD_PROJECT_ID}.averaged_data.hourly_device_measurements` where DATE(timestamp) >= DATE_SUB(CURRENT_DATE(), INTERVAL 12 MONTH) and tenant = 'airqo' ORDER BY timestamp 
+    """
+    df = pd.read_gbq(query, project_id=configuration.GOOGLE_CLOUD_PROJECT_ID, credentials=credentials)
+    df.rename(columns={'timestamp': 'created_at', 'pm2_5_calibrated_value': 'pm2_5'}, inplace=True)
+    return df
