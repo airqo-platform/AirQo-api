@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 
 from config import connect_mongo, configuration
-from transform import get_forecast_data
+from models import Events
 from utils import get_trained_model_from_gcs
 
 db = connect_mongo()
@@ -36,13 +36,18 @@ def get_other_features(df_tmp):
 
 def preprocess_forecast_data(target_column):
     """preprocess data before making forecasts"""
-    forecast_data = get_forecast_data()
+
+    # TODO: Eventually move to events API instead of bigquery
+    forecast_data = Events.fetch_bigquery_data()
     forecast_data['created_at'] = pd.to_datetime(forecast_data['created_at'], format='%Y-%m-%d')
+    forecast_data = forecast_data[pd.to_numeric(forecast_data['device_number'], errors='coerce').notnull()]
     forecast_data['device_number'] = forecast_data['device_number'].astype(str)
+    forecast_data = forecast_data.dropna(subset=['device_number'])
     forecast_data = forecast_data.groupby(
-        ['device_number']).resample('D', on='created_at').mean(numeric_only=True)
+        ['site_id', 'device_number']).resample('D', on='created_at').mean(numeric_only=True)
     forecast_data = forecast_data.reset_index()
-    forecast_data.sort_values(by=['device_number', 'created_at'], inplace=True)
+    forecast_data.sort_values(by=['site_id', 'device_number', 'created_at'], inplace=True)
+
     forecast_data['device_number'] = forecast_data['device_number'].astype(int)
     forecast_data.dropna(subset=['pm2_5'], inplace=True)
 
@@ -56,6 +61,7 @@ def preprocess_forecast_data(target_column):
 def get_new_row(df_tmp, device, model):
     last_row = df_tmp[df_tmp["device_number"] == device].iloc[-1]
     new_row = pd.Series(index=last_row.index, dtype='float64')
+    new_row["site_id"] = last_row["site_id"]
     new_row["created_at"] = last_row["created_at"] + pd.Timedelta(days=1)
     new_row["device_number"] = device
     new_row[f'pm2_5_last_1_day'] = last_row["pm2_5"]
@@ -80,7 +86,7 @@ def get_new_row(df_tmp, device, model):
         new_row[a] = new_row['created_at'].__getattribute__(a)
         new_row['week'] = new_row["created_at"].isocalendar().week
 
-    new_row["pm2_5"] = model.predict(new_row.drop(["created_at", "pm2_5"]).values.reshape(1, -1))[0]
+    new_row["pm2_5"] = model.predict(new_row.drop(["created_at", "pm2_5", "site_id"]).values.reshape(1, -1))[0]
     return new_row
 
 
@@ -104,11 +110,8 @@ def get_next_1week_forecasts(target_column, model):
         next_1week_forecasts = pd.concat([next_1week_forecasts, test_copy], ignore_index=True)
 
     next_1week_forecasts['device_number'] = next_1week_forecasts['device_number'].astype(int)
-
-#convert 'created_at' to isoformat
-
     next_1week_forecasts['pm2_5'] = next_1week_forecasts['pm2_5'].astype(float)
-    return next_1week_forecasts[['created_at', 'pm2_5', 'device_number']][
+    return next_1week_forecasts[['site_id', 'created_at', 'pm2_5', 'device_number']][
         next_1week_forecasts['created_at'] > configuration.TEST_DATE_DAILY_START]
 
 
@@ -124,6 +127,7 @@ if __name__ == '__main__':
 
     for i in forecasts['device_number'].unique():
         record = {'channel_id': int(i),
+                  'site_id': forecasts[forecasts['device_number'] == i]['site_id'].tolist()[0],
                   'pm2_5': forecasts[forecasts['device_number'] == i]['pm2_5'].tolist(),
                   'created_at': created_at,
                   'time': forecasts[forecasts['device_number'] == i]['created_at'].tolist()}

@@ -31,7 +31,7 @@ class Config:
     daily_test_start_datetime = datetime.now().strftime('%Y-%m-%d')
 
     TEST_DATE_HOUR_START = pd.to_datetime(test_start_datetime)
-    TEST_DATE_DAILY_START = pd.to_datetime(daily_test_start_datetime)
+    TEST_DATE_DAILY_START = pd.to_datetime(daily_test_start_datetime, utc=True)
 
     ### Prediction will end at this date-hour
     TEST_DATE_HOUR_END = TEST_DATE_HOUR_START + pd.Timedelta(hours=23)
@@ -50,6 +50,7 @@ class ProductionConfig(Config):
     MONGO_URI_DEVICE_REGISTRY = os.getenv('MONGO_GCE_URI_DEVICE_REGISTRY')
     AIRQO_PREDICT_BUCKET = os.getenv('AIRQO_PREDICT_BUCKET_PROD')
     AIRQO_API_BASE_URL = os.getenv('AIRQO_API_BASE_URL_PROD')
+    GOOGLE_CLOUD_PROJECT_ID = os.getenv('GOOGLE_CLOUD_PROJECT')
 
 
 class TestingConfig(Config):
@@ -61,6 +62,7 @@ class TestingConfig(Config):
     MONGO_URI_DEVICE_REGISTRY = os.getenv('MONGO_GCE_URI_DEVICE_REGISTRY')
     AIRQO_PREDICT_BUCKET = os.getenv('AIRQO_PREDICT_BUCKET_STAGE')
     AIRQO_API_BASE_URL = os.getenv('AIRQO_API_BASE_URL_STAGE')
+    GOOGLE_CLOUD_PROJECT_ID = os.getenv('GOOGLE_CLOUD_PROJECT')
 
 
 class DevelopmentConfig(Config):
@@ -72,6 +74,7 @@ class DevelopmentConfig(Config):
     MONGO_URI_DEVICE_REGISTRY = os.getenv('MONGO_GCE_URI_DEVICE_REGISTRY')
     AIRQO_PREDICT_BUCKET = os.getenv('AIRQO_PREDICT_BUCKET_DEV')
     AIRQO_API_BASE_URL = os.getenv('AIRQO_API_BASE_URL_STAGE')
+    GOOGLE_CLOUD_PROJECT_ID = os.getenv('GOOGLE_CLOUD_PROJECT')
 
 
 app_config = {
@@ -90,10 +93,4 @@ configuration = app_config.get(environment, TestingConfig)
 def connect_mongo():
     client = MongoClient(configuration.MONGO_URI)
     db = client[configuration.DB_NAME]
-    return db
-
-
-def connect_mongo_device_registry():
-    client = MongoClient(configuration.MONGO_URI_DEVICE_REGISTRY)
-    db = client[f'{configuration.DB_NAME_DEVICE_REGISTRY}_{configuration.TENANT.lower()}']
     return db

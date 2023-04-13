@@ -13,19 +13,19 @@ ENV PYTHONUNBUFFERED 1
 
 # Set environment variables
 ENV FLASK_APP=app.py
-ENV GOOGLE_APPLICATION_CREDENTIALS=AirQo-e37846081569.json
+ENV GOOGLE_APPLICATION_CREDENTIALS=airqo-250220-642e046f4223.json
 
 EXPOSE 5000
 
 # production 
 FROM base as production 
 ENV FLASK_ENV=production
-CMD ["flask", "run", "--host=0.0.0.0"]
+CMD ["gunicorn", "--bind=0.0.0.0:5000", "app:application"]
 
 # staging
 FROM base as staging 
 ENV FLASK_ENV=staging
-CMD ["flask", "run", "--host=0.0.0.0"]
+CMD ["gunicorn", "--bind=0.0.0.0:5000", "app:application"]
 
 # development
 FROM base as dev
