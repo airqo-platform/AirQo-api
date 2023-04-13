@@ -22,8 +22,9 @@ router.get(
   "/running",
   oneOf([
     query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
       .bail()
       .trim()
       .toLowerCase()
@@ -144,8 +145,9 @@ router.get(
   "/good",
   oneOf([
     query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
       .bail()
       .trim()
       .toLowerCase()
@@ -266,8 +268,9 @@ router.get(
   "/moderate",
   oneOf([
     query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
       .bail()
       .trim()
       .toLowerCase()
@@ -388,8 +391,9 @@ router.get(
   "/u4sg",
   oneOf([
     query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
       .bail()
       .trim()
       .toLowerCase()
@@ -510,8 +514,9 @@ router.get(
   "/unhealthy",
   oneOf([
     query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
       .bail()
       .trim()
       .toLowerCase()
@@ -632,8 +637,9 @@ router.get(
   "/very_unhealthy",
   oneOf([
     query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
       .bail()
       .trim()
       .toLowerCase()
@@ -754,8 +760,9 @@ router.get(
   "/hazardous",
   oneOf([
     query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
       .bail()
       .trim()
       .toLowerCase()
@@ -877,8 +884,9 @@ router.post(
   oneOf([
     [
       query("tenant")
-        .exists()
-        .withMessage("tenant should be provided")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
         .bail()
         .trim()
         .toLowerCase()
@@ -1056,8 +1064,9 @@ router.get(
   "/",
   oneOf([
     query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
       .bail()
       .trim()
       .toLowerCase()
@@ -1177,8 +1186,9 @@ router.post(
   "/transmit/single",
   oneOf([
     query("tenant")
-      .exists()
-      .withMessage("tenant query parameter should be provided")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
       .bail()
       .trim()
       .toLowerCase()
@@ -1244,8 +1254,9 @@ router.post(
   "/transmit/bulk",
   oneOf([
     query("tenant")
-      .exists()
-      .withMessage("tenant query parameter should be provided")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
       .bail()
       .trim()
       .toLowerCase()
@@ -1316,8 +1327,9 @@ router.delete(
   "/",
   oneOf([
     query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
       .bail()
       .trim()
       .toLowerCase()
@@ -1384,8 +1396,9 @@ router.get(
   "/latest",
   oneOf([
     query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
       .bail()
       .trim()
       .toLowerCase()
@@ -1506,8 +1519,9 @@ router.get(
   "/site/:siteId",
   oneOf([
     query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
       .bail()
       .trim()
       .toLowerCase()
@@ -1621,15 +1635,16 @@ router.get(
         .withMessage("valid values include: YES and NO"),
     ],
   ]),
-  eventController.listBySite
+  eventController.list
 );
 
 router.get(
   "/airqloud/:airqloudId",
   oneOf([
     query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
       .bail()
       .trim()
       .toLowerCase()
@@ -1750,8 +1765,9 @@ router.get(
   "/device/:deviceId",
   oneOf([
     query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
       .bail()
       .trim()
       .toLowerCase()
@@ -1865,15 +1881,16 @@ router.get(
         .withMessage("valid values include: YES and NO"),
     ],
   ]),
-  eventController.listByDevice
+  eventController.list
 );
 
 router.get(
   "/location/:latitude/:longitude",
   oneOf([
     query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
       .bail()
       .trim()
       .toLowerCase()
@@ -1994,8 +2011,9 @@ router.get(
   "/time/:startTime/:endTime",
   oneOf([
     query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
       .bail()
       .trim()
       .toLowerCase()
@@ -2109,7 +2127,7 @@ router.get(
         .withMessage("valid values include: YES and NO"),
     ],
   ]),
-  eventController.listByTime
+  eventController.list
 );
 
 module.exports = router;

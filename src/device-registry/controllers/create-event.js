@@ -1,4 +1,4 @@
-const HTTPStatus = require("http-status");
+const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const { logObject, logText, logElement } = require("@utils/log");
 const log4js = require("log4js");
@@ -11,48 +11,9 @@ const errors = require("@utils/errors");
 const { validationResult } = require("express-validator");
 const isEmpty = require("is-empty");
 const createEventUtil = require("@utils/create-event");
-
-const { Kafka } = require("kafkajs");
-const { SchemaRegistry } = require("@kafkajs/confluent-schema-registry");
-
-const SCHEMA_REGISTRY = constants.SCHEMA_REGISTRY;
-const BOOTSTRAP_SERVERS = constants.KAFKA_BOOTSTRAP_SERVERS;
-const RAW_MEASUREMENTS_TOPICS = constants.KAFKA_RAW_MEASUREMENTS_TOPICS;
-const KAFKA_CLIENT_ID = constants.KAFKA_CLIENT_ID;
-const KAFKA_CLIENT_GROUP = constants.KAFKA_CLIENT_GROUP;
-
-const kafka = new Kafka({
-  clientId: KAFKA_CLIENT_ID,
-  brokers: [BOOTSTRAP_SERVERS],
-});
-const registry = new SchemaRegistry({ host: SCHEMA_REGISTRY });
-const consumer = kafka.consumer({ groupId: KAFKA_CLIENT_GROUP });
+const commonUtil = require("@utils/common");
 
 const createEvent = {
-  rawMeasurementsConsumer: async () => {
-    await consumer.connect();
-
-    const topics = RAW_MEASUREMENTS_TOPICS.split(",");
-
-    for (const topic of topics) {
-      await consumer.subscribe({
-        topic: topic.trim().toLowerCase(),
-        fromBeginning: true,
-      });
-    }
-
-    await consumer.run({
-      eachMessage: async ({ topic, partition, message }) => {
-        try {
-          const decodedValue = await registry.decode(message.value);
-          const measurements = decodedValue.measurements;
-          // insertMeasurtements.addValuesArray(measurements);
-        } catch (e) {
-          logger.error(`internal server error -- ${e.message}`);
-        }
-      },
-    });
-  },
   addValues: async (req, res) => {
     try {
       logText("adding values...");
@@ -80,20 +41,20 @@ const createEvent = {
       let response = await createEventUtil.insert(tenant, measurements);
 
       if (!response.success) {
-        return res.status(HTTPStatus.BAD_REQUEST).json({
+        return res.status(httpStatus.BAD_REQUEST).json({
           success: false,
           message: "finished the operation with some errors",
           errors: response.errors,
         });
       } else {
-        return res.status(HTTPStatus.OK).json({
+        return res.status(httpStatus.OK).json({
           success: true,
           message: "successfully added all the events",
         });
       }
     } catch (e) {
       logger.error(`internal server error -- ${e.message}`);
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "server side error , create events - controller",
         errors: { message: e.message },
@@ -129,7 +90,7 @@ const createEvent = {
       if (responseFromListFromBigQuery.success === true) {
         const status = responseFromListFromBigQuery.status
           ? responseFromListFromBigQuery.status
-          : HTTPStatus.OK;
+          : httpStatus.OK;
         if (format && format === "csv") {
           return res
             .status(status)
@@ -148,7 +109,7 @@ const createEvent = {
       } else if (responseFromListFromBigQuery.success === false) {
         const status = responseFromListFromBigQuery.status
           ? responseFromListFromBigQuery.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+          : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
           message: responseFromListFromBigQuery.message,
@@ -159,7 +120,7 @@ const createEvent = {
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -188,38 +149,12 @@ const createEvent = {
         );
       }
 
-      const { query } = req;
-      const {
-        device,
-        device_number,
-        site,
-        frequency,
-        startTime,
-        endTime,
-        device_id,
-        site_id,
-        external,
-        metadata,
-        tenant,
-        recent,
-        skip,
-        limit,
-        page,
-      } = query;
-      let request = {};
-      request["query"] = {};
-      request["query"]["device"] = device;
-      request["query"]["device_number"] = device_number;
-      request["query"]["site"] = site;
-      request["query"]["frequency"] = frequency;
-      request["query"]["startTime"] = startTime;
-      request["query"]["endTime"] = endTime;
-      request["query"]["device_id"] = device_id;
-      request["query"]["site_id"] = site_id;
-      request["query"]["external"] = external;
-      request["query"]["metadata"] = metadata;
+      let { tenant, skip, limit, page } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+      let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
-      request["query"]["recent"] = recent;
       request["query"]["skip"] = parseInt(skip);
       request["query"]["limit"] = parseInt(limit);
       request["query"]["page"] = parseInt(page);
@@ -227,7 +162,7 @@ const createEvent = {
       await createEventUtil.list(request, (result) => {
         logObject("the result for listing events", result);
         if (result.success === true) {
-          const status = result.status ? result.status : HTTPStatus.OK;
+          const status = result.status ? result.status : httpStatus.OK;
           res.status(status).json({
             success: true,
             isCache: result.isCache,
@@ -239,7 +174,7 @@ const createEvent = {
           logElement("we have gotten some challenges", result);
           const status = result.status
             ? result.status
-            : HTTPStatus.INTERNAL_SERVER_ERROR;
+            : httpStatus.INTERNAL_SERVER_ERROR;
           res.status(status).json({
             success: false,
             errors: result.errors ? result.errors : { message: "" },
@@ -249,7 +184,7 @@ const createEvent = {
       });
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -278,45 +213,14 @@ const createEvent = {
         );
       }
       const { query } = req;
-      const {
-        device,
-        device_number,
-        site,
-        frequency,
-        startTime,
-        endTime,
-        device_id,
-        site_id,
-        external,
-        metadata,
-        tenant,
-        network,
-        recent,
-        airqloud,
-        airqloud_id,
-        skip,
-        limit,
-        page,
-        lat_long,
-      } = query;
-      let request = {};
-      request["query"] = {};
-      request["query"]["device"] = device;
-      request["query"]["device_number"] = device_number;
-      request["query"]["site"] = site;
-      request["query"]["frequency"] = frequency;
-      request["query"]["startTime"] = startTime;
-      request["query"]["endTime"] = endTime;
-      request["query"]["device_id"] = device_id;
-      request["query"]["site_id"] = site_id;
-      request["query"]["airqloud_id"] = airqloud_id;
-      request["query"]["airqloud"] = airqloud;
-      request["query"]["external"] = external;
-      request["query"]["metadata"] = metadata;
+      let { tenant, skip, limit, page } = query;
+
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+
+      let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
-      request["query"]["network"] = network;
-      request["query"]["recent"] = recent;
-      request["query"]["lat_long"] = lat_long;
       request["query"]["skip"] = parseInt(skip);
       request["query"]["limit"] = parseInt(limit);
       request["query"]["page"] = parseInt(page);
@@ -324,7 +228,7 @@ const createEvent = {
       await createEventUtil.list(request, (result) => {
         logObject("the result for listing events", result);
         if (result.success === true) {
-          const status = result.status ? result.status : HTTPStatus.OK;
+          const status = result.status ? result.status : httpStatus.OK;
           res.status(status).json({
             success: true,
             isCache: result.isCache,
@@ -335,7 +239,7 @@ const createEvent = {
         } else if (result.success === false) {
           const status = result.status
             ? result.status
-            : HTTPStatus.INTERNAL_SERVER_ERROR;
+            : httpStatus.INTERNAL_SERVER_ERROR;
           res.status(status).json({
             success: false,
             errors: result.errors ? result.errors : { message: "" },
@@ -345,7 +249,7 @@ const createEvent = {
       });
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -373,14 +277,13 @@ const createEvent = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { query } = req;
-      let { tenant, network, skip, limit, page } = query;
+
+      let { tenant, skip, limit, page } = req.query;
 
       if (isEmpty(tenant)) {
         tenant = "airqo";
       }
-      let request = {};
-      request["query"] = {};
+      let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
       request["query"]["external"] = "no";
       request["query"]["metadata"] = "site_id";
@@ -392,7 +295,7 @@ const createEvent = {
       await createEventUtil.list(request, (result) => {
         logObject("the result for listing events", result);
         if (result.success === true) {
-          const status = result.status ? result.status : HTTPStatus.OK;
+          const status = result.status ? result.status : httpStatus.OK;
           res.status(status).json({
             success: true,
             isCache: result.isCache,
@@ -403,7 +306,7 @@ const createEvent = {
         } else if (result.success === false) {
           const status = result.status
             ? result.status
-            : HTTPStatus.INTERNAL_SERVER_ERROR;
+            : httpStatus.INTERNAL_SERVER_ERROR;
           const errors = result.errors ? result.errors : { message: "" };
           res.status(status).json({
             success: false,
@@ -414,7 +317,7 @@ const createEvent = {
       });
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -443,49 +346,19 @@ const createEvent = {
         );
       }
       const { query } = req;
-      const {
-        device,
-        device_number,
-        site,
-        frequency,
-        startTime,
-        endTime,
-        device_id,
-        site_id,
-        external,
-        metadata,
-        tenant,
-        network,
-        recent,
-        airqloud,
-        airqloud_id,
-        skip,
-        limit,
-        page,
-        lat_long,
-      } = query;
-      let request = {};
-      request["query"] = {};
-      request["query"]["device"] = device;
-      request["query"]["device_number"] = device_number;
-      request["query"]["site"] = site;
-      request["query"]["frequency"] = frequency;
-      request["query"]["startTime"] = startTime;
-      request["query"]["endTime"] = endTime;
-      request["query"]["device_id"] = device_id;
-      request["query"]["site_id"] = site_id;
-      request["query"]["airqloud_id"] = airqloud_id;
-      request["query"]["airqloud"] = airqloud;
-      request["query"]["external"] = external;
-      request["query"]["metadata"] = metadata;
+      let { tenant, skip, limit, page } = query;
+
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+
+      let request = Object.assign({}, req);
+
       request["query"]["tenant"] = tenant;
       request["query"]["index"] = "good";
       request["query"]["external"] = "no";
       request["query"]["metadata"] = "site_id";
-      request["query"]["network"] = network;
-      request["query"]["recent"] = recent;
       request["query"]["running"] = "yes";
-      request["query"]["lat_long"] = lat_long;
       request["query"]["skip"] = parseInt(skip);
       request["query"]["limit"] = parseInt(limit);
       request["query"]["page"] = parseInt(page);
@@ -493,7 +366,7 @@ const createEvent = {
       await createEventUtil.list(request, (result) => {
         logObject("the result for listing events", result);
         if (result.success === true) {
-          const status = result.status ? result.status : HTTPStatus.OK;
+          const status = result.status ? result.status : httpStatus.OK;
           res.status(status).json({
             success: true,
             isCache: result.isCache,
@@ -504,7 +377,7 @@ const createEvent = {
         } else if (result.success === false) {
           const status = result.status
             ? result.status
-            : HTTPStatus.INTERNAL_SERVER_ERROR;
+            : httpStatus.INTERNAL_SERVER_ERROR;
           const errors = result.errors ? result.errors : { message: "" };
           res.status(status).json({
             success: false,
@@ -515,7 +388,7 @@ const createEvent = {
       });
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -543,49 +416,15 @@ const createEvent = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { query } = req;
-      const {
-        device,
-        device_number,
-        site,
-        frequency,
-        startTime,
-        endTime,
-        device_id,
-        site_id,
-        external,
-        metadata,
-        tenant,
-        network,
-        recent,
-        airqloud,
-        airqloud_id,
-        skip,
-        limit,
-        page,
-        lat_long,
-      } = query;
-      let request = {};
-      request["query"] = {};
-      request["query"]["device"] = device;
-      request["query"]["device_number"] = device_number;
-      request["query"]["site"] = site;
-      request["query"]["frequency"] = frequency;
-      request["query"]["startTime"] = startTime;
-      request["query"]["endTime"] = endTime;
-      request["query"]["device_id"] = device_id;
-      request["query"]["site_id"] = site_id;
-      request["query"]["airqloud_id"] = airqloud_id;
-      request["query"]["airqloud"] = airqloud;
-      request["query"]["external"] = external;
-      request["query"]["metadata"] = metadata;
-      request["query"]["tenant"] = tenant;
+      let { skip, limit, page, tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+      let request = Object.assign({}, req);
       request["query"]["index"] = "good";
+      request["query"]["tenant"] = tenant;
       request["query"]["external"] = "no";
       request["query"]["metadata"] = "site_id";
-      request["query"]["network"] = network;
-      request["query"]["recent"] = recent;
-      request["query"]["lat_long"] = lat_long;
       request["query"]["skip"] = parseInt(skip);
       request["query"]["limit"] = parseInt(limit ? limit : 2);
       request["query"]["page"] = parseInt(page);
@@ -593,7 +432,7 @@ const createEvent = {
       await createEventUtil.list(request, (result) => {
         logObject("the result for listing events", result);
         if (result.success === true) {
-          const status = result.status ? result.status : HTTPStatus.OK;
+          const status = result.status ? result.status : httpStatus.OK;
           res.status(status).json({
             success: true,
             isCache: result.isCache,
@@ -604,7 +443,7 @@ const createEvent = {
         } else if (result.success === false) {
           const status = result.status
             ? result.status
-            : HTTPStatus.INTERNAL_SERVER_ERROR;
+            : httpStatus.INTERNAL_SERVER_ERROR;
           const errors = result.errors ? result.errors : { message: "" };
           res.status(status).json({
             success: false,
@@ -615,7 +454,7 @@ const createEvent = {
       });
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -643,49 +482,15 @@ const createEvent = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { query } = req;
-      const {
-        device,
-        device_number,
-        site,
-        frequency,
-        startTime,
-        endTime,
-        device_id,
-        site_id,
-        external,
-        metadata,
-        tenant,
-        network,
-        recent,
-        airqloud,
-        airqloud_id,
-        skip,
-        limit,
-        page,
-        lat_long,
-      } = query;
-      let request = {};
-      request["query"] = {};
-      request["query"]["device"] = device;
-      request["query"]["device_number"] = device_number;
-      request["query"]["site"] = site;
-      request["query"]["frequency"] = frequency;
-      request["query"]["startTime"] = startTime;
-      request["query"]["endTime"] = endTime;
-      request["query"]["device_id"] = device_id;
-      request["query"]["site_id"] = site_id;
-      request["query"]["airqloud_id"] = airqloud_id;
-      request["query"]["airqloud"] = airqloud;
-      request["query"]["external"] = external;
-      request["query"]["metadata"] = metadata;
+      let { tenant, skip, limit, page } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+      let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
       request["query"]["index"] = "moderate";
       request["query"]["external"] = "no";
       request["query"]["metadata"] = "site_id";
-      request["query"]["network"] = network;
-      request["query"]["recent"] = recent;
-      request["query"]["lat_long"] = lat_long;
       request["query"]["skip"] = parseInt(skip);
       request["query"]["limit"] = parseInt(limit ? limit : 2);
       request["query"]["page"] = parseInt(page);
@@ -693,7 +498,7 @@ const createEvent = {
       await createEventUtil.list(request, (result) => {
         logObject("the result for listing events", result);
         if (result.success === true) {
-          const status = result.status ? result.status : HTTPStatus.OK;
+          const status = result.status ? result.status : httpStatus.OK;
           res.status(status).json({
             success: true,
             isCache: result.isCache,
@@ -704,7 +509,7 @@ const createEvent = {
         } else if (result.success === false) {
           const status = result.status
             ? result.status
-            : HTTPStatus.INTERNAL_SERVER_ERROR;
+            : httpStatus.INTERNAL_SERVER_ERROR;
           const errors = result.errors ? result.errors : { message: "" };
           res.status(status).json({
             success: false,
@@ -715,7 +520,7 @@ const createEvent = {
       });
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -744,48 +549,17 @@ const createEvent = {
         );
       }
       const { query } = req;
-      const {
-        device,
-        device_number,
-        site,
-        frequency,
-        startTime,
-        endTime,
-        device_id,
-        site_id,
-        external,
-        metadata,
-        tenant,
-        network,
-        recent,
-        airqloud,
-        airqloud_id,
-        skip,
-        limit,
-        page,
-        lat_long,
-      } = query;
-      let request = {};
-      request["query"] = {};
-      request["query"]["device"] = device;
-      request["query"]["device_number"] = device_number;
-      request["query"]["site"] = site;
-      request["query"]["frequency"] = frequency;
-      request["query"]["startTime"] = startTime;
-      request["query"]["endTime"] = endTime;
-      request["query"]["device_id"] = device_id;
-      request["query"]["site_id"] = site_id;
-      request["query"]["airqloud_id"] = airqloud_id;
-      request["query"]["airqloud"] = airqloud;
-      request["query"]["external"] = external;
-      request["query"]["metadata"] = metadata;
+      let { tenant, skip, limit, page } = query;
+
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+
+      let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
       request["query"]["index"] = "u4sg";
       request["query"]["external"] = "no";
       request["query"]["metadata"] = "site_id";
-      request["query"]["network"] = network;
-      request["query"]["recent"] = recent;
-      request["query"]["lat_long"] = lat_long;
       request["query"]["skip"] = parseInt(skip);
       request["query"]["limit"] = parseInt(limit ? limit : 2);
       request["query"]["page"] = parseInt(page);
@@ -793,7 +567,7 @@ const createEvent = {
       await createEventUtil.list(request, (result) => {
         logObject("the result for listing events", result);
         if (result.success === true) {
-          const status = result.status ? result.status : HTTPStatus.OK;
+          const status = result.status ? result.status : httpStatus.OK;
           res.status(status).json({
             success: true,
             isCache: result.isCache,
@@ -804,7 +578,7 @@ const createEvent = {
         } else if (result.success === false) {
           const status = result.status
             ? result.status
-            : HTTPStatus.INTERNAL_SERVER_ERROR;
+            : httpStatus.INTERNAL_SERVER_ERROR;
           const errors = result.errors ? result.errors : { message: "" };
           res.status(status).json({
             success: false,
@@ -815,7 +589,7 @@ const createEvent = {
       });
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -843,49 +617,16 @@ const createEvent = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { query } = req;
-      const {
-        device,
-        device_number,
-        site,
-        frequency,
-        startTime,
-        endTime,
-        device_id,
-        site_id,
-        external,
-        metadata,
-        tenant,
-        network,
-        recent,
-        airqloud,
-        airqloud_id,
-        skip,
-        limit,
-        page,
-        lat_long,
-      } = query;
-      let request = {};
-      request["query"] = {};
-      request["query"]["device"] = device;
-      request["query"]["device_number"] = device_number;
-      request["query"]["site"] = site;
-      request["query"]["frequency"] = frequency;
-      request["query"]["startTime"] = startTime;
-      request["query"]["endTime"] = endTime;
-      request["query"]["device_id"] = device_id;
-      request["query"]["site_id"] = site_id;
-      request["query"]["airqloud_id"] = airqloud_id;
-      request["query"]["airqloud"] = airqloud;
-      request["query"]["external"] = external;
-      request["query"]["metadata"] = metadata;
+
+      let { tenant, skip, limit, page } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+      let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
       request["query"]["index"] = "unhealthy";
       request["query"]["external"] = "no";
       request["query"]["metadata"] = "site_id";
-      request["query"]["network"] = network;
-      request["query"]["recent"] = recent;
-      request["query"]["lat_long"] = lat_long;
       request["query"]["skip"] = parseInt(skip);
       request["query"]["limit"] = parseInt(limit ? limit : 2);
       request["query"]["page"] = parseInt(page);
@@ -893,7 +634,7 @@ const createEvent = {
       await createEventUtil.list(request, (result) => {
         logObject("the result for listing events", result);
         if (result.success === true) {
-          const status = result.status ? result.status : HTTPStatus.OK;
+          const status = result.status ? result.status : httpStatus.OK;
           res.status(status).json({
             success: true,
             isCache: result.isCache,
@@ -904,7 +645,7 @@ const createEvent = {
         } else if (result.success === false) {
           const status = result.status
             ? result.status
-            : HTTPStatus.INTERNAL_SERVER_ERROR;
+            : httpStatus.INTERNAL_SERVER_ERROR;
           const errors = result.errors ? result.errors : { message: "" };
           res.status(status).json({
             success: false,
@@ -915,7 +656,7 @@ const createEvent = {
       });
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -943,49 +684,17 @@ const createEvent = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { query } = req;
-      const {
-        device,
-        device_number,
-        site,
-        frequency,
-        startTime,
-        endTime,
-        device_id,
-        site_id,
-        external,
-        metadata,
-        tenant,
-        network,
-        recent,
-        airqloud,
-        airqloud_id,
-        skip,
-        limit,
-        page,
-        lat_long,
-      } = query;
-      let request = {};
-      request["query"] = {};
-      request["query"]["device"] = device;
-      request["query"]["device_number"] = device_number;
-      request["query"]["site"] = site;
-      request["query"]["frequency"] = frequency;
-      request["query"]["startTime"] = startTime;
-      request["query"]["endTime"] = endTime;
-      request["query"]["device_id"] = device_id;
-      request["query"]["site_id"] = site_id;
-      request["query"]["airqloud_id"] = airqloud_id;
-      request["query"]["airqloud"] = airqloud;
-      request["query"]["external"] = external;
-      request["query"]["metadata"] = metadata;
+      let { tenant, skip, limit, page } = req.query;
+
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+
+      let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
       request["query"]["index"] = "very_unhealthy";
       request["query"]["external"] = "no";
       request["query"]["metadata"] = "site_id";
-      request["query"]["network"] = network;
-      request["query"]["recent"] = recent;
-      request["query"]["lat_long"] = lat_long;
       request["query"]["skip"] = parseInt(skip);
       request["query"]["limit"] = parseInt(limit ? limit : 2);
       request["query"]["page"] = parseInt(page);
@@ -993,7 +702,7 @@ const createEvent = {
       await createEventUtil.list(request, (result) => {
         logObject("the result for listing events", result);
         if (result.success === true) {
-          const status = result.status ? result.status : HTTPStatus.OK;
+          const status = result.status ? result.status : httpStatus.OK;
           res.status(status).json({
             success: true,
             isCache: result.isCache,
@@ -1004,7 +713,7 @@ const createEvent = {
         } else if (result.success === false) {
           const status = result.status
             ? result.status
-            : HTTPStatus.INTERNAL_SERVER_ERROR;
+            : httpStatus.INTERNAL_SERVER_ERROR;
           const errors = result.errors ? result.errors : { message: "" };
           res.status(status).json({
             success: false,
@@ -1015,7 +724,7 @@ const createEvent = {
       });
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -1044,48 +753,17 @@ const createEvent = {
         );
       }
       const { query } = req;
-      const {
-        device,
-        device_number,
-        site,
-        frequency,
-        startTime,
-        endTime,
-        device_id,
-        site_id,
-        external,
-        metadata,
-        tenant,
-        network,
-        recent,
-        airqloud,
-        airqloud_id,
-        skip,
-        limit,
-        page,
-        lat_long,
-      } = query;
-      let request = {};
-      request["query"] = {};
-      request["query"]["device"] = device;
-      request["query"]["device_number"] = device_number;
-      request["query"]["site"] = site;
-      request["query"]["frequency"] = frequency;
-      request["query"]["startTime"] = startTime;
-      request["query"]["endTime"] = endTime;
-      request["query"]["device_id"] = device_id;
-      request["query"]["site_id"] = site_id;
-      request["query"]["airqloud_id"] = airqloud_id;
-      request["query"]["airqloud"] = airqloud;
-      request["query"]["external"] = external;
-      request["query"]["metadata"] = metadata;
+      let { tenant, skip, limit, page } = query;
+
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+
+      let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
       request["query"]["index"] = "hazardous";
       request["query"]["external"] = "no";
       request["query"]["metadata"] = "site_id";
-      request["query"]["network"] = network;
-      request["query"]["recent"] = recent;
-      request["query"]["lat_long"] = lat_long;
       request["query"]["skip"] = parseInt(skip);
       request["query"]["limit"] = parseInt(limit ? limit : 2);
       request["query"]["page"] = parseInt(page);
@@ -1093,7 +771,7 @@ const createEvent = {
       await createEventUtil.list(request, (result) => {
         logObject("the result for listing events", result);
         if (result.success === true) {
-          const status = result.status ? result.status : HTTPStatus.OK;
+          const status = result.status ? result.status : httpStatus.OK;
           res.status(status).json({
             success: true,
             isCache: result.isCache,
@@ -1104,7 +782,7 @@ const createEvent = {
         } else if (result.success === false) {
           const status = result.status
             ? result.status
-            : HTTPStatus.INTERNAL_SERVER_ERROR;
+            : httpStatus.INTERNAL_SERVER_ERROR;
           const errors = result.errors ? result.errors : { message: "" };
           res.status(status).json({
             success: false,
@@ -1115,7 +793,7 @@ const createEvent = {
       });
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -1125,12 +803,13 @@ const createEvent = {
 
   transform: async (req, res) => {
     try {
-      const { query, body } = req;
-      let request = {};
-      request["query"] = {};
-      request["body"] = {};
-      request["query"] = query;
-      request["body"] = body;
+      const { tenant } = req.query;
+      let request = Object.assign({}, req);
+
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+      request["query"]["tenant"] = tenant;
 
       const responseFromTransformEvents = await createEventUtil.transformManyEvents(
         request
@@ -1139,7 +818,7 @@ const createEvent = {
       if (responseFromTransformEvents.success === true) {
         const status = responseFromTransformEvents.status
           ? responseFromTransformEvents.status
-          : HTTPStatus.OK;
+          : httpStatus.OK;
         return res.status(status).json({
           message: responseFromTransformEvents.message,
           transformedEvents: responseFromTransformEvents.data,
@@ -1147,7 +826,7 @@ const createEvent = {
       } else if (responseFromTransformEvents.success === false) {
         const status = responseFromTransformEvents.status
           ? responseFromTransformEvents.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+          : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           message: responseFromTransformEvents.message,
           errors: responseFromTransformEvents.errors
@@ -1157,7 +836,7 @@ const createEvent = {
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -1186,23 +865,26 @@ const createEvent = {
         );
       }
 
-      const { query, body } = req;
-      let request = {};
-      request["body"] = body;
-      request["query"] = query;
+      let { tenant } = req.query;
+      let request = Object.assign({}, req);
+
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+      request["query"]["tenant"] = tenant;
       const responseFromCreateEvents = await createEventUtil.create(request);
       logObject("responseFromCreateEvents util", responseFromCreateEvents);
       if (responseFromCreateEvents.success === true) {
         const status = responseFromCreateEvents.status
           ? responseFromCreateEvents.status
-          : HTTPStatus.OK;
+          : httpStatus.OK;
         return res
           .status(status)
           .json({ success: true, message: responseFromCreateEvents.message });
       } else if (responseFromCreateEvents.success === false) {
         const status = responseFromCreateEvents.status
           ? responseFromCreateEvents.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+          : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
           message: responseFromCreateEvents.message,
@@ -1214,7 +896,7 @@ const createEvent = {
     } catch (error) {
       logObject("error", error);
       logger.error(`internal server error -- ${error.message}`);
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -1242,15 +924,15 @@ const createEvent = {
         );
       }
 
-      const { body, query } = req;
-      const { name, device_number, chid, tenant } = query;
+      let { device_number, chid, tenant } = req.query;
 
-      let request = {};
-      request["query"] = {};
-      request["query"]["name"] = name;
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+
+      let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
-      request["query"]["device_number"] = chid || device_number;
-      request["body"] = body;
+      request["query"]["device_number"] = device_number || chid;
 
       const responseFromTransmitMultipleSensorValues = await createEventUtil.transmitMultipleSensorValues(
         request
@@ -1259,7 +941,7 @@ const createEvent = {
       if (responseFromTransmitMultipleSensorValues.success === true) {
         const status = responseFromTransmitMultipleSensorValues.status
           ? responseFromTransmitMultipleSensorValues.status
-          : HTTPStatus.OK;
+          : httpStatus.OK;
         res.status(status).json({
           success: true,
           message: responseFromTransmitMultipleSensorValues.message,
@@ -1268,7 +950,7 @@ const createEvent = {
       } else {
         const status = responseFromTransmitMultipleSensorValues.status
           ? responseFromTransmitMultipleSensorValues.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+          : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
           message: responseFromTransmitMultipleSensorValues.message,
@@ -1279,7 +961,7 @@ const createEvent = {
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -1308,15 +990,15 @@ const createEvent = {
         );
       }
 
-      const { body, query } = req;
-      const { name, device_number, chid, tenant } = query;
+      let { device_number, chid, tenant } = req.query;
 
-      let request = {};
-      request["query"] = {};
-      request["query"]["name"] = name;
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+
+      let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
-      request["query"]["device_number"] = chid || device_number;
-      request["body"] = body;
+      request["query"]["device_number"] = device_number || chid;
 
       const responseFromBulkTransmitMultipleSensorValues = await createEventUtil.bulkTransmitMultipleSensorValues(
         request
@@ -1325,7 +1007,7 @@ const createEvent = {
       if (responseFromBulkTransmitMultipleSensorValues.success === true) {
         const status = responseFromBulkTransmitMultipleSensorValues.status
           ? responseFromBulkTransmitMultipleSensorValues.status
-          : HTTPStatus.OK;
+          : httpStatus.OK;
         res.status(status).json({
           success: true,
           message: responseFromBulkTransmitMultipleSensorValues.message,
@@ -1333,7 +1015,7 @@ const createEvent = {
       } else {
         const status = responseFromBulkTransmitMultipleSensorValues.status
           ? responseFromBulkTransmitMultipleSensorValues.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+          : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
           message: responseFromBulkTransmitMultipleSensorValues.message,
@@ -1344,7 +1026,7 @@ const createEvent = {
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -1383,7 +1065,7 @@ const createEvent = {
       if (responseFromTransmitValues.success === true) {
         const status = responseFromTransmitValues.status
           ? responseFromTransmitValues.status
-          : HTTPStatus.OK;
+          : httpStatus.OK;
         res.status(status).json({
           success: true,
           message: responseFromTransmitValues.message,
@@ -1392,7 +1074,7 @@ const createEvent = {
       } else {
         const status = responseFromTransmitValues.status
           ? responseFromTransmitValues.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+          : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
           message: responseFromTransmitValues.message,
@@ -1403,7 +1085,7 @@ const createEvent = {
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -1445,7 +1127,7 @@ const createEvent = {
       if (responseFromClearValuesOnPlatform.success === false) {
         const status = responseFromClearValuesOnPlatform.status
           ? responseFromClearValuesOnPlatform.status
-          : HTTPStatus.BAD_GATEWAY;
+          : httpStatus.BAD_GATEWAY;
         return res.status(status).json({
           success: false,
           message: responseFromClearValuesOnPlatform.message,
@@ -1456,7 +1138,7 @@ const createEvent = {
       } else if (responseFromClearValuesOnPlatform.success === true) {
         const status = responseFromClearValuesOnPlatform.status
           ? responseFromClearValuesOnPlatform.status
-          : HTTPStatus.OK;
+          : httpStatus.OK;
         return res.status(status).json({
           success: true,
           message: responseFromClearValuesOnPlatform.message,
@@ -1465,7 +1147,7 @@ const createEvent = {
       }
     } catch (e) {
       logger.error(`internal server error -- ${e.message}`);
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: e.message },
@@ -1475,7 +1157,6 @@ const createEvent = {
 
   addEvents: async (req, res) => {
     try {
-      // logger.info(`adding values...`);
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -1494,30 +1175,24 @@ const createEvent = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      // logger.info(`adding values...`);
-      const { device, tenant } = req.query;
-      const { body } = req;
 
-      let request = {};
-      request["query"] = {};
-      request["query"]["device"] = device;
+      let { tenant } = req.query;
+
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+
+      let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
-      request["body"] = body;
 
       let responseFromAddEventsUtil = await createEventUtil.addEvents(request);
 
       logObject("responseFromAddEventsUtil", responseFromAddEventsUtil);
 
-      // logger.info(
-      //   `responseFromAddEventsUtil -- ${JSON.stringify(
-      //     responseFromAddEventsUtil
-      //   )}`
-      // );
-
       if (responseFromAddEventsUtil.success === false) {
         const status = responseFromAddEventsUtil.status
           ? responseFromAddEventsUtil.status
-          : HTTPStatus.FORBIDDEN;
+          : httpStatus.FORBIDDEN;
         return res.status(status).json({
           success: false,
           message: "finished the operation with some errors",
@@ -1528,7 +1203,7 @@ const createEvent = {
       } else if (responseFromAddEventsUtil.success === true) {
         const status = responseFromAddEventsUtil.status
           ? responseFromAddEventsUtil.status
-          : HTTPStatus.OK;
+          : httpStatus.OK;
         return res.status(status).json({
           success: true,
           message: "successfully added all the events",
@@ -1537,7 +1212,7 @@ const createEvent = {
       }
     } catch (e) {
       logger.error(`addValue -- ${e.message}`);
-      return res.status(HTTPStatus.BAD_GATEWAY).json({
+      return res.status(httpStatus.BAD_GATEWAY).json({
         success: false,
         message: "internal server error",
         errors: { message: e.message },
@@ -1570,149 +1245,25 @@ const createEvent = {
         );
       }
       const { query } = req;
-      const {
-        device,
-        device_number,
-        site,
-        frequency,
-        startTime,
-        endTime,
-        device_id,
-        site_id,
-        external,
-        metadata,
-        tenant,
-        network,
-        recent,
-        airqloud,
-        airqloud_id,
-        skip,
-        limit,
-        page,
-        lat_long,
-      } = query;
-      let request = {};
-      request["query"] = {};
-      request["query"]["device"] = device;
-      request["query"]["device_number"] = device_number;
-      request["query"]["site"] = site;
-      request["query"]["frequency"] = frequency;
-      request["query"]["startTime"] = startTime;
-      request["query"]["endTime"] = endTime;
-      request["query"]["device_id"] = device_id;
-      request["query"]["site_id"] = site_id;
-      request["query"]["airqloud_id"] = airqloud_id;
-      request["query"]["airqloud"] = airqloud;
-      request["query"]["external"] = external;
-      request["query"]["metadata"] = metadata;
-      request["query"]["tenant"] = tenant;
-      request["query"]["network"] = network;
-      request["query"]["recent"] = recent;
-      request["query"]["lat_long"] = lat_long;
-      request["query"]["skip"] = parseInt(skip);
-      request["query"]["limit"] = parseInt(limit);
-      request["query"]["page"] = parseInt(page);
+      let { tenant, skip, limit, page } = query;
+      let request = Object.assign({}, req);
 
-      await createEventUtil.listLatest(request, (result) => {
-        logObject("the result for listing events", result);
-        if (result.success === true) {
-          const status = result.status ? result.status : HTTPStatus.OK;
-          res.status(status).json({
-            success: true,
-            isCache: result.isCache,
-            message: result.message,
-            meta: result.data[0].meta,
-            measurements: result.data[0].data,
-          });
-        } else if (result.success === false) {
-          const status = result.status
-            ? result.status
-            : HTTPStatus.INTERNAL_SERVER_ERROR;
-          res.status(status).json({
-            success: false,
-            errors: result.errors ? result.errors : { message: "" },
-            message: result.message,
-          });
-        }
-      });
-    } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
-    }
-  },
-
-  listBySite: async (req, res) => {
-    try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        try {
-          logger.error(
-            `input validation errors ${JSON.stringify(
-              errors.convertErrorArrayToObject(nestedErrors)
-            )}`
-          );
-        } catch (e) {
-          logger.error(`internal server error -- ${e.message}`);
-        }
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
-        );
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
       }
-      const { query } = req;
-      const {
-        device,
-        device_number,
-        site,
-        frequency,
-        startTime,
-        endTime,
-        device_id,
-        site_id,
-        external,
-        metadata,
-        tenant,
-        network,
-        recent,
-        airqloud,
-        airqloud_id,
-        skip,
-        limit,
-        page,
-        lat_long,
-      } = query;
-      let request = {};
-      request["query"] = {};
-      request["query"]["device"] = device;
-      request["query"]["device_number"] = device_number;
-      request["query"]["site"] = site;
-      request["query"]["frequency"] = frequency;
-      request["query"]["startTime"] = startTime;
-      request["query"]["endTime"] = endTime;
-      request["query"]["device_id"] = device_id;
-      request["query"]["site_id"] = site_id;
-      request["query"]["airqloud_id"] = airqloud_id;
-      request["query"]["airqloud"] = airqloud;
-      request["query"]["external"] = external;
-      request["query"]["metadata"] = metadata;
+
+      request["query"]["brief"] = "yes";
       request["query"]["tenant"] = tenant;
-      request["query"]["network"] = network;
-      request["query"]["recent"] = recent;
-      request["query"]["lat_long"] = lat_long;
+      request["query"]["metadata"] = "site_id";
+      request["query"]["external"] = "no";
       request["query"]["skip"] = parseInt(skip);
       request["query"]["limit"] = parseInt(limit);
       request["query"]["page"] = parseInt(page);
 
-      await createEventUtil.listBySite(request, (result) => {
+      await createEventUtil.list(request, (result) => {
         logObject("the result for listing events", result);
         if (result.success === true) {
-          const status = result.status ? result.status : HTTPStatus.OK;
+          const status = result.status ? result.status : httpStatus.OK;
           res.status(status).json({
             success: true,
             isCache: result.isCache,
@@ -1723,7 +1274,7 @@ const createEvent = {
         } else if (result.success === false) {
           const status = result.status
             ? result.status
-            : HTTPStatus.INTERNAL_SERVER_ERROR;
+            : httpStatus.INTERNAL_SERVER_ERROR;
           res.status(status).json({
             success: false,
             errors: result.errors ? result.errors : { message: "" },
@@ -1733,7 +1284,7 @@ const createEvent = {
       });
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -1761,150 +1312,42 @@ const createEvent = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { query } = req;
-      const {
-        device,
-        device_number,
-        site,
-        frequency,
-        startTime,
-        endTime,
-        device_id,
-        site_id,
-        external,
-        metadata,
-        tenant,
-        network,
-        recent,
-        airqloud,
-        airqloud_id,
-        skip,
-        limit,
-        page,
-        lat_long,
-      } = query;
-      let request = {};
-      request["query"] = {};
-      request["query"]["device"] = device;
-      request["query"]["device_number"] = device_number;
-      request["query"]["site"] = site;
-      request["query"]["frequency"] = frequency;
-      request["query"]["startTime"] = startTime;
-      request["query"]["endTime"] = endTime;
-      request["query"]["device_id"] = device_id;
-      request["query"]["site_id"] = site_id;
-      request["query"]["airqloud_id"] = airqloud_id;
-      request["query"]["airqloud"] = airqloud;
-      request["query"]["external"] = external;
-      request["query"]["metadata"] = metadata;
+
+      let { airqloud, airqloud_id } = req.params;
+      let { skip, limit, page, tenant } = req.query;
+
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+
+      let request = Object.assign({}, req);
+      request["query"]["external"] = "no";
       request["query"]["tenant"] = tenant;
-      request["query"]["network"] = network;
-      request["query"]["recent"] = recent;
-      request["query"]["lat_long"] = lat_long;
+      request["query"]["metadata"] = "site_id";
+      request["query"]["brief"] = "yes";
       request["query"]["skip"] = parseInt(skip);
       request["query"]["limit"] = parseInt(limit);
       request["query"]["page"] = parseInt(page);
 
-      await createEventUtil.listByAirQloud(request, (result) => {
-        logObject("the result for listing events", result);
-        if (result.success === true) {
-          const status = result.status ? result.status : HTTPStatus.OK;
-          res.status(status).json({
-            success: true,
-            isCache: result.isCache,
-            message: result.message,
-            meta: result.data[0].meta,
-            measurements: result.data[0].data,
-          });
-        } else if (result.success === false) {
-          const status = result.status
-            ? result.status
-            : HTTPStatus.INTERNAL_SERVER_ERROR;
-          res.status(status).json({
-            success: false,
-            errors: result.errors ? result.errors : { message: "" },
-            message: result.message,
-          });
-        }
-      });
-    } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
-    }
-  },
+      const responseFromGetSitesOfAirQloud = await commonUtil.getSitesFromAirQloud(
+        { airqloud }
+      );
 
-  listByDevice: async (req, res) => {
-    try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        try {
-          logger.error(
-            `input validation errors ${JSON.stringify(
-              errors.convertErrorArrayToObject(nestedErrors)
-            )}`
-          );
-        } catch (e) {
-          logger.error(`internal server error -- ${e.message}`);
-        }
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
+      if (responseFromGetSitesOfAirQloud.success === false) {
+        const status = responseFromGetSitesOfAirQloud.status
+          ? responseFromGetSitesOfAirQloud.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json(responseFromGetSitesOfAirQloud);
+      } else if (responseFromGetSitesOfAirQloud.success === true) {
+        request["query"]["site_id"] = responseFromGetSitesOfAirQloud.data.join(
+          ","
         );
       }
-      const { query } = req;
-      const {
-        device,
-        device_number,
-        site,
-        frequency,
-        startTime,
-        endTime,
-        device_id,
-        site_id,
-        external,
-        metadata,
-        tenant,
-        network,
-        recent,
-        airqloud,
-        airqloud_id,
-        skip,
-        limit,
-        page,
-        lat_long,
-      } = query;
-      let request = {};
-      request["query"] = {};
-      request["query"]["device"] = device;
-      request["query"]["device_number"] = device_number;
-      request["query"]["site"] = site;
-      request["query"]["frequency"] = frequency;
-      request["query"]["startTime"] = startTime;
-      request["query"]["endTime"] = endTime;
-      request["query"]["device_id"] = device_id;
-      request["query"]["site_id"] = site_id;
-      request["query"]["airqloud_id"] = airqloud_id;
-      request["query"]["airqloud"] = airqloud;
-      request["query"]["external"] = external;
-      request["query"]["metadata"] = metadata;
-      request["query"]["tenant"] = tenant;
-      request["query"]["network"] = network;
-      request["query"]["recent"] = recent;
-      request["query"]["lat_long"] = lat_long;
-      request["query"]["skip"] = parseInt(skip);
-      request["query"]["limit"] = parseInt(limit);
-      request["query"]["page"] = parseInt(page);
 
-      await createEventUtil.listByDevice(request, (result) => {
+      await createEventUtil.list(request, (result) => {
         logObject("the result for listing events", result);
         if (result.success === true) {
-          const status = result.status ? result.status : HTTPStatus.OK;
+          const status = result.status ? result.status : httpStatus.OK;
           res.status(status).json({
             success: true,
             isCache: result.isCache,
@@ -1915,7 +1358,7 @@ const createEvent = {
         } else if (result.success === false) {
           const status = result.status
             ? result.status
-            : HTTPStatus.INTERNAL_SERVER_ERROR;
+            : httpStatus.INTERNAL_SERVER_ERROR;
           res.status(status).json({
             success: false,
             errors: result.errors ? result.errors : { message: "" },
@@ -1925,7 +1368,7 @@ const createEvent = {
       });
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -1953,171 +1396,78 @@ const createEvent = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { query } = req;
-      const {
-        device,
-        device_number,
-        site,
-        frequency,
-        startTime,
-        endTime,
-        device_id,
-        site_id,
-        external,
-        metadata,
-        tenant,
-        network,
-        recent,
-        airqloud,
-        airqloud_id,
-        skip,
-        limit,
-        page,
-        lat_long,
-      } = query;
-      let request = {};
-      request["query"] = {};
-      request["query"]["device"] = device;
-      request["query"]["device_number"] = device_number;
-      request["query"]["site"] = site;
-      request["query"]["frequency"] = frequency;
-      request["query"]["startTime"] = startTime;
-      request["query"]["endTime"] = endTime;
-      request["query"]["device_id"] = device_id;
-      request["query"]["site_id"] = site_id;
-      request["query"]["airqloud_id"] = airqloud_id;
-      request["query"]["airqloud"] = airqloud;
-      request["query"]["external"] = external;
-      request["query"]["metadata"] = metadata;
-      request["query"]["tenant"] = tenant;
-      request["query"]["network"] = network;
-      request["query"]["recent"] = recent;
-      request["query"]["lat_long"] = lat_long;
-      request["query"]["skip"] = parseInt(skip);
-      request["query"]["limit"] = parseInt(limit);
-      request["query"]["page"] = parseInt(page);
+      let { latitude, longitude } = req.params;
 
-      await createEventUtil.listByLatLong(request, (result) => {
-        logObject("the result for listing events", result);
-        if (result.success === true) {
-          const status = result.status ? result.status : HTTPStatus.OK;
-          res.status(status).json({
-            success: true,
-            isCache: result.isCache,
-            message: result.message,
-            meta: result.data[0].meta,
-            measurements: result.data[0].data,
-          });
-        } else if (result.success === false) {
-          const status = result.status
-            ? result.status
-            : HTTPStatus.INTERNAL_SERVER_ERROR;
-          res.status(status).json({
-            success: false,
-            errors: result.errors ? result.errors : { message: "" },
-            message: result.message,
-          });
-        }
-      });
-    } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
-    }
-  },
+      let { tenant, skip, limit, page, radius } = req.query;
 
-  listByTime: async (req, res) => {
-    try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        try {
-          logger.error(
-            `input validation errors ${JSON.stringify(
-              errors.convertErrorArrayToObject(nestedErrors)
-            )}`
-          );
-        } catch (e) {
-          logger.error(`internal server error -- ${e.message}`);
-        }
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
-        );
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
       }
-      const { query } = req;
-      const {
-        device,
-        device_number,
-        site,
-        frequency,
-        startTime,
-        endTime,
-        device_id,
-        site_id,
-        external,
-        metadata,
-        tenant,
-        network,
-        recent,
-        airqloud,
-        airqloud_id,
-        skip,
-        limit,
-        page,
-        lat_long,
-      } = query;
-      let request = {};
-      request["query"] = {};
-      request["query"]["device"] = device;
-      request["query"]["device_number"] = device_number;
-      request["query"]["site"] = site;
-      request["query"]["frequency"] = frequency;
-      request["query"]["startTime"] = startTime;
-      request["query"]["endTime"] = endTime;
-      request["query"]["device_id"] = device_id;
-      request["query"]["site_id"] = site_id;
-      request["query"]["airqloud_id"] = airqloud_id;
-      request["query"]["airqloud"] = airqloud;
-      request["query"]["external"] = external;
-      request["query"]["metadata"] = metadata;
+      logObject("lati", latitude);
+      logObject("longi", longitude);
+      let request = Object.assign({}, req);
+      request["query"]["external"] = "no";
       request["query"]["tenant"] = tenant;
-      request["query"]["network"] = network;
-      request["query"]["recent"] = recent;
-      request["query"]["lat_long"] = lat_long;
+      request["query"]["metadata"] = "site_id";
+      request["query"]["brief"] = "yes";
       request["query"]["skip"] = parseInt(skip);
       request["query"]["limit"] = parseInt(limit);
       request["query"]["page"] = parseInt(page);
 
-      await createEventUtil.listByTime(request, (result) => {
-        logObject("the result for listing events", result);
-        if (result.success === true) {
-          const status = result.status ? result.status : HTTPStatus.OK;
-          res.status(status).json({
-            success: true,
-            isCache: result.isCache,
-            message: result.message,
-            meta: result.data[0].meta,
-            measurements: result.data[0].data,
-          });
-        } else if (result.success === false) {
-          const status = result.status
-            ? result.status
-            : HTTPStatus.INTERNAL_SERVER_ERROR;
-          res.status(status).json({
-            success: false,
-            errors: result.errors ? result.errors : { message: "" },
-            message: result.message,
+      const responseFromGetSitesFromLatitudeAndLongitude = await commonUtil.getSitesFromLatitudeAndLongitude(
+        { latitude, longitude, tenant, radius }
+      );
+      logObject(
+        "responseFromGetSitesFromLatitudeAndLongitude",
+        responseFromGetSitesFromLatitudeAndLongitude
+      );
+      if (responseFromGetSitesFromLatitudeAndLongitude.success === false) {
+        const status = responseFromGetSitesFromLatitudeAndLongitude.status
+          ? responseFromGetSitesFromLatitudeAndLongitude.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res
+          .status(status)
+          .json(responseFromGetSitesFromLatitudeAndLongitude);
+      } else if (
+        responseFromGetSitesFromLatitudeAndLongitude.success === true
+      ) {
+        const status = responseFromGetSitesFromLatitudeAndLongitude.status
+          ? responseFromGetSitesFromLatitudeAndLongitude.status
+          : httpStatus.OK;
+        if (isEmpty(responseFromGetSitesFromLatitudeAndLongitude.data)) {
+          res.status(status).json(responseFromGetSitesFromLatitudeAndLongitude);
+        } else {
+          request["query"][
+            "site_id"
+          ] = responseFromGetSitesFromLatitudeAndLongitude.data.join(",");
+
+          await createEventUtil.list(request, (result) => {
+            logObject("the result for listing events", result);
+            if (result.success === true) {
+              const status = result.status ? result.status : httpStatus.OK;
+              res.status(status).json({
+                success: true,
+                isCache: result.isCache,
+                message: result.message,
+                meta: result.data[0].meta,
+                measurements: result.data[0].data,
+              });
+            } else if (result.success === false) {
+              const status = result.status
+                ? result.status
+                : httpStatus.INTERNAL_SERVER_ERROR;
+              res.status(status).json({
+                success: false,
+                errors: result.errors ? result.errors : { message: "" },
+                message: result.message,
+              });
+            }
           });
         }
-      });
+      }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
