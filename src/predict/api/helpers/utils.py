@@ -1,8 +1,10 @@
 from datetime import datetime, timedelta
 
 from dotenv import load_dotenv
+from flask import request, jsonify
 
 from config.constants import connect_mongo
+from models.predict import get_forecasts
 
 load_dotenv()
 db = connect_mongo()
@@ -61,6 +63,24 @@ def get_gp_predictions_id(aq_id):
                   'airqloud': 1, 'created_at': 1, 'airqloud_id': 1}
     records = list(db.gp_predictions.find(query, projection))
     return records
+
+
+def get_forecasts_helper(db_name):
+    """
+    Helper function to get forecasts for a given site_id and db_name
+    """
+    if request.method == 'GET':
+        site_id = request.args.get('site_id')
+        result = get_forecasts(site_id, db_name)
+        if result:
+            response = result
+        else:
+            response = {
+                "message": "forecasts for this site are not available", "success": False}
+        data = jsonify(response)
+        return data, 200
+    else:
+        return jsonify({"message": "Invalid request method", "success": False}), 400
 
 
 if __name__ == '__main__':

@@ -2,12 +2,11 @@ import logging
 import os
 
 from dotenv import load_dotenv
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, request
 from flask_caching import Cache
 
 from config import constants
-from helpers.utils import get_all_gp_predictions, get_gp_predictions, get_gp_predictions_id
-from models.predict import get_forecasts
+from helpers.utils import get_all_gp_predictions, get_gp_predictions, get_gp_predictions_id, get_forecasts_helper
 from routes import api
 
 load_dotenv()
@@ -31,18 +30,7 @@ def get_next_24hr_forecasts():
     """
     Get forecasts for the next 24 hours from specified start time.
     """
-    if request.method == 'GET':
-        site_id = request.args.get('site_id')
-        result = get_forecasts(site_id, 'hourly_forecasts')
-        if result:
-            response = result
-        else:
-            response = {
-                "message": "forecasts for channel are not available", "success": False}
-        data = jsonify(response)
-        return data, 201
-    else:
-        return jsonify({"message": "Invalid request method", "success": False}), 400
+    return get_forecasts_helper(db_name='hourly_forecasts')
 
 
 @ml_app.route(api.route['next_1_week_forecasts'], methods=['GET'])
@@ -50,18 +38,7 @@ def get_next_1_week_forecasts():
     """
     Get forecasts for the next 1 week from specified start day.
     """
-    if request.method == 'GET':
-        site_id = request.args.get('site_id', type=str)
-        result = get_forecasts(site_id, db_name='daily_forecasts')
-        if result:
-            response = result
-        else:
-            response = {
-                "message": "predictions for channel are not available", "success": False}
-        data = jsonify(response)
-        return data, 201
-    else:
-        return jsonify({"message": "Invalid request method", "success": False}), 400
+    return get_forecasts_helper(db_name='daily_forecasts')
 
 
 @ml_app.route(api.route['predict_for_heatmap'], methods=['GET'])
