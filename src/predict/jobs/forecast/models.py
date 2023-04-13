@@ -1,6 +1,6 @@
 import concurrent.futures
 from datetime import datetime, timedelta
-
+from google.oauth2 import service_account
 import pandas as pd
 import requests
 
@@ -64,10 +64,10 @@ class Events:
     def fetch_bigquery_data():
         """gets data from the bigquery table"""
 
-        # Use a persistent user-defined function to cache the results of the query
+        credentials = service_account.Credentials.from_service_account_file(configuration.CREDENTIALS)
         query = f"""
         SELECT DISTINCT timestamp, site_id, device_number,pm2_5_calibrated_value FROM `{configuration.GOOGLE_CLOUD_PROJECT_ID}.averaged_data.hourly_device_measurements` where DATE(timestamp) >= DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH) and tenant = 'airqo' ORDER BY timestamp 
         """
-        df = pd.read_gbq(query, project_id=configuration.GOOGLE_CLOUD_PROJECT_ID)
+        df = pd.read_gbq(query, project_id=configuration.GOOGLE_CLOUD_PROJECT_ID, credentials=credentials)
         df.rename(columns={'timestamp': 'created_at', 'pm2_5_calibrated_value': 'pm2_5'}, inplace=True)
         return df
