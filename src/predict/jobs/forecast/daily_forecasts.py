@@ -36,11 +36,13 @@ def get_other_features(df_tmp):
 
 def preprocess_forecast_data(target_column):
     """preprocess data before making forecasts"""
-    forecast_data = Events.get_forecast_data()
+
+    # TODO: Eventually move to events API instead of bigquery
+    forecast_data = Events.fetch_bigquery_data()
     forecast_data['created_at'] = pd.to_datetime(forecast_data['created_at'], format='%Y-%m-%d')
-    forecast_data = forecast_data.groupby(['site_id']).first().reset_index()
-    forecast_data = forecast_data[forecast_data['device_number'].apply(lambda x: x.isnumeric())]
+    forecast_data = forecast_data[pd.to_numeric(forecast_data['device_number'], errors='coerce').notnull()]
     forecast_data['device_number'] = forecast_data['device_number'].astype(str)
+    forecast_data = forecast_data.dropna(subset=['device_number'])
     forecast_data = forecast_data.groupby(
         ['site_id', 'device_number']).resample('D', on='created_at').mean(numeric_only=True)
     forecast_data = forecast_data.reset_index()

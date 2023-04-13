@@ -1,8 +1,10 @@
-from datetime import datetime, timedelta
-import requests
-from config import configuration
 import concurrent.futures
+from datetime import datetime, timedelta
+
 import pandas as pd
+import requests
+
+from config import configuration
 
 
 class Events:
@@ -16,7 +18,7 @@ class Events:
         """gets data from the events api in batches"""
         start_date = datetime.now() - timedelta(days=30)
         end_date = datetime.now()
-        batch_size = timedelta(days=5)
+        batch_size = timedelta(hours=5)
         data = []
         batches = []
         while start_date < end_date:
@@ -56,3 +58,16 @@ class Events:
             df.rename(columns={'time': 'created_at', 'deviceDetails': 'device_number'}, inplace=True)
             final_df = pd.concat([final_df, df], ignore_index=True)
         return final_df
+
+    # TODO: Remove this and use Events API only
+    @staticmethod
+    def fetch_bigquery_data():
+        """gets data from the bigquery table"""
+
+        # Use a persistent user-defined function to cache the results of the query
+        query = f"""
+        SELECT DISTINCT timestamp, site_id, device_number,pm2_5_calibrated_value FROM `{configuration.GOOGLE_CLOUD_PROJECT_ID}.averaged_data.hourly_device_measurements` where DATE(timestamp) >= DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH) and tenant = 'airqo' ORDER BY timestamp 
+        """
+        df = pd.read_gbq(query, project_id=configuration.GOOGLE_CLOUD_PROJECT_ID)
+        df.rename(columns={'timestamp': 'created_at', 'pm2_5_calibrated_value': 'pm2_5'}, inplace=True)
+        return df
