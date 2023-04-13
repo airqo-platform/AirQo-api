@@ -2,30 +2,6 @@ import gcsfs
 import joblib
 import pandas as pd
 from datetime import datetime
-from dateutil.relativedelta import relativedelta
-
-
-def previous_months_range(n):
-    """
-    Function that calculates the previous months date ranges
-    Args:
-        n (int): represents the number of previous months range e.g 3 for three months ago
-    """
-    # end_date = date.today()
-    end_date = datetime.now()
-    start_date = end_date + relativedelta(months=-n)
-
-    return start_date, end_date
-
-
-def str_to_date(st):
-    """converts a string to datetime"""
-    return datetime.strptime(st, '%Y-%m-%dT%H:%M:%S.%fZ')
-
-
-def date_to_str(date):
-    """converts datetime to a string"""
-    return datetime.strftime(date, '%Y-%m-%dT%H:%M:%S.%fZ')
 
 
 def str_to_date_2(st):
