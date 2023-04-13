@@ -1,9 +1,11 @@
 import os
 from datetime import datetime
-import pandas as pd
-from pymongo import MongoClient
-from dotenv import load_dotenv
 from pathlib import Path
+
+import pandas as pd
+from dotenv import load_dotenv
+from pymongo import MongoClient
+
 BASE_DIR = Path(__file__).resolve().parent
 dotenv_path = os.path.join(BASE_DIR, '.env')
 load_dotenv(dotenv_path)
@@ -22,6 +24,7 @@ class Config:
     TENANT = os.getenv('TENANT', 'airqo')
     MONTHS_OF_DATA = os.getenv('MONTHS_OF_DATA', 2)
 
+
 class ProductionConfig(Config):
     DB_NAME = os.getenv('DB_NAME_PROD')
     MONGO_URI = os.getenv('MONGO_GCE_URI')
@@ -30,6 +33,7 @@ class ProductionConfig(Config):
     MLFLOW_TRACKING_PASSWORD = os.getenv('MLFLOW_TRACKING_PASSWORD')
     AIRQO_PREDICT_BUCKET = os.getenv('AIRQO_PREDICT_BUCKET_PROD')
     AIRQO_API_BASE_URL = os.getenv('AIRQO_API_BASE_URL_PROD')
+
 
 class TestingConfig(Config):
     DEBUG = True
@@ -41,6 +45,7 @@ class TestingConfig(Config):
     MLFLOW_TRACKING_PASSWORD = os.getenv('MLFLOW_TRACKING_PASSWORD')
     AIRQO_PREDICT_BUCKET = os.getenv('AIRQO_PREDICT_BUCKET_STAGE')
     AIRQO_API_BASE_URL = os.getenv('AIRQO_API_BASE_URL_STAGE')
+
 
 class DevelopmentConfig(Config):
     DEVELOPMENT = True
