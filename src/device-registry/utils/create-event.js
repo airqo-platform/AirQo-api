@@ -588,7 +588,7 @@ const createEvent = {
             if (result.success === true) {
               if ((device && !recent) || recent === "no") {
                 if (!limit) {
-                  limit = parseInt(constants.DEFAULT_EVENTS_LIMIT);
+                  limit = parseInt(constants.DEFAULT_EVENTS_LIMIT) || 1000;
                 }
                 if (!skip) {
                   if (page) {
@@ -1181,6 +1181,10 @@ const createEvent = {
       external,
       recent,
       lat_long,
+      page,
+      index,
+      running,
+      brief,
     } = request.query;
     const currentTime = new Date().toISOString();
     const day = generateDateFormatWithoutHrs(currentTime);
@@ -1198,7 +1202,9 @@ const createEvent = {
       external ? external : "noExternal"
     }_${airqloud ? airqloud : "noAirQloud"}_${
       airqloud_id ? airqloud_id : "noAirQloudID"
-    }_${lat_long ? lat_long : "noLatLong"}`;
+    }_${lat_long ? lat_long : "noLatLong"}_${page ? page : "noPage"}_${
+      running ? running : "noRunning"
+    }_${index ? index : "noIndex"}_${brief ? brief : "noBrief"}`;
   },
   getEventsCount: async (request) => {},
   setCache: (data, request, callback) => {
