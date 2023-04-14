@@ -213,6 +213,7 @@ const createEvent = {
         );
       }
       const { query } = req;
+      const { siteId, deviceId } = req.params;
       let { tenant, skip, limit, page } = query;
 
       if (isEmpty(tenant)) {
@@ -220,6 +221,17 @@ const createEvent = {
       }
 
       let request = Object.assign({}, req);
+
+      if (!isEmpty(siteId)) {
+        request["query"]["site_id"] = siteId;
+        request["query"]["recent"] = "no";
+      }
+
+      if (!isEmpty(deviceId)) {
+        request["query"]["device_id"] = deviceId;
+        request["query"]["recent"] = "no";
+      }
+
       request["query"]["tenant"] = tenant;
       request["query"]["skip"] = parseInt(skip);
       request["query"]["limit"] = parseInt(limit);
@@ -1313,7 +1325,7 @@ const createEvent = {
         );
       }
 
-      let { airqloud, airqloud_id } = req.params;
+      let { airqloudId } = req.params;
       let { skip, limit, page, tenant } = req.query;
 
       if (isEmpty(tenant)) {
@@ -1330,7 +1342,7 @@ const createEvent = {
       request["query"]["page"] = parseInt(page);
 
       const responseFromGetSitesOfAirQloud = await commonUtil.getSitesFromAirQloud(
-        { airqloud }
+        { airqloudId }
       );
 
       if (responseFromGetSitesOfAirQloud.success === false) {
@@ -1368,6 +1380,7 @@ const createEvent = {
       });
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
+      logObject("error", error);
       res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
