@@ -506,6 +506,7 @@ const createEvent = {
                 `unable to retrieve events --- ${JSON.stringify(result)}`
               );
               logText(result.message);
+              callback(result);
             }
           });
         }
