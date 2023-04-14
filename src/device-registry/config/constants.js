@@ -55,6 +55,9 @@ const stageConfig = {
 const defaultConfig = {
   NETWORKS: process.env.NETWORKS.split(","),
   ACTIVITY_TYPES: process.env.ACTIVITY_TYPES.split(","),
+  AQI_CATEGORIES: "good,moderate,u4sg,unhealthy,very_unhealthy,hazardous".split(
+    ","
+  ),
   MAINTENANCE_TYPES: process.env.MAINTENANCE_TYPES.split(","),
   DEFAULT_NETWORK: process.env.DEFAULT_NETWORK,
   DEFAULT_NEAREST_SITE_RADIUS: process.env.DEFAULT_NEAREST_SITE_RADIUS,
@@ -74,6 +77,7 @@ const defaultConfig = {
   AIRQLOUDS_TOPIC: process.env.AIRQLOUDS_TOPIC,
   ACTIVITIES_TOPIC: process.env.ACTIVITIES_TOPIC,
   PHOTOS_TOPIC: process.env.PHOTOS_TOPIC,
+  TIPS_TOPIC: process.env.TIPS_TOPIC,
   HOURLY_MEASUREMENTS_TOPIC: process.env.HOURLY_MEASUREMENTS_TOPIC,
   PORT: process.env.PORT || 3000,
   TAHMO_API_GET_STATIONS_URL: process.env.TAHMO_API_GET_STATIONS_URL,
@@ -81,6 +85,14 @@ const defaultConfig = {
   TAHMO_API_CREDENTIALS_PASSWORD: process.env.TAHMO_API_CREDENTIALS_PASSWORD,
   UNIQUE_CONSUMER_GROUP: process.env.UNIQUE_CONSUMER_GROUP,
   UNIQUE_PRODUCER_GROUP: process.env.UNIQUE_PRODUCER_GROUP,
+  AQI_INDEX: {
+    good: [0, 50],
+    moderate: [51, 100],
+    u4sg: [101, 150],
+    unhealthy: [151, 200],
+    very_unhealthy: [201, 300],
+    hazardous: [301],
+  },
   GET_ROAD_METADATA_PATHS: {
     altitude: "altitude",
     greenness: "greenness",
@@ -173,6 +185,7 @@ const defaultConfig = {
     process.env.DEFAULT_LIMIT_FOR_QUERYING_SITES,
   DEFAULT_LIMIT_FOR_QUERYING_PHOTOS:
     process.env.DEFAULT_LIMIT_FOR_QUERYING_PHOTOS,
+  DEFAULT_LIMIT_FOR_QUERYING_TIPS: process.env.DEFAULT_LIMIT_FOR_QUERYING_TIPS,
   DEFAULT_LIMIT_FOR_QUERYING_AIRQLOUDS:
     process.env.DEFAULT_LIMIT_FOR_QUERYING_AIRQLOUDS,
   DEFAULT_EVENTS_LIMIT: process.env.DEFAULT_EVENTS_LIMIT,
@@ -593,7 +606,7 @@ const defaultConfig = {
       projection[as]["altitude"] = 0;
       projection[as]["updatedAt"] = 0;
       projection[as]["airqloud_id"] = 0;
-      projection[as]["airqlouds"] = 0;
+      projection[as]["weather_stations"] = 0;
       projection[as]["sub_county"] = 0;
       projection[as]["parish"] = 0;
       projection[as]["greenness"] = 0;
@@ -608,6 +621,46 @@ const defaultConfig = {
       projection[as]["bearing_to_kampala_center"] = 0;
       projection[as]["street"] = 0;
       projection[as]["village"] = 0;
+      projection[as]["distance_to_nearest_secondary_road"] = 0;
+      projection[as]["distance_to_kampala_center"] = 0;
+      return projection;
+    } else if (entity === "brief_site") {
+      let projection = {};
+      projection[as] = {};
+      projection[as]["nearest_tahmo_station"] = 0;
+      projection[as]["site_tags"] = 0;
+      projection[as]["geometry"] = 0;
+      projection[as]["google_place_id"] = 0;
+      projection[as]["lat_long"] = 0;
+      projection[as]["altitude"] = 0;
+      projection[as]["updatedAt"] = 0;
+      projection[as]["airqloud_id"] = 0;
+      projection[as]["weather_stations"] = 0;
+      projection[as]["greenness"] = 0;
+      projection[as]["landform_90"] = 0;
+      projection[as]["landform_270"] = 0;
+      projection[as]["aspect"] = 0;
+      projection[as]["distance_to_nearest_road"] = 0;
+      projection[as]["distance_to_nearest_primary_road"] = 0;
+      projection[as]["distance_to_nearest_tertiary_road"] = 0;
+      projection[as]["distance_to_nearest_unclassified_road"] = 0;
+      projection[as]["distance_to_nearest_residential_road"] = 0;
+      projection[as]["bearing_to_kampala_center"] = 0;
+      projection[as]["longitude"] = 0;
+      projection[as]["latitude"] = 0;
+      projection[as]["land_use"] = 0;
+      projection[as]["site_codes"] = 0;
+      projection[as]["images"] = 0;
+      projection[as]["name"] = 0;
+      projection[as]["_id"] = 0;
+      projection[as]["airqlouds"] = 0;
+      projection[as]["description"] = 0;
+      projection[as]["generated_name"] = 0;
+      projection[as]["createdAt"] = 0;
+      projection[as]["updatedAt"] = 0;
+      projection[as]["__v"] = 0;
+      projection[as]["network"] = 0;
+      projection[as]["approximate_distance_in_km"] = 0;
       projection[as]["distance_to_nearest_secondary_road"] = 0;
       projection[as]["distance_to_kampala_center"] = 0;
       return projection;

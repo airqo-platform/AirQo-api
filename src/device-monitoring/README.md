@@ -42,3 +42,5 @@ set environment variables in the `.env file`
 
 Run the Flask App
 - `flask run`
+- `celery -A app.celery beat`
+- `celery -A app.celery worker --loglevel=info`

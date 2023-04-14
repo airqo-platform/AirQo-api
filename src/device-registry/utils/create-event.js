@@ -588,7 +588,7 @@ const createEvent = {
             if (result.success === true) {
               if ((device && !recent) || recent === "no") {
                 if (!limit) {
-                  limit = parseInt(constants.DEFAULT_EVENTS_LIMIT);
+                  limit = parseInt(constants.DEFAULT_EVENTS_LIMIT) || 1000;
                 }
                 if (!skip) {
                   if (page) {
@@ -626,31 +626,24 @@ const createEvent = {
                   }
                 });
 
-                const status = responseFromListEvents.status
-                  ? responseFromListEvents.status
-                  : "";
-
                 try {
                   callback({
                     success: true,
                     message: !isEmpty(missingDataMessage)
                       ? missingDataMessage
+                      : isEmpty(data[0].data)
+                      ? "no measurements for this search"
                       : responseFromListEvents.message,
                     data,
-                    status,
+                    status: responseFromListEvents.status
+                      ? responseFromListEvents.status
+                      : "",
                     isCache: false,
                   });
                 } catch (error) {
                   logger.error(`listing events -- ${JSON.stringify(error)}`);
                 }
               } else if (responseFromListEvents.success === false) {
-                const status = responseFromListEvents.status
-                  ? responseFromListEvents.status
-                  : "";
-                const errors = responseFromListEvents.errors
-                  ? responseFromListEvents.errors
-                  : { message: "" };
-
                 logger.error(
                   `unable to retrieve events --- ${JSON.stringify(errors)}`
                 );
@@ -659,8 +652,12 @@ const createEvent = {
                   callback({
                     success: false,
                     message: responseFromListEvents.message,
-                    errors,
-                    status,
+                    errors: responseFromListEvents.errors
+                      ? responseFromListEvents.errors
+                      : { message: "" },
+                    status: responseFromListEvents.status
+                      ? responseFromListEvents.status
+                      : "",
                     isCache: false,
                   });
                 } catch (error) {
@@ -752,8 +749,7 @@ const createEvent = {
               errors.push(errMsg);
             }
           } catch (e) {
-            logObject("e", e);
-            logger.error(`internal server error -- ${e.message}`);
+            // logger.error(`internal server error -- ${e.message}`);
             eventsRejected.push(event);
             let errMsg = {
               message:
@@ -797,7 +793,6 @@ const createEvent = {
         return responseFromTransformEvent;
       }
     } catch (error) {
-      logObject("error", error);
       logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
@@ -1186,6 +1181,10 @@ const createEvent = {
       external,
       recent,
       lat_long,
+      page,
+      index,
+      running,
+      brief,
     } = request.query;
     const currentTime = new Date().toISOString();
     const day = generateDateFormatWithoutHrs(currentTime);
@@ -1203,7 +1202,9 @@ const createEvent = {
       external ? external : "noExternal"
     }_${airqloud ? airqloud : "noAirQloud"}_${
       airqloud_id ? airqloud_id : "noAirQloudID"
-    }_${lat_long ? lat_long : "noLatLong"}`;
+    }_${lat_long ? lat_long : "noLatLong"}_${page ? page : "noPage"}_${
+      running ? running : "noRunning"
+    }_${index ? index : "noIndex"}_${brief ? brief : "noBrief"}`;
   },
   getEventsCount: async (request) => {},
   setCache: (data, request, callback) => {
@@ -1599,7 +1600,7 @@ const createEvent = {
             // );
           }
         } catch (error) {
-          logger.error(`internal server error -- ${error.message}`);
+          // logger.error(`internal server error -- ${error.message}`);
           dot.delete("nValues", filter);
           let errMsg = {
             msg: "duplicate event",
@@ -1627,7 +1628,7 @@ const createEvent = {
         };
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
+      // logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "internal server error",
@@ -1839,7 +1840,7 @@ const createEvent = {
           errors.push(errMsg);
         }
       } catch (e) {
-        logger.error(`internal server serror -- ${e.message}`);
+        // logger.error(`internal server serror -- ${e.message}`);
         eventsRejected.push(measurement);
         let errMsg = {
           msg:

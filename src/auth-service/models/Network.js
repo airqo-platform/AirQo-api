@@ -5,7 +5,7 @@ const validator = require("validator");
 var uniqueValidator = require("mongoose-unique-validator");
 const { logObject, logElement, logText } = require("../utils/log");
 const isEmpty = require("is-empty");
-const { getModelByTenant } = require("../utils/multitenancy");
+const { getModelByTenant } = require("@config/dbConnection");
 const httpStatus = require("http-status");
 
 const NetworkSchema = new Schema(

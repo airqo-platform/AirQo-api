@@ -69,8 +69,21 @@ router.post(
         .bail()
         .trim(),
       body("fullName")
-        .exists()
-        .withMessage("the fullName should be provided")
+        .optional()
+        .notEmpty()
+        .withMessage("the fullName should not be empty if provided")
+        .bail()
+        .trim(),
+      body("firstName")
+        .optional()
+        .notEmpty()
+        .withMessage("the firstName should not be empty if provided")
+        .bail()
+        .trim(),
+      body("lastName")
+        .optional()
+        .notEmpty()
+        .withMessage("the lastName should not be empty if provided")
         .bail()
         .trim(),
     ],

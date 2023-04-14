@@ -1,5 +1,5 @@
 const DefaultsSchema = require("../models/Defaults");
-const { getModelByTenant } = require("./multitenancy");
+const { getModelByTenant } = require("@config/dbConnection");
 const { logElement, logText, logObject } = require("./log");
 const generateFilter = require("./generate-filter");
 const httpStatus = require("http-status");

@@ -239,6 +239,9 @@ const generateFilter = {
         recent,
         page,
         network,
+        index,
+        running,
+        brief,
       } = query;
 
       let oneMonthBack = monthsInfront(-1);
@@ -257,6 +260,7 @@ const generateFilter = {
         "values.device_id": {},
         "values.site_id": {},
         "values.device_number": {},
+        "values.pm2_5.value": {},
         device_number: {},
       };
 
@@ -267,6 +271,32 @@ const generateFilter = {
       if (external) {
         filter["external"] = external;
       }
+
+      if (!index) {
+        delete filter["values.pm2_5.value"];
+      } else if (index === "good") {
+        filter["values.pm2_5.value"]["$gte"] = constants.AQI_INDEX.good[0];
+        filter["values.pm2_5.value"]["$lte"] = constants.AQI_INDEX.good[1];
+      } else if (index === "moderate") {
+        filter["values.pm2_5.value"]["$gte"] = constants.AQI_INDEX.moderate[0];
+        filter["values.pm2_5.value"]["$lte"] = constants.AQI_INDEX.moderate[1];
+      } else if (index === "u4sg") {
+        filter["values.pm2_5.value"]["$gte"] = constants.AQI_INDEX.u4sg[0];
+        filter["values.pm2_5.value"]["$lte"] = constants.AQI_INDEX.u4sg[1];
+      } else if (index === "unhealthy") {
+        filter["values.pm2_5.value"]["$gte"] = constants.AQI_INDEX.unhealthy[0];
+        filter["values.pm2_5.value"]["$lte"] = constants.AQI_INDEX.unhealthy[1];
+      } else if (index === "very_unhealthy") {
+        filter["values.pm2_5.value"]["$gte"] =
+          constants.AQI_INDEX.very_unhealthy[0];
+        filter["values.pm2_5.value"]["$lte"] =
+          constants.AQI_INDEX.very_unhealthy[1];
+      } else if (index === "hazardous") {
+        filter["values.pm2_5.value"]["$gte"] = constants.AQI_INDEX.hazardous[0];
+      } else {
+        delete filter["values.pm2_5.value"];
+      }
+
       if (!external) {
         filter["external"] = "yes";
       }
@@ -287,8 +317,16 @@ const generateFilter = {
         filter["day"]["$gte"] = generateDateFormatWithoutHrs(startTime);
       }
 
+      if (running) {
+        filter["running"] = running;
+      }
+
+      if (brief) {
+        filter["brief"] = brief;
+      }
+
       if (endTime) {
-        if (isTimeEmpty(endTime) == false) {
+        if (isTimeEmpty(endTime) === false) {
           let end = new Date(endTime);
           filter["values.time"]["$lte"] = end;
         } else {
@@ -298,7 +336,7 @@ const generateFilter = {
       }
 
       if (startTime && !endTime) {
-        if (isTimeEmpty(startTime) == false) {
+        if (isTimeEmpty(startTime) === false) {
           filter["values.time"]["$lte"] = addMonthsToProvideDateTime(
             startTime,
             1
@@ -316,7 +354,7 @@ const generateFilter = {
       }
 
       if (!startTime && endTime) {
-        if (isTimeEmpty(endTime) == false) {
+        if (isTimeEmpty(endTime) === false) {
           filter["values.time"]["$gte"] = addMonthsToProvideDateTime(
             endTime,
             -1
@@ -337,7 +375,7 @@ const generateFilter = {
         let months = getDifferenceInMonths(startTime, endTime);
         logElement("the number of months", months);
         if (months > 1) {
-          if (isTimeEmpty(endTime) == false) {
+          if (isTimeEmpty(endTime) === false) {
             filter["values.time"]["$gte"] = addMonthsToProvideDateTime(
               endTime,
               -1
@@ -880,7 +918,14 @@ const generateFilter = {
   },
 
   photos: (request) => {
-    let { id, device_id, device_number, device_name, network } = request.query;
+    let {
+      id,
+      device_id,
+      device_number,
+      device_name,
+      network,
+      tags,
+    } = request.query;
     let filter = {};
     if (id) {
       filter["_id"] = ObjectId(id);
@@ -888,6 +933,12 @@ const generateFilter = {
 
     if (device_id) {
       filter["device_id"] = ObjectId(device_id);
+    }
+
+    if (tags) {
+      let tagsArray = tags.split(",");
+      filter["tags"] = {};
+      filter["tags"]["$in"] = tagsArray;
     }
 
     if (device_number) {
@@ -902,6 +953,21 @@ const generateFilter = {
       filter["network"] = network;
     }
 
+    return filter;
+  },
+
+  tips: (request) => {
+    let { id, pm25, pm10 } = request.query;
+    let filter = {};
+    if (id) {
+      filter["_id"] = ObjectId(id);
+    }
+    if (pm25) {
+      filter["$and"] = [
+        { "aqi_category.min": { $lte: parseInt(pm25) } },
+        { "aqi_category.max": { $gte: parseInt(pm25) } },
+      ];
+    }
     return filter;
   },
 };

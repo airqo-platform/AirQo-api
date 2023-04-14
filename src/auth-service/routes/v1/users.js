@@ -7,12 +7,15 @@ const {
   setJWTAuth,
   authJWT,
   setLocalAuth,
-  authLocal,
+  setGoogleAuth,
   setGuestToken,
+  authLocal,
   authGuest,
+  authGoogle,
 } = require("@middleware/passport");
 
 const mongoose = require("mongoose");
+const { login } = require("@controllers/create-user");
 const ObjectId = mongoose.Types.ObjectId;
 
 const headers = (req, res, next) => {
@@ -203,6 +206,19 @@ router.get(
 );
 
 router.get(
+  "/auth/google/callback",
+  authGoogle,
+  createUserController.googleCallback
+);
+
+router.get(
+  "/auth/google",
+  setGoogleAuth,
+  authGoogle,
+  createUserController.login
+);
+
+router.get(
   "/",
   oneOf([
     query("tenant")
@@ -268,7 +284,7 @@ router.post(
         .exists()
         .withMessage("privilege is missing in your request")
         .bail()
-        .isIn(["admin", "netmanager", "superadmin", "user"])
+        .isIn(["admin", "netmanager", "user", "super"])
         .withMessage("the privilege value is not among the expected ones")
         .trim(),
     ],
@@ -324,7 +340,7 @@ router.post(
         .exists()
         .withMessage("privilege is missing in your request")
         .bail()
-        .isIn(["admin", "netmanager", "superadmin", "user"])
+        .isIn(["admin", "netmanager", "user", "super"])
         .withMessage("the privilege value is not among the expected ones")
         .trim(),
     ],
@@ -642,6 +658,42 @@ router.post(
     ],
   ]),
   createUserController.subscribeToNewsLetter
+);
+
+router.get(
+  "/stats",
+  oneOf([
+    query("tenant")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
+      .trim()
+      .toLowerCase()
+      .bail()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  setJWTAuth,
+  authJWT,
+  createUserController.listStatistics
+);
+
+router.get(
+  "/logs",
+  oneOf([
+    query("tenant")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
+      .trim()
+      .toLowerCase()
+      .bail()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  setJWTAuth,
+  authJWT,
+  createUserController.listLogs
 );
 
 router.get(
