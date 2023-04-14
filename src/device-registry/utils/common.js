@@ -10,6 +10,8 @@ const { getModelByTenant } = require("./multitenancy");
 const distanceUtil = require("./distance");
 const cryptoJS = require("crypto-js");
 const { logObject } = require("./log");
+const mongoose = require("mongoose");
+const ObjectId = mongoose.Types.ObjectId;
 
 const devicesModel = (tenant) => {
   return getModelByTenant(tenant.toLowerCase(), "device", DeviceSchema);
@@ -24,12 +26,10 @@ const airqloudsModel = (tenant) => {
 };
 
 const common = {
-  getSitesFromAirQloud: async ({
-    tenant = "airqo",
-    airqloud = "none",
-  } = {}) => {
+  getSitesFromAirQloud: async ({ tenant = "airqo", airqloudId } = {}) => {
     try {
-      const filter = { name: airqloud };
+      const filter = { _id: ObjectId(airqloudId) };
+      let sites = [];
       const responseFromListAirQloud = await airqloudsModel(tenant).list({
         filter,
       });
@@ -41,12 +41,12 @@ const common = {
           isEmpty(responseFromListAirQloud.data[0])
         ) {
           message = "No distinct AirQloud found in this search";
-        } else if (!isEmpty(responseFromListAirQloud.data[0])) {
-          const sites = responseFromListAirQloud.data[0].sites;
-          if (isEmpty(sites)) {
-            message =
-              "Unable to find any sites associated with the provided AirQloud ID";
-          }
+        } else if (!isEmpty(responseFromListAirQloud.data[0].sites)) {
+          message = "Successfully retrieved the sites for this AirQloud";
+          sites = responseFromListAirQloud.data[0].sites;
+        } else {
+          message =
+            "Unable to find any sites associated with the provided AirQloud ID";
         }
         const filteredSites = sites.map((site) => site._id);
         return {
