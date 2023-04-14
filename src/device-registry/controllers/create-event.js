@@ -487,6 +487,7 @@ const createEvent = {
       request["query"]["tenant"] = tenant;
       request["query"]["external"] = "no";
       request["query"]["metadata"] = "site_id";
+      request["query"]["brief"] = "yes";
       request["query"]["skip"] = parseInt(skip);
       request["query"]["limit"] = parseInt(limit ? limit : 2);
       request["query"]["page"] = parseInt(page);
@@ -553,6 +554,7 @@ const createEvent = {
       request["query"]["index"] = "moderate";
       request["query"]["external"] = "no";
       request["query"]["metadata"] = "site_id";
+      request["query"]["brief"] = "yes";
       request["query"]["skip"] = parseInt(skip);
       request["query"]["limit"] = parseInt(limit ? limit : 2);
       request["query"]["page"] = parseInt(page);
@@ -622,6 +624,7 @@ const createEvent = {
       request["query"]["index"] = "u4sg";
       request["query"]["external"] = "no";
       request["query"]["metadata"] = "site_id";
+      request["query"]["brief"] = "yes";
       request["query"]["skip"] = parseInt(skip);
       request["query"]["limit"] = parseInt(limit ? limit : 2);
       request["query"]["page"] = parseInt(page);
@@ -689,6 +692,7 @@ const createEvent = {
       request["query"]["index"] = "unhealthy";
       request["query"]["external"] = "no";
       request["query"]["metadata"] = "site_id";
+      request["query"]["brief"] = "yes";
       request["query"]["skip"] = parseInt(skip);
       request["query"]["limit"] = parseInt(limit ? limit : 2);
       request["query"]["page"] = parseInt(page);
@@ -757,6 +761,7 @@ const createEvent = {
       request["query"]["index"] = "very_unhealthy";
       request["query"]["external"] = "no";
       request["query"]["metadata"] = "site_id";
+      request["query"]["brief"] = "yes";
       request["query"]["skip"] = parseInt(skip);
       request["query"]["limit"] = parseInt(limit ? limit : 2);
       request["query"]["page"] = parseInt(page);
@@ -826,6 +831,7 @@ const createEvent = {
       request["query"]["index"] = "hazardous";
       request["query"]["external"] = "no";
       request["query"]["metadata"] = "site_id";
+      request["query"]["brief"] = "yes";
       request["query"]["skip"] = parseInt(skip);
       request["query"]["limit"] = parseInt(limit ? limit : 2);
       request["query"]["page"] = parseInt(page);
@@ -1285,74 +1291,6 @@ const createEvent = {
   /**
    * new controllers
    */
-
-  listLatest: async (req, res) => {
-    try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        try {
-          logger.error(
-            `input validation errors ${JSON.stringify(
-              errors.convertErrorArrayToObject(nestedErrors)
-            )}`
-          );
-        } catch (e) {
-          logger.error(`internal server error -- ${e.message}`);
-        }
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
-        );
-      }
-      const { query } = req;
-      let { tenant, skip, limit, page } = query;
-      let request = Object.assign({}, req);
-
-      if (isEmpty(tenant)) {
-        tenant = "airqo";
-      }
-
-      request["query"]["brief"] = "yes";
-      request["query"]["tenant"] = tenant;
-      request["query"]["metadata"] = "site_id";
-      request["query"]["external"] = "no";
-      request["query"]["skip"] = parseInt(skip);
-      request["query"]["limit"] = parseInt(limit);
-      request["query"]["page"] = parseInt(page);
-
-      await createEventUtil.list(request, (result) => {
-        logObject("the result for listing events", result);
-        if (result.success === true) {
-          const status = result.status ? result.status : httpStatus.OK;
-          res.status(status).json({
-            success: true,
-            isCache: result.isCache,
-            message: result.message,
-            meta: result.data[0].meta,
-            measurements: result.data[0].data,
-          });
-        } else if (result.success === false) {
-          const status = result.status
-            ? result.status
-            : httpStatus.INTERNAL_SERVER_ERROR;
-          res.status(status).json({
-            success: false,
-            errors: result.errors ? result.errors : { message: "" },
-            message: result.message,
-          });
-        }
-      });
-    } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
-    }
-  },
 
   listByAirQloud: async (req, res) => {
     try {
