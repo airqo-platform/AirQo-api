@@ -10,7 +10,7 @@ const { logObject, logElement, logText } = require("@utils/log");
 const ObjectId = Schema.Types.ObjectId;
 const constants = require("@config/constants");
 const isEmpty = require("is-empty");
-const httpStatus = require("http-status");
+const HTTPStatus = require("http-status");
 const { getModelByTenant } = require("@utils/multitenancy");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- event-model`);
@@ -764,7 +764,7 @@ eventSchema.statics = {
           success: true,
           data,
           message: "successfully returned the measurements",
-          status: httpStatus.OK,
+          status: HTTPStatus.OK,
         };
       }
 
@@ -882,7 +882,7 @@ eventSchema.statics = {
           success: true,
           message: "successfully returned the measurements",
           data,
-          status: httpStatus.OK,
+          status: HTTPStatus.OK,
         };
       }
     } catch (error) {
@@ -891,7 +891,7 @@ eventSchema.statics = {
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },

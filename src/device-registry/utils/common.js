@@ -1,7 +1,7 @@
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- common-util`);
-const httpStatus = require("http-status");
+const HTTPStatus = require("http-status");
 const isEmpty = require("is-empty");
 const AirQloudSchema = require("@models/Airqloud");
 const SiteSchema = require("@models/Site");
@@ -53,7 +53,7 @@ const common = {
           success: true,
           message,
           data: filteredSites,
-          status: httpStatus.OK,
+          status: HTTPStatus.OK,
         };
       } else if (responseFromListAirQloud.success === false) {
         return responseFromListAirQloud;
@@ -62,7 +62,7 @@ const common = {
       return {
         success: false,
         message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
         errors: { message: error.message },
       };
     }
@@ -93,7 +93,7 @@ const common = {
           success: true,
           data: siteIds,
           message,
-          status: httpStatus.OK,
+          status: HTTPStatus.OK,
         };
       } else if (responseFromListSites.success === false) {
         return responseFromListSites;
@@ -102,7 +102,7 @@ const common = {
       return {
         success: false,
         message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
         errors: { message: error.message },
       };
     }
@@ -126,7 +126,7 @@ const common = {
         success: false,
         message: "Internal Server Error",
         errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -137,7 +137,7 @@ const common = {
           callback({
             success: true,
             message: "retrieved the number of devices",
-            status: httpStatus.OK,
+            status: HTTPStatus.OK,
             data: count,
           });
         } else if (err) {
@@ -145,7 +145,7 @@ const common = {
             success: false,
             message: "Internal Server Error",
             errors: { message: err.message },
-            status: httpStatus.INTERNAL_SERVER_ERROR,
+            status: HTTPStatus.INTERNAL_SERVER_ERROR,
           });
         }
       });
@@ -155,7 +155,7 @@ const common = {
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       });
     }
   },
@@ -169,7 +169,7 @@ const common = {
       if (isEmpty(originalText)) {
         return {
           success: false,
-          status: httpStatus.BAD_REQUEST,
+          status: HTTPStatus.BAD_REQUEST,
           message: "the provided encrypted key is not recognizable",
           errors: { message: "the provided encrypted key is not recognizable" },
         };
@@ -178,7 +178,7 @@ const common = {
           success: true,
           message: "successfully decrypted the text",
           data: originalText,
-          status: httpStatus.OK,
+          status: HTTPStatus.OK,
         };
       }
     } catch (err) {
@@ -187,7 +187,7 @@ const common = {
         success: false,
         message: "Internal Server Error",
         errors: { message: err.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },

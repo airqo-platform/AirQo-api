@@ -1,5 +1,4 @@
 const EventModel = require("@models/Event");
-const AirQloudSchema = require("@models/Airqloud");
 const { getModelByTenant } = require("./multitenancy");
 const { logObject, logElement, logText } = require("./log");
 const constants = require("@config/constants");
@@ -25,9 +24,7 @@ const {
   formatDate,
 } = require("./date");
 
-const createSiteUtil = require("./create-site");
 const { Parser } = require("json2csv");
-const httpStatus = require("http-status");
 
 const createEvent = {
   getMeasurementsFromBigQuery: async (req) => {
@@ -83,7 +80,7 @@ const createEvent = {
           // return {
           //   success: false,
           //   message: "not authorized",
-          //   status: httpStatus.UNAUTHORIZED,
+          //   status: HTTPStatus.UNAUTHORIZED,
           //   errors: { message: "not authorized" },
           // };
         }
@@ -515,6 +512,7 @@ const createEvent = {
       });
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
+      logObject("error in util", error);
       callback({
         success: false,
         errors: { message: error.message },
@@ -749,7 +747,7 @@ const createEvent = {
       return {
         success: false,
         message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
         errors: { message: error.message },
       };
     }
@@ -765,7 +763,7 @@ const createEvent = {
           if (isEmpty(deviceDetail.category)) {
             return {
               success: false,
-              status: httpStatus.INTERNAL_SERVER_ERROR,
+              status: HTTPStatus.INTERNAL_SERVER_ERROR,
               message:
                 "unable to categorise this device, please first update device details",
               errors: {
@@ -777,7 +775,7 @@ const createEvent = {
         } else {
           return {
             success: false,
-            status: httpStatus.NOT_FOUND,
+            status: HTTPStatus.NOT_FOUND,
             message: "no matching devices found",
             errors: { message: "no matching devices found" },
           };
@@ -879,7 +877,7 @@ const createEvent = {
       return {
         message: "Internal Server Error",
         errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
         success: false,
       };
     }
@@ -901,7 +899,7 @@ const createEvent = {
           if (isEmpty(deviceDetail.category)) {
             return {
               success: false,
-              status: httpStatus.INTERNAL_SERVER_ERROR,
+              status: HTTPStatus.INTERNAL_SERVER_ERROR,
               message:
                 "unable to categorise this device, please first update device details",
             };
@@ -909,7 +907,7 @@ const createEvent = {
         } else {
           return {
             success: false,
-            status: httpStatus.NOT_FOUND,
+            status: HTTPStatus.NOT_FOUND,
             message: "device not found for this organisation",
           };
         }
@@ -1319,7 +1317,7 @@ const createEvent = {
             errors,
             message: "some operational errors as we were trying to transform",
             data: transforms,
-            status: httpStatus.BAD_REQUEST,
+            status: HTTPStatus.BAD_REQUEST,
           };
         } else if (errors.length === 0) {
           return {
@@ -1327,7 +1325,7 @@ const createEvent = {
             errors,
             message: "transformation successfully done",
             data: transforms,
-            status: httpStatus.OK,
+            status: HTTPStatus.OK,
           };
         }
       });
@@ -1337,7 +1335,7 @@ const createEvent = {
         success: false,
         message: "server side error - transformEvents ",
         errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
