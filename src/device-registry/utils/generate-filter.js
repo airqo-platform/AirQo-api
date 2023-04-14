@@ -5,6 +5,7 @@ const {
   generateDateFormatWithoutHrs,
   getDifferenceInMonths,
   addDays,
+  addHours,
 } = require("./date");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
@@ -43,17 +44,20 @@ const generateFilter = {
         brief,
       } = query;
 
-      let oneMonthBack = monthsInfront(-1);
-      let oneMonthInfront = monthsInfront(1);
       let today = monthsInfront(0);
       let oneWeekBack = addDays(-7);
-      let oneWeekInfront = addDays(7);
+      let oneMonthBack = monthsInfront(-1);
+      let threeHoursBack = addHours(-3);
+
       let filter = {
         day: {
           $gte: generateDateFormatWithoutHrs(oneWeekBack),
           $lte: generateDateFormatWithoutHrs(today),
         },
-        "values.time": { $gte: oneWeekBack, $lte: today },
+        "values.time": {
+          $gte: oneWeekBack,
+          $lte: today,
+        },
         "values.device": {},
         "values.site": {},
         "values.device_id": {},

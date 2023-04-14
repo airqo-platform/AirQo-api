@@ -1427,7 +1427,7 @@ const createEvent = {
       request["query"]["metadata"] = "site_id";
       request["query"]["brief"] = "yes";
       request["query"]["skip"] = parseInt(skip);
-      request["query"]["limit"] = parseInt(limit);
+      request["query"]["limit"] = parseInt(limit ? limit : 1);
       request["query"]["page"] = parseInt(page);
 
       const responseFromGetSitesFromLatitudeAndLongitude = await commonUtil.getSitesFromLatitudeAndLongitude(
