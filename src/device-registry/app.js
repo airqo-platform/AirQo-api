@@ -9,27 +9,23 @@ require("app-module-path").addPath(__dirname);
 const cookieParser = require("cookie-parser");
 const constants = require("@config/constants");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- app entry`);
-const { mongodb } = require("@config/database");
-const createEvent = require("@utils/create-event");
-const isEmpty = require("is-empty");
+require("@config/database");
 const routes = require("@routes");
 
-mongodb;
-
-const moesif = require("moesif-nodejs");
+// const moesif = require("moesif-nodejs");
 const compression = require("compression");
 
 const app = express();
 app.use(compression());
 
-const moesifMiddleware = moesif({
-  applicationId: constants.MOESIF_APPLICATION_ID,
-  identifyUser: function(req, res) {
-    return req.user ? req.user.id : undefined;
-  },
-});
+// const moesifMiddleware = moesif({
+//   applicationId: constants.MOESIF_APPLICATION_ID,
+//   identifyUser: function(req, res) {
+//     return req.user ? req.user.id : undefined;
+//   },
+// });
 
-app.use(moesifMiddleware);
+// app.use(moesifMiddleware);
 
 app.use(log4js.connectLogger(log4js.getLogger("http"), { level: "auto" }));
 app.use(bodyParser.json({ limit: "50mb" }));
