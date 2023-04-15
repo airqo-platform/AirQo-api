@@ -378,6 +378,19 @@ eventSchema.index(
   }
 );
 
+eventSchema.index(
+  {
+    "values.time": 1,
+    "values.site_id": 1,
+    day: 1,
+    "values.frequency": 1,
+  },
+  {
+    unique: true,
+    partialFilterExpression: { nValues: { $lt: parseInt(constants.N_VALUES) } },
+  }
+);
+
 eventSchema.pre("save", function() {
   const err = new Error("something went wrong");
   next(err);
