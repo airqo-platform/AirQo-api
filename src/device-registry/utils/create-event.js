@@ -1024,6 +1024,8 @@ const createEvent = {
       index,
       running,
       brief,
+      latitude,
+      longitude,
     } = request.query;
     const currentTime = new Date().toISOString();
     const day = generateDateFormatWithoutHrs(currentTime);
@@ -1043,7 +1045,9 @@ const createEvent = {
       airqloud_id ? airqloud_id : "noAirQloudID"
     }_${lat_long ? lat_long : "noLatLong"}_${page ? page : "noPage"}_${
       running ? running : "noRunning"
-    }_${index ? index : "noIndex"}_${brief ? brief : "noBrief"}`;
+    }_${index ? index : "noIndex"}_${brief ? brief : "noBrief"}_${
+      latitude ? latitude : "noLatitude"
+    }_${longitude ? longitude : "noLongitude"}`;
   },
   getEventsCount: async (request) => {},
   setCache: (data, request, callback) => {
