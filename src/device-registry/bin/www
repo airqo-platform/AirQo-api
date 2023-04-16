@@ -15,11 +15,12 @@ const logger = log4js.getLogger(
 );
 const server = http.createServer(app);
 const { logText, logObject, logElement } = require("@utils/log")
-const createEvent = require("@utils/create-event");
+const createEventUtil = require("@utils/create-event");
 const { Kafka } = require('kafkajs');
 const Joi = require('joi');
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
+const io = require('socket.io')(server);
 
 const { jsonrepair } = require('jsonrepair')
 const cleanDeep = require('clean-deep');
@@ -140,7 +141,7 @@ const run = async() => {
                         const request = {
                             body: cleanedMeasurements
                         }
-                        const responseFromInsertMeasurements = await createEvent.create(
+                        const responseFromInsertMeasurements = await createEventUtil.create(
                             request
                         );
 
@@ -178,6 +179,36 @@ const run = async() => {
         },
     });
 };
+
+
+/**
+ * emit latest measurements to connnected clients
+ * every 5 seconds
+ */
+const emitLatestMeasurements = async() => {
+    setInterval(async() => {
+        try {
+            let request = {};
+            request["query"] = {};
+            request["query"]["tenant"] = "airqo";
+            request["query"]["external"] = "no";
+            request["query"]["metadata"] = "site_id";
+            request["query"]["brief"] = "yes";
+            await createEventUtil.list(request, (result) => {
+                logObject("the result for listing events", result);
+                if (result.success === true) {
+                    io.emit('latest_measurements', result.data[0].data);
+                } else if (result.success === false) {
+                    logger.error(`WEBSOCKET: Internal Server Error -- ${JSON.stringify(result)}`);
+                }
+            });
+        } catch (error) {
+            logger.error(`WEBSOCKET: Internal Server Error -- ${JSON.stringify(error)}`);
+        }
+    }, 5000);
+}
+
+
 /***
  * start up a cluster
  */
@@ -196,7 +227,12 @@ cluster(function() {
             run().catch(error => {
                 logger.error(`KAFKA: internal server error -- ${JSON.stringify(error)}`);
             });
+
+            emitLatestMeasurements().catch(error => {
+                logger.error(`WEBSOCKET: internal server error -- ${JSON.stringify(error)}`);
+            })
         }
+
         logElement('Express server listening on port ', server.address().port)
         logElement('Express server listening with pid ', process.pid)
 
