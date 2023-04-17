@@ -71,6 +71,10 @@ def get_forecasts_helper(db_name):
     """
     if request.method == 'GET':
         site_id = request.args.get('site_id')
+        if site_id is None or not isinstance(site_id, str):
+            return jsonify({"message": "Please specify a site_id", "success": False}), 400
+        if len(site_id) != 24:
+            return jsonify({"message": "Please enter a valid site_id", "success": False}), 400
         result = get_forecasts(site_id, db_name)
         if result:
             response = result
