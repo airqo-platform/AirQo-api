@@ -263,6 +263,8 @@ UserSchema.statics = {
         networks: "$networks",
         access_tokens: "$access_tokens",
         permissions: "$permissions",
+        createdAt: 1,
+        updatedAt: 1,
       };
 
       const projectSummary = {};
@@ -548,6 +550,8 @@ UserSchema.methods = {
         country: this.country,
         profilePicture: this.profilePicture,
         phoneNumber: this.phoneNumber,
+        createdAt: this.createdAt,
+        updatedAt: this.updatedAt,
       },
       constants.JWT_SECRET
     );
