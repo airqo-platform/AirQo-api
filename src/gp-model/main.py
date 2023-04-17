@@ -46,7 +46,7 @@ def train_model(X, Y, airqloud):
         Ytraining = Y[::2, :]
     else:
         Xtraining = X
-        Ytraining = Y
+        Ytraining = Y.reshape(-1, 1)
 
     print('Number of rows in Xtraining for ' +
           airqloud + ' airqloud', Xtraining.shape[0])
@@ -168,7 +168,7 @@ def periodic_function(tenant, airqloud, aq_id):
     poly, min_long, max_long, min_lat, max_lat = get_airqloud_polygon(
         tenant, airqloud)
     all_sites_data = get_all_sites_data(airqloud=airqloud, tenant=tenant)
-    if len(all_sites_data) != 0:
+    if len(all_sites_data) >= 1:
         train_data_df = data_to_df(data=all_sites_data)
         train_data_df = drop_missing_value(train_data_df)
         train_data_preprocessed = preprocess(df=train_data_df)
