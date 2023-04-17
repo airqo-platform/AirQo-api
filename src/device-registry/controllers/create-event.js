@@ -432,9 +432,6 @@ const createEvent = {
       let request = Object.assign({}, req);
 
       request["query"]["tenant"] = tenant;
-      request["query"]["index"] = "good";
-      request["query"]["external"] = "no";
-      request["query"]["metadata"] = "site_id";
       request["query"]["running"] = "yes";
       request["query"]["skip"] = parseInt(skip);
       request["query"]["limit"] = parseInt(limit);
