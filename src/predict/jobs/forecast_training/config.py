@@ -33,6 +33,9 @@ class ProductionConfig(Config):
     MLFLOW_TRACKING_PASSWORD = os.getenv('MLFLOW_TRACKING_PASSWORD')
     AIRQO_PREDICT_BUCKET = os.getenv('AIRQO_PREDICT_BUCKET_PROD')
     AIRQO_API_BASE_URL = os.getenv('AIRQO_API_BASE_URL_PROD')
+    GOOGLE_CLOUD_PROJECT_ID = os.getenv('GOOGLE_CLOUD_PROJECT_ID')
+    CREDENTIALS = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
+    MONTHS_OF_DATA = os.getenv('MONTHS_OF_DATA', 12)
 
 
 class TestingConfig(Config):
@@ -45,6 +48,10 @@ class TestingConfig(Config):
     MLFLOW_TRACKING_PASSWORD = os.getenv('MLFLOW_TRACKING_PASSWORD')
     AIRQO_PREDICT_BUCKET = os.getenv('AIRQO_PREDICT_BUCKET_STAGE')
     AIRQO_API_BASE_URL = os.getenv('AIRQO_API_BASE_URL_STAGE')
+    GOOGLE_CLOUD_PROJECT_ID = os.getenv('GOOGLE_CLOUD_PROJECT_ID')
+    CREDENTIALS = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
+    MONTHS_OF_DATA = os.getenv('MONTHS_OF_DATA', 12)
+
 
 
 class DevelopmentConfig(Config):
@@ -55,6 +62,10 @@ class DevelopmentConfig(Config):
     MLFLOW_TRACKING_URI = os.getenv('MLFLOW_TRACKING_URI')
     AIRQO_PREDICT_BUCKET = os.getenv('AIRQO_PREDICT_BUCKET_DEV')
     AIRQO_API_BASE_URL = os.getenv('AIRQO_API_BASE_URL_STAGE')
+    GOOGLE_CLOUD_PROJECT_ID = os.getenv('GOOGLE_CLOUD_PROJECT_ID')
+    CREDENTIALS = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
+    MONTHS_OF_DATA = os.getenv('MONTHS_OF_DATA', 12)
+
 
 
 app_config = {
