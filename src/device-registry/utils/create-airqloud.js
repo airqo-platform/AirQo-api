@@ -16,7 +16,6 @@ const logger = log4js.getLogger(
 );
 const createLocationUtil = require("./create-location");
 const geolib = require("geolib");
-const httpStatus = require("http-status");
 
 const { Kafka } = require("kafkajs");
 const kafka = new Kafka({
@@ -298,7 +297,7 @@ const createAirqloud = {
         return {
           success: true,
           message: "successfully refreshed the AirQloud",
-          status: httpStatus.OK,
+          status: HTTPStatus.OK,
           data: responseFromUpdateAirQloud.data,
         };
       } else if (responseFromUpdateAirQloud.success === false) {
@@ -309,7 +308,7 @@ const createAirqloud = {
       return {
         success: false,
         message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
         errors: { message: error.message },
       };
     }
