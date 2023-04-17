@@ -42,6 +42,7 @@ const generateFilter = {
         index,
         running,
         brief,
+        summary,
       } = query;
 
       let today = monthsInfront(0);
@@ -73,6 +74,10 @@ const generateFilter = {
 
       if (external) {
         filter["external"] = external;
+      }
+
+      if (summary) {
+        filter["summary"] = summary;
       }
 
       if (!index) {

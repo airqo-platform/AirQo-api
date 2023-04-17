@@ -476,6 +476,7 @@ eventSchema.statics = {
         recent,
         brief,
         index,
+        summary,
       } = filter;
       let search = filter;
       let groupId = "$device";
@@ -526,6 +527,7 @@ eventSchema.statics = {
       delete search["running"];
       delete search["brief"];
       delete search["index"];
+      delete search["summary"];
 
       /**
        * The Alternative Flows present in this Events entity:
@@ -657,6 +659,78 @@ eventSchema.statics = {
       }
 
       logObject("the query for this request", search);
+
+      /**
+       *      {
+      "site_id": <SITE_ID>,
+      “siteName”:”Site Name 1”
+      “start_time”: "2023-04-01T00:00:00.000Z",
+      "end_time": "2023-04-03T12:00:00.000Z",
+      "pm2_5_avg": 2.5,
+      "pm2_5_min": 1.2,
+      "pm2_5_max": 3.8,
+      "pm10_avg": 10.3,
+      "pm10_min": 6.5,
+      "pm10_max": 14.7,
+
+      the filter/search can be done at the controller/util level
+
+      { _id: null, avgPm2_5: { $avg: "$pm2_5" } }
+      
+     }
+       */
+
+      if (summary === "yes") {
+        const data = await this.aggregate()
+          .unwind("values")
+          .match(search)
+          .replaceRoot("values")
+          .lookup({
+            from,
+            localField,
+            foreignField,
+            as,
+          })
+          .sort(sort)
+          .group({
+            _id: null,
+            pm2_5_avg: { $avg: "$pm2_5" },
+            pm2_5_min: 1.2,
+            pm2_5_max: 3.8,
+            pm10_avg: { $avg: "$pm10" },
+            pm10_min: 6.5,
+            pm10_max: 14.7,
+            siteName: { $first: "$site" },
+            site_id: { $first: "$site_id" },
+            pm2_5: { $first: pm2_5 },
+            pm10: { $first: pm10 },
+          })
+          .project(projection)
+          .facet({
+            total: [{ $count: "device" }],
+            data: [{ $addFields: { device: "$device" } }],
+          })
+          .project({
+            meta,
+            data: {
+              $slice: [
+                "$data",
+                skip,
+                {
+                  $ifNull: [limit, { $arrayElemAt: ["$total.device", 0] }],
+                },
+              ],
+            },
+          })
+          .allowDiskUse(true);
+        return {
+          success: true,
+          data,
+          message: "successfully returned the measurements",
+          status: HTTPStatus.OK,
+        };
+      }
+
       if (!recent || recent === "yes") {
         const data = await this.aggregate()
           .unwind("values")
