@@ -12,7 +12,6 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-device-controller`
 );
 
-const httpStatus = require("http-status");
 const isEmpty = require("is-empty");
 
 const device = {
@@ -43,7 +42,7 @@ const device = {
       }
     } catch (error) {
       logObject("error", error);
-      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "updating all the metadata",
         errors: { message: error.message },
@@ -77,7 +76,7 @@ const device = {
       }
     } catch (error) {
       logObject("error", error);
-      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "updating all the metadata",
         errors: { message: error.message },
