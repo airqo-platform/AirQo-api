@@ -13,7 +13,7 @@ from api.models import (
 
 # Middlewares
 from api.utils.data_formatters import (
-    format_to_aqcsv_v2,
+    format_to_aqcsv,
     compute_airqloud_data_statistics,
 )
 from api.utils.http import create_response, Status
@@ -114,38 +114,51 @@ class DataExportResource(Resource):
 
         postfix = "-" if output_format == "airqo-standard" else "-aqcsv-"
 
-        data_frame = EventsModel.download_from_bigquery(
-            sites=sites,
-            devices=devices,
-            airqlouds=airqlouds,
-            start_date=start_date,
-            end_date=end_date,
-            frequency=frequency,
-            pollutants=pollutants,
-        )
+        try:
+            data_frame = EventsModel.download_from_bigquery(
+                sites=sites,
+                devices=devices,
+                airqlouds=airqlouds,
+                start_date=start_date,
+                end_date=end_date,
+                frequency=frequency,
+                pollutants=pollutants,
+            )
 
-        if data_frame.empty:
+            if data_frame.empty:
+                return (
+                    create_response("No data found", data=[]),
+                    Status.HTTP_404_NOT_FOUND,
+                )
+
+            records = data_frame.to_dict("records")
+
+            if output_format == "aqcsv":
+                records = format_to_aqcsv(
+                    data=records, frequency=frequency, pollutants=pollutants
+                )
+
+            if download_type == "json":
+                return (
+                    create_response(
+                        "air-quality data download successful", data=records
+                    ),
+                    Status.HTTP_200_OK,
+                )
+
+            return excel.make_response_from_records(
+                records, "csv", file_name=f"{frequency}-air-quality{postfix}data"
+            )
+        except Exception as ex:
+            print(ex)
+            traceback.print_exc()
             return (
-                create_response("No data found", data=[]),
-                Status.HTTP_404_NOT_FOUND,
+                create_response(
+                    f"An Error occurred while processing your request. Please contact support",
+                    success=False,
+                ),
+                Status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
-
-        records = data_frame.to_dict("records")
-
-        if output_format == "aqcsv":
-            records = format_to_aqcsv_v2(
-                data=records, frequency=frequency, pollutants=pollutants
-            )
-
-        if download_type == "json":
-            return (
-                create_response("air-quality data download successful", data=records),
-                Status.HTTP_200_OK,
-            )
-
-        return excel.make_response_from_records(
-            records, "csv", file_name=f"{frequency}-air-quality{postfix}data"
-        )
 
 
 @rest_api.route("/data/summary")
