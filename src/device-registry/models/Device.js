@@ -354,7 +354,7 @@ deviceSchema.statics = {
       // logger.info(
       //   `the type of filter received in the model -- ${typeof filter}`
       // );
-      let response = await this.aggregate()
+      const response = await this.aggregate()
         .match(filter)
         .lookup({
           from: "sites",
