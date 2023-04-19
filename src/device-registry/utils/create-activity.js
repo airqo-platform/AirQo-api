@@ -238,6 +238,8 @@ const createActivity = {
             : 0;
           deviceBody["body"]["site_id"] = site_id;
           deviceBody["body"]["isActive"] = true;
+          deviceBody["body"]["deployment_date"] =
+            (date && new Date(date)) || new Date();
           deviceBody["body"]["status"] = "deployed";
           deviceBody["query"]["name"] = deviceName;
           deviceBody["query"]["tenant"] = tenant;
@@ -330,6 +332,8 @@ const createActivity = {
       deviceBody["body"]["longitude"] = "";
       deviceBody["body"]["isActive"] = false;
       deviceBody["body"]["status"] = "recalled";
+      deviceBody["body"]["site_id"] = null;
+      deviceBody["body"]["recall_date"] = new Date();
       deviceBody["query"]["name"] = deviceName;
       deviceBody["query"]["tenant"] = tenant;
 
@@ -416,6 +420,8 @@ const createActivity = {
         date && new Date(date),
         3
       );
+      deviceBody["body"]["maintenance_date"] =
+        (date && new Date(date)) || new Date();
       deviceBody["query"]["name"] = deviceName;
       deviceBody["query"]["tenant"] = tenant;
 

@@ -609,7 +609,7 @@ const device = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      let responseFromListDeviceDetails = await createDeviceUtil.list(req);
+      const responseFromListDeviceDetails = await createDeviceUtil.list(req);
       logElement(
         "is responseFromListDeviceDetails in controller a success?",
         responseFromListDeviceDetails.success
