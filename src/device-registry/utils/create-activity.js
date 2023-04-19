@@ -420,6 +420,8 @@ const createActivity = {
         date && new Date(date),
         3
       );
+      deviceBody["body"]["maintenance_date"] =
+        (date && new Date(date)) || new Date();
       deviceBody["query"]["name"] = deviceName;
       deviceBody["query"]["tenant"] = tenant;
 
