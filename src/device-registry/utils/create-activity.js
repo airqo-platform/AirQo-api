@@ -330,6 +330,7 @@ const createActivity = {
       deviceBody["body"]["longitude"] = "";
       deviceBody["body"]["isActive"] = false;
       deviceBody["body"]["status"] = "recalled";
+      deviceBody["body"]["site_id"] = "";
       deviceBody["query"]["name"] = deviceName;
       deviceBody["query"]["tenant"] = tenant;
 
