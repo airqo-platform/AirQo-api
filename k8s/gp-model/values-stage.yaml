@@ -4,7 +4,7 @@ app:
   configmap: env-gp-model-staging
 image:
   repository: eu.gcr.io/airqo-250220/airqo-stage-gp-model-job
-  tag: stage-4db24bee-1680247320
+  tag: stage-97ceadac-1681904634
 nameOverride: ''
 fullnameOverride: ''
 resources:
