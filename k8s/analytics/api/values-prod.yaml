@@ -1,7 +1,7 @@
 replicaCount: 3
 image:
   repository: eu.gcr.io/airqo-250220/airqo-analytics-api
-  tag: prod-1b374202-1680594926
+  tag: prod-d3552e0e-1681901612
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
