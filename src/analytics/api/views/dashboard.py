@@ -1,5 +1,5 @@
 # Third-party libraries
-import flask_excel as excel
+
 import math
 from flasgger import swag_from
 from flask import request
@@ -10,8 +10,8 @@ from api.models import (
     SiteModel,
     ExceedanceModel,
 )
+
 # Middlewares
-from api.utils.data_formatters import format_to_aqcsv
 from api.utils.http import create_response, Status
 from api.utils.pollutants import (
     generate_pie_chart_data,
@@ -19,77 +19,8 @@ from api.utils.pollutants import (
     PM_COLOR_CATEGORY,
     set_pm25_category_background,
 )
-from api.utils.request_validators import validate_request_params, validate_request_json
+from api.utils.request_validators import validate_request_json
 from main import rest_api
-
-
-@rest_api.route("/data/download")
-class DownloadCustomisedDataResource(Resource):
-    @swag_from("/api/docs/dashboard/download_custom_data_post.yml")
-    @validate_request_params("downloadType|optional:data")
-    @validate_request_json(
-        "sites|optional:list",
-        "startDate|required:datetime",
-        "endDate|required:datetime",
-        "frequency|optional:str",
-        "pollutants|optional:list",
-        "device_numbers|optional:list",
-    )
-    def post(self):
-        json_data = request.get_json()
-
-        start_date = json_data["startDate"]
-        end_date = json_data["endDate"]
-
-        tenant = request.args.get("tenant", "").lower()
-        output_format = request.args.get("outputFormat", "").lower()
-        download_type = request.args.get("downloadType", "csv")
-
-        sites = json_data.get("sites", [])
-        device_numbers = json_data.get("device_numbers", [])
-        frequency = json_data.get("frequency", "hourly")
-        pollutants = json_data.get("pollutants", [])
-        postfix = "-"
-
-        if tenant.lower() == "urbanbetter":
-            frequency = "raw"
-            data = EventsModel.bigquery_mobile_device_measurements(
-                tenant=tenant,
-                device_numbers=device_numbers,
-                start_date_time=start_date,
-                end_date_time=end_date,
-            )
-        else:
-            data = EventsModel.from_bigquery(
-                tenant=tenant,
-                sites=sites,
-                start_date=start_date,
-                end_date=end_date,
-                frequency=frequency,
-                pollutants=pollutants,
-                output_format=output_format,
-            )
-
-            if output_format == "aqcsv":
-                data = format_to_aqcsv(
-                    data=data, frequency="hourly", pollutants=pollutants
-                )
-                postfix = "-aqcsv-"
-
-        if download_type == "csv":
-            return excel.make_response_from_records(
-                data, "csv", file_name=f"{tenant}-air-quality-{frequency}{postfix}data"
-            )
-        elif download_type == "json":
-            return (
-                create_response("air-quality data download successful", data=data),
-                Status.HTTP_200_OK,
-            )
-        else:
-            return (
-                create_response(f"unknown data format {download_type}", success=False),
-                Status.HTTP_400_BAD_REQUEST,
-            )
 
 
 @rest_api.route("/dashboard/chart/data")
@@ -125,7 +56,6 @@ class ChartDataResource(Resource):
         chart_labels = []
 
         for record in data:
-
             site = record.get("site", {})
 
             site_name = f"{site.get('name') or site.get('description') or site.get('generated_name')}"
@@ -279,7 +209,6 @@ class DailyAveragesResource(Resource):
         background_colors = []
 
         for v in data:
-
             value = v.get("value", None)
             site_id = v.get("site_id", None)
 

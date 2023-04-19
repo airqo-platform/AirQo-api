@@ -317,59 +317,6 @@ const generateFilter = {
     let regex = `${element}`;
     return regex;
   },
-  devices_v0: (
-    name,
-    channel,
-    location,
-    siteName,
-    mapAddress,
-    primary,
-    active
-  ) => {
-    let filter = {};
-
-    if (name) {
-      filter["name"] = name;
-    }
-
-    if (channel) {
-      filter["device_number"] = channel;
-    }
-
-    if (location) {
-      filter["locationID"] = location;
-    }
-
-    if (siteName) {
-      filter["siteName"] = siteName;
-    }
-
-    if (mapAddress) {
-      filter["locationName"] = mapAddress;
-    }
-
-    if (primary) {
-      const primaryStr = primary + "";
-      if (primaryStr.toLowerCase() == "yes") {
-        filter["isPrimaryInLocation"] = true;
-      } else if (primaryStr.toLowerCase() == "no") {
-        filter["isPrimaryInLocation"] = false;
-      } else {
-      }
-    }
-
-    if (active) {
-      const activeStr = active + "";
-      if (activeStr.toLowerCase() == "yes") {
-        filter["isActive"] = true;
-      } else if (activeStr.toLowerCase() == "no") {
-        filter["isActive"] = false;
-      } else {
-      }
-    }
-    logObject("the filter we are sending", filter);
-    return filter;
-  },
   devices: (req) => {
     try {
       let filter = {};
@@ -394,6 +341,7 @@ const generateFilter = {
         device_number,
         category,
         network,
+        visibility,
       } = req.query;
 
       if (name) {
@@ -489,11 +437,19 @@ const generateFilter = {
 
       if (active) {
         const activeStr = active + "";
-        if (activeStr.toLowerCase() == "yes") {
+        if (activeStr.toLowerCase() === "yes") {
           filter["isActive"] = true;
-        } else if (activeStr.toLowerCase() == "no") {
+        } else if (activeStr.toLowerCase() === "no") {
           filter["isActive"] = false;
-        } else {
+        }
+      }
+
+      if (visibility) {
+        const visibilityStr = visibility + "";
+        if (visibilityStr.toLowerCase() === "yes") {
+          filter["visibility"] = true;
+        } else if (visibilityStr.toLowerCase() === "no") {
+          filter["visibility"] = false;
         }
       }
 
