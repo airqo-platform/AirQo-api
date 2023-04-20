@@ -71,6 +71,7 @@ const deviceSchema = new mongoose.Schema(
     long_name: {
       type: String,
       trim: true,
+      unique: true,
     },
     visibility: {
       type: Boolean,
