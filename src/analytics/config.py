@@ -42,7 +42,9 @@ class Config:
 
     BIGQUERY_RAW_DATA = env_var("BIGQUERY_RAW_DATA")
     BIGQUERY_HOURLY_DATA = env_var("BIGQUERY_HOURLY_DATA")
+    BIGQUERY_BAM_DATA = env_var("BIGQUERY_BAM_DATA")
     BIGQUERY_DAILY_DATA = env_var("BIGQUERY_DAILY_DATA")
+    DATA_EXPORT_LIMIT = os.getenv("DATA_EXPORT_LIMIT", 2000)
 
     SWAGGER = {
         "swagger": "2.0",

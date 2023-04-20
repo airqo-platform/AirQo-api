@@ -325,7 +325,7 @@ jobs:
             --port=4001 \
             --cpu=1000m \
             --memory=256Mi \
-            --update-secrets=/etc/env/.env=sta-env-device-monitoring:latest \
+            --update-secrets=/etc/env/.env=sta-env-device-monitoring:latest,/etc/config/google_application_credentials.json=sta-key-device-monitoring-service-account:latest \
             --command="/bin/sh","-c","cat /etc/env/.env >> /app/.env; flask run --host=0.0.0.0" \
             --allow-unauthenticated
 

@@ -6,7 +6,7 @@ const ActivityModel = (tenant) => {
 };
 const createDeviceUtil = require("./create-device");
 const createSiteUtil = require("./create-site");
-const httpStatus = require("http-status");
+const HTTPStatus = require("http-status");
 const { addMonthsToProvideDateTime } = require("./date");
 const generateFilter = require("./generate-filter");
 const constants = require("@config/constants");
@@ -44,7 +44,7 @@ const createActivity = {
           return {
             success: false,
             message: `Device ${deviceName} already recalled`,
-            status: httpStatus.CONFLICT,
+            status: HTTPStatus.CONFLICT,
           };
         }
       } else if (type === "deploy") {
@@ -65,7 +65,7 @@ const createActivity = {
           return {
             success: false,
             message: `Device ${deviceName} already deployed`,
-            status: httpStatus.CONFLICT,
+            status: HTTPStatus.CONFLICT,
           };
         }
       } else if (type === "maintain") {
@@ -107,7 +107,7 @@ const createActivity = {
       return {
         message: "Internal Server Error",
         errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -135,7 +135,7 @@ const createActivity = {
       return {
         message: "Internal Server Error",
         errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
         success: false,
       };
     }
@@ -161,7 +161,7 @@ const createActivity = {
       return {
         message: "Internal Server Error",
         errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -238,6 +238,8 @@ const createActivity = {
             : 0;
           deviceBody["body"]["site_id"] = site_id;
           deviceBody["body"]["isActive"] = true;
+          deviceBody["body"]["deployment_date"] =
+            (date && new Date(date)) || new Date();
           deviceBody["body"]["status"] = "deployed";
           deviceBody["query"]["name"] = deviceName;
           deviceBody["query"]["tenant"] = tenant;
@@ -288,7 +290,7 @@ const createActivity = {
           return {
             success: false,
             message: "unable to find one site record for this operation",
-            status: httpStatus.NOT_FOUND,
+            status: HTTPStatus.NOT_FOUND,
             errors: {
               message: "unable to find the provided site",
             },
@@ -330,6 +332,8 @@ const createActivity = {
       deviceBody["body"]["longitude"] = "";
       deviceBody["body"]["isActive"] = false;
       deviceBody["body"]["status"] = "recalled";
+      deviceBody["body"]["site_id"] = null;
+      deviceBody["body"]["recall_date"] = new Date();
       deviceBody["query"]["name"] = deviceName;
       deviceBody["query"]["tenant"] = tenant;
 
@@ -416,6 +420,8 @@ const createActivity = {
         date && new Date(date),
         3
       );
+      deviceBody["body"]["maintenance_date"] =
+        (date && new Date(date)) || new Date();
       deviceBody["query"]["name"] = deviceName;
       deviceBody["query"]["tenant"] = tenant;
 

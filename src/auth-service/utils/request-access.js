@@ -1,6 +1,6 @@
 const UserSchema = require("../models/User");
 const CandidateSchema = require("../models/Candidate");
-const { getModelByTenant } = require("./multitenancy");
+const { getModelByTenant } = require("@config/dbConnection");
 const { logObject, logElement, logText } = require("./log");
 const mailer = require("./mailer");
 const isEmpty = require("is-empty");
@@ -97,12 +97,12 @@ const requestAccess = {
                 status,
               });
             } else if (responseFromSendEmail.success === false) {
-              const errors = responseFromSendEmail.error
-                ? responseFromSendEmail.error
+              const errors = responseFromSendEmail.errors
+                ? responseFromSendEmail.errors
                 : { message: "Internal Server Error" };
               const status = responseFromSendEmail.status
                 ? responseFromSendEmail.status
-                : httpStatus.BAD_GATEWAY;
+                : httpStatus.INTERNAL_SERVER_ERROR;
 
               callback({
                 success: false,
@@ -336,31 +336,10 @@ const requestAccess = {
                 data: jsonifyCreatedUser,
               };
             } else if (responseFromDeleteCandidate.success === false) {
-              if (responseFromDeleteCandidate.error) {
-                return {
-                  success: false,
-                  message: responseFromDeleteCandidate.message,
-                  data: responseFromDeleteCandidate.data,
-                  error: responseFromDeleteCandidate.error,
-                };
-              } else {
-                return {
-                  success: false,
-                  message: responseFromDeleteCandidate.message,
-                  data: responseFromDeleteCandidate.data,
-                };
-              }
+              return responseFromDeleteCandidate;
             }
           } else if (responseFromSendEmail.success === false) {
-            const error = responseFromSendEmail.error
-              ? responseFromSendEmail.error
-              : {};
-
-            return {
-              success: false,
-              message: responseFromSendEmail.message,
-              error,
-            };
+            return responseFromSendEmail;
           }
         } else if (responseFromCreateUser.success === false) {
           return responseFromCreateUser;
@@ -403,32 +382,12 @@ const requestAccess = {
 
   delete: async (tenant, filter) => {
     try {
-      let responseFromRemoveCandidate = await CandidateModel(
+      const responseFromRemoveCandidate = await CandidateModel(
         tenant.toLowerCase()
       ).remove({
         filter,
       });
-
-      if (responseFromRemoveCandidate.success == true) {
-        return {
-          success: true,
-          message: responseFromRemoveCandidate.message,
-          data: responseFromRemoveCandidate.data,
-        };
-      } else if (responseFromRemoveCandidate.success == false) {
-        if (responseFromRemoveCandidate.error) {
-          return {
-            success: false,
-            message: responseFromRemoveCandidate.message,
-            error: responseFromRemoveCandidate.error,
-          };
-        } else {
-          return {
-            success: false,
-            message: responseFromRemoveCandidate.message,
-          };
-        }
-      }
+      return responseFromRemoveCandidate;
     } catch (e) {
       return {
         success: false,

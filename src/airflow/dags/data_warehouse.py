@@ -71,7 +71,6 @@ def data_warehouse_consolidated_data():
 
     @task()
     def load(data: pd.DataFrame):
-
         from airqo_etl_utils.bigquery_api import BigQueryApi
         from airqo_etl_utils.data_validator import DataValidationUtils
         from airqo_etl_utils.constants import Tenant

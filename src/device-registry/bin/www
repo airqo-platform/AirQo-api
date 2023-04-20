@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 const app = require("../app");
-const constants = require("../config/constants");
+const constants = require("@config/constants");
 const middlewareConfig = require("../config/app.middleware");
 const debug = require('debug')('log4js-example');
 const cluster = require('express-cluster');
@@ -14,7 +14,60 @@ const logger = log4js.getLogger(
     `${constants.ENVIRONMENT} -- start-script`
 );
 const server = http.createServer(app);
+const { logText, logObject, logElement } = require("@utils/log")
+const createEvent = require("@utils/create-event");
+const { Kafka } = require('kafkajs');
+const Joi = require('joi');
+const mongoose = require("mongoose");
+const ObjectId = mongoose.Types.ObjectId;
 
+const { jsonrepair } = require('jsonrepair')
+const cleanDeep = require('clean-deep');
+
+const eventSchema = Joi.object({
+    "s2_pm2_5": Joi.number().optional(),
+    "s2_pm10": Joi.number().optional(),
+    "longitude": Joi.number().precision(5).optional(),
+    "satellites": Joi.number().optional(),
+    "hdop": Joi.number().optional(),
+    "altitude": Joi.number().optional(),
+    "s1_pm2_5": Joi.number().optional(),
+    "battery": Joi.number().optional(),
+    "device_humidity": Joi.number().optional(),
+    "s1_pm10": Joi.number().optional(),
+    "device_temperature": Joi.number().optional(),
+    "latitude": Joi.number().precision(5).optional(),
+    "pm2_5_raw_value": Joi.number().optional(),
+    "pm2_5": Joi.number().optional(),
+    "pm10_raw_value": Joi.number().optional(),
+    "pm10": Joi.number().optional(),
+    "timestamp": Joi.date().iso().required(),
+    "device_id": Joi.string().empty('').required(),
+    "site_id": Joi.string().required(),
+    "device_number": Joi.number().optional(),
+    "atmospheric_pressure": Joi.number().optional(),
+    "humidity": Joi.number().optional(),
+    "temperature": Joi.number().optional(),
+    "wind_direction": Joi.number().optional(),
+    "wind_gusts": Joi.number().optional(),
+    "radiation": Joi.number().optional(),
+    "wind_speed": Joi.number().optional(),
+    "vapor_pressure": Joi.number().optional(),
+    "precipitation": Joi.number().optional(),
+    "station_code": Joi.string().empty('').optional(),
+    "pm2_5_calibrated_value": Joi.number().optional(),
+    "pm10_calibrated_value": Joi.number().optional()
+}).unknown(true);
+
+const eventsSchema = Joi.array().items(eventSchema);
+
+logObject("KAFKA_BOOTSTRAP_SERVERS", constants.KAFKA_BOOTSTRAP_SERVERS)
+
+// Set up the Kafka client
+const kafka = new Kafka({
+    clientId: constants.KAFKA_CLIENT_ID,
+    brokers: constants.KAFKA_BOOTSTRAP_SERVERS
+});
 
 /***
  *  make a log directory, just in case it isn't there.
@@ -35,9 +88,96 @@ try {
 try {
     middlewareConfig(app);
 } catch (e) {
-    console.log("middleware error", e.message);
+    logElement("middleware error", e.message)
 }
 
+// Set up the Kafka consumer
+const consumer = kafka.consumer({ groupId: constants.UNIQUE_CONSUMER_GROUP });
+
+// Function to start consuming KAFKA messages
+const run = async() => {
+    await consumer.connect();
+    await consumer.subscribe({ topic: constants.HOURLY_MEASUREMENTS_TOPIC, fromBeginning: true });
+    await consumer.run({
+        eachMessage: async({ topic, partition, message }) => {
+            if (isEmpty(message)) {
+                logger.error(
+                    `KAFKA: the sent message in undefined --- ${JSON.stringify(
+                        message
+            )}`
+                );
+            }
+            try {
+                // logObject("JSON.parse(message.value.toString()", JSON.parse(message.value))
+                const repairedJSONString = jsonrepair(message.value.toString())
+                logObject("original string", message.value.toString())
+                logObject("repaired string", repairedJSONString)
+                const measurements = JSON.parse(repairedJSONString).data;
+                // const measurements = JSON.parse(repairedJSONString);
+                if (!Array.isArray(measurements) || isEmpty(measurements)) {
+                    logger.error(
+                        `KAFKA: the sent measurements are not an array or they are just empty (undefined) --- ${JSON.stringify(
+                  measurements
+                )}`
+                    );
+                } else {
+                    const cleanedMeasurements = measurements.map(obj => cleanDeep(obj, { cleanValues: ["NaN"] }));
+                    const options = {
+                        abortEarly: false,
+                    };
+                    const { error, value } = eventsSchema.validate(cleanedMeasurements, options);
+
+                    if (error) {
+                        logObject("error.details[0].message", error.details[0].message)
+                        logObject("error.details[0]", error.details[0])
+                        logObject("error.details", error.details)
+                        logger.error(
+                            `KAFKA: ALL the input validation errors --- ${JSON.stringify(error.details)}`
+                        );
+                    } else {
+                        logObject("value", value)
+                        logObject("cleanedMeasurements", cleanedMeasurements)
+                        const request = {
+                            body: cleanedMeasurements
+                        }
+                        const responseFromInsertMeasurements = await createEvent.create(
+                            request
+                        );
+
+                        logObject("responseFromInsertMeasurements", responseFromInsertMeasurements)
+
+                        if (responseFromInsertMeasurements.success === false) {
+                            //         logger.error(
+                            //             `KAFKA: responseFromInsertMeasurements --- ${JSON.stringify(
+                            //   responseFromInsertMeasurements
+                            // )}`
+                            //         );
+                        } else if (responseFromInsertMeasurements.success === true) {
+                            logger.info(
+                                `KAFKA: successfully inserted the measurements --- ${JSON.stringify(responseFromInsertMeasurements.message ?
+                                responseFromInsertMeasurements.message :
+                                "")}`
+                            );
+                        }
+                    }
+
+                }
+
+            } catch (error) {
+                logObject("error", error)
+                logger.info(`incoming KAFKA value which is causing errors --- ${message.value.toString()}`)
+                logger.info(`incoming KAFKA value's TYPE which is causing errors --- ${typeof message.value}`)
+                logger.error(
+                    `KAFKA: error message --- ${error.message}`
+                );
+                logger.error(
+                    `KAFKA: full error object --- ${JSON.stringify(error)}`
+                );
+            }
+
+        },
+    });
+};
 /***
  * start up a cluster
  */
@@ -49,6 +189,17 @@ cluster(function() {
     //Create HTTP server.
     //Listen on provided port, on all network interfaces.
     server.listen(port, function() {
+        /**
+         * only run KAFKA in staging for now --- as we continue to do QA tests
+         */
+        if (constants.ENVIRONMENT === "STAGING ENVIRONMENT") {
+            run().catch(error => {
+                logger.error(`KAFKA: internal server error -- ${JSON.stringify(error)}`);
+            });
+        }
+        logElement('Express server listening on port ', server.address().port)
+        logElement('Express server listening with pid ', process.pid)
+
         // logger.info('Express server listening on port ', server.address().port, " with pid ", process.pid);
     });
     server.on("error", onError);
@@ -118,8 +269,8 @@ if (isEmpty(process.env.NODE_ENV)) {
 }
 
 function onListening() {
-    console.log(`server is running on port: ${constants.PORT} ---
-Running on ${ENV}`);
+    logText(`server is running on port: ${constants.PORT}`)
+    console.log(`The server is running on the ${ENV} environment`)
     const addr = server.address();
     const bind = typeof addr === "string" ? "pipe " + addr : "port " + addr.port;
     debug("Listening on " + bind);

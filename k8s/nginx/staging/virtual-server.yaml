@@ -16,6 +16,23 @@ spec:
 
 ---
 apiVersion: k8s.nginx.org/v1
+kind: VirtualServerRoute
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  host: staging-platform.airqo.net
+  upstreams:
+    - name: grafana
+      service: grafana
+      port: 3000
+  subroutes:
+    - path: /grafana
+      action:
+        pass: grafana
+
+---
+apiVersion: k8s.nginx.org/v1
 kind: VirtualServer
 metadata:
   name: staging-virtual-server
@@ -74,6 +91,8 @@ spec:
         pass: platform-ui
     - path: /airflow
       route: pipeline/airflow
+    - path: /grafana
+      route: monitoring/grafana
     - path: ~ /api\/v[1-2]\/users
       action:
         proxy:

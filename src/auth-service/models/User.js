@@ -134,6 +134,7 @@ const UserSchema = new Schema(
     profilePicture: {
       type: String,
     },
+    google_id: { type: String, trim: true },
   },
   { timestamps: true }
 );
@@ -143,25 +144,6 @@ UserSchema.pre("save", function (next) {
     this.password = bcrypt.hashSync(this.password, saltRounds);
   }
   return next();
-});
-
-UserSchema.pre("findOneAndUpdate", function () {
-  let that = this;
-  const update = that.getUpdate();
-  if (update.__v != null) {
-    delete update.__v;
-  }
-  const keys = ["$set", "$setOnInsert"];
-  for (const key of keys) {
-    if (update[key] != null && update[key].__v != null) {
-      delete update[key].__v;
-      if (Object.keys(update[key]).length === 0) {
-        delete update[key];
-      }
-    }
-  }
-  update.$inc = update.$inc || {};
-  update.$inc.__v = 1;
 });
 
 UserSchema.pre("update", function (next) {
@@ -177,7 +159,7 @@ UserSchema.index({ userName: 1 }, { unique: true });
 UserSchema.statics = {
   async register(args) {
     try {
-      data = await this.create({
+      const data = await this.create({
         ...args,
       });
       if (!isEmpty(data)) {
@@ -192,7 +174,7 @@ UserSchema.statics = {
           success: true,
           data,
           message: "operation successful but user NOT successfully created",
-          status: httpStatus.NOT_FOUND,
+          status: httpStatus.BAD_REQUEST,
         };
       }
     } catch (err) {
@@ -216,9 +198,50 @@ UserSchema.statics = {
       }
       return {
         error: response,
+        errors: response,
         message,
         success: false,
         status,
+      };
+    }
+  },
+  async listStatistics() {
+    try {
+      const response = await this.aggregate()
+        .match({})
+        .sort({ createdAt: -1 })
+        .group({
+          _id: null,
+          count: { $sum: 1 },
+          active: { $sum: { $cond: ["$isActive", 1, 0] } },
+        })
+        .project({
+          _id: 0,
+        })
+        .allowDiskUse(true);
+
+      if (!isEmpty(response)) {
+        return {
+          success: true,
+          message: "successfully retrieved the user statistics",
+          data: response,
+          status: httpStatus.OK,
+        };
+      } else if (isEmpty(response)) {
+        return {
+          success: true,
+          message: "no users statistics exist",
+          data: [],
+          status: httpStatus.OK,
+        };
+      }
+    } catch (error) {
+      logObject("error", error);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -240,6 +263,8 @@ UserSchema.statics = {
         networks: "$networks",
         access_tokens: "$access_tokens",
         permissions: "$permissions",
+        createdAt: 1,
+        updatedAt: 1,
       };
 
       const projectSummary = {};
@@ -248,8 +273,8 @@ UserSchema.statics = {
         .match(filter)
         .lookup({
           from: "networks",
-          localField: "_id",
-          foreignField: "net_users",
+          localField: "networks",
+          foreignField: "_id",
           as: "networks",
         })
         .lookup({
@@ -321,15 +346,14 @@ UserSchema.statics = {
           "groups.updatedAt": 0,
         })
         .skip(skip ? skip : 0)
-        .limit(limit ? limit : 100)
+        .limit(limit ? limit : parseInt(constants.DEFAULT_LIMIT))
         .allowDiskUse(true);
 
       if (!isEmpty(response)) {
-        let data = response;
         return {
           success: true,
           message: "successfully retrieved the user details",
-          data,
+          data: response,
           status: httpStatus.OK,
         };
       } else if (isEmpty(response)) {
@@ -337,7 +361,7 @@ UserSchema.statics = {
           success: true,
           message: "no users exist",
           data: [],
-          status: httpStatus.NOT_FOUND,
+          status: httpStatus.OK,
         };
       }
     } catch (error) {
@@ -350,7 +374,6 @@ UserSchema.statics = {
       };
     }
   },
-
   async modify({ filter = {}, update = {} } = {}) {
     try {
       let options = { new: true };
@@ -405,7 +428,7 @@ UserSchema.statics = {
         return {
           success: true,
           message: "user does not exist, please crosscheck",
-          status: httpStatus.NOT_FOUND,
+          status: httpStatus.BAD_REQUEST,
           data: [],
         };
       }
@@ -414,6 +437,7 @@ UserSchema.statics = {
         success: false,
         message: "INTERNAL SERVER ERROR",
         error: error.message,
+        errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -436,7 +460,7 @@ UserSchema.statics = {
         return {
           success: true,
           message: "user does not exist, please crosscheck",
-          status: httpStatus.NOT_FOUND,
+          status: httpStatus.BAD_REQUEST,
           data: [],
         };
       }
@@ -492,7 +516,7 @@ UserSchema.statics = {
           success: true,
           message: "no users exist",
           data: [],
-          status: httpStatus.NOT_FOUND,
+          status: httpStatus.BAD_REQUEST,
         };
       }
     } catch (error) {
@@ -526,6 +550,8 @@ UserSchema.methods = {
         country: this.country,
         profilePicture: this.profilePicture,
         phoneNumber: this.phoneNumber,
+        createdAt: this.createdAt,
+        updatedAt: this.updatedAt,
       },
       constants.JWT_SECRET
     );

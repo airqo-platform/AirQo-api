@@ -228,11 +228,10 @@ AccessTokenSchema.statics = {
 
       logObject("the response", response);
       if (!isEmpty(response)) {
-        let data = response;
         return {
           success: true,
           message: "successfully retrieved the token details",
-          data,
+          data: response,
           status: httpStatus.OK,
         };
       } else if (isEmpty(response)) {

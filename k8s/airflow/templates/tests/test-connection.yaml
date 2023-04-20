@@ -13,3 +13,4 @@ spec:
       command: ['wget']
       args:  ['{{ include "airflow.fullname" . }}:{{ .Values.service.port }}']
   restartPolicy: Never
+  

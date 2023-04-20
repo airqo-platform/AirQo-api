@@ -9,8 +9,6 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-activity-controller`
 );
 const createActivityUtil = require("@utils/create-activity");
-// const { runActivitiesUpdates } = require("@scripts/bulk-update");
-// const { runActivitiesAdditions } = require("@scripts/bulk-create");
 const errors = require("@utils/errors");
 
 const activity = {
@@ -253,34 +251,6 @@ const activity = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      request["body"] = body;
-      request["query"] = query;
-      let responseFromCreateActivities = await runActivitiesAdditions({
-        network,
-      });
-      logObject("responseFromCreateActivities", responseFromCreateActivities);
-      if (responseFromCreateActivities.success === true) {
-        const status = responseFromCreateActivities.status
-          ? responseFromCreateActivities.status
-          : HTTPStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: responseFromCreateActivities.message,
-          updated_activities: responseFromCreateActivities.data,
-        });
-      } else if (responseFromCreateActivities.success === false) {
-        const status = responseFromCreateActivities.status
-          ? responseFromCreateActivities.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
-
-        return res.status(status).json({
-          success: false,
-          message: responseFromCreateActivities.message,
-          errors: responseFromCreateActivities.errors
-            ? responseFromCreateActivities.errors
-            : { message: "" },
-        });
-      }
     } catch (error) {
       logObject("error", error);
       logger.error(`internal server error -- ${error.message}`);
@@ -321,33 +291,6 @@ const activity = {
           "bad request errors",
           errors.convertErrorArrayToObject(nestedErrors)
         );
-      }
-      request["body"] = body;
-      request["query"] = query;
-      let responseFromUpdateActivities = await runActivitiesUpdates({
-        network,
-      });
-      if (responseFromUpdateActivities.success === true) {
-        const status = responseFromUpdateActivities.status
-          ? responseFromUpdateActivities.status
-          : HTTPStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: responseFromUpdateActivities.message,
-          updated_activities: responseFromUpdateActivities.data,
-        });
-      } else if (responseFromUpdateActivities.success === false) {
-        const status = responseFromUpdateActivities.status
-          ? responseFromUpdateActivities.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
-
-        return res.status(status).json({
-          success: false,
-          message: responseFromUpdateActivities.message,
-          errors: responseFromUpdateActivities.errors
-            ? responseFromUpdateActivities.errors
-            : { message: "" },
-        });
       }
     } catch (error) {
       logObject("error", error);

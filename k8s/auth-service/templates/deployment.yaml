@@ -4,7 +4,7 @@ metadata:
   name: {{ .Values.app.name }}
   namespace: {{ .Values.app.namespace }}
   labels:
-    {{- include "airqo-analytics-api.labels" . | nindent 4 }}
+    {{- include "airqo-auth-api.labels" . | nindent 4 }}
 spec:
   selector:
     matchLabels:
@@ -46,7 +46,7 @@ spec:
       containers:
         - name: {{ .Values.app.label }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: {{ .Values.service.targetPort }}
               name: {{ .Values.app.label }}

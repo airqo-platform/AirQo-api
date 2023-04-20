@@ -39,7 +39,7 @@ spec:
       containers:
         - name: {{ .Values.app.label }}
           image: "{{ .Values.images.repositories.api }}:{{ .Values.images.tag }}"
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: {{ .Values.service.targetPort }}
           # livenessProbe:
@@ -64,7 +64,7 @@ spec:
             {{- toYaml .Values.resources | nindent 12 }}
         - name: sites-consumer
           image: "{{ .Values.images.repositories.sitesConsumer }}:{{ .Values.images.tag }}"
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           envFrom:
             - configMapRef:
                 name: {{ .Values.app.configmap }} 
