@@ -6,7 +6,7 @@ app:
 replicaCount: 3
 image:
   repository: eu.gcr.io/airqo-250220/airqo-prediction-api
-  tag: prod-c36c8600-1681741687
+  tag: prod-8144da89-1681967048
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
