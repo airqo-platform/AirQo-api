@@ -183,7 +183,7 @@ const run = async() => {
 
 /**
  * emit latest measurements to connnected clients
- * every 5 seconds
+ * every 30 minutes
  */
 const emitLatestMeasurements = async() => {
     setInterval(async() => {
@@ -191,7 +191,7 @@ const emitLatestMeasurements = async() => {
             let request = {};
             request["query"] = {};
             request["query"]["tenant"] = "airqo";
-            request["query"]["external"] = "no";
+            request["query"]["recent"] = "yes";
             request["query"]["metadata"] = "site_id";
             request["query"]["brief"] = "yes";
             await createEventUtil.list(request, (result) => {
@@ -205,7 +205,7 @@ const emitLatestMeasurements = async() => {
         } catch (error) {
             logger.error(`WEBSOCKET: Internal Server Error -- ${JSON.stringify(error)}`);
         }
-    }, 5000);
+    }, 1800);
 }
 
 
