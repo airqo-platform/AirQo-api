@@ -10,8 +10,7 @@ from config import Config
 
 class MessageBroker:
     @staticmethod
-    def listen_to_message_broker(tenant: str):
-
+    def listen_to_message_broker():
         client = MongoClient(Config.GP_MODEL_DB_URI)
         db_client = client[f"{Config.GP_MODEL_DB}"]
 
@@ -19,9 +18,7 @@ class MessageBroker:
             bootstrap_servers=Config.BOOTSTRAP_SERVERS,
             value_deserializer=lambda x: json.loads(x.decode("utf-8")),
         )
-        consumer.subscribe(
-            [Config.MEASUREMENTS_TOPIC, Config.AIRQLOUDS_TOPIC, Config.DEVICES_TOPIC]
-        )
+        consumer.subscribe([Config.MEASUREMENTS_TOPIC, Config.AIRQLOUDS_TOPIC])
 
         print(f"Listening to {consumer.topics()} .....")
 
@@ -31,39 +28,52 @@ class MessageBroker:
                 topic = msg.topic
 
                 if topic == Config.MEASUREMENTS_TOPIC:
-                    data = [{"device": row["device_id"], "tenant": row.get("tenant"),
-                             "pm2_5_calibrated": row["pm2_5_calibrated_value"],
-                             "pm2_5_raw": row["pm2_5_raw_value"],
-                             "timestamp": row["timestamp"],
-                             "longitude": row.get("device_longitude", None),
-                             "latitude": row.get("device_latitude")
-                             }
-                            for row in data]
+                    print(f"received measurements data {data}")
+                    try:
+                        data = [
+                            {
+                                "site_id": row["site_id"],
+                                "network": row.get("network"),
+                                "pm2_5_calibrated_value": row["pm2_5_calibrated_value"],
+                                "pm2_5_raw_value": row["pm2_5_raw_value"],
+                                "pm10_calibrated_value": row["pm10_calibrated_value"],
+                                "pm10_raw_value": row["pm10_raw_value"],
+                                "timestamp": row["timestamp"],
+                                "site_longitude": row.get("site_longitude"),
+                                "site_latitude": row.get("site_latitude"),
+                            }
+                            for row in data
+                        ]
 
-                    data = list(filter(lambda y: y["network"] == tenant, data))
-
-                    db_client.measurements.insert_many(data)
+                        db_client.measurements.insert_many(data)
+                        print(f"saved measurements data {data}")
+                    except Exception as ex:
+                        print(ex)
+                        traceback.print_exc()
 
                 elif topic == Config.AIRQLOUDS_TOPIC:
-                    # data = [{"id": row["_id"], "airqloud": row.get("long_name"),
-                    #          "admin_level": row.get("admin_level")
-                    #          , "coordinates": row.get("location").get("coordinates")
-                    #          }
-                    #         for row in data]
+                    try:
+                        print(f"received airqlouds data {data}")
+                        data = [
+                            {
+                                "_id": row["_id"],
+                                "long_name": row.get("long_name", ""),
+                                "network": row.get("network"),
+                                "admin_level": row.get("admin_level"),
+                                "name": row.get("name", ""),
+                                "sites": row.get("sites"),
+                                "center_point": row.get("center_point", {}),
+                                "coordinates": row.get("location").get("coordinates"),
+                            }
+                            for row in data
+                        ]
 
-                    data = list(filter(lambda y: y["network"] == tenant, data))
+                        db_client.airqlouds.insert_many(data)
+                        print(f"saved airqlouds data {data}")
+                    except Exception as ex:
+                        print(ex)
+                        traceback.print_exc()
 
-                    db_client.airqlouds.insert_many(data)
-
-                elif topic == Config.DEVICES_TOPIC:
-                    # data = [
-                    #     {"device": row["device_id"], "tenant": row.get("tenant")}
-                    #     for row in data
-                    # ]
-
-                    data = list(filter(lambda y: y["tenant"] == tenant, data))
-
-                    db_client.deivces.insert_many(data)
             except Exception as ex:
                 print(ex)
                 traceback.print_exc()
@@ -78,4 +88,4 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-    MessageBroker.listen_to_message_broker(args.tenant)
+    MessageBroker.listen_to_message_broker()
