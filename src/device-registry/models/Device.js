@@ -71,6 +71,7 @@ const deviceSchema = new mongoose.Schema(
     long_name: {
       type: String,
       trim: true,
+      unique: true,
     },
     visibility: {
       type: Boolean,
@@ -110,6 +111,13 @@ const deviceSchema = new mongoose.Schema(
     device_codes: [
       {
         type: String,
+        trim: true,
+      },
+    ],
+
+    previous_sites: [
+      {
+        type: ObjectId,
         trim: true,
       },
     ],
@@ -354,13 +362,19 @@ deviceSchema.statics = {
       // logger.info(
       //   `the type of filter received in the model -- ${typeof filter}`
       // );
-      let response = await this.aggregate()
+      const response = await this.aggregate()
         .match(filter)
         .lookup({
           from: "sites",
           localField: "site_id",
           foreignField: "_id",
           as: "site",
+        })
+        .lookup({
+          from: "sites",
+          localField: "previous_sites",
+          foreignField: "_id",
+          as: "previous_sites",
         })
         .sort({ createdAt: -1 })
         .project({
@@ -389,13 +403,13 @@ deviceSchema.statics = {
           writeKey: 1,
           readKey: 1,
           access_code: 1,
-          pictures: 1,
           device_codes: 1,
           height: 1,
           mobility: 1,
           status: 1,
           network: 1,
           category: 1,
+          previous_sites: 1,
           site: { $arrayElemAt: ["$site", 0] },
         })
         .project({
@@ -433,6 +447,49 @@ deviceSchema.statics = {
           "site.nearest_tahmo_station": 0,
           "site.__v": 0,
         })
+        .project({
+          "previous_sites.lat_long": 0,
+          "previous_sites.country": 0,
+          "previous_sites.district": 0,
+          "previous_sites.sub_county": 0,
+          "previous_sites.parish": 0,
+          "previous_sites.county": 0,
+          "previous_sites.altitude": 0,
+          "previous_sites.altitude": 0,
+          "previous_sites.greenness": 0,
+          "previous_sites.landform_90": 0,
+          "previous_sites.landform_270": 0,
+          "previous_sites.aspect": 0,
+          "previous_sites.distance_to_nearest_road": 0,
+          "previous_sites.distance_to_nearest_primary_road": 0,
+          "previous_sites.distance_to_nearest_secondary_road": 0,
+          "previous_sites.distance_to_nearest_tertiary_road": 0,
+          "previous_sites.distance_to_nearest_unclassified_road": 0,
+          "previous_sites.distance_to_nearest_residential_road": 0,
+          "previous_sites.bearing_to_kampala_center": 0,
+          "previous_sites.distance_to_kampala_center": 0,
+          "previous_sites.generated_name": 0,
+          "previous_sites.updatedAt": 0,
+          "previous_sites.updatedAt": 0,
+          "previous_sites.city": 0,
+          "previous_sites.formatted_name": 0,
+          "previous_sites.geometry": 0,
+          "previous_sites.google_place_id": 0,
+          "previous_sites.region": 0,
+          "previous_sites.previous_sites_tags": 0,
+          "previous_sites.street": 0,
+          "previous_sites.town": 0,
+          "previous_sites.nearest_tahmo_station": 0,
+          "previous_sites.__v": 0,
+          "previous_sites.weather_stations": 0,
+          "previous_sites.latitude": 0,
+          "previous_sites.longitude": 0,
+          "previous_sites.images": 0,
+          "previous_sites.airqlouds": 0,
+          "previous_sites.site_codes": 0,
+          "previous_sites.site_tags": 0,
+          "previous_sites.land_use": 0,
+        })
         .skip(_skip)
         .limit(_limit)
         .allowDiskUse(true);
@@ -464,7 +521,7 @@ deviceSchema.statics = {
   },
   async modify({ filter = {}, update = {}, opts = {} } = {}) {
     try {
-      let modifiedUpdate = update;
+      let modifiedUpdate = Object.assign({}, update);
       modifiedUpdate["$addToSet"] = {};
       delete modifiedUpdate.name;
       delete modifiedUpdate.device_number;
@@ -488,7 +545,14 @@ deviceSchema.statics = {
         delete modifiedUpdate["device_codes"];
       }
 
-      let updatedDevice = await this.findOneAndUpdate(
+      if (modifiedUpdate.previous_sites) {
+        modifiedUpdate["$addToSet"]["previous_sites"] = {};
+        modifiedUpdate["$addToSet"]["previous_sites"]["$each"] =
+          modifiedUpdate.previous_sites;
+        delete modifiedUpdate["previous_sites"];
+      }
+
+      const updatedDevice = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,
         options

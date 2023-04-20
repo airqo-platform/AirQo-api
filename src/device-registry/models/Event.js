@@ -9,8 +9,8 @@ const uniqueValidator = require("mongoose-unique-validator");
 const { logObject, logElement, logText } = require("@utils/log");
 const ObjectId = Schema.Types.ObjectId;
 const constants = require("@config/constants");
-const { isElement, isEmpty } = require("underscore");
-const httpStatus = require("http-status");
+const isEmpty = require("is-empty");
+const HTTPStatus = require("http-status");
 const { getModelByTenant } = require("@utils/multitenancy");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- event-model`);
@@ -378,6 +378,19 @@ eventSchema.index(
   }
 );
 
+eventSchema.index(
+  {
+    "values.time": 1,
+    "values.site_id": 1,
+    day: 1,
+    "values.frequency": 1,
+  },
+  {
+    unique: true,
+    partialFilterExpression: { nValues: { $lt: parseInt(constants.N_VALUES) } },
+  }
+);
+
 eventSchema.pre("save", function() {
   const err = new Error("something went wrong");
   next(err);
@@ -462,6 +475,7 @@ eventSchema.statics = {
         running,
         recent,
         brief,
+        index,
       } = filter;
       let search = filter;
       let groupId = "$device";
@@ -500,6 +514,7 @@ eventSchema.statics = {
       };
       let siteProjection = {};
       let deviceProjection = {};
+      let sort = { time: -1 };
 
       delete search["external"];
       delete search["frequency"];
@@ -510,6 +525,7 @@ eventSchema.statics = {
       delete search["page"];
       delete search["running"];
       delete search["brief"];
+      delete search["index"];
 
       /**
        * The Alternative Flows present in this Events entity:
@@ -636,6 +652,10 @@ eventSchema.statics = {
         });
       }
 
+      if (!isEmpty(index)) {
+        sort = { "values.pm2_5.value": 1 };
+      }
+
       logObject("the query for this request", search);
       if (!recent || recent === "yes") {
         const data = await this.aggregate()
@@ -675,7 +695,7 @@ eventSchema.statics = {
             ],
             as: "healthTips",
           })
-          .sort({ time: -1 })
+          .sort(sort)
           .group({
             _id: "$device",
             device: { $first: "$device" },
@@ -757,7 +777,7 @@ eventSchema.statics = {
           success: true,
           data,
           message: "successfully returned the measurements",
-          status: httpStatus.OK,
+          status: HTTPStatus.OK,
         };
       }
 
@@ -772,7 +792,7 @@ eventSchema.statics = {
             foreignField,
             as,
           })
-          .sort({ time: -1 })
+          .sort(sort)
           .project({
             _device: "$device",
             _time: "$time",
@@ -875,7 +895,7 @@ eventSchema.statics = {
           success: true,
           message: "successfully returned the measurements",
           data,
-          status: httpStatus.OK,
+          status: HTTPStatus.OK,
         };
       }
     } catch (error) {
@@ -884,7 +904,7 @@ eventSchema.statics = {
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },

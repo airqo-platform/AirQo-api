@@ -3,6 +3,7 @@ const airqlouds = require("@routes/v2/airqlouds");
 const sites = require("@routes/v2/sites");
 const devices = require("@routes/v2/devices");
 const events = require("@routes/v2/events");
+const measurements = require("@routes/v2/measurements");
 const locations = require("@routes/v2/locations");
 const photos = require("@routes/v2/photos");
 const tips = require("@routes/v2/tips");
@@ -13,6 +14,7 @@ module.exports = {
   airqlouds,
   devices,
   events,
+  measurements,
   locations,
   photos,
   tips,
