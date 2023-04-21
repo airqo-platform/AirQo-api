@@ -1302,6 +1302,10 @@ const createEvent = {
 
   /**
    * new controllers
+   * we need to query using Site IDs
+   * And then generate cache ID based on Sites, Devices and AirQlouds
+   * These cache IDs based on Sites and AirQlouds will eventually be crucial when
+   * precomputing caches for queries
    */
 
   listByAirQloud: async (req, res) => {
