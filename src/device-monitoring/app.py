@@ -84,6 +84,8 @@ def collocation_task():
     from helpers.collocation import CollocationScheduling
 
     scheduling = CollocationScheduling()
+    scheduling.update_status_from_scheduled_to_running()
+    scheduling.update_running_devices_results()
     scheduling.run_scheduled_collocated_devices()
     scheduling.update_scheduled_status()
 

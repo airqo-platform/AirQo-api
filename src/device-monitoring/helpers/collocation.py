@@ -1,46 +1,166 @@
-from enum import Enum
-
-import numpy as np
 from datetime import datetime, timedelta
-from google.cloud import bigquery
 
 import math
-
+import numpy as np
 import pandas as pd
+from bson import ObjectId
+from google.cloud import bigquery
+
 from app import cache
-
 from config.constants import Config
-from helpers.convert_dates import date_to_str, validate_date
-from models import BaseModel
+from helpers.collocation_utils import (
+    compute_data_completeness,
+    compute_intra_sensor_correlation,
+    compute_statistics,
+    compute_inter_sensor_correlation,
+    compute_differences,
+)
+from helpers.convert_dates import date_to_str
+from models import (
+    BaseModel,
+    CollocationStatus,
+    CollocationData,
+    CollocationResult,
+    MongoBDBaseModel,
+)
 
 
-class CollocationStatus(Enum):
-    SCHEDULED = 1
-    RUNNING = 2
-    PASSED = 3
-    FAILED = 4
-    COMPLETED = 5
+def unpack_collocation_data_docs(docs: list) -> list[CollocationData]:
+    data: list[CollocationData] = []
+    for doc in docs:
+        doc_data = CollocationData(
+            id=str(doc["_id"]),
+            devices=doc["devices"],
+            start_date=doc["start_date"],
+            end_date=doc["end_date"],
+            date_added=doc["date_added"],
+            expected_daily_data_points=doc["expected_daily_data_points"],
+            expected_hourly_records=doc["expected_hourly_records"],
+            inter_correlation_threshold=doc["inter_correlation_threshold"],
+            differences_threshold=doc["differences_threshold"],
+            intra_correlation_threshold=doc["intra_correlation_threshold"],
+            data_completeness_parameter=doc["data_completeness_parameter"],
+            inter_correlation_parameter=doc["inter_correlation_parameter"],
+            inter_correlation_additional_parameters=doc[
+                "inter_correlation_additional_parameters"
+            ],
+            statistics_parameters=doc["statistics_parameters"],
+            intra_correlation_parameter=doc["intra_correlation_parameter"],
+            differences_parameter=doc["differences_parameter"],
+            added_by=doc["added_by"],
+            base_device=doc["base_device"],
+            data_source=doc["data_source"],
+            status=CollocationStatus[doc["status"]],
+            results=CollocationResult(
+                data_completeness=doc["results"]["data_completeness"],
+                statistics=doc["results"]["statistics"],
+                differences=doc["results"]["differences"],
+                intra_sensor_correlation=doc["results"]["intra_sensor_correlation"],
+                inter_sensor_correlation=doc["results"]["inter_sensor_correlation"],
+                data_source=doc["results"]["data_source"],
+            ),
+        )
 
-    def __str__(self) -> str:
-        if self == self.SCHEDULED:
-            return "scheduled"
-        elif self == self.RUNNING:
-            return "running"
-        elif self == self.PASSED:
-            return "passed"
-        elif self == self.FAILED:
-            return "failed"
-        elif self == self.COMPLETED:
-            return "completed"
-        else:
-            return ""
+        data.append(doc_data)
+
+    return data
 
 
-class CollocationScheduling(BaseModel):
+class CollocationScheduling(MongoBDBaseModel):
     def __init__(
         self,
     ):
-        super().__init__("airqo", "collocation")
+        super().__init__("collocation")
+
+    def __query_by_status(self, status: CollocationStatus) -> list[CollocationData]:
+        docs = self.db.collocation.find(
+            {
+                "status": status,
+            }
+        )
+
+        return unpack_collocation_data_docs(docs)
+
+    def __update_status(self, data: CollocationData):
+        filter_set = {"_id": ObjectId(data.id)}
+        update_set = {"$set": {"status": str(data.status)}}
+        self.db.collocation.update_one(filter_set, update_set)
+
+    def __update_results(self, results: CollocationResult, doc_id: str):
+        filter_set = {"_id": ObjectId(doc_id)}
+        update_set = {"$set": {"results": results}}
+        self.db.collocation.update_one(filter_set, update_set)
+
+    @staticmethod
+    def change_status_to_running(x: CollocationData) -> CollocationData:
+        now = datetime.utcnow()
+        updated = x
+        if updated.start_date >= now:
+            updated.status = CollocationStatus.RUNNING
+        return updated
+
+    def update_status_from_scheduled_to_running(self):
+        records = self.__query_by_status(CollocationStatus.SCHEDULED)
+        records = list(map(self.change_status_to_running, records))
+        for record in records:
+            self.__update_status(record)
+
+    def update_running_devices_results(self):
+        records = self.__query_by_status(CollocationStatus.RUNNING)
+        results = list(map(self.compute_results, records))
+        for result in results:
+            self.__update_results(results=result[0], doc_id=result[1])
+
+    @staticmethod
+    def compute_results(
+        collocation_data: CollocationData,
+    ) -> tuple[CollocationResult, str]:
+        data_source = ""
+        data: dict[str, pd.DataFrame] = {}
+        now = datetime.utcnow()
+        end_date_time = (
+            now if now < collocation_data.end_date else collocation_data.end_date
+        )
+
+        data_completeness = compute_data_completeness(
+            data=data,
+            devices=collocation_data.devices,
+            expected_hourly_records=collocation_data.expected_hourly_records,
+            parameter=collocation_data.data_completeness_parameter,
+            start_date_time=collocation_data.start_date,
+            end_date_time=end_date_time,
+        )
+
+        intra_sensor_correlation = compute_intra_sensor_correlation(
+            data=data,
+            threshold=collocation_data.intra_correlation_threshold,
+            parameter=collocation_data.intra_correlation_parameter,
+            devices=collocation_data.devices,
+        )
+        statistics = compute_statistics(
+            data=data, parameters=collocation_data.statistics_parameters
+        )
+        inter_sensor_correlation = compute_inter_sensor_correlation(
+            data=data,
+            threshold=collocation_data.inter_correlation_threshold,
+            devices=collocation_data.devices,
+            parameter=collocation_data.inter_correlation_parameter,
+            other_parameters=collocation_data.inter_correlation_additional_parameters,
+            base_device=collocation_data.base_device,
+        )
+        differences = compute_differences()
+
+        return (
+            CollocationResult(
+                data_completeness=data_completeness,
+                intra_sensor_correlation=intra_sensor_correlation,
+                data_source=data_source,
+                statistics=statistics,
+                inter_sensor_correlation=inter_sensor_correlation,
+                differences=differences,
+            ),
+            collocation_data.id,
+        )
 
     def __get_running_records(self):
         results = self.db.collocation.find(
@@ -110,65 +230,6 @@ class CollocationScheduling(BaseModel):
             record_id = data.pop("_id")
             data["status"] = str(CollocationStatus.RUNNING)
             self.__replace_record(record_id, data)
-
-
-def validate_collocation_request(
-    completeness_threshold,
-    correlation_threshold,
-    expected_records_per_day,
-    devices,
-    start_date,
-    end_date,
-) -> dict:
-    errors = {}
-    try:
-        if not (0 <= completeness_threshold <= 1):
-            raise Exception
-    except Exception:
-        errors["completenessThreshold"] = f"Must be a value between 0 and 1"
-
-    try:
-        if not (0 <= correlation_threshold <= 1):
-            raise Exception
-    except Exception:
-        errors["correlationThreshold"] = f"Must be a value between 0 and 1"
-
-    try:
-        if not (1 <= expected_records_per_day <= 24):
-            raise Exception
-    except Exception:
-        errors["expectedRecordsPerDay"] = f"Must be a value between 1 and 24"
-
-    try:
-        if not devices or not isinstance(
-            devices, list
-        ):  # TODO add device restrictions e.g not more that 3 devices
-            raise Exception
-    except Exception:
-        errors["devices"] = "Provide a list of devices"
-
-    try:
-        start_date = validate_date(start_date)
-    except Exception:
-        errors["startDate"] = (
-            "This query param is required."
-            "Please provide a valid date formatted datetime string (%Y-%m-%d)"
-        )
-
-    try:
-        end_date = validate_date(end_date)
-    except Exception:
-        errors["endDate"] = (
-            "This query param is required."
-            "Please provide a valid date formatted datetime string (%Y-%m-%d)"
-        )
-
-    if (
-        start_date > end_date
-    ):  # TODO add interval restrictions e.g not more that 10 days
-        errors["dates"] = "endDate must be greater or equal to the startDate"
-
-    return errors
 
 
 def get_status(passed: bool):
@@ -251,7 +312,10 @@ class Collocation(BaseModel):
 
         for document in documents:
             status = document.get("status", "")
-            added_by = f'{document.get("added_by", {}).get("first_name", "")} {document.get("added_by", {}).get("last_name", "")}'
+            added_by = (
+                f'{document.get("added_by", {}).get("first_name", "")} '
+                f'{document.get("added_by", {}).get("last_name", "")}'
+            )
             if status == "running" or status == "scheduled":
                 for device in document.get("devices", []):
                     summary.append(
@@ -284,7 +348,7 @@ class Collocation(BaseModel):
         if data.empty:
             return None
         data = data.replace(np.nan, None)
-        if results.get("status", "") != str(CollocationStatus.COMPLETED):
+        if results.get("status", "") != str(CollocationStatus.PASSED):
             self.compute_data_completeness()
             data_completeness = self.__data_completeness.to_dict("records")
         else:
@@ -443,7 +507,7 @@ class Collocation(BaseModel):
             self.__differences = self.__differences.replace(np.nan, None)
             self.__summary = self.__summary.replace(np.nan, None)
 
-            return self.__create_results_object(status=CollocationStatus.COMPLETED)
+            return self.__create_results_object(status=CollocationStatus.PASSED)
 
         return {}
 
@@ -613,7 +677,8 @@ class Collocation(BaseModel):
                     correlation_value = device_pair_correlation_data.iloc[0][cols[1]]
                     device_pair_correlation[col] = correlation_value
 
-                except:
+                except Exception as ex:
+                    print(ex)
                     pass
 
             correlation.append(
@@ -700,7 +765,8 @@ class Collocation(BaseModel):
                 **device_data,
                 "status": status,
                 "threshold": intra_sensor_threshold,
-                "criteria": "Passed if pm2_5_pearson_correlation is greater than threshold and pm10_pearson_correlation is greater than threshold",
+                "criteria": "Passed if pm2_5_pearson_correlation is greater than threshold "
+                "and pm10_pearson_correlation is greater than threshold",
             }
 
         results = {}
@@ -889,7 +955,10 @@ class Collocation(BaseModel):
         devices_without_data = set(self.__devices).difference(set(devices))
 
         if len(devices_without_data) != 0:
-            error = f"{', '.join(devices_without_data) } does not have data between {self.__start_date} and {self.__end_date}"
+            error = (
+                f"{', '.join(devices_without_data) } does not have data between "
+                f"{self.__start_date} and {self.__end_date}"
+            )
             if len(devices_without_data) > 1:
                 error = f"{devices_without_data} dont have data between {self.__start_date} and {self.__end_date}"
             self.__errors.append(error)
