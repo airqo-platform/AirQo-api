@@ -20,7 +20,7 @@ const { Kafka } = require('kafkajs');
 const Joi = require('joi');
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
-const io = require('socket.io')(server);
+const io = require('socket.io')(server, { transhttpPorts: ['websocket'] });
 
 const { jsonrepair } = require('jsonrepair')
 const cleanDeep = require('clean-deep');
@@ -188,6 +188,7 @@ const run = async() => {
 const emitLatestMeasurements = async() => {
     setInterval(async() => {
         try {
+            // 1,800,000
             let request = {};
             request["query"] = {};
             request["query"]["tenant"] = "airqo";
@@ -199,13 +200,15 @@ const emitLatestMeasurements = async() => {
                 if (result.success === true) {
                     io.emit('latest_measurements', result.data[0].data);
                 } else if (result.success === false) {
+                    logObject("when results is false", result)
                     logger.error(`WEBSOCKET: Internal Server Error -- ${JSON.stringify(result)}`);
                 }
             });
         } catch (error) {
+            logObject("error", error)
             logger.error(`WEBSOCKET: Internal Server Error -- ${JSON.stringify(error)}`);
         }
-    }, 1800);
+    }, 100000);
 }
 
 
@@ -214,32 +217,45 @@ const emitLatestMeasurements = async() => {
  */
 
 cluster(function() {
-    //Get port from environment and store in Express.
-    const port = normalizePort(constants.PORT);
-    app.set("port", port);
+    //Get httpPort from environment and store in Express.
+    const httpPort = normalizePort(constants.PORT);
+    const wsPort = 3001;
+    app.set("httpPort", httpPort);
     //Create HTTP server.
-    //Listen on provided port, on all network interfaces.
-    server.listen(port, function() {
+    //Listen on provided httpPort, on all network interfaces.
+    server.listen(httpPort, function() {
         /**
          * only run KAFKA in staging for now --- as we continue to do QA tests
          */
         if (constants.ENVIRONMENT === "STAGING ENVIRONMENT") {
-            run().catch(error => {
-                logger.error(`KAFKA: internal server error -- ${JSON.stringify(error)}`);
-            });
+            // run().catch(error => {
+            //     logger.error(`KAFKA: internal server error -- ${JSON.stringify(error)}`);
+            // });
+        }
 
+        logElement('Express server listening on httpPort ', server.address().httpPort)
+        logElement('Express server listening with pid ', process.pid)
+
+        // logger.info('Express server listening on httpPort ', server.address().httpPort, " with pid ", process.pid);
+    });
+    server.on("error", onError);
+    server.on("listening", onListening);
+
+    io.on('connection', (socket) => {
+        // console.log('A client has connected to the WebSocket server!');
+
+
+    });
+
+    io.httpServer.listen(wsPort, () => {
+        if (constants.ENVIRONMENT === "STAGING ENVIRONMENT") {
             emitLatestMeasurements().catch(error => {
                 logger.error(`WEBSOCKET: internal server error -- ${JSON.stringify(error)}`);
             })
         }
-
-        logElement('Express server listening on port ', server.address().port)
-        logElement('Express server listening with pid ', process.pid)
-
-        // logger.info('Express server listening on port ', server.address().port, " with pid ", process.pid);
+        // console.log(`WebSocket server listening on httpPort ${wsPort}...`);
     });
-    server.on("error", onError);
-    server.on("listening", onListening);
+
 }, {
     count: 1,
     respawn: false,
@@ -248,20 +264,20 @@ cluster(function() {
 
 
 /**
- * Normalize a port into a number, string, or false.
+ * Normalize a httpPort into a number, string, or false.
  */
 
 function normalizePort(val) {
-    const port = parseInt(val, 10);
+    const httpPort = parseInt(val, 10);
 
-    if (isNaN(port)) {
+    if (isNaN(httpPort)) {
         // named pipe
         return val;
     }
 
-    if (port >= 0) {
-        // port number
-        return port;
+    if (httpPort >= 0) {
+        // httpPort number
+        return httpPort;
     }
 
     return false;
@@ -276,7 +292,7 @@ function onError(error) {
         throw error;
     }
 
-    const bind = typeof port === "string" ? "Pipe " + port : "Port " + port;
+    const bind = typeof httpPort === "string" ? "Pipe " + httpPort : "Port " + httpPort;
 
     // handle specific listen errors with friendly messages
     switch (error.code) {
@@ -305,9 +321,9 @@ if (isEmpty(process.env.NODE_ENV)) {
 }
 
 function onListening() {
-    logText(`server is running on port: ${constants.PORT}`)
+    logText(`server is running on httpPort: ${constants.PORT}`)
     console.log(`The server is running on the ${ENV} environment`)
     const addr = server.address();
-    const bind = typeof addr === "string" ? "pipe " + addr : "port " + addr.port;
+    const bind = typeof addr === "string" ? "pipe " + addr : "httpPort " + addr.httpPort;
     debug("Listening on " + bind);
 }
