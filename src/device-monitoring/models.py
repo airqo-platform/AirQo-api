@@ -208,6 +208,9 @@ class CollocationResult:
     inter_sensor_correlation: InterSensorCorrelation
     data_source: str
 
+    def to_dict(self):
+        return asdict(self)
+
 
 @dataclass
 class CollocationData:
@@ -228,7 +231,6 @@ class CollocationData:
     inter_correlation_parameter: str
     intra_correlation_parameter: str
     differences_parameter: str
-    statistics_parameters: list
 
     inter_correlation_additional_parameters: list[str]
 

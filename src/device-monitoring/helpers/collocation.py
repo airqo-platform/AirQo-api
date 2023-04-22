@@ -15,6 +15,7 @@ from helpers.collocation_utils import (
     compute_statistics,
     compute_inter_sensor_correlation,
     compute_differences,
+    populate_missing_columns,
 )
 from helpers.convert_dates import date_to_str, format_date
 from models import (
@@ -45,7 +46,6 @@ def unpack_collocation_data_docs(docs: list) -> list[CollocationData]:
             inter_correlation_additional_parameters=doc[
                 "inter_correlation_additional_parameters"
             ],
-            statistics_parameters=doc["statistics_parameters"],
             intra_correlation_parameter=doc["intra_correlation_parameter"],
             differences_parameter=doc["differences_parameter"],
             added_by=doc["added_by"],
@@ -109,7 +109,7 @@ class CollocationScheduling(MongoBDBaseModel):
 
     def __update_results(self, results: CollocationResult, doc_id: str):
         filter_set = {"_id": ObjectId(doc_id)}
-        update_set = {"$set": {"results": results}}
+        update_set = {"$set": {"results": results.to_dict()}}
         self.db.results.update_one(filter_set, update_set)
 
     @staticmethod
@@ -163,14 +163,41 @@ class CollocationScheduling(MongoBDBaseModel):
             f" AND {devices_table}.device_id IN UNNEST({devices}) "
         )
 
+        query = f"select distinct * from ({query})"
+
         dataframe = client.query(query=query).result().to_dataframe()
         raw_data: dict[str, pd.DataFrame] = {}
 
+        floats = [
+            "s1_pm2_5",
+            "s2_pm2_5",
+            "s1_pm10",
+            "s2_pm10",
+            "internal_temperature",
+            "external_temperature",
+            "external_humidity",
+            "battery_voltage",
+        ]
+        columns = list(floats)
+        columns.extend(["timestamp", "device_name", "pm2_5", "pm10"])
+
         for device in devices:
-            raw_data[device] = pd.DataFrame()
+            raw_data[device] = pd.DataFrame(columns=columns)
 
         for _, by_device in dataframe.groupby("device_name"):
             device_name = by_device.iloc[0]["device_name"]
+            by_device = populate_missing_columns(by_device, cols=floats)
+
+            by_device["pm2_5"] = by_device[["s1_pm2_5", "s2_pm2_5"]].mean(axis=1)
+            by_device["pm10"] = by_device[["s1_pm10", "s2_pm10"]].mean(axis=1)
+
+            by_device[floats] = by_device[floats].apply(pd.to_numeric, errors="coerce")
+            by_device[["timestamp"]] = by_device[["timestamp"]].apply(
+                pd.to_datetime, errors="coerce"
+            )
+
+            by_device.drop_duplicates(inplace=True, keep="first", subset=["timestamp"])
+            by_device.dropna(subset=["timestamp"], inplace=True)
             raw_data[device_name] = by_device
 
         return raw_data, query
@@ -205,9 +232,7 @@ class CollocationScheduling(MongoBDBaseModel):
             parameter=collocation_data.intra_correlation_parameter,
             devices=collocation_data.devices,
         )
-        statistics = compute_statistics(
-            data=data, parameters=collocation_data.statistics_parameters
-        )
+        statistics = compute_statistics(data=data)
         inter_sensor_correlation = compute_inter_sensor_correlation(
             data=data,
             threshold=collocation_data.inter_correlation_threshold,
@@ -1368,7 +1393,7 @@ if __name__ == "__main__":
         datetime.utcnow() + timedelta(days=4), str_format="%Y-%m-%dT%H:00:00.000Z"
     )
 
-    collocation_data: CollocationData = CollocationData(
+    test_data: CollocationData = CollocationData(
         id="",
         status=CollocationStatus.SCHEDULED,
         start_date=start_date,
@@ -1385,8 +1410,7 @@ if __name__ == "__main__":
         inter_correlation_parameter="pm2_5",
         intra_correlation_parameter="pm2_5",
         differences_parameter="pm2_5",
-        statistics_parameters=["pm2_5"],
-        inter_correlation_additional_parameters=["pm2_5"],
+        inter_correlation_additional_parameters=["pm10"],
         results=CollocationResult(
             data_completeness=[],
             statistics=[],
@@ -1400,6 +1424,6 @@ if __name__ == "__main__":
     )
 
     collocation = CollocationScheduling()
-    collocation.create_collocation_data(collocation_data)
+    collocation.create_collocation_data(test_data)
     collocation.update_status_from_scheduled_to_running()
     collocation.update_running_devices_results()

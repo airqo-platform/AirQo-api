@@ -8,6 +8,15 @@ from helpers.convert_dates import format_date, validate_date
 from models import DataCompleteness, IntraSensorCorrelation, InterSensorCorrelation
 
 
+def populate_missing_columns(data: pd.DataFrame, cols: list) -> pd.DataFrame:
+    for col in cols:
+        if col not in list(data.columns):
+            print(f"{col} missing in dataset")
+            data.loc[:, col] = None
+
+    return data
+
+
 def dates_array(start_date_time: datetime, end_date_time: datetime) -> list[datetime]:
     dates: list[datetime] = []
     varying_date = format_date(start_date_time, str_format="%Y-%m-%dT%H:00:00.000Z")
@@ -81,7 +90,7 @@ def device_pairs(devices: list[str]) -> list[list[str]]:
     pairs = []
     for device_x in devices:
         for device_y in devices:
-            if (device_x == device_y) or ((device_y, device_x) in pairs):
+            if (device_x == device_y) or ([device_y, device_x] in pairs):
                 continue
             pairs.append([device_x, device_y])
 
@@ -90,6 +99,54 @@ def device_pairs(devices: list[str]) -> list[list[str]]:
 
 def compute_differences() -> dict:
     return {}
+
+
+def compute_devices_inter_sensor_correlation(
+    data: dict[str, pd.DataFrame],
+    device_x: str,
+    device_y: str,
+    correlation_cols: list,
+    threshold: float,
+    parameter: str,
+) -> dict:
+    device_x_data = data.get(device_x, pd.DataFrame())
+
+    device_x_data = device_x_data[correlation_cols]
+    device_x_data = device_x_data.add_prefix(f"{device_x}_")
+    device_x_data.rename(columns={f"{device_x}_timestamp": "timestamp"}, inplace=True)
+
+    device_y_data = data.get(device_y, pd.DataFrame())
+    device_y_data = device_y_data[correlation_cols]
+    device_y_data = device_y_data.add_prefix(f"{device_y}_")
+    device_y_data.rename(columns={f"{device_y}_timestamp": "timestamp"}, inplace=True)
+
+    device_pair_data = pd.merge(
+        left=device_x_data,
+        right=device_y_data,
+        on=["timestamp"],
+    )
+    device_pair_data = device_pair_data.select_dtypes(include="number")
+
+    device_pair_correlation = {}
+
+    for col in correlation_cols:
+        if col == "timestamp":
+            continue
+
+        comp_cols = [f"{device_x}_{col}", f"{device_y}_{col}"]
+
+        device_pair_correlation_data = device_pair_data[comp_cols].corr().round(4)
+        device_pair_correlation_data.replace(np.nan, None, inplace=True)
+        correlation_value = device_pair_correlation_data.iloc[0][comp_cols[1]]
+        device_pair_correlation[f"{col}_pearson"] = correlation_value
+
+    parameter_value = device_pair_correlation.get(f"{parameter}_pearson", None)
+
+    passed = False if parameter_value is None else bool(parameter_value >= threshold)
+    device_pair_correlation["passed"] = passed
+    device_pair_correlation["devices"] = [device_x, device_y]
+
+    return device_pair_correlation
 
 
 def compute_inter_sensor_correlation(
@@ -104,58 +161,27 @@ def compute_inter_sensor_correlation(
     failed_devices: list[str] = []
     results: list[dict] = []
 
-    cols = ["timestamp", parameter]
-    cols.extend(other_parameters)
+    correlation_cols = ["timestamp", parameter]
+    correlation_cols.extend(other_parameters)
+    correlation_cols = list(set(correlation_cols))
 
     if base_device is not None:
-        base_device_data = data.get(base_device, pd.DataFrame())
-        base_device_data = base_device_data.add_prefix(f"{base_device}_")
-        base_device_data.rename(
-            columns={f"{base_device_data}_timestamp": "timestamp"}, inplace=True
-        )
-
-        for device, data in data.items():
+        for device in data.keys():
             if device == base_device:
                 continue
 
-            device_data = data.get(device, pd.DataFrame())
-            device_data = device_data.add_prefix(f"{device}_")
-            device_data.rename(
-                columns={f"{device}_timestamp": "timestamp"}, inplace=True
+            device_pair_correlation = compute_devices_inter_sensor_correlation(
+                correlation_cols=correlation_cols,
+                device_x=base_device,
+                device_y=device,
+                data=data,
+                parameter=parameter,
+                threshold=threshold,
             )
-
-            device_pair_data = pd.merge(
-                left=device_data,
-                right=base_device_data,
-                on=["timestamp"],
-            )
-
-            device_pair_correlation = {}
-
-            for col in set(cols):
-                if col == "timestamp":
-                    continue
-
-                try:
-                    cols = [f"{device}_{col}", f"{base_device}_{col}"]
-                    device_pair_correlation_data = (
-                        device_pair_data[cols].corr().round(4)
-                    )
-                    device_pair_correlation_data.replace(np.nan, None, inplace=True)
-                    correlation_value = device_pair_correlation_data.iloc[0][cols[1]]
-                    device_pair_correlation[f"{col}_pearson"] = correlation_value
-                except:
-                    pass
-
-            passed = bool(device_pair_correlation[f"{parameter}_pearson"] >= threshold)
-            device_pair_correlation["passed"] = bool(
-                device_pair_correlation[f"{parameter}_pearson"] >= threshold
-            )
-            device_pair_correlation["devices"] = [base_device, device]
 
             results.append(device_pair_correlation)
 
-            if passed:
+            if device_pair_correlation["passed"]:
                 passed_devices.append(device)
             else:
                 failed_devices.append(device)
@@ -168,50 +194,18 @@ def compute_inter_sensor_correlation(
             device_x = device_pair[0]
             device_y = device_pair[1]
 
-            device_x_data = data.get(device_x, pd.DataFrame())
-            cols.extend(device_x_data.columns.to_list())
-            device_x_data = device_x_data.add_prefix(f"{device_x}_")
-            device_x_data.rename(
-                columns={f"{device_x}_timestamp": "timestamp"}, inplace=True
+            device_pair_correlation = compute_devices_inter_sensor_correlation(
+                correlation_cols=correlation_cols,
+                device_x=device_x,
+                device_y=device_y,
+                data=data,
+                parameter=parameter,
+                threshold=threshold,
             )
-
-            device_y_data = data.get(device_y, pd.DataFrame())
-            cols.extend(device_y_data.columns.to_list())
-            device_y_data = device_y_data.add_prefix(f"{device_y}_")
-            device_y_data.rename(
-                columns={f"{device_y}_timestamp": "timestamp"}, inplace=True
-            )
-
-            device_pair_data = pd.merge(
-                left=device_x_data,
-                right=device_y_data,
-                on=["timestamp"],
-            )
-
-            device_pair_correlation = {}
-
-            for col in set(cols):
-                try:
-                    cols = [f"{device_x}_{col}", f"{device_y}_{col}"]
-                    device_pair_correlation_data = (
-                        device_pair_data[cols].corr().round(4)
-                    )
-                    device_pair_correlation_data.replace(np.nan, None, inplace=True)
-                    correlation_value = device_pair_correlation_data.iloc[0][cols[1]]
-                    device_pair_correlation[f"{col}_pearson"] = correlation_value
-
-                except:
-                    pass
-
-            passed = bool(device_pair_correlation[f"{parameter}_pearson"] >= threshold)
-            device_pair_correlation["passed"] = bool(
-                device_pair_correlation[f"{parameter}_pearson"] >= threshold
-            )
-            device_pair_correlation["devices"] = [device_x, device_y]
 
             results.append(device_pair_correlation)
 
-            if passed:
+            if device_pair_correlation["passed"]:
                 passed_pairs.append((device_x, device_y))
             else:
                 failed_devices.extend([device_x, device_y])
@@ -255,16 +249,28 @@ def compute_intra_sensor_correlation(
             )
             correlation.append(device_correlation)
             continue
-        # TODO compute this step
+
         pm2_5_pearson = device_data[["s1_pm2_5", "s2_pm2_5"]].corr().round(4)
+        pm2_5_pearson = pm2_5_pearson.iloc[0]["s2_pm2_5"]
         pm10_pearson = device_data[["s1_pm10", "s2_pm10"]].corr().round(4)
-        pm2_5_r2 = math.sqrt(pm2_5_pearson.iloc[0]["s2_pm2_5"])
-        pm10_r2 = math.sqrt(pm10_pearson.iloc[0]["s2_pm10"])
+        pm10_pearson = pm10_pearson.iloc[0]["s2_pm10"]
+        pm2_5_r2 = None
+        pm10_r2 = None
+
+        try:
+            pm2_5_r2 = math.sqrt(pm2_5_pearson)
+            pm10_r2 = math.sqrt(pm10_pearson)
+        except ValueError as ex:
+            print(ex)
+            pass
+
+        pm2_5_pearson = None if pm2_5_pearson is np.NAN else pm2_5_pearson
+        pm10_pearson = None if pm10_pearson is np.NAN else pm10_pearson
 
         if parameter == "pm10":
-            passed = pm10_pearson >= threshold
+            passed = bool(pm10_pearson >= threshold) if pm10_pearson else False
         else:
-            passed = pm2_5_pearson >= threshold
+            passed = bool(pm2_5_pearson >= threshold) if pm2_5_pearson else False
 
         device_correlation = IntraSensorCorrelation(
             device_name=device,
@@ -279,15 +285,15 @@ def compute_intra_sensor_correlation(
     return correlation
 
 
-def compute_statistics(
-    data: dict[str, pd.DataFrame], parameters: list[str]
-) -> list[dict]:
+def compute_statistics(data: dict[str, pd.DataFrame]) -> list[dict]:
     statistics = []
     for device, device_data in data.items():
         device_statistics = {}
+        df_filtered = device_data.select_dtypes(include=["number"])
 
-        for col in parameters:
-            col_statistics = device_data[col].describe()
+        for col in df_filtered.columns.to_list():
+            col_statistics = df_filtered[col].describe()
+            col_statistics.replace(np.nan, None, inplace=True)
             device_statistics = {
                 **device_statistics,
                 **{
@@ -316,42 +322,16 @@ def compute_data_completeness(
 ) -> list[DataCompleteness]:
     data = data.copy()
     dates = dates_array(start_date_time=start_date_time, end_date_time=end_date_time)
+
     expected_records = len(dates) * expected_hourly_records
     completeness: list[DataCompleteness] = []
 
     for device in devices:
         device_data = data.get(device, pd.DataFrame())
-
-        if len(device_data.index) == 0:
-            completeness.append(
-                DataCompleteness(
-                    device_name=device,
-                    actual=len(device_data.index),
-                    expected=expected_records,
-                    completeness=0,
-                    missing=1,
-                    passed=False,
-                )
-            )
-            continue
-
-        device_data["timestamp"] = device_data["timestamp"].apply(
-            lambda x: format_date(x, str_format="%Y-%m-%dT%H:00:00.000Z")
-        )
-        device_data.drop_duplicates(inplace=True, keep="first", subset=["timestamp"])
         device_data.dropna(subset=[parameter], inplace=True)
+        device_completeness = len(device_data.index) / expected_records
+        device_completeness = 1 if device_completeness > 1 else device_completeness
 
-        device_hourly_list = []
-
-        for hour in dates:
-            hourly_data = device_data[device_data["timestamp"] == hour]
-            hourly_completeness = (
-                hourly_data[parameter].count() / expected_hourly_records
-            )
-            hourly_completeness = 1 if hourly_completeness > 1 else hourly_completeness
-            device_hourly_list.append(hourly_completeness)
-
-        device_completeness = sum(device_hourly_list) / len(device_hourly_list)
         completeness.append(
             DataCompleteness(
                 device_name=device,
@@ -359,8 +339,48 @@ def compute_data_completeness(
                 expected=expected_records,
                 completeness=device_completeness,
                 missing=1 - device_completeness,
-                passed=bool(device_completeness >= expected_records),
+                passed=device_completeness >= 1,
             )
         )
+
+        # if len(device_data.index) == 0:
+        #     completeness.append(
+        #         DataCompleteness(
+        #             device_name=device,
+        #             actual=len(device_data.index),
+        #             expected=expected_records,
+        #             completeness=0,
+        #             missing=1,
+        #             passed=False,
+        #         )
+        #     )
+        #     continue
+        # device_data["timestamp"] = device_data["timestamp"].apply(
+        #     lambda x: format_date(x, str_format="%Y-%m-%dT%H:00:00.000Z")
+        # )
+        # device_data.dropna(subset=[parameter], inplace=True)
+
+        # device_hourly_list = []
+        # for hour in dates:
+        #
+        #     hourly_data = device_data[device_data["timestamp"] == hour]
+        #     hourly_completeness = (
+        #         hourly_data[parameter].count() / expected_records
+        #     )
+        #     hourly_completeness = 1 if hourly_completeness > 1 else hourly_completeness
+        #     device_hourly_list.append(hourly_completeness)
+        #
+        # device_completeness = sum(device_hourly_list) / len(device_hourly_list)
+
+        # completeness.append(
+        #     DataCompleteness(
+        #         device_name=device,
+        #         actual=len(device_data.index),
+        #         expected=expected_records,
+        #         completeness=device_completeness,
+        #         missing=1 - device_completeness,
+        #         passed=bool(device_completeness >= expected_records),
+        #     )
+        # )
 
     return completeness
