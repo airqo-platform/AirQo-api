@@ -31,7 +31,9 @@ class Config:
     MONGO_URI = os.getenv("MONGO_GCE_URI")
 
     BIGQUERY_RAW_DATA = os.getenv("BIGQUERY_RAW_DATA")
+    BIGQUERY_DEVICES = os.getenv("BIGQUERY_DEVICES")
     BIGQUERY_HOURLY_DATA = os.getenv("BIGQUERY_HOURLY_DATA")
+    COLLOCATION_DATABASE = os.getenv("MONGO_DATABASE", "collocation")
 
 
 class ProductionConfig(Config):

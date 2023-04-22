@@ -5,8 +5,9 @@ import numpy as np
 import pandas as pd
 from bson import ObjectId
 from google.cloud import bigquery
+from pymongo.errors import DuplicateKeyError
 
-from app import cache
+# from app import cache
 from config.constants import Config
 from helpers.collocation_utils import (
     compute_data_completeness,
@@ -15,13 +16,14 @@ from helpers.collocation_utils import (
     compute_inter_sensor_correlation,
     compute_differences,
 )
-from helpers.convert_dates import date_to_str
+from helpers.convert_dates import date_to_str, format_date
 from models import (
     BaseModel,
     CollocationStatus,
     CollocationData,
     CollocationResult,
     MongoBDBaseModel,
+    InterSensorCorrelation,
 )
 
 
@@ -34,7 +36,6 @@ def unpack_collocation_data_docs(docs: list) -> list[CollocationData]:
             start_date=doc["start_date"],
             end_date=doc["end_date"],
             date_added=doc["date_added"],
-            expected_daily_data_points=doc["expected_daily_data_points"],
             expected_hourly_records=doc["expected_hourly_records"],
             inter_correlation_threshold=doc["inter_correlation_threshold"],
             differences_threshold=doc["differences_threshold"],
@@ -49,7 +50,6 @@ def unpack_collocation_data_docs(docs: list) -> list[CollocationData]:
             differences_parameter=doc["differences_parameter"],
             added_by=doc["added_by"],
             base_device=doc["base_device"],
-            data_source=doc["data_source"],
             status=CollocationStatus[doc["status"]],
             results=CollocationResult(
                 data_completeness=doc["results"]["data_completeness"],
@@ -70,12 +70,15 @@ class CollocationScheduling(MongoBDBaseModel):
     def __init__(
         self,
     ):
-        super().__init__("collocation")
+        super().__init__("results")
+        self.results_collection = "results"
+        # self.db.collocation.create_index([("devices", pymongo.TEXT), ("start_date", pymongo.ASCENDING), ("end_date", pymongo.ASCENDING)],
+        #                                  unique=True, name='unique_entries')
 
     def __query_by_status(self, status: CollocationStatus) -> list[CollocationData]:
-        docs = self.db.collocation.find(
+        docs = self.db.results.find(
             {
-                "status": status,
+                "status": str(status),
             }
         )
 
@@ -84,18 +87,36 @@ class CollocationScheduling(MongoBDBaseModel):
     def __update_status(self, data: CollocationData):
         filter_set = {"_id": ObjectId(data.id)}
         update_set = {"$set": {"status": str(data.status)}}
-        self.db.collocation.update_one(filter_set, update_set)
+        self.db.results.update_one(filter_set, update_set)
+        print(f"updated status for {repr(data)} to {data.status}")
+
+    def create_collocation_data(self, data: CollocationData):
+        count = self.db.results.count_documents(
+            {
+                "devices": data.devices,
+                "start_date": data.start_date,
+                "end_date": data.end_date,
+            }
+        )
+
+        if count != 0:
+            print("Data already saved")
+            return
+        try:
+            self.db.results.insert_one(data.to_dict())
+        except DuplicateKeyError as db_error:
+            print(db_error)
 
     def __update_results(self, results: CollocationResult, doc_id: str):
         filter_set = {"_id": ObjectId(doc_id)}
         update_set = {"$set": {"results": results}}
-        self.db.collocation.update_one(filter_set, update_set)
+        self.db.results.update_one(filter_set, update_set)
 
     @staticmethod
     def change_status_to_running(x: CollocationData) -> CollocationData:
         now = datetime.utcnow()
         updated = x
-        if updated.start_date >= now:
+        if now >= updated.start_date:
             updated.status = CollocationStatus.RUNNING
         return updated
 
@@ -112,11 +133,58 @@ class CollocationScheduling(MongoBDBaseModel):
             self.__update_results(results=result[0], doc_id=result[1])
 
     @staticmethod
+    # @cache.memoize(timeout=1800)
+    def get_data(
+        devices: list[str], start_date_time: datetime, end_date_time: datetime
+    ) -> tuple[dict[str, pd.DataFrame], str]:
+        client = bigquery.Client()
+        cols = [
+            "timestamp",
+            "s1_pm2_5",
+            "s2_pm2_5",
+            "s1_pm10",
+            "s2_pm10",
+            "device_temperature as internal_temperature",
+            "device_humidity as internal_humidity",
+            "temperature as external_temperature",
+            "humidity as external_humidity",
+            "battery as battery_voltage",
+        ]
+
+        data_table = f"`{Config.BIGQUERY_RAW_DATA}`"
+        devices_table = f"`{Config.BIGQUERY_DEVICES}`"
+
+        query = (
+            f" SELECT {', '.join(map(str, set(cols)))}, {devices_table}.device_id AS device_name , "
+            f" FROM {data_table} "
+            f" JOIN {devices_table} ON {devices_table}.device_id = {data_table}.device_id "
+            f" WHERE {data_table}.timestamp >= '{str(start_date_time)}' "
+            f" AND {data_table}.timestamp <= '{str(end_date_time)}' "
+            f" AND {devices_table}.device_id IN UNNEST({devices}) "
+        )
+
+        dataframe = client.query(query=query).result().to_dataframe()
+        raw_data: dict[str, pd.DataFrame] = {}
+
+        for device in devices:
+            raw_data[device] = pd.DataFrame()
+
+        for _, by_device in dataframe.groupby("device_name"):
+            device_name = by_device.iloc[0]["device_name"]
+            raw_data[device_name] = by_device
+
+        return raw_data, query
+
+    @staticmethod
     def compute_results(
         collocation_data: CollocationData,
     ) -> tuple[CollocationResult, str]:
-        data_source = ""
-        data: dict[str, pd.DataFrame] = {}
+        data, data_source = CollocationScheduling.get_data(
+            devices=collocation_data.devices,
+            start_date_time=collocation_data.start_date,
+            end_date_time=collocation_data.end_date,
+        )
+
         now = datetime.utcnow()
         end_date_time = (
             now if now < collocation_data.end_date else collocation_data.end_date
@@ -530,7 +598,7 @@ class Collocation(BaseModel):
         return self.__data
 
     @staticmethod
-    @cache.memoize()
+    # @cache.memoize()
     def get_data(
         devices: list, start_date_time: datetime, end_date_time: datetime
     ) -> tuple[dict, dict]:
@@ -890,7 +958,7 @@ class Collocation(BaseModel):
 
         return completeness_report
 
-    @cache.memoize()
+    # @cache.memoize()
     def query_data(self, query):
         dataframe = self.__client.query(query=query).result().to_dataframe()
 
@@ -1290,3 +1358,48 @@ class Collocation(BaseModel):
 
         self.__differences = pd.DataFrame(differences)
         return self.__differences
+
+
+if __name__ == "__main__":
+    start_date = format_date(
+        datetime.utcnow() - timedelta(hours=2), str_format="%Y-%m-%dT%H:00:00.000Z"
+    )
+    end_date = format_date(
+        datetime.utcnow() + timedelta(days=4), str_format="%Y-%m-%dT%H:00:00.000Z"
+    )
+
+    collocation_data: CollocationData = CollocationData(
+        id="",
+        status=CollocationStatus.SCHEDULED,
+        start_date=start_date,
+        end_date=end_date,
+        added_by={},
+        devices=["aq_g518", "aq_g519", "aq_g502"],
+        base_device=None,
+        date_added=datetime.utcnow(),
+        expected_hourly_records=12,
+        inter_correlation_threshold=0.1,
+        intra_correlation_threshold=0.1,
+        differences_threshold=0.1,
+        data_completeness_parameter="timestamp",
+        inter_correlation_parameter="pm2_5",
+        intra_correlation_parameter="pm2_5",
+        differences_parameter="pm2_5",
+        statistics_parameters=["pm2_5"],
+        inter_correlation_additional_parameters=["pm2_5"],
+        results=CollocationResult(
+            data_completeness=[],
+            statistics=[],
+            differences={},
+            intra_sensor_correlation=[],
+            inter_sensor_correlation=InterSensorCorrelation(
+                failed_devices=[], passed_devices=[], neutral_devices=[], results=[]
+            ),
+            data_source="",
+        ),
+    )
+
+    collocation = CollocationScheduling()
+    collocation.create_collocation_data(collocation_data)
+    collocation.update_status_from_scheduled_to_running()
+    collocation.update_running_devices_results()

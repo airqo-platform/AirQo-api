@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from datetime import datetime
 from enum import Enum
 
@@ -156,17 +156,17 @@ class CollocationStatus(Enum):
 
     def __str__(self) -> str:
         if self == self.SCHEDULED:
-            return "scheduled"
+            return "SCHEDULED"
         elif self == self.RUNNING:
-            return "running"
+            return "RUNNING"
         elif self == self.PASSED:
-            return "passed"
+            return "PASSED"
         elif self == self.FAILED:
-            return "failed"
+            return "FAILED"
         elif self == self.RE_RUN_REQUIRED:
-            return "re-run required"
+            return "RE_RUN_REQUIRED"
         elif self == self.UNKNOWN:
-            return "unknown"
+            return "UNKNOWN"
         else:
             return ""
 
@@ -193,7 +193,7 @@ class IntraSensorCorrelation:
 
 @dataclass
 class InterSensorCorrelation:
-    results: dict
+    results: list[dict]
     passed_devices: list[str]
     failed_devices: list[str]
     neutral_devices: list[str]
@@ -219,8 +219,6 @@ class CollocationData:
     end_date: datetime
     date_added: datetime
 
-    expected_daily_data_points: int
-
     expected_hourly_records: int
     inter_correlation_threshold: float
     intra_correlation_threshold: float
@@ -235,7 +233,12 @@ class CollocationData:
     inter_correlation_additional_parameters: list[str]
 
     added_by: dict
-    data_source: str
 
     status: CollocationStatus
     results: CollocationResult
+
+    def to_dict(self):
+        data = asdict(self)
+        del data["id"]
+        data["status"] = str(self.status)
+        return data
