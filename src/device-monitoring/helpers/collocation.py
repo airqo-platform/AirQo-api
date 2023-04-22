@@ -41,6 +41,9 @@ def unpack_collocation_data_docs(docs: list) -> list[CollocationData]:
             inter_correlation_threshold=doc["inter_correlation_threshold"],
             differences_threshold=doc["differences_threshold"],
             intra_correlation_threshold=doc["intra_correlation_threshold"],
+            inter_correlation_r2_threshold=doc["inter_correlation_r2_threshold"],
+            intra_correlation_r2_threshold=doc["intra_correlation_r2_threshold"],
+            data_completeness_threshold=doc["data_completeness_threshold"],
             data_completeness_parameter=doc["data_completeness_parameter"],
             inter_correlation_parameter=doc["inter_correlation_parameter"],
             inter_correlation_additional_parameters=doc[
@@ -224,6 +227,7 @@ class CollocationScheduling(MongoBDBaseModel):
             parameter=collocation_data.data_completeness_parameter,
             start_date_time=collocation_data.start_date,
             end_date_time=end_date_time,
+            threshold=collocation_data.data_completeness_threshold,
         )
 
         intra_sensor_correlation = compute_intra_sensor_correlation(
@@ -231,6 +235,7 @@ class CollocationScheduling(MongoBDBaseModel):
             threshold=collocation_data.intra_correlation_threshold,
             parameter=collocation_data.intra_correlation_parameter,
             devices=collocation_data.devices,
+            r2_threshold=collocation_data.intra_correlation_r2_threshold,
         )
         statistics = compute_statistics(data=data)
         inter_sensor_correlation = compute_inter_sensor_correlation(
@@ -240,8 +245,15 @@ class CollocationScheduling(MongoBDBaseModel):
             parameter=collocation_data.inter_correlation_parameter,
             other_parameters=collocation_data.inter_correlation_additional_parameters,
             base_device=collocation_data.base_device,
+            r2_threshold=collocation_data.inter_correlation_r2_threshold,
         )
-        differences = compute_differences()
+        differences = compute_differences(
+            statistics=statistics,
+            base_device=collocation_data.base_device,
+            devices=collocation_data.devices,
+            parameter=collocation_data.differences_parameter,
+            threshold=collocation_data.differences_threshold,
+        )
 
         return (
             CollocationResult(
@@ -1403,13 +1415,16 @@ if __name__ == "__main__":
         base_device=None,
         date_added=datetime.utcnow(),
         expected_hourly_records=12,
-        inter_correlation_threshold=0.1,
-        intra_correlation_threshold=0.1,
-        differences_threshold=0.1,
+        inter_correlation_threshold=0.99,
+        intra_correlation_threshold=0.99,
+        inter_correlation_r2_threshold=0.98,
+        intra_correlation_r2_threshold=0.98,
+        differences_threshold=5,
         data_completeness_parameter="timestamp",
         inter_correlation_parameter="pm2_5",
         intra_correlation_parameter="pm2_5",
         differences_parameter="pm2_5",
+        data_completeness_threshold=0.8,
         inter_correlation_additional_parameters=["pm10"],
         results=CollocationResult(
             data_completeness=[],

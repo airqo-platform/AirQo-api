@@ -97,8 +97,67 @@ def device_pairs(devices: list[str]) -> list[list[str]]:
     return pairs
 
 
-def compute_differences() -> dict:
-    return {}
+def compute_differences(
+    statistics: list[dict],
+    parameter: str,
+    threshold: int,
+    base_device: str,
+    devices: list[str],
+) -> dict:
+    differences = []
+    # TODO compute base device
+    data: dict[str, dict] = {}
+    for device_statistics in statistics:
+        device = device_statistics.get("device_name")
+        del device_statistics["device_name"]
+        data[device] = device_statistics
+
+    pairs = device_pairs(list(data.keys()))
+    passed_devices = []
+    failed_devices = []
+
+    for device_pair in pairs:
+        device_x = device_pair[0]
+        device_y = device_pair[1]
+
+        device_x_data = pd.DataFrame([data.get(device_x)])
+        device_y_data = pd.DataFrame([data.get(device_y)])
+
+        differences_df = abs(device_x_data - device_y_data)
+        differences_df.replace(np.nan, None, inplace=True)
+
+        results = differences_df.to_dict("records")[0]
+
+        passed = (
+            results[f"{parameter}_mean"] <= threshold
+            if results[f"{parameter}_mean"]
+            else False
+        )
+        differences.append(
+            {
+                "devices": device_pair,
+                "passed": passed,
+                "differences": results,
+            }
+        )
+
+        if passed:
+            passed_devices.extend([device_x, device_y])
+        else:
+            failed_devices.extend([device_x, device_y])
+
+    passed_devices = list(set(passed_devices))
+    failed_devices = list(set(failed_devices))
+
+    neutral_devices = list(
+        set(devices).difference(set(passed_devices)).difference(set(failed_devices))
+    )
+    return {
+        "passed_devices": passed_devices,
+        "failed_devices": failed_devices,
+        "neutral_devices": neutral_devices,
+        "results": differences,
+    }
 
 
 def compute_devices_inter_sensor_correlation(
@@ -107,6 +166,7 @@ def compute_devices_inter_sensor_correlation(
     device_y: str,
     correlation_cols: list,
     threshold: float,
+    r2_threshold: float,
     parameter: str,
 ) -> dict:
     device_x_data = data.get(device_x, pd.DataFrame())
@@ -139,10 +199,20 @@ def compute_devices_inter_sensor_correlation(
         device_pair_correlation_data.replace(np.nan, None, inplace=True)
         correlation_value = device_pair_correlation_data.iloc[0][comp_cols[1]]
         device_pair_correlation[f"{col}_pearson"] = correlation_value
+        device_pair_correlation[f"{col}_r2_pearson"] = (
+            math.sqrt(correlation_value) if correlation_value else None
+        )
 
     parameter_value = device_pair_correlation.get(f"{parameter}_pearson", None)
+    parameter_r2_value = device_pair_correlation.get(f"{parameter}_r2_pearson", None)
 
     passed = False if parameter_value is None else bool(parameter_value >= threshold)
+    if passed:
+        passed = (
+            False
+            if parameter_r2_value is None
+            else bool(parameter_r2_value >= r2_threshold)
+        )
     device_pair_correlation["passed"] = passed
     device_pair_correlation["devices"] = [device_x, device_y]
 
@@ -153,6 +223,7 @@ def compute_inter_sensor_correlation(
     devices: list[str],
     data: dict[str, pd.DataFrame],
     threshold: float,
+    r2_threshold: float,
     parameter: str,
     base_device: str,
     other_parameters: list[str],
@@ -177,6 +248,7 @@ def compute_inter_sensor_correlation(
                 data=data,
                 parameter=parameter,
                 threshold=threshold,
+                r2_threshold=r2_threshold,
             )
 
             results.append(device_pair_correlation)
@@ -201,6 +273,7 @@ def compute_inter_sensor_correlation(
                 data=data,
                 parameter=parameter,
                 threshold=threshold,
+                r2_threshold=r2_threshold,
             )
 
             results.append(device_pair_correlation)
@@ -232,7 +305,11 @@ def compute_inter_sensor_correlation(
 
 
 def compute_intra_sensor_correlation(
-    devices: list[str], data: dict[str, pd.DataFrame], threshold: float, parameter: str
+    devices: list[str],
+    data: dict[str, pd.DataFrame],
+    threshold: float,
+    parameter: str,
+    r2_threshold: float,
 ) -> list[IntraSensorCorrelation]:
     correlation: list[IntraSensorCorrelation] = []
 
@@ -269,8 +346,12 @@ def compute_intra_sensor_correlation(
 
         if parameter == "pm10":
             passed = bool(pm10_pearson >= threshold) if pm10_pearson else False
+            if passed:
+                passed = pm10_r2 >= r2_threshold if pm10_r2 else False
         else:
             passed = bool(pm2_5_pearson >= threshold) if pm2_5_pearson else False
+            if passed:
+                passed = pm2_5_r2 >= r2_threshold if pm2_5_r2 else False
 
         device_correlation = IntraSensorCorrelation(
             device_name=device,
@@ -317,6 +398,7 @@ def compute_data_completeness(
     devices: list[str],
     expected_hourly_records: int,
     parameter: str,
+    threshold: float,
     start_date_time: datetime,
     end_date_time: datetime,
 ) -> list[DataCompleteness]:
@@ -339,7 +421,7 @@ def compute_data_completeness(
                 expected=expected_records,
                 completeness=device_completeness,
                 missing=1 - device_completeness,
-                passed=device_completeness >= 1,
+                passed=device_completeness >= threshold,
             )
         )
 

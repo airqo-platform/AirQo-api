@@ -5,6 +5,7 @@ from enum import Enum
 from pymongo import DESCENDING
 
 from app import cache
+# from app import cache
 from config.db_connection import connect_mongo, connect_mongo_db
 
 
@@ -41,6 +42,7 @@ class DeviceStatus(BaseModel):
         super().__init__(tenant, "device_status")
 
     @cache.memoize()
+    # @cache.memoize()
     def get_device_status(self, start_date, end_date, limit):
         db_filter = {"created_at": {"$gte": start_date, "$lt": end_date}}
 
@@ -57,6 +59,7 @@ class NetworkUptime(BaseModel):
         super().__init__(tenant, "network_uptime")
 
     @cache.memoize()
+    # @cache.memoize()
     def get_network_uptime(self, start_date, end_date):
         db_filter = {"created_at": {"$gte": start_date, "$lt": end_date}}
         return list(
@@ -87,6 +90,7 @@ class DeviceUptime(BaseModel):
         super().__init__(tenant, "device_uptime")
 
     @cache.memoize()
+    # @cache.memoize()
     def get_uptime_leaderboard(self, start_date, end_date):
         db_filter = {"created_at": {"$gte": start_date, "$lt": end_date}}
 
@@ -107,6 +111,7 @@ class DeviceUptime(BaseModel):
         )
 
     @cache.memoize()
+    # @cache.memoize()
     def get_device_uptime(self, start_date, end_date, device_name):
         db_filter = {"created_at": {"$gte": start_date, "$lt": end_date}}
 
@@ -225,7 +230,10 @@ class CollocationData:
     expected_hourly_records: int
     inter_correlation_threshold: float
     intra_correlation_threshold: float
-    differences_threshold: float
+    inter_correlation_r2_threshold: float
+    intra_correlation_r2_threshold: float
+    data_completeness_threshold: float
+    differences_threshold: int
 
     data_completeness_parameter: str
     inter_correlation_parameter: str
