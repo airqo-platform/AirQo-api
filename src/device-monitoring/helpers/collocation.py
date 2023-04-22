@@ -7,7 +7,7 @@ from bson import ObjectId
 from google.cloud import bigquery
 from pymongo.errors import DuplicateKeyError
 
-# from app import cache
+from app import cache
 from config.constants import Config
 from helpers.collocation_utils import (
     compute_data_completeness,
@@ -24,7 +24,9 @@ from models import (
     CollocationData,
     CollocationResult,
     MongoBDBaseModel,
-    InterSensorCorrelation,
+    BaseResult,
+    IntraSensorCorrelationResult,
+    DataCompletenessResult,
 )
 
 
@@ -61,6 +63,9 @@ def unpack_collocation_data_docs(docs: list) -> list[CollocationData]:
                 intra_sensor_correlation=doc["results"]["intra_sensor_correlation"],
                 inter_sensor_correlation=doc["results"]["inter_sensor_correlation"],
                 data_source=doc["results"]["data_source"],
+                failed_devices=doc["results"]["failed_devices"],
+                passed_devices=doc["results"]["passed_devices"],
+                neutral_devices=doc["results"]["neutral_devices"],
             ),
         )
 
@@ -82,6 +87,18 @@ class CollocationScheduling(MongoBDBaseModel):
         docs = self.db.results.find(
             {
                 "status": str(status),
+            }
+        )
+
+        return unpack_collocation_data_docs(docs)
+
+    def __query_complete_devices(
+        self, status: CollocationStatus
+    ) -> list[CollocationData]:
+        docs = self.db.results.find(
+            {
+                "status": str(status),
+                "end_date": {"$lte": datetime.utcnow()},
             }
         )
 
@@ -129,14 +146,28 @@ class CollocationScheduling(MongoBDBaseModel):
         for record in records:
             self.__update_status(record)
 
-    def update_running_devices_results(self):
-        records = self.__query_by_status(CollocationStatus.RUNNING)
+    def update_results(self, data: list[CollocationData] = None):
+        if data is None:
+            records = self.__query_by_status(CollocationStatus.RUNNING)
+        else:
+            records = data
         results = list(map(self.compute_results, records))
         for result in results:
             self.__update_results(results=result[0], doc_id=result[1])
 
+    def update_completed_devices(self):
+        records = self.__query_complete_devices(CollocationStatus.RUNNING)
+        if len(records) == 0:
+            return
+
+        self.update_results(records)
+
+        for record in records:
+            record.status = CollocationStatus.COMPLETED
+            self.__update_status(record)
+
     @staticmethod
-    # @cache.memoize(timeout=1800)
+    @cache.memoize(timeout=1800)
     def get_data(
         devices: list[str], start_date_time: datetime, end_date_time: datetime
     ) -> tuple[dict[str, pd.DataFrame], str]:
@@ -255,6 +286,31 @@ class CollocationScheduling(MongoBDBaseModel):
             threshold=collocation_data.differences_threshold,
         )
 
+        if len(collocation_data.devices) > 1:
+            passed_devices = (
+                set(data_completeness.passed_devices)
+                .intersection(set(intra_sensor_correlation.passed_devices))
+                .intersection(set(inter_sensor_correlation.passed_devices))
+                .intersection(set(differences.passed_devices))
+            )
+            failed_devices = (
+                set(data_completeness.failed_devices)
+                .union(set(intra_sensor_correlation.failed_devices))
+                .union(set(inter_sensor_correlation.failed_devices))
+                .union(set(differences.failed_devices))
+            )
+        else:
+            passed_devices = set(data_completeness.passed_devices).intersection(
+                set(intra_sensor_correlation.passed_devices)
+            )
+            failed_devices = set(collocation_data.devices).difference(passed_devices)
+
+        neutral_devices = (
+            set(collocation_data.devices)
+            .difference(passed_devices)
+            .difference(failed_devices)
+        )
+
         return (
             CollocationResult(
                 data_completeness=data_completeness,
@@ -263,6 +319,9 @@ class CollocationScheduling(MongoBDBaseModel):
                 statistics=statistics,
                 inter_sensor_correlation=inter_sensor_correlation,
                 differences=differences,
+                passed_devices=list(passed_devices),
+                failed_devices=list(failed_devices),
+                neutral_devices=list(neutral_devices),
             ),
             collocation_data.id,
         )
@@ -635,7 +694,7 @@ class Collocation(BaseModel):
         return self.__data
 
     @staticmethod
-    # @cache.memoize()
+    @cache.memoize()
     def get_data(
         devices: list, start_date_time: datetime, end_date_time: datetime
     ) -> tuple[dict, dict]:
@@ -995,7 +1054,7 @@ class Collocation(BaseModel):
 
         return completeness_report
 
-    # @cache.memoize()
+    @cache.memoize()
     def query_data(self, query):
         dataframe = self.__client.query(query=query).result().to_dataframe()
 
@@ -1399,10 +1458,10 @@ class Collocation(BaseModel):
 
 if __name__ == "__main__":
     start_date = format_date(
-        datetime.utcnow() - timedelta(hours=2), str_format="%Y-%m-%dT%H:00:00.000Z"
+        datetime.utcnow() - timedelta(hours=24), str_format="%Y-%m-%dT%H:00:00.000Z"
     )
     end_date = format_date(
-        datetime.utcnow() + timedelta(days=4), str_format="%Y-%m-%dT%H:00:00.000Z"
+        datetime.utcnow() - timedelta(hours=1), str_format="%Y-%m-%dT%H:00:00.000Z"
     )
 
     test_data: CollocationData = CollocationData(
@@ -1411,14 +1470,14 @@ if __name__ == "__main__":
         start_date=start_date,
         end_date=end_date,
         added_by={},
-        devices=["aq_g518", "aq_g519", "aq_g502"],
+        devices=["aq_g518"],
         base_device=None,
         date_added=datetime.utcnow(),
         expected_hourly_records=12,
-        inter_correlation_threshold=0.99,
-        intra_correlation_threshold=0.99,
-        inter_correlation_r2_threshold=0.98,
-        intra_correlation_r2_threshold=0.98,
+        inter_correlation_threshold=0.79,  # 0.99
+        intra_correlation_threshold=0.79,  # 0.99
+        inter_correlation_r2_threshold=0.78,  # 0.99
+        intra_correlation_r2_threshold=0.78,  # 0.99
         differences_threshold=5,
         data_completeness_parameter="timestamp",
         inter_correlation_parameter="pm2_5",
@@ -1427,18 +1486,34 @@ if __name__ == "__main__":
         data_completeness_threshold=0.8,
         inter_correlation_additional_parameters=["pm10"],
         results=CollocationResult(
-            data_completeness=[],
+            data_completeness=DataCompletenessResult(
+                failed_devices=[],
+                passed_devices=[],
+                neutral_devices=[],
+                results=[],
+            ),
             statistics=[],
-            differences={},
-            intra_sensor_correlation=[],
-            inter_sensor_correlation=InterSensorCorrelation(
+            differences=BaseResult(
+                failed_devices=[], passed_devices=[], neutral_devices=[], results=[]
+            ),
+            intra_sensor_correlation=IntraSensorCorrelationResult(
+                failed_devices=[],
+                passed_devices=[],
+                neutral_devices=[],
+                results=[],
+            ),
+            inter_sensor_correlation=BaseResult(
                 failed_devices=[], passed_devices=[], neutral_devices=[], results=[]
             ),
             data_source="",
+            failed_devices=[],
+            passed_devices=[],
+            neutral_devices=[],
         ),
     )
 
     collocation = CollocationScheduling()
     collocation.create_collocation_data(test_data)
     collocation.update_status_from_scheduled_to_running()
-    collocation.update_running_devices_results()
+    collocation.update_results()
+    collocation.update_completed_devices()

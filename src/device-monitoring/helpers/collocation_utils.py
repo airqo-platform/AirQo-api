@@ -5,7 +5,13 @@ import numpy as np
 import pandas as pd
 
 from helpers.convert_dates import format_date, validate_date
-from models import DataCompleteness, IntraSensorCorrelation, InterSensorCorrelation
+from models import (
+    DataCompleteness,
+    IntraSensorCorrelation,
+    BaseResult,
+    DataCompletenessResult,
+    IntraSensorCorrelationResult,
+)
 
 
 def populate_missing_columns(data: pd.DataFrame, cols: list) -> pd.DataFrame:
@@ -103,7 +109,7 @@ def compute_differences(
     threshold: int,
     base_device: str,
     devices: list[str],
-) -> dict:
+) -> BaseResult:
     differences = []
     # TODO compute base device
     data: dict[str, dict] = {}
@@ -152,12 +158,12 @@ def compute_differences(
     neutral_devices = list(
         set(devices).difference(set(passed_devices)).difference(set(failed_devices))
     )
-    return {
-        "passed_devices": passed_devices,
-        "failed_devices": failed_devices,
-        "neutral_devices": neutral_devices,
-        "results": differences,
-    }
+    return BaseResult(
+        passed_devices=passed_devices,
+        failed_devices=failed_devices,
+        neutral_devices=neutral_devices,
+        results=differences,
+    )
 
 
 def compute_devices_inter_sensor_correlation(
@@ -199,9 +205,11 @@ def compute_devices_inter_sensor_correlation(
         device_pair_correlation_data.replace(np.nan, None, inplace=True)
         correlation_value = device_pair_correlation_data.iloc[0][comp_cols[1]]
         device_pair_correlation[f"{col}_pearson"] = correlation_value
-        device_pair_correlation[f"{col}_r2_pearson"] = (
-            math.sqrt(correlation_value) if correlation_value else None
-        )
+
+        try:
+            device_pair_correlation[f"{col}_r2_pearson"] = math.sqrt(correlation_value)
+        except Exception:
+            device_pair_correlation[f"{col}_r2_pearson"] = None
 
     parameter_value = device_pair_correlation.get(f"{parameter}_pearson", None)
     parameter_r2_value = device_pair_correlation.get(f"{parameter}_r2_pearson", None)
@@ -227,7 +235,7 @@ def compute_inter_sensor_correlation(
     parameter: str,
     base_device: str,
     other_parameters: list[str],
-) -> InterSensorCorrelation:
+) -> BaseResult:
     passed_devices: list[str] = []
     failed_devices: list[str] = []
     results: list[dict] = []
@@ -296,7 +304,7 @@ def compute_inter_sensor_correlation(
         set(devices).difference(set(passed_devices)).difference(set(failed_devices))
     )
 
-    return InterSensorCorrelation(
+    return BaseResult(
         results=results,
         passed_devices=passed_devices,
         failed_devices=failed_devices,
@@ -310,7 +318,7 @@ def compute_intra_sensor_correlation(
     threshold: float,
     parameter: str,
     r2_threshold: float,
-) -> list[IntraSensorCorrelation]:
+) -> IntraSensorCorrelationResult:
     correlation: list[IntraSensorCorrelation] = []
 
     for device in devices:
@@ -337,8 +345,7 @@ def compute_intra_sensor_correlation(
         try:
             pm2_5_r2 = math.sqrt(pm2_5_pearson)
             pm10_r2 = math.sqrt(pm10_pearson)
-        except ValueError as ex:
-            print(ex)
+        except Exception:
             pass
 
         pm2_5_pearson = None if pm2_5_pearson is np.NAN else pm2_5_pearson
@@ -363,7 +370,20 @@ def compute_intra_sensor_correlation(
         )
         correlation.append(device_correlation)
 
-    return correlation
+    passed_devices = list(filter(lambda x: x.passed is True, correlation))
+    passed_devices = [x.device_name for x in passed_devices]
+    failed_devices = list(filter(lambda x: x.passed is False, correlation))
+    failed_devices = [x.device_name for x in failed_devices]
+    neutral_devices = list(
+        set(devices).difference(set(passed_devices)).difference(set(failed_devices))
+    )
+
+    return IntraSensorCorrelationResult(
+        results=correlation,
+        passed_devices=passed_devices,
+        failed_devices=failed_devices,
+        neutral_devices=neutral_devices,
+    )
 
 
 def compute_statistics(data: dict[str, pd.DataFrame]) -> list[dict]:
@@ -401,7 +421,7 @@ def compute_data_completeness(
     threshold: float,
     start_date_time: datetime,
     end_date_time: datetime,
-) -> list[DataCompleteness]:
+) -> DataCompletenessResult:
     data = data.copy()
     dates = dates_array(start_date_time=start_date_time, end_date_time=end_date_time)
 
@@ -464,5 +484,16 @@ def compute_data_completeness(
         #         passed=bool(device_completeness >= expected_records),
         #     )
         # )
-
-    return completeness
+    passed_devices = list(filter(lambda x: x.passed is True, completeness))
+    passed_devices = [x.device_name for x in passed_devices]
+    failed_devices = list(filter(lambda x: x.passed is False, completeness))
+    failed_devices = [x.device_name for x in failed_devices]
+    neutral_devices = list(
+        set(devices).difference(set(passed_devices)).difference(set(failed_devices))
+    )
+    return DataCompletenessResult(
+        results=completeness,
+        passed_devices=passed_devices,
+        failed_devices=failed_devices,
+        neutral_devices=neutral_devices,
+    )
