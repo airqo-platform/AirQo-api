@@ -671,6 +671,12 @@ eventSchema.statics = {
             as: "site_images",
           })
           .lookup({
+            from: "devices",
+            localField: "device_id",
+            foreignField: "_id",
+            as: "device_details",
+          })
+          .lookup({
             from,
             localField,
             foreignField,
@@ -704,6 +710,11 @@ eventSchema.statics = {
             device_id: { $first: "$device_id" },
             site_image: {
               $first: { $arrayElemAt: ["$site_images.image_url", 0] },
+            },
+            is_reading_primary: {
+              $first: {
+                $arrayElemAt: ["$device_details.isPrimaryInLocation", 0],
+              },
             },
             device_number: { $first: "$device_number" },
             health_tips: { $first: "$healthTips" },
@@ -741,6 +752,7 @@ eventSchema.statics = {
             stc: { $first: "$stc" },
             [as]: elementAtIndex0,
           })
+
           .project({
             "health_tips.aqi_category": 0,
             "health_tips.value": 0,
@@ -764,7 +776,97 @@ eventSchema.statics = {
           .project(projection)
           .facet({
             total: [{ $count: "device" }],
-            data: [{ $addFields: { device: "$device" } }],
+            data: [
+              {
+                $addFields: {
+                  device: "$device",
+                  aqi_color: {
+                    $switch: {
+                      branches: [
+                        { case: { $lt: ["$pm2_5.value", 50] }, then: "00e400" },
+                        {
+                          case: { $lt: ["$pm2_5.value", 100] },
+                          then: "ffff00",
+                        },
+                        {
+                          case: { $lt: ["$pm2_5.value", 150] },
+                          then: "ff7e00",
+                        },
+                        {
+                          case: { $lt: ["$pm2_5.value", 200] },
+                          then: "ff0000",
+                        },
+                        {
+                          case: { $lt: ["$pm2_5.value", 300] },
+                          then: "8f3f97",
+                        },
+                        {
+                          case: { $gte: ["$pm2_5.value", 300] },
+                          then: "7e0023",
+                        },
+                      ],
+                      default: "Unknown",
+                    },
+                  },
+                  aqi_category: {
+                    $switch: {
+                      branches: [
+                        { case: { $lt: ["$pm2_5.value", 50] }, then: "Good" },
+                        {
+                          case: { $lt: ["$pm2_5.value", 100] },
+                          then: "Moderate",
+                        },
+                        {
+                          case: { $lt: ["$pm2_5.value", 150] },
+                          then: "Unhealthy for Sensitive Groups",
+                        },
+                        {
+                          case: { $lt: ["$pm2_5.value", 200] },
+                          then: "Unhealthy",
+                        },
+                        {
+                          case: { $lt: ["$pm2_5.value", 300] },
+                          then: "Very Unhealthy",
+                        },
+                        {
+                          case: { $gte: ["$pm2_5.value", 300] },
+                          then: "Hazardous",
+                        },
+                      ],
+                      default: "Unknown",
+                    },
+                  },
+                  aqi_color_name: {
+                    $switch: {
+                      branches: [
+                        { case: { $lt: ["$pm2_5.value", 50] }, then: "Green" },
+                        {
+                          case: { $lt: ["$pm2_5.value", 100] },
+                          then: "Yellow",
+                        },
+                        {
+                          case: { $lt: ["$pm2_5.value", 150] },
+                          then: "Orange",
+                        },
+                        {
+                          case: { $lt: ["$pm2_5.value", 200] },
+                          then: "Red",
+                        },
+                        {
+                          case: { $lt: ["$pm2_5.value", 300] },
+                          then: "Purple",
+                        },
+                        {
+                          case: { $gte: ["$pm2_5.value", 300] },
+                          then: "Maroon",
+                        },
+                      ],
+                      default: "Unknown",
+                    },
+                  },
+                },
+              },
+            ],
           })
           .project({
             meta,
