@@ -29,3 +29,14 @@ NETWORK_UPTIME = f"{BASE_URL}/network/uptime"
 DEVICE_UPTIME = f"{BASE_URL}/devices/uptime"
 
 DEVICE_UPTIME_LEADERBOARD = f"{BASE_URL}/device/uptime/leaderboard"
+
+
+BASE_URL_V2 = "/api/v2/monitor"
+
+COLLOCATION_V2 = f"{BASE_URL}/collocation"
+
+SUMMARY_COLLOCATION_V2 = f"{BASE_URL}/collocation/summary"
+
+COLLOCATION_DATA_v2 = f"{BASE_URL}/collocation/data"
+
+COLLOCATION_RESULTS_v2 = f"{BASE_URL}/collocation/results"

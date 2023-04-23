@@ -96,7 +96,7 @@ def collocation_schedule():
         start_date = str_to_date(start_date, str_format="%Y-%m-%d")
         end_date = str_to_date(end_date, str_format="%Y-%m-%d")
 
-        collocation_data = CollocationData(
+        x_collocation_data = CollocationData(
             id=None,
             devices=list(set(devices)),
             base_device=base_device,
@@ -121,9 +121,25 @@ def collocation_schedule():
         )
 
         collocation_scheduling = CollocationScheduling()
-        collocation_scheduling.create_collocation_data(collocation_data)
+        collocation_scheduling.create_collocation_data(x_collocation_data)
 
         return jsonify({"message": "success"}), 200
+    except Exception as ex:
+        traceback.print_exc()
+        print(ex)
+        return jsonify({"error": "Error occurred. Contact support"}), 500
+
+
+@collocation_bp.route(routes.COLLOCATION_V2, methods=["DELETE"])
+def collocation_deletion():
+    json_data = request.get_json()
+    x_id = json_data.get("id")
+    devices = json_data.get("devices", [])
+
+    try:
+        collocation_scheduling = CollocationScheduling()
+        collocation_scheduling.delete(x_id=x_id, devices=devices)
+        return jsonify({"message": "Successful"}), 200
     except Exception as ex:
         traceback.print_exc()
         print(ex)
@@ -142,16 +158,32 @@ def collocation_summary():
         return jsonify({"error": "Error occurred. Contact support"}), 500
 
 
-@collocation_bp.route(routes.COLLOCATION_V2, methods=["DELETE"])
-def collocation_deletion():
+@collocation_bp.route(routes.COLLOCATION_DATA_v2, methods=["POST"])
+def collocation_data():
     json_data = request.get_json()
-    x_id = json_data.get("id")
     devices = json_data.get("devices", [])
+    x_id = json_data.get("id")
 
     try:
         collocation_scheduling = CollocationScheduling()
-        collocation_scheduling.delete(x_id=x_id, devices=devices)
-        return jsonify({"message": "Successful"}), 200
+        results = collocation_scheduling.get_hourly_data(x_id=x_id, devices=devices)
+        return jsonify({"data": results}), 200
+    except Exception as ex:
+        traceback.print_exc()
+        print(ex)
+        return jsonify({"error": "Error occurred. Contact support"}), 500
+
+
+@collocation_bp.route(routes.COLLOCATION_RESULTS_v2, methods=["POST"])
+def collocation_results():
+    json_data = request.get_json()
+    devices = json_data.get("devices", [])
+    x_id = json_data.get("id")
+
+    try:
+        collocation_scheduling = CollocationScheduling()
+        results = collocation_scheduling.get_hourly_data(x_id=x_id, devices=devices)
+        return jsonify({"data": results}), 200
     except Exception as ex:
         traceback.print_exc()
         print(ex)

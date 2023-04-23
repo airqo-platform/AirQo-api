@@ -278,6 +278,21 @@ class CollocationScheduling(MongoBDBaseModel):
             data.results = None
             self.__override(data)
 
+    def get_hourly_data(self, x_id: str, devices: list) -> dict[str, list[dict]]:
+        collocation_data: CollocationData = self.__query_by_id(x_id=x_id)
+        raw_data, _ = CollocationScheduling.get_data(
+            devices=devices,
+            start_date_time=collocation_data.start_date,
+            end_date_time=collocation_data.end_date,
+        )
+        hourly_data: dict[str, list[dict]] = {}
+        for device, device_data in raw_data:
+            hourly_device_data = device_data.resample("1H", on="timestamp").mean()
+            hourly_device_data = hourly_device_data.replace(np.nan, None)
+            hourly_data[device] = hourly_device_data.to_dict("records")
+
+        return hourly_data
+
     @staticmethod
     @cache.memoize(timeout=1800)
     def get_data(
@@ -1586,10 +1601,10 @@ if __name__ == "__main__":
         base_device=None,
         date_added=datetime.utcnow(),
         expected_hourly_records=12,
-        inter_correlation_threshold=0.79,  # 0.99
-        intra_correlation_threshold=0.79,  # 0.99
-        inter_correlation_r2_threshold=0.78,  # 0.99
-        intra_correlation_r2_threshold=0.78,  # 0.99
+        inter_correlation_threshold=0.79,
+        intra_correlation_threshold=0.79,
+        inter_correlation_r2_threshold=0.78,
+        intra_correlation_r2_threshold=0.78,
         differences_threshold=5,
         data_completeness_parameter="timestamp",
         inter_correlation_parameter="pm2_5",
