@@ -165,6 +165,22 @@ class CollocationStatus(Enum):
             return ""
 
 
+class DeviceCollocationStatus(Enum):
+    RE_RUN_REQUIRED = 1
+    FAILED = 2
+    PASSED = 3
+
+    def __str__(self) -> str:
+        if self == self.RE_RUN_REQUIRED:
+            return "RE_RUN_REQUIRED"
+        elif self == self.FAILED:
+            return "FAILED"
+        elif self == self.PASSED:
+            return "PASSED"
+        else:
+            return ""
+
+
 @dataclass
 class DataCompleteness:
     device_name: str
@@ -260,3 +276,17 @@ class CollocationData:
         del data["id"]
         data["status"] = str(self.status)
         return data
+
+
+@dataclass
+class CollocationSummary:
+    id: str
+    device_name: str
+    added_by: str
+    start_date: datetime
+    end_date: datetime
+    status: str
+    date_added: datetime
+
+    def to_dict(self):
+        return asdict(self)

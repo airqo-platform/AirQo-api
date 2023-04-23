@@ -27,50 +27,54 @@ from models import (
     BaseResult,
     IntraSensorCorrelationResult,
     DataCompletenessResult,
+    CollocationSummary,
+    DeviceCollocationStatus,
 )
 
 
-def unpack_collocation_data_docs(docs: list) -> list[CollocationData]:
+def doc_to_collocation_data(doc) -> CollocationData:
+    return CollocationData(
+        id=str(doc["_id"]),
+        devices=doc["devices"],
+        start_date=doc["start_date"],
+        end_date=doc["end_date"],
+        date_added=doc["date_added"],
+        expected_hourly_records=doc["expected_hourly_records"],
+        inter_correlation_threshold=doc["inter_correlation_threshold"],
+        differences_threshold=doc["differences_threshold"],
+        intra_correlation_threshold=doc["intra_correlation_threshold"],
+        inter_correlation_r2_threshold=doc["inter_correlation_r2_threshold"],
+        intra_correlation_r2_threshold=doc["intra_correlation_r2_threshold"],
+        data_completeness_threshold=doc["data_completeness_threshold"],
+        data_completeness_parameter=doc["data_completeness_parameter"],
+        inter_correlation_parameter=doc["inter_correlation_parameter"],
+        inter_correlation_additional_parameters=doc[
+            "inter_correlation_additional_parameters"
+        ],
+        intra_correlation_parameter=doc["intra_correlation_parameter"],
+        differences_parameter=doc["differences_parameter"],
+        added_by=doc["added_by"],
+        base_device=doc["base_device"],
+        status=CollocationStatus[doc["status"]],
+        results=CollocationResult(
+            data_completeness=doc["results"]["data_completeness"],
+            statistics=doc["results"]["statistics"],
+            differences=doc["results"]["differences"],
+            intra_sensor_correlation=doc["results"]["intra_sensor_correlation"],
+            inter_sensor_correlation=doc["results"]["inter_sensor_correlation"],
+            data_source=doc["results"]["data_source"],
+            failed_devices=doc["results"]["failed_devices"],
+            passed_devices=doc["results"]["passed_devices"],
+            neutral_devices=doc["results"]["neutral_devices"],
+        ),
+    )
+
+
+def docs_to_collocation_data_list(docs: list) -> list[CollocationData]:
     data: list[CollocationData] = []
     for doc in docs:
-        doc_data = CollocationData(
-            id=str(doc["_id"]),
-            devices=doc["devices"],
-            start_date=doc["start_date"],
-            end_date=doc["end_date"],
-            date_added=doc["date_added"],
-            expected_hourly_records=doc["expected_hourly_records"],
-            inter_correlation_threshold=doc["inter_correlation_threshold"],
-            differences_threshold=doc["differences_threshold"],
-            intra_correlation_threshold=doc["intra_correlation_threshold"],
-            inter_correlation_r2_threshold=doc["inter_correlation_r2_threshold"],
-            intra_correlation_r2_threshold=doc["intra_correlation_r2_threshold"],
-            data_completeness_threshold=doc["data_completeness_threshold"],
-            data_completeness_parameter=doc["data_completeness_parameter"],
-            inter_correlation_parameter=doc["inter_correlation_parameter"],
-            inter_correlation_additional_parameters=doc[
-                "inter_correlation_additional_parameters"
-            ],
-            intra_correlation_parameter=doc["intra_correlation_parameter"],
-            differences_parameter=doc["differences_parameter"],
-            added_by=doc["added_by"],
-            base_device=doc["base_device"],
-            status=CollocationStatus[doc["status"]],
-            results=CollocationResult(
-                data_completeness=doc["results"]["data_completeness"],
-                statistics=doc["results"]["statistics"],
-                differences=doc["results"]["differences"],
-                intra_sensor_correlation=doc["results"]["intra_sensor_correlation"],
-                inter_sensor_correlation=doc["results"]["inter_sensor_correlation"],
-                data_source=doc["results"]["data_source"],
-                failed_devices=doc["results"]["failed_devices"],
-                passed_devices=doc["results"]["passed_devices"],
-                neutral_devices=doc["results"]["neutral_devices"],
-            ),
-        )
-
+        doc_data = doc_to_collocation_data(doc)
         data.append(doc_data)
-
     return data
 
 
@@ -90,7 +94,26 @@ class CollocationScheduling(MongoBDBaseModel):
             }
         )
 
-        return unpack_collocation_data_docs(docs)
+        return docs_to_collocation_data_list(docs)
+
+    def __query_all_data(self) -> list[CollocationData]:
+        docs = self.db.results.find()
+        return docs_to_collocation_data_list(docs)
+
+    def __delete_by_id(self, x_id: str):
+        filter_set = {"_id": ObjectId(x_id)}
+        self.db.results.delete_one(filter_set)
+        print(f"Deleted {x_id}")
+
+    def __query_by_id(self, x_id: str) -> CollocationData:
+        filter_set = {"_id": ObjectId(x_id)}
+        result = self.db.results.find_one(filter_set)
+        return doc_to_collocation_data(result)
+
+    def __override(self, data: CollocationData):
+        filter_set = {"_id": ObjectId(data.id)}
+        update_set = {"$set": data.to_dict()}
+        self.db.results.update_one(filter_set, update_set)
 
     def __query_complete_devices(
         self, status: CollocationStatus
@@ -102,13 +125,18 @@ class CollocationScheduling(MongoBDBaseModel):
             }
         )
 
-        return unpack_collocation_data_docs(docs)
+        return docs_to_collocation_data_list(docs)
 
     def __update_status(self, data: CollocationData):
         filter_set = {"_id": ObjectId(data.id)}
         update_set = {"$set": {"status": str(data.status)}}
         self.db.results.update_one(filter_set, update_set)
         print(f"updated status for {repr(data)} to {data.status}")
+
+    def __update_results(self, results: CollocationResult, doc_id: str):
+        filter_set = {"_id": ObjectId(doc_id)}
+        update_set = {"$set": {"results": results.to_dict()}}
+        self.db.results.update_one(filter_set, update_set)
 
     def create_collocation_data(self, data: CollocationData):
         count = self.db.results.count_documents(
@@ -126,11 +154,6 @@ class CollocationScheduling(MongoBDBaseModel):
             self.db.results.insert_one(data.to_dict())
         except DuplicateKeyError as db_error:
             print(db_error)
-
-    def __update_results(self, results: CollocationResult, doc_id: str):
-        filter_set = {"_id": ObjectId(doc_id)}
-        update_set = {"$set": {"results": results.to_dict()}}
-        self.db.results.update_one(filter_set, update_set)
 
     @staticmethod
     def change_status_to_running(x: CollocationData) -> CollocationData:
@@ -165,6 +188,95 @@ class CollocationScheduling(MongoBDBaseModel):
         for record in records:
             record.status = CollocationStatus.COMPLETED
             self.__update_status(record)
+
+    def summary(self) -> list[CollocationSummary]:
+        records: list[CollocationData] = self.__query_all_data()
+        summary: list[CollocationSummary] = []
+        for record in records:
+            x_start_date = record.start_date
+            x_end_date = record.end_date
+            x_id = record.id
+            date_added = record.date_added
+            added_by = f"{record.added_by.get('first_name', '')} {record.added_by.get('last_name', '')}"
+
+            if (
+                record.status == CollocationStatus.SCHEDULED
+                or record.status == CollocationStatus.RUNNING
+            ):
+                summary.extend(
+                    map(
+                        lambda device_name: CollocationSummary(
+                            id=x_id,
+                            device_name=device_name,
+                            added_by=added_by,
+                            start_date=x_start_date,
+                            end_date=x_end_date,
+                            status=str(record.status),
+                            date_added=date_added,
+                        ),
+                        set(record.devices),
+                    )
+                )
+            elif record.status == CollocationStatus.COMPLETED:
+                summary.extend(
+                    map(
+                        lambda device_name: CollocationSummary(
+                            id=x_id,
+                            device_name=device_name,
+                            added_by=added_by,
+                            start_date=x_start_date,
+                            end_date=x_end_date,
+                            status=str(DeviceCollocationStatus.PASSED),
+                            date_added=date_added,
+                        ),
+                        set(record.results.failed_devices),
+                    )
+                )
+
+                summary.extend(
+                    map(
+                        lambda device_name: CollocationSummary(
+                            id=x_id,
+                            device_name=device_name,
+                            added_by=added_by,
+                            start_date=x_start_date,
+                            end_date=x_end_date,
+                            status=str(DeviceCollocationStatus.FAILED),
+                            date_added=date_added,
+                        ),
+                        set(record.results.failed_devices),
+                    )
+                )
+
+                summary.extend(
+                    map(
+                        lambda device_name: CollocationSummary(
+                            id=x_id,
+                            device_name=device_name,
+                            added_by=added_by,
+                            start_date=x_start_date,
+                            end_date=x_end_date,
+                            status=str(DeviceCollocationStatus.RE_RUN_REQUIRED),
+                            date_added=date_added,
+                        ),
+                        set(record.results.neutral_devices),
+                    )
+                )
+
+            else:
+                pass
+
+        return summary
+
+    def delete(self, x_id: str, devices: list):
+        if len(devices) == 0:
+            self.__delete_by_id(x_id)
+        else:
+            data: CollocationData = self.__query_by_id(x_id)
+            data.devices = list(set(data.devices).difference(devices))
+            data.status = CollocationStatus.SCHEDULED
+            data.results = None
+            self.__override(data)
 
     @staticmethod
     @cache.memoize(timeout=1800)

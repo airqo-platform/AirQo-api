@@ -1,16 +1,164 @@
+import datetime
 import logging
 import traceback
 
 from flask import Blueprint, request, jsonify
 
 import routes
-from helpers.collocation import Collocation, validate_collocation_request
+from config.constants import CollocationDefaults
+from helpers.collocation import Collocation, CollocationScheduling
+from helpers.collocation_utils import (
+    validate_collocation_request,
+    validate_collocation_request_v2,
+)
 from helpers.convert_dates import validate_date, str_to_date
 from helpers.utils import decode_user_token
+from models import CollocationData, CollocationStatus
 
 _logger = logging.getLogger(__name__)
 
 collocation_bp = Blueprint("collocation", __name__)
+
+
+#  v2 endpoints
+@collocation_bp.route(routes.COLLOCATION_V2, methods=["POST"])
+def collocation_schedule():
+    token = request.headers.get("Authorization", "")
+    json_data = request.get_json()
+    devices = json_data.get("devices", [])
+    base_device = json_data.get("baseDevice", None)
+    start_date = json_data.get("startDate", None)
+    end_date = json_data.get("endDate", None)
+
+    expected_records_per_hour = json_data.get(
+        "expectedRecordsPerHour", CollocationDefaults.ExpectedRecordsPerHour
+    )
+
+    data_completeness_threshold = json_data.get(
+        "dataCompletenessThreshold", CollocationDefaults.DataCompletenessThreshold
+    )
+
+    intra_correlation_threshold = json_data.get(
+        "intraCorrelationThreshold", CollocationDefaults.IntraCorrelationThreshold
+    )
+    intra_correlation_r2_threshold = json_data.get(
+        "intraCorrelationR2Threshold", CollocationDefaults.IntraCorrelationR2Threshold
+    )
+
+    inter_correlation_threshold = json_data.get(
+        "interCorrelationThreshold", CollocationDefaults.InterCorrelationThreshold
+    )
+    inter_correlation_r2_threshold = json_data.get(
+        "interCorrelationR2Threshold", CollocationDefaults.InterCorrelationR2Threshold
+    )
+
+    differences_threshold = json_data.get(
+        "differencesThreshold", CollocationDefaults.DifferencesThreshold
+    )
+
+    inter_correlation_parameter = json_data.get(
+        "interCorrelationParameter", CollocationDefaults.InterCorrelationParameter
+    )
+    intra_correlation_parameter = json_data.get(
+        "intraCorrelationParameter", CollocationDefaults.IntraCorrelationParameter
+    )
+    data_completeness_parameter = json_data.get(
+        "dataCompletenessParameter", CollocationDefaults.DataCompletenessParameter
+    )
+    differences_parameter = json_data.get(
+        "differencesParameter", CollocationDefaults.DifferencesParameter
+    )
+
+    inter_correlation_additional_parameters = json_data.get(
+        "interCorrelationAdditionalParameters",
+        CollocationDefaults.InterCorrelationAdditionalParameters,
+    )
+
+    errors = validate_collocation_request_v2(
+        start_date=start_date,
+        end_date=end_date,
+        devices=devices,
+    )
+
+    if errors:
+        return (
+            jsonify(
+                {
+                    "message": "Some errors occurred while processing this request",
+                    "errors": errors,
+                }
+            ),
+            400,
+        )
+
+    try:
+        user_details = decode_user_token(token)
+        start_date = str_to_date(start_date, str_format="%Y-%m-%d")
+        end_date = str_to_date(end_date, str_format="%Y-%m-%d")
+
+        collocation_data = CollocationData(
+            id=None,
+            devices=list(set(devices)),
+            base_device=base_device,
+            start_date=start_date,
+            end_date=end_date,
+            date_added=datetime.datetime.utcnow(),
+            expected_hourly_records=expected_records_per_hour,
+            inter_correlation_threshold=inter_correlation_threshold,
+            intra_correlation_threshold=intra_correlation_threshold,
+            inter_correlation_r2_threshold=inter_correlation_r2_threshold,
+            intra_correlation_r2_threshold=intra_correlation_r2_threshold,
+            data_completeness_threshold=data_completeness_threshold,
+            differences_threshold=differences_threshold,
+            data_completeness_parameter=data_completeness_parameter,
+            inter_correlation_parameter=inter_correlation_parameter,
+            intra_correlation_parameter=intra_correlation_parameter,
+            differences_parameter=differences_parameter,
+            inter_correlation_additional_parameters=inter_correlation_additional_parameters,
+            added_by=user_details,
+            status=CollocationStatus.SCHEDULED,
+            results=None,
+        )
+
+        collocation_scheduling = CollocationScheduling()
+        collocation_scheduling.create_collocation_data(collocation_data)
+
+        return jsonify({"message": "success"}), 200
+    except Exception as ex:
+        traceback.print_exc()
+        print(ex)
+        return jsonify({"error": "Error occurred. Contact support"}), 500
+
+
+@collocation_bp.route(routes.SUMMARY_COLLOCATION_V2, methods=["GET"])
+def collocation_summary():
+    try:
+        collocation_scheduling = CollocationScheduling()
+        summary = collocation_scheduling.summary()
+        return jsonify({"data": map(lambda x: x.to_dict(), summary)}), 200
+    except Exception as ex:
+        traceback.print_exc()
+        print(ex)
+        return jsonify({"error": "Error occurred. Contact support"}), 500
+
+
+@collocation_bp.route(routes.COLLOCATION_V2, methods=["DELETE"])
+def collocation_deletion():
+    json_data = request.get_json()
+    x_id = json_data.get("id")
+    devices = json_data.get("devices", [])
+
+    try:
+        collocation_scheduling = CollocationScheduling()
+        collocation_scheduling.delete(x_id=x_id, devices=devices)
+        return jsonify({"message": "Successful"}), 200
+    except Exception as ex:
+        traceback.print_exc()
+        print(ex)
+        return jsonify({"error": "Error occurred. Contact support"}), 500
+
+
+# end of v2 endpoints
 
 
 @collocation_bp.route(routes.DEVICE_COLLOCATION, methods=["POST"])
