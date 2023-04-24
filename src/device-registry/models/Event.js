@@ -9,8 +9,8 @@ const uniqueValidator = require("mongoose-unique-validator");
 const { logObject, logElement, logText } = require("@utils/log");
 const ObjectId = Schema.Types.ObjectId;
 const constants = require("@config/constants");
-const { isElement, isEmpty } = require("underscore");
-const httpStatus = require("http-status");
+const isEmpty = require("is-empty");
+const HTTPStatus = require("http-status");
 const { getModelByTenant } = require("@utils/multitenancy");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- event-model`);
@@ -378,6 +378,19 @@ eventSchema.index(
   }
 );
 
+eventSchema.index(
+  {
+    "values.time": 1,
+    "values.site_id": 1,
+    day: 1,
+    "values.frequency": 1,
+  },
+  {
+    unique: true,
+    partialFilterExpression: { nValues: { $lt: parseInt(constants.N_VALUES) } },
+  }
+);
+
 eventSchema.pre("save", function() {
   const err = new Error("something went wrong");
   next(err);
@@ -461,6 +474,8 @@ eventSchema.statics = {
         device,
         running,
         recent,
+        brief,
+        index,
       } = filter;
       let search = filter;
       let groupId = "$device";
@@ -499,6 +514,7 @@ eventSchema.statics = {
       };
       let siteProjection = {};
       let deviceProjection = {};
+      let sort = { time: -1 };
 
       delete search["external"];
       delete search["frequency"];
@@ -508,6 +524,8 @@ eventSchema.statics = {
       delete search["recent"];
       delete search["page"];
       delete search["running"];
+      delete search["brief"];
+      delete search["index"];
 
       /**
        * The Alternative Flows present in this Events entity:
@@ -518,6 +536,39 @@ eventSchema.statics = {
       if (tenant !== "airqo") {
         pm2_5 = "$pm2_5";
         pm10 = "$pm10";
+      }
+
+      if (external === "yes" || brief === "yes") {
+        projection["s2_pm10"] = 0;
+        projection["s1_pm10"] = 0;
+        projection["s2_pm2_5"] = 0;
+        projection["s1_pm2_5"] = 0;
+        projection["rtc_adc"] = 0;
+        projection["rtc_v"] = 0;
+        projection["rtc"] = 0;
+        projection["stc_adc"] = 0;
+        projection["stc_v"] = 0;
+        projection["stc"] = 0;
+        projection["no2"] = 0;
+        projection["pm1"] = 0;
+        projection["pm10"] = 0;
+        projection["externalHumidity"] = 0;
+        projection["externalAltitude"] = 0;
+        projection["internalHumidity"] = 0;
+        projection["externalTemperature"] = 0;
+        projection["internalTemperature"] = 0;
+        projection["hdop"] = 0;
+        projection["satellites"] = 0;
+        projection["speed"] = 0;
+        projection["altitude"] = 0;
+        projection["location"] = 0;
+        projection["network"] = 0;
+        projection["battery"] = 0;
+        projection["average_pm10"] = 0;
+        projection["average_pm2_5"] = 0;
+        projection["device_number"] = 0;
+        projection["image"] = 0;
+        projection[as] = 0;
       }
 
       if (!metadata || metadata === "device" || metadata === "device_id") {
@@ -551,22 +602,16 @@ eventSchema.statics = {
         _as = "_siteDetails";
         as = "siteDetails";
         elementAtIndex0 = elementAtIndexName(metadata, recent);
-        siteProjection = constants.EVENTS_METADATA_PROJECTION("site", as);
-        Object.assign(projection, siteProjection);
-      }
 
-      if (external === "yes") {
-        projection["s2_pm10"] = 0;
-        projection["s1_pm10"] = 0;
-        projection["s2_pm2_5"] = 0;
-        projection["s1_pm2_5"] = 0;
-        projection["rtc_adc"] = 0;
-        projection["rtc_v"] = 0;
-        projection["rtc"] = 0;
-        projection["stc_adc"] = 0;
-        projection["stc_v"] = 0;
-        projection["stc"] = 0;
-        projection[as] = 0;
+        if (brief === "yes") {
+          siteProjection = constants.EVENTS_METADATA_PROJECTION(
+            "brief_site",
+            as
+          );
+        } else {
+          siteProjection = constants.EVENTS_METADATA_PROJECTION("site", as);
+        }
+        Object.assign(projection, siteProjection);
       }
 
       if (running === "yes") {
@@ -605,6 +650,10 @@ eventSchema.statics = {
           stc: 0,
           siteDetails: 0,
         });
+      }
+
+      if (!isEmpty(index)) {
+        sort = { "values.pm2_5.value": 1 };
       }
 
       logObject("the query for this request", search);
@@ -646,7 +695,7 @@ eventSchema.statics = {
             ],
             as: "healthTips",
           })
-          .sort({ time: -1 })
+          .sort(sort)
           .group({
             _id: "$device",
             device: { $first: "$device" },
@@ -728,7 +777,7 @@ eventSchema.statics = {
           success: true,
           data,
           message: "successfully returned the measurements",
-          status: httpStatus.OK,
+          status: HTTPStatus.OK,
         };
       }
 
@@ -743,7 +792,7 @@ eventSchema.statics = {
             foreignField,
             as,
           })
-          .sort({ time: -1 })
+          .sort(sort)
           .project({
             _device: "$device",
             _time: "$time",
@@ -846,7 +895,7 @@ eventSchema.statics = {
           success: true,
           message: "successfully returned the measurements",
           data,
-          status: httpStatus.OK,
+          status: HTTPStatus.OK,
         };
       }
     } catch (error) {
@@ -855,7 +904,7 @@ eventSchema.statics = {
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },

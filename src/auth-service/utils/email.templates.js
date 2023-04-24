@@ -75,7 +75,6 @@ module.exports = {
 <p> For help, please contact our support team: support@airqo.net.</p>
 <br>
 <p> See you in the platform,</p>
-<br>
 <p> The AirQo Data Team</p>
 `;
   },
@@ -89,9 +88,6 @@ module.exports = {
 <p>YOUR USERAME: ${username} </p>
 <p>YOUR PASSWORD: ${password} </p>
 <p>ACCESS LINK: ${constants.PLATFORM_BASE_URL}/login </p>
-<br>
-<p> Thank you for your patience and understanding during the verification process.</p>
-<p> We take the security and privacy of our users very seriously, and the verification process is an important part of ensuring that our platform is safe and secure for all.</p>
 <br>
 <p> If you have any questions or need assistance with anything, please don't hesitate to reach out to our customer support team. We are here to help.</p>
 <p> Thank you for choosing our platform, and we look forward to helping you achieve your goals </p>

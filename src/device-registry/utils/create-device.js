@@ -16,7 +16,6 @@ const logger = log4js.getLogger(
 );
 const qs = require("qs");
 const QRCode = require("qrcode");
-const httpStatus = require("http-status");
 let devicesModel = (tenant) => {
   return getModelByTenant(tenant, "device", DeviceSchema);
 };
@@ -154,7 +153,7 @@ const createDevice = {
         return {
           success: false,
           message: "creation is not yet possible for this organisation",
-          status: httpStatus.NOT_IMPLEMENTED,
+          status: HTTPStatus.NOT_IMPLEMENTED,
         };
       }
       let responseFromCreateOnThingspeak = await createDevice.createOnThingSpeak(

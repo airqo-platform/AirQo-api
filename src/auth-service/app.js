@@ -10,7 +10,7 @@ const bodyParser = require("body-parser");
 const routes = require("@routes/index");
 const constants = require("@config/constants");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- app entry`);
-const mongodb = require("@config/dbConnection");
+const { mongodb } = require("@config/dbConnection");
 mongodb;
 
 const { logText } = require("@utils/log");
@@ -53,9 +53,9 @@ app.use("/api/v2/users/roles", routes.v2.roles);
 app.use("/api/v2/users/inquiries", routes.v2.inquiries);
 app.use("/api/v2/users/candidates", routes.v2.requests);
 app.use("/api/v2/users/defaults", routes.v2.defaults);
-// app.use("/api/v2/users/tokens", routes.v2.tokens);
-// app.use("/api/v2/users/departments", routes.v2.departments);
-// app.use("/api/v2/users/groups", routes.v2.groups);
+app.use("/api/v2/users/tokens", routes.v2.tokens);
+app.use("/api/v2/users/departments", routes.v2.departments);
+app.use("/api/v2/users/groups", routes.v2.groups);
 app.use("/api/v2/users", routes.v2.users);
 
 require("@config/firebase-admin");

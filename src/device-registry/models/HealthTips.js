@@ -26,6 +26,11 @@ const tipsSchema = new Schema(
       type: String,
       trim: true,
     },
+    image:{
+      required:[true, "the image is required!"],
+      type: String,
+      trim: true,
+    },
     aqi_category: {
       type: aqiRangeSchema,
       required: [true, "the aqi_category is required!"],
@@ -50,6 +55,7 @@ tipsSchema.methods = {
       title: this.title,
       aqi_category: this.aqi_category,
       description: this.description,
+      image:this.image
     };
   },
 };
@@ -63,22 +69,22 @@ tipsSchema.statics = {
 
       switch (args.aqi_category) {
         case "good":
-          modifiedArgs.aqi_category = { min: 0, max: 50 };
+          modifiedArgs.aqi_category = { min: 0, max: 12.09 };
           break;
         case "moderate":
-          modifiedArgs.aqi_category = { min: 51, max: 100 };
+          modifiedArgs.aqi_category = { min: 12.1, max: 35.49 };
           break;
         case "u4sg":
-          modifiedArgs.aqi_category = { min: 101, max: 150 };
+          modifiedArgs.aqi_category = { min: 35.5, max: 55.49 };
           break;
         case "unhealthy":
-          modifiedArgs.aqi_category = { min: 151, max: 200 };
+          modifiedArgs.aqi_category = { min: 55.5, max: 150.49 };
           break;
         case "very_unhealthy":
-          modifiedArgs.aqi_category = { min: 201, max: 300 };
+          modifiedArgs.aqi_category = { min: 150.5, max: 250.49 };
           break;
         case "hazardous":
-          modifiedArgs.aqi_category = { min: 301, max: 500 };
+          modifiedArgs.aqi_category = { min: 250.5, max: 500 };
           break;
         default:
         // code block
@@ -135,6 +141,7 @@ tipsSchema.statics = {
           title: 1,
           aqi_category: 1,
           description: 1,
+          image:1,
         })
         .skip(skip ? skip : 0)
         .limit(
@@ -202,22 +209,22 @@ tipsSchema.statics = {
 
       switch (update.aqi_category) {
         case "good":
-          modifiedUpdateBody.aqi_category = { min: 0, max: 50 };
+          modifiedUpdateBody.aqi_category = { min: 0, max: 12.09 };
           break;
         case "moderate":
-          modifiedUpdateBody.aqi_category = { min: 51, max: 100 };
+          modifiedUpdateBody.aqi_category = { min: 12.1, max: 35.49 };
           break;
         case "u4sg":
-          modifiedUpdateBody.aqi_category = { min: 101, max: 150 };
+          modifiedUpdateBody.aqi_category = { min: 35.5, max: 55.49 };
           break;
         case "unhealthy":
-          modifiedUpdateBody.aqi_category = { min: 151, max: 200 };
+          modifiedUpdateBody.aqi_category = { min: 55.5, max: 150.49 };
           break;
         case "very_unhealthy":
-          modifiedUpdateBody.aqi_category = { min: 201, max: 300 };
+          modifiedUpdateBody.aqi_category = { min: 150.5, max: 250.49 };
           break;
         case "hazardous":
-          modifiedUpdateBody.aqi_category = { min: 301, max: 500 };
+          modifiedUpdateBody.aqi_category = { min: 250.5, max: 500 };
           break;
         default:
         // code block
@@ -288,6 +295,7 @@ tipsSchema.statics = {
           title: 1,
           aqi_category: 1,
           description: 1,
+          image: 1,
         },
       };
       const removedTip = await this.findOneAndRemove(filter, options).exec();

@@ -23,6 +23,7 @@ class EventsModel(BasePyMongoModel):
     DATA_EXPORT_DECIMAL_PLACES = CONFIGURATIONS.DATA_EXPORT_DECIMAL_PLACES
 
     BIGQUERY_EVENTS = CONFIGURATIONS.BIGQUERY_EVENTS
+    DATA_EXPORT_LIMIT = CONFIGURATIONS.DATA_EXPORT_LIMIT
     BIGQUERY_MOBILE_EVENTS = CONFIGURATIONS.BIGQUERY_MOBILE_EVENTS
     BIGQUERY_LATEST_EVENTS = CONFIGURATIONS.BIGQUERY_LATEST_EVENTS
 
@@ -144,7 +145,6 @@ class EventsModel(BasePyMongoModel):
             if frequency == "hourly":
                 query = f"{query} UNION ALL {bam_query}"
 
-
         elif len(sites) != 0:
             # Adding site information, start and end times
             query = (
@@ -227,7 +227,15 @@ class EventsModel(BasePyMongoModel):
         job_config = bigquery.QueryJobConfig()
         job_config.use_query_cache = True
 
-        dataframe = bigquery.Client().query(query, job_config).result().to_dataframe()
+        dataframe = (
+            bigquery.Client()
+            .query(
+                f"select distinct * from ({query}) limit {cls.DATA_EXPORT_LIMIT}",
+                job_config,
+            )
+            .result()
+            .to_dataframe()
+        )
 
         if len(dataframe) == 0:
             return dataframe

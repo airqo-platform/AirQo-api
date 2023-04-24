@@ -1,7 +1,5 @@
 const EventModel = require("@models/Event");
-const AirQloudSchema = require("@models/Airqloud");
 const { getModelByTenant } = require("./multitenancy");
-const MeasurementModel = require("@models/Measurement");
 const { logObject, logElement, logText } = require("./log");
 const constants = require("@config/constants");
 const generateFilter = require("./generate-filter");
@@ -18,8 +16,6 @@ const { getDevicesCount, list, decryptKey } = require("./create-monitor");
 const HTTPStatus = require("http-status");
 const redis = require("@config/redis");
 const axios = require("axios");
-const mongoose = require("mongoose");
-const ObjectId = mongoose.Types.ObjectId;
 const { BigQuery } = require("@google-cloud/bigquery");
 const bigquery = new BigQuery();
 const {
@@ -28,97 +24,9 @@ const {
   formatDate,
 } = require("./date");
 
-const createSiteUtil = require("./create-site");
-
 const { Parser } = require("json2csv");
 
-const httpStatus = require("http-status");
-const createAirqloudUtil = require("./create-airqloud");
-
 const createEvent = {
-  sample_kafka_message_v1: [
-    {
-      time: "2022-03-18T13:00:00Z",
-      tenant: "kcca",
-      site_id: "60d2b7e27e9018a1a8d38c28",
-      device_id: "6228c43567c2db20bffaa0cb",
-      device_number: 0,
-      device: "A0WN66FH",
-      latitude: "0.2857506",
-      longitude: "32.5783253",
-      pm2_5: 45.11,
-      pm10: 39.16,
-      s1_pm2_5: 26.4,
-      s1_pm10: 39.16,
-      s2_pm2_5: null,
-      s2_pm10: null,
-      pm2_5_calibrated_value: 45.11,
-      pm10_calibrated_value: null,
-      altitude: null,
-      wind_speed: null,
-      external_temperature: 27.82,
-      external_humidity: 56.76,
-    },
-    {
-      time: "2022-03-19T13:00:00Z",
-      tenant: "airqo",
-      frequency: "minute",
-      site_id: "60d2b7e27e9018a1a8d38c28",
-      device_id: "6228c43567c2db20bffaa0cb",
-      device_number: 0,
-      device: "aq_613_97",
-      latitude: "0.2857506",
-      longitude: "32.5783253",
-      pm2_5: 45.11,
-      pm10: 39.16,
-      s1_pm2_5: 26.4,
-      s1_pm10: 39.16,
-      s2_pm2_5: null,
-      s2_pm10: null,
-      pm2_5_calibrated_value: 45.11,
-      pm10_calibrated_value: null,
-      altitude: null,
-      wind_speed: null,
-      external_temperature: 27.82,
-      external_humidity: 56.76,
-    },
-  ],
-  sample_kafka_message_v2: [
-    {
-      s2_pm2_5: 15.18219512195122,
-      s2_pm10: 16.105365853658537,
-      longitude: 33.620239,
-      satellites: 12.0,
-      hdop: 74.0,
-      altitude: 1147.2,
-      s1_pm2_5: 17.0790243902439,
-      battery: 3.9943902439024392,
-      device_humidity: "nan",
-      s1_pm10: 18.03731707317073,
-      device_temperature: "nan",
-      latitude: 1.715389,
-      pm2_5_raw_value: 16.130609756097563,
-      pm2_5: 15.10890000000004,
-      pm10_raw_value: 17.071341463414633,
-      pm10: 21.457795987757237,
-      timestamp: "2023-03-04 13:00:00+00:00",
-      device_id: "aq_20",
-      site_id: "60d058c8048305120d2d6140",
-      device_number: 689749,
-      atmospheric_pressure: 88.65900115966797,
-      humidity: 39.030000269412994,
-      temperature: 32.90999984741211,
-      wind_direction: 231.2,
-      wind_gusts: 2.980999994277954,
-      radiation: 479.4,
-      wind_speed: 1.5710000216960909,
-      vapor_pressure: 0.0,
-      precipitation: 0.0,
-      station_code: "TA00230",
-      pm2_5_calibrated_value: 15.10890000000004,
-      pm10_calibrated_value: 21.457795987757237,
-    },
-  ],
   getMeasurementsFromBigQuery: async (req) => {
     try {
       const { query } = req;
@@ -172,7 +80,7 @@ const createEvent = {
           // return {
           //   success: false,
           //   message: "not authorized",
-          //   status: httpStatus.UNAUTHORIZED,
+          //   status: HTTPStatus.UNAUTHORIZED,
           //   errors: { message: "not authorized" },
           // };
         }
@@ -469,9 +377,23 @@ const createEvent = {
       };
     }
   },
-
   list: async (request, callback) => {
     try {
+      /**
+       * When listing events, some of the big considerations
+       * include:
+       * 1. Find the corresponding Sites if given the Airqlouds.
+       * 2. Find the corresponding Sites if given the Lat and Long Values.
+       *
+       *
+       * And then generate filter object
+       *
+       * For the function that we use to get the sites given some values,
+       * I should use the common.js module where I can export the function
+       * and call it in the respetive util file.
+       *
+       *
+       */
       let missingDataMessage = "";
       const { query } = request;
       let { recent, tenant, device, site_id } = query;
@@ -480,92 +402,7 @@ const createEvent = {
       let skip = parseInt(query.skip);
       let filter = {};
 
-      let airqloudSites = site_id ? site_id : "";
-
-      if (query.airqloud_id) {
-        let filter = generateFilter.airqlouds(request);
-        let responseFromListAirQloud = await getModelByTenant(
-          tenant.toLowerCase(),
-          "airqloud",
-          AirQloudSchema
-        ).list({
-          filter,
-          limit,
-          skip,
-        });
-        if (responseFromListAirQloud.success === true) {
-          filter = {};
-          if (responseFromListAirQloud.data.length > 1) {
-            missingDataMessage = "No distinct AirQloud found in this search";
-          } else if (isEmpty(responseFromListAirQloud.data[0])) {
-            missingDataMessage = "No distinct AirQloud found in this search";
-          } else {
-            let sites = responseFromListAirQloud.data[0]
-              ? responseFromListAirQloud.data[0].sites
-              : [];
-            if (sites && Array.isArray(sites) && sites.length > 0) {
-              let sitesFromAirQloud = [];
-              for (const site of sites) {
-                sitesFromAirQloud.push(site._id.toString());
-              }
-              airqloudSites = sitesFromAirQloud.join(",");
-            }
-            if (isEmpty(airqloudSites)) {
-              missingDataMessage = `Unable to find any sites associated with the provided AirQloud ID`;
-            } else {
-              request.query.site_id = airqloudSites;
-            }
-          }
-        } else if (responseFromListAirQloud.success === false) {
-          missingDataMessage = responseFromListAirQloud.message;
-        }
-      }
-
-      if (query.lat_long) {
-        const arrayOfCoordinates = query.lat_long.split(",");
-        let latitude = parseInt(arrayOfCoordinates[0]);
-        let longitude = parseInt(arrayOfCoordinates[1]);
-
-        let requestBodyForFindingNearestSite = {};
-        requestBodyForFindingNearestSite["latitude"] = latitude;
-        requestBodyForFindingNearestSite["longitude"] = longitude;
-        requestBodyForFindingNearestSite["tenant"] = query.tenant
-          ? query.tenant
-          : "airqo";
-        requestBodyForFindingNearestSite["radius"] = query.radius
-          ? query.radius
-          : constants.DEFAULT_NEAREST_SITE_RADIUS;
-
-        const responseFromFindNearestSiteByCoordinates = await createSiteUtil.findNearestSitesByCoordinates(
-          requestBodyForFindingNearestSite
-        );
-
-        if (responseFromFindNearestSiteByCoordinates.success === true) {
-          if (
-            Array.isArray(responseFromFindNearestSiteByCoordinates.data) &&
-            responseFromFindNearestSiteByCoordinates.data.length > 0
-          ) {
-            const stringifySiteObjects = [];
-            responseFromFindNearestSiteByCoordinates.data.forEach((element) => {
-              stringifySiteObjects.push(element._id.toString());
-            });
-            request.query.site_id = stringifySiteObjects.join(",");
-          } else {
-            missingDataMessage = `No Site is within a ${constants.DEFAULT_NEAREST_SITE_RADIUS} KM radius to the provided coordinates`;
-            logger.error(
-              `no Site is within a ${constants.DEFAULT_NEAREST_SITE_RADIUS} KM radius to the provided coordinates`
-            );
-          }
-        } else if (responseFromFindNearestSiteByCoordinates.success === false) {
-          missingDataMessage = responseFromFindNearestSiteByCoordinates.message;
-          logger.error(
-            `unable to find the nearest Site -- ${JSON.stringify(
-              responseFromFindNearestSiteByCoordinates.errors
-            )}`
-          );
-        }
-      }
-      const responseFromFilter = generateFilter.events_v2(request);
+      const responseFromFilter = generateFilter.events(request);
       if (responseFromFilter.success === true) {
         filter = responseFromFilter.data;
       } else if (responseFromFilter.success === false) {
@@ -588,7 +425,7 @@ const createEvent = {
             if (result.success === true) {
               if ((device && !recent) || recent === "no") {
                 if (!limit) {
-                  limit = parseInt(constants.DEFAULT_EVENTS_LIMIT);
+                  limit = parseInt(constants.DEFAULT_EVENTS_LIMIT) || 1000;
                 }
                 if (!skip) {
                   if (page) {
@@ -669,12 +506,14 @@ const createEvent = {
                 `unable to retrieve events --- ${JSON.stringify(result)}`
               );
               logText(result.message);
+              callback(result);
             }
           });
         }
       });
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
+      logObject("error in util", error);
       callback({
         success: false,
         errors: { message: error.message },
@@ -749,8 +588,7 @@ const createEvent = {
               errors.push(errMsg);
             }
           } catch (e) {
-            logObject("e", e);
-            logger.error(`internal server error -- ${e.message}`);
+            // logger.error(`internal server error -- ${e.message}`);
             eventsRejected.push(event);
             let errMsg = {
               message:
@@ -794,7 +632,6 @@ const createEvent = {
         return responseFromTransformEvent;
       }
     } catch (error) {
-      logObject("error", error);
       logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
@@ -911,7 +748,7 @@ const createEvent = {
       return {
         success: false,
         message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
         errors: { message: error.message },
       };
     }
@@ -927,7 +764,7 @@ const createEvent = {
           if (isEmpty(deviceDetail.category)) {
             return {
               success: false,
-              status: httpStatus.INTERNAL_SERVER_ERROR,
+              status: HTTPStatus.INTERNAL_SERVER_ERROR,
               message:
                 "unable to categorise this device, please first update device details",
               errors: {
@@ -939,7 +776,7 @@ const createEvent = {
         } else {
           return {
             success: false,
-            status: httpStatus.NOT_FOUND,
+            status: HTTPStatus.NOT_FOUND,
             message: "no matching devices found",
             errors: { message: "no matching devices found" },
           };
@@ -1041,7 +878,7 @@ const createEvent = {
       return {
         message: "Internal Server Error",
         errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
         success: false,
       };
     }
@@ -1063,7 +900,7 @@ const createEvent = {
           if (isEmpty(deviceDetail.category)) {
             return {
               success: false,
-              status: httpStatus.INTERNAL_SERVER_ERROR,
+              status: HTTPStatus.INTERNAL_SERVER_ERROR,
               message:
                 "unable to categorise this device, please first update device details",
             };
@@ -1071,7 +908,7 @@ const createEvent = {
         } else {
           return {
             success: false,
-            status: httpStatus.NOT_FOUND,
+            status: HTTPStatus.NOT_FOUND,
             message: "device not found for this organisation",
           };
         }
@@ -1183,6 +1020,12 @@ const createEvent = {
       external,
       recent,
       lat_long,
+      page,
+      index,
+      running,
+      brief,
+      latitude,
+      longitude,
     } = request.query;
     const currentTime = new Date().toISOString();
     const day = generateDateFormatWithoutHrs(currentTime);
@@ -1200,7 +1043,11 @@ const createEvent = {
       external ? external : "noExternal"
     }_${airqloud ? airqloud : "noAirQloud"}_${
       airqloud_id ? airqloud_id : "noAirQloudID"
-    }_${lat_long ? lat_long : "noLatLong"}`;
+    }_${lat_long ? lat_long : "noLatLong"}_${page ? page : "noPage"}_${
+      running ? running : "noRunning"
+    }_${index ? index : "noIndex"}_${brief ? brief : "noBrief"}_${
+      latitude ? latitude : "noLatitude"
+    }_${longitude ? longitude : "noLongitude"}`;
   },
   getEventsCount: async (request) => {},
   setCache: (data, request, callback) => {
@@ -1475,7 +1322,7 @@ const createEvent = {
             errors,
             message: "some operational errors as we were trying to transform",
             data: transforms,
-            status: httpStatus.BAD_REQUEST,
+            status: HTTPStatus.BAD_REQUEST,
           };
         } else if (errors.length === 0) {
           return {
@@ -1483,7 +1330,7 @@ const createEvent = {
             errors,
             message: "transformation successfully done",
             data: transforms,
-            status: httpStatus.OK,
+            status: HTTPStatus.OK,
           };
         }
       });
@@ -1493,7 +1340,7 @@ const createEvent = {
         success: false,
         message: "server side error - transformEvents ",
         errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -1596,7 +1443,7 @@ const createEvent = {
             // );
           }
         } catch (error) {
-          logger.error(`internal server error -- ${error.message}`);
+          // logger.error(`internal server error -- ${error.message}`);
           dot.delete("nValues", filter);
           let errMsg = {
             msg: "duplicate event",
@@ -1624,58 +1471,11 @@ const createEvent = {
         };
       }
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
+      // logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
         message: "internal server error",
         errors: { message: error.message },
-      };
-    }
-  },
-  viewEvents: async (request) => {
-    let { tenant } = request.query;
-    const dot = new Dot("-");
-    const limit = parseInt(request.query.limit, 0);
-    const skip = parseInt(request.query.skip, 0);
-
-    let responseFromFilter = generateFilter.events_v2(request);
-    let filter = {};
-    if (responseFromFilter.success === true) {
-      filter = responseFromFilter.data;
-    } else if (responseFromFilter.success === false) {
-      let errors = responseFromFilter.errors
-        ? responseFromFilter.errors
-        : { message: "" };
-      return {
-        success: false,
-        message: responseFromFilter.message,
-        errors,
-      };
-    }
-    let _limit = limit ? limit : 100;
-    let _skip = skip ? skip : 0;
-    let responseFromListEvents = await EventModel(tenant).view({
-      _skip,
-      _limit,
-      filter,
-    });
-
-    if (responseFromListEvents.success === true) {
-      let eventsArray = responseFromListEvents.data;
-      let dottedEventsArray = eventsArray.map((object) => dot.object(object));
-      return {
-        success: true,
-        message: responseFromListEvents.message,
-        data: dottedEventsArray,
-      };
-    } else if (responseFromListEvents.success === false) {
-      let errors = responseFromListEvents.errors
-        ? responseFromListEvents.errors
-        : { message: "" };
-      return {
-        success: false,
-        message: responseFromListEvents.message,
-        errors,
       };
     }
   },
@@ -1690,7 +1490,7 @@ const createEvent = {
       const { device, name, id, device_number, tenant } = request.query;
 
       let filter = {};
-      let responseFromFilter = generateFilter.events_v2(request);
+      let responseFromFilter = generateFilter.events(request);
 
       if (responseFromFilter.success == true) {
         filter = responseFromFilter.data;
@@ -1836,7 +1636,7 @@ const createEvent = {
           errors.push(errMsg);
         }
       } catch (e) {
-        logger.error(`internal server serror -- ${e.message}`);
+        // logger.error(`internal server serror -- ${e.message}`);
         eventsRejected.push(measurement);
         let errMsg = {
           msg:
@@ -2011,7 +1811,6 @@ const createEvent = {
       };
     }
   },
-
   deleteValuesOnThingspeak: async (req, res) => {
     try {
       const { device, tenant, chid, name, device_number } = req.query;

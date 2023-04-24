@@ -1,4 +1,3 @@
-import datetime
 import logging
 import traceback
 
@@ -124,6 +123,465 @@ def collocate():
             return jsonify({"errors": errors}), 400
 
         return jsonify({"data": results}), 200
+    except Exception as ex:
+        traceback.print_exc()
+        print(ex)
+        return jsonify({"error": "Error occurred. Contact support"}), 500
+
+
+@collocation_bp.route(routes.COLLOCATION_DATA, methods=["POST"])
+def data():
+    json_data = request.get_json()
+    devices = json_data.get("devices", [])
+    start_date = json_data.get("startDate", None)
+    end_date = json_data.get("endDate", None)
+
+    errors = {}
+
+    try:
+        if not devices or not isinstance(
+            devices, list
+        ):  # TODO add device restrictions e.g not more that 3 devices
+            raise Exception
+    except Exception:
+        errors["devices"] = "Provide a list of devices"
+
+    try:
+        start_date = validate_date(start_date)
+    except Exception:
+        errors["startDate"] = (
+            "This query param is required."
+            "Please provide a valid date formatted datetime string (%Y-%m-%d)"
+        )
+
+    try:
+        end_date = validate_date(end_date)
+    except Exception:
+        errors["endDate"] = (
+            "This query param is required."
+            "Please provide a valid date formatted datetime string (%Y-%m-%d)"
+        )
+
+    if errors:
+        return (
+            jsonify(
+                {
+                    "message": "Some errors occurred while processing this request",
+                    "errors": errors,
+                }
+            ),
+            400,
+        )
+
+    if (
+        start_date > end_date
+    ):  # TODO add interval restrictions e.g not more that 10 days
+        errors["dates"] = "endDate must be greater or equal to the startDate"
+        return (
+            jsonify(
+                {
+                    "message": "Some errors occurred while processing this request",
+                    "errors": errors,
+                }
+            ),
+            400,
+        )
+    try:
+        _, results = Collocation.get_data(
+            start_date_time=start_date, end_date_time=end_date, devices=devices
+        )
+        results = Collocation.format_collocation_data(results)
+
+        return jsonify({"data": results}), 200
+    except Exception as ex:
+        traceback.print_exc()
+        print(ex)
+        return jsonify({"error": "Error occurred. Contact support"}), 500
+
+
+@collocation_bp.route(routes.INTER_SENSOR_CORRELATION_DATA, methods=["POST"])
+def inter_sensor_correlation():
+    json_data = request.get_json()
+    devices = json_data.get("devices", [])
+    start_date = json_data.get("startDate", None)
+    end_date = json_data.get("endDate", None)
+    threshold = json_data.get("threshold", 0.5)
+
+    errors = {}
+
+    try:
+        if not devices or not isinstance(
+            devices, list
+        ):  # TODO add device restrictions e.g not more that 3 devices
+            raise Exception
+    except Exception:
+        errors["devices"] = "Provide a list of devices"
+
+    try:
+        start_date = validate_date(start_date)
+    except Exception:
+        errors["startDate"] = (
+            "This query param is required."
+            "Please provide a valid date formatted datetime string (%Y-%m-%d)"
+        )
+
+    try:
+        end_date = validate_date(end_date)
+    except Exception:
+        errors["endDate"] = (
+            "This query param is required."
+            "Please provide a valid date formatted datetime string (%Y-%m-%d)"
+        )
+
+    if errors:
+        return (
+            jsonify(
+                {
+                    "message": "Some errors occurred while processing this request",
+                    "errors": errors,
+                }
+            ),
+            400,
+        )
+
+    if (
+        start_date > end_date
+    ):  # TODO add interval restrictions e.g not more that 10 days
+        errors["dates"] = "endDate must be greater or equal to the startDate"
+        return (
+            jsonify(
+                {
+                    "message": "Some errors occurred while processing this request",
+                    "errors": errors,
+                }
+            ),
+            400,
+        )
+    try:
+        raw_data, _ = Collocation.get_data(
+            start_date_time=start_date,
+            end_date_time=end_date,
+            devices=devices,
+        )
+
+        results = Collocation.get_inter_sensor_correlation(
+            raw_data=raw_data,
+            threshold=threshold,
+        )
+
+        return jsonify({"data": results}), 200
+    except Exception as ex:
+        traceback.print_exc()
+        print(ex)
+        return jsonify({"error": "Error occurred. Contact support"}), 500
+
+
+@collocation_bp.route(routes.INTRA_SENSOR_CORRELATION, methods=["POST"])
+def intra_sensor_correlation():
+    json_data = request.get_json()
+    devices = json_data.get("devices", [])
+    start_date = json_data.get("startDate", None)
+    end_date = json_data.get("endDate", None)
+    threshold = json_data.get("threshold", 0.5)
+
+    errors = {}
+
+    try:
+        if not devices or not isinstance(
+            devices, list
+        ):  # TODO add device restrictions e.g not more that 3 devices
+            raise Exception
+    except Exception:
+        errors["devices"] = "Provide a list of devices"
+
+    try:
+        start_date = validate_date(start_date)
+    except Exception:
+        errors["startDate"] = (
+            "This query param is required."
+            "Please provide a valid date formatted datetime string (%Y-%m-%d)"
+        )
+
+    try:
+        end_date = validate_date(end_date)
+    except Exception:
+        errors["endDate"] = (
+            "This query param is required."
+            "Please provide a valid date formatted datetime string (%Y-%m-%d)"
+        )
+
+    if errors:
+        return (
+            jsonify(
+                {
+                    "message": "Some errors occurred while processing this request",
+                    "errors": errors,
+                }
+            ),
+            400,
+        )
+
+    if (
+        start_date > end_date
+    ):  # TODO add interval restrictions e.g not more that 10 days
+        errors["dates"] = "endDate must be greater or equal to the startDate"
+        return (
+            jsonify(
+                {
+                    "message": "Some errors occurred while processing this request",
+                    "errors": errors,
+                }
+            ),
+            400,
+        )
+    try:
+        raw_data, resampled_data = Collocation.get_data(
+            start_date_time=start_date,
+            end_date_time=end_date,
+            devices=devices,
+        )
+
+        results = Collocation.get_intra_sensor_correlation(
+            raw_data=raw_data,
+        )
+
+        return jsonify({"data": results}), 200
+    except Exception as ex:
+        traceback.print_exc()
+        print(ex)
+        return jsonify({"error": "Error occurred. Contact support"}), 500
+
+
+@collocation_bp.route(routes.COLLOCATION_DATA_COMPLETENESS, methods=["POST"])
+def data_completeness():
+    json_data = request.get_json()
+    devices = json_data.get("devices", [])
+    start_date = json_data.get("startDate", None)
+    end_date = json_data.get("endDate", None)
+    threshold = json_data.get("threshold", 0.5)
+    expected_records_per_hour = json_data.get("expectedRecordsPerHour", 10)
+
+    errors = {}
+
+    try:
+        if not devices or not isinstance(
+            devices, list
+        ):  # TODO add device restrictions e.g not more that 3 devices
+            raise Exception
+    except Exception:
+        errors["devices"] = "Provide a list of devices"
+
+    try:
+        start_date = validate_date(start_date)
+    except Exception:
+        errors["startDate"] = (
+            "This query param is required."
+            "Please provide a valid date formatted datetime string (%Y-%m-%d)"
+        )
+
+    try:
+        end_date = validate_date(end_date)
+    except Exception:
+        errors["endDate"] = (
+            "This query param is required."
+            "Please provide a valid date formatted datetime string (%Y-%m-%d)"
+        )
+
+    if errors:
+        return (
+            jsonify(
+                {
+                    "message": "Some errors occurred while processing this request",
+                    "errors": errors,
+                }
+            ),
+            400,
+        )
+
+    if (
+        start_date > end_date
+    ):  # TODO add interval restrictions e.g not more that 10 days
+        errors["dates"] = "endDate must be greater or equal to the startDate"
+        return (
+            jsonify(
+                {
+                    "message": "Some errors occurred while processing this request",
+                    "errors": errors,
+                }
+            ),
+            400,
+        )
+    try:
+        raw_data, _ = Collocation.get_data(
+            start_date_time=start_date,
+            end_date_time=end_date,
+            devices=devices,
+        )
+
+        results = Collocation.get_data_completeness(
+            start_date_time=start_date,
+            end_date_time=end_date,
+            raw_data=raw_data,
+            expected_records_per_hour=expected_records_per_hour,
+        )
+
+        results = Collocation.flatten_completeness(results)
+
+        return jsonify({"data": results}), 200
+    except Exception as ex:
+        traceback.print_exc()
+        print(ex)
+        return jsonify({"error": "Error occurred. Contact support"}), 500
+
+
+@collocation_bp.route(routes.COLLOCATION_STATISTICS, methods=["POST"])
+def data_statistics():
+    json_data = request.get_json()
+    devices = json_data.get("devices", [])
+    start_date = json_data.get("startDate", None)
+    end_date = json_data.get("endDate", None)
+
+    errors = {}
+
+    try:
+        if not devices or not isinstance(
+            devices, list
+        ):  # TODO add device restrictions e.g not more that 3 devices
+            raise Exception
+    except Exception:
+        errors["devices"] = "Provide a list of devices"
+
+    try:
+        start_date = validate_date(start_date)
+    except Exception:
+        errors["startDate"] = (
+            "This query param is required."
+            "Please provide a valid date formatted datetime string (%Y-%m-%d)"
+        )
+
+    try:
+        end_date = validate_date(end_date)
+    except Exception:
+        errors["endDate"] = (
+            "This query param is required."
+            "Please provide a valid date formatted datetime string (%Y-%m-%d)"
+        )
+
+    if errors:
+        return (
+            jsonify(
+                {
+                    "message": "Some errors occurred while processing this request",
+                    "errors": errors,
+                }
+            ),
+            400,
+        )
+
+    if (
+        start_date > end_date
+    ):  # TODO add interval restrictions e.g not more that 10 days
+        errors["dates"] = "endDate must be greater or equal to the startDate"
+        return (
+            jsonify(
+                {
+                    "message": "Some errors occurred while processing this request",
+                    "errors": errors,
+                }
+            ),
+            400,
+        )
+    try:
+        raw_data, _ = Collocation.get_data(
+            start_date_time=start_date,
+            end_date_time=end_date,
+            devices=devices,
+        )
+
+        results = Collocation.get_statistics(
+            raw_data=raw_data,
+        )
+
+        return jsonify({"data": results}), 200
+    except Exception as ex:
+        traceback.print_exc()
+        print(ex)
+        return jsonify({"error": "Error occurred. Contact support"}), 500
+
+
+@collocation_bp.route(routes.COLLOCATION_DIFFERENCES, methods=["POST"])
+def data_differences():
+    json_data = request.get_json()
+    devices = json_data.get("devices", [])
+    start_date = json_data.get("startDate", None)
+    end_date = json_data.get("endDate", None)
+
+    errors = {}
+
+    try:
+        if not devices or not isinstance(
+            devices, list
+        ):  # TODO add device restrictions e.g not more that 3 devices
+            raise Exception
+    except Exception:
+        errors["devices"] = "Provide a list of devices"
+
+    try:
+        start_date = validate_date(start_date)
+    except Exception:
+        errors["startDate"] = (
+            "This query param is required."
+            "Please provide a valid date formatted datetime string (%Y-%m-%d)"
+        )
+
+    try:
+        end_date = validate_date(end_date)
+    except Exception:
+        errors["endDate"] = (
+            "This query param is required."
+            "Please provide a valid date formatted datetime string (%Y-%m-%d)"
+        )
+
+    if errors:
+        return (
+            jsonify(
+                {
+                    "message": "Some errors occurred while processing this request",
+                    "errors": errors,
+                }
+            ),
+            400,
+        )
+
+    if (
+        start_date > end_date
+    ):  # TODO add interval restrictions e.g not more that 10 days
+        errors["dates"] = "endDate must be greater or equal to the startDate"
+        return (
+            jsonify(
+                {
+                    "message": "Some errors occurred while processing this request",
+                    "errors": errors,
+                }
+            ),
+            400,
+        )
+    try:
+        raw_data, _ = Collocation.get_data(
+            start_date_time=start_date,
+            end_date_time=end_date,
+            devices=devices,
+        )
+
+        statistics = Collocation.get_statistics(
+            raw_data=raw_data,
+        )
+
+        differences = Collocation.get_differences(
+            statistics=statistics,
+        )
+
+        return jsonify({"data": differences}), 200
     except Exception as ex:
         traceback.print_exc()
         print(ex)

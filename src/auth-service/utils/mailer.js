@@ -1,7 +1,7 @@
-const transporter = require("../config/mailer");
+const transporter = require("@config/mailer");
 const { logObject, logText } = require("./log");
 const isEmpty = require("is-empty");
-const constants = require("../config/constants");
+const constants = require("@config/constants");
 const msgs = require("./email.msgs");
 const msgTemplates = require("./email.templates");
 const httpStatus = require("http-status");
