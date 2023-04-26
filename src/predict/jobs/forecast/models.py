@@ -1,8 +1,11 @@
-import concurrent.futures
+import asyncio
+import math
 from datetime import datetime, timedelta
-from google.oauth2 import service_account
+
+import aiohttp
+import dateutil.parser
 import pandas as pd
-import requests
+from google.oauth2 import service_account
 
 from config import configuration
 
@@ -11,55 +14,71 @@ class Events:
     def __init__(self):
         super().__init__()
 
-    events_url = f"{configuration.AIRQO_API_BASE_URL}devices/events"
+    events_measurements_url = f"{configuration.AIRQO_API_BASE_URL}devices/events/all"
+
+    # events_tips_url = f"{configuration.AIRQO_API_BASE_URL}devices/tips/"
 
     @staticmethod
     def fetch_data_from_events_api():
-        """gets data from the events api in batches"""
+        async def fetch_page(session, url, params, headers):
+            try:
+                async with session.get(url, params=params, headers=headers) as response:
+                    return await response.json()
+            except aiohttp.ClientError as e:
+                print("Error fetching page: ", e)
+                return None
+
+        async def fetch_all_pages(url, params, headers):
+            async with aiohttp.ClientSession() as session:
+                response = await fetch_page(session, url, params, headers)
+                measurements = response["measurements"]
+                total_pages = response["meta"]["pages"]
+                tasks = []
+                for page in range(2, total_pages + 1):
+                    params["page"] = page
+                    tasks.append(fetch_page(session, url, params, headers))
+                results = await asyncio.gather(*tasks)
+                for result in results:
+                    measurements.extend(result["measurements"])
+                return measurements
+
         start_date = datetime.now() - timedelta(days=30)
         end_date = datetime.now()
-        batch_size = timedelta(hours=5)
-        data = []
-        batches = []
+        params = {
+            "tenant": configuration.TENANT,
+        }
+        headers = {"authorization": configuration.AIRQO_API_KEY}
+        interval = timedelta(days=5)
+        all_measurements = []
         while start_date < end_date:
-            batch_start = start_date.strftime('%Y-%m-%d')
-            batch_end = (start_date + batch_size).strftime('%Y-%m-%d')
-            batches.append((batch_start, batch_end))
-            start_date += batch_size
+            params["startTime"] = start_date.strftime("%Y-%m-%d")
+            params["endTime"] = (start_date + interval).strftime("%Y-%m-%d")
+            measurements = asyncio.run(fetch_all_pages(Events.events_measurements_url, params, headers))
+            all_measurements += measurements
+            start_date += interval
 
-        def fetch_batch(batch):
-            start, end = batch
-            params = {
-                'tenant': configuration.TENANT,
-                'startTime': start,
-                'endTime': end
-            }
-            response = requests.get(Events.events_url, params=params)
-            if response.status_code != 200:
-                raise Exception(f'Error fetching data from events api: {response.text}')
-            else:
-                return response.json()
-
-        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-            futures = [executor.submit(fetch_batch, batch) for batch in batches]
-            for future in concurrent.futures.as_completed(futures):
-                data.append(future.result())
-        return data
+        return all_measurements
 
     @staticmethod
     def get_forecast_data():
-        """transforms the events json data to a pandas dataframe"""
+        """transforms the events json data to a pandas dataframe and returns it"""
         data = Events.fetch_data_from_events_api()
-        final_df = pd.DataFrame()
-        for batch in data:
-            df = pd.DataFrame(batch['measurements'], columns=['time', 'site_id', 'pm2_5', 'deviceDetails'])
-            df['deviceDetails'] = df['deviceDetails'].apply(lambda x: list(x.values())[-2][0])
-            df['pm2_5'] = df['pm2_5'].apply(lambda x: list(x.values())[1])
-            df.rename(columns={'time': 'created_at', 'deviceDetails': 'device_number'}, inplace=True)
-            final_df = pd.concat([final_df, df], ignore_index=True)
-        return final_df
+        if data is None:
+            return Events.fetch_bigquery_data()
+        else:
+            df_data = [
+                {"created_at": dateutil.parser.parse(d["time"]),
+                 "site_id": d["site_id"],
+                 "pm2_5": d["pm2_5"]["calibratedValue"],
+                 "device_number": d["deviceDetails"]["device_codes"][0]} for
+                d in data if "site_id" in d and d["site_id"] and "deviceDetails" in d and "device_codes" in d[
+                    "deviceDetails"] and len(
+                    d["deviceDetails"]["device_codes"]) > 0 and "pm2_5" in d and "calibratedValue" in d["pm2_5"] and
+                             d["pm2_5"]["calibratedValue"] is not None and not math.isnan(
+                    d["pm2_5"]["calibratedValue"])]
+            df = pd.DataFrame(df_data)
+            return df
 
-    # TODO: Remove this and use Events API only
     @staticmethod
     def fetch_bigquery_data():
         """gets data from the bigquery table"""
