@@ -11,7 +11,7 @@ const {getAuth} = require("firebase-admin/auth");
 const {Kafka} = require("kafkajs");
 const nodemailer = require("nodemailer");
 
-const emailTemplate = require("../config/emailTemplates");
+const emailTemplate = require("./config/emailTemplates");
 
 const transporter = nodemailer.createTransport({
   service: "gmail",
@@ -48,21 +48,24 @@ async function sendWelcomeEmail(email, name) {
     html: emailTemplate.mobileAppWelcome(name),
     attachments: [{
       filename: "welcomeImage.png",
-      path: "../config/images/welcomeImage.png",
+      path: "./config/images/welcomeImage.png",
       cid: "AirQoEmailWelcomeImage",
       contentDisposition: "inline",
     },
     {
       filename: "airqoLogo.png",
-      path: "../config/images/airqoLogo.png",
+      path: "./config/images/airqoLogo.png",
       cid: "AirQoEmailLogo",
       contentDisposition: "inline",
     }],
   };
-
-  await transporter.sendMail(mailOptions);
-  functions.logger.log("New welcome email sent to:", email);
-  return null;
+  try {
+    await transporter.sendMail(mailOptions);
+    functions.logger.log("New welcome email sent to:", email);
+    return null;
+  } catch (error) {
+    functions.logger.log("Transporter failed to send email", error);
+  }
 }
 
 
@@ -157,16 +160,21 @@ async function checkIfUserExists(data) {
 exports.sendWelcomeEmail = functions.auth.user().onCreate((user) => {
   if (user.email !== null) {
     const email = user.email;
-    setTimeout(async () => {
-      const userRef = firestoreDb.collection("airqo-app-users").doc(user.uid);
-      const userDoc = await userRef.get();
+    try {
+      setTimeout(async () => {
+        const userRef = firestoreDb.collection("airqo-app-users")
+            .doc(user.uid);
+        const userDoc = await userRef.get();
 
-      let firstName = userDoc.data().firstName;
-      if (firstName == null) {
-        firstName = "";
-      }
-      sendWelcomeEmail(email, firstName);
-    }, 300000);
+        let firstName = userDoc.data().firstName;
+        if (firstName == null) {
+          firstName = "";
+        }
+        sendWelcomeEmail(email, firstName);
+      }, 300000);
+    } catch (error) {
+      functions.logger.log("Error fetching user data:", error);
+    }
   }
 });
 
