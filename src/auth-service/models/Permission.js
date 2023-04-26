@@ -8,7 +8,6 @@ const PermissionSchema = new mongoose.Schema(
   {
     permission: {
       type: String,
-      unique: true,
       required: [true, "permission is required"],
     },
     network_id: {
@@ -48,7 +47,7 @@ PermissionSchema.pre("update", function (next) {
   return next();
 });
 
-PermissionSchema.index({ permission: 1 }, { unique: true });
+PermissionSchema.index({ permission: 1, network_id: 1 }, { unique: true });
 
 PermissionSchema.statics = {
   async register(args) {
@@ -90,7 +89,7 @@ PermissionSchema.statics = {
     }
   },
 
-  async list({ skip = 0, limit = 5, filter = {} } = {}) {
+  async list({ skip = 0, limit = 100, filter = {} } = {}) {
     try {
       let permissions = await this.aggregate()
         .match(filter)

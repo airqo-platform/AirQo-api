@@ -595,7 +595,7 @@ const createRole = {
       }
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
+        tenant = constants.DEFAULT_TENANT || "airqo";
       }
       let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
@@ -608,7 +608,7 @@ const createRole = {
           ? responseFromUpdateRole.status
           : httpStatus.OK;
         return res.status(status).json({
-          success: false,
+          success: true,
           message: responseFromUpdateRole.message,
           updated_role: responseFromUpdateRole.data,
         });

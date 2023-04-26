@@ -114,7 +114,7 @@ ClientSchema.statics = {
       };
     }
   },
-  async list({ skip = 0, limit = 5, filter = {} } = {}) {
+  async list({ skip = 0, limit = 100, filter = {} } = {}) {
     try {
       logText("we are inside the model/collection....");
       const projectAll = {
