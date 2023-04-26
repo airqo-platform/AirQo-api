@@ -35,8 +35,9 @@ async function sendGoodByeMessage(_user) {
 
 /**
  * @param {any} email The user's email
+ * @param {any} name The user's name
  */
-async function sendWelcomeEmail(email) {
+async function sendWelcomeEmail(email, name) {
   const mailOptions = {
     from: {
       name: "AirQo Data Team",
@@ -44,7 +45,19 @@ async function sendWelcomeEmail(email) {
     },
     to: email,
     subject: "Welcome to AirQo!",
-    html: emailTemplate.mobileAppWelcome(),
+    html: emailTemplate.mobileAppWelcome(name),
+    attachments: [{
+      filename: "welcomeImage.png",
+      path: "../config/images/welcomeImage.png",
+      cid: "AirQoEmailWelcomeImage",
+      contentDisposition: "inline",
+    },
+    {
+      filename: "airqoLogo.png",
+      path: "../config/images/airqoLogo.png",
+      cid: "AirQoEmailLogo",
+      contentDisposition: "inline",
+    }],
   };
 
   await transporter.sendMail(mailOptions);
@@ -144,7 +157,16 @@ async function checkIfUserExists(data) {
 exports.sendWelcomeEmail = functions.auth.user().onCreate((user) => {
   if (user.email !== null) {
     const email = user.email;
-    return sendWelcomeEmail(email);
+    setTimeout(async () => {
+      const userRef = firestoreDb.collection("airqo-app-users").doc(user.uid);
+      const userDoc = await userRef.get();
+
+      let firstName = userDoc.data().firstName;
+      if (firstName == null) {
+        firstName = "";
+      }
+      sendWelcomeEmail(email, firstName);
+    }, 300000);
   }
 });
 
