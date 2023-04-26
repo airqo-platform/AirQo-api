@@ -98,6 +98,7 @@ const UserSchema = new Schema(
     role: {
       type: ObjectId,
       ref: "role",
+      default: constants.DEFAULT_ROLE,
     },
     permissions: [
       {
