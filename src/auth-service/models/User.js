@@ -550,6 +550,8 @@ UserSchema.methods = {
         lastName: this.lastName,
         userName: this.userName,
         email: this.email,
+        role: this.role,
+        networks: this.networks,
         privilege: this.privilege,
         country: this.country,
         profilePicture: this.profilePicture,
