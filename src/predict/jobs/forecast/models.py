@@ -1,6 +1,7 @@
 import asyncio
 import math
 from datetime import datetime, timedelta
+import requests
 
 import aiohttp
 import dateutil.parser
@@ -90,3 +91,11 @@ class Events:
         df = pd.read_gbq(query, project_id=configuration.GOOGLE_CLOUD_PROJECT_ID, credentials=credentials)
         df.rename(columns={'timestamp': 'created_at', 'pm2_5_calibrated_value': 'pm2_5'}, inplace=True)
         return df
+
+    @staticmethod
+    def fetch_health_tips():
+        "fetch health tips from the api"
+        response = requests.get(Events.events_tips_url, headers={"authorization": configuration.AIRQO_API_KEY})
+        if response.status_code == 200:
+            result = response.json()
+            return result["tips"]
