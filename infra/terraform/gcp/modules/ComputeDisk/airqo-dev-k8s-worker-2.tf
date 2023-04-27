@@ -1,4 +1,4 @@
-resource "google_compute_disk" "airqo_dev_k8s_worker_1" {
+resource "google_compute_disk" "airqo_dev_k8s_worker_2" {
   image                     = var.os["ubuntu-jammy"]
   name                      = "airqo-dev-k8s-worker-2"
   physical_block_size_bytes = 4096
