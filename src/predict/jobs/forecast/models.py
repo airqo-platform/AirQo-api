@@ -1,10 +1,10 @@
 import concurrent.futures
 from datetime import datetime, timedelta
-import requests
 
 import aiohttp
 import dateutil.parser
 import pandas as pd
+import requests
 from google.oauth2 import service_account
 import pandas as pd
 import requests
@@ -16,7 +16,9 @@ class Events:
     def __init__(self):
         super().__init__()
 
-    events_url = f"{configuration.AIRQO_API_BASE_URL}devices/events"
+    events_measurements_url = f"{configuration.AIRQO_API_BASE_URL}devices/events/all"
+
+    events_tips_url = f"{configuration.AIRQO_API_BASE_URL}devices/tips/"
 
     @staticmethod
     def fetch_data_from_events_api():

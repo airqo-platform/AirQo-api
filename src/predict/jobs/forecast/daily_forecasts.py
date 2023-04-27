@@ -90,6 +90,15 @@ def get_new_row(df_tmp, device, model):
     return new_row
 
 
+def append_health_tips(pm2_5):
+    tips = []
+    health_tips = Events.fetch_health_tips()
+    for tip in health_tips:
+        if tip['aqi_category']['min'] <= pm2_5 <= tip['aqi_category']['max']:
+            tips.append(tip)
+    return tips
+
+
 def save_next_1_week_forecast_results(data):
     db.daily_forecasts.insert_many(data)
     print('saved')
@@ -121,6 +130,7 @@ if __name__ == '__main__':
                                        'daily_forecast_model.pkl')
     forecasts = get_next_1week_forecasts(TARGET_COL, model)
     forecasts['created_at'] = forecasts['created_at'].apply(lambda x: x.isoformat())
+    forecasts['health_tips'] = forecasts['pm2_5'].apply(append_health_tips)
     forecast_results = []
 
     created_at = pd.to_datetime(datetime.now()).isoformat()
@@ -130,7 +140,9 @@ if __name__ == '__main__':
                   'site_id': forecasts[forecasts['device_number'] == i]['site_id'].tolist()[0],
                   'pm2_5': forecasts[forecasts['device_number'] == i]['pm2_5'].tolist(),
                   'created_at': created_at,
-                  'time': forecasts[forecasts['device_number'] == i]['created_at'].tolist()}
+                  'time': forecasts[forecasts['device_number'] == i]['created_at'].tolist(),
+                  'health_tips': forecasts[forecasts['device_number'] == i]['health_tips'].tolist(),
+                  }
         forecast_results.append(record)
 
     save_next_1_week_forecast_results(forecast_results)
