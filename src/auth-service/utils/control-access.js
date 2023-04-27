@@ -911,7 +911,9 @@ const controlAccess = {
 
       logObject("responseFromListRole", responseFromListRole);
       if (responseFromListRole.success === true) {
-        if (responseFromListRole.status === httpStatus.NOT_FOUND) {
+        if (
+          responseFromListRole.message === "roles not found for this operation"
+        ) {
           return responseFromListRole;
         }
       } else if (responseFromListRole.success === false) {
@@ -953,7 +955,7 @@ const controlAccess = {
       });
 
       if (responseFromUpdateUser.success === true) {
-        if (responseFromUpdateUser.status === httpStatus.NOT_FOUND) {
+        if (responseFromUpdateUser.status === httpStatus.BAD_REQUEST) {
           return responseFromUpdateUser;
         }
         let newResponse = Object.assign({}, responseFromUpdateUser);
