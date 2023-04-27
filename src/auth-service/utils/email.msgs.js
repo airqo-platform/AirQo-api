@@ -127,17 +127,20 @@ module.exports = {
   welcome_general: (firstName, lastName, password, username) => {
     return (
       `Dear ${firstName + " " + lastName} \n\n` +
-      "Welcome to the AirQo air quality monitoring platform. \n\n" +
+      "Welcome to the AirQo air quality monitoring platform. Your login credentials are as follows: \n\n" +
       `YOUR USERNAME: ${username}\n` +
       `YOUR PASSWORD: ${password}\n\n` +
-      `Follow this link to access the dashboard right now: ${constants.LOGIN_PAGE}\n` +
-      `You can always change your password in your account settings after login\n\n` +
+      `To access the dashboard, please follow this link: ${constants.LOGIN_PAGE}\n` +
+      `After login, you can change your password in your account settings.\n\n` +
       `You can also use your platform credentials to access the AirQo API\n` +
       `The AirQo API reference can be found here: https://docs.airqo.net/airqo-rest-api-documentation/ \n\n` +
-      `By actively utilising the platform, you automatically agree to the AirQo terms and conditions: https://docs.airqo.net/airqo-terms-and-conditions/HxYx3ysdA6k0ng6YJkU3/ \n\n\n\n` +
+      `By actively utilising the platform, you automatically agree to the AirQo terms and conditions: https://docs.airqo.net/airqo-terms-and-conditions/HxYx3ysdA6k0ng6YJkU3/ \n\n` +
       /// `Demos for using our main features can be found on our Youtube channel here:  ${constants.YOUTUBE_CHANNEL}\n\n\n\n` +
-      "PLEASE DO NOT REPLY TO THIS EMAIL\n\n" +
-      "If you experience any technical challenges or wish to offer suggestions, please contact us at support@airqo.net"
+      "For any technical challenges or suggestions, please contact us at support@airqo.net. \n\n" +
+      "Please note that this is an automated message, so please do not reply to this email. \n\n" +
+      "To learn more about the AirQo platform and its features, please refer to the user guide available here: https://docs.airqo.net/airqo-platform/ \n\n" +
+      "Best regards, \n\n" +
+      "AirQo Data Team"
     );
   },
   user_updated: (firstName, lastName) => {

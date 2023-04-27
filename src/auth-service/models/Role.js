@@ -21,6 +21,10 @@ const RoleSchema = new mongoose.Schema(
       trim: true,
       unique: true,
     },
+    network_id: {
+      type: ObjectId,
+      ref: "network",
+    },
     role_permissions: {
       type: Array,
       default: [],
@@ -98,7 +102,7 @@ RoleSchema.statics = {
           return (response[key] = value.message);
         });
       } else if (err.code === 11000) {
-        logObject("JSON.parse(err)", JSON.parse(err));
+        logObject("err", err);
         const duplicate_record = args.role_name
           ? args.role_name
           : args.role_code;
@@ -117,7 +121,7 @@ RoleSchema.statics = {
     }
   },
 
-  async list({ skip = 0, limit = 5, filter = {} } = {}) {
+  async list({ skip = 0, limit = 100, filter = {} } = {}) {
     try {
       const roles = await this.aggregate()
         .match(filter)
@@ -132,6 +136,30 @@ RoleSchema.statics = {
           localField: "role_permissions",
           foreignField: "permission",
           as: "role_permissions",
+        })
+        .lookup({
+          from: "users",
+          localField: "_id",
+          foreignField: "role",
+          as: "role_users",
+        })
+        .project({
+          "role_users._id": 0,
+          "role_users.notifications": 0,
+          "role_users.emailConfirmed": 0,
+          "role_users.locationCount": 0,
+          "role_users.password": 0,
+          "role_users.privilege": 0,
+          "role_users.organization": 0,
+          "role_users.duration": 0,
+          "role_users.__v": 0,
+          "role_users.phoneNumber": 0,
+          "role_users.profilePicture": 0,
+          "role_users.resetPasswordExpires": 0,
+          "role_users.resetPasswordToken": 0,
+          "role_users.updatedAt": 0,
+          "role_users.networks": 0,
+          "role_users.role": 0,
         })
         .sort({ createdAt: -1 })
         .project({
@@ -153,13 +181,13 @@ RoleSchema.statics = {
           success: true,
           message: "roles not found for this operation",
           data: [],
-          status: httpStatus.NOT_FOUND,
+          status: httpStatus.OK,
         };
       }
     } catch (error) {
       return {
         success: false,
-        message: "Role model server error - list",
+        message: "Internal Server Error",
         error: error.message,
         errors: { message: error.message },
       };
