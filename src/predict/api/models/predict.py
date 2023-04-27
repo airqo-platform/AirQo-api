@@ -16,7 +16,8 @@ def get_forecasts(site_id, db_name):
         for i in range(0, len(site_forecasts[0]['pm2_5'])):
             time = site_forecasts[0]['time'][i]
             pm2_5 = site_forecasts[0]['pm2_5'][i]
-            result = {'time': time, 'pm2_5': pm2_5}
+            health_tips = site_forecasts[0]['health_tips']
+            result = {'time': time, 'pm2_5': pm2_5, 'health_tips': health_tips}
             results.append(result)
 
     formatted_results = {'forecasts': results}
