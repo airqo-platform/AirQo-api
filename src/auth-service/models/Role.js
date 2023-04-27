@@ -21,6 +21,10 @@ const RoleSchema = new mongoose.Schema(
       trim: true,
       unique: true,
     },
+    network_id: {
+      type: ObjectId,
+      ref: "network",
+    },
     role_permissions: {
       type: Array,
       default: [],
