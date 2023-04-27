@@ -1,13 +1,13 @@
-resource "google_compute_instance" "airqo_dev_k8s_controller" {
-  name    = "airqo-dev-k8s-controller"
+resource "google_compute_instance" "airqo_dev_haproxy" {
+  name    = "airqo-dev-haproxy"
   project = var.project_id
   zone    = var.zone["b"]
 
-  machine_type = "e2-standard-2"
+  machine_type = "e2-small"
 
   boot_disk {
     auto_delete = false
-    source      = "https://www.googleapis.com/compute/v1/projects/${var.project_id}/zones/${var.zone["b"]}/disks/airqo-dev-k8s-controller"
+    source      = "https://www.googleapis.com/compute/v1/projects/${var.project_id}/zones/${var.zone["b"]}/disks/airqo-dev-haproxy"
   }
 
   metadata = {
@@ -20,9 +20,9 @@ resource "google_compute_instance" "airqo_dev_k8s_controller" {
     }
     network    = "airqo-k8s-cluster"
     subnetwork = "k8s-nodes"
-    network_ip = "10.240.0.23"
+    network_ip = "10.240.0.27"
   }
-  tags = ["airqo-k8s", "controller"]
+  tags = ["haproxy", "http-server", "https-server"]
 
   reservation_affinity {
     type = "ANY_RESERVATION"
@@ -50,4 +50,4 @@ resource "google_compute_instance" "airqo_dev_k8s_controller" {
     "https://www.googleapis.com/compute/v1/projects/${var.project_id}/regions/${var.region}/resourcePolicies/daily-dev-vms"
   ]
 }
-# terraform import google_compute_instance.airqo_dev_k8s_controller projects/${var.project_id}/zones/${var.zone["b"]}/instances/airqo-dev-k8s-controller
+# terraform import google_compute_instance.airqo_dev_haproxy projects/${var.project_id}/zones/${var.zone["b"]}/instances/airqo-dev-haproxy
