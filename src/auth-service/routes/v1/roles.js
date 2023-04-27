@@ -132,7 +132,7 @@ router.post(
   createRoleController.create
 );
 
-router.patch(
+router.put(
   "/:role_id",
   oneOf([
     [
@@ -164,22 +164,26 @@ router.patch(
   ]),
   oneOf([
     [
-      body("role_name")
-        .not()
-        .exists()
-        .withMessage("role_name should not exist in the request body"),
-      body("role_code")
-        .not()
-        .exists()
-        .withMessage("role_code should not exist in the request body"),
       body("role_status")
-        .exists()
-        .withMessage("role_status should be provided")
+        .optional()
+        .notEmpty()
+        .withMessage("the role_status should not be empty if provided")
         .bail()
+        .toUpperCase()
         .isIn(["ACTIVE", "INACTIVE"])
         .withMessage(
-          "the role_status value is not among the expected ones: ACTIVE or INACTIVE"
+          "the status value is not among the expected ones which include: ACTIVE, INACTIVE"
         )
+        .trim(),
+      body("role_name")
+        .optional()
+        .notEmpty()
+        .withMessage("the role_name should not be empty if provided")
+        .trim(),
+      body("role_code")
+        .optional()
+        .notEmpty()
+        .withMessage("the role_code should not be empty if provided")
         .trim(),
     ],
   ]),
