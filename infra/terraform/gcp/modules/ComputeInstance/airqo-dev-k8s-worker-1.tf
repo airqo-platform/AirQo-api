@@ -20,7 +20,7 @@ resource "google_compute_instance" "airqo_dev_k8s_worker_1" {
     }
     network    = "airqo-k8s-cluster"
     subnetwork = "k8s-nodes"
-    network_ip = "10.240.0.24"
+    network_ip = "10.240.0.25"
   }
   tags = ["airqo-k8s", "worker"]
 

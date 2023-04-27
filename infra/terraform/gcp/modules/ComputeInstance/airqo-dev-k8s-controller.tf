@@ -1,5 +1,5 @@
-resource "google_compute_instance" "airqo_dev_k8s_worker_0" {
-  name    = "airqo-dev-k8s-worker-0"
+resource "google_compute_instance" "airqo_dev_k8s_controller" {
+  name    = "airqo-dev-k8s-controller"
   project = var.project_id
   zone    = var.zone["b"]
 
@@ -7,7 +7,7 @@ resource "google_compute_instance" "airqo_dev_k8s_worker_0" {
 
   boot_disk {
     auto_delete = false
-    source      = "https://www.googleapis.com/compute/v1/projects/${var.project_id}/zones/${var.zone["b"]}/disks/airqo-dev-k8s-worker-0"
+    source      = "https://www.googleapis.com/compute/v1/projects/${var.project_id}/zones/${var.zone["b"]}/disks/airqo-dev-k8s-controller"
   }
 
   metadata = {
@@ -20,7 +20,7 @@ resource "google_compute_instance" "airqo_dev_k8s_worker_0" {
     }
     network    = "airqo-k8s-cluster"
     subnetwork = "k8s-nodes"
-    network_ip = "10.240.0.24"
+    network_ip = "10.240.0.23"
   }
   tags = ["airqo-k8s", "worker"]
 
@@ -46,4 +46,4 @@ resource "google_compute_instance" "airqo_dev_k8s_worker_0" {
     ]
   }
 }
-# terraform import google_compute_instance.airqo_dev_k8s_worker_0 projects/${var.project_id}/zones/${var.zone["b"]}/instances/airqo-dev-k8s-worker-0
+# terraform import google_compute_instance.airqo_dev_k8s_controller projects/${var.project_id}/zones/${var.zone["b"]}/instances/airqo-dev-k8s-controller
