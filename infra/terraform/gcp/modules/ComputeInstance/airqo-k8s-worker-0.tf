@@ -7,7 +7,7 @@ resource "google_compute_instance" "airqo_k8s_worker_0" {
 
   boot_disk {
     auto_delete = false
-    source      = "https://www.googleapis.com/compute/v1/projects/airqo-250220/zones/europe-west1-b/disks/airqo-k8s-worker-0"
+    source      = "https://www.googleapis.com/compute/v1/projects/${var.project_id}/zones/${var.zone["b"]}/disks/airqo-k8s-worker-0"
   }
 
   metadata = {
@@ -47,7 +47,7 @@ resource "google_compute_instance" "airqo_k8s_worker_0" {
   }
 
   resource_policies = [
-    "https://www.googleapis.com/compute/v1/projects/airqo-250220/regions/europe-west1/resourcePolicies/hourly-k8s-runners"
+    "https://www.googleapis.com/compute/v1/projects/${var.project_id}/regions/${var.project_id}/resourcePolicies/hourly-k8s-runners"
   ]
 }
 # terraform import google_compute_instance.airqo_k8s_worker_0 projects/${var.project_id}/zones/${var.zone["b"]}/instances/airqo-k8s-worker-0
