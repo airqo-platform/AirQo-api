@@ -418,12 +418,6 @@ jobs:
           gcloud secrets versions access latest --secret="prod-key-auth-service-firebase-admin-sdk" > firebase_admin_sdk.json
           kubectl create configmap --dry-run=client -o yaml --from-file=firebase_admin_sdk.json prod-auth-api-config-files | kubectl replace -f - -n production
 
-      - name: Deploy to K8S
-        run: |
-          kubectl apply -f k8s/auth-service/prod-auth-api.yaml
-          kubectl set image deployment/airqo-auth-api auth-api=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-auth-api:${{ needs.image-tag.outputs.build_id }} -n production
-          kubectl annotate deployment/airqo-auth-api kubernetes.io/change-cause="Image updated to ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-auth-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
-
   #### Fault Detection ######
   fault-detection:
     name: build-push-deploy-fault-detection
@@ -505,11 +499,6 @@ jobs:
           cd src/fault-detection/
           gcloud secrets versions access latest --secret="prod-env-fault-detection" > .env
           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env prod-fault-detection-api-config | kubectl replace -f - -n production
-
-      - name: Deploy to k8s cluster
-        run: |
-          kubectl apply -f k8s/fault-detection/prod-fault-detection-api.yaml -n production
-          kubectl rollout restart deployment prod-fault-detection-api  -n production
 
   ### airflow ###
   airflow:
@@ -639,12 +628,6 @@ jobs:
           gcloud secrets versions access latest --secret="prod-key-device-registry-service-account" > google_application_credentials.json
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json device-registry-config-files | kubectl replace -f - -n production
 
-      - name: Deploy to K8S
-        run: |
-          kubectl apply -f k8s/device-registry/prod-device-registry-api.yaml -n production
-          kubectl set image deployment/airqo-device-registry-api device-reg-api=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-registry-api:${{ needs.image-tag.outputs.build_id }} -n production
-          kubectl annotate deployment/airqo-device-registry-api kubernetes.io/change-cause="Image updated to ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-registry-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
-
   ### device monitoring ###
   device-monitoring:
     name: build-push-deploy-device-monitoring
@@ -668,13 +651,29 @@ jobs:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
 
-      - name: Build and Push Docker Image
-        run: |
-          cd src/device-monitoring/
-          docker build --target=production --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-monitor-api:${{ needs.image-tag.outputs.build_id }} .
-          docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-monitor-api:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-monitor-api:latest
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-monitor-api:${{ needs.image-tag.outputs.build_id }}
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-monitor-api:latest
+      - name: Build and push API
+        uses: docker/build-push-action@v3
+        with:
+          push: true
+          context: src/device-monitoring/
+          target: production
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-monitor-api:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-monitor-api:latest
+
+      - name: Build and push celery-beat
+        uses: docker/build-push-action@v3
+        with:
+          push: true
+          context: src/device-monitoring/
+          target: celery-beat
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-monitor-celery-beat:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-monitor-celery-beat:latest
+
+      - name: Build and push celery-worker
+        uses: docker/build-push-action@v3
+        with:
+          push: true
+          context: src/device-monitoring/
+          target: celery-worker
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-monitor-celery-worker:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-monitor-celery-worker:latest
 
       - name: Update corresponding helm values file(with retry)
         uses: Wandalen/wretry.action@master # Retries action on fail
@@ -682,10 +681,10 @@ jobs:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
             valueFile: "k8s/device-monitor/values-prod.yaml"
-            propertyPath: "image.tag"
+            propertyPath: "images.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
-            message: "Update device monitor production image tag to ${{ needs.image-tag.outputs.build_id }}"
+            message: "Update device monitor production images' tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
         uses: google-github-actions/auth@v0
@@ -700,12 +699,8 @@ jobs:
           cd src/device-monitoring/
           gcloud secrets versions access latest --secret="prod-env-device-monitoring" > .env
           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-device-monitoring-production | kubectl replace -f - -n production
-
-      - name: Deploy to K8S
-        run: |
-          kubectl apply -f k8s/device-monitor/prod-device-monitor-api.yaml -n production
-          kubectl set image deployment/airqo-device-monitor-api dev-monitor-api=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-monitor-api:${{ needs.image-tag.outputs.build_id }} -n production
-          kubectl annotate deployment/airqo-device-monitor-api kubernetes.io/change-cause="Image updated to ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-monitor-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
+          gcloud secrets versions access latest --secret="prod-key-device-monitoring-service-account" > google_application_credentials.json
+          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json device-monitor-config-files | kubectl replace -f - -n production
 
   ### data-mgt ###
   data-mgt:
@@ -762,11 +757,6 @@ jobs:
           cd src/data-mgt/node/
           gcloud secrets versions access latest --secret="prod-env-data-mgt-nodejs" > .env
           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env data-mgt-api-config | kubectl replace -f - -n production
-
-      - name: Deploy to K8S
-        run: |
-          kubectl apply -f k8s/data-mgt/prod-data-mgt-api.yaml -n production
-          kubectl rollout restart deployment/airqo-data-mgt-api -n production
 
   ### analytics ###
   analytics:
@@ -827,12 +817,6 @@ jobs:
           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-analytics-production | kubectl replace -f - -n production
           gcloud secrets versions access latest --secret="prod-key-analytics-service-account" > google_application_credentials.json
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json prod-analytics-config-files | kubectl replace -f - -n production
-
-      - name: Deploy to K8S
-        run: |
-          kubectl apply -f k8s/analytics/prod-analytics-api.yaml -n production
-          kubectl set image deployment/airqo-analytics-api analytics-api=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-api:${{ needs.image-tag.outputs.build_id }} -n production
-          kubectl annotate deployment/airqo-analytics-api kubernetes.io/change-cause="Image updated to ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
 
       ######################### Analytics report job CI ##################################
       - name: Build and Push Job's Docker Image
@@ -919,10 +903,6 @@ jobs:
           gcloud secrets versions access latest --secret="prod-env-device-uptime" > .env
           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-device-uptime-production | kubectl replace -f - -n production
 
-      - name: Deploy to K8S
-        run: |
-          kubectl apply -f k8s/device-uptime/prod-airqo-device-uptime-job.yaml
-
   ### device status ###
   device-status:
     name: build-push-deploy-device-status
@@ -980,10 +960,6 @@ jobs:
           cd src/device-status/
           gcloud secrets versions access latest --secret="prod-env-device-status" > .env
           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-device-status-production | kubectl replace -f - -n production
-
-      - name: Deploy to K8S
-        run: |
-          kubectl apply -f k8s/device-status/prod-airqo-device-status-job.yaml
 
   ### kafka cluster operator ###
   kafka-cluster-operator:
@@ -1111,12 +1087,6 @@ jobs:
           gcloud secrets versions access latest --secret="prod-env-locate-api" > .env
           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-locate-production | kubectl replace -f - -n production
 
-      - name: Deploy to K8S
-        run: |
-          kubectl apply -f k8s/locate/prod-locate-api.yaml -n production
-          kubectl set image deployment/airqo-locate-api locate-api=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-locate-api:${{ needs.image-tag.outputs.build_id }} -n production
-          kubectl annotate deployment/airqo-locate-api kubernetes.io/change-cause="Image updated to ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-locate-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
-
   ### gp model ###
   gp-model:
     name: build-push-deploy-gp-model
@@ -1174,10 +1144,6 @@ jobs:
           cd src/gp-model/
           gcloud secrets versions access latest --secret="prod-env-gp-model" > .env
           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-gp-model-production | kubectl replace -f - -n production
-
-      - name: Deploy to K8S
-        run: |
-          kubectl apply -f k8s/gp-model/prod-airqo-gp-model-job.yaml
 
   ### exceddences ###
   exceedance:
@@ -1256,11 +1222,6 @@ jobs:
           gcloud secrets versions access latest --secret="prod-env-exceedances" > .env
           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-exceedance-production | kubectl replace -f - -n production
 
-      - name: Deploy to K8S
-        run: |
-          kubectl apply -f k8s/exceedance/prod-airqo-exceedance-job.yaml
-          kubectl apply -f k8s/exceedance/prod-kcca-exceedance-job.yaml
-
   ### meta-data ###
   meta-data:
     name: build-push-deploy-meta-data
@@ -1328,11 +1289,6 @@ jobs:
           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env prod-meta-data-api-config | kubectl replace -f - -n production
           gcloud secrets versions access latest --secret="prod-key-metadata-service-account" > google_application_credentials.json
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json prod-meta-data-api-config-files | kubectl replace -f - -n production
-
-      - name: Deploy to K8S
-        run: |
-          kubectl apply -f k8s/meta-data/prod-meta-data-api.yaml
-          kubectl rollout restart deployment airqo-meta-data-api -n production
 
   ### view ###
   view:
@@ -1419,16 +1375,6 @@ jobs:
           gcloud secrets versions access latest --secret="prod-key-view-api-google-credentials" > google_application_credentials.json
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json view-api-config-files | kubectl replace -f - -n production
 
-      - name: Deploy API to K8S
-        run: |
-          kubectl apply -f k8s/view/prod-view-api.yaml -n production
-          kubectl rollout restart deployment airqo-view-api  -n production
-
-      - name: Deploy Message Broker to K8S
-        run: |
-          kubectl apply -f k8s/view/prod-view-message-broker.yaml -n production
-          kubectl rollout restart deployment airqo-view-message-broker  -n production
-
   #### Calibrate ######
   calibrate:
     name: build-push-deploy-calibrate
@@ -1503,13 +1449,6 @@ jobs:
           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env prod-calibrate-api-config | kubectl replace -f - -n production
           gcloud secrets versions access latest --secret="prod-key-calibrate-service-account" > google_application_credentials.json
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json prod-calibrate-api-config-files | kubectl replace -f - -n production
-
-      - name: Deploy to Main k8s cluster
-        run: |
-          kubectl apply -f k8s/calibrate/prod-calibrate-api.yaml -n production
-          kubectl set image deployment/airqo-calibrate-api calibrate-pickle=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-calibrate-pickle-file:${{ needs.image-tag.outputs.build_id }} -n production
-          kubectl set image deployment/airqo-calibrate-api calibrate=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-calibrate-api:${{ needs.image-tag.outputs.build_id }} -n production
-          kubectl annotate deployment/airqo-calibrate-api kubernetes.io/change-cause="Image updated to ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-calibrate-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
 
   ### events check ###
   events-check:
@@ -1667,7 +1606,7 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           push: true
-          context: src/predict/jobs/predict
+          context: src/predict/jobs/forecast
           target: production
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-predict-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-predict-job:latest
 
@@ -1686,7 +1625,7 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           push: true
-          context: src/predict/jobs/train
+          context: src/predict/jobs/forecast_training
           target: production
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-train-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-train-job:latest
 
@@ -1725,13 +1664,6 @@ jobs:
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json env-predict-production-files | kubectl replace -f - -n production
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json predict-job-config-files | kubectl replace -f - -n production
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json train-job-config-files | kubectl replace -f - -n production
-
-      - name: Deploy to K8S
-        run: |
-          kubectl apply -f k8s/predict/prod-prediction-api.yaml -n production
-          kubectl rollout restart deployment airqo-prediction-api -n production
-          kubectl apply -f k8s/predict/prod-airqo-predict-job.yaml -n production
-          kubectl apply -f k8s/predict/prod-airqo-train-job.yaml -n production
 
   ### network uptime ###
   network-uptime:
@@ -1788,12 +1720,6 @@ jobs:
           cd src/network-uptime/
           gcloud secrets versions access latest --secret="prod-env-network-uptime" > .env
           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-network-uptime-production | kubectl replace -f - -n production
-
-      - name: Deploy to K8S
-        run: |
-          kubectl apply -f k8s/network-uptime/prod-airqo-network-uptime-api.yaml -n production
-          kubectl set image deployment/airqo-network-uptime-api prod-network-uptime=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-network-uptime-api:${{ needs.image-tag.outputs.build_id }} -n production
-          kubectl annotate deployment/airqo-network-uptime-api kubernetes.io/change-cause="Image updated to ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-network-uptime-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
 
   #### Channel data ######
   channel-data:
@@ -1852,10 +1778,6 @@ jobs:
           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-update-channel-data-production | kubectl replace -f - -n production
           gcloud secrets versions access latest --secret="prod-key-channel-data-service-account" > google_application_credentials.json
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json env-update-channel-data-production-files | kubectl replace -f - -n production
-
-      - name: Deploy to K8S
-        run: |
-          kubectl apply -f k8s/channel-data/prod-airqo-update-channel-data-job.yaml -n production
 
   ### apply nginx ingress ###
   nginx-ingress:

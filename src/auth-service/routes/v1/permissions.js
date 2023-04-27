@@ -69,11 +69,9 @@ router.post(
           return value.replace(/ /g, "_").toUpperCase();
         }),
       body("network_id")
-        .exists()
-        .withMessage("network_id is missing in your request")
-        .bail()
+        .optional()
         .notEmpty()
-        .withMessage("the network_id must not be empty")
+        .withMessage("network_id should not be empty if provided")
         .bail()
         .trim()
         .isMongoId()

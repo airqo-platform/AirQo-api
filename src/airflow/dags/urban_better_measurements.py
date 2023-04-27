@@ -15,7 +15,6 @@ def historical_raw_measurements_etl__plume_labs():
 
     @task()
     def extract_measures(**kwargs):
-
         from airqo_etl_utils.utils import Utils
         from airqo_etl_utils.plume_labs_utils import PlumeLabsUtils
         from airqo_etl_utils.constants import Tenant
@@ -43,7 +42,6 @@ def historical_raw_measurements_etl__plume_labs():
 
     @task()
     def extract_sensor_positions(**kwargs):
-
         from airqo_etl_utils.utils import Utils
         from airqo_etl_utils.plume_labs_utils import PlumeLabsUtils
         from airqo_etl_utils.constants import Tenant
@@ -86,7 +84,6 @@ def historical_processed_measurements_etl__plume_labs():
 
     @task()
     def extract_measures(**kwargs):
-
         from airqo_etl_utils.utils import Utils
         from airqo_etl_utils.plume_labs_utils import PlumeLabsUtils
         from airqo_etl_utils.constants import Tenant
@@ -114,7 +111,6 @@ def historical_processed_measurements_etl__plume_labs():
 
     @task()
     def extract_sensor_positions(**kwargs):
-
         from airqo_etl_utils.utils import Utils
         from airqo_etl_utils.plume_labs_utils import PlumeLabsUtils
         from airqo_etl_utils.constants import Tenant
@@ -141,7 +137,6 @@ def historical_processed_measurements_etl__plume_labs():
 
     @task()
     def merge_datasets(devices_measures: pd.DataFrame, sensor_positions: pd.DataFrame):
-
         from airqo_etl_utils.plume_labs_utils import PlumeLabsUtils
 
         return PlumeLabsUtils.merge_sensor_measures_and_positions(
@@ -150,7 +145,6 @@ def historical_processed_measurements_etl__plume_labs():
 
     @task()
     def load_unclean_data(urban_better_data: pd.DataFrame):
-
         from airqo_etl_utils.data_validator import DataValidationUtils
         from airqo_etl_utils.bigquery_api import BigQueryApi
         from airqo_etl_utils.constants import Tenant
@@ -176,7 +170,6 @@ def historical_processed_measurements_etl__plume_labs():
 
     @task()
     def load_clean_data(urban_better_data: pd.DataFrame):
-
         from airqo_etl_utils.data_validator import DataValidationUtils
         from airqo_etl_utils.bigquery_api import BigQueryApi
         from airqo_etl_utils.constants import Tenant
@@ -220,7 +213,6 @@ def realtime_measurements_etl__plume_labs():
 
     @task()
     def extract_measures():
-
         from airqo_etl_utils.plume_labs_utils import PlumeLabsUtils
         from airqo_etl_utils.constants import Tenant
 
@@ -245,7 +237,6 @@ def realtime_measurements_etl__plume_labs():
 
     @task()
     def extract_sensor_positions():
-
         from airqo_etl_utils.plume_labs_utils import PlumeLabsUtils
         from airqo_etl_utils.constants import Tenant
 
@@ -270,7 +261,6 @@ def realtime_measurements_etl__plume_labs():
 
     @task()
     def merge_datasets(devices_measures: pd.DataFrame, sensor_positions: pd.DataFrame):
-
         from airqo_etl_utils.plume_labs_utils import PlumeLabsUtils
 
         return PlumeLabsUtils.merge_sensor_measures_and_positions(
@@ -412,7 +402,6 @@ def realtime_measurements_etl__air_beam():
 
     @task()
     def load(data: pd.DataFrame):
-
         from airqo_etl_utils.data_validator import DataValidationUtils
         from airqo_etl_utils.bigquery_api import BigQueryApi
         from airqo_etl_utils.constants import Tenant

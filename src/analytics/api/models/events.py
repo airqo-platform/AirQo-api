@@ -23,11 +23,13 @@ class EventsModel(BasePyMongoModel):
     DATA_EXPORT_DECIMAL_PLACES = CONFIGURATIONS.DATA_EXPORT_DECIMAL_PLACES
 
     BIGQUERY_EVENTS = CONFIGURATIONS.BIGQUERY_EVENTS
+    DATA_EXPORT_LIMIT = CONFIGURATIONS.DATA_EXPORT_LIMIT
     BIGQUERY_MOBILE_EVENTS = CONFIGURATIONS.BIGQUERY_MOBILE_EVENTS
     BIGQUERY_LATEST_EVENTS = CONFIGURATIONS.BIGQUERY_LATEST_EVENTS
 
     BIGQUERY_RAW_DATA = f"`{CONFIGURATIONS.BIGQUERY_RAW_DATA}`"
     BIGQUERY_HOURLY_DATA = f"`{CONFIGURATIONS.BIGQUERY_HOURLY_DATA}`"
+    BIGQUERY_BAM_DATA = f"`{CONFIGURATIONS.BIGQUERY_BAM_DATA}`"
     BIGQUERY_DAILY_DATA = f"`{CONFIGURATIONS.BIGQUERY_DAILY_DATA}`"
 
     def __init__(self, tenant):
@@ -46,7 +48,6 @@ class EventsModel(BasePyMongoModel):
         frequency,
         pollutants,
     ) -> pd.DataFrame:
-
         decimal_places = cls.DATA_EXPORT_DECIMAL_PLACES
 
         # Data sources
@@ -84,11 +85,19 @@ class EventsModel(BasePyMongoModel):
             f" FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', {data_table}.timestamp) AS datetime "
         )
 
+        bam_pollutants_query = (
+            f" SELECT pm2_5 as  pm2_5_raw_value, pm10 as  pm10_raw_value, no2 as no2_raw_value, "
+            f" pm2_5 as  pm2_5_calibrated_value, pm10 as  pm10_calibrated_value, no2 as no2_calibrated_value,"
+            f" FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', {cls.BIGQUERY_BAM_DATA}.timestamp) AS datetime "
+        )
+
         if len(devices) != 0:
+            # Adding device information, start and end times
             query = (
                 f" {pollutants_query} , "
                 f" {devices_table}.device_id AS device_name , "
                 f" {devices_table}.site_id AS site_id , "
+                f" {devices_table}.tenant AS tenant , "
                 f" {devices_table}.approximate_latitude AS device_latitude , "
                 f" {devices_table}.approximate_longitude  AS device_longitude , "
                 f" FROM {data_table} "
@@ -98,9 +107,23 @@ class EventsModel(BasePyMongoModel):
                 f" AND {devices_table}.device_id IN UNNEST({devices}) "
             )
 
+            bam_query = (
+                f" {bam_pollutants_query} , "
+                f" {devices_table}.device_id AS device_name , "
+                f" {devices_table}.site_id AS site_id , "
+                f" {devices_table}.tenant AS tenant , "
+                f" {devices_table}.approximate_latitude AS device_latitude , "
+                f" {devices_table}.approximate_longitude  AS device_longitude , "
+                f" FROM {cls.BIGQUERY_BAM_DATA} "
+                f" JOIN {devices_table} ON {devices_table}.device_id = {cls.BIGQUERY_BAM_DATA}.device_id "
+                f" WHERE {cls.BIGQUERY_BAM_DATA}.timestamp >= '{start_date}' "
+                f" AND {cls.BIGQUERY_BAM_DATA}.timestamp <= '{end_date}' "
+                f" AND {devices_table}.device_id IN UNNEST({devices}) "
+            )
+
+            # Adding site information
             query = (
                 f" SELECT "
-                f" {sites_table}.tenant AS tenant , "
                 f" {sites_table}.name AS site_name , "
                 f" {sites_table}.approximate_latitude AS site_latitude , "
                 f" {sites_table}.approximate_longitude  AS site_longitude , "
@@ -109,7 +132,21 @@ class EventsModel(BasePyMongoModel):
                 f" RIGHT JOIN ({query}) data ON data.site_id = {sites_table}.id "
             )
 
+            bam_query = (
+                f" SELECT "
+                f" {sites_table}.name AS site_name , "
+                f" {sites_table}.approximate_latitude AS site_latitude , "
+                f" {sites_table}.approximate_longitude  AS site_longitude , "
+                f" data.* "
+                f" FROM {sites_table} "
+                f" RIGHT JOIN ({bam_query}) data ON data.site_id = {sites_table}.id "
+            )
+
+            if frequency == "hourly":
+                query = f"{query} UNION ALL {bam_query}"
+
         elif len(sites) != 0:
+            # Adding site information, start and end times
             query = (
                 f" {pollutants_query} , "
                 f" {sites_table}.tenant AS tenant , "
@@ -125,6 +162,7 @@ class EventsModel(BasePyMongoModel):
                 f" AND {sites_table}.id IN UNNEST({sites}) "
             )
 
+            # Adding device information
             query = (
                 f" SELECT "
                 f" {devices_table}.approximate_latitude AS device_latitude , "
@@ -145,6 +183,7 @@ class EventsModel(BasePyMongoModel):
                 f" WHERE {airqlouds_sites_table}.airqloud_id IN UNNEST({airqlouds}) "
             )
 
+            # Adding airqloud information
             meta_data_query = (
                 f" SELECT "
                 f" {airqlouds_table}.name  AS airqloud_name , "
@@ -153,6 +192,7 @@ class EventsModel(BasePyMongoModel):
                 f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.airqloud_id = {airqlouds_table}.id "
             )
 
+            # Adding site information
             meta_data_query = (
                 f" SELECT "
                 f" {sites_table}.approximate_latitude AS site_latitude , "
@@ -163,6 +203,7 @@ class EventsModel(BasePyMongoModel):
                 f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.site_id = {sites_table}.id "
             )
 
+            # Adding device information
             meta_data_query = (
                 f" SELECT "
                 f" {devices_table}.approximate_latitude AS device_latitude , "
@@ -173,6 +214,7 @@ class EventsModel(BasePyMongoModel):
                 f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.site_id = {devices_table}.site_id "
             )
 
+            # Adding start and end times
             query = (
                 f" {pollutants_query} , "
                 f" meta_data.* "
@@ -185,7 +227,15 @@ class EventsModel(BasePyMongoModel):
         job_config = bigquery.QueryJobConfig()
         job_config.use_query_cache = True
 
-        dataframe = bigquery.Client().query(query, job_config).result().to_dataframe()
+        dataframe = (
+            bigquery.Client()
+            .query(
+                f"select distinct * from ({query}) limit {cls.DATA_EXPORT_LIMIT}",
+                job_config,
+            )
+            .result()
+            .to_dataframe()
+        )
 
         if len(dataframe) == 0:
             return dataframe
@@ -197,6 +247,86 @@ class EventsModel(BasePyMongoModel):
         dataframe["frequency"] = frequency
         dataframe = dataframe.replace(np.nan, None)
         return dataframe
+
+    @classmethod
+    @cache.memoize()
+    def get_data_for_summary(
+        cls,
+        airqloud,
+        start_date_time,
+        end_date_time,
+    ) -> list:
+        data_table = cls.BIGQUERY_HOURLY_DATA
+
+        # Data sources
+        sites_table = cls.BIGQUERY_SITES
+        airqlouds_sites_table = cls.BIGQUERY_AIRQLOUDS_SITES
+        airqlouds_table = cls.BIGQUERY_AIRQLOUDS
+        devices_table = cls.BIGQUERY_DEVICES
+
+        data_query = (
+            f" SELECT {data_table}.pm2_5_calibrated_value , {data_table}.pm2_5_raw_value , "
+            f" FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', {data_table}.timestamp) AS datetime "
+        )
+
+        meta_data_query = (
+            f" SELECT {airqlouds_sites_table}.airqloud_id , "
+            f" {airqlouds_sites_table}.site_id , "
+            f" FROM {airqlouds_sites_table} "
+            f" WHERE {airqlouds_sites_table}.airqloud_id = '{airqloud}' "
+        )
+
+        # Adding airqloud information
+        meta_data_query = (
+            f" SELECT "
+            f" {airqlouds_table}.name AS airqloud , "
+            f" meta_data.* "
+            f" FROM {airqlouds_table} "
+            f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.airqloud_id = {airqlouds_table}.id "
+        )
+
+        # Adding site information
+        meta_data_query = (
+            f" SELECT "
+            f" {sites_table}.name AS site , "
+            f" meta_data.* "
+            f" FROM {sites_table} "
+            f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.site_id = {sites_table}.id "
+        )
+
+        # Adding device information
+        meta_data_query = (
+            f" SELECT "
+            f" {devices_table}.device_id AS device , "
+            f" meta_data.* "
+            f" FROM {devices_table} "
+            f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.site_id = {devices_table}.site_id "
+        )
+
+        # Adding start and end times
+        query = (
+            f" {data_query} , "
+            f" meta_data.* "
+            f" FROM {data_table} "
+            f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.site_id = {data_table}.site_id "
+            f" WHERE {data_table}.timestamp >= '{start_date_time}' "
+            f" AND {data_table}.timestamp <= '{end_date_time}' "
+            f" AND {data_table}.pm2_5_raw_value is not null "
+        )
+
+        job_config = bigquery.QueryJobConfig()
+        job_config.use_query_cache = True
+
+        dataframe = bigquery.Client().query(query, job_config).result().to_dataframe()
+
+        if len(dataframe.index) == 0:
+            return []
+
+        dataframe.drop_duplicates(
+            subset=["datetime", "device"], inplace=True, keep="first"
+        )
+
+        return dataframe.to_dict(orient="records")
 
     @classmethod
     @cache.memoize()
@@ -309,7 +439,6 @@ class EventsModel(BasePyMongoModel):
     def bigquery_mobile_device_measurements(
         cls, tenant, device_numbers: list, start_date_time, end_date_time
     ):
-
         query = (
             f"SELECT * "
             f"FROM {cls.BIGQUERY_MOBILE_EVENTS} "
@@ -449,7 +578,6 @@ class EventsModel(BasePyMongoModel):
 
     @cache.memoize()
     def get_averages_by_pollutant_from_bigquery(self, start_date, end_date, pollutant):
-
         if pollutant not in ["pm2_5", "pm10", "no2", "pm1"]:
             raise Exception("Invalid pollutant")
 
@@ -528,7 +656,6 @@ class EventsModel(BasePyMongoModel):
 
     @cache.memoize()
     def get_d3_chart_events(self, sites, start_date, end_date, pollutant, frequency):
-
         diurnal_end_date = datetime.strptime(end_date, "%Y-%m-%dT%H:%M:%S.%fZ").replace(
             tzinfo=pytz.utc
         )
@@ -592,7 +719,6 @@ class EventsModel(BasePyMongoModel):
     def get_d3_chart_events_v2(
         self, sites, start_date, end_date, pollutant, frequency, tenant
     ):
-
         if pollutant not in ["pm2_5", "pm10", "no2", "pm1"]:
             raise Exception("Invalid pollutant")
 
@@ -633,7 +759,6 @@ class EventsModel(BasePyMongoModel):
             resample_value = "1H"
 
         for _, site_group in site_groups:
-
             values = site_group[["value", "time"]]
             ave_values = pd.DataFrame(values.resample(resample_value, on="time").mean())
             ave_values["time"] = ave_values.index

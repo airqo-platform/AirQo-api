@@ -25,7 +25,7 @@ const axiosError = (error, req, res) => {
       error: error.message,
     });
   }
-  console.log(error.config);
+  logObject("error.config", error.config);
 };
 
 const tryCatchErrors = (res, error, type) => {

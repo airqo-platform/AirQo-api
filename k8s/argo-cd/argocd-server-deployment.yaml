@@ -226,7 +226,7 @@ spec:
                   name: argocd-cmd-params-cm
                   optional: true
           image: quay.io/argoproj/argocd:v2.5.4
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           livenessProbe:
             httpGet:
               path: /healthz?full=true

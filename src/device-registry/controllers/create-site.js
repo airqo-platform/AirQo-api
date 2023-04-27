@@ -9,13 +9,9 @@ const createSiteUtil = require("@utils/create-site");
 const { getModelByTenant } = require("@utils/multitenancy");
 const constants = require("@config/constants");
 const log4js = require("log4js");
-const httpStatus = require("http-status");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-site-controller`
 );
-// const bulkUpdateUtil = require("@scripts/bulk-update");
-// const bulkDeleteUtil = require("@scripts/bulk-delete");
-// const bulkCreateUtil = require("@scripts/bulk-create");
 
 const manageSite = {
   bulkCreate: async (req, res) => {
@@ -43,21 +39,8 @@ const manageSite = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { network } = req.query;
-      const responseFromAddSiteMetadata = await bulkCreateUtil.runSiteAdditions(
-        {
-          network,
-        }
-      );
-      if (responseFromAddSiteMetadata.success === true) {
-        return res.status(httpStatus.OK).json({ message: "update site" });
-      } else if (responseFromAddSiteMetadata.success === false) {
-        return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-          message: "unable to update the sites",
-        });
-      }
     } catch (error) {
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "internal server error",
         errors: { message: error.message },
@@ -89,19 +72,8 @@ const manageSite = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { network } = req.query;
-      const responseFromUpdateSiteMetadata = await bulkUpdateUtil.runSiteUpdates(
-        { network }
-      );
-      if (responseFromUpdateSiteMetadata.success === true) {
-        return res.status(httpStatus.OK).json({ message: "update site" });
-      } else if (responseFromUpdateSiteMetadata.success === false) {
-        return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-          message: "unable to update the sites",
-        });
-      }
     } catch (error) {
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "internal server error",
         errors: { message: error.message },
@@ -134,16 +106,8 @@ const manageSite = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const responseFromDeleteSiteMetadata = await bulkDeleteUtil.runSiteDeletions();
-      if (responseFromDeleteSiteMetadata.success === true) {
-        return res.status(httpStatus.OK).json(responseFromDeleteSiteMetadata);
-      } else if (responseFromDeleteSiteMetadata.success === false) {
-        return res
-          .status(httpStatus.INTERNAL_SERVER_ERROR)
-          .json(responseFromDeleteSiteMetadata);
-      }
     } catch (error) {
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "internal server error",
         errors: { message: error.message },
@@ -291,7 +255,7 @@ const manageSite = {
       if (responseFromFindNearestSite.success === true) {
         const status = responseFromFindNearestSite.status
           ? responseFromFindNearestSite.status
-          : httpStatus.OK;
+          : HTTPStatus.OK;
         res.status(status).json({
           success: true,
           message: "nearest site retrieved",
@@ -300,7 +264,7 @@ const manageSite = {
       } else if (responseFromFindNearestSite.success === false) {
         const status = responseFromFindNearestSite.status
           ? responseFromFindNearestSite.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
           message: responseFromFindNearestSite.message,
@@ -311,7 +275,7 @@ const manageSite = {
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -387,7 +351,7 @@ const manageSite = {
       if (responseFromFindAirQloud.success === true) {
         const status = responseFromFindAirQloud.status
           ? responseFromFindAirQloud.status
-          : httpStatus.OK;
+          : HTTPStatus.OK;
         res.status(status).json({
           success: true,
           airqlouds: responseFromFindAirQloud.data,
@@ -396,7 +360,7 @@ const manageSite = {
       } else if (responseFromFindAirQloud.success === false) {
         const status = responseFromFindAirQloud.status
           ? responseFromFindAirQloud.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
           message: responseFromFindAirQloud.message,
@@ -407,7 +371,7 @@ const manageSite = {
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -755,7 +719,7 @@ const manageSite = {
       if (responseFromCreateApproximateCoordinates.success === true) {
         const status = responseFromCreateApproximateCoordinates.status
           ? responseFromCreateApproximateCoordinates.status
-          : httpStatus.OK;
+          : HTTPStatus.OK;
         return res.status(status).json({
           success: true,
           message: responseFromCreateApproximateCoordinates.message,
@@ -765,7 +729,7 @@ const manageSite = {
       } else {
         const status = responseFromCreateApproximateCoordinates.status
           ? responseFromCreateApproximateCoordinates.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
 
         const errors = responseFromCreateApproximateCoordinates.errors
           ? responseFromCreateApproximateCoordinates.errors
@@ -779,7 +743,7 @@ const manageSite = {
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: {

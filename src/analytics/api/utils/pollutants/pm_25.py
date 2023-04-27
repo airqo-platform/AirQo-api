@@ -31,9 +31,13 @@ AQCSV_DATA_STATUS_MAPPER = {
     "pm10_raw_value": 0,
     "no2_raw_value": 0,
     # only used when frequency is raw
-    "pm2_5": 0,
-    "pm10": 0,
     "no2": 0,
+    "pm2_5": 0,
+    "s1_pm2_5": 0,
+    "pm10": 0,
+    "s1_pm10": 0,
+    "s2_pm2_5": 0,
+    "s2_pm10": 0,
 }
 
 
@@ -52,8 +56,8 @@ POLLUTANT_BIGQUERY_MAPPER = {
 
 BIGQUERY_FREQUENCY_MAPPER = {
     "raw": {
-        "pm2_5": ["pm2_5"],
-        "pm10": ["pm10"],
+        "pm2_5": ["pm2_5", "s1_pm2_5", "s2_pm2_5"],
+        "pm10": ["pm10", "s1_pm10", "s2_pm10"],
         "no2": ["no2"],
     },
     "daily": {

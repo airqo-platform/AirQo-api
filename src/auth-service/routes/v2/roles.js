@@ -112,6 +112,30 @@ router.post(
           "the role_status value is not among the expected ones: ACTIVE or INACTIVE"
         )
         .trim(),
+      body("role_permission")
+        .optional()
+        .notEmpty()
+        .withMessage("role_permission must not be empty if provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the role_permission must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("network_id")
+        .optional()
+        .notEmpty()
+        .withMessage("network_id must not be empty if provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("network_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
     ],
   ]),
   setJWTAuth,
@@ -143,6 +167,55 @@ router.put(
         .trim()
         .isMongoId()
         .withMessage("the role ID must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+    ],
+  ]),
+  oneOf([
+    [
+      body("role_status")
+        .optional()
+        .notEmpty()
+        .withMessage("the role_status should not be empty if provided")
+        .bail()
+        .toUpperCase()
+        .isIn(["ACTIVE", "INACTIVE"])
+        .withMessage(
+          "the status value is not among the expected ones which include: ACTIVE, INACTIVE"
+        )
+        .trim(),
+      body("role_name")
+        .optional()
+        .notEmpty()
+        .withMessage("the role_name should not be empty")
+        .trim(),
+      body("role_code")
+        .optional()
+        .notEmpty()
+        .withMessage("the role_code should not be empty if provided")
+        .trim(),
+      body("network_id")
+        .optional()
+        .notEmpty()
+        .withMessage("network_id must not be empty if provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("network_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("role_permission")
+        .optional()
+        .notEmpty()
+        .withMessage("role_permission must not be empty if provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the role_permission must be an object ID")
         .bail()
         .customSanitizer((value) => {
           return ObjectId(value);
@@ -283,6 +356,20 @@ router.post(
         .trim()
         .isMongoId()
         .withMessage("the role ID must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("user")
+        .exists()
+        .withMessage("the user ID is missing in the request body")
+        .bail()
+        .notEmpty()
+        .withMessage("the user ID cannot be empty")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the user ID must be an object ID")
         .bail()
         .customSanitizer((value) => {
           return ObjectId(value);
@@ -465,6 +552,17 @@ router.post(
         .customSanitizer((value) => {
           return ObjectId(value);
         }),
+      body("permissions")
+        .exists()
+        .withMessage("the permissions is missing in the request body")
+        .bail()
+        .notEmpty()
+        .withMessage("the permissions should not be empty")
+        .bail()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the permissions should be an array"),
     ],
   ]),
   setJWTAuth,
