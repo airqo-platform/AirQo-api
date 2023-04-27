@@ -1,5 +1,5 @@
 resource "google_compute_disk" "airqo_dev_k8s_worker_0" {
-  image                     = var.os["ubuntu-focal"]
+  image                     = var.os["ubuntu-jammy"]
   name                      = "airqo-dev-k8s-worker-0"
   physical_block_size_bytes = 4096
   project                   = var.project_id
