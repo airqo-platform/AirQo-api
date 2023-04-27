@@ -137,6 +137,30 @@ RoleSchema.statics = {
           foreignField: "permission",
           as: "role_permissions",
         })
+        .lookup({
+          from: "users",
+          localField: "_id",
+          foreignField: "role",
+          as: "role_users",
+        })
+        .project({
+          "role_users._id": 0,
+          "role_users.notifications": 0,
+          "role_users.emailConfirmed": 0,
+          "role_users.locationCount": 0,
+          "role_users.password": 0,
+          "role_users.privilege": 0,
+          "role_users.organization": 0,
+          "role_users.duration": 0,
+          "role_users.__v": 0,
+          "role_users.phoneNumber": 0,
+          "role_users.profilePicture": 0,
+          "role_users.resetPasswordExpires": 0,
+          "role_users.resetPasswordToken": 0,
+          "role_users.updatedAt": 0,
+          "role_users.networks": 0,
+          "role_users.role": 0,
+        })
         .sort({ createdAt: -1 })
         .project({
           "network.__v": 0,
@@ -163,7 +187,7 @@ RoleSchema.statics = {
     } catch (error) {
       return {
         success: false,
-        message: "Role model server error - list",
+        message: "Internal Server Error",
         error: error.message,
         errors: { message: error.message },
       };
