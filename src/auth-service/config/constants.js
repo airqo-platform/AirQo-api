@@ -13,6 +13,7 @@ const devConfig = {
   KAFKA_RAW_MEASUREMENTS_TOPICS: process.env.KAFKA_RAW_MEASUREMENTS_TOPICS_DEV,
   KAFKA_CLIENT_ID: process.env.KAFKA_CLIENT_ID_DEV,
   KAFKA_CLIENT_GROUP: process.env.KAFKA_CLIENT_GROUP_DEV,
+  DEFAULT_ROLE: process.env.DEFAULT_ROLE_DEV,
 };
 
 const prodConfig = {
@@ -30,6 +31,7 @@ const prodConfig = {
   KAFKA_RAW_MEASUREMENTS_TOPICS: process.env.KAFKA_RAW_MEASUREMENTS_TOPICS_PROD,
   KAFKA_CLIENT_ID: process.env.KAFKA_CLIENT_ID_PROD,
   KAFKA_CLIENT_GROUP: process.env.KAFKA_CLIENT_GROUP_PROD,
+  DEFAULT_ROLE: process.env.DEFAULT_ROLE_PROD,
 };
 
 const stageConfig = {
@@ -48,6 +50,7 @@ const stageConfig = {
     process.env.KAFKA_RAW_MEASUREMENTS_TOPICS_STAGE,
   KAFKA_CLIENT_ID: process.env.KAFKA_CLIENT_ID_STAGE,
   KAFKA_CLIENT_GROUP: process.env.KAFKA_CLIENT_GROUP_STAGE,
+  DEFAULT_ROLE: process.env.DEFAULT_ROLE_STAGE,
 };
 
 const defaultConfig = {
