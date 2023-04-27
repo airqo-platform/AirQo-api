@@ -98,7 +98,7 @@ RoleSchema.statics = {
           return (response[key] = value.message);
         });
       } else if (err.code === 11000) {
-        logObject("JSON.parse(err)", JSON.parse(err));
+        logObject("err", err);
         const duplicate_record = args.role_name
           ? args.role_name
           : args.role_code;

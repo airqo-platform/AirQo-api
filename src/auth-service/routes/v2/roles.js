@@ -167,6 +167,11 @@ router.put(
         .notEmpty()
         .withMessage("the role_name should not be empty")
         .trim(),
+      body("role_code")
+        .optional()
+        .notEmpty()
+        .withMessage("the role_code should not be empty if provided")
+        .trim(),
     ],
   ]),
   setJWTAuth,
