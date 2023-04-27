@@ -54,7 +54,7 @@ let stubValue = {
   terrain:faker.datatype.float(),
   trafficFactor:faker.datatype.float(),
 };
-stubValue.name = stubValue.name.replaceAll(" ", "-");
+stubValue.name = stubValue.name.replace(" ", "-");
 stubValue.lat_long=`${stubValue.latitude}_${stubValue.longitude}`
 
 
