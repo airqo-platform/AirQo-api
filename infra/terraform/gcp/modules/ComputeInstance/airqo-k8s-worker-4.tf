@@ -1,7 +1,7 @@
 resource "google_compute_instance" "airqo_k8s_worker_4" {
   name    = "airqo-k8s-worker-4"
   project = var.project_id
-  zone    = var.zone
+  zone    = var.zone["b"]
 
   machine_type = "c2-standard-8"
 
@@ -50,4 +50,4 @@ resource "google_compute_instance" "airqo_k8s_worker_4" {
     "https://www.googleapis.com/compute/v1/projects/airqo-250220/regions/europe-west1/resourcePolicies/monthly-k8s-runners"
   ]
 }
-# terraform import google_compute_instance.airqo_k8s_worker_4 projects/${var.project_id}/zones/${var.zone}/instances/airqo-k8s-worker-4
+# terraform import google_compute_instance.airqo_k8s_worker_4 projects/${var.project_id}/zones/${var.zone["b"]}/instances/airqo-k8s-worker-4

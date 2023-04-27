@@ -14,8 +14,12 @@ variable "region" {
 }
 
 variable "zone" {
-  default     = "europe-west1-b"
-  description = "Default zone"
+  default     = {
+    "b"  = "europe-west1-b"
+    "c"  = "europe-west1-c"
+    "d"  = "europe-west1-d"
+  }
+  description = "Available zones in the default project region (europe-west1)"
 }
 
 variable "os" {

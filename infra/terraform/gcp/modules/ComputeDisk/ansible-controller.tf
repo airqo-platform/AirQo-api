@@ -5,7 +5,7 @@ resource "google_compute_disk" "ansible_controller" {
   project                   = var.project_id
   size                      = var.disk_size["small"]
   type                      = "pd-standard"
-  zone                      = var.zone
+  zone                      = var.zone["b"]
   description               = "Disk for the ansible-controller instance"
 }
-# terraform import google_compute_disk.ansible_controller projects/${var.project_id}/zones/${var.zone}/disks/ansible-controller
+# terraform import google_compute_disk.ansible_controller projects/${var.project_id}/zones/${var.zone["b"]}/disks/ansible-controller
