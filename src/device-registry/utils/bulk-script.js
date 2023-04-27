@@ -9,7 +9,7 @@ const isEmpty = require("is-empty");
 const url = "http://localhost:3000/api/v1/devices?tenant=airqo";
 const config = {
   headers: {
-    Authorization: "JWT sdfwfgwfgwfg",
+    Authorization: "",
   },
 };
 axios
