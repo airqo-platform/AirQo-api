@@ -9,12 +9,13 @@ const GroupSchema = require("@models/Group");
 const httpStatus = require("http-status");
 const mongoose = require("mongoose").set("debug", true);
 const accessCodeGenerator = require("generate-password");
-const { getModelByTenant } = require("@utils/multitenancy");
+const { getModelByTenant } = require("@config/dbConnection");
 const { logObject, logElement, logText } = require("@utils/log");
 const mailer = require("@utils/mailer");
 const generateFilter = require("@utils/generate-filter");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
+const moment = require("moment-timezone");
 
 const log4js = require("log4js");
 const logger = log4js.getLogger(
@@ -121,10 +122,13 @@ const controlAccess = {
       const { user_id, token } = params;
       const limit = parseInt(request.query.limit, 0);
       const skip = parseInt(request.query.skip, 0);
-
+      const timeZone = moment.tz.guess();
       let filter = {
         token,
         user_id,
+        expires: {
+          $gt: moment().tz(timeZone).toDate(),
+        },
       };
 
       // expires: { $gt: new Date().toISOString() },
@@ -337,9 +341,9 @@ const controlAccess = {
       if (responseFromListAccessToken.success === true) {
         if (responseFromListAccessToken.status === httpStatus.NOT_FOUND) {
           let newResponse = Object.assign({}, responseFromListAccessToken);
-          newResponse.message = "invalid token";
-          newResponse.status = httpStatus.BAD_REQUEST;
-          newResponse.errors = { message: "invalid token" };
+          newResponse.message = "Unauthorized";
+          newResponse.status = httpStatus.UNAUTHORIZED;
+          newResponse.errors = { message: "Unauthorized" };
           return newResponse;
         } else if (responseFromListAccessToken.status === httpStatus.OK) {
           let newResponse = Object.assign({}, responseFromListAccessToken);
@@ -907,7 +911,9 @@ const controlAccess = {
 
       logObject("responseFromListRole", responseFromListRole);
       if (responseFromListRole.success === true) {
-        if (responseFromListRole.status === httpStatus.NOT_FOUND) {
+        if (
+          responseFromListRole.message === "roles not found for this operation"
+        ) {
           return responseFromListRole;
         }
       } else if (responseFromListRole.success === false) {
@@ -924,7 +930,7 @@ const controlAccess = {
         const user = responseFromListUser.data[0];
         logObject("user", user);
 
-        if (!isEmpty(user.role) && user.role.role_name === "admin") {
+        if (!isEmpty(user.role) && user.role.role_name === "SUPER_ADMIN") {
           logObject("user.role.role_name", user.role.role_name);
           return {
             success: false,
@@ -949,7 +955,7 @@ const controlAccess = {
       });
 
       if (responseFromUpdateUser.success === true) {
-        if (responseFromUpdateUser.status === httpStatus.NOT_FOUND) {
+        if (responseFromUpdateUser.status === httpStatus.BAD_REQUEST) {
           return responseFromUpdateUser;
         }
         let newResponse = Object.assign({}, responseFromUpdateUser);

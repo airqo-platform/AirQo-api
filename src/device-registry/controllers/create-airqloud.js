@@ -8,8 +8,6 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-airqloud-controller`
 );
-const httpStatus = require("http-status");
-// const bulkCreateUtil = require("@scripts/bulk-create");
 
 const createAirqloud = {
   bulkCreate: async (req, res) => {
@@ -37,21 +35,8 @@ const createAirqloud = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { network } = req.query;
-      const responseFromUpdateAirQloudsMetadata = await bulkCreateUtil.runAirQloudAdditions(
-        {
-          network,
-        }
-      );
-      if (responseFromUpdateAirQloudsMetadata.success === true) {
-        return res.status(httpStatus.OK).json({ message: "update site" });
-      } else if (responseFromUpdateAirQloudsMetadata.success === false) {
-        return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-          message: "unable to update the sites",
-        });
-      }
     } catch (error) {
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         message: "internal server error",
         success: false,
         errors: { message: error.message },
@@ -163,7 +148,7 @@ const createAirqloud = {
       if (responseFromCalculateGeographicalCenter.success === true) {
         const status = responseFromCalculateGeographicalCenter.status
           ? responseFromCalculateGeographicalCenter.status
-          : httpStatus.OK;
+          : HTTPStatus.OK;
         logObject(
           "responseFromCalculateGeographicalCenter",
           responseFromCalculateGeographicalCenter
@@ -176,7 +161,7 @@ const createAirqloud = {
       } else if (responseFromCalculateGeographicalCenter.success === false) {
         const status = responseFromCalculateGeographicalCenter.status
           ? responseFromCalculateGeographicalCenter.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
 
         const errors = responseFromCalculateGeographicalCenter.errors
           ? responseFromCalculateGeographicalCenter.errors
@@ -190,7 +175,7 @@ const createAirqloud = {
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -354,7 +339,7 @@ const createAirqloud = {
       if (responseFromFindSites.success === true) {
         const status = responseFromFindSites.status
           ? responseFromFindSites.status
-          : httpStatus.OK;
+          : HTTPStatus.OK;
         res.status(status).json({
           success: true,
           sites: responseFromFindSites.data,
@@ -363,7 +348,7 @@ const createAirqloud = {
       } else if (responseFromFindSites.success === false) {
         const status = responseFromFindSites.status
           ? responseFromFindSites.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
           message: responseFromFindSites.message,
@@ -497,7 +482,7 @@ const createAirqloud = {
       }
     } catch (errors) {
       logger.error(`internal server error -- ${errors.message}`);
-      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: errors.message },
@@ -559,7 +544,7 @@ const createAirqloud = {
       }
     } catch (errors) {
       logger.error(`internal server error -- ${errors.message}`);
-      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: errors.message },
@@ -621,7 +606,7 @@ const createAirqloud = {
       }
     } catch (errors) {
       logger.error(`internal server error -- ${errors.message}`);
-      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: errors.message },

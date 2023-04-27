@@ -43,7 +43,6 @@ class AirnowDataUtils:
 
     @staticmethod
     def extract_bam_data(start_date_time: str, end_date_time: str) -> pd.DataFrame:
-
         dates = Utils.query_dates_array(
             start_date_time=start_date_time,
             end_date_time=end_date_time,
@@ -62,10 +61,9 @@ class AirnowDataUtils:
 
     @staticmethod
     def process_bam_data(data: pd.DataFrame) -> pd.DataFrame:
-
         air_now_data = []
 
-        devices = AirQoApi().get_tenant_devices(tenant=Tenant.US_EMBASSY)
+        devices = AirQoApi().get_devices(tenant=Tenant.US_EMBASSY)
         for _, row in data.iterrows():
             try:
                 device_id = row["FullAQSCode"]

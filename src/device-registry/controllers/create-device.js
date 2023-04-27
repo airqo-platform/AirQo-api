@@ -11,9 +11,7 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-device-controller`
 );
-// const bulkUpdateUtil = require("@scripts/bulk-update");
-// const bulkCreateUtil = require("@scripts/bulk-create");
-const httpStatus = require("http-status");
+
 const isEmpty = require("is-empty");
 
 const device = {
@@ -42,23 +40,9 @@ const device = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { network } = req.query;
-      const responseFromBulkUpdate = await bulkCreateUtil.runDeviceAdditions({
-        network,
-      });
-      logObject("responseFromBulkUpdate", responseFromBulkUpdate);
-      const message = responseFromBulkUpdate.message
-        ? responseFromBulkUpdate.message
-        : "";
-      const status = responseFromBulkUpdate.status
-        ? responseFromBulkUpdate.status
-        : httpStatus.OK;
-      res.status(status).json({
-        message,
-      });
     } catch (error) {
       logObject("error", error);
-      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "updating all the metadata",
         errors: { message: error.message },
@@ -90,22 +74,9 @@ const device = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { network } = req.query;
-      const responseFromBulkUpdate = await bulkUpdateUtil.runDeviceUpdates({
-        network,
-      });
-      const message = responseFromBulkUpdate.message
-        ? responseFromBulkUpdate.message
-        : "";
-      const status = responseFromBulkUpdate.status
-        ? responseFromBulkUpdate.status
-        : httpStatus.OK;
-      res.status(status).json({
-        message,
-      });
     } catch (error) {
       logObject("error", error);
-      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "updating all the metadata",
         errors: { message: error.message },
@@ -345,7 +316,6 @@ const device = {
   },
   generateQRCode: async (req, res) => {
     try {
-      // logger.info(`the generate QR Code operation starts here....`);
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -375,38 +345,30 @@ const device = {
       request["query"]["name"] = name;
       request["body"] = body;
 
-      let responseFromGenerateQRCode = await createDeviceUtil.generateQR(
-        request
-      );
-      // logger.info(
-      //   `responseFromGenerateQRCode -- ${responseFromGenerateQRCode}`
-      // );
-      if (responseFromGenerateQRCode.success === true) {
-        const status = responseFromGenerateQRCode.status
-          ? responseFromGenerateQRCode.status
-          : HTTPStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: responseFromGenerateQRCode.message,
-          data: responseFromGenerateQRCode.data,
-        });
-      } else if (responseFromGenerateQRCode.success === false) {
-        const status = responseFromGenerateQRCode.status
-          ? responseFromGenerateQRCode.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: responseFromGenerateQRCode.message,
-          errors: responseFromGenerateQRCode.error
-            ? responseFromGenerateQRCode.error
-            : { message: "" },
-        });
-      }
+      await createDeviceUtil.generateQR(request, (response) => {
+        if (response.success === true) {
+          const status = response.status ? response.status : HTTPStatus.OK;
+          return res.status(status).json({
+            success: true,
+            message: response.message,
+            data: response.data,
+          });
+        } else if (response.success === false) {
+          const status = response.status
+            ? response.status
+            : HTTPStatus.INTERNAL_SERVER_ERROR;
+          return res.status(status).json({
+            success: false,
+            message: response.message,
+            errors: response.errors ? response.errors : { message: "" },
+          });
+        }
+      });
     } catch (err) {
       logger.error(`server side error -- ${err.message}`);
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
-        message: "unable to generate the QR code --server side error",
+        message: "unable to generate the QR code",
         errors: { message: err.message },
       });
     }
@@ -647,7 +609,7 @@ const device = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      let responseFromListDeviceDetails = await createDeviceUtil.list(req);
+      const responseFromListDeviceDetails = await createDeviceUtil.list(req);
       logElement(
         "is responseFromListDeviceDetails in controller a success?",
         responseFromListDeviceDetails.success

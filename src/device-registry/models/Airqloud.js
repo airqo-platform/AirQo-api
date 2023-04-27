@@ -267,9 +267,8 @@ airqloudSchema.statics = {
       };
     }
   },
-  async list({ filter = {}, _limit = 1000, _skip = 0 } = {}) {
+  async list({ filter = {}, limit = 1000, skip = 0 } = {}) {
     try {
-      logElement("the limit in the model", _limit);
       const { summary, dashboard } = filter;
 
       let projectAll = {
@@ -328,7 +327,7 @@ airqloudSchema.statics = {
         delete filter.dashboard;
       }
 
-      let data = await this.aggregate()
+      const data = await this.aggregate()
         .match(filter)
         .lookup({
           from: "sites",
@@ -368,36 +367,31 @@ airqloudSchema.statics = {
           "sites.createdAt": 0,
           "sites.lat_long": 0,
         })
-        .skip(_skip)
-        .limit(_limit)
+        .skip(skip ? skip : 0)
+        .limit(limit ? limit : 1000)
         .allowDiskUse(true);
 
       if (!isEmpty(data)) {
         return {
           success: true,
-          message: "successfully fetched the AirQloud(s)",
+          message: "Successfull Operation",
           data,
           status: HTTPStatus.OK,
         };
-      }
-
-      if (isEmpty(data)) {
+      } else if (isEmpty(data)) {
         return {
           success: true,
-          message: "there are no records for this search",
-          data,
-          status: HTTPStatus.NOT_FOUND,
+          message: "There are no records for this search",
+          data: [],
+          status: HTTPStatus.OK,
         };
       }
     } catch (err) {
-      let errors = { message: err.message };
-      let message = "Internal Server Error";
-      let status = HTTPStatus.INTERNAL_SERVER_ERROR;
       return {
-        errors,
-        message,
+        errors: { message: err.message },
+        message: "Internal Server Error",
         success: false,
-        status,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -419,40 +413,35 @@ airqloudSchema.statics = {
         modifiedUpdateBody["$addToSet"] = {};
         modifiedUpdateBody["$addToSet"]["sites"] = {};
         modifiedUpdateBody["$addToSet"]["sites"]["$each"] = update.sites;
-
         delete modifiedUpdateBody["sites"];
       }
-      let updatedAirQloud = await this.findOneAndUpdate(
+      const updatedAirQloud = await this.findOneAndUpdate(
         filter,
         modifiedUpdateBody,
         options
       ).exec();
 
       if (!isEmpty(updatedAirQloud)) {
-        let data = updatedAirQloud._doc;
         return {
           success: true,
           message: "successfully modified the airqloud",
-          data,
+          data: updatedAirQloud._doc,
           status: HTTPStatus.OK,
         };
-      } else {
+      } else if (isEmpty(updatedAirQloud)) {
         return {
           success: false,
           message: "airqloud does not exist, please crosscheck",
-          status: HTTPStatus.NOT_FOUND,
+          status: HTTPStatus.BAD_REQUEST,
           errors: filter,
         };
       }
     } catch (err) {
-      let errors = { message: err.message };
-      let message = "Internal Server Error";
-      let status = HTTPStatus.INTERNAL_SERVER_ERROR;
       return {
-        errors,
-        message,
+        errors: { message: err.message },
+        message: "Internal Server Error",
         success: false,
-        status,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -470,36 +459,32 @@ airqloudSchema.statics = {
           metadata: 1,
         },
       };
-      let removedAirqloud = await this.findOneAndRemove(filter, options).exec();
+      const removedAirqloud = await this.findOneAndRemove(
+        filter,
+        options
+      ).exec();
 
       if (!isEmpty(removedAirqloud)) {
-        let data = removedAirqloud._doc;
         return {
           success: true,
           message: "successfully removed the airqloud",
-          data,
+          data: removedAirqloud._doc,
           status: HTTPStatus.OK,
         };
-      }
-
-      if (isEmpty(removedAirqloud)) {
+      } else if (isEmpty(removedAirqloud)) {
         return {
           success: false,
           message: "airqloud does not exist, please crosscheck",
-          status: HTTPStatus.NOT_FOUND,
+          status: HTTPStatus.BAD_REQUEST,
           errors: filter,
         };
       }
     } catch (err) {
-      let errors = { message: err.message };
-      let message = err.message;
-      let status = HTTPStatus.INTERNAL_SERVER_ERROR;
-
       return {
         success: false,
-        message,
-        errors,
-        status,
+        message: "Internal Server Error",
+        errors: { message: err.message },
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },

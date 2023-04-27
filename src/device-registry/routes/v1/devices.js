@@ -37,7 +37,7 @@ router.put(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "unep"])
+      .isIn(["kcca", "airqo", "urban_better", "usembassy", "nasa", "unep"])
       .withMessage("the network value is not among the expected ones"),
   ]),
   deviceController.bulkUpdate
@@ -51,7 +51,7 @@ router.post(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "unep"])
+      .isIn(["kcca", "airqo", "urban_better", "usembassy", "nasa", "unep"])
       .withMessage("the network value is not among the expected ones"),
   ]),
   deviceController.bulkCreate
@@ -443,10 +443,7 @@ router.post(
       )
       .bail()
       .notEmpty()
-      .withMessage("the name should not be empty if provided")
-      .bail()
-      .matches(/^[a-zA-Z0-9]+$/)
-      .withMessage("name should only contain alphanumeric characters."),
+      .withMessage("the name should not be empty if provided"),
     body("long_name")
       .exists()
       .withMessage(
@@ -454,10 +451,7 @@ router.post(
       )
       .bail()
       .notEmpty()
-      .withMessage("the long_name should not be empty if provided")
-      .bail()
-      .matches(/^[a-zA-Z0-9]+$/)
-      .withMessage("long_name should only contain alphanumeric characters."),
+      .withMessage("the long_name should not be empty if provided"),
   ]),
   oneOf([
     [
@@ -1112,10 +1106,7 @@ router.post(
       )
       .bail()
       .notEmpty()
-      .withMessage("the name should not be empty if provided")
-      .bail()
-      .matches(/^[a-zA-Z0-9]+$/)
-      .withMessage("name should only contain alphanumeric characters."),
+      .withMessage("the name should not be empty if provided"),
     body("long_name")
       .exists()
       .withMessage(
@@ -1123,10 +1114,7 @@ router.post(
       )
       .bail()
       .notEmpty()
-      .withMessage("the long_name should not be empty if provided")
-      .bail()
-      .matches(/^[a-zA-Z0-9]+$/)
-      .withMessage("long_name should only contain alphanumeric characters."),
+      .withMessage("the long_name should not be empty if provided"),
   ]),
   oneOf([
     [

@@ -1,0 +1,19 @@
+apiVersion: 1
+datasources:
+  - access: proxy
+    editable: false
+    name: prometheus
+    orgId: 1
+    type: prometheus
+    url: "http://prometheus-k8s.monitoring.svc:9090"
+    version: 1
+    isDefault: true
+  - access: proxy
+    name: prometheus-cloud
+    orgId: 1
+    type: prometheus
+    url: "https://prometheus-prod-10-prod-us-central-0.grafana.net/api/prom"
+    basicAuth: true
+    basicAuthUser: << user >>
+    secureJsonData:
+      basicAuthPassword: << password >>

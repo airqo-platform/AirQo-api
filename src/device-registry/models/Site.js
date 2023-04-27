@@ -11,6 +11,7 @@ const siteSchema = new Schema(
     name: {
       type: String,
       trim: true,
+      unique: true,
       required: [true, "name is required!"],
     },
     share_links: {
@@ -26,14 +27,17 @@ const siteSchema = new Schema(
     search_name: {
       type: String,
       trim: true,
+      unique: true,
     },
     network: {
       type: String,
       trim: true,
+      required: [true, "network is required!"],
     },
     location_name: {
       type: String,
       trim: true,
+      unique: true,
     },
     generated_name: {
       type: String,
@@ -59,11 +63,12 @@ const siteSchema = new Schema(
       type: String,
       trim: true,
       unique: true,
-      required: [true, "lat_long is required is required!"],
+      required: [true, "lat_long is required!"],
     },
     description: {
       type: String,
       trim: true,
+      unique: true,
     },
     site_codes: [
       {
@@ -399,6 +404,10 @@ siteSchema.statics = {
       let modifiedArgs = args;
       modifiedArgs.description = modifiedArgs.name;
 
+      if (isEmpty(modifiedArgs.network)) {
+        modifiedArgs.network = constants.DEFAULT_NETWORK;
+      }
+
       logObject("modifiedArgs", modifiedArgs);
       let createdSite = await this.create({
         ...modifiedArgs,
@@ -647,19 +656,17 @@ siteSchema.statics = {
       ).exec();
 
       if (!isEmpty(updatedSite)) {
-        let data = updatedSite._doc;
-
         return {
           success: true,
           message: "successfully modified the site",
-          data,
+          data: updatedSite._doc,
           status: HTTPStatus.OK,
         };
-      } else {
+      } else if (isEmpty(updatedSite)) {
         return {
           success: false,
           message: "site does not exist, please crosscheck",
-          status: HTTPStatus.NOT_FOUND,
+          status: HTTPStatus.BAD_REQUEST,
           errors: { message: "site does not exist" },
         };
       }
@@ -684,27 +691,27 @@ siteSchema.statics = {
           district: 1,
         },
       };
-      let removedSite = await this.findOneAndRemove(filter, options).exec();
-      let data = removedSite._doc;
-      if (!isEmpty(data)) {
+      const removedSite = await this.findOneAndRemove(filter, options).exec();
+      if (!isEmpty(removedSite)) {
         return {
           success: true,
           message: "successfully removed the site",
-          data,
+          data: removedSite._doc,
           status: HTTPStatus.OK,
         };
-      } else {
+      } else if (isEmpty(removedSite)) {
         return {
           success: false,
-          message: "site does not exist, please crosscheck",
-          status: HTTPStatus.NOT_FOUND,
+          message: "Internal Server Error",
+          status: HTTPStatus.BAD_REQUEST,
+          errors: { message: "site does not exist, please crosscheck" },
         };
       }
     } catch (error) {
       return {
         success: false,
-        message: "Site model server error - remove",
-        error: error.message,
+        message: "Internal Server Error",
+        errors: { message: error.message },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
