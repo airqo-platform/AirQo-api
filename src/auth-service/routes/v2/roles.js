@@ -149,6 +149,31 @@ router.put(
         }),
     ],
   ]),
+  oneOf([
+    [
+      body("role_status")
+        .optional()
+        .notEmpty()
+        .withMessage("the role_status should not be empty if provided")
+        .bail()
+        .toUpperCase()
+        .isIn(["ACTIVE", "INACTIVE"])
+        .withMessage(
+          "the status value is not among the expected ones which include: ACTIVE, INACTIVE"
+        )
+        .trim(),
+      body("role_name")
+        .optional()
+        .notEmpty()
+        .withMessage("the role_name should not be empty")
+        .trim(),
+      body("role_code")
+        .optional()
+        .notEmpty()
+        .withMessage("the role_code should not be empty if provided")
+        .trim(),
+    ],
+  ]),
   setJWTAuth,
   authJWT,
   createRoleController.update
