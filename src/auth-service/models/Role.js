@@ -181,7 +181,7 @@ RoleSchema.statics = {
           success: true,
           message: "roles not found for this operation",
           data: [],
-          status: httpStatus.NOT_FOUND,
+          status: httpStatus.OK,
         };
       }
     } catch (error) {
