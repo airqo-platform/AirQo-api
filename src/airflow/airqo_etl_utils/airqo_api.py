@@ -227,12 +227,19 @@ class AirQoApi:
         return meta_data
 
     def refresh_airqloud(self, airqloud_id):
-        """
-        TODO:
-        calls the refresh point to refresh an airqloud. Hardcode the tenant to airqo  e.g query_params = {"tenant": str(Tenant.AIRQO)}
-        make sure the task handles all errors. It should not raise any exceptions rather just log them.
-        """
-        pass
+        query_params = {"tenant": str(Tenant.AIRQO), "id": airqloud_id}
+
+        try:
+
+            response=requests.put(
+                url= f"{self.AIRQO_BASE_URL}/devices/airqlouds/refresh",
+                params=query_params,
+            )
+
+            print(response.content)
+        except Exception as ex:
+            print(ex)
+
 
     def get_airqlouds(self, tenant: Tenant = Tenant.ALL) -> list:
         query_params = {"tenant": str(Tenant.AIRQO)}
