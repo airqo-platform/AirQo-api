@@ -1,11 +1,11 @@
 import asyncio
 import math
 from datetime import datetime, timedelta
-import requests
 
 import aiohttp
 import dateutil.parser
 import pandas as pd
+import requests
 from google.oauth2 import service_account
 
 from config import configuration
@@ -17,7 +17,7 @@ class Events:
 
     events_measurements_url = f"{configuration.AIRQO_API_BASE_URL}devices/events/all"
 
-    # events_tips_url = f"{configuration.AIRQO_API_BASE_URL}devices/tips/"
+    events_tips_url = f"{configuration.AIRQO_API_BASE_URL}devices/tips/"
 
     @staticmethod
     def fetch_data_from_events_api():
