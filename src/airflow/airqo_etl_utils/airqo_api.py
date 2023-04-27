@@ -236,7 +236,7 @@ class AirQoApi:
                 params=query_params,
             )
 
-            print(response.content)
+            print(response.json())
         except Exception as ex:
             print(ex)
 
@@ -246,8 +246,7 @@ class AirQoApi:
 
         if tenant != Tenant.ALL:
             query_params["network"] = str(tenant)
-
-        response = self.__request("devices/airqlouds", query_params)
+        response = self.__request("devices/airqlouds/dashboard", query_params)
 
         return [
             {
