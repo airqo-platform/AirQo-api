@@ -47,7 +47,7 @@ resource "google_compute_instance" "airqo_dev_k8s_worker_0" {
   }
 
   resource_policies = [
-    "https://www.googleapis.com/compute/v1/projects/${var.project_id}/regions/${var.project_id}/resourcePolicies/daily-dev-vms"
+    "https://www.googleapis.com/compute/v1/projects/${var.project_id}/regions/${var.region}/resourcePolicies/daily-dev-vms"
   ]
 }
 # terraform import google_compute_instance.airqo_dev_k8s_worker_0 projects/${var.project_id}/zones/${var.zone["b"]}/instances/airqo-dev-k8s-worker-0

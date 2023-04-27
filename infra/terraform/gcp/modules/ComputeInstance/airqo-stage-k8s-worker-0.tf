@@ -48,7 +48,7 @@ resource "google_compute_instance" "airqo_stage_k8s_worker_0" {
   }
 
   resource_policies = [
-    "https://www.googleapis.com/compute/v1/projects/${var.project_id}/regions/${var.project_id}/resourcePolicies/hourly-k8s-runners"
+    "https://www.googleapis.com/compute/v1/projects/${var.project_id}/regions/${var.region}/resourcePolicies/hourly-k8s-runners"
   ]
 }
 # terraform import google_compute_instance.airqo_stage_k8s_worker_0 projects/${var.project_id}/zones/${var.zone["b"]}/instances/airqo-stage-k8s-worker-0
