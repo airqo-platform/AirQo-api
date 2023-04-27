@@ -23,11 +23,15 @@ def get_airqloud_sites(airqloud, tenant='airqo'):
     sites_details = airqloud_response_json['airqlouds'][0]['sites']
 
     site_ids = [site['_id'] for site in sites_details]
+    site_loc = [{'latitude': site['latitude'],
+                 'longitude': site['longitude']} for site in sites_details]
+    site = [{key: value} for key, value in zip(site_ids, site_loc)]
 
-    return site_ids
+    return site
 
 
-def get_site_data(site_id, tenant='airqo'):
+def get_site_data(site, tenant='airqo'):
+    site_id = list(site.keys())[-1]
     start_time = (datetime.utcnow()-timedelta(days=7)
                   ).strftime('%Y-%m-%dT%H:%M:%SZ'),
     end_time = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
@@ -51,13 +55,12 @@ def get_site_data(site_id, tenant='airqo'):
 
     for data in site_data:
         try:
-            pm2_5 = data.get('pm2_5_calibrated_value', data['pm2_5_raw_value'])
-
+            pm2_5 = data.get('pm2_5').get('calibratedValue',
+                                          data.get('pm2_5').get('value'))
         except:
             pm2_5 = None
-
-        site_dd.append({'time': data['timestamp'], 'latitude': data['latitude'],
-                        'longitude': data['longitude'], 'pm2_5': pm2_5})
+        site_dd.append({'time': data['time'], 'latitude': site[site_id]['latitude'],
+                        'longitude': site[site_id]['longitude'], 'pm2_5': pm2_5})
     return site_dd
 
 
@@ -66,8 +69,8 @@ def get_all_sites_data(airqloud, tenant='airqo'):
     airqloud_sites_id = get_airqloud_sites(airqloud, tenant)
 
     sites_data = []
-    for site_id in airqloud_sites_id:
-        site_data = get_site_data(site_id, tenant)
+    for site in airqloud_sites_id:
+        site_data = get_site_data(site, tenant)
         sites_data.append(site_data)
     all_sites_data = [data for site in sites_data for data in site]
     return all_sites_data

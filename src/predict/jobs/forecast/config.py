@@ -51,6 +51,8 @@ class ProductionConfig(Config):
     AIRQO_PREDICT_BUCKET = os.getenv('AIRQO_PREDICT_BUCKET_PROD')
     AIRQO_API_BASE_URL = os.getenv('AIRQO_API_BASE_URL_PROD')
     GOOGLE_CLOUD_PROJECT_ID = os.getenv('GOOGLE_CLOUD_PROJECT')
+    CREDENTIALS = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
+
 
 
 class TestingConfig(Config):
@@ -63,6 +65,7 @@ class TestingConfig(Config):
     AIRQO_PREDICT_BUCKET = os.getenv('AIRQO_PREDICT_BUCKET_STAGE')
     AIRQO_API_BASE_URL = os.getenv('AIRQO_API_BASE_URL_STAGE')
     GOOGLE_CLOUD_PROJECT_ID = os.getenv('GOOGLE_CLOUD_PROJECT')
+    CREDENTIALS = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
 
 
 class DevelopmentConfig(Config):
@@ -75,6 +78,8 @@ class DevelopmentConfig(Config):
     AIRQO_PREDICT_BUCKET = os.getenv('AIRQO_PREDICT_BUCKET_DEV')
     AIRQO_API_BASE_URL = os.getenv('AIRQO_API_BASE_URL_STAGE')
     GOOGLE_CLOUD_PROJECT_ID = os.getenv('GOOGLE_CLOUD_PROJECT')
+    CREDENTIALS = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
+
 
 
 app_config = {
