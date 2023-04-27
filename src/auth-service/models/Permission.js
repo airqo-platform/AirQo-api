@@ -9,11 +9,11 @@ const PermissionSchema = new mongoose.Schema(
     permission: {
       type: String,
       required: [true, "permission is required"],
+      unique: true,
     },
     network_id: {
       type: ObjectId,
       ref: "network",
-      required: [true, "network ID is required"],
     },
     description: { type: String, required: [true, "description is required"] },
   },
@@ -48,6 +48,7 @@ PermissionSchema.pre("update", function (next) {
 });
 
 PermissionSchema.index({ permission: 1, network_id: 1 }, { unique: true });
+PermissionSchema.index({ permission: 1 }, { unique: true });
 
 PermissionSchema.statics = {
   async register(args) {

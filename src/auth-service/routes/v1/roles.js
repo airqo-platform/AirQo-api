@@ -125,6 +125,30 @@ router.post(
           "the role_status value is not among the expected ones: ACTIVE or INACTIVE"
         )
         .trim(),
+      body("role_permission")
+        .optional()
+        .notEmpty()
+        .withMessage("role_permission must not be empty if provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the role_permission must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("network_id")
+        .optional()
+        .notEmpty()
+        .withMessage("network_id must not be empty if provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("network_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
     ],
   ]),
   setJWTAuth,
@@ -185,6 +209,30 @@ router.put(
         .notEmpty()
         .withMessage("the role_code should not be empty if provided")
         .trim(),
+      body("role_permission")
+        .optional()
+        .notEmpty()
+        .withMessage("role_permission must not be empty if provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the role_permission must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("network_id")
+        .optional()
+        .notEmpty()
+        .withMessage("network_id must not be empty if provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("network_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
     ],
   ]),
   setJWTAuth,
@@ -527,10 +575,10 @@ router.post(
         }),
       body("permissions")
         .exists()
-        .withMessage("the permission ID is missing in the request body")
+        .withMessage("the permissions is missing in the request body")
         .bail()
         .notEmpty()
-        .withMessage("the permission_id should not be empty")
+        .withMessage("the permissions should not be empty")
         .bail()
         .custom((value) => {
           return Array.isArray(value);
