@@ -32,6 +32,6 @@ all:
         config_servers:
           hosts:
             mongod-cfgsvr-[1:3].europe-west1-b.c.airqo-250220.internal
-        shards_1:
+        shard_1:
           hosts:
             mongod-shard-1-[1:3].europe-west1-b.c.airqo-250220.internal
