@@ -45,5 +45,9 @@ resource "google_compute_instance" "airqo_dev_k8s_controller" {
       "https://www.googleapis.com/auth/devstorage.read_only",
     ]
   }
+
+  resource_policies = [
+    "https://www.googleapis.com/compute/v1/projects/${var.project_id}/regions/${var.project_id}/resourcePolicies/daily-dev-vms"
+  ]
 }
 # terraform import google_compute_instance.airqo_dev_k8s_controller projects/${var.project_id}/zones/${var.zone["b"]}/instances/airqo-dev-k8s-controller
