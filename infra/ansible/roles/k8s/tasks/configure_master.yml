@@ -1,6 +1,6 @@
 ---
 - name: Initialize the cluster
-  # Skip kube-proxy installation since we use cilium instead
+  # Skip kube-proxy installation if using cilium instead
   shell: kubeadm init --skip-phases=addon/kube-proxy --pod-network-cidr=10.244.0.0/16 --apiserver-advertise-address=x.x.x.x >> cluster_initialized.txt
   args:
     chdir: $HOME
