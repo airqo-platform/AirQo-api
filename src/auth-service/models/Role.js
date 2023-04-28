@@ -143,6 +143,7 @@ RoleSchema.statics = {
           foreignField: "role",
           as: "role_users",
         })
+        .sort({ createdAt: -1 })
         .project({
           "role_users._id": 0,
           "role_users.notifications": 0,
@@ -161,7 +162,6 @@ RoleSchema.statics = {
           "role_users.networks": 0,
           "role_users.role": 0,
         })
-        .sort({ createdAt: -1 })
         .project({
           "network.__v": 0,
         })
