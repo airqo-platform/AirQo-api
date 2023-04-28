@@ -1115,7 +1115,7 @@ jobs:
         with:
           push: true
           context: src/gp-model
-          target: staging
+          target: production
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-gp-model-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-gp-model-job:latest
 
       - name: Build and push broker consumer
