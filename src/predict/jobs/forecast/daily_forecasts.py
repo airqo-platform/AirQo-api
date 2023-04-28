@@ -90,12 +90,12 @@ def get_new_row(df_tmp, device, model):
     return new_row
 
 
-def append_health_tips(pm2_5):
+def append_health_tips(pm2_5, health_tips):
     tips = []
-    health_tips = Events.fetch_health_tips()
-    for tip in health_tips:
-        if tip['aqi_category']['min'] <= pm2_5 <= tip['aqi_category']['max']:
-            tips.append(tip)
+    if pm2_5 is not None:
+        for tip in health_tips:
+            if tip['aqi_category']['min'] <= pm2_5 <= tip['aqi_category']['max']:
+                tips.append(tip)
     return tips
 
 
@@ -130,7 +130,18 @@ if __name__ == '__main__':
                                        'daily_forecast_model.pkl')
     forecasts = get_next_1week_forecasts(TARGET_COL, model)
     forecasts['created_at'] = forecasts['created_at'].apply(lambda x: x.isoformat())
-    forecasts['health_tips'] = forecasts['pm2_5'].apply(append_health_tips)
+    print("Adding health tips")
+    health_tips = Events.fetch_health_tips()
+    attempts = 1
+    while health_tips is None and attempts < 3:
+        print(f"Attempt {attempts}: Health tips not found. Trying again...")
+        health_tips = Events.fetch_health_tips()
+        attempts += 1
+
+    if health_tips is not None:
+        forecasts['health_tips'] = forecasts['pm2_5'].apply(lambda x: append_health_tips(x, health_tips))
+    else:
+        print("Health tips not found after 2 attempts. Continuing with the rest of the program...")
     forecast_results = []
 
     created_at = pd.to_datetime(datetime.now()).isoformat()
@@ -144,5 +155,5 @@ if __name__ == '__main__':
                   'health_tips': forecasts[forecasts['device_number'] == i]['health_tips'].tolist(),
                   }
         forecast_results.append(record)
-
+    print("Saving forecast results")
     save_next_1_week_forecast_results(forecast_results)
