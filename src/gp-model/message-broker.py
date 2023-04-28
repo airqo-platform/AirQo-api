@@ -18,9 +18,9 @@ class MessageBroker:
             bootstrap_servers=Config.BOOTSTRAP_SERVERS,
             value_deserializer=lambda x: json.loads(x.decode("utf-8")),
         )
-        consumer.subscribe([Config.MEASUREMENTS_TOPIC, Config.AIRQLOUDS_TOPIC])
+        consumer.subscribe(topics=[Config.MEASUREMENTS_TOPIC, Config.AIRQLOUDS_TOPIC])
 
-        print(f"Listening to {consumer.topics()} .....")
+        print(f"\n\nListening to {consumer.topics()} .....\n\n")
 
         for msg in consumer:
             try:
@@ -28,33 +28,37 @@ class MessageBroker:
                 topic = msg.topic
 
                 if topic == Config.MEASUREMENTS_TOPIC:
-                    print(f"received measurements data {data}")
+                    print(f"\n\nReceived measurements: {data}\n\n")
                     try:
-                        data = [
+                        formatted_data = [
                             {
-                                "site_id": row["site_id"],
-                                "network": row.get("network"),
-                                "pm2_5_calibrated_value": row["pm2_5_calibrated_value"],
-                                "pm2_5_raw_value": row["pm2_5_raw_value"],
-                                "pm10_calibrated_value": row["pm10_calibrated_value"],
-                                "pm10_raw_value": row["pm10_raw_value"],
-                                "timestamp": row["timestamp"],
-                                "site_longitude": row.get("site_longitude"),
-                                "site_latitude": row.get("site_latitude"),
+                                "site_id": row.get("site_id", None),
+                                "network": row.get("network", None),
+                                "pm2_5_calibrated_value": row.get(
+                                    "pm2_5_calibrated_value", None
+                                ),
+                                "pm2_5_raw_value": row.get("pm2_5_raw_value", None),
+                                "pm10_calibrated_value": row.get(
+                                    "pm10_calibrated_value", None
+                                ),
+                                "pm10_raw_value": row.get("pm10_raw_value", None),
+                                "timestamp": row.get("timestamp", None),
+                                "site_longitude": row.get("site_longitude", None),
+                                "site_latitude": row.get("site_latitude", None),
                             }
-                            for row in data
+                            for row in data["data"]
                         ]
 
-                        db_client.measurements.insert_many(data)
-                        print(f"saved measurements data {data}")
+                        db_client.measurements.insert_many(formatted_data)
+                        print(f"\n\nSaved measurements: {formatted_data}\n\n")
                     except Exception as ex:
                         print(ex)
                         traceback.print_exc()
 
                 elif topic == Config.AIRQLOUDS_TOPIC:
                     try:
-                        print(f"received airqlouds data {data}")
-                        data = [
+                        print(f"\n\nReceived airqlouds: {data}\n\n")
+                        formatted_data = [
                             {
                                 "_id": row["_id"],
                                 "long_name": row.get("long_name", ""),
@@ -68,8 +72,8 @@ class MessageBroker:
                             for row in data
                         ]
 
-                        db_client.airqlouds.insert_many(data)
-                        print(f"saved airqlouds data {data}")
+                        db_client.airqlouds.insert_many(formatted_data)
+                        print(f"\n\nSaved airqlouds data {formatted_data}\n\n")
                     except Exception as ex:
                         print(ex)
                         traceback.print_exc()
@@ -80,12 +84,4 @@ class MessageBroker:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--tenant",
-        required=True,
-        type=str.lower,
-    )
-
-    args = parser.parse_args()
     MessageBroker.listen_to_message_broker()
