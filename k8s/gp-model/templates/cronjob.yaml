@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: {{ .Values.app.name }}
+  name: {{ .Values.app.cronJobName }}
   namespace: {{ .Values.app.namespace }}
 spec:
   concurrencyPolicy: Allow
@@ -11,7 +11,7 @@ spec:
   suspend: false
   jobTemplate:
     metadata:
-      name: {{ .Values.app.name }}
+      name: {{ .Values.app.cronJobName }}
     spec:
       template:
         spec:
@@ -29,13 +29,13 @@ spec:
                     values:
                       - compute
           containers:
-            - name: {{ .Values.app.name }}
-              image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-              imagePullPolicy: {{ .Values.image.pullPolicy }}
+            - name: {{ .Values.app.cronJobName }}
+              image: "{{ .Values.images.repositories.cronJob }}:{{ .Values.images.tag }}"
+              imagePullPolicy: {{ .Values.images.pullPolicy }}
               terminationMessagePath: /dev/termination-log
               terminationMessagePolicy: File
               envFrom:
                 - configMapRef:
-                    name: {{ .Values.app.configmap }}
+                    name: {{ .Values.app.configMap }}
               resources:
                 {{- toYaml .Values.resources | nindent 16 }}
