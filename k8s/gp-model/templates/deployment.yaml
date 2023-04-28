@@ -4,13 +4,13 @@ metadata:
   name: {{ .Values.app.brokerConsumerName }}
   namespace: {{ .Values.app.namespace }}
   labels:
-    {{- include "gpmodel.labels" . | nindent 4 }}
+    {{- include "gp-model.labels" . | nindent 4 }}
 spec:
   selector:
     matchLabels:
         app: {{ .Values.app.label }}
   replicas: {{ .Values.replicaCount }}
-  revisionHistoryLimit: 2
+  revisionHistoryLimit: 1
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -35,7 +35,7 @@ spec:
                   - key: node-type
                     operator: In
                     values:
-                      - compute
+                      - general-purpose
       containers:
         - name: {{ .Values.app.brokerConsumerName }}
           image: "{{ .Values.images.repositories.brokerConsumer }}:{{ .Values.images.tag }}"
