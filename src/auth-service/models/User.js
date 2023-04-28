@@ -343,6 +343,7 @@ UserSchema.statics = {
           "role._id": 0,
           "role.createdAt": 0,
           "role.updatedAt": 0,
+          "role.role_users": 0,
         })
         .project({
           "groups.__v": 0,
