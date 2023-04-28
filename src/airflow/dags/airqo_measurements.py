@@ -448,16 +448,6 @@ def airqo_realtime_measurements():
         big_query_api = BigQueryApi()
         big_query_api.load_data(data, table=big_query_api.raw_measurements_table)
 
-    @task()
-    def update_latest_data_table(data: pd.DataFrame):
-        from airqo_etl_utils.airqo_utils import AirQoDataUtils
-        from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
-        from airqo_etl_utils.constants import Tenant, DeviceCategory
-
-        data = AirQoDataUtils.process_latest_data(
-            data=data, device_category=DeviceCategory.LOW_COST
-        )
-        DataWarehouseUtils.update_latest_measurements(data=data, tenant=Tenant.AIRQO)
 
     @task()
     def update_latest_data_topic(data: pd.DataFrame):
@@ -483,7 +473,6 @@ def airqo_realtime_measurements():
     send_hourly_measurements_to_api(calibrated_data)
     send_hourly_measurements_to_message_broker(calibrated_data)
     send_hourly_measurements_to_bigquery(calibrated_data)
-    update_latest_data_table(calibrated_data)
     update_latest_data_topic(calibrated_data)
 
 
