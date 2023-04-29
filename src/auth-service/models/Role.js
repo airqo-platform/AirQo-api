@@ -11,6 +11,9 @@ const RoleSchema = new mongoose.Schema(
       required: [true, "name is required"],
       unique: true,
     },
+    role_description: {
+      type: String,
+    },
     role_status: {
       type: String,
       required: [true, "name is required"],
@@ -24,6 +27,7 @@ const RoleSchema = new mongoose.Schema(
     network_id: {
       type: ObjectId,
       ref: "network",
+      required: [true, "network_id is required"],
     },
     role_permissions: {
       type: Array,
@@ -39,27 +43,13 @@ const RoleSchema = new mongoose.Schema(
   { timestamps: false }
 );
 
-RoleSchema.pre("save", function (next) {
-  return next();
-});
-
-RoleSchema.pre("findOneAndUpdate", function () {
-  let that = this;
-  const update = that.getUpdate();
-  if (update.__v != null) {
-    delete update.__v;
+RoleSchema.pre("save", async function (next) {
+  try {
+    return next();
+  } catch (err) {
+    // Handle errors
+    next(err);
   }
-  const keys = ["$set", "$setOnInsert"];
-  for (const key of keys) {
-    if (update[key] != null && update[key].__v != null) {
-      delete update[key].__v;
-      if (Object.keys(update[key]).length === 0) {
-        delete update[key];
-      }
-    }
-  }
-  update.$inc = update.$inc || {};
-  update.$inc.__v = 1;
 });
 
 RoleSchema.pre("update", function (next) {
@@ -67,6 +57,12 @@ RoleSchema.pre("update", function (next) {
 });
 
 RoleSchema.index({ role_name: 1, role_code: 1 }, { unique: true });
+RoleSchema.index(
+  { role_name: 1, role_code: 1, network_id: 1 },
+  { unique: true }
+);
+RoleSchema.index({ role_name: 1, network_id: 1 }, { unique: true });
+RoleSchema.index({ role_code: 1, network_id: 1 }, { unique: true });
 
 RoleSchema.statics = {
   async register(args) {
@@ -205,6 +201,12 @@ RoleSchema.statics = {
           modifiedUpdate.permissions;
         delete modifiedUpdate.permissions;
       }
+      if (modifiedUpdate.role_name) {
+        delete modifiedUpdate.role_name;
+      }
+      if (modifiedUpdate.role_code) {
+        delete modifiedUpdate.role_code;
+      }
       const updatedRole = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,
@@ -281,6 +283,8 @@ RoleSchema.methods = {
       role_code: this.role_code,
       role_status: this.role_status,
       role_permissions: this.role_permissions,
+      role_description: this.role_description,
+      network_id: this.network_id,
     };
   },
 };
