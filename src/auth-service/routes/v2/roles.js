@@ -125,9 +125,8 @@ router.post(
           return ObjectId(value);
         }),
       body("network_id")
-        .optional()
-        .notEmpty()
-        .withMessage("network_id must not be empty if provided")
+        .exists()
+        .withMessage("network_id must be provided")
         .bail()
         .trim()
         .isMongoId()
@@ -187,14 +186,14 @@ router.put(
         )
         .trim(),
       body("role_name")
-        .optional()
-        .notEmpty()
-        .withMessage("the role_name should not be empty")
+        .not()
+        .isEmpty()
+        .withMessage("the role_name should not be provided when updating")
         .trim(),
       body("role_code")
-        .optional()
-        .notEmpty()
-        .withMessage("the role_code should not be empty if provided")
+        .not()
+        .isEmpty()
+        .withMessage("the role_code should not be provided when updating")
         .trim(),
       body("network_id")
         .optional()

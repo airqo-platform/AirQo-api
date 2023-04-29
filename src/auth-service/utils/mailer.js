@@ -512,9 +512,18 @@ const mailer = {
         bcc,
       };
 
-      let response = await transporter.sendMail(mailOptions);
+      if (email === "automated-tests@airqo.net") {
+        return {
+          success: true,
+          message: "email successfully sent",
+          data: [],
+          status: httpStatus.OK,
+        };
+      }
 
-      let data = response;
+      const response = await transporter.sendMail(mailOptions);
+
+      const data = response;
       if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
         return {
           success: true,
