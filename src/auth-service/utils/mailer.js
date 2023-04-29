@@ -516,7 +516,7 @@ const mailer = {
         return {
           success: true,
           message: "email successfully sent",
-          data,
+          data: [],
           status: httpStatus.OK,
         };
       }
