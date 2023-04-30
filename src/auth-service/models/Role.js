@@ -11,6 +11,9 @@ const RoleSchema = new mongoose.Schema(
       required: [true, "name is required"],
       unique: true,
     },
+    role_description: {
+      type: String,
+    },
     role_status: {
       type: String,
       required: [true, "name is required"],
@@ -24,6 +27,7 @@ const RoleSchema = new mongoose.Schema(
     network_id: {
       type: ObjectId,
       ref: "network",
+      required: [true, "network_id is required"],
     },
     role_permissions: {
       type: Array,
@@ -36,30 +40,16 @@ const RoleSchema = new mongoose.Schema(
       },
     ],
   },
-  { timestamps: false }
+  { timestamps: true }
 );
 
-RoleSchema.pre("save", function (next) {
-  return next();
-});
-
-RoleSchema.pre("findOneAndUpdate", function () {
-  let that = this;
-  const update = that.getUpdate();
-  if (update.__v != null) {
-    delete update.__v;
+RoleSchema.pre("save", async function (next) {
+  try {
+    return next();
+  } catch (err) {
+    // Handle errors
+    next(err);
   }
-  const keys = ["$set", "$setOnInsert"];
-  for (const key of keys) {
-    if (update[key] != null && update[key].__v != null) {
-      delete update[key].__v;
-      if (Object.keys(update[key]).length === 0) {
-        delete update[key];
-      }
-    }
-  }
-  update.$inc = update.$inc || {};
-  update.$inc.__v = 1;
 });
 
 RoleSchema.pre("update", function (next) {
@@ -67,6 +57,12 @@ RoleSchema.pre("update", function (next) {
 });
 
 RoleSchema.index({ role_name: 1, role_code: 1 }, { unique: true });
+RoleSchema.index(
+  { role_name: 1, role_code: 1, network_id: 1 },
+  { unique: true }
+);
+RoleSchema.index({ role_name: 1, network_id: 1 }, { unique: true });
+RoleSchema.index({ role_code: 1, network_id: 1 }, { unique: true });
 
 RoleSchema.statics = {
   async register(args) {
@@ -123,6 +119,18 @@ RoleSchema.statics = {
 
   async list({ skip = 0, limit = 100, filter = {} } = {}) {
     try {
+      const projectAll = {
+        role_name: 1,
+        role_description: 1,
+        role_status: 1,
+        role_code: 1,
+        network_id: 1,
+        role_permissions: 1,
+        role_users: 1,
+        network: { $arrayElemAt: ["$network", 0] },
+        createdAt: 1,
+        updatedAt: 1,
+      };
       const roles = await this.aggregate()
         .match(filter)
         .lookup({
@@ -143,8 +151,17 @@ RoleSchema.statics = {
           foreignField: "role",
           as: "role_users",
         })
+        .addFields({
+          createdAt: {
+            $dateToString: {
+              format: "%Y-%m-%d %H:%M:%S",
+              date: "$_id",
+            },
+          },
+        })
+        .sort({ createdAt: -1 })
+        .project(projectAll)
         .project({
-          "role_users._id": 0,
           "role_users.notifications": 0,
           "role_users.emailConfirmed": 0,
           "role_users.locationCount": 0,
@@ -158,12 +175,44 @@ RoleSchema.statics = {
           "role_users.resetPasswordExpires": 0,
           "role_users.resetPasswordToken": 0,
           "role_users.updatedAt": 0,
-          "role_users.networks": 0,
           "role_users.role": 0,
+          "role_users.interest": 0,
+          "role_users.org_name": 0,
+          "role_users.accountStatus": 0,
+          "role_users.hasAccess": 0,
+          "role_users.collaborators": 0,
+          "role_users.publisher": 0,
+          "role_users.bus_nature": 0,
+          "role_users.org_department": 0,
+          "role_users.uni_faculty": 0,
+          "role_users.uni_course_yr": 0,
+          "role_users.pref_locations": 0,
+          "role_users.job_title": 0,
+          "role_users.userName": 0,
+          "role_users.product": 0,
+          "role_users.website": 0,
+          "role_users.description": 0,
         })
-        .sort({ createdAt: -1 })
         .project({
           "network.__v": 0,
+          "network.net_status": 0,
+          "network.net_children": 0,
+          "network.net_users": 0,
+          "network.net_departments": 0,
+          "network.net_permissions": 0,
+          "network.net_roles": 0,
+          "network.net_groups": 0,
+          "network.net_email": 0,
+          "network.net_phoneNumber": 0,
+          "network.net_category": 0,
+          "network.createdAt": 0,
+          "network.updatedAt": 0,
+        })
+        .project({
+          "role_permissions.description": 0,
+          "role_permissions.createdAt": 0,
+          "role_permissions.updatedAt": 0,
+          "role_permissions.__v": 0,
         })
         .skip(skip ? skip : 0)
         .limit(limit ? limit : 100)
@@ -204,6 +253,12 @@ RoleSchema.statics = {
         modifiedUpdate["$addToSet"]["role_permissions"]["$each"] =
           modifiedUpdate.permissions;
         delete modifiedUpdate.permissions;
+      }
+      if (modifiedUpdate.role_name) {
+        delete modifiedUpdate.role_name;
+      }
+      if (modifiedUpdate.role_code) {
+        delete modifiedUpdate.role_code;
       }
       const updatedRole = await this.findOneAndUpdate(
         filter,
@@ -281,6 +336,8 @@ RoleSchema.methods = {
       role_code: this.role_code,
       role_status: this.role_status,
       role_permissions: this.role_permissions,
+      role_description: this.role_description,
+      network_id: this.network_id,
     };
   },
 };
