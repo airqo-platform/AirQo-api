@@ -735,8 +735,8 @@ const join = {
 
   updateForgottenPassword: async (request) => {
     try {
-      const { tenant, body } = request;
-      const { resetPasswordToken } = body;
+      const { resetPasswordToken, password } = request.body;
+      const { tenant } = request.query;
       const timeZone = moment.tz.guess();
       let filter = {
         resetPasswordToken,
@@ -760,8 +760,10 @@ const join = {
         const update = {
           resetPasswordToken: null,
           resetPasswordExpires: null,
+          password,
         };
         const userDetails = responseFromCheckTokenValidity.data;
+        logObject("userDetails", userDetails);
         filter = { _id: ObjectId(userDetails._id) };
         logObject("updateForgottenPassword FILTER", filter);
         const responseFromModifyUser = await UserModel(tenant).modify({

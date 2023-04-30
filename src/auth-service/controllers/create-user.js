@@ -1056,9 +1056,8 @@ const createUser = {
         tenant = constants.DEFAULT_TENANT;
       }
 
-      let request = {};
-      request["body"] = body;
-      request["tenant"] = tenant;
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
       const responseFromUpdateForgottenPassword =
         await createUserUtil.updateForgottenPassword(request);
 
