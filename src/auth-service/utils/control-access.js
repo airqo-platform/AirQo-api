@@ -961,7 +961,10 @@ const controlAccess = {
         const user = responseFromListUser.data[0];
         logObject("user", user);
 
-        if (!isEmpty(user.role) && user.role.role_name === "SUPER_ADMIN") {
+        if (
+          !isEmpty(user.role) &&
+          user.role.role_name.endsWith("SUPER_ADMIN")
+        ) {
           logObject("user.role.role_name", user.role.role_name);
           return {
             success: false,
