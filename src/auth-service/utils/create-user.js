@@ -561,8 +561,7 @@ const join = {
 
   register: async (request) => {
     try {
-      let {
-        tenant,
+      const {
         firstName,
         lastName,
         email,
@@ -570,7 +569,9 @@ const join = {
         long_organization,
         privilege,
         network_id,
-      } = request;
+      } = request.body;
+
+      const { tenant } = request.query;
 
       const password = accessCodeGenerator.generate(
         constants.RANDOM_PASSWORD_CONFIGURATION(10)

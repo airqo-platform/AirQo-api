@@ -511,27 +511,11 @@ const createUser = {
 
       let { tenant } = req.query;
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
+        tenant = constants.DEFAULT_TENANT || "airqo";
       }
-      const {
-        firstName,
-        lastName,
-        email,
-        organization,
-        long_organization,
-        privilege,
-        network_id,
-      } = req.body;
 
-      let request = {};
-      request["tenant"] = tenant.toLowerCase();
-      request["firstName"] = firstName;
-      request["lastName"] = lastName;
-      request["email"] = email;
-      request["organization"] = organization;
-      request["long_organization"] = long_organization;
-      request["privilege"] = privilege;
-      request["network_id"] = network_id;
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant.toLowerCase();
 
       let responseFromCreateUser = await createUserUtil.register(request);
       logObject("responseFromCreateUser in controller", responseFromCreateUser);
