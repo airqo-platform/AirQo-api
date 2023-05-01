@@ -236,6 +236,10 @@ const createNetwork = {
         filter,
       });
 
+      /**
+       * We are not updating the user model from here!
+       */
+
       if (responseFromModifyNetwork.success === true) {
         return responseFromModifyNetwork;
       } else if (responseFromModifyNetwork.success === false) {
