@@ -67,17 +67,60 @@ router.get(
   authJWT,
   createUserController.list
 );
+
 router.post(
   "/registerUser",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      body("firstName")
+        .exists()
+        .withMessage("firstName is missing in your request")
+        .bail()
+        .trim(),
+      body("lastName")
+        .exists()
+        .withMessage("lastName is missing in your request")
+        .bail()
+        .trim(),
+      body("email")
+        .exists()
+        .withMessage("email is missing in your request")
+        .bail()
+        .isEmail()
+        .withMessage("this is not a valid email address")
+        .trim(),
+      body("organization")
+        .exists()
+        .withMessage("organization is missing in your request")
+        .bail()
+        .trim(),
+      body("long_organization")
+        .exists()
+        .withMessage("long_organization is missing in your request")
+        .bail()
+        .trim(),
+      body("privilege")
+        .optional()
+        .notEmpty()
+        .withMessage("privilege should not be empty if provided")
+        .bail()
+        .isIn(["admin", "netmanager", "user", "super"])
+        .withMessage("the privilege value is not among the expected ones")
+        .trim(),
+    ],
   ]),
   createUserController.register
 );

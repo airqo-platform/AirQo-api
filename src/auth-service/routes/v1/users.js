@@ -281,8 +281,9 @@ router.post(
         .bail()
         .trim(),
       body("privilege")
-        .exists()
-        .withMessage("privilege is missing in your request")
+        .optional()
+        .notEmpty()
+        .withMessage("privilege should not be empty if provided")
         .bail()
         .isIn(["admin", "netmanager", "user", "super"])
         .withMessage("the privilege value is not among the expected ones")
