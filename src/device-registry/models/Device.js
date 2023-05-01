@@ -552,6 +552,13 @@ deviceSchema.statics = {
         delete modifiedUpdate["previous_sites"];
       }
 
+      if (modifiedUpdate.pictures) {
+        modifiedUpdate["$addToSet"]["pictures"] = {};
+        modifiedUpdate["$addToSet"]["pictures"]["$each"] =
+          modifiedUpdate.pictures;
+        delete modifiedUpdate["pictures"];
+      }
+
       const updatedDevice = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,
