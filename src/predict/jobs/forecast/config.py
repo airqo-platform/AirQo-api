@@ -17,7 +17,7 @@ class Config:
     CSRF_ENABLED = True
     CREDENTIALS = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
     GOOGLE_CLOUD_PROJECT_ID = os.getenv('GOOGLE_CLOUD_PROJECT')
-    AIRQO_API_KEY = os.getenv('AIRQO_API_KEY')
+    AIRQO_API_AUTH_TOKEN = os.getenv('AIRQO_API_AUTH_TOKEN')
 
 
     TENANT = os.getenv('TENANT', 'airqo')
@@ -54,7 +54,7 @@ class ProductionConfig(Config):
     AIRQO_API_BASE_URL = os.getenv('AIRQO_API_BASE_URL_PROD')
     GOOGLE_CLOUD_PROJECT_ID = os.getenv('GOOGLE_CLOUD_PROJECT')
     CREDENTIALS = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
-    AIRQO_API_KEY = os.getenv('AIRQO_API_KEY')
+    AIRQO_API_AUTH_TOKEN = os.getenv('AIRQO_API_AUTH_TOKEN')
 
 
 
@@ -69,7 +69,7 @@ class TestingConfig(Config):
     AIRQO_API_BASE_URL = os.getenv('AIRQO_API_BASE_URL_STAGE')
     GOOGLE_CLOUD_PROJECT_ID = os.getenv('GOOGLE_CLOUD_PROJECT')
     CREDENTIALS = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
-    AIRQO_API_KEY = os.getenv('AIRQO_API_KEY')
+    AIRQO_API_AUTH_TOKEN = os.getenv('AIRQO_API_AUTH_TOKEN')
 
 
 
@@ -84,7 +84,7 @@ class DevelopmentConfig(Config):
     AIRQO_API_BASE_URL = os.getenv('AIRQO_API_BASE_URL_STAGE')
     GOOGLE_CLOUD_PROJECT_ID = os.getenv('GOOGLE_CLOUD_PROJECT')
     CREDENTIALS = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
-    AIRQO_API_KEY = os.getenv('AIRQO_API_KEY')
+    AIRQO_API_AUTH_TOKEN = os.getenv('AIRQO_API_AUTH_TOKEN')
 
 
 
