@@ -1,7 +1,6 @@
 ---
 - name: Initialize the cluster
-  # Skip kube-proxy installation if using cilium instead
-  shell: kubeadm init --skip-phases=addon/kube-proxy --pod-network-cidr=10.244.0.0/16 --apiserver-advertise-address=x.x.x.x >> cluster_initialized.txt
+  shell: kubeadm init --pod-network-cidr=10.244.0.0/16 --apiserver-advertise-address=x.x.x.x >> cluster_initialized.txt
   args:
     chdir: $HOME
     creates: cluster_initialized.txt
@@ -12,3 +11,10 @@
     path: $HOME/.kube
     state: directory
     mode: 0755
+
+- name: Install Pod network
+  become: true
+  shell: kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml >> pod_network_setup.txt
+  args:
+    chdir: $HOME
+    creates: pod_network_setup.txt
