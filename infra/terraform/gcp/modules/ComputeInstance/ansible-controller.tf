@@ -1,7 +1,7 @@
 resource "google_compute_instance" "ansible_controller" {
   boot_disk {
     auto_delete = false
-    source      = "ansible-controller"
+    source      = "https://www.googleapis.com/compute/v1/projects/${var.project_id}/zones/${var.zone["b"]}/disks/ansible-controller"
   }
 
   labels = {
