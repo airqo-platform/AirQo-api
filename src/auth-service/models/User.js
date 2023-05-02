@@ -98,6 +98,7 @@ const UserSchema = new Schema(
     role: {
       type: ObjectId,
       ref: "role",
+      default: constants.DEFAULT_ROLE,
     },
     permissions: [
       {
@@ -257,6 +258,10 @@ UserSchema.statics = {
         verified: 1,
         country: 1,
         privilege: 1,
+        website: 1,
+        category: 1,
+        jobTitle: 1,
+        description: 1,
         profilePicture: 1,
         phoneNumber: 1,
         role: { $arrayElemAt: ["$role", 0] },
@@ -338,6 +343,7 @@ UserSchema.statics = {
           "role._id": 0,
           "role.createdAt": 0,
           "role.updatedAt": 0,
+          "role.role_users": 0,
         })
         .project({
           "groups.__v": 0,
@@ -546,6 +552,8 @@ UserSchema.methods = {
         lastName: this.lastName,
         userName: this.userName,
         email: this.email,
+        role: this.role,
+        networks: this.networks,
         privilege: this.privilege,
         country: this.country,
         profilePicture: this.profilePicture,
