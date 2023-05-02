@@ -11,7 +11,7 @@ load_dotenv(dotenv_path=env_path, verbose=True)
 
 TWO_HOURS = 7200  # seconds
 
-BASE_URL = "/api/v1/analytics"
+API_V2_BASE_URL = "/api/v2/analytics"
 
 APP_ENV = env_var("FLASK_ENV", "production")
 
@@ -64,7 +64,7 @@ class Config:
         "ui_params_text": """{
             "operationsSorter" : (a, b) => a.get("path").localeCompare(b.get("path"))
         }""",
-        "url_prefix": f"{BASE_URL}",
+        "url_prefix": f"{API_V2_BASE_URL}",
     }
 
 
