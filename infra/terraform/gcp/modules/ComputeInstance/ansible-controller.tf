@@ -30,6 +30,7 @@ resource "google_compute_instance" "ansible_controller" {
       network_tier = "PREMIUM"
     }
     network    = "airqo-k8s-cluster"
+    subnetwork = "k8s-nodes"
     network_ip = "10.240.0.28"
   }
 
