@@ -162,7 +162,7 @@ exports.sendWelcomeEmail = functions.auth.user().onCreate((user) => {
     const email = user.email;
     try {
       setTimeout(async () => {
-        const userRef = firestoreDb.collection("airqo-app-users")
+        const userRef = firestoreDb.collection(process.env.USERS_COLLECTION)
             .doc(user.uid);
         const userDoc = await userRef.get();
 
