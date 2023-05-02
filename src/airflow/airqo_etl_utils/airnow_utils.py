@@ -24,7 +24,7 @@ class AirnowDataUtils:
             raise Exception(f"Unknown parameter {parameter}")
 
     @staticmethod
-    def query_bam_data(start_date_time: str, end_date_time: str) -> pd.DataFrame:
+    def query_bam_data(organisation:str, start_date_time: str, end_date_time: str) -> pd.DataFrame:
         airnow_api = AirNowApi()
         start_date_time = date_to_str(
             str_to_date(start_date_time), str_format="%Y-%m-%dT%H:%M"
@@ -34,6 +34,7 @@ class AirnowDataUtils:
         )
 
         data = airnow_api.get_data(
+            organisation=organisation,
             start_date_time=start_date_time,
             boundary_box="-16.9530804676,-33.957634112,54.8058474018,37.2697926495",
             end_date_time=end_date_time,
@@ -42,7 +43,7 @@ class AirnowDataUtils:
         return pd.DataFrame(data)
 
     @staticmethod
-    def extract_bam_data(start_date_time: str, end_date_time: str) -> pd.DataFrame:
+    def extract_bam_data(organisation: str, start_date_time: str, end_date_time: str) -> pd.DataFrame:
         dates = Utils.query_dates_array(
             start_date_time=start_date_time,
             end_date_time=end_date_time,
@@ -53,7 +54,7 @@ class AirnowDataUtils:
 
         for start, end in dates:
             query_data = AirnowDataUtils.query_bam_data(
-                start_date_time=start, end_date_time=end
+               organisation=organisation, start_date_time=start, end_date_time=end
             )
             data = pd.concat([data, query_data], ignore_index=True)
 

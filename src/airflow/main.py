@@ -322,7 +322,7 @@ class MainClass:
 
     def airnow_bam_data(self):
         extracted_bam_data = AirnowDataUtils.extract_bam_data(
-            start_date_time=self.start_date_time, end_date_time=self.end_date_time
+            "usembassy",start_date_time=self.start_date_time, end_date_time=self.end_date_time
         )
         extracted_bam_data.to_csv("airnow_unprocessed_data.csv", index=False)
 

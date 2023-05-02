@@ -8,7 +8,7 @@ from .config import configuration
 class AirNowApi:
     def __init__(self):
         self.AIRNOW_BASE_URL = configuration.AIRNOW_BASE_URL
-        self.AIRNOW_API_KEY = configuration.AIRNOW_API_KEY
+        self.USEMBASSY_API_KEY = configuration.USEMBASSY_API_KEY
         self.AIRNOW_COUNTRIES_METADATA = (
             configuration.AIRNOW_COUNTRIES_METADATA_JSON_FILE
         )
@@ -24,6 +24,7 @@ class AirNowApi:
         start_date_time,
         end_date_time,
         boundary_box,
+        organisation,
         parameters="pm25,pm10,ozone,co,no2,so2",
     ) -> list:
         params = {
@@ -38,10 +39,13 @@ class AirNowApi:
             "dataType": "B",
         }
 
-        return self.__request(endpoint="/aq/data", params=params)
+        return self.__request(endpoint="/aq/data", params=params,organisation=organisation)
 
-    def __request(self, endpoint, params):
-        params["API_KEY"] = self.AIRNOW_API_KEY
+    def __request(self, endpoint, params,organisation):
+        api_key_dict = {
+            "usembassy": self.USEMBASSY_API_KEY,
+        }
+        params["API_KEY"] = api_key_dict[organisation]
 
         api_request = requests.get(
             "%s%s" % (self.AIRNOW_BASE_URL, endpoint),
