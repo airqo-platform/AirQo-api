@@ -1,6 +1,6 @@
 resource "google_compute_instance" "ansible_controller" {
   boot_disk {
-    auto_delete = true
+    auto_delete = false
     source      = "ansible-controller"
   }
 
