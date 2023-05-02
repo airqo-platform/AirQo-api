@@ -15,12 +15,12 @@ from marshmallow import ValidationError as MarshmallowValidationError
 from api.middlewares import middleware_blueprint
 from api.middlewares.base_validator import ValidationError
 # Config
-from config import CONFIGURATIONS
+from config import CONFIGURATIONS, API_V1_BASE_URL, API_V2_BASE_URL
 
-rest_api = Api(prefix="/api", doc=False)
-rest_api_v1 = Namespace(name='v1', description='API version 1', path="/v1/analytics")
+rest_api = Api(doc=False)
+rest_api_v1 = Namespace(name='v1', description='API version 1', path=API_V1_BASE_URL)
 rest_api.add_namespace(rest_api_v1)
-rest_api_v2 = Namespace(name='v2', description='API version 2', path="/v2/analytics")
+rest_api_v2 = Namespace(name='v2', description='API version 2', path=API_V2_BASE_URL)
 rest_api.add_namespace(rest_api_v2)
 cache = Cache()
 
