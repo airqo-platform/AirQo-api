@@ -17,7 +17,6 @@ resource "google_compute_instance" "airqo_dev_haproxy" {
   network_interface {
     access_config {
       network_tier = "PREMIUM"
-      nat_ip       = "34.78.104.104"
     }
     network    = "airqo-k8s-cluster"
     subnetwork = "k8s-nodes"
