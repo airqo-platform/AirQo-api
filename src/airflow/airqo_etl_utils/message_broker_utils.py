@@ -61,10 +61,11 @@ class MessageBrokerUtils:
                 if partition or partition == 0
                 else self.__get_partition(current_partition=current_partition)
             )
-
+            kafkaMessage=json.dumps(message, allow_nan=True).encode("utf-8")
+            print(kafkaMessage)
             producer.send(
                 topic=topic,
-                value=json.dumps(message, allow_nan=True).encode("utf-8"),
+                value=kafkaMessage,
                 partition=current_partition,
             ).add_callback(self.__on_success).add_errback(self.__on_error)
 
