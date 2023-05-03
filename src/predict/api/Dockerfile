@@ -1,5 +1,5 @@
 # Inherit from the Python Docker image
-FROM python:3.9-slim as base
+FROM python:3.9.16-slim as base
 
   
 COPY . /app/
@@ -13,7 +13,7 @@ ENV PYTHONUNBUFFERED 1
 
 # Set environment variables
 ENV FLASK_APP=app.py
-ENV GOOGLE_APPLICATION_CREDENTIALS=airqo-250220-642e046f4223.json
+#ENV GOOGLE_APPLICATION_CREDENTIALS=airqo-250220-642e046f4223.json
 
 EXPOSE 5000
 
