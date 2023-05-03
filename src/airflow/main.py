@@ -3,6 +3,7 @@ import os
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import json
 import pandas as pd
 from dotenv import load_dotenv
 
@@ -17,6 +18,7 @@ from airqo_etl_utils.constants import (
     Tenant,
     DeviceCategory,
     DataType,
+    DataSource,
 )
 from airqo_etl_utils.data_validator import DataValidationUtils
 from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
@@ -24,6 +26,7 @@ from airqo_etl_utils.kcca_utils import KccaUtils
 from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
 from airqo_etl_utils.utils import Utils
 from airqo_etl_utils.weather_data_utils import WeatherDataUtils
+from airqo_etl_utils.airnow_api import AirNowApi
 
 BASE_DIR = Path(__file__).resolve().parent
 dotenv_path = os.path.join(BASE_DIR, ".env")
@@ -321,10 +324,18 @@ class MainClass:
         )
 
     def airnow_bam_data(self):
-        extracted_bam_data = AirnowDataUtils.extract_bam_data(
-            "usembassy",start_date_time=self.start_date_time, end_date_time=self.end_date_time
-        )
+        airnow_api = AirNowApi()
+        networks =airnow_api.get_networks()
+        extracted_bam_data = pd.DataFrame()
+        for network in networks:
+            if network["data_source"]== DataSource.AIRNOW:
+                network_data=AirnowDataUtils.extract_bam_data(
+            api_key= network["api_key"], start_date_time=self.start_date_time, end_date_time=self.end_date_time)
+            extracted_bam_data=pd.concat([extracted_bam_data ,network_data], ignore_index=True)
         extracted_bam_data.to_csv("airnow_unprocessed_data.csv", index=False)
+        
+        with open('airnow_unprocessed_data.json', 'w') as f:
+            json.dump(extracted_bam_data.to_json(orient='columns'), f)
 
         processed_bam_data = AirnowDataUtils.process_bam_data(extracted_bam_data)
         processed_bam_data.to_csv("airnow_processed_data.csv", index=False)

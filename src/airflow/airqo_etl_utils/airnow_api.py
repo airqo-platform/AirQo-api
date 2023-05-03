@@ -4,6 +4,9 @@ import requests
 
 from .config import configuration
 
+from typing import List
+
+from .constants import Tenant, DataSource
 
 class AirNowApi:
     def __init__(self):
@@ -24,7 +27,7 @@ class AirNowApi:
         start_date_time,
         end_date_time,
         boundary_box,
-        organisation,
+        api_key,
         parameters="pm25,pm10,ozone,co,no2,so2",
     ) -> list:
         params = {
@@ -39,13 +42,11 @@ class AirNowApi:
             "dataType": "B",
         }
 
-        return self.__request(endpoint="/aq/data", params=params,organisation=organisation)
+        return self.__request(endpoint="/aq/data", params=params,api_key=api_key)
 
-    def __request(self, endpoint, params,organisation):
-        api_key_dict = {
-            "usembassy": self.USEMBASSY_API_KEY,
-        }
-        params["API_KEY"] = api_key_dict[organisation]
+    def __request(self, endpoint, params,api_key):
+
+        params["API_KEY"] = api_key
 
         api_request = requests.get(
             "%s%s" % (self.AIRNOW_BASE_URL, endpoint),
@@ -60,6 +61,16 @@ class AirNowApi:
         else:
             handle_api_error(api_request)
             return None
+        
+    def get_networks(self) ->List[str]:
+        # TODO: Create endpoint to return networks
+        return [
+            {
+                "network":Tenant.US_EMBASSY,
+                "data_source":DataSource.AIRNOW,
+                "api_key":self.USEMBASSY_API_KEY,
+            }
+        ]
 
 
 def handle_api_error(api_request):

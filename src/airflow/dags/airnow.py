@@ -2,6 +2,10 @@ from airflow.decorators import dag, task
 
 from airqo_etl_utils.airflow_custom_utils import AirflowUtils
 
+from airqo_etl_utils.airnow_api import AirNowApi
+
+from airqo_etl_utils.constants import DataSource
+
 @dag(
     "Airnow-Historical-Bam-Data",
     schedule=None,
@@ -19,9 +23,16 @@ def airnow_bam_historical_data():
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(**kwargs)
         from airqo_etl_utils.airnow_utils import AirnowDataUtils
 
-        return AirnowDataUtils.extract_bam_data(
-            organisation= "usembassy",start_date_time=start_date_time, end_date_time=end_date_time
-        )
+        airnow_api = AirNowApi()
+        networks =airnow_api.get_networks()
+        extracted_bam_data  = pd.DataFrame()
+
+        for network in networks:
+            if network["data_source"]== DataSource.AIRNOW:
+                network_data=AirnowDataUtils.extract_bam_data(api_key= network["api_key"], start_date_time=start_date_time, end_date_time=end_date_time)
+                extracted_bam_data =pd.concat([extracted_bam_data  ,network_data], ignore_index=True)
+
+        return  extracted_bam_data 
 
     @task()
     def process_data(airnow_data: pd.DataFrame):
@@ -64,9 +75,16 @@ def airnow_bam_realtime_data():
 
         start_date_time, end_date_time = DateUtils.get_query_date_time_values()
 
-        return AirnowDataUtils.extract_bam_data(
-            organisation= "usembassy", start_date_time=start_date_time, end_date_time=end_date_time
-        )
+        airnow_api = AirNowApi()
+        networks =airnow_api.get_networks()
+        extracted_bam_data  = pd.DataFrame()
+        for network in networks:
+            if network["data_source"]== DataSource.AIRNOW:
+                network_data=AirnowDataUtils.extract_bam_data(
+            api_key= network["api_key"], start_date_time=start_date_time, end_date_time=end_date_time)
+            extracted_bam_data =pd.concat([extracted_bam_data  ,network_data], ignore_index=True)
+
+        return  extracted_bam_data 
 
     @task()
     def process_data(data: pd.DataFrame):
