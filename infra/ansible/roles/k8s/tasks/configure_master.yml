@@ -9,7 +9,7 @@
   copy:
     content: ""
     dest: /etc/kubernetes/kubeadm-config.yaml
-    force: flase
+    force: false
 
 - name: configuring the container runtime including its cgroup driver
   blockinfile:
