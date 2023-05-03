@@ -17,6 +17,8 @@ resource "google_compute_instance" "airqo_dev_k8s_controller" {
   network_interface {
     access_config {
       network_tier = "PREMIUM"
+      nat_ip       = "https://www.googleapis.com/compute/v1/projects/airqo-250220/regions/europe-west1/addresses/airqo-dev-k8s-controller"
+
     }
     network    = "airqo-k8s-cluster"
     subnetwork = "k8s-nodes"
