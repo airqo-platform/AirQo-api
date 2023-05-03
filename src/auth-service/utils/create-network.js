@@ -265,12 +265,67 @@ const createNetwork = {
 
   assignOneUser: async (request) => {
     try {
-      /**
-       *Find the network using the network ID provided in the path parameter
-Check if the user already exists in the network's net_users array. If the user already exists, return an error message indicating that the user is already a member of the network.
-If the user does not exist in the network's net_users array, add the user to the array.
-Save the updated network document.
-       */
+      const { net_id, user_id } = request.params;
+      const { tenant } = request.query;
+
+      const user = await UserModel(tenant).findById(user_id);
+      if (!user) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: "User not found" },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const network = await NetworkModel(tenant).findById(net_id);
+      if (!network) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: "Network not found" },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      if (network.net_users.includes(user_id)) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: "User is already assigned to the network" },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      if (user.networks.includes(net_id)) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: "Network is already assigned to the user" },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      try {
+        network.net_users.push(user_id);
+        await network.save();
+      } catch (error) {
+        logger.error(`error while adding user to network -- ${error.message}`);
+      }
+
+      try {
+        user.networks.push(net_id);
+        await user.save();
+      } catch (error) {
+        logger.error(`error while adding network to user -- ${error.message}`);
+      }
+
+      return {
+        success: true,
+        message: "User assigned to network successfully",
+        status: httpStatus.OK,
+        data: network,
+      };
     } catch (error) {
       return {
         success: false,

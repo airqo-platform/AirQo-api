@@ -193,11 +193,13 @@ const createNetwork = {
       if (isEmpty(tenant)) {
         tenant = constants.DEFAULT_TENANT;
       }
+
       let request = Object.assign({}, req);
-      request.action = "assignOneUser";
       request.query.tenant = tenant;
 
-      const responseFromUpdateNetwork = await createNetworkUtil.update(request);
+      const responseFromUpdateNetwork = await createNetworkUtil.assignOneUser(
+        request
+      );
 
       if (responseFromUpdateNetwork.success === true) {
         const status = responseFromUpdateNetwork.status
@@ -205,7 +207,7 @@ const createNetwork = {
           : httpStatus.OK;
 
         return res.status(status).json({
-          message: "successfully assigned a user to the network",
+          message: responseFromUpdateNetwork.message,
           updated_network: responseFromUpdateNetwork.data,
           success: true,
         });
