@@ -120,7 +120,7 @@ const createNetwork = {
 
   assignUsers: async (req, res) => {
     try {
-      logText("assign user....");
+      logText("assign many users....");
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -178,7 +178,7 @@ const createNetwork = {
 
   assignOneUser: async (req, res) => {
     try {
-      logText("assign user....");
+      logText("assign one user....");
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -207,9 +207,9 @@ const createNetwork = {
           : httpStatus.OK;
 
         return res.status(status).json({
-          message: responseFromUpdateNetwork.message,
-          updated_network: responseFromUpdateNetwork.data,
           success: true,
+          message: responseFromUpdateNetwork.message,
+          updated_records: responseFromUpdateNetwork.data,
         });
       } else if (responseFromUpdateNetwork.success === false) {
         const status = responseFromUpdateNetwork.status
@@ -235,7 +235,7 @@ const createNetwork = {
 
   unAssignUser: async (req, res) => {
     try {
-      logText("assign user....");
+      logText("unAssign user....");
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -251,30 +251,33 @@ const createNetwork = {
         tenant = constants.DEFAULT_TENANT;
       }
       let request = Object.assign({}, req);
-      request.action = "unAssignUser";
       request.query.tenant = tenant;
 
-      const responseFromUpdateUser = await createNetworkUtil.update(request);
+      const responseFromUnassignUser = await createNetworkUtil.unAssignUser(
+        request
+      );
 
-      if (responseFromUpdateUser.success === true) {
-        const status = responseFromUpdateUser.status
-          ? responseFromUpdateUser.status
+      logObject("responseFromUnassignUser", responseFromUnassignUser);
+
+      if (responseFromUnassignUser.success === true) {
+        const status = responseFromUnassignUser.status
+          ? responseFromUnassignUser.status
           : httpStatus.OK;
 
         return res.status(status).json({
           message: "user successully unassigned",
-          updated_network: responseFromUpdateUser.data,
+          updated_records: responseFromUnassignUser.data,
           success: true,
         });
-      } else if (responseFromUpdateUser.success === false) {
-        const status = responseFromUpdateUser.status
-          ? responseFromUpdateUser.status
+      } else if (responseFromUnassignUser.success === false) {
+        const status = responseFromUnassignUser.status
+          ? responseFromUnassignUser.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromUpdateUser.message,
-          errors: responseFromUpdateUser.errors
-            ? responseFromUpdateUser.errors
+          message: responseFromUnassignUser.message,
+          errors: responseFromUnassignUser.errors
+            ? responseFromUnassignUser.errors
             : { message: "" },
         });
       }
@@ -290,7 +293,7 @@ const createNetwork = {
 
   setManager: async (req, res) => {
     try {
-      logText("assign user....");
+      logText("set the manager....");
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -309,7 +312,9 @@ const createNetwork = {
       request.action = "setManager";
       request.query.tenant = tenant;
 
-      const responseFromUpdateUser = await createNetworkUtil.update(request);
+      const responseFromUpdateUser = await createNetworkUtil.setManager(
+        request
+      );
 
       if (responseFromUpdateUser.success === true) {
         const status = responseFromUpdateUser.status
@@ -319,7 +324,7 @@ const createNetwork = {
         return res.status(status).json({
           success: true,
           message: "network manager successffuly set",
-          updated_network: responseFromUpdateUser.data,
+          updated_records: responseFromUpdateUser.data,
         });
       } else if (responseFromUpdateUser.success === false) {
         const status = responseFromUpdateUser.status
