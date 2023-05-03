@@ -5,20 +5,23 @@
 # Third-Party libraries
 from flasgger import Swagger
 from flask import Flask, jsonify
-from flask_excel import init_excel
-from flask_restx import Api
 from flask_caching import Cache
 from flask_cors import CORS
+from flask_excel import init_excel
+from flask_restx import Api, Namespace
 from marshmallow import ValidationError as MarshmallowValidationError
 
 # middlewares
 from api.middlewares import middleware_blueprint
 from api.middlewares.base_validator import ValidationError
-
 # Config
-from config import BASE_URL, CONFIGURATIONS
+from config import CONFIGURATIONS, API_V1_BASE_URL, API_V2_BASE_URL
 
-rest_api = Api(prefix=BASE_URL, doc=False)
+rest_api = Api(doc=False)
+rest_api_v1 = Namespace(name='v1', description='API version 1', path=API_V1_BASE_URL)
+rest_api.add_namespace(rest_api_v1)
+rest_api_v2 = Namespace(name='v2', description='API version 2', path=API_V2_BASE_URL)
+rest_api.add_namespace(rest_api_v2)
 cache = Cache()
 
 
