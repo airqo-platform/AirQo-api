@@ -215,6 +215,13 @@ const mailer = {
         subject: "Verify your AirQo Platform account",
         html: msgTemplates.v2_emailVerification(firstName, user_id, token),
         bcc,
+        attachments: [
+          {
+            filename: "airqoLogo.png",
+            path: "../config/images/airqoLogo.png",
+            cid: "AirQoEmailLogo",
+            contentDisposition: "inline",
+          }],
       };
 
       let response = transporter.sendMail(mailOptions);
