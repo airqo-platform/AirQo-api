@@ -141,6 +141,7 @@ const createAccessToken = {
       logElement("tenant", tenant);
       let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
+      request["headers"] = req.headers;
       const responseFromListAccessToken = await controlAccessUtil.verifyToken(
         request
       );
