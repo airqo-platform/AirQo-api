@@ -1,4 +1,4 @@
-FROM python:3.9-slim as base
+FROM python:3.9.16-slim as base
 
 RUN apt update
 RUN apt install libgomp1
@@ -7,6 +7,7 @@ COPY . /app/
 WORKDIR /app/
 
 # Install and cache requirements for faster builds
+RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
 
 # Production
