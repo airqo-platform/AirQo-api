@@ -6,6 +6,10 @@ const { validationResult } = require("express-validator");
 const { badRequest, convertErrorArrayToObject } = require("../utils/errors");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
+const log4js = require("log4js");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- network-controller`
+);
 
 const createNetwork = {
   getNetworkFromEmail: async (req, res) => {
@@ -129,38 +133,41 @@ const createNetwork = {
 
       let { tenant } = req.query;
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
+        tenant = constants.DEFAULT_TENANT || "airqo";
       }
+
       let request = Object.assign({}, req);
-      request.action = "assignUsers";
       request.query.tenant = tenant;
 
-      const responseFromUpdateUser = await createNetworkUtil.update(request);
+      const responseFromAssignUsers = await createNetworkUtil.assignUsers(
+        request
+      );
 
-      if (responseFromUpdateUser.success === true) {
-        const status = responseFromUpdateUser.status
-          ? responseFromUpdateUser.status
+      if (responseFromAssignUsers.success === true) {
+        const status = responseFromAssignUsers.status
+          ? responseFromAssignUsers.status
           : httpStatus.OK;
 
         return res.status(status).json({
-          message: "users successfully assigned to the network",
-          updated_network: responseFromUpdateUser.data,
+          message: responseFromAssignUsers.message,
+          updated_network: responseFromAssignUsers.data,
           success: true,
         });
-      } else if (responseFromUpdateUser.success === false) {
-        const status = responseFromUpdateUser.status
-          ? responseFromUpdateUser.status
+      } else if (responseFromAssignUsers.success === false) {
+        const status = responseFromAssignUsers.status
+          ? responseFromAssignUsers.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromUpdateUser.message,
-          errors: responseFromUpdateUser.errors
-            ? responseFromUpdateUser.errors
+          message: responseFromAssignUsers.message,
+          errors: responseFromAssignUsers.errors
+            ? responseFromAssignUsers.errors
             : { message: "" },
         });
       }
     } catch (error) {
       logObject("error", error);
+      logger.error(`Internal Server Error -- ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",

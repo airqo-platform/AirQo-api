@@ -87,6 +87,7 @@ const UserSchema = new Schema(
       {
         type: ObjectId,
         ref: "network",
+        unique: true,
       },
     ],
     groups: [
