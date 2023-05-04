@@ -40,7 +40,7 @@ spec:
 apiVersion: k8s.nginx.org/v1
 kind: VirtualServer
 metadata:
-  name: production-virtual-server
+  name: platform-virtual-server
   namespace: production
 spec:
   host: platform.airqo.net
