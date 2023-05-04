@@ -95,7 +95,9 @@ const createUser = {
         tenant = constants.DEFAULT_TENANT;
       }
 
-      const responseFromListStatistics = await createUserUtil.listLogs(tenant);
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
+      const responseFromListStatistics = await createUserUtil.listLogs(request);
 
       if (responseFromListStatistics.success === true) {
         res.status(httpStatus.OK).json({

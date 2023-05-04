@@ -655,8 +655,16 @@ const filter = {
       if (email) {
         filter["meta.email"] = email;
       }
+
+      return filter;
     } catch (error) {
       logger.error(`Internal Server Error`, error.message);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
     }
   },
 };

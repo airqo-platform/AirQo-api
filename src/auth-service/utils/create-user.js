@@ -64,9 +64,21 @@ const ClientModel = (tenant) => {
 };
 
 const join = {
-  listLogs: async (tenant) => {
+  listLogs: async (request) => {
     try {
-      const responseFromListLogs = await LogModel(tenant).list(tenant);
+      const { tenant, limit = 1000, skip = 0 } = request.query;
+      let filter = {};
+      const responseFromFilter = generateFilter.logs(request);
+      if (responseFromFilter.success === false) {
+        return responseFromFilter;
+      } else {
+        filter = responseFromFilter;
+      }
+      const responseFromListLogs = await LogModel(tenant).list({
+        filter,
+        limit,
+        skip,
+      });
       if (responseFromListLogs.success === true) {
         return {
           success: true,
