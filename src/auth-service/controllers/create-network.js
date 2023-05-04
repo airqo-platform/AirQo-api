@@ -567,6 +567,13 @@ const createNetwork = {
         const status = responseFromListNetworks.status
           ? responseFromListNetworks.status
           : httpStatus.OK;
+        if (responseFromListNetworks.data.length === 0) {
+          return res.status(status).json({
+            success: true,
+            message: responseFromListNetworks.message,
+            assigned_users: [],
+          });
+        }
         return res.status(status).json({
           success: true,
           message: "successfully retrieved the users for this network",
@@ -608,11 +615,6 @@ const createNetwork = {
         );
       }
 
-      return res.status(httpStatus.NOT_IMPLEMENTED).json({
-        success: true,
-        message: "Not Yet Implemented",
-      });
-
       let { tenant } = req.query;
       if (isEmpty(tenant)) {
         tenant = constants.DEFAULT_TENANT;
@@ -620,35 +622,33 @@ const createNetwork = {
       let request = Object.assign({}, req);
       request.query.tenant = tenant;
 
-      /**
-       * get the list of items existing from this resource
-       */
-
-      const responseFromListNetworks = await createNetworkUtil.list(request);
+      const responseFromListAvailableUsers =
+        await createNetworkUtil.listAvailableUsers(request);
 
       logObject(
-        "responseFromListNetworks in controller",
-        responseFromListNetworks
+        "responseFromListAvailableUsers in controller",
+        responseFromListAvailableUsers
       );
 
-      if (responseFromListNetworks.success === true) {
-        const status = responseFromListNetworks.status
-          ? responseFromListNetworks.status
+      if (responseFromListAvailableUsers.success === true) {
+        const status = responseFromListAvailableUsers.status
+          ? responseFromListAvailableUsers.status
           : httpStatus.OK;
 
         return res.status(status).json({
           success: true,
-          message: responseFromListNetworks.message,
-          assigned_users: responseFromListNetworks.data[0].net_users,
+          message: responseFromListAvailableUsers.message,
+          available_users: responseFromListAvailableUsers.data,
         });
-      } else if (responseFromListNetworks.success === false) {
-        const status = responseFromListNetworks.status
-          ? responseFromListNetworks.status
+      } else if (responseFromListAvailableUsers.success === false) {
+        const status = responseFromListAvailableUsers.status
+          ? responseFromListAvailableUsers.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
-          message: responseFromListNetworks.message,
-          errors: responseFromListNetworks.errors
-            ? responseFromListNetworks.errors
+          success: false,
+          message: responseFromListAvailableUsers.message,
+          errors: responseFromListAvailableUsers.errors
+            ? responseFromListAvailableUsers.errors
             : { message: "" },
         });
       }

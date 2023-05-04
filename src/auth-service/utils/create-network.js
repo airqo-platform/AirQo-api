@@ -653,12 +653,11 @@ const createNetwork = {
       let filter = {};
 
       const responseFromGenerateFilter = generateFilter.networks(request);
+
       if (responseFromGenerateFilter.success === true) {
         filter = responseFromGenerateFilter.data;
         logObject("filter", filter);
-      }
-
-      if (responseFromGenerateFilter.success === false) {
+      } else if (responseFromGenerateFilter.success === false) {
         return responseFromGenerateFilter;
       }
 
@@ -673,6 +672,50 @@ const createNetwork = {
       } else if (responseFromListNetworks.success === false) {
         return responseFromListNetworks;
       }
+    } catch (error) {
+      logElement("internal server error", error.message);
+      return {
+        success: false,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      };
+    }
+  },
+
+  listAvailableUsers: async (request) => {
+    try {
+      const { tenant } = request.query;
+      const { net_id } = request.params;
+
+      const responseFromListNetworkDetails = await NetworkModel(tenant)
+        .find({ _id: net_id })
+        .lean();
+
+      logObject(
+        "responseFromListNetworkDetails",
+        responseFromListNetworkDetails
+      );
+
+      const { net_users } = responseFromListNetworkDetails;
+
+      const responseFromListAvailableUsers = await UserModel(tenant)
+        .find({
+          _id: { $nin: net_users },
+        })
+        .select({ _id: 1, email: 1, firstName: 1, lastName: 1, userName: 1 })
+        .lean();
+
+      logObject(
+        "responseFromListAvailableUsers",
+        responseFromListAvailableUsers
+      );
+
+      return {
+        success: true,
+        message: `retrieved all available users for network ${net_id}`,
+        data: responseFromListAvailableUsers,
+      };
     } catch (error) {
       logElement("internal server error", error.message);
       return {
