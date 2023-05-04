@@ -4,7 +4,7 @@ metadata:
   name: staging-api-virtual-server
   namespace: staging
 spec:
-  host: staging-platform.airqo.net
+  host: staging-api.airqo.net
   upstreams:
     - name: auth-service
       service: airqo-stage-auth-api-svc
