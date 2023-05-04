@@ -5,7 +5,7 @@ const { isEmpty } = require("underscore");
 const logger = log4js.getLogger(`${this.ENVIRONMENT} -- constants-config`);
 
 const devConfig = {
-  MONGO_URI: `mongodb://localhost/`,
+  MONGO_URI: process.env.MONGO_URI_DEV,
   DB_NAME: process.env.MONGO_DEV,
   REDIS_SERVER: process.env.REDIS_SERVER_DEV,
   REDIS_PORT: process.env.REDIS_PORT,
@@ -20,7 +20,7 @@ const devConfig = {
   DATAWAREHOUSE_AVERAGED_DATA: process.env.DATAWAREHOUSE_AVERAGED_DATA_DEV,
 };
 const prodConfig = {
-  MONGO_URI: process.env.MONGO_GCE_URI,
+  MONGO_URI: process.env.MONGO_URI_PROD,
   DB_NAME: process.env.MONGO_PROD,
   REDIS_SERVER: process.env.REDIS_SERVER,
   REDIS_PORT: process.env.REDIS_PORT,
@@ -36,7 +36,7 @@ const prodConfig = {
 };
 
 const stageConfig = {
-  MONGO_URI: process.env.MONGO_GCE_URI,
+  MONGO_URI: process.env.MONGO_URI_STAGE,
   DB_NAME: process.env.MONGO_STAGE,
   REDIS_SERVER: process.env.REDIS_SERVER,
   REDIS_PORT: process.env.REDIS_PORT,
@@ -651,10 +651,8 @@ const defaultConfig = {
       projection[as]["land_use"] = 0;
       projection[as]["site_codes"] = 0;
       projection[as]["images"] = 0;
-      projection[as]["name"] = 0;
       projection[as]["_id"] = 0;
       projection[as]["airqlouds"] = 0;
-      projection[as]["description"] = 0;
       projection[as]["generated_name"] = 0;
       projection[as]["createdAt"] = 0;
       projection[as]["updatedAt"] = 0;

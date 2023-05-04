@@ -1,55 +1,13 @@
 apiVersion: k8s.nginx.org/v1
-kind: VirtualServerRoute
-metadata:
-  name: airflow
-  namespace: pipeline
-spec:
-  host: platform.airqo.net
-  upstreams:
-    - name: airflow
-      service: airflow-svc
-      port: 8080
-  subroutes:
-    - path: /airflow
-      action:
-        pass: airflow
-
----
-apiVersion: k8s.nginx.org/v1
-kind: VirtualServerRoute
-metadata:
-  name: argocd
-  namespace: cicd
-spec:
-  host: platform.airqo.net
-  upstreams:
-    - name: argocd
-      service: argocd-server
-      port: 443
-  subroutes:
-    - path: /argocd
-      action:
-        pass: argocd
-    - path: /argocd/(.*)
-      action:
-        proxy:
-          upstream: argocd
-          rewritePath: /$1
-
----
-apiVersion: k8s.nginx.org/v1
 kind: VirtualServer
 metadata:
-  name: production-virtual-server
+  name: api-virtual-server
   namespace: production
 spec:
-  host: platform.airqo.net
+  host: api.airqo.net
   upstreams:
-    - name: platform-ui
-      service: airqo-platform-frontend-svc
-      port: 80
     - name: auth-service
-      service: airqo-auth-api-svc
+      service: airqo-stage-auth-api-svc
       port: 3000
     - name: device-registry
       service: airqo-device-registry-api-svc
@@ -91,13 +49,6 @@ spec:
       service: airqo-notification-api-svc
       port: 8080
   routes:
-    - path: /
-      action:
-        pass: platform-ui
-    - path: /airflow
-      route: pipeline/airflow
-    - path: /argocd
-      route: cicd/argocd
     - path: ~ /api\/v[1-2]\/users
       action:
         proxy:
@@ -170,7 +121,7 @@ spec:
             add:
               - name: Content-Type
                 value: application/json
-    - path: /api/v1/meta-data
+    - path: ~ /api\/v[1-2]\/meta-data
       action:
         proxy:
           upstream: meta-data
@@ -178,7 +129,7 @@ spec:
             add:
               - name: Content-Type
                 value: application/json
-    - path: /api/v1/view
+    - path: ~ /api\/v[1-2]\/view
       action:
         proxy:
           upstream: view
@@ -186,7 +137,7 @@ spec:
             add:
               - name: Content-Type
                 value: application/json
-    - path: /api/v1/network-uptime
+    - path: ~ /api\/v[1-2]\/network-uptime
       action:
         proxy:
           upstream: network-uptime
@@ -194,7 +145,7 @@ spec:
             add:
               - name: Content-Type
                 value: application/json
-    - path: /api/v1/predict-faults
+    - path: ~ /api\/v[1-2]\/predict-faults
       action:
         proxy:
           upstream: fault-detection
@@ -202,7 +153,7 @@ spec:
             add:
               - name: Content-Type
                 value: application/json
-    - path: /api/v1/notifications
+    - path: ~ /api\/v[1-2]\/notifications
       action:
         proxy:
           upstream: notifications

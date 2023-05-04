@@ -6,6 +6,10 @@ const { validationResult } = require("express-validator");
 const { badRequest, convertErrorArrayToObject } = require("../utils/errors");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
+const log4js = require("log4js");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- network-controller`
+);
 
 const createNetwork = {
   getNetworkFromEmail: async (req, res) => {
@@ -116,7 +120,7 @@ const createNetwork = {
 
   assignUsers: async (req, res) => {
     try {
-      logText("assign user....");
+      logText("assign many users....");
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -129,38 +133,41 @@ const createNetwork = {
 
       let { tenant } = req.query;
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
+        tenant = constants.DEFAULT_TENANT || "airqo";
       }
+
       let request = Object.assign({}, req);
-      request.action = "assignUsers";
       request.query.tenant = tenant;
 
-      const responseFromUpdateUser = await createNetworkUtil.update(request);
+      const responseFromAssignUsers = await createNetworkUtil.assignUsers(
+        request
+      );
 
-      if (responseFromUpdateUser.success === true) {
-        const status = responseFromUpdateUser.status
-          ? responseFromUpdateUser.status
+      if (responseFromAssignUsers.success === true) {
+        const status = responseFromAssignUsers.status
+          ? responseFromAssignUsers.status
           : httpStatus.OK;
 
         return res.status(status).json({
-          message: "users successfully assigned to the network",
-          updated_network: responseFromUpdateUser.data,
+          message: responseFromAssignUsers.message,
+          updated_network: responseFromAssignUsers.data,
           success: true,
         });
-      } else if (responseFromUpdateUser.success === false) {
-        const status = responseFromUpdateUser.status
-          ? responseFromUpdateUser.status
+      } else if (responseFromAssignUsers.success === false) {
+        const status = responseFromAssignUsers.status
+          ? responseFromAssignUsers.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromUpdateUser.message,
-          errors: responseFromUpdateUser.errors
-            ? responseFromUpdateUser.errors
+          message: responseFromAssignUsers.message,
+          errors: responseFromAssignUsers.errors
+            ? responseFromAssignUsers.errors
             : { message: "" },
         });
       }
     } catch (error) {
       logObject("error", error);
+      logger.error(`Internal Server Error -- ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -171,7 +178,7 @@ const createNetwork = {
 
   assignOneUser: async (req, res) => {
     try {
-      logText("assign user....");
+      logText("assign one user....");
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -186,11 +193,13 @@ const createNetwork = {
       if (isEmpty(tenant)) {
         tenant = constants.DEFAULT_TENANT;
       }
+
       let request = Object.assign({}, req);
-      request.action = "assignOneUser";
       request.query.tenant = tenant;
 
-      const responseFromUpdateNetwork = await createNetworkUtil.update(request);
+      const responseFromUpdateNetwork = await createNetworkUtil.assignOneUser(
+        request
+      );
 
       if (responseFromUpdateNetwork.success === true) {
         const status = responseFromUpdateNetwork.status
@@ -198,9 +207,9 @@ const createNetwork = {
           : httpStatus.OK;
 
         return res.status(status).json({
-          message: "successfully assigned a user to the network",
-          updated_network: responseFromUpdateNetwork.data,
           success: true,
+          message: responseFromUpdateNetwork.message,
+          updated_records: responseFromUpdateNetwork.data,
         });
       } else if (responseFromUpdateNetwork.success === false) {
         const status = responseFromUpdateNetwork.status
@@ -226,7 +235,7 @@ const createNetwork = {
 
   unAssignUser: async (req, res) => {
     try {
-      logText("assign user....");
+      logText("unAssign user....");
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -242,30 +251,33 @@ const createNetwork = {
         tenant = constants.DEFAULT_TENANT;
       }
       let request = Object.assign({}, req);
-      request.action = "unAssignUser";
       request.query.tenant = tenant;
 
-      const responseFromUpdateUser = await createNetworkUtil.update(request);
+      const responseFromUnassignUser = await createNetworkUtil.unAssignUser(
+        request
+      );
 
-      if (responseFromUpdateUser.success === true) {
-        const status = responseFromUpdateUser.status
-          ? responseFromUpdateUser.status
+      logObject("responseFromUnassignUser", responseFromUnassignUser);
+
+      if (responseFromUnassignUser.success === true) {
+        const status = responseFromUnassignUser.status
+          ? responseFromUnassignUser.status
           : httpStatus.OK;
 
         return res.status(status).json({
           message: "user successully unassigned",
-          updated_network: responseFromUpdateUser.data,
+          updated_records: responseFromUnassignUser.data,
           success: true,
         });
-      } else if (responseFromUpdateUser.success === false) {
-        const status = responseFromUpdateUser.status
-          ? responseFromUpdateUser.status
+      } else if (responseFromUnassignUser.success === false) {
+        const status = responseFromUnassignUser.status
+          ? responseFromUnassignUser.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromUpdateUser.message,
-          errors: responseFromUpdateUser.errors
-            ? responseFromUpdateUser.errors
+          message: responseFromUnassignUser.message,
+          errors: responseFromUnassignUser.errors
+            ? responseFromUnassignUser.errors
             : { message: "" },
         });
       }
@@ -281,7 +293,7 @@ const createNetwork = {
 
   setManager: async (req, res) => {
     try {
-      logText("assign user....");
+      logText("set the manager....");
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -300,7 +312,9 @@ const createNetwork = {
       request.action = "setManager";
       request.query.tenant = tenant;
 
-      const responseFromUpdateUser = await createNetworkUtil.update(request);
+      const responseFromUpdateUser = await createNetworkUtil.setManager(
+        request
+      );
 
       if (responseFromUpdateUser.success === true) {
         const status = responseFromUpdateUser.status
@@ -310,7 +324,7 @@ const createNetwork = {
         return res.status(status).json({
           success: true,
           message: "network manager successffuly set",
-          updated_network: responseFromUpdateUser.data,
+          updated_records: responseFromUpdateUser.data,
         });
       } else if (responseFromUpdateUser.success === false) {
         const status = responseFromUpdateUser.status
@@ -553,6 +567,13 @@ const createNetwork = {
         const status = responseFromListNetworks.status
           ? responseFromListNetworks.status
           : httpStatus.OK;
+        if (responseFromListNetworks.data.length === 0) {
+          return res.status(status).json({
+            success: true,
+            message: responseFromListNetworks.message,
+            assigned_users: [],
+          });
+        }
         return res.status(status).json({
           success: true,
           message: "successfully retrieved the users for this network",
@@ -594,11 +615,6 @@ const createNetwork = {
         );
       }
 
-      return res.status(httpStatus.NOT_IMPLEMENTED).json({
-        success: true,
-        message: "Not Yet Implemented",
-      });
-
       let { tenant } = req.query;
       if (isEmpty(tenant)) {
         tenant = constants.DEFAULT_TENANT;
@@ -606,35 +622,33 @@ const createNetwork = {
       let request = Object.assign({}, req);
       request.query.tenant = tenant;
 
-      /**
-       * get the list of items existing from this resource
-       */
-
-      const responseFromListNetworks = await createNetworkUtil.list(request);
+      const responseFromListAvailableUsers =
+        await createNetworkUtil.listAvailableUsers(request);
 
       logObject(
-        "responseFromListNetworks in controller",
-        responseFromListNetworks
+        "responseFromListAvailableUsers in controller",
+        responseFromListAvailableUsers
       );
 
-      if (responseFromListNetworks.success === true) {
-        const status = responseFromListNetworks.status
-          ? responseFromListNetworks.status
+      if (responseFromListAvailableUsers.success === true) {
+        const status = responseFromListAvailableUsers.status
+          ? responseFromListAvailableUsers.status
           : httpStatus.OK;
 
         return res.status(status).json({
           success: true,
-          message: responseFromListNetworks.message,
-          assigned_users: responseFromListNetworks.data[0].net_users,
+          message: responseFromListAvailableUsers.message,
+          available_users: responseFromListAvailableUsers.data,
         });
-      } else if (responseFromListNetworks.success === false) {
-        const status = responseFromListNetworks.status
-          ? responseFromListNetworks.status
+      } else if (responseFromListAvailableUsers.success === false) {
+        const status = responseFromListAvailableUsers.status
+          ? responseFromListAvailableUsers.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
-          message: responseFromListNetworks.message,
-          errors: responseFromListNetworks.errors
-            ? responseFromListNetworks.errors
+          success: false,
+          message: responseFromListAvailableUsers.message,
+          errors: responseFromListAvailableUsers.errors
+            ? responseFromListAvailableUsers.errors
             : { message: "" },
         });
       }

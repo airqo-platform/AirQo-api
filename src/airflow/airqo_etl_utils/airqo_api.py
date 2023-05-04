@@ -118,6 +118,8 @@ class AirQoApi:
                 **device,
                 **{
                     "device_number": device.get("device_number", None),
+                    "latitude": device.get("latitude", None),
+                    "longitude": device.get("longitude", None),
                     "approximate_latitude": device.get(
                         "approximate_latitude", device.get("latitude", None)
                     ),
@@ -130,6 +132,8 @@ class AirQoApi:
                     ],
                     "mongo_id": device.get("_id", None),
                     "site_id": device.get("site", {}).get("_id", None),
+                    "site_latitude": device.get("site", {}).get("latitude", None),
+                    "site_longitude": device.get("site", {}).get("longitude", None),
                     "device_category": str(
                         DeviceCategory.from_str(device.get("category", ""))
                     ),
@@ -230,16 +234,14 @@ class AirQoApi:
         query_params = {"tenant": str(Tenant.AIRQO), "id": airqloud_id}
 
         try:
-
-            response=requests.put(
-                url= f"{self.AIRQO_BASE_URL}/devices/airqlouds/refresh",
+            response = requests.put(
+                url=f"{self.AIRQO_BASE_URL}/devices/airqlouds/refresh",
                 params=query_params,
             )
 
             print(response.json())
         except Exception as ex:
             print(ex)
-
 
     def get_airqlouds(self, tenant: Tenant = Tenant.ALL) -> list:
         query_params = {"tenant": str(Tenant.AIRQO)}

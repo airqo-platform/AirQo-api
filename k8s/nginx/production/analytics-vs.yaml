@@ -1,0 +1,15 @@
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: analytics-virtual-server
+  namespace: production
+spec:
+  host: analytics.airqo.net
+  upstreams:
+    - name: analytics
+      service: airqo-next-platform-svc
+      port: 3000
+  routes:
+    - path: /
+      action:
+        pass: analytics
