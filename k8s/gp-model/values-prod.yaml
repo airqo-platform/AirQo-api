@@ -4,7 +4,7 @@ app:
   configmap: env-gp-model-production
 image:
   repository: eu.gcr.io/airqo-250220/airqo-gp-model-job
-  tag: prod-d6e56c9d-1681905055
+  tag: prod-1b6e5014-1683239318
 nameOverride: ''
 fullnameOverride: ''
 resources:
