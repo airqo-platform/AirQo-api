@@ -9,6 +9,14 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- generate-filter-util`
 );
 
+const {
+  addMonthsToProvideDateTime,
+  monthsInfront,
+  isTimeEmpty,
+  getDifferenceInMonths,
+  addDays,
+} = require("./date");
+
 const filter = {
   users: (req) => {
     try {
@@ -591,6 +599,64 @@ const filter = {
         errors: { message: err.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
+    }
+  },
+  logs: (req) => {
+    try {
+      const { service, startTime, endTime, email } = req.query;
+      const today = monthsInfront(0);
+      const oneWeekBack = addDays(-7);
+
+      let filter = {
+        timestamp: {
+          $gte: oneWeekBack,
+          $lte: today,
+        },
+      };
+
+      if (service) {
+        filter["meta.service"] = service;
+      }
+
+      if (startTime && isEmpty(endTime)) {
+        if (isTimeEmpty(startTime) === false) {
+          filter["timestamp"]["$lte"] = addMonthsToProvideDateTime(
+            startTime,
+            1
+          );
+        } else {
+          delete filter["timestamp"];
+        }
+      }
+
+      if (endTime && isEmpty(startTime)) {
+        if (isTimeEmpty(endTime) === false) {
+          filter["timestamp"]["$gte"] = addMonthsToProvideDateTime(endTime, -1);
+        } else {
+          delete filter["timestamp"];
+        }
+      }
+
+      if (endTime && startTime) {
+        let months = getDifferenceInMonths(startTime, endTime);
+        logElement("the number of months", months);
+        if (months > 1) {
+          if (isTimeEmpty(endTime) === false) {
+            filter["timestamp"]["$gte"] = addMonthsToProvideDateTime(
+              endTime,
+              -1
+            );
+          } else {
+            delete filter["timestamp"];
+          }
+        }
+      }
+
+      if (email) {
+        filter["meta.email"] = email;
+      }
+    } catch (error) {
+      logger.error(`Internal Server Error`, error.message);
     }
   },
 };
