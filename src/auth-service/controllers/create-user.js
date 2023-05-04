@@ -552,7 +552,7 @@ const createUser = {
     logText("..................................................");
     logText("create user.............");
     try {
-      const { query, body, params } = req;
+      const { query } = req;
       let { tenant } = query;
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
@@ -568,9 +568,9 @@ const createUser = {
       }
 
       let request = req.body;
-      request["tenant"] = tenant.toLowerCase();
+      request.tenant = tenant.toLowerCase();
 
-      let responseFromCreateUser = await createUserUtil.create(request);
+      const responseFromCreateUser = await createUserUtil.create(request);
       logObject("responseFromCreateUser in controller", responseFromCreateUser);
       if (responseFromCreateUser.success === true) {
         const status = responseFromCreateUser.status

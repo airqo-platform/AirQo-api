@@ -461,9 +461,13 @@ const join = {
   create: async (request) => {
     try {
       const { tenant, firstName, email, network_id } = request;
-      const password = accessCodeGenerator.generate(
-        constants.RANDOM_PASSWORD_CONFIGURATION(10)
-      );
+      let { password } = request;
+
+      password = password
+        ? password
+        : accessCodeGenerator.generate(
+            constants.RANDOM_PASSWORD_CONFIGURATION(10)
+          );
 
       const newRequest = Object.assign({ userName: email, password }, request);
 

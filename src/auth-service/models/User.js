@@ -20,7 +20,8 @@ function oneMonthFromNow() {
   }
   return d;
 }
-const passwordReg = /(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{6,}/;
+// const passwordReg = /(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{6,}/;
+const passwordReg = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{6,}$/;
 
 const UserSchema = new Schema(
   {
@@ -80,7 +81,11 @@ const UserSchema = new Schema(
         message: "{VALUE} is not a valid password, please check documentation!",
       },
     },
-    privilege: { type: String, required: [true, "the role is required!"] },
+    privilege: {
+      type: String,
+      required: [true, "the privilege is required!"],
+      default: "user",
+    },
     isActive: { type: Boolean },
     duration: { type: Date, default: oneMonthFromNow },
     networks: [
@@ -110,10 +115,12 @@ const UserSchema = new Schema(
     organization: {
       type: String,
       required: [true, "the organization is required!"],
+      default: "airqo",
     },
     long_organization: {
       type: String,
       required: [true, "the long_organization is required!"],
+      default: "airqo",
     },
     phoneNumber: { type: Number },
     locationCount: { type: Number, default: 5 },
