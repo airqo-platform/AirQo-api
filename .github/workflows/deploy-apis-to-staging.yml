@@ -1803,7 +1803,4 @@ jobs:
           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
 
       - name: Apply ingress changes
-        run: |
-          kubectl apply -f k8s/nginx/staging/ingress.yaml
-          kubectl apply -f k8s/nginx/staging/virtual-server.yaml
-          kubectl apply -f k8s/nginx/staging/global-config.yaml
+        run: kubectl apply -f k8s/nginx/staging/
