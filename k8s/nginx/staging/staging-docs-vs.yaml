@@ -1,0 +1,15 @@
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: staging-docs-virtual-server
+  namespace: staging
+spec:
+  host: staging-docs.airqo.net
+  upstreams:
+    - name: docs
+      service: airqo-stage-docs-svc
+      port: 3000
+  routes:
+    - path: /
+      action:
+        pass: docs
