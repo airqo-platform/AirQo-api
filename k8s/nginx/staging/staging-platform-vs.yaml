@@ -35,7 +35,7 @@ spec:
 apiVersion: k8s.nginx.org/v1
 kind: VirtualServer
 metadata:
-  name: staging-virtual-server
+  name: staging-platform-virtual-server
   namespace: staging
 spec:
   host: staging-platform.airqo.net
@@ -165,7 +165,7 @@ spec:
             add:
               - name: Content-Type
                 value: application/json
-    - path: /api/v1/meta-data
+    - path: ~ /api\/v[1-2]\/meta-data
       action:
         proxy:
           upstream: meta-data
@@ -173,7 +173,7 @@ spec:
             add:
               - name: Content-Type
                 value: application/json
-    - path: /api/v1/view
+    - path: ~ /api\/v[1-2]\/view
       action:
         proxy:
           upstream: view
@@ -181,7 +181,7 @@ spec:
             add:
               - name: Content-Type
                 value: application/json
-    - path: /api/v1/network-uptime
+    - path: ~ /api\/v[1-2]\/network-uptime
       action:
         proxy:
           upstream: network-uptime
@@ -189,7 +189,7 @@ spec:
             add:
               - name: Content-Type
                 value: application/json
-    - path: /api/v1/predict-faults
+    - path: ~ /api\/v[1-2]\/predict-faults
       action:
         proxy:
           upstream: fault-detection
@@ -197,7 +197,7 @@ spec:
             add:
               - name: Content-Type
                 value: application/json
-    - path: /api/v1/notifications
+    - path: ~ /api\/v[1-2]\/notifications
       action:
         proxy:
           upstream: notifications
