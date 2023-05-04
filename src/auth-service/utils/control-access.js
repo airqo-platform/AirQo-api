@@ -11,7 +11,7 @@ const httpStatus = require("http-status");
 const mongoose = require("mongoose").set("debug", true);
 const accessCodeGenerator = require("generate-password");
 const { getModelByTenant } = require("@config/dbConnection");
-const { logObject, logElement, logText } = require("@utils/log");
+const { logObject, logElement, logText, winstonLogger } = require("@utils/log");
 const mailer = require("@utils/mailer");
 const generateFilter = require("@utils/generate-filter");
 const isEmpty = require("is-empty");
@@ -360,6 +360,20 @@ const controlAccess = {
           let newResponse = Object.assign({}, responseFromListAccessToken);
           newResponse.message = "the token is valid";
           newResponse.data = newResponse.data[0];
+          try {
+            const service = request.headers
+              ? request.headers["service"]
+              : "unknown";
+            const user = newResponse.data.user;
+            winstonLogger.info(`successful login through ${service} service`, {
+              username: user.email,
+              email: user.email,
+              service: service ? service : "none",
+            });
+          } catch (error) {
+            logObject("error", error);
+            logger.error(`internal server error -- ${error.message}`);
+          }
           return newResponse;
         }
       } else if (responseFromListAccessToken.success === false) {
