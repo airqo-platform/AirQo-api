@@ -1026,6 +1026,7 @@ const createEvent = {
       brief,
       latitude,
       longitude,
+      network,
     } = request.query;
     const currentTime = new Date().toISOString();
     const day = generateDateFormatWithoutHrs(currentTime);
@@ -1047,7 +1048,9 @@ const createEvent = {
       running ? running : "noRunning"
     }_${index ? index : "noIndex"}_${brief ? brief : "noBrief"}_${
       latitude ? latitude : "noLatitude"
-    }_${longitude ? longitude : "noLongitude"}`;
+    }_${longitude ? longitude : "noLongitude"}__${
+      network ? network : "noNetwork"
+    }`;
   },
   getEventsCount: async (request) => {},
   setCache: (data, request, callback) => {
