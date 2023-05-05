@@ -201,34 +201,3 @@ exports.deleteUserAccount = functions.auth.user().onDelete(async (user) => {
   await sendGoodByeMessage(user);
   return null;
 });
-
-exports.deleteAccountFromLink = functions.
-    https.onRequest(async (request, response) => {
-      const email = request.query.email;
-      const phone = request.query.phoneNumber;
-      let user;
-
-      if (email === undefined&&phone===undefined) {
-        response.status(400).send("Missing Email");
-        return;
-      }
-      if (email !== undefined) {
-        user = await getAuth().getUserByEmail(email);
-      }
-      if (phone !== undefined) {
-        user = await getAuth().getUserByPhoneNumber(phone);
-      }
-      if (user === undefined) {
-        response.status(400).send("User not found");
-        return;
-      }
-      const uid = user.uid;
-
-      await getAuth().deleteUser(uid)
-          .then(() => {
-            console.log("User account has been deleted");
-          })
-          .catch((error) => {
-            console.error("Error deleting user:", error);
-          });
-    });

@@ -8,6 +8,7 @@ const { badRequest, convertErrorArrayToObject } = require("@utils/errors");
 const isEmpty = require("is-empty");
 const controlAccessUtil = require("@utils/control-access");
 const constants = require("@config/constants");
+const deleteMobileUserUtil  = require("@utils/delete-mobile-user");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-user-controller`
@@ -279,6 +280,83 @@ const createUser = {
       });
     }
   },
+  deleteMobileUserData: async (req, res) => {
+    try {
+      const { query, body } = req;
+      let { tenant } = query;
+      let responseFromDeleteAppData;
+      logText("We are deleting the app data.....");
+      const { email, phoneNumber } = req.query;
+      
+       if (!email && !phoneNumber) {
+         return res.status(400).json({ errors: [{ msg: 'Either email or phone number is required' }] });
+    }
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        logObject("hasErrors", hasErrors);
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+
+        logger.error(
+          `input validation errors ${JSON.stringify(
+            convertErrorArrayToObject(nestedErrors)
+          )}`
+        );
+
+        return badRequest(
+          res,
+          "User does not exist",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      logText("Finished Validating.....");
+
+      let request = {};
+      console.log(request);
+      request["body"] = {};
+      request["body"]["email"] = email;
+      request["body"]["phoneNumber"] = phoneNumber;
+      console.log(request);
+      logText("Finished cleaning object.....");
+     try {
+       responseFromDeleteAppData = await deleteMobileUserUtil.deleteMobileUserData(
+         request
+       );
+     } catch (error) {
+       console.error(error);
+     }
+      
+      logObject("responseFromDeleteAppData", responseFromDeleteAppData);
+
+      if (responseFromDeleteAppData.success === true) {
+        const status = responseFromDeleteAppData.status
+          ? responseFromDeleteAppData.status
+          : httpStatus.OK;
+        res.status(status).json({
+          success: true,
+          message: "Data deleted sucessfully",
+        });
+      } else if (responseFromDeleteAppData.success === false) {
+        const status = responseFromDeleteAppData.status
+          ? responseFromDeleteAppData.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromDeleteAppData.message,
+          errors: responseFromDeleteAppData.errors
+            ? responseFromDeleteAppData.errors
+            : { message: "internal server errors" },
+        });
+      }
+
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
   lookUpFirebaseUser: async (req, res) => {
     try {
       const { email, phoneNumber, uid, providerId, providerUid } = req.body;

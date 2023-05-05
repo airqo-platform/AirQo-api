@@ -205,6 +205,27 @@ router.get(
   createUserController.verifyEmail
 );
 
+router.delete(
+  "/deleteMobileUserData",
+  oneOf([
+    body("email")
+      .optional()
+      .notEmpty()
+      .withMessage("the email must not be empty if provided")
+      .bail()
+      .isEmail()
+      .withMessage("this is not a valid email address"),
+    body("phoneNumber")
+      .optional()
+      .notEmpty()
+      .withMessage("the phoneNumber must not be empty if provided")
+      .bail()
+      .isMobilePhone()
+      .withMessage("the phoneNumber must be valid"),
+  ]),
+  createUserController.deleteMobileUserData
+); 
+
 router.get(
   "/auth/google/callback",
   authGoogle,
