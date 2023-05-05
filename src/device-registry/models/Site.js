@@ -466,15 +466,8 @@ siteSchema.statics = {
         category = filter.category;
         delete filter.category;
       }
-      logObject(
-        "constants.SITES_INCLUSION_PROJECTION",
-        constants.SITES_INCLUSION_PROJECTION
-      );
-      logObject(
-        "constants.SITES_EXCLUSION_PROJECTION(category)",
-        constants.SITES_EXCLUSION_PROJECTION(category)
-      );
-      let response = await this.aggregate()
+
+      const response = await this.aggregate()
         .match(filter)
         .lookup({
           from: "devices",
@@ -498,11 +491,10 @@ siteSchema.statics = {
         .allowDiskUse(true);
 
       if (!isEmpty(response)) {
-        let data = response;
         return {
           success: true,
           message: "successfully retrieved the site details",
-          data,
+          data: response,
           status: HTTPStatus.OK,
         };
       } else if (isEmpty(response)) {
