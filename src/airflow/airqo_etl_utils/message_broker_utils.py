@@ -47,24 +47,25 @@ class MessageBrokerUtils:
         print(data.info())
         print("Dataframe description : ")
         print(data.describe())
-        data = data.replace(np.nan, None)
 
         chunks = int(len(data) / 50)
         chunks = chunks if chunks > 0 else 1
         dataframes = np.array_split(data, chunks)
         current_partition = -1
         for dataframe in dataframes:
-            message = {"data": pd.DataFrame(dataframe).to_dict("records")}
+            dataframe = pd.DataFrame(dataframe).replace(np.nan, None)
+            message = {"data": dataframe.to_dict("records")}
 
             current_partition = (
                 partition
                 if partition or partition == 0
                 else self.__get_partition(current_partition=current_partition)
             )
-
+            kafkaMessage=json.dumps(message, allow_nan=True).encode("utf-8")
+            print(kafkaMessage)
             producer.send(
                 topic=topic,
-                value=json.dumps(message, allow_nan=True).encode("utf-8"),
+                value=kafkaMessage,
                 partition=current_partition,
             ).add_callback(self.__on_success).add_errback(self.__on_error)
 
@@ -72,9 +73,26 @@ class MessageBrokerUtils:
     def update_hourly_data_topic(data: pd.DataFrame):
         devices = AirQoApi().get_devices(tenant=Tenant.ALL)
         devices = pd.DataFrame(devices)
-        devices = devices[["mongo_id", "name", "device_number", "site_id"]]
+        devices = devices[
+            [
+                "mongo_id",
+                "name",
+                "device_number",
+                "site_id",
+                "latitude",
+                "longitude",
+                "site_latitude",
+                "site_longitude",
+            ]
+        ]
         devices.rename(
-            columns={"mongo_id": "device_id", "name": "device_name"}, inplace=True
+            columns={
+                "mongo_id": "device_id",
+                "name": "device_name",
+                "latitude": "device_latitude",
+                "longitude": "device_longitude",
+            },
+            inplace=True,
         )
 
         del data["device_id"]

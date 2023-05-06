@@ -201,7 +201,7 @@ def get_all_airqlouds(tenant):
     names = [aq['name'] for aq in airqlouds]
     aq_ids = [aq['_id'] for aq in airqlouds]
     # Esxcluding Country level AirQloud
-    exclude = ['kenya', 'uganda', 'cameroon', 'senegal', 'gulu']
+    exclude = ['kenya', 'uganda', 'cameroon', 'senegal']
     names_update = set(names).difference(set(exclude))
     exclude_ind = list(map(names.index, exclude))
     aq_ids_update = [aq_ind for ind, aq_ind in enumerate(

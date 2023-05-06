@@ -1,4 +1,3 @@
-import json
 import traceback
 
 import flask_excel as excel
@@ -10,7 +9,6 @@ from flask_restx import Resource
 from api.models import (
     EventsModel,
 )
-
 # Middlewares
 from api.utils.data_formatters import (
     format_to_aqcsv,
@@ -18,10 +16,11 @@ from api.utils.data_formatters import (
 )
 from api.utils.http import create_response, Status
 from api.utils.request_validators import validate_request_json
-from main import rest_api
+from main import rest_api_v1, rest_api_v2
 
 
-@rest_api.route("/data-download")
+@rest_api_v1.route("/data-download")
+@rest_api_v2.route("/data-download")
 class DataExportResource(Resource):
     @swag_from("/api/docs/dashboard/download_custom_data_post.yml")
     @validate_request_json(
@@ -160,8 +159,8 @@ class DataExportResource(Resource):
                 Status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-
-@rest_api.route("/data/summary")
+@rest_api_v1.route("/data/summary")
+@rest_api_v2.route("/data/summary")
 class DataSummaryResource(Resource):
     @validate_request_json(
         "startDateTime|required:datetime",

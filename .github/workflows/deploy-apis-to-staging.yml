@@ -1786,9 +1786,9 @@ jobs:
           gcloud secrets versions access latest --secret="sta-key-channel-data-service-account" > google_application_credentials.json
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json env-update-channel-data-staging-files | kubectl replace -f - -n staging
 
-  ### apply nginx ingress ###
-  nginx-ingress:
-    name: apply-nginx-ingress
+  ### apply nginx ###
+  nginx:
+    name: apply-nginx
     needs: [check]
     if: needs.check.outputs.run_nginx == 'true'
     runs-on: ubuntu-latest
@@ -1802,8 +1802,5 @@ jobs:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
 
-      - name: Apply ingress changes
-        run: |
-          kubectl apply -f k8s/nginx/staging/ingress.yaml
-          kubectl apply -f k8s/nginx/staging/virtual-server.yaml
-          kubectl apply -f k8s/nginx/staging/global-config.yaml
+      - name: Apply nginx changes
+        run: kubectl apply -f k8s/nginx/staging/

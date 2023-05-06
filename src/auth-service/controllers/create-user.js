@@ -96,7 +96,9 @@ const createUser = {
         tenant = constants.DEFAULT_TENANT;
       }
 
-      const responseFromListStatistics = await createUserUtil.listLogs(tenant);
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
+      const responseFromListStatistics = await createUserUtil.listLogs(request);
 
       if (responseFromListStatistics.success === true) {
         res.status(httpStatus.OK).json({
@@ -589,27 +591,11 @@ const createUser = {
 
       let { tenant } = req.query;
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
+        tenant = constants.DEFAULT_TENANT || "airqo";
       }
-      const {
-        firstName,
-        lastName,
-        email,
-        organization,
-        long_organization,
-        privilege,
-        network_id,
-      } = req.body;
 
-      let request = {};
-      request["tenant"] = tenant.toLowerCase();
-      request["firstName"] = firstName;
-      request["lastName"] = lastName;
-      request["email"] = email;
-      request["organization"] = organization;
-      request["long_organization"] = long_organization;
-      request["privilege"] = privilege;
-      request["network_id"] = network_id;
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant.toLowerCase();
 
       let responseFromCreateUser = await createUserUtil.register(request);
       logObject("responseFromCreateUser in controller", responseFromCreateUser);
@@ -646,7 +632,7 @@ const createUser = {
     logText("..................................................");
     logText("create user.............");
     try {
-      const { query, body, params } = req;
+      const { query } = req;
       let { tenant } = query;
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
@@ -662,9 +648,9 @@ const createUser = {
       }
 
       let request = req.body;
-      request["tenant"] = tenant.toLowerCase();
+      request.tenant = tenant.toLowerCase();
 
-      let responseFromCreateUser = await createUserUtil.create(request);
+      const responseFromCreateUser = await createUserUtil.create(request);
       logObject("responseFromCreateUser in controller", responseFromCreateUser);
       if (responseFromCreateUser.success === true) {
         const status = responseFromCreateUser.status

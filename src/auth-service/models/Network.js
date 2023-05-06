@@ -59,6 +59,7 @@ const NetworkSchema = new Schema(
       {
         type: ObjectId,
         ref: "user",
+        unique: true,
       },
     ],
     net_departments: [
