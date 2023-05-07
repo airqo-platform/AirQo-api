@@ -37,6 +37,7 @@ const RoleSchema = new mongoose.Schema(
       {
         type: ObjectId,
         ref: "user",
+        unique: true,
       },
     ],
   },
@@ -192,6 +193,10 @@ RoleSchema.statics = {
           "role_users.product": 0,
           "role_users.website": 0,
           "role_users.description": 0,
+          "role_users.networks": 0,
+          "role_users.jobTitle": 0,
+          "role_users.category": 0,
+          "role_users.long_organization": 0,
         })
         .project({
           "network.__v": 0,
