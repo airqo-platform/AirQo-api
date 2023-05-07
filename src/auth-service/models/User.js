@@ -466,10 +466,10 @@ UserSchema.statics = {
   },
   async remove({ filter = {} } = {}) {
     try {
-      let options = {
+      const options = {
         projection: { _id: 0, email: 1, firstName: 1, lastName: 1 },
       };
-      let removedUser = await this.findOneAndRemove(filter, options).exec();
+      const removedUser = await this.findOneAndRemove(filter, options).exec();
 
       if (!isEmpty(removedUser)) {
         return {
@@ -489,8 +489,7 @@ UserSchema.statics = {
     } catch (error) {
       return {
         success: false,
-        message: "User model server error - remove",
-        error: error.message,
+        message: "Internal Server Error",
         errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
@@ -620,6 +619,7 @@ UserSchema.methods = {
       updatedAt: this.updatedAt,
       role: this.role,
       verified: this.verified,
+      networks: this.networks,
     };
   },
 };
