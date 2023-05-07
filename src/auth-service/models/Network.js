@@ -65,25 +65,26 @@ const NetworkSchema = new Schema(
     net_departments: [
       {
         type: ObjectId,
-        ref: "departments",
+        ref: "department",
       },
     ],
     net_permissions: [
       {
         type: ObjectId,
-        ref: "permissions",
+        ref: "permission",
       },
     ],
     net_roles: [
       {
         type: ObjectId,
-        ref: "roles",
+        ref: "role",
       },
     ],
     net_groups: [
       {
         type: ObjectId,
-        ref: "groups",
+        ref: "group",
+        unique: true,
       },
     ],
   },
@@ -201,10 +202,40 @@ NetworkSchema.statics = {
         .match(filter)
         .lookup({
           from: "users",
-          localField: "net_users",
-          foreignField: "_id",
+          let: { users: "$net_users" },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $in: ["$_id", "$$users"] },
+              },
+            },
+            {
+              $lookup: {
+                from: "roles",
+                localField: "role",
+                foreignField: "_id",
+                as: "role",
+              },
+            },
+            {
+              $addFields: {
+                role: { $arrayElemAt: ["$role", 0] },
+              },
+            },
+            {
+              $project: {
+                "role.role_status": 0,
+                "role.role_permissions": 0,
+                "role.role_users": 0,
+                "role.role_code": 0,
+                "role.network_id": 0,
+                "role.__v": 0,
+              },
+            },
+          ],
           as: "net_users",
         })
+
         .lookup({
           from: "permissions",
           localField: "net_permissions",
@@ -254,6 +285,7 @@ NetworkSchema.statics = {
           net_groups: "$net_groups",
           net_departments: "$net_departments",
         })
+
         .project({
           "net_users.__v": 0,
           "net_users.notifications": 0,
@@ -263,11 +295,18 @@ NetworkSchema.statics = {
           "net_users.network": 0,
           "net_users.long_network": 0,
           "net_users.privilege": 0,
-          "net_users.userName": 0,
           "net_users.password": 0,
           "net_users.duration": 0,
-          "net_users.createdAt": 0,
           "net_users.updatedAt": 0,
+          "net_users.organization": 0,
+          "net_users.phoneNumber": 0,
+          "net_users.profilePicture": 0,
+          "net_users.resetPasswordExpires": 0,
+          "net_users.resetPasswordToken": 0,
+          "net_users.verified": 0,
+          "net_users.groups": 0,
+          "net_users.permissions": 0,
+          "net_users.long_organization": 0,
         })
         .project({
           "net_manager.__v": 0,
