@@ -291,7 +291,7 @@ const createUser = {
       const { email, phoneNumber } = req.query;
       
        if (!email && !phoneNumber) {
-         return res.status(400).json({ errors: [{ msg: 'Either email or phone number is required' }] });
+         return res.status(400).json({ errors: [{ msg: 'Either email or phoneNumber is required' }] });
     }
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
