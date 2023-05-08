@@ -1,7 +1,7 @@
 /* eslint-disable max-len */
 
 module.exports = {
-  mobileAppWelcome: (name) => {
+  mobileAppWelcome: (email, name) => {
     return `
     <div style="display: flex; align-items: center;">
       <img src="cid:AirQoEmailLogo" alt="logo" style="height: 50px; margin-right: 10px;">
@@ -52,7 +52,10 @@ module.exports = {
 
             <br />
             <div style="text-align: center;">
-                <p style="">© 2022 AirQo. </p>
+                <p >
+                This email was sent to ${email}. If you'd rather not receive this kind of email, you can unsubscribe or manage your email preferences.
+                </p>
+                <p >© 2022 AirQo. </p>
 
                 <p>Makerere University, Software Systems Centre, Block B, Level 3, College of Computing and Information
                     Sciences, Plot 56 University Pool Road</p>

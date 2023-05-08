@@ -45,7 +45,7 @@ async function sendWelcomeEmail(email, name) {
     },
     to: email,
     subject: "Welcome to AirQo!",
-    html: emailTemplate.mobileAppWelcome(name),
+    html: emailTemplate.mobileAppWelcome(email, name),
     attachments: [{
       filename: "welcomeImage.png",
       path: "./config/images/welcomeImage.png",
