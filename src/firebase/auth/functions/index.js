@@ -57,6 +57,30 @@ async function sendWelcomeEmail(email, name) {
       path: "./config/images/airqoLogo.png",
       cid: "AirQoEmailLogo",
       contentDisposition: "inline",
+    },
+    {
+      filename: "faceBookLogo.png",
+      path: "./config/images/facebookLogo.png",
+      cid: "FacebookLogo",
+      contentDisposition: "inline",
+    },
+    {
+      filename: "youtubeLogo.png",
+      path: "./config/images/youtubeLogo.png",
+      cid: "YoutubeLogo",
+      contentDisposition: "inline",
+    },
+    {
+      filename: "twitterLogo.png",
+      path: "./config/images/Twitter.png",
+      cid: "Twitter",
+      contentDisposition: "inline",
+    },
+    {
+      filename: "linkedInLogo.png",
+      path: "./config/images/linkedInLogo.png",
+      cid: "LinkedInLogo",
+      contentDisposition: "inline",
     }],
   };
   try {

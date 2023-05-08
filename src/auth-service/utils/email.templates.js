@@ -68,22 +68,67 @@ module.exports = {
 
  v2_emailVerification: (firstName, user_id, token) => {
     return `
-<img src="cid:AirQoEmailLogo" alt="logo" style="height: 50px; margin-left: 24px;">
-<div style="margin-left: 24px;margin-right: 32px;margin-top:32px;margin-bottom:32px; font-family: 'Inter'; font-style: normal; font-weight: 400; font-size: 16px; line-height: 24px;">
-<p> Welcome to AirQo Analytics 🎉</p>
-<p> Thanks for signing up; we can't wait for you to get started! Click the button to verify your email:</p>
+<html>
+    <img src="cid:AirQoEmailLogo" alt="logo" style="height: 50px; margin-left: 24px;">
+    <div
+        style="margin-left: 24px;margin-right: 32px;margin-top:32px;margin-bottom:32px; font-family: 'Inter'; font-style: normal; font-weight: 400; font-size: 16px; line-height: 24px;">
+        <p> Welcome to AirQo Analytics 🎉</p>
+        <p> Thanks for signing up; we can't wait for you to get started! Click the button to verify your email:</p>
 
-<div style="height:56px, width:268px;">
-  <button style="background-color: #135DFF; border: none; color: white; padding: 15px 32px; text-align: center; text-decoration: none; display: inline-block; font-size: 16px; margin: 4px 2px; cursor: pointer;">
-    <a href="${constants.PLATFORM_BASE_URL}/api/v1/users/verify/${user_id}/${token}" style="color: white; padding-left:89.5px; padding-right:89.5px; padding-top:16px; padding-bottom:16px; text-decoration: none;">Verify Email</a>
-  </button>
-</div>
+        <div style="height:56px, width:268px;">
+            <button
+                style="background-color: #135DFF; border: none; color: white; padding: 15px 32px; text-align: center; text-decoration: none; display: inline-block; font-size: 16px; margin: 4px 2px; cursor: pointer;">
+                <a href="${constants.PLATFORM_BASE_URL}/api/v1/users/verify/${user_id}/${token}"
+                    style="color: white; padding-left:89.5px; padding-right:89.5px; padding-top:16px; padding-bottom:16px; text-decoration: none;">Verify
+                    Email</a>
+            </button>
+        </div>
 
-<p>Trouble logging in? Paste this URL into your browser:</p>
-<a href=${constants.PLATFORM_BASE_URL}/api/v1/users/verify/${user_id}/${token}>${baseUrl}/api/v1/users/verify/${user_id}/${token}</a>
-<p style="color: #344054; opacity: 0.6;">You can set a permanent password anytime within your AirQo Analytics personal settings</p>
-<p style="color: #344054; opacity: 0.6;">Didn't make this request? You can safely ignore and delete this email</p>
-</div>
+        <p>Trouble logging in? Paste this URL into your browser:</p>
+        <a
+            href=${constants.PLATFORM_BASE_URL}/api/v1/users/verify/${user_id}/${token}>${constants.PLATFORM_BASE_URL}/api/v1/users/verify/${user_id}/${token}</a>
+        <p style="color: #344054; opacity: 0.6;">You can set a permanent password anytime within your AirQo Analytics
+            personal settings</p>
+        <p style="color: #344054; opacity: 0.6;">Didn't make this request? You can safely ignore and delete this email
+        </p>
+        <hr style="width: 1000px; height: 8px; background-color: #EBF1FF; 
+  border: none; margin-top: 48px; margin-bottom: 48px;">
+
+        <div style="margin-left: 24px;margin-right: 24px;">
+
+            <div style="display: flex;flex-wrap: wrap; justify-content: center;  align-items: center; margin-left:380px">
+              
+                 <a href="https://www.facebook.com/AirQo/" target="_blank"> <img src="cid:FacebookLogo"
+                            alt="FacebookLogo"
+                            style="width:24px; height: 24px;margin-right: 20px;"></a>
+                
+                <a href="https://www.youtube.com/@airqo7875" target="_blank"> <img src="cid:YoutubeLogo"
+                            alt="YoutubeLogo"
+                            style="width:24px; height: 24px;margin-right: 20px;"></a>
+                
+                <a href="https://www.linkedin.com/company/airqo/" target="_blank"> <img src="cid:LinkedInLogo"
+                            alt="LinkedInLogo"
+                            style="width:24px; height: 24px;margin-right: 20px;"></a> 
+
+                <a href="https://twitter.com/AirQoProject" target="_blank"> <img src="cid:Twitter"
+                            alt="Twitter"
+                            style="width:24px; height: 24px;margin-right: 20px;"></a>
+
+
+            </div>
+
+            <br />
+            <div style = "text-align: center;" >
+            <p style="">© 2022 AirQo. </p>
+
+            <p>Makerere University, Software Systems Centre, Block B, Level 3, College of Computing and Information
+                Sciences, Plot 56 University Pool Road</p>
+            </div>
+            
+        </div>
+    </div>
+
+</html>
 `;
   },
 
