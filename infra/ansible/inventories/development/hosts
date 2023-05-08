@@ -3,7 +3,7 @@ all:
   vars:
     ansible_python_interpreter: /usr/bin/python3
   children:
-    ha_proxy:
+    haproxy:
       hosts:
         10.240.0.27:
     k8s_cluster:
