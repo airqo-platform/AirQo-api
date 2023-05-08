@@ -368,8 +368,6 @@ airqloudSchema.statics = {
           "sites.lat_long": 0,
           "sites.weather_stations": 0,
           "sites.site_codes": 0,
-          "sites.latitude": 0,
-          "sites.longitude": 0,
           "sites.network": 0,
         })
         .skip(skip ? skip : 0)
