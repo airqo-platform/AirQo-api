@@ -936,82 +936,130 @@ const controlAccess = {
 
   assignUserToRole: async (request) => {
     try {
-      logText("assignUserToRole...");
-      let filter = {};
-      const limit = parseInt(request.query.limit, 0);
-      const skip = parseInt(request.query.skip, 0);
       const { query, params, body } = request;
       const { role_id } = params;
       const { tenant } = query;
       const { user } = body;
-      let newRequest = Object.assign({}, request);
-      newRequest["query"]["role_id"] = role_id;
 
-      filter = { _id: role_id };
-      const responseFromListRole = await RoleModel(tenant.toLowerCase()).list({
-        filter,
-        skip,
-        limit,
-      });
-
-      logObject("responseFromListRole", responseFromListRole);
-      if (responseFromListRole.success === true) {
-        if (
-          responseFromListRole.message === "roles not found for this operation"
-        ) {
-          return responseFromListRole;
-        }
-      } else if (responseFromListRole.success === false) {
-        return responseFromListRole;
+      // Check if the role exists
+      const roleObject = await RoleModel(tenant).findById(role_id).lean();
+      if (isEmpty(roleObject)) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: {
+            message: `either role ${role_id.toString()} does not exist`,
+          },
+        };
       }
 
-      filter = { _id: user };
-      const responseFromListUser = await UserModel(tenant).list({
-        skip,
-        limit,
-        filter,
-      });
-      if (responseFromListUser.success === true) {
-        const user = responseFromListUser.data[0];
-        logObject("user", user);
-
-        if (
-          !isEmpty(user.role) &&
-          user.role.role_name.endsWith("SUPER_ADMIN")
-        ) {
-          logObject("user.role.role_name", user.role.role_name);
-          return {
-            success: false,
-            message: "admin user may not be reassigned to a different role",
-            status: httpStatus.BAD_REQUEST,
-            errors: {
-              message: "admin user may not be reassigned to a different role",
-            },
-          };
-        }
-      } else if (responseFromListUser.success === false) {
-        return responseFromListUser;
+      // Check if the user exists and is not a super_admin already
+      const userObject = await UserModel(tenant).findById(user).lean();
+      if (
+        isEmpty(userObject) ||
+        userObject.role.role_name.endsWith("SUPER_ADMIN")
+      ) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: {
+            message: `provided User ${user.toString()} does not exist or current role makes them ineligible to role re-assignment`,
+          },
+        };
       }
 
-      const update = {
-        role: role_id,
-      };
-
-      const responseFromUpdateUser = await UserModel(tenant).modify({
-        update,
-        filter,
-      });
-
-      if (responseFromUpdateUser.success === true) {
-        if (responseFromUpdateUser.status === httpStatus.BAD_REQUEST) {
-          return responseFromUpdateUser;
-        }
-        let newResponse = Object.assign({}, responseFromUpdateUser);
-        newResponse.message = "successfully assigned user to role";
-        return newResponse;
-      } else if (responseFromUpdateUser.success === false) {
-        return responseFromUpdateUser;
+      // Check if the user is already assigned to the role
+      if (userObject.role.toString() === roleObject._id.toString()) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: {
+            message: `User ${user.toString()} already assigned to the role`,
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
       }
+
+      // Add the user to the new role's role_users array and update the user's role field
+      // role.role_users.push(userId);
+      // user.role = roleName;
+      // await Promise.all([role.save(), user.save()]);
+
+      // return { success: true, message: "User assigned to the role" };
+
+      /**
+       * the old code....
+       */
+
+      // logText("assignUserToRole...");
+      // let filter = {};
+      // const limit = parseInt(request.query.limit, 0);
+      // const skip = parseInt(request.query.skip, 0);
+      // const { query, params, body } = request;
+      // const { role_id } = params;
+      // const { tenant } = query;
+      // const { user } = body;
+      // let newRequest = Object.assign({}, request);
+      // newRequest["query"]["role_id"] = role_id;
+      // filter = { _id: role_id };
+      // const responseFromListRole = await RoleModel(tenant.toLowerCase()).list({
+      //   filter,
+      //   skip,
+      //   limit,
+      // });
+      // logObject("responseFromListRole", responseFromListRole);
+      // if (responseFromListRole.success === true) {
+      //   if (
+      //     responseFromListRole.message === "roles not found for this operation"
+      //   ) {
+      //     return responseFromListRole;
+      //   }
+      // } else if (responseFromListRole.success === false) {
+      //   return responseFromListRole;
+      // }
+      // filter = { _id: user };
+      // const responseFromListUser = await UserModel(tenant).list({
+      //   skip,
+      //   limit,
+      //   filter,
+      // });
+      // if (responseFromListUser.success === true) {
+      //   const user = responseFromListUser.data[0];
+      //   logObject("user", user);
+      //   if (
+      //     !isEmpty(user.role) &&
+      //     user.role.role_name.endsWith("SUPER_ADMIN")
+      //   ) {
+      //     logObject("user.role.role_name", user.role.role_name);
+      //     return {
+      //       success: false,
+      //       message: "admin user may not be reassigned to a different role",
+      //       status: httpStatus.BAD_REQUEST,
+      //       errors: {
+      //         message: "admin user may not be reassigned to a different role",
+      //       },
+      //     };
+      //   }
+      // } else if (responseFromListUser.success === false) {
+      //   return responseFromListUser;
+      // }
+      // const update = {
+      //   role: role_id,
+      // };
+      // const responseFromUpdateUser = await UserModel(tenant).modify({
+      //   update,
+      //   filter,
+      // });
+      // if (responseFromUpdateUser.success === true) {
+      //   if (responseFromUpdateUser.status === httpStatus.BAD_REQUEST) {
+      //     return responseFromUpdateUser;
+      //   }
+      //   let newResponse = Object.assign({}, responseFromUpdateUser);
+      //   newResponse.message = "successfully assigned user to role";
+      //   return newResponse;
+      // } else if (responseFromUpdateUser.success === false) {
+      //   return responseFromUpdateUser;
+      // }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
       logObject("error", error);
@@ -1022,6 +1070,11 @@ const controlAccess = {
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
+  },
+
+  assignManyUsersToRole: async (request) => {
+    try {
+    } catch (error) {}
   },
 
   sample: async (request) => {

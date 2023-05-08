@@ -315,17 +315,15 @@ RoleSchema.statics = {
       } else {
         return {
           success: false,
-          message: "Role does not exist, please crosscheck",
-          data: [],
-          status: httpStatus.NOT_FOUND,
+          message: "Bad Request Error",
+          status: httpStatus.BAD_REQUEST,
           errors: { message: "Role does not exist, please crosscheck" },
         };
       }
     } catch (error) {
       return {
         success: false,
-        message: "internal server errors",
-        error: error.message,
+        message: "Internal Server Error",
         errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
