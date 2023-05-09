@@ -319,7 +319,8 @@ const filter = {
   roles: (req) => {
     try {
       const { query, params } = req;
-      const { id, role_name, role_code, network, role_status } = query;
+      const { id, role_name, role_code, network, role_status, category } =
+        query;
       const { role_id } = params;
       let filter = {};
 
@@ -332,6 +333,11 @@ const filter = {
       if (network) {
         filter["network_id"] = network;
       }
+
+      if (category) {
+        filter["category"] = category;
+      }
+
       if (role_name) {
         filter["role_name"] = role_name;
       }

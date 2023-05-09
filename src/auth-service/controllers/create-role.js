@@ -68,6 +68,65 @@ const createRole = {
     }
   },
 
+  listSummary: async (req, res) => {
+    try {
+      const { query } = req;
+      let { tenant } = query;
+      const hasErrors = !validationResult(req).isEmpty();
+      logObject("hasErrors", hasErrors);
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+
+      let request = Object.assign({}, req);
+
+      if (isEmpty(tenant)) {
+        request.query.tenant = constants.DEFAULT_TENANT || "airqo";
+      }
+
+      request.query.category = "summary";
+
+      const responseFromListRole = await controlAccessUtil.listRole(request);
+
+      logObject("in controller, responseFromListRole", responseFromListRole);
+
+      if (responseFromListRole.success === true) {
+        const status = responseFromListRole.status
+          ? responseFromListRole.status
+          : httpStatus.OK;
+
+        res.status(status).json({
+          success: true,
+          message: responseFromListRole.message,
+          roles: responseFromListRole.data,
+        });
+      } else if (responseFromListRole.success === false) {
+        const status = responseFromListRole.status
+          ? responseFromListRole.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        res.status(status).json({
+          success: false,
+          message: responseFromListRole.message,
+          errors: responseFromListRole.errors
+            ? responseFromListRole.errors
+            : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
   create: async (req, res) => {
     try {
       const { query, body } = req;

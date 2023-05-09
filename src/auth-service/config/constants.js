@@ -207,6 +207,92 @@ const defaultConfig = {
 
     return projection;
   },
+  ROLES_INCLUSION_PROJECTION: {
+    role_name: 1,
+    role_description: 1,
+    role_status: 1,
+    role_code: 1,
+    network_id: 1,
+    role_permissions: 1,
+    role_users: 1,
+    network: { $arrayElemAt: ["$network", 0] },
+    createdAt: 1,
+    updatedAt: 1,
+  },
+  ROLES_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = {
+      "role_users.notifications": 0,
+      "role_users.emailConfirmed": 0,
+      "role_users.locationCount": 0,
+      "role_users.password": 0,
+      "role_users.privilege": 0,
+      "role_users.organization": 0,
+      "role_users.duration": 0,
+      "role_users.__v": 0,
+      "role_users.phoneNumber": 0,
+      "role_users.profilePicture": 0,
+      "role_users.resetPasswordExpires": 0,
+      "role_users.resetPasswordToken": 0,
+      "role_users.updatedAt": 0,
+      "role_users.role": 0,
+      "role_users.interest": 0,
+      "role_users.org_name": 0,
+      "role_users.accountStatus": 0,
+      "role_users.hasAccess": 0,
+      "role_users.collaborators": 0,
+      "role_users.publisher": 0,
+      "role_users.bus_nature": 0,
+      "role_users.org_department": 0,
+      "role_users.uni_faculty": 0,
+      "role_users.uni_course_yr": 0,
+      "role_users.pref_locations": 0,
+      "role_users.job_title": 0,
+      "role_users.userName": 0,
+      "role_users.product": 0,
+      "role_users.website": 0,
+      "role_users.description": 0,
+      "role_users.networks": 0,
+      "role_users.jobTitle": 0,
+      "role_users.category": 0,
+      "role_users.long_organization": 0,
+      "network.__v": 0,
+      "network.net_status": 0,
+      "network.net_children": 0,
+      "network.net_users": 0,
+      "network.net_departments": 0,
+      "network.net_permissions": 0,
+      "network.net_roles": 0,
+      "network.net_groups": 0,
+      "network.net_email": 0,
+      "network.net_phoneNumber": 0,
+      "network.net_category": 0,
+      "network.createdAt": 0,
+      "network.updatedAt": 0,
+      "role_permissions.description": 0,
+      "role_permissions.createdAt": 0,
+      "role_permissions.updatedAt": 0,
+      "role_permissions.__v": 0,
+    };
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign(
+        {},
+        {
+          role_description: 0,
+          role_status: 0,
+          role_code: 0,
+          network_id: 0,
+          role_permissions: 0,
+          role_users: 0,
+          network: 0,
+          createdAt: 0,
+          updatedAt: 0,
+        }
+      );
+    }
+
+    return projection;
+  },
 };
 
 function envConfig(env) {

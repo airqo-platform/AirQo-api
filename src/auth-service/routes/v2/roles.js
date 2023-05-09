@@ -20,42 +20,6 @@ const headers = (req, res, next) => {
 router.use(headers);
 
 router.get(
-  "/:role_id",
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant should not be empty if provided")
-        .trim()
-        .toLowerCase()
-        .bail()
-        .isIn(["kcca", "airqo"])
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-
-  oneOf([
-    [
-      param("role_id")
-        .exists()
-        .withMessage("the role ID param is missing in the request")
-        .bail()
-        .trim()
-        .isMongoId()
-        .withMessage("the role ID must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
-    ],
-  ]),
-  setJWTAuth,
-  authJWT,
-  createRoleController.list
-);
-
-router.get(
   "/",
   oneOf([
     [
@@ -75,6 +39,25 @@ router.get(
   createRoleController.list
 );
 
+router.get(
+  "/summary",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  createRoleController.listSummary
+);
 router.post(
   "/",
   oneOf([
@@ -661,6 +644,42 @@ router.delete(
   setJWTAuth,
   authJWT,
   createRoleController.unAssignPermissionFromRole
+);
+
+router.get(
+  "/:role_id",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+
+  oneOf([
+    [
+      param("role_id")
+        .exists()
+        .withMessage("the role ID param is missing in the request")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the role ID must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  createRoleController.list
 );
 
 module.exports = router;
