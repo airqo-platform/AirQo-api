@@ -379,8 +379,7 @@ const createRole = {
           : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromAssignUserToRole.message,
-          assigned_user: responseFromAssignUserToRole.data,
+          updated_records: responseFromAssignUserToRole.data,
         });
       } else if (responseFromAssignUserToRole.success === false) {
         const status = responseFromAssignUserToRole.status
