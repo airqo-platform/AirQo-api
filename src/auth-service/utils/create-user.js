@@ -487,6 +487,16 @@ const join = {
       const { tenant, firstName, email, network_id } = request;
       let { password } = request;
 
+      const user = await UserModel(tenant).findOne({ email });
+      if (!isEmpty(user)) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: "User is already part of the AirQo platform" },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
       password = password
         ? password
         : accessCodeGenerator.generate(
