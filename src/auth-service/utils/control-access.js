@@ -1023,7 +1023,93 @@ const controlAccess = {
 
   assignManyUsersToRole: async (request) => {
     try {
-    } catch (error) {}
+      const { query, params, body } = request;
+      const { role_id } = params;
+      const { tenant } = query;
+      const { user_ids } = body;
+
+      const roleObject = await RoleModel(tenant).findById(role_id).lean();
+      if (isEmpty(roleObject)) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: {
+            message: `Role ${role_id.toString()} does not exist`,
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const users = await Promise.all(
+        user_ids.map((id) =>
+          UserModel(tenant).findById(id).populate("role").lean()
+        )
+      );
+
+      for (const user of users) {
+        logObject("user", user);
+        if (isEmpty(user)) {
+          return {
+            success: false,
+            message: "Bad Reqest Error",
+            errors: { message: `One of the Users does not exist` },
+            status: httpStatus.BAD_REQUEST,
+          };
+          //continue;
+        }
+
+        const role = user.role;
+        if (!isEmpty(role) && role.role_name.endsWith("SUPER_ADMIN")) {
+          logObject("");
+          return {
+            success: false,
+            message: "Bad Request Error",
+            errors: {
+              message: `User with ID ${user._id} has a role ending with SUPER_ADMIN or has no role assigned`,
+            },
+            status: httpStatus.BAD_REQUEST,
+          };
+          //continue;
+        }
+
+        if (!isEmpty(role) && role._id.toString() === role_id.toString()) {
+          return {
+            success: false,
+            message: "Bad Request Error",
+            errors: {
+              message: `User ${user._id.toString()} is already assigned to the role ${role_id.toString()}`,
+            },
+            status: httpStatus.BAD_REQUEST,
+          };
+        }
+      }
+
+      const result = await UserModel(tenant).updateMany(
+        { _id: { $in: user_ids } },
+        { $set: { role: role_id } }
+      );
+
+      let message = "";
+      if (result.nModified === user_ids.length) {
+        message = "All provided users were successfully updated.";
+      } else {
+        message = "Some or all of the provided users were not updated.";
+      }
+      return {
+        success: true,
+        message,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      logObject("error", error);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
   },
 
   sample: async (request) => {

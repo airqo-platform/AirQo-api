@@ -403,6 +403,63 @@ const createRole = {
       });
     }
   },
+  assignManyUsersToRole: async (req, res) => {
+    try {
+      logText("assignManyUsersToRole...");
+      const { query, body } = req;
+      let { tenant } = query;
+      const hasErrors = !validationResult(req).isEmpty();
+      logObject("hasErrors", hasErrors);
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT;
+      }
+
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
+
+      const responseFromAssignManyUsersToRole =
+        await controlAccessUtil.assignManyUsersToRole(request);
+
+      if (responseFromAssignManyUsersToRole.success === true) {
+        const status = responseFromAssignManyUsersToRole.status
+          ? responseFromAssignManyUsersToRole.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromAssignManyUsersToRole.message,
+          updated_records: responseFromAssignManyUsersToRole.data,
+        });
+      } else if (responseFromAssignManyUsersToRole.success === false) {
+        const status = responseFromAssignManyUsersToRole.status
+          ? responseFromAssignManyUsersToRole.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromAssignManyUsersToRole.message,
+          errors: responseFromAssignManyUsersToRole.errors
+            ? responseFromAssignManyUsersToRole.errors
+            : { message: "Internal Server Error" },
+        });
+      }
+    } catch (error) {
+      logObject("error", error);
+      logger.error(`internal server error -- ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
 
   unAssignUserFromRole: async (req, res) => {
     try {

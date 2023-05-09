@@ -332,6 +332,54 @@ router.get(
 );
 
 router.post(
+  "/:role_id/users",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      param("role_id")
+        .exists()
+        .withMessage("the role ID param is missing in the request")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the role ID must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("user_ids")
+        .exists()
+        .withMessage("the user_ids are missing in the request body")
+        .bail()
+        .notEmpty()
+        .withMessage("the user_ids should not be empty")
+        .bail()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the user_ids should be an array"),
+      body("user_ids.*")
+        .isMongoId()
+        .withMessage("user_id provided must be an object ID"),
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  createRoleController.assignManyUsersToRole
+);
+router.post(
   "/:role_id/user",
   oneOf([
     [
