@@ -3,7 +3,7 @@ resource "google_compute_disk" "mongod_shard_1_1" {
   name                      = "mongod-shard-1-1"
   physical_block_size_bytes = 4096
   project                   = var.project_id
-  size                      = var.disk_size["medium"]
+  size                      = var.disk_size["large"]
   type                      = "pd-balanced"
   zone                      = var.zone["b"]
   description = "Disk for a production mongodb sharded cluster shard instance"
