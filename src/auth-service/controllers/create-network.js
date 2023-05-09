@@ -590,6 +590,68 @@ const createNetwork = {
     }
   },
 
+  listSummary: async (req, res) => {
+    try {
+      logText("listing summary of network....");
+
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+
+      let { tenant } = req.query;
+      logElement("tenant", tenant);
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT || "airqo";
+      }
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
+      request.query.category = "summary";
+
+      const responseFromListNetworks = await createNetworkUtil.list(request);
+
+      logObject(
+        "responseFromListNetworks in controller",
+        responseFromListNetworks
+      );
+
+      if (responseFromListNetworks.success === true) {
+        const status = responseFromListNetworks.status
+          ? responseFromListNetworks.status
+          : httpStatus.OK;
+
+        return res.status(status).json({
+          success: true,
+          message: responseFromListNetworks.message,
+          networks: responseFromListNetworks.data,
+        });
+      } else if (responseFromListNetworks.success === false) {
+        const status = responseFromListNetworks.status
+          ? responseFromListNetworks.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+
+        return res.status(status).json({
+          message: responseFromListNetworks.message,
+          errors: responseFromListNetworks.errors
+            ? responseFromListNetworks.errors
+            : { message: "" },
+        });
+      }
+    } catch (error) {
+      logElement("internal server error", error.message);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
   listAssignedUsers: async (req, res) => {
     try {
       logText("listing assigned users....");

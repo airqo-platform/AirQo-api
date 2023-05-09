@@ -130,7 +130,7 @@ router.put(
 );
 
 router.get(
-  "/",
+  "/summary",
   oneOf([
     [
       query("tenant")
@@ -154,7 +154,7 @@ router.get(
         return ObjectId(value);
       }),
   ]),
-  createNetworkController.list
+  createNetworkController.listSummary
 );
 
 router.get(

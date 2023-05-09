@@ -88,6 +88,7 @@ const filter = {
         net_phoneNumber,
         net_website,
         net_acronym,
+        category,
       } = req.query;
 
       const { net_id } = req.params;
@@ -96,6 +97,10 @@ const filter = {
       if (net_email) {
         filter["net_email"] = net_email;
       }
+      if (category) {
+        filter["category"] = category;
+      }
+
       if (net_category) {
         filter["net_category"] = net_category;
       }
