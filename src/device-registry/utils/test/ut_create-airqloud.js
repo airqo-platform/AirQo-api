@@ -10,18 +10,20 @@ const assert = chai.assert;
 const faker = require("faker");
 const sinon = require("sinon");
 chai.use(chaiHttp);
+
 const HTTPStatus = require("http-status");
 const geolib = require("geolib");
-const kafka = require("kafkajs");
+const { Kafka } = require("kafkajs");
+const kafka = new Kafka({
+  clientId: "airqloud-service",
+  brokers: "brokers:9092",
+});
 
 const airqloudUtil = require("@utils/create-airqloud");
 const locationUtil = require("@utils/create-location");
-const airqloudModel = require("@utils/multitenancy");
 const AirQloudSchema = require("@models/Airqloud");
 
 const generateFilter = require("@utils/generate-filter");
-const model = require("@models/Airqloud");
-const { retrieveCoordinates } = require('../create-airqloud');
 
 
 const stubValue = {
@@ -39,10 +41,14 @@ const stubValue = {
     longitude: faker.address.longitude(),
     admin_level: 1,
     summary: "This is an airqloud",
-    dashboard:"yes"
+    dashboard: "yes",
+    isCustom: false,
 }
 
 describe("Create AirQloud Util", function () {
+    beforeEach(() => {
+            sinon.restore();
+        });
     let request = {
                 query: { tenant: 'test' },
                 body: { name: 'updated airqloud' },
@@ -112,10 +118,8 @@ describe("Create AirQloud Util", function () {
         });
     });
     describe("Create Method", function () {
-        before(() => {
-            
-        });
-        it('should return a success response when all the steps are successful', async function() {
+        
+        it('should create an airqloud successfully', async function() {
            
             const createStubResponse = {
                 success: true,
@@ -132,23 +136,20 @@ describe("Create AirQloud Util", function () {
                 send: sinon.stub(),
                 disconnect: sinon.stub()
             };
-            sinon.stub(kafka);
-            let airQloudStub = sinon.replace(airqloudModel, "getModelByTenant", sinon.fake).returns(createStubResponse);
-            let modelSpy = sinon.spy(airqloudModel, "getModelByTenant");
-            airQloudStub();
+            sinon.stub(kafka, "producer").returns(kafkaProducer);
             const retrieveCoordinatesStub = sinon.stub(airqloudUtil, 'retrieveCoordinates').resolves({
-                    success: true,
-                    data: { coordinates: [10, 20] }
+                success: true,
+                data: { coordinates: [10, 20] }
             });
             const calculateGeographicalCenterStub = sinon.stub(airqloudUtil, 'calculateGeographicalCenter').resolves({
                 success: true,
                 data: { center: [10, 20] }
             });
+            sinon.stub(AirQloudSchema.statics, "register").returns(createStubResponse);
             
             const response = await airqloudUtil.create(request);
+            expect(response).to.deep.equal(createStubResponse); 
 
-        
-            expect(airQloudStub.calledOnce).to.be.true;
         });
     })
 
@@ -188,13 +189,9 @@ describe("Create AirQloud Util", function () {
             data: stubValue,
             status: HTTPStatus.OK,
         };
-
-        it('returns success with airqloud data on successful deletion', async function () {
+        beforeEach(() => {
             sinon.restore();
-            sinon.replace(airqloudModel, "getModelByTenant", sinon.fake).returns(deleteStubResponse);
-            sinon.stub(generateFilter, "airqlouds").returns({ stubValue });
-            
-           request = {
+             request = {
                 query: { tenant: 'test' },
                 body: { name: 'updated airqloud' },
                 id:stubValue.id,
@@ -203,10 +200,39 @@ describe("Create AirQloud Util", function () {
                 dashboard:stubValue.dashboard,
                 airqloud_codes:stubValue.airqloud_codes,
             };
+        });
+
+        it('returns success with airqloud data on successful deletion', async function () {
+            
+            const generateFilterStub=sinon.stub(generateFilter, "airqlouds").returns({ stubValue });
+            const removeStub=sinon.stub(AirQloudSchema.statics, "remove").returns(deleteStubResponse);
             
             const response = await airqloudUtil.delete(request);
-            console.log(response);
-        }).timeout(10000);
+
+            expect(generateFilterStub.calledWithMatch(request)).to.be.true;
+            expect(removeStub.calledWithMatch({ filter: { stubValue } })).to.be.true;
+            expect(response).to.deep.equal(deleteStubResponse);
+            sinon.restore();
+        });
+
+        it('returns error message on deletion failure', async function () {
+            sinon.stub(generateFilter, "airqlouds").returns({ stubValue });
+            sinon.stub(AirQloudSchema.statics, "remove").returns({
+                success: false,
+                message: "Internal Server Error",
+                errors: "Deletion Error",
+                status: HTTPStatus.INTERNAL_SERVER_ERROR,
+            });
+            
+            const response = await airqloudUtil.delete(request);
+
+            expect(response).to.deep.equal({
+                success: false,
+                message: "unable to delete airqloud",
+                errors: "Deletion error",
+                status: HTTPStatus.INTERNAL_SERVER_ERROR,
+            });
+        });
     });
 
     describe("Calculate Geographical Center", async function () {
