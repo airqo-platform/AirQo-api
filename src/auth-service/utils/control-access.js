@@ -5,21 +5,33 @@ const AccessTokenSchema = require("@models/AccessToken");
 const UserSchema = require("@models/User");
 const RoleSchema = require("@models/Role");
 const DepartmentSchema = require("@models/Department");
+const NetworkSchema = require("@models/Network");
 const GroupSchema = require("@models/Group");
 const httpStatus = require("http-status");
 const mongoose = require("mongoose").set("debug", true);
 const accessCodeGenerator = require("generate-password");
-const { getModelByTenant } = require("@utils/multitenancy");
-const { logObject, logElement, logText } = require("@utils/log");
+const { getModelByTenant } = require("@config/dbConnection");
+const { logObject, logElement, logText, winstonLogger } = require("@utils/log");
 const mailer = require("@utils/mailer");
 const generateFilter = require("@utils/generate-filter");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
+const moment = require("moment-timezone");
 
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- control-access-util`
 );
+
+const NetworkModel = (tenant) => {
+  try {
+    const networks = mongoose.model("networks");
+    return networks;
+  } catch (error) {
+    const networks = getModelByTenant(tenant, "network", NetworkSchema);
+    return networks;
+  }
+};
 
 const UserModel = (tenant) => {
   try {
@@ -121,10 +133,13 @@ const controlAccess = {
       const { user_id, token } = params;
       const limit = parseInt(request.query.limit, 0);
       const skip = parseInt(request.query.skip, 0);
-
+      const timeZone = moment.tz.guess();
       let filter = {
         token,
         user_id,
+        expires: {
+          $gt: moment().tz(timeZone).toDate(),
+        },
       };
 
       // expires: { $gt: new Date().toISOString() },
@@ -345,6 +360,20 @@ const controlAccess = {
           let newResponse = Object.assign({}, responseFromListAccessToken);
           newResponse.message = "the token is valid";
           newResponse.data = newResponse.data[0];
+          try {
+            const service = request.headers
+              ? request.headers["service"]
+              : "unknown";
+            const user = newResponse.data.user;
+            winstonLogger.info(`successful login through ${service} service`, {
+              username: user.email,
+              email: user.email,
+              service: service ? service : "none",
+            });
+          } catch (error) {
+            logObject("error", error);
+            logger.error(`internal server error -- ${error.message}`);
+          }
           return newResponse;
         }
       } else if (responseFromListAccessToken.success === false) {
@@ -775,11 +804,13 @@ const controlAccess = {
     try {
       const { query, body } = request;
       const { tenant } = query;
-      const update = body;
       const filter = generateFilter.roles(request);
       if (filter.success === false) {
         return filter;
       }
+
+      const update = Object.assign({}, body);
+
       const responseFromUpdateRole = await RoleModel(
         tenant.toLowerCase()
       ).modify({ filter, update });
@@ -798,10 +829,28 @@ const controlAccess = {
     try {
       const { query, body } = request;
       const { tenant } = query;
+
+      let newBody = Object.assign({}, body);
+      const network = await NetworkModel(tenant).findById(body.network_id);
+      if (isEmpty(network)) {
+        return {
+          success: false,
+          status: httpStatus.BAD_REQUEST,
+          message: "Bad Request Error",
+          errors: {
+            message:
+              "Provided network or organisation cannot be found, please crosscheck",
+          },
+        };
+      }
+      const organizationName = network.net_name.toUpperCase();
+      newBody.role_name = `${organizationName}_${body.role_name}`;
+      newBody.role_code = `${organizationName}_${body.role_code}`;
+
       const responseFromCreateRole = await RoleModel(
         tenant.toLowerCase()
-      ).register(body);
-      logObject("been able to create the damn role", responseFromCreateRole);
+      ).register(newBody);
+
       return responseFromCreateRole;
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
@@ -907,7 +956,9 @@ const controlAccess = {
 
       logObject("responseFromListRole", responseFromListRole);
       if (responseFromListRole.success === true) {
-        if (responseFromListRole.status === httpStatus.NOT_FOUND) {
+        if (
+          responseFromListRole.message === "roles not found for this operation"
+        ) {
           return responseFromListRole;
         }
       } else if (responseFromListRole.success === false) {
@@ -924,7 +975,10 @@ const controlAccess = {
         const user = responseFromListUser.data[0];
         logObject("user", user);
 
-        if (!isEmpty(user.role) && user.role.role_name === "admin") {
+        if (
+          !isEmpty(user.role) &&
+          user.role.role_name.endsWith("SUPER_ADMIN")
+        ) {
           logObject("user.role.role_name", user.role.role_name);
           return {
             success: false,
@@ -949,7 +1003,7 @@ const controlAccess = {
       });
 
       if (responseFromUpdateUser.success === true) {
-        if (responseFromUpdateUser.status === httpStatus.NOT_FOUND) {
+        if (responseFromUpdateUser.status === httpStatus.BAD_REQUEST) {
           return responseFromUpdateUser;
         }
         let newResponse = Object.assign({}, responseFromUpdateUser);

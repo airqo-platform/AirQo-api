@@ -16,7 +16,6 @@ const logger = log4js.getLogger(
 );
 const qs = require("qs");
 const QRCode = require("qrcode");
-const httpStatus = require("http-status");
 let devicesModel = (tenant) => {
   return getModelByTenant(tenant, "device", DeviceSchema);
 };
@@ -154,7 +153,7 @@ const createDevice = {
         return {
           success: false,
           message: "creation is not yet possible for this organisation",
-          status: httpStatus.NOT_IMPLEMENTED,
+          status: HTTPStatus.NOT_IMPLEMENTED,
         };
       }
       let responseFromCreateOnThingspeak = await createDevice.createOnThingSpeak(
@@ -388,7 +387,7 @@ const createDevice = {
     try {
       return {
         success: false,
-        message: "feature temporarity disabled --coming soon",
+        message: "feature temporarily disabled --coming soon",
         status: HTTPStatus.SERVICE_UNAVAILABLE,
         errors: { message: "Service Unavailable" },
       };
@@ -785,12 +784,6 @@ const createDevice = {
         };
       }
       let opts = {};
-      update["$addToSet"] = {};
-      update["$addToSet"]["pictures"] = update.pictures;
-      delete update.pictures;
-      if (isEmpty(update["$addToSet"]["pictures"])) {
-        delete update.$addToSet;
-      }
 
       let responseFromModifyDevice = await getModelByTenant(
         tenant,
@@ -1015,6 +1008,83 @@ const createDevice = {
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
+      };
+    }
+  },
+
+  refresh: async (request) => {
+    try {
+      return {
+        success: false,
+        message: "feature temporarily disabled --coming soon",
+        status: HTTPStatus.SERVICE_UNAVAILABLE,
+        errors: { message: "Service Unavailable" },
+      };
+
+      let modifiedRequest = Object.assign({}, request);
+
+      const responseFromFilter = generateFilter.devices(modifiedRequest);
+      const filter = responseFromFilter.data;
+      const { tenant } = modifiedRequest.query;
+      logObject("the filter being used to filter", filter);
+
+      const responseFromListDevice = await getModelByTenant(
+        tenant.toLowerCase(),
+        "device",
+        DeviceSchema
+      ).list({
+        filter,
+      });
+
+      if (responseFromListDevice.success === true) {
+        let deviceDetails = { ...responseFromListDevice.data[0] };
+        modifiedRequest["body"] = deviceDetails;
+        delete modifiedRequest.body._id;
+        delete modifiedRequest.body.sites;
+      } else if (responseFromListDevice.success === false) {
+        return responseFromListDevice;
+      }
+
+      if (
+        !isEmpty(modifiedRequest["body"]["device_codes"]) &&
+        modifiedRequest["body"]["device_codes"].length < 7
+      ) {
+        const deviceCodeValues = ["name_id", "name", "_id", "device_number"];
+
+        for (const deviceCode of deviceCodeValues) {
+          modifiedRequest["body"]["device_codes"].push(deviceCode);
+          logObject("modifiedRequest is here baby", modifiedRequest);
+        }
+      }
+
+      delete modifiedRequest["body"]["device_number"];
+
+      const update = modifiedRequest["body"];
+      const opts = {};
+
+      const responseFromModifyDevice = await getModelByTenant(
+        tenant,
+        "device",
+        DeviceSchema
+      ).modify({ filter, update, opts });
+
+      if (responseFromModifyDevice.success === true) {
+        return {
+          success: true,
+          message: "Device Details Successfully Refreshed",
+          data: responseFromModifyDevice.data,
+        };
+      } else if (responseFromModifyDevice.success === false) {
+        return responseFromModifyDevice;
+      }
+    } catch (error) {
+      logObject("error", error);
+      logger.error(`internal server error -- ${error.message}`);
+      return {
+        errors: { message: error.message },
+        message: "Internal Server Error",
+        success: false,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },

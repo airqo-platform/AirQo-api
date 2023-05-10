@@ -125,6 +125,29 @@ router.post(
           "the role_status value is not among the expected ones: ACTIVE or INACTIVE"
         )
         .trim(),
+      body("role_permission")
+        .optional()
+        .notEmpty()
+        .withMessage("role_permission must not be empty if provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the role_permission must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("network_id")
+        .exists()
+        .withMessage("network_id must be provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("network_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
     ],
   ]),
   setJWTAuth,
@@ -132,7 +155,7 @@ router.post(
   createRoleController.create
 );
 
-router.patch(
+router.put(
   "/:role_id",
   oneOf([
     [
@@ -164,23 +187,51 @@ router.patch(
   ]),
   oneOf([
     [
-      body("role_name")
-        .not()
-        .exists()
-        .withMessage("role_name should not exist in the request body"),
-      body("role_code")
-        .not()
-        .exists()
-        .withMessage("role_code should not exist in the request body"),
       body("role_status")
-        .exists()
-        .withMessage("role_status should be provided")
+        .optional()
+        .notEmpty()
+        .withMessage("the role_status should not be empty if provided")
         .bail()
+        .toUpperCase()
         .isIn(["ACTIVE", "INACTIVE"])
         .withMessage(
-          "the role_status value is not among the expected ones: ACTIVE or INACTIVE"
+          "the status value is not among the expected ones which include: ACTIVE, INACTIVE"
         )
         .trim(),
+      body("role_name")
+        .not()
+        .isEmpty()
+        .withMessage("the role_name should not be provided when updating")
+        .trim(),
+      body("role_code")
+        .not()
+        .isEmpty()
+        .withMessage("the role_code should not be provided when updating")
+        .trim(),
+      body("role_permission")
+        .optional()
+        .notEmpty()
+        .withMessage("role_permission must not be empty if provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the role_permission must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("network_id")
+        .optional()
+        .notEmpty()
+        .withMessage("network_id must not be empty if provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("network_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
     ],
   ]),
   setJWTAuth,
@@ -523,10 +574,10 @@ router.post(
         }),
       body("permissions")
         .exists()
-        .withMessage("the permission ID is missing in the request body")
+        .withMessage("the permissions is missing in the request body")
         .bail()
         .notEmpty()
-        .withMessage("the permission_id should not be empty")
+        .withMessage("the permissions should not be empty")
         .bail()
         .custom((value) => {
           return Array.isArray(value);

@@ -23,6 +23,14 @@ const InquirySchema = new mongoose.Schema(
       required: [true, "fullName is required!"],
       trim: true,
     },
+    firstName: {
+      type: String,
+      trim: true,
+    },
+    lastName: {
+      type: String,
+      trim: true,
+    },
     message: { type: String, required: [true, "message is required"] },
     category: { type: String, required: [true, "category is required"] },
     network: {
@@ -37,42 +45,75 @@ const InquirySchema = new mongoose.Schema(
 );
 
 InquirySchema.statics = {
-  register(args) {
+  async register(args) {
     try {
+      let modifiedArgs = Object.assign({}, args);
+      const eitherFirstOrLastName = args.firstName
+        ? args.firstName
+        : args.lastName;
+      if (isEmpty(args.fullName) && !isEmpty(eitherFirstOrLastName)) {
+        modifiedArgs.fullName = eitherFirstOrLastName;
+      }
+
+      const data = await this.create({
+        ...modifiedArgs,
+      });
+      if (!isEmpty(data)) {
+        return {
+          success: true,
+          data,
+          message: "inquiry created",
+          status: httpStatus.OK,
+        };
+      } else if (isEmpty(data)) {
+        return {
+          success: true,
+          data,
+          message: "operation successful but user NOT successfully created",
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+    } catch (err) {
+      logObject("the error", err);
+      let response = {};
+      let message = "validation errors for some of the provided fields";
+      let status = httpStatus.CONFLICT;
+      if (err.keyValue) {
+        Object.entries(err.keyValue).forEach(([key, value]) => {
+          return (response[key] = `the ${key} must be unique`);
+        });
+      } else if (err.errors) {
+        Object.entries(err.errors).forEach(([key, value]) => {
+          return (response[key] = value.message);
+        });
+      } else if (err.code === 11000) {
+        response["message"] = "some duplicate records observed";
+      }
       return {
-        success: true,
-        data: this.create({
-          ...args,
-        }),
-        message: "inquiry created",
-        status: httpStatus.OK,
-      };
-    } catch (error) {
-      return {
-        errors: { message: error.message },
-        message: "unable to create inquiry",
+        error: response,
+        errors: response,
+        message,
         success: false,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
+        status,
       };
     }
   },
-  async list({ skip = 0, limit = 5, filter = {} } = {}) {
+  async list({ skip = 0, limit = 100, filter = {} } = {}) {
     try {
-      let inquiries = await this.find(filter)
+      const inquiries = await this.find(filter)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .exec();
 
       if (!isEmpty(inquiries)) {
-        let data = inquiries;
         return {
           success: true,
-          data,
+          data: inquiries,
           message: "successfully listed the inquiries",
           status: httpStatus.OK,
         };
-      } else {
+      } else if (isEmpty(inquiries)) {
         return {
           success: true,
           message: "no inquiries exist for this search",
@@ -158,6 +199,8 @@ InquirySchema.methods = {
       message: this.message,
       category: this.category,
       status: this.status,
+      firstName: this.firstName,
+      lastName: this.lastName,
       network: this.network,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,

@@ -33,7 +33,6 @@ class Utils:
 
     @staticmethod
     def epa_pollutant_category(value: float, pollutant: Pollutant) -> str:
-
         if not value:
             return ""
 

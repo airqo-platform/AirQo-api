@@ -7,3 +7,4 @@ __init__test.py
 .DS_Store
 airqo-250220-642e046f4223.json
 jobs/Mar_sep11_2020.csv
+*.db

@@ -26,7 +26,6 @@ class AirNowApi:
         boundary_box,
         parameters="pm25,pm10,ozone,co,no2,so2",
     ) -> list:
-
         params = {
             "startDate": start_date_time,
             "endDate": end_date_time,
@@ -42,7 +41,6 @@ class AirNowApi:
         return self.__request(endpoint="/aq/data", params=params)
 
     def __request(self, endpoint, params):
-
         params["API_KEY"] = self.AIRNOW_API_KEY
 
         api_request = requests.get(

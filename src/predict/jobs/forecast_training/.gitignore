@@ -1,0 +1,10 @@
+__pycache__/
+.env
+env/
+.vscode
+.vscode/
+*.json
+*.csv
+mlruns/
+.DS_Store
+LGBMmodel.pkl

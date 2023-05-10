@@ -9,8 +9,8 @@ const uniqueValidator = require("mongoose-unique-validator");
 const { logObject, logElement, logText } = require("@utils/log");
 const ObjectId = Schema.Types.ObjectId;
 const constants = require("@config/constants");
-const { isElement, isEmpty } = require("underscore");
-const httpStatus = require("http-status");
+const isEmpty = require("is-empty");
+const HTTPStatus = require("http-status");
 const { getModelByTenant } = require("@utils/multitenancy");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- event-model`);
@@ -378,6 +378,19 @@ eventSchema.index(
   }
 );
 
+eventSchema.index(
+  {
+    "values.time": 1,
+    "values.site_id": 1,
+    day: 1,
+    "values.frequency": 1,
+  },
+  {
+    unique: true,
+    partialFilterExpression: { nValues: { $lt: parseInt(constants.N_VALUES) } },
+  }
+);
+
 eventSchema.pre("save", function() {
   const err = new Error("something went wrong");
   next(err);
@@ -459,7 +472,10 @@ eventSchema.statics = {
         tenant,
         network,
         device,
+        running,
         recent,
+        brief,
+        index,
       } = filter;
       let search = filter;
       let groupId = "$device";
@@ -498,6 +514,7 @@ eventSchema.statics = {
       };
       let siteProjection = {};
       let deviceProjection = {};
+      let sort = { time: -1 };
 
       delete search["external"];
       delete search["frequency"];
@@ -506,10 +523,54 @@ eventSchema.statics = {
       delete search["device"];
       delete search["recent"];
       delete search["page"];
+      delete search["running"];
+      delete search["brief"];
+      delete search["index"];
 
+      /**
+       * The Alternative Flows present in this Events entity:
+       * 1. Based on tenant, which PM values should we showcase?
+       * 2. Which metadata should we show? Sites or Devices? etc....
+       * 3. Should we show recent or historical measurements?
+       */
       if (tenant !== "airqo") {
         pm2_5 = "$pm2_5";
         pm10 = "$pm10";
+      }
+
+      if (external === "yes" || brief === "yes") {
+        projection["s2_pm10"] = 0;
+        projection["s1_pm10"] = 0;
+        projection["s2_pm2_5"] = 0;
+        projection["s1_pm2_5"] = 0;
+        projection["rtc_adc"] = 0;
+        projection["rtc_v"] = 0;
+        projection["rtc"] = 0;
+        projection["stc_adc"] = 0;
+        projection["stc_v"] = 0;
+        projection["stc"] = 0;
+        projection["no2"] = 0;
+        projection["pm1"] = 0;
+        projection["pm10"] = 0;
+        projection["externalHumidity"] = 0;
+        projection["externalAltitude"] = 0;
+        projection["internalHumidity"] = 0;
+        projection["externalTemperature"] = 0;
+        projection["internalTemperature"] = 0;
+        projection["hdop"] = 0;
+        projection["satellites"] = 0;
+        projection["speed"] = 0;
+        projection["altitude"] = 0;
+        projection["location"] = 0;
+        projection["network"] = 0;
+        projection["battery"] = 0;
+        projection["average_pm10"] = 0;
+        projection["average_pm2_5"] = 0;
+        projection["device_number"] = 0;
+        projection["pm2_5.uncertaintyValue"] = 0;
+        projection["pm2_5.standardDeviationValue"] = 0;
+        projection["site"] = 0;
+        projection[as] = 0;
       }
 
       if (!metadata || metadata === "device" || metadata === "device_id") {
@@ -543,42 +604,120 @@ eventSchema.statics = {
         _as = "_siteDetails";
         as = "siteDetails";
         elementAtIndex0 = elementAtIndexName(metadata, recent);
-        siteProjection = constants.EVENTS_METADATA_PROJECTION("site", as);
+
+        if (brief === "yes") {
+          siteProjection = constants.EVENTS_METADATA_PROJECTION(
+            "brief_site",
+            as
+          );
+        } else {
+          siteProjection = constants.EVENTS_METADATA_PROJECTION("site", as);
+        }
         Object.assign(projection, siteProjection);
       }
 
-      if (external === "yes") {
-        projection["s2_pm10"] = 0;
-        projection["s1_pm10"] = 0;
-        projection["s2_pm2_5"] = 0;
-        projection["s1_pm2_5"] = 0;
-        projection["rtc_adc"] = 0;
-        projection["rtc_v"] = 0;
-        projection["rtc"] = 0;
-        projection["stc_adc"] = 0;
-        projection["stc_v"] = 0;
-        projection["stc"] = 0;
-        projection[as] = 0;
+      if (running === "yes") {
+        Object.assign(projection, {
+          average_pm2_5: 0,
+          pm2_5: 0,
+          average_pm10: 0,
+          pm10: 0,
+          frequency: 0,
+          network: 0,
+          location: 0,
+          altitude: 0,
+          speed: 0,
+          satellites: 0,
+          hdop: 0,
+          internalTemperature: 0,
+          externalTemperature: 0,
+          internalHumidity: 0,
+          externalHumidity: 0,
+          externalAltitude: 0,
+          pm1: 0,
+          no2: 0,
+          site: 0,
+          site_id: 0,
+          health_tips: 0,
+          s1_pm2_5: 0,
+          s2_pm2_5: 0,
+          s1_pm10: 0,
+          s2_pm10: 0,
+          battery: 0,
+          rtc_adc: 0,
+          rtc_v: 0,
+          rtc: 0,
+          stc_adc: 0,
+          stc_v: 0,
+          stc: 0,
+          siteDetails: 0,
+        });
+      }
+
+      if (!isEmpty(index)) {
+        sort = { "pm2_5.value": 1 };
       }
 
       logObject("the query for this request", search);
       if (!recent || recent === "yes") {
-        let data = await this.aggregate()
+        const data = await this.aggregate()
           .unwind("values")
           .match(search)
           .replaceRoot("values")
+          .lookup({
+            from: "photos",
+            localField: "site_id",
+            foreignField: "site_id",
+            as: "site_images",
+          })
+          .lookup({
+            from: "devices",
+            localField: "device_id",
+            foreignField: "_id",
+            as: "device_details",
+          })
           .lookup({
             from,
             localField,
             foreignField,
             as,
           })
-          .sort({ time: -1 })
+          .lookup({
+            from: "healthtips",
+            let: { pollutantValue: { $toInt: "$pm2_5.value" } },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      {
+                        $lte: ["$aqi_category.min", "$$pollutantValue"],
+                      },
+                      {
+                        $gte: ["$aqi_category.max", "$$pollutantValue"],
+                      },
+                    ],
+                  },
+                },
+              },
+            ],
+            as: "healthTips",
+          })
+          .sort(sort)
           .group({
             _id: "$device",
             device: { $first: "$device" },
             device_id: { $first: "$device_id" },
+            site_image: {
+              $first: { $arrayElemAt: ["$site_images.image_url", 0] },
+            },
+            is_reading_primary: {
+              $first: {
+                $arrayElemAt: ["$device_details.isPrimaryInLocation", 0],
+              },
+            },
             device_number: { $first: "$device_number" },
+            health_tips: { $first: "$healthTips" },
             site: { $first: "$site" },
             site_id: { $first: "$site_id" },
             time: { $first: "$time" },
@@ -613,10 +752,121 @@ eventSchema.statics = {
             stc: { $first: "$stc" },
             [as]: elementAtIndex0,
           })
+
+          .project({
+            "health_tips.aqi_category": 0,
+            "health_tips.value": 0,
+            "health_tips.createdAt": 0,
+            "health_tips.updatedAt": 0,
+            "health_tips.__v": 0,
+          })
+          .project({
+            "site_image.createdAt": 0,
+            "site_image.updatedAt": 0,
+            "site_image.metadata": 0,
+            "site_image.__v": 0,
+            "site_image.device_name": 0,
+            "site_image.device_id": 0,
+            "site_image._id": 0,
+            "site_image.tags": 0,
+            "site_image.image_code": 0,
+            "site_image.site_id": 0,
+            "site_image.airqloud_id": 0,
+          })
           .project(projection)
           .facet({
             total: [{ $count: "device" }],
-            data: [{ $addFields: { device: "$device" } }],
+            data: [
+              {
+                $addFields: {
+                  device: "$device",
+                  aqi_color: {
+                    $switch: {
+                      branches: [
+                        { case: { $lt: ["$pm2_5.value", 50] }, then: "00e400" },
+                        {
+                          case: { $lt: ["$pm2_5.value", 100] },
+                          then: "ffff00",
+                        },
+                        {
+                          case: { $lt: ["$pm2_5.value", 150] },
+                          then: "ff7e00",
+                        },
+                        {
+                          case: { $lt: ["$pm2_5.value", 200] },
+                          then: "ff0000",
+                        },
+                        {
+                          case: { $lt: ["$pm2_5.value", 300] },
+                          then: "8f3f97",
+                        },
+                        {
+                          case: { $gte: ["$pm2_5.value", 300] },
+                          then: "7e0023",
+                        },
+                      ],
+                      default: "Unknown",
+                    },
+                  },
+                  aqi_category: {
+                    $switch: {
+                      branches: [
+                        { case: { $lt: ["$pm2_5.value", 50] }, then: "Good" },
+                        {
+                          case: { $lt: ["$pm2_5.value", 100] },
+                          then: "Moderate",
+                        },
+                        {
+                          case: { $lt: ["$pm2_5.value", 150] },
+                          then: "Unhealthy for Sensitive Groups",
+                        },
+                        {
+                          case: { $lt: ["$pm2_5.value", 200] },
+                          then: "Unhealthy",
+                        },
+                        {
+                          case: { $lt: ["$pm2_5.value", 300] },
+                          then: "Very Unhealthy",
+                        },
+                        {
+                          case: { $gte: ["$pm2_5.value", 300] },
+                          then: "Hazardous",
+                        },
+                      ],
+                      default: "Unknown",
+                    },
+                  },
+                  aqi_color_name: {
+                    $switch: {
+                      branches: [
+                        { case: { $lt: ["$pm2_5.value", 50] }, then: "Green" },
+                        {
+                          case: { $lt: ["$pm2_5.value", 100] },
+                          then: "Yellow",
+                        },
+                        {
+                          case: { $lt: ["$pm2_5.value", 150] },
+                          then: "Orange",
+                        },
+                        {
+                          case: { $lt: ["$pm2_5.value", 200] },
+                          then: "Red",
+                        },
+                        {
+                          case: { $lt: ["$pm2_5.value", 300] },
+                          then: "Purple",
+                        },
+                        {
+                          case: { $gte: ["$pm2_5.value", 300] },
+                          then: "Maroon",
+                        },
+                      ],
+                      default: "Unknown",
+                    },
+                  },
+                },
+              },
+            ],
           })
           .project({
             meta,
@@ -635,7 +885,7 @@ eventSchema.statics = {
           success: true,
           data,
           message: "successfully returned the measurements",
-          status: httpStatus.OK,
+          status: HTTPStatus.OK,
         };
       }
 
@@ -650,7 +900,7 @@ eventSchema.statics = {
             foreignField,
             as,
           })
-          .sort({ time: -1 })
+          .sort(sort)
           .project({
             _device: "$device",
             _time: "$time",
@@ -753,7 +1003,7 @@ eventSchema.statics = {
           success: true,
           message: "successfully returned the measurements",
           data,
-          status: httpStatus.OK,
+          status: HTTPStatus.OK,
         };
       }
     } catch (error) {
@@ -762,7 +1012,7 @@ eventSchema.statics = {
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },

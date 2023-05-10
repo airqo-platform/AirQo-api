@@ -12,7 +12,6 @@ class UrbanBetterUtils:
     def extract_stream_ids_from_air_beam(
         start_date_time: str, end_date_time: str
     ) -> pd.DataFrame:
-
         start_date_time = str_to_date(start_date_time)
         end_date_time = str_to_date(end_date_time)
 
@@ -22,7 +21,6 @@ class UrbanBetterUtils:
         stream_ids = []
         for username in usernames:
             for pollutant in ["pm2.5", "pm10", "pm1", "rh", "f"]:
-
                 api_response = air_beam_api.get_stream_ids(
                     start_date_time=start_date_time,
                     end_date_time=end_date_time,

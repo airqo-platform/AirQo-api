@@ -138,7 +138,6 @@ class DataWarehouseUtils:
 
     @staticmethod
     def update_latest_measurements(data: pd.DataFrame, tenant: Tenant):
-
         device_cols = [
             "device_number",
             "device_id",
@@ -220,10 +219,6 @@ class DataWarehouseUtils:
         )
 
         big_query_api.update_data(data, table=table)
-
-        AirQoAppUtils.update_latest_hourly_data(
-            bigquery_latest_hourly_data=data, tenant=tenant
-        )
 
     @staticmethod
     def merge_datasets(

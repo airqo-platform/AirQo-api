@@ -176,7 +176,6 @@ class PlumeLabsApi:
         return sensors_data
 
     def __request(self, endpoint, params):
-
         api_request = requests.get(
             "%s%s" % (self.PLUME_LABS_BASE_URL, endpoint),
             params=params,

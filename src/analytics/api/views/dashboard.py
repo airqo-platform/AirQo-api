@@ -1,14 +1,9 @@
 # Third-party libraries
+
 import math
-
 from flasgger import swag_from
-import flask_excel as excel
-from flask_restx import Resource
 from flask import request
-
-# Middlewares
-from api.utils.data_formatters import format_to_aqcsv, format_to_aqcsv_v2
-from main import rest_api
+from flask_restx import Resource
 
 from api.models import (
     EventsModel,
@@ -16,212 +11,20 @@ from api.models import (
     ExceedanceModel,
 )
 
+# Middlewares
 from api.utils.http import create_response, Status
-from api.utils.request_validators import validate_request_params, validate_request_json
 from api.utils.pollutants import (
     generate_pie_chart_data,
     d3_generate_pie_chart_data,
     PM_COLOR_CATEGORY,
     set_pm25_category_background,
 )
+from api.utils.request_validators import validate_request_json
+from main import rest_api_v1, rest_api_v2
 
 
-@rest_api.route("/data-download")
-class DownloadDataResource(Resource):
-    @swag_from("/api/docs/dashboard/download_custom_data_post.yml")
-    @validate_request_json(
-        "startDateTime|required:datetime",
-        "endDateTime|required:datetime",
-        "frequency|optional:str",
-        "downloadType|optional:str",
-        "outputFormat|optional:str",
-        "pollutants|optional:list",
-        "sites|optional:list",
-        "devices|optional:list",
-    )
-    def post(self):
-        valid_pollutants = ["pm2_5", "pm10", "no2"]
-        valid_download_types = ["csv", "json"]
-        valid_output_formats = ["airqo-standard", "aqcsv"]
-        valid_frequencies = ["hourly", "daily", "raw"]
-
-        json_data = request.get_json()
-
-        start_date = json_data["startDateTime"]
-        end_date = json_data["endDateTime"]
-        sites = json_data.get("sites", [])
-        devices = json_data.get("devices", [])
-        airqlouds = json_data.get("airqlouds", [])
-        pollutants = json_data.get("pollutants", valid_pollutants)
-        frequency = f"{json_data.get('frequency', valid_frequencies[0])}".lower()
-        download_type = (
-            f"{json_data.get('downloadType', valid_download_types[0])}".lower()
-        )
-        output_format = (
-            f"{json_data.get('outputFormat', valid_output_formats[0])}".lower()
-        )
-
-        if sum([len(sites) == 0, len(devices) == 0, len(airqlouds) == 0]) == 3:
-            return (
-                create_response(
-                    f"Specify either a list of airqlouds, sites or devices in the request body",
-                    success=False,
-                ),
-                Status.HTTP_400_BAD_REQUEST,
-            )
-
-        if sum([len(sites) != 0, len(devices) != 0, len(airqlouds) != 0]) != 1:
-            return (
-                create_response(
-                    f"You cannot specify airqlouds, sites and devices in one go",
-                    success=False,
-                ),
-                Status.HTTP_400_BAD_REQUEST,
-            )
-
-        if frequency not in valid_frequencies:
-            return (
-                create_response(
-                    f"Invalid frequency {frequency}. Valid string values are any of {', '.join(valid_frequencies)}",
-                    success=False,
-                ),
-                Status.HTTP_400_BAD_REQUEST,
-            )
-
-        if download_type not in valid_download_types:
-            return (
-                create_response(
-                    f"Invalid download type {download_type}. Valid string values are any of {', '.join(valid_download_types)}",
-                    success=False,
-                ),
-                Status.HTTP_400_BAD_REQUEST,
-            )
-
-        if output_format not in valid_output_formats:
-            return (
-                create_response(
-                    f"Invalid output format {output_format}. Valid string values are any of {', '.join(valid_output_formats)}",
-                    success=False,
-                ),
-                Status.HTTP_400_BAD_REQUEST,
-            )
-
-        for pollutant in pollutants:
-            if pollutant not in valid_pollutants:
-                return (
-                    create_response(
-                        f"Invalid pollutant {pollutant}. Valid values are {', '.join(valid_pollutants)}",
-                        success=False,
-                    ),
-                    Status.HTTP_400_BAD_REQUEST,
-                )
-
-        postfix = "-" if output_format == "airqo-standard" else "-aqcsv-"
-
-        data_frame = EventsModel.download_from_bigquery(
-            sites=sites,
-            devices=devices,
-            airqlouds=airqlouds,
-            start_date=start_date,
-            end_date=end_date,
-            frequency=frequency,
-            pollutants=pollutants,
-        )
-
-        if data_frame.empty:
-            return (
-                create_response("No data found", data=[]),
-                Status.HTTP_404_NOT_FOUND,
-            )
-
-        records = data_frame.to_dict("records")
-
-        if output_format == "aqcsv":
-            records = format_to_aqcsv_v2(
-                data=records, frequency=frequency, pollutants=pollutants
-            )
-
-        if download_type == "json":
-            return (
-                create_response("air-quality data download successful", data=records),
-                Status.HTTP_200_OK,
-            )
-
-        return excel.make_response_from_records(
-            records, "csv", file_name=f"{frequency}-air-quality{postfix}data"
-        )
-
-
-@rest_api.route("/data/download")
-class DownloadCustomisedDataResource(Resource):
-    @swag_from("/api/docs/dashboard/download_custom_data_post.yml")
-    @validate_request_params("downloadType|optional:data")
-    @validate_request_json(
-        "sites|optional:list",
-        "startDate|required:datetime",
-        "endDate|required:datetime",
-        "frequency|optional:str",
-        "pollutants|optional:list",
-        "device_numbers|optional:list",
-    )
-    def post(self):
-        json_data = request.get_json()
-
-        start_date = json_data["startDate"]
-        end_date = json_data["endDate"]
-
-        tenant = request.args.get("tenant", "").lower()
-        output_format = request.args.get("outputFormat", "").lower()
-        download_type = request.args.get("downloadType", "csv")
-
-        sites = json_data.get("sites", [])
-        device_numbers = json_data.get("device_numbers", [])
-        frequency = json_data.get("frequency", "hourly")
-        pollutants = json_data.get("pollutants", [])
-        postfix = "-"
-
-        if tenant.lower() == "urbanbetter":
-            frequency = "raw"
-            data = EventsModel.bigquery_mobile_device_measurements(
-                tenant=tenant,
-                device_numbers=device_numbers,
-                start_date_time=start_date,
-                end_date_time=end_date,
-            )
-        else:
-            data = EventsModel.from_bigquery(
-                tenant=tenant,
-                sites=sites,
-                start_date=start_date,
-                end_date=end_date,
-                frequency=frequency,
-                pollutants=pollutants,
-                output_format=output_format,
-            )
-
-            if output_format == "aqcsv":
-                data = format_to_aqcsv(
-                    data=data, frequency="hourly", pollutants=pollutants
-                )
-                postfix = "-aqcsv-"
-
-        if download_type == "csv":
-            return excel.make_response_from_records(
-                data, "csv", file_name=f"{tenant}-air-quality-{frequency}{postfix}data"
-            )
-        elif download_type == "json":
-            return (
-                create_response("air-quality data download successful", data=data),
-                Status.HTTP_200_OK,
-            )
-        else:
-            return (
-                create_response(f"unknown data format {download_type}", success=False),
-                Status.HTTP_400_BAD_REQUEST,
-            )
-
-
-@rest_api.route("/dashboard/chart/data")
+@rest_api_v1.route("/dashboard/chart/data")
+@rest_api_v2.route("/dashboard/chart/data")
 class ChartDataResource(Resource):
     @swag_from("/api/docs/dashboard/customised_chart_post.yml")
     @validate_request_json(
@@ -254,7 +57,6 @@ class ChartDataResource(Resource):
         chart_labels = []
 
         for record in data:
-
             site = record.get("site", {})
 
             site_name = f"{site.get('name') or site.get('description') or site.get('generated_name')}"
@@ -326,7 +128,8 @@ class ChartDataResource(Resource):
         )
 
 
-@rest_api.route("/dashboard/chart/d3/data")
+@rest_api_v1.route("/dashboard/chart/d3/data")
+@rest_api_v2.route("/dashboard/chart/d3/data")
 class D3ChartDataResource(Resource):
     @swag_from("/api/docs/dashboard/d3_chart_data_post.yml")
     @validate_request_json(
@@ -363,7 +166,8 @@ class D3ChartDataResource(Resource):
         )
 
 
-@rest_api.route("/dashboard/sites")
+@rest_api_v1.route("/dashboard/sites")
+@rest_api_v2.route("/dashboard/sites")
 class MonitoringSiteResource(Resource):
     @swag_from("/api/docs/dashboard/monitoring_site_get.yml")
     def get(self):
@@ -379,7 +183,8 @@ class MonitoringSiteResource(Resource):
         )
 
 
-@rest_api.route("/dashboard/historical/daily-averages")
+@rest_api_v1.route("/dashboard/historical/daily-averages")
+@rest_api_v2.route("/dashboard/historical/daily-averages")
 class DailyAveragesResource(Resource):
     @swag_from("/api/docs/dashboard/device_daily_measurements_get.yml")
     @validate_request_json(
@@ -408,7 +213,6 @@ class DailyAveragesResource(Resource):
         background_colors = []
 
         for v in data:
-
             value = v.get("value", None)
             site_id = v.get("site_id", None)
 
@@ -442,7 +246,8 @@ class DailyAveragesResource(Resource):
         )
 
 
-@rest_api.route("/dashboard/exceedances")
+@rest_api_v1.route("/dashboard/exceedances")
+@rest_api_v2.route("/dashboard/exceedances")
 class ExceedancesResource(Resource):
     @swag_from("/api/docs/dashboard/exceedances_post.yml")
     @validate_request_json(

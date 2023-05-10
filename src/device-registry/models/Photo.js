@@ -16,8 +16,9 @@ const photoSchema = new Schema(
     },
     device_id: {
       type: ObjectId,
-      required: [true, "the object ID is required!"],
     },
+    site_id: { type: ObjectId, unique: true },
+    airqloud_id: { type: ObjectId, unique: true },
     device_number: {},
     image_url: {
       type: String,
@@ -76,6 +77,8 @@ photoSchema.methods = {
       network: this.network,
       image_url: this.image_url,
       device_id: this.device_id,
+      site_id: this.site_id,
+      airqloud_id: this.airqloud_id,
       device_name: this.device_name,
       image_code: this.image_code,
       description: this.description,
@@ -204,6 +207,7 @@ photoSchema.statics = {
       logObject("the update in the model", update);
       logObject("the opts in the model", opts);
       let modifiedUpdateBody = update;
+
       if (modifiedUpdateBody._id) {
         delete modifiedUpdateBody._id;
       }
@@ -219,6 +223,15 @@ photoSchema.statics = {
       const projection = setProjection(modifiedUpdateBody);
       logObject("projection", projection);
       options["projection"] = projection;
+
+      modifiedUpdateBody["$addToSet"] = {};
+      if (modifiedUpdateBody.tags) {
+        modifiedUpdateBody["$addToSet"]["tags"] = {};
+        modifiedUpdateBody["$addToSet"]["tags"]["$each"] =
+          modifiedUpdateBody.tags;
+        delete modifiedUpdateBody["tags"];
+      }
+
       const updatedPhoto = await this.findOneAndUpdate(
         filter,
         modifiedUpdateBody,

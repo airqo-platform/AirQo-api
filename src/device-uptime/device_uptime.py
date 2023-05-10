@@ -44,7 +44,7 @@ def save_device_uptime(tenant):
     active_device_count = 0
 
     for device in devices:
-        if device.get("network", "") != "airqo":
+        if device.get("network", "") != "airqo" or str(device.get("category", "")).lower() == "bam":
             continue
         if device.get('isActive', None):
             active_device_count += 1

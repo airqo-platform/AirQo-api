@@ -18,7 +18,6 @@ class PurpleAirApi:
         "pm2.5_atm,pm2.5_atm_a,pm2.5_atm_b,pm10.0_atm,pm10.0_atm_a,pm10.0_atm_b,"
         "voc,voc_a,voc_b",
     ) -> dict:
-
         params = {
             "fields": fields,
             "start_timestamp": start_date_time,
@@ -29,7 +28,6 @@ class PurpleAirApi:
         return response if response else {}
 
     def __request(self, endpoint, params):
-
         api_request = requests.get(
             "%s%s" % (self.PURPLE_AIR_BASE_URL, endpoint),
             params=params,

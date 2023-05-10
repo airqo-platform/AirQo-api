@@ -102,12 +102,11 @@ class AirQoApi:
             print(ex)
             return []
 
-    def get_tenant_devices(
+    def get_devices(
         self,
         tenant: Tenant = Tenant.ALL,
         device_category: DeviceCategory = DeviceCategory.NONE,
     ) -> list:
-
         params = {"tenant": "airqo"}
         if tenant != Tenant.ALL:
             params["network"] = str(tenant)
@@ -119,6 +118,8 @@ class AirQoApi:
                 **device,
                 **{
                     "device_number": device.get("device_number", None),
+                    "latitude": device.get("latitude", None),
+                    "longitude": device.get("longitude", None),
                     "approximate_latitude": device.get(
                         "approximate_latitude", device.get("latitude", None)
                     ),
@@ -131,6 +132,8 @@ class AirQoApi:
                     ],
                     "mongo_id": device.get("_id", None),
                     "site_id": device.get("site", {}).get("_id", None),
+                    "site_latitude": device.get("site", {}).get("latitude", None),
+                    "site_longitude": device.get("site", {}).get("longitude", None),
                     "device_category": str(
                         DeviceCategory.from_str(device.get("category", ""))
                     ),
@@ -151,82 +154,7 @@ class AirQoApi:
 
         return devices
 
-    def get_devices(
-        self,
-        tenant: Tenant = Tenant.ALL,
-        device_category: DeviceCategory = DeviceCategory.NONE,
-    ) -> list:
-        devices = []
-        if tenant == Tenant.ALL:
-            for tenant_enum in Tenant:
-                if tenant_enum == Tenant.ALL:
-                    continue
-                try:
-                    response = self.__request("devices", {"tenant": str(tenant_enum)})
-                    tenant_devices = [
-                        {
-                            **device,
-                            **{
-                                "tenant": str(tenant_enum),
-                                "device_manufacturer": device.get(
-                                    "device_manufacturer",
-                                    tenant_enum.device_manufacturer(),
-                                ),
-                            },
-                        }
-                        for device in response.get("devices", [])
-                    ]
-                    devices.extend(tenant_devices)
-                except Exception:
-                    continue
-
-        else:
-            response = self.__request("devices", {"tenant": str(tenant)})
-            if response:
-                devices = [
-                    {
-                        **device,
-                        **{
-                            "tenant": str(tenant),
-                            "device_manufacturer": device.get(
-                                "device_manufacturer", tenant.device_manufacturer()
-                            ),
-                        },
-                    }
-                    for device in response.get("devices", [])
-                ]
-
-        devices = [
-            {
-                **device,
-                **{
-                    "device_number": device.get("device_number", None),
-                    "approximate_latitude": device.get(
-                        "approximate_latitude", device.get("latitude", None)
-                    ),
-                    "approximate_longitude": device.get(
-                        "approximate_longitude", device.get("longitude", None)
-                    ),
-                    "device_id": device.get("name", None),
-                    "mongo_id": device.get("_id", None),
-                    "site_id": device.get("site", {}).get("_id", None),
-                    "device_category": str(
-                        DeviceCategory.from_str(device.get("category", ""))
-                    ),
-                },
-            }
-            for device in devices
-        ]
-
-        if device_category != DeviceCategory.NONE:
-            devices = list(
-                filter(lambda y: y["device_category"] == str(device_category), devices)
-            )
-
-        return devices
-
     def get_thingspeak_read_keys(self, devices: list) -> dict:
-
         body = []
         for device in devices:
             read_key = device.get("readKey", None)
@@ -248,42 +176,7 @@ class AirQoApi:
             for entry in decrypted_keys
         }
 
-    def get_app_insights(
-        self,
-        start_time: str,
-        end_time: str,
-        frequency: str,
-        site_id=None,
-        forecast=False,
-        empty=False,
-        all_data=False,
-    ) -> list:
-        if all_data:
-            params = {
-                "startDateTime": start_time,
-                "endDateTime": end_time,
-            }
-        else:
-            params = {
-                "startDateTime": start_time,
-                "endDateTime": end_time,
-                "frequency": frequency,
-                "empty": empty,
-                "forecast": forecast,
-            }
-        if site_id:
-            params["siteId"] = site_id
-
-        endpoint = "view/measurements/app/insights"
-        response = self.__request(endpoint=endpoint, params=params, method="get")
-
-        if "data" in response:
-            return response["data"]
-
-        return []
-
     def get_forecast(self, timestamp, channel_id) -> list:
-
         endpoint = f"predict/{channel_id}/{timestamp}"
         response = self.__request(
             endpoint=endpoint, params={}, method="get", version="v2"
@@ -337,53 +230,25 @@ class AirQoApi:
 
         return meta_data
 
-    def get_airqlouds_temp(self, tenant: Tenant = Tenant.ALL) -> list:
-        airqlouds = []
-        if tenant == Tenant.ALL:
-            for tenant_enum in Tenant:
-                if tenant_enum == Tenant.ALL:
-                    continue
-                try:
-                    response = self.__request(
-                        "devices/airqlouds", {"tenant": str(tenant_enum)}
-                    )
-                    tenant_airqlouds = [
-                        {
-                            "id": airqloud.get("_id", None),
-                            "name": airqloud.get("name", None),
-                            "tenant": str(tenant_enum),
-                            "sites": [
-                                site["_id"] for site in airqloud.get("sites", [])
-                            ],
-                        }
-                        for airqloud in response.get("airqlouds", [])
-                    ]
-                    airqlouds.extend(tenant_airqlouds)
-                except Exception:
-                    continue
+    def refresh_airqloud(self, airqloud_id):
+        query_params = {"tenant": str(Tenant.AIRQO), "id": airqloud_id}
 
-        else:
-            response = self.__request("devices/airqlouds", {"tenant": str(tenant)})
-            if response:
-                airqlouds = [
-                    {
-                        "id": airqloud.get("_id", None),
-                        "name": airqloud.get("name", None),
-                        "tenant": str(tenant),
-                        "sites": [site["_id"] for site in airqloud.get("sites", [])],
-                    }
-                    for airqloud in response.get("airqlouds", [])
-                ]
+        try:
+            response = requests.put(
+                url=f"{self.AIRQO_BASE_URL}/devices/airqlouds/refresh",
+                params=query_params,
+            )
 
-        return airqlouds
+            print(response.json())
+        except Exception as ex:
+            print(ex)
 
     def get_airqlouds(self, tenant: Tenant = Tenant.ALL) -> list:
         query_params = {"tenant": str(Tenant.AIRQO)}
 
-        if tenant == Tenant.ALL:
+        if tenant != Tenant.ALL:
             query_params["network"] = str(tenant)
-
-        response = self.__request("devices/airqlouds", query_params)
+        response = self.__request("devices/airqlouds/dashboard", query_params)
 
         return [
             {
@@ -396,36 +261,19 @@ class AirQoApi:
         ]
 
     def get_sites(self, tenant: Tenant = Tenant.ALL) -> list:
-        sites = []
-        if tenant == Tenant.ALL:
-            for tenant_enum in Tenant:
-                if tenant_enum == Tenant.ALL:
-                    continue
-                try:
-                    response = self.__request(
-                        "devices/sites", {"tenant": str(tenant_enum)}
-                    )
-                    tenant_sites = [
-                        {**site, **{"tenant": str(tenant_enum)}}
-                        for site in response.get("sites", [])
-                    ]
-                    sites.extend(tenant_sites)
-                except Exception:
-                    continue
+        query_params = {"tenant": str(Tenant.AIRQO)}
 
-        else:
-            response = self.__request("devices/sites", {"tenant": str(tenant)})
-            if response:
-                sites = [
-                    {**site, **{"tenant": str(tenant)}}
-                    for site in response.get("sites", [])
-                ]
+        if tenant != Tenant.ALL:
+            query_params["network"] = str(tenant)
 
-        sites = [
+        response = self.__request("devices/sites", query_params)
+
+        return [
             {
                 **site,
                 **{
                     "site_id": site.get("_id", None),
+                    "tenant": site.get("network", site.get("tenant", None)),
                     "location": site.get("location", None),
                     "approximate_latitude": site.get(
                         "approximate_latitude", site.get("latitude", None)
@@ -439,10 +287,8 @@ class AirQoApi:
                     ),
                 },
             }
-            for site in sites
+            for site in response.get("sites", [])
         ]
-
-        return sites
 
     def update_sites(self, updated_sites):
         for i in updated_sites:
@@ -454,7 +300,6 @@ class AirQoApi:
     def __request(
         self, endpoint, params=None, body=None, method=None, version="v1", base_url=None
     ):
-
         if base_url is None:
             base_url = (
                 self.AIRQO_BASE_URL_V2

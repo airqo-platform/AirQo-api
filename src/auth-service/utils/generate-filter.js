@@ -4,9 +4,18 @@ const ObjectId = mongoose.Types.ObjectId;
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const log4js = require("log4js");
+const isEmpty = require("is-empty");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- generate-filter-util`
 );
+
+const {
+  addMonthsToProvideDateTime,
+  monthsInfront,
+  isTimeEmpty,
+  getDifferenceInMonths,
+  addDays,
+} = require("./date");
 
 const filter = {
   users: (req) => {
@@ -27,11 +36,11 @@ const filter = {
       if (email_address) {
         filter["email"] = email_address;
       }
-      if (resetPasswordToken) {
+      if (!isEmpty(resetPasswordToken)) {
         filter["resetPasswordToken"] = resetPasswordToken;
-        filter["resetPasswordExpires"] = {
-          $gt: Date.now(),
-        };
+        // filter["resetPasswordExpires"] = {
+        //   $gt: Date.now(),
+        // };
       }
       if (privilege) {
         filter["privilege"] = privilege;
@@ -588,6 +597,72 @@ const filter = {
         success: false,
         message: "internal server error",
         errors: { message: err.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  logs: (req) => {
+    try {
+      const { service, startTime, endTime, email } = req.query;
+      const today = monthsInfront(0);
+      const oneWeekBack = addDays(-7);
+
+      let filter = {
+        timestamp: {
+          $gte: oneWeekBack,
+          $lte: today,
+        },
+      };
+
+      if (service) {
+        filter["meta.service"] = service;
+      }
+
+      if (startTime && isEmpty(endTime)) {
+        if (isTimeEmpty(startTime) === false) {
+          filter["timestamp"]["$lte"] = addMonthsToProvideDateTime(
+            startTime,
+            1
+          );
+        } else {
+          delete filter["timestamp"];
+        }
+      }
+
+      if (endTime && isEmpty(startTime)) {
+        if (isTimeEmpty(endTime) === false) {
+          filter["timestamp"]["$gte"] = addMonthsToProvideDateTime(endTime, -1);
+        } else {
+          delete filter["timestamp"];
+        }
+      }
+
+      if (endTime && startTime) {
+        let months = getDifferenceInMonths(startTime, endTime);
+        logElement("the number of months", months);
+        if (months > 1) {
+          if (isTimeEmpty(endTime) === false) {
+            filter["timestamp"]["$gte"] = addMonthsToProvideDateTime(
+              endTime,
+              -1
+            );
+          } else {
+            delete filter["timestamp"];
+          }
+        }
+      }
+
+      if (email) {
+        filter["meta.email"] = email;
+      }
+
+      return filter;
+    } catch (error) {
+      logger.error(`Internal Server Error`, error.message);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }

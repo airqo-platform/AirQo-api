@@ -59,7 +59,7 @@ jobs:
       run_channel_data: ${{ steps.check_files.outputs.run_channel_data }} # channel data job
       run_kafka_connectors: ${{ steps.check_files.outputs.run_kafka_connectors }} # kafka connectors
       run_fault_detection: ${{ steps.check_files.outputs.run_fault_detection }} # fault detection
-      run_nginx: ${{ steps.check_files.outputs.run_nginx }} # nginx ingress
+      run_nginx: ${{ steps.check_files.outputs.run_nginx }} # nginx
 
     runs-on: ubuntu-latest
     steps:
@@ -651,13 +651,29 @@ jobs:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
 
-      - name: Build and Push Docker Image
-        run: |
-          cd src/device-monitoring/
-          docker build --target=production --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-monitor-api:${{ needs.image-tag.outputs.build_id }} .
-          docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-monitor-api:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-monitor-api:latest
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-monitor-api:${{ needs.image-tag.outputs.build_id }}
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-monitor-api:latest
+      - name: Build and push API
+        uses: docker/build-push-action@v3
+        with:
+          push: true
+          context: src/device-monitoring/
+          target: production
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-monitor-api:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-monitor-api:latest
+
+      - name: Build and push celery-beat
+        uses: docker/build-push-action@v3
+        with:
+          push: true
+          context: src/device-monitoring/
+          target: celery-beat
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-monitor-celery-beat:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-monitor-celery-beat:latest
+
+      - name: Build and push celery-worker
+        uses: docker/build-push-action@v3
+        with:
+          push: true
+          context: src/device-monitoring/
+          target: celery-worker
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-monitor-celery-worker:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-monitor-celery-worker:latest
 
       - name: Update corresponding helm values file(with retry)
         uses: Wandalen/wretry.action@master # Retries action on fail
@@ -665,10 +681,10 @@ jobs:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
             valueFile: "k8s/device-monitor/values-prod.yaml"
-            propertyPath: "image.tag"
+            propertyPath: "images.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
-            message: "Update device monitor production image tag to ${{ needs.image-tag.outputs.build_id }}"
+            message: "Update device monitor production images' tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
         uses: google-github-actions/auth@v0
@@ -1590,7 +1606,7 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           push: true
-          context: src/predict/jobs/predict
+          context: src/predict/jobs/forecast
           target: production
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-predict-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-predict-job:latest
 
@@ -1609,7 +1625,7 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           push: true
-          context: src/predict/jobs/train
+          context: src/predict/jobs/forecast_training
           target: production
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-train-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-train-job:latest
 
@@ -1763,9 +1779,9 @@ jobs:
           gcloud secrets versions access latest --secret="prod-key-channel-data-service-account" > google_application_credentials.json
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json env-update-channel-data-production-files | kubectl replace -f - -n production
 
-  ### apply nginx ingress ###
-  nginx-ingress:
-    name: apply-nginx-ingress
+  ### apply nginx ###
+  nginx:
+    name: apply-nginx
     needs: [check]
     if: needs.check.outputs.run_nginx == 'true'
     runs-on: ubuntu-latest
@@ -1779,8 +1795,5 @@ jobs:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
 
-      - name: Apply ingress changes
-        run: |
-          kubectl apply -f k8s/nginx/production/ingress.yaml
-          kubectl apply -f k8s/nginx/production/virtual-server.yaml
-          kubectl apply -f k8s/nginx/production/global-config.yaml
+      - name: Apply nginx changes
+        run: kubectl apply -f k8s/nginx/production/
