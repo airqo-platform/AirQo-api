@@ -615,6 +615,9 @@ router.post(
           return Array.isArray(value);
         })
         .withMessage("the permissions should be an array"),
+      body("permissions.*")
+        .isMongoId()
+        .withMessage("the permission provided must be an object ID"),
     ],
   ]),
   setJWTAuth,
@@ -659,7 +662,10 @@ router.delete(
         .bail()
         .notEmpty()
         .withMessage("the permission ID param cannot be empty")
-        .trim(),
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the permission provided must be an object ID"),
     ],
   ]),
   setJWTAuth,

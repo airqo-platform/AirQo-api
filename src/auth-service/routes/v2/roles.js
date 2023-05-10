@@ -593,6 +593,9 @@ router.post(
           return Array.isArray(value);
         })
         .withMessage("the permissions should be an array"),
+      body("permissions.*")
+        .isMongoId()
+        .withMessage("the permission provided must be an object ID"),
     ],
   ]),
   setJWTAuth,
@@ -601,7 +604,7 @@ router.post(
 );
 
 router.delete(
-  "/:role_id/permissions/:perm_id",
+  "/:role_id/permissions/:permission_id",
   oneOf([
     [
       query("tenant")
@@ -628,17 +631,16 @@ router.delete(
         .customSanitizer((value) => {
           return ObjectId(value);
         }),
-      param("perm_id")
+      param("permission_id")
         .exists()
-        .withMessage("the perm ID param is missing in the request")
+        .withMessage("the permission ID param is missing in the request")
+        .bail()
+        .notEmpty()
+        .withMessage("the permission ID param cannot be empty")
         .bail()
         .trim()
         .isMongoId()
-        .withMessage("the perm ID must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
+        .withMessage("the permission ID must be an object ID"),
     ],
   ]),
   setJWTAuth,

@@ -29,10 +29,13 @@ const RoleSchema = new mongoose.Schema(
       ref: "network",
       required: [true, "network_id is required"],
     },
-    role_permissions: {
-      type: Array,
-      default: [],
-    },
+    role_permissions: [
+      {
+        type: ObjectId,
+        ref: "permission",
+        unique: true,
+      },
+    ],
     role_users: [
       {
         type: ObjectId,
@@ -143,7 +146,7 @@ RoleSchema.statics = {
         .lookup({
           from: "permissions",
           localField: "role_permissions",
-          foreignField: "permission",
+          foreignField: "_id",
           as: "role_permissions",
         })
         .lookup({
@@ -197,11 +200,11 @@ RoleSchema.statics = {
       let modifiedUpdate = Object.assign({}, update);
       modifiedUpdate["$addToSet"] = {};
 
-      if (modifiedUpdate.permissions) {
+      if (modifiedUpdate.role_permissions) {
         modifiedUpdate["$addToSet"]["role_permissions"] = {};
         modifiedUpdate["$addToSet"]["role_permissions"]["$each"] =
-          modifiedUpdate.permissions;
-        delete modifiedUpdate.permissions;
+          modifiedUpdate.role_permissions;
+        delete modifiedUpdate.role_permissions;
       }
       if (modifiedUpdate.role_name) {
         delete modifiedUpdate.role_name;
@@ -227,13 +230,13 @@ RoleSchema.statics = {
           success: true,
           message: "role not found",
           data: [],
-          status: httpStatus.NOT_FOUND,
+          status: httpStatus.OK,
         };
       }
     } catch (error) {
       return {
         success: false,
-        message: "internal server errors",
+        message: "Internal Server Errors",
         error: error.message,
         errors: { message: "internal server errors" },
         status: httpStatus.INTERNAL_SERVER_ERROR,

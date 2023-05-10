@@ -716,7 +716,7 @@ const createRole = {
       request["query"]["tenant"] = tenant;
 
       const responseFromUpdateRole =
-        await controlAccessUtil.assignPermissionToRole(request);
+        await controlAccessUtil.assignPermissionsToRole(request);
 
       if (responseFromUpdateRole.success === true) {
         const status = responseFromUpdateRole.status
