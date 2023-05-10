@@ -8,3 +8,4 @@ requests
 shapely
 kafka-python
 pymongo
+google-cloud-bigquery[pandas]

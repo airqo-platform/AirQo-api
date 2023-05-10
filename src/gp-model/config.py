@@ -23,6 +23,10 @@ class Config:
     GP_MODEL_DB = os.getenv('GP_MODEL_DB')
     GP_MODEL_DB_URI = os.getenv('GP_MODEL_DB_URI')
 
+    BIGQUERY_SITES = os.getenv("BIGQUERY_SITES")
+    BIGQUERY_AIRQLOUDS_SITES = os.getenv("BIGQUERY_AIRQLOUDS_SITES")
+    BIGQUERY_HOURLY_DATA = os.getenv("BIGQUERY_HOURLY_DATA")
+
 class ProductionConfig(Config):
     MONGO_URI_NETMANAGER = os.getenv('MONGO_GCE_URI_NETMANAGER')
     DB_NAME_NETMANAGER = os.getenv("DB_NAME_PROD_NETMANAGER")
