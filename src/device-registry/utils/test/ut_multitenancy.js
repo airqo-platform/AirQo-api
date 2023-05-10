@@ -11,8 +11,7 @@ const faker = require("faker");
 const sinon = require("sinon");
 chai.use(chaiHttp);
 const HTTPStatus = require("http-status");
-
-const multitenancy = require("@utils/multitenancy");
+const mongodb = require("@config/database");
 
 describe('Multitenancy Util', function () {
 
@@ -23,8 +22,9 @@ describe('Multitenancy Util', function () {
       const schema = {};
         
         const spy=sinon.spy(multitenancy, "getModelByTenant");
-        await multitenancy.getModelByTenant(tenantId, modelName, schema);
+      const result = await multitenancy.getModelByTenant(tenantId, modelName, schema);
       expect(spy.calledOnceWithExactly(tenantId, modelName, schema)).to.be.true;
+      expect(result.modelName).to.equal(modelName);
     });
   });
 });
