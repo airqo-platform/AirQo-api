@@ -1,13 +1,13 @@
-resource "google_compute_instance" "airqo_k8s_worker_0" {
-  name    = "airqo-k8s-worker-0"
+resource "google_compute_instance" "airqo_dev_k8s_worker_0" {
+  name    = "airqo-dev-k8s-worker-0"
   project = var.project_id
   zone    = var.zone["b"]
 
-  machine_type = "c2-standard-4"
+  machine_type = "e2-standard-2"
 
   boot_disk {
-    auto_delete = false
-    source      = "https://www.googleapis.com/compute/v1/projects/${var.project_id}/zones/${var.zone["b"]}/disks/airqo-k8s-worker-0"
+    auto_delete = true
+    source      = "https://www.googleapis.com/compute/v1/projects/${var.project_id}/zones/${var.zone["b"]}/disks/airqo-dev-k8s-worker-0"
   }
 
   metadata = {
@@ -20,7 +20,7 @@ resource "google_compute_instance" "airqo_k8s_worker_0" {
     }
     network    = "airqo-k8s-cluster"
     subnetwork = "k8s-nodes"
-    network_ip = "10.240.0.20"
+    network_ip = "10.240.0.24"
   }
   tags = ["airqo-k8s", "worker"]
 
@@ -47,7 +47,7 @@ resource "google_compute_instance" "airqo_k8s_worker_0" {
   }
 
   resource_policies = [
-    "https://www.googleapis.com/compute/v1/projects/${var.project_id}/regions/${var.region}/resourcePolicies/hourly-k8s-runners"
+    "https://www.googleapis.com/compute/v1/projects/${var.project_id}/regions/${var.region}/resourcePolicies/daily-dev-vms"
   ]
 }
-# terraform import google_compute_instance.airqo_k8s_worker_0 projects/${var.project_id}/zones/${var.zone["b"]}/instances/airqo-k8s-worker-0
+# terraform import google_compute_instance.airqo_dev_k8s_worker_0 projects/${var.project_id}/zones/${var.zone["b"]}/instances/airqo-dev-k8s-worker-0

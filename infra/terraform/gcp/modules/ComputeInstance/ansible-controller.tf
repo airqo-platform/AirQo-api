@@ -1,7 +1,7 @@
 resource "google_compute_instance" "ansible_controller" {
   boot_disk {
-    auto_delete = true
-    source      = "ansible-controller"
+    auto_delete = false
+    source      = "https://www.googleapis.com/compute/v1/projects/${var.project_id}/zones/${var.zone["b"]}/disks/ansible-controller"
   }
 
   labels = {
@@ -25,6 +25,15 @@ resource "google_compute_instance" "ansible_controller" {
     network_ip = "10.132.0.44"
   }
 
+  network_interface {
+    access_config {
+      network_tier = "PREMIUM"
+    }
+    network    = "airqo-k8s-cluster"
+    subnetwork = "k8s-nodes"
+    network_ip = "10.240.0.28"
+  }
+
   project = var.project_id
 
   reservation_affinity {
@@ -42,6 +51,6 @@ resource "google_compute_instance" "ansible_controller" {
     scopes = ["https://www.googleapis.com/auth/devstorage.read_only", "https://www.googleapis.com/auth/logging.write", "https://www.googleapis.com/auth/monitoring.write", "https://www.googleapis.com/auth/service.management.readonly", "https://www.googleapis.com/auth/servicecontrol", "https://www.googleapis.com/auth/trace.append"]
   }
 
-  zone = var.zone
+  zone = var.zone["b"]
 }
-# terraform import google_compute_instance.ansible_controller projects/${var.project_id}/zones/${var.zone}/instances/ansible-controller
+# terraform import google_compute_instance.ansible_controller projects/${var.project_id}/zones/${var.zone["b"]}/instances/ansible-controller
