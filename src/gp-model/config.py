@@ -13,6 +13,7 @@ class Config:
     CSRF_ENABLED = True
     SECRET_KEY = os.getenv("SECRET_KEY")
     CREDENTIALS = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
+    BIGQUERY_MEASUREMENTS_PREDICTIONS = os.getenv('BIGQUERY_MEASUREMENTS_PREDICTIONS')
 
 
 class ProductionConfig(Config):
