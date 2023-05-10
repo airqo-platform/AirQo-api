@@ -1,24 +1,12 @@
 import logging
-import os
+import traceback
 
 from dotenv import load_dotenv
 from flask import Blueprint, request
-from flask_caching import Cache
 
-from config import constants
-from helpers.utils import get_all_gp_predictions, get_gp_predictions, get_gp_predictions_id, get_forecasts_helper
 from routes import api
 
 load_dotenv()
-
-app_configuration = constants.app_config.get(os.getenv('FLASK_ENV'))
-
-cache = Cache(config={
-    'CACHE_TYPE': 'redis',
-    'CACHE_REDIS_HOST': app_configuration.REDIS_SERVER,
-    'CACHE_REDIS_PORT': os.getenv('REDIS_PORT'),
-    'CACHE_REDIS_URL': f"redis://{app_configuration.REDIS_SERVER}:{os.getenv('REDIS_PORT')}",
-})
 
 _logger = logging.getLogger(__name__)
 
@@ -30,6 +18,7 @@ def get_next_24hr_forecasts():
     """
     Get forecasts for the next 24 hours from specified start time.
     """
+    from helpers.utils import get_forecasts_helper
     return get_forecasts_helper(db_name='hourly_forecasts')
 
 
@@ -38,6 +27,7 @@ def get_next_1_week_forecasts():
     """
     Get forecasts for the next 1 week from specified start day.
     """
+    from helpers.utils import get_forecasts_helper
     return get_forecasts_helper(db_name='daily_forecasts')
 
 
@@ -46,6 +36,7 @@ def predictions_for_heatmap():
     """
     makes predictions for a specified location at a given time.
     """
+    from helpers.utils import get_all_gp_predictions, get_gp_predictions, get_gp_predictions_id
     if request.method == 'GET':
         try:
             airqloud = request.args.get('airqloud').lower()
@@ -68,6 +59,24 @@ def predictions_for_heatmap():
             return {'message': 'No data for specified airqloud', 'success': False}, 400
     else:
         return {'message': 'Wrong request method. This is a GET endpoint.', 'success': False}, 400
+
+
+@ml_app.route(api.route['search_predictions'], methods=['GET'])
+def search_predictions():
+    from helpers.utils import get_predictions_by_geo_coordinates
+    try:
+        latitude = float(request.args.get('latitude'))
+        longitude = float(request.args.get('longitude'))
+        distance_in_metres = int(request.args.get('distance', 100))
+        data = get_predictions_by_geo_coordinates(latitude=latitude,
+                                                  longitude=longitude,
+                                                  distance_in_metres=distance_in_metres
+                                                  )
+        return {'success': True, 'data': data}, 200
+    except Exception as ex:
+        print(ex)
+        traceback.print_exc()
+        return {'message': 'Please contact support', 'success': False}, 500
 
 
 if __name__ == '__main__':

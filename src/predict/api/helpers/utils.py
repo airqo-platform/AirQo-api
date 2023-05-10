@@ -1,9 +1,12 @@
 from datetime import datetime, timedelta
 
+import pandas as pd
 from dotenv import load_dotenv
 from flask import request, jsonify
+from google.cloud import bigquery
 
-from config.constants import connect_mongo
+from app import cache
+from config.constants import connect_mongo, Config
 from models.predict import get_forecasts
 
 load_dotenv()
@@ -51,6 +54,34 @@ def get_gp_predictions(airqloud):
                       'values': 1}
         records = list(db.gp_predictions.find(query, projection))
     return records
+
+
+def geo_coordinates_cache_key():
+    key = 'geo_coordinates:' + str(round(float(request.args.get('latitude')), 6)) + ':' + str(round(float(request.args.get('longitude')), 6)) + ':' + str(request.args.get('distance_in_metres'))
+    return key
+
+
+@cache.cached(timeout=3600, key_prefix=geo_coordinates_cache_key)
+def get_predictions_by_geo_coordinates(latitude: float, longitude: float, distance_in_metres: int) -> {}:
+
+    client = bigquery.Client()
+
+    query = f"SELECT pm2_5, timestamp, pm2_5_confidence_interval " \
+            f"FROM `{Config.BIGQUERY_MEASUREMENTS_PREDICTIONS}` " \
+            f"WHERE ST_DISTANCE(location, ST_GEOGPOINT({longitude}, {latitude})) <= {distance_in_metres} " \
+            f"ORDER BY pm2_5_confidence_interval " \
+            f"LIMIT 1"
+    dataframe = client.query(query=query).result().to_dataframe()
+
+    if dataframe.empty:
+        return {}
+
+    dataframe["timestamp"] = dataframe["timestamp"].apply(pd.to_datetime)
+    dataframe.drop_duplicates(keep="first", inplace=True)
+
+    data = dataframe.to_dict("records")[0]
+
+    return data
 
 
 def get_gp_predictions_id(aq_id):
