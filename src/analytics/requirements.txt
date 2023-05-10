@@ -15,6 +15,8 @@ marshmallow
 google-cloud-bigquery[pandas]
 redis
 python-decouple
+celery
+google-cloud-storage
 
 # Ports for stable python 3 functionality
 dataclasses # for py < 3.7

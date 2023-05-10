@@ -1,0 +1,92 @@
+import logging
+from datetime import timedelta
+
+from celery.utils.log import get_task_logger
+from flask import Flask
+from flask_caching import Cache
+from flask_pymongo import PyMongo
+
+from celery import Celery
+
+from config import Config, CONFIGURATIONS
+from api.models import (
+    DataExportModel,
+    DataExportStatus,
+    DataExportRequest,
+    EventsModel
+)
+
+celery_logger = get_task_logger(__name__)
+_logger = logging.getLogger(__name__)
+
+# db initialization
+mongo = PyMongo()
+cache = Cache()
+
+
+def create_app():
+    application = Flask(__name__)
+    application.config.from_object(CONFIGURATIONS)
+    mongo.init_app(application)
+    cache.init_app(application)
+    return application
+
+
+def make_celery():
+    config = {"broker_url": f"{Config.CACHE_REDIS_URL}/0", "result_backend": f"{Config.CACHE_REDIS_URL}/0",
+              "beat_schedule": {
+                  "data_export_periodic_task": {
+                      "task": "data_export_periodic_task",
+                      "schedule": timedelta(hours=5),
+                  }
+              },
+              "app_name": "data_export",
+              }
+
+    celery_application = Celery(
+        config["app_name"], broker=config["broker_url"]
+    )
+    celery_application.conf.update(config)
+    return celery_application
+
+
+celery = make_celery()
+
+@celery.task(name="data_export_periodic_task")
+def data_export_task():
+    celery_logger.info("Data export periodic task running")
+
+
+    data_export_model = DataExportModel()
+    scheduled_requests: [DataExportRequest] = data_export_model.get_scheduled_requests()
+    requests_for_processing: [DataExportRequest] = []
+
+    for request in scheduled_requests:
+        request.status = DataExportStatus.PROCESSING
+        success = data_export_model.update_request_status(request)
+        if success:
+            requests_for_processing.append(request)
+
+    for request in requests_for_processing:
+        try:
+            request_data = EventsModel.download_from_bigquery(
+                sites=request.sites,
+                devices=request.devices,
+                airqlouds=request.airqlouds,
+                start_date=request.start_date,
+                end_date=request.end_date,
+                frequency=request.frequency,
+                pollutants=request.pollutants,
+            )
+
+            download_link = data_export_model.upload_dataframe_to_gcs(
+                contents=request_data, export_request=request
+            )
+            request.download_link = download_link
+            request.status = DataExportStatus.READY
+
+            data_export_model.update_request_status_and_download_link(request)
+        except Exception as ex:
+            print(ex)
+            request.status = DataExportStatus.FAILED
+            data_export_model.update_request_status(request)

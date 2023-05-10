@@ -28,3 +28,9 @@ FROM base as production
 ENV FLASK_ENV=production
 # Run the application
 CMD ["flask", "run", "--host=0.0.0.0"]
+
+FROM base as celery-beat
+CMD celery -A celery_app.celery beat
+
+FROM base as celery-worker
+CMD celery -A celery_app.celery worker --loglevel=info
