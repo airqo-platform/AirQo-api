@@ -280,8 +280,6 @@ UserSchema.statics = {
         updatedAt: 1,
       };
 
-      const projectSummary = {};
-
       const response = await this.aggregate()
         .match(filter)
         .lookup({
@@ -356,7 +354,6 @@ UserSchema.statics = {
 
         .project({
           "role.__v": 0,
-          "role._id": 0,
           "role.createdAt": 0,
           "role.updatedAt": 0,
           "role.role_users": 0,
@@ -466,10 +463,10 @@ UserSchema.statics = {
   },
   async remove({ filter = {} } = {}) {
     try {
-      let options = {
+      const options = {
         projection: { _id: 0, email: 1, firstName: 1, lastName: 1 },
       };
-      let removedUser = await this.findOneAndRemove(filter, options).exec();
+      const removedUser = await this.findOneAndRemove(filter, options).exec();
 
       if (!isEmpty(removedUser)) {
         return {
@@ -489,8 +486,7 @@ UserSchema.statics = {
     } catch (error) {
       return {
         success: false,
-        message: "User model server error - remove",
-        error: error.message,
+        message: "Internal Server Error",
         errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
@@ -620,6 +616,7 @@ UserSchema.methods = {
       updatedAt: this.updatedAt,
       role: this.role,
       verified: this.verified,
+      networks: this.networks,
     };
   },
 };
