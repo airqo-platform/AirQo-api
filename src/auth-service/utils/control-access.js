@@ -1546,16 +1546,22 @@ const controlAccess = {
         permission.toString()
       );
 
+      logObject("assignedPermissions", assignedPermissions);
+
       const alreadyAssigned = permissions.filter((permission) =>
         assignedPermissions.includes(permission)
       );
+
+      logObject("alreadyAssigned", alreadyAssigned);
 
       if (alreadyAssigned.length > 0) {
         return {
           success: false,
           message: "Bad Request Error",
           errors: {
-            message: `Some permissions already assigned to the Role ${role_id.toString()}`,
+            message: `Some permissions already assigned to the Role ${role_id.toString()}, they include: ${alreadyAssigned.join(
+              ","
+            )}`,
           },
         };
       }
@@ -1679,7 +1685,7 @@ const controlAccess = {
       const { permission_ids } = body;
 
       // Check if role exists
-      const role = await RoleModel(tenant).findById(role_id).lean();
+      const role = await RoleModel(tenant).findById(role_id);
       if (!role) {
         return {
           success: false,
@@ -1709,55 +1715,51 @@ const controlAccess = {
         };
       }
 
-      // Check if any of the provided permissions are not already assigned to the role
-      logObject("role", role);
+      const assignedPermissions = role.role_permissions.map((permission) =>
+        permission.toString()
+      );
 
-      const stringPermissions = role.role_permissions.map((perm) => {
-        perm.toString();
-      });
+      const notAssigned = permission_ids.filter(
+        (permission) => !assignedPermissions.includes(permission)
+      );
 
-      const assignedPermissions = stringPermissions;
-
-      const unassignedPermissions = permission_ids.filter((permission_id) => {
-        return !assignedPermissions.includes(permission_id.toString());
-      });
-
-      logObject("unassignedPermissions", unassignedPermissions);
-      logObject("permission_ids", permission_ids);
-      if (unassignedPermissions.length === permission_ids.length) {
+      if (notAssigned.length > 0) {
         return {
           success: false,
-          message: "Bad Request Errors",
+          message: "Bad Request Error",
           errors: {
-            message: `Permissions not assigned to role: ${unassignedPermissions.join(
-              ","
+            message: `Some of the provided permissions are not assigned to the Role ${role_id.toString()}, they include: ${notAssigned.join(
+              ", "
             )}`,
           },
-          status: httpStatus.BAD_REQUEST,
         };
       }
 
-      // Remove the permissions from the role
-      const result = await RoleModel(tenant).updateMany(
-        { _id: role_id },
-        { $pull: { permissions: { $in: permission_ids } } }
+      const updatedRole = await RoleModel(tenant).findByIdAndUpdate(
+        role_id,
+        { $pull: { role_permissions: { $in: permission_ids } } },
+        { new: true }
       );
 
-      // Check if any permissions were actually removed
-      if (result.nModified === 0) {
+      if (!isEmpty(updatedRole)) {
+        return {
+          success: true,
+          message: "Permissions removed successfully",
+          status: httpStatus.OK,
+          data: updatedRole,
+        };
+      } else if (isEmpty(updatedRole)) {
         return {
           success: false,
-          message: "Internal Server Error",
-          errors: {
-            message: "Permissions not removed from role",
-          },
-          status: httpStatus.INTERNAL_SERVER_ERROR,
+          message: "Bad Request Error",
+          errors: { message: "unable to remove the permissions" },
+          status: httpStatus.BAD_REQUEST,
         };
       }
 
       return {
         success: true,
-        message: `${result.nModified} permissions were unassigned from the role.`,
+        message: `permissions successfully unassigned from the role.`,
         status: httpStatus.OK,
       };
     } catch (error) {
@@ -1767,6 +1769,7 @@ const controlAccess = {
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
