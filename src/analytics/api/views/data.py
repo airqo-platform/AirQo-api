@@ -10,13 +10,20 @@ from flask_restx import Resource
 from api.models import (
     EventsModel,
 )
-from api.models.data_export import DataExportRequest, DataExportModel, DataExportStatus
+from api.models.data_export import (
+    DataExportRequest,
+    DataExportModel,
+    DataExportStatus,
+    DataExportFormat,
+    Frequency,
+)
 
 # Middlewares
 from api.utils.data_formatters import (
     format_to_aqcsv,
     compute_airqloud_data_statistics,
 )
+from api.utils.dates import str_to_date
 from api.utils.http import create_response, Status
 from api.utils.request_validators import validate_request_json
 from main import rest_api_v1, rest_api_v2
@@ -170,7 +177,7 @@ class DataExportV2Resource(Resource):
         "endDateTime|required:datetime",
         "userId|required:str",
         "frequency|optional:str",
-        "downloadType|optional:str",
+        "exportFormat|optional:str",
         "outputFormat|optional:str",
         "pollutants|optional:list",
         "sites|optional:list",
@@ -179,7 +186,7 @@ class DataExportV2Resource(Resource):
     )
     def post(self):
         valid_pollutants = ["pm2_5", "pm10", "no2"]
-        valid_download_types = ["csv", "json"]
+        valid_export_formats = ["csv", "json"]
         valid_output_formats = ["airqo-standard", "aqcsv"]
         valid_frequencies = ["hourly", "daily", "raw"]
 
@@ -193,8 +200,8 @@ class DataExportV2Resource(Resource):
         pollutants = json_data.get("pollutants", valid_pollutants)
         user_id = json_data.get("userId")
         frequency = f"{json_data.get('frequency', valid_frequencies[0])}".lower()
-        download_type = (
-            f"{json_data.get('downloadType', valid_download_types[0])}".lower()
+        export_format = (
+            f"{json_data.get('exportFormat', valid_export_formats[0])}".lower()
         )
         output_format = (
             f"{json_data.get('outputFormat', valid_output_formats[0])}".lower()
@@ -227,10 +234,10 @@ class DataExportV2Resource(Resource):
                 Status.HTTP_400_BAD_REQUEST,
             )
 
-        if download_type not in valid_download_types:
+        if export_format not in valid_export_formats:
             return (
                 create_response(
-                    f"Invalid download type {download_type}. Valid string values are any of {', '.join(valid_download_types)}",
+                    f"Invalid download type {export_format}. Valid string values are any of {', '.join(valid_export_formats)}",
                     success=False,
                 ),
                 Status.HTTP_400_BAD_REQUEST,
@@ -259,15 +266,15 @@ class DataExportV2Resource(Resource):
             data_export_model = DataExportModel()
             data_export_request = DataExportRequest(
                 airqlouds=airqlouds,
-                start_date=start_date,
-                end_date=end_date,
+                start_date=str_to_date(start_date),
+                end_date=str_to_date(end_date),
                 sites=sites,
                 status=DataExportStatus.SCHEDULED,
                 download_link="",
                 request_date=datetime.datetime.utcnow(),
                 user_id=user_id,
-                frequency=frequency,
-                download_type=download_type,
+                frequency=Frequency[frequency.upper()],
+                export_format=DataExportFormat[export_format.upper()],
                 devices=devices,
                 request_id="",
                 pollutants=pollutants,
@@ -279,7 +286,7 @@ class DataExportV2Resource(Resource):
             return (
                 create_response(
                     "request successfully received",
-                    data=data_export_request.to_dict(),
+                    data=data_export_request.to_dict(format_datetime=True),
                 ),
                 Status.HTTP_200_OK,
             )
@@ -302,7 +309,7 @@ class DataExportV2Resource(Resource):
             data_export_model = DataExportModel()
             requests = data_export_model.get_user_requests(user_id)
 
-            data = [x.to_dict() for x in requests]
+            data = [x.to_dict(format_datetime=True) for x in requests]
 
             return (
                 create_response(
@@ -335,7 +342,7 @@ class DataExportV2Resource(Resource):
                 return (
                     create_response(
                         "request successfully updated",
-                        data=export_request.to_dict(),
+                        data=export_request.to_dict(format_datetime=True),
                     ),
                     Status.HTTP_200_OK,
                 )

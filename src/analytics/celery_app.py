@@ -58,6 +58,12 @@ def data_export_task():
         DataExportRequest
     ] = data_export_model.get_scheduled_and_failed_requests()
 
+    if len(scheduled_requests) == 0:
+        celery_logger.info("No data for processing")
+        return
+    else:
+        celery_logger.info(f"Commenced processing {len(scheduled_requests)} request(s)")
+
     requests_for_processing: [DataExportRequest] = []
 
     for request in scheduled_requests:
@@ -74,11 +80,11 @@ def data_export_task():
                 airqlouds=request.airqlouds,
                 start_date=request.start_date,
                 end_date=request.end_date,
-                frequency=request.frequency,
+                frequency=request.frequency.value,
                 pollutants=request.pollutants,
             )
 
-            download_link = data_export_model.upload_dataframe_to_gcs(
+            download_link = data_export_model.upload_file_to_gcs(
                 contents=request_data, export_request=request
             )
             request.download_link = download_link
@@ -93,3 +99,11 @@ def data_export_task():
             traceback.print_exc()
             request.status = DataExportStatus.FAILED
             data_export_model.update_request_status(request)
+
+        celery_logger.info(
+            f"Finished processing {len(requests_for_processing)} request(s)"
+        )
+
+
+if __name__ == "__main__":
+    data_export_task()

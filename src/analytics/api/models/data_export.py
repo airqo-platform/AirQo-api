@@ -1,5 +1,6 @@
-import datetime
+import json
 from dataclasses import dataclass, asdict
+from datetime import datetime
 from enum import Enum
 
 import pandas as pd
@@ -7,55 +8,62 @@ from bson import ObjectId
 from google.cloud import storage
 
 from api.models.base.base_model import BaseMongoModel
-from api.utils.dates import str_to_date, date_to_str
+from api.utils.dates import date_to_str
 from config import Config
 
 
 class DataExportStatus(Enum):
-    SCHEDULED = 0
-    PROCESSING = 1
-    READY = 2
-    FAILED = 3
+    SCHEDULED = "scheduled"
+    PROCESSING = "processing"
+    READY = "ready"
+    FAILED = "failed"
 
-    def __str__(self) -> str:
-        if self == DataExportStatus.SCHEDULED:
-            return "SCHEDULED"
-        elif self == DataExportStatus.PROCESSING:
-            return "PROCESSING"
-        elif self == DataExportStatus.READY:
-            return "READY"
-        elif self == DataExportStatus.FAILED:
-            return "FAILED"
-        else:
-            return ""
+
+class Frequency(Enum):
+    RAW = "raw"
+    HOURLY = "hourly"
+    DAILY = "daily"
+
+
+class DataExportFormat(Enum):
+    JSON = "json"
+    CSV = "csv"
 
 
 @dataclass
 class DataExportRequest:
     status: DataExportStatus
+    frequency: Frequency
+    export_format: DataExportFormat
+
     request_date: datetime
+    start_date: datetime
+    end_date: datetime
 
     download_link: str
     request_id: str
     user_id: str
-    start_date: str
-    end_date: str
-    frequency: str
-    download_type: str
 
     sites: list[str]
     devices: list[str]
     airqlouds: list[str]
     pollutants: list[str]
 
-    def to_dict(self) -> dict:
+    def to_dict(self, format_datetime=False) -> dict:
         _dict = asdict(self)
-        _dict["status"] = str(self.status)
-        _dict["request_date"] = date_to_str(self.request_date)
+        _dict["status"] = self.status.value
+        _dict["frequency"] = self.frequency.value
+        _dict["export_format"] = self.export_format.value
+
+        if format_datetime:
+            _dict["request_date"] = date_to_str(self.request_date)
+            _dict["start_date"] = date_to_str(self.start_date)
+            _dict["end_date"] = date_to_str(self.end_date)
+
         return _dict
 
     def destination_file(self) -> str:
-        return f"{self.user_id}_{date_to_str(self.request_date) }.{self.download_type}"
+        return f"{self.user_id}_{date_to_str(self.request_date) }.{self.export_format.value}"
 
 
 class DataExportModel(BaseMongoModel):
@@ -69,14 +77,14 @@ class DataExportModel(BaseMongoModel):
             devices=doc["devices"],
             start_date=doc["start_date"],
             end_date=doc["end_date"],
-            status=DataExportStatus[doc["status"]],
             airqlouds=doc["airqlouds"],
             sites=doc["sites"],
             download_link=doc["download_link"],
-            request_date=str_to_date(doc["request_date"]),
+            request_date=doc["request_date"],
             user_id=doc["user_id"],
-            frequency=doc["frequency"],
-            download_type=doc["download_type"],
+            status=DataExportStatus[str(doc["status"]).upper()],
+            frequency=Frequency[str(doc["frequency"]).upper()],
+            export_format=DataExportFormat[str(doc["export_format"]).upper()],
             pollutants=doc["pollutants"],
         )
 
@@ -96,7 +104,7 @@ class DataExportModel(BaseMongoModel):
     def get_scheduled_and_failed_requests(self) -> list[DataExportRequest]:
         filter_set = {
             "status": {
-                "$in": [str(DataExportStatus.SCHEDULED), str(DataExportStatus.FAILED)]
+                "$in": [DataExportStatus.SCHEDULED.value, DataExportStatus.FAILED.value]
             }
         }
         docs = self.db.data_eport.find(filter_set)
@@ -140,7 +148,7 @@ class DataExportModel(BaseMongoModel):
         doc = self.db.data_eport.find_one(filter_set)
         return self.doc_to_data_export_request(doc)
 
-    def upload_dataframe_to_gcs(
+    def upload_file_to_gcs(
         self, contents: pd.DataFrame, export_request: DataExportRequest
     ) -> str:
         storage_client = storage.Client()
@@ -148,6 +156,10 @@ class DataExportModel(BaseMongoModel):
         blob = bucket.blob(export_request.destination_file())
 
         contents.reset_index(drop=True, inplace=True)
-        blob.upload_from_string(contents.to_csv(index=False), "text/csv")
+        if export_request.export_format == DataExportFormat.CSV:
+            blob.upload_from_string(data=contents.to_csv(index=False), content_type="text/csv", timeout=300, num_retries=2)
+        elif export_request.export_format == DataExportFormat.JSON:
+            data = contents.to_dict("records")
+            blob.upload_from_string(data=json.dumps(data), content_type="application/json", timeout=300, num_retries=2)
 
         return f"https://storage.cloud.google.com/{self.bucket_name}/{export_request.destination_file()}"
