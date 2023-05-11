@@ -268,10 +268,13 @@ const defaultConfig = {
       "network.net_category": 0,
       "network.createdAt": 0,
       "network.updatedAt": 0,
+      "network.net_acronym": 0,
+      "network.net_manager": 0,
       "role_permissions.description": 0,
       "role_permissions.createdAt": 0,
       "role_permissions.updatedAt": 0,
       "role_permissions.__v": 0,
+      "role_permissions.network_id": 0,
     };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {

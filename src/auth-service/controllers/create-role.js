@@ -535,15 +535,14 @@ const createRole = {
         );
       }
       /**
-       * logged in user needs to have the right permission to perform this
-       * action
-       *
+       * logged in user needs to have the right permission to perform this action
        * send error message of 400,bad request in case user was not assigned to that role
        */
 
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
+        tenant = constants.DEFAULT_TENANT || "airqo";
       }
+
       let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
       const responseFromUnAssignUserFromRole =
@@ -794,6 +793,65 @@ const createRole = {
           message: responseFromUnAssignPermissionFromRole.message,
           errors: responseFromUnAssignPermissionFromRole.errors
             ? responseFromUnAssignPermissionFromRole.errors
+            : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
+  unAssignManyPermissionsFromRole: async (req, res) => {
+    try {
+      logText("unAssign Many Permissions FromRole....");
+      const { query, body } = req;
+      let { tenant } = query;
+      const hasErrors = !validationResult(req).isEmpty();
+      logObject("hasErrors", hasErrors);
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT;
+      }
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
+
+      const responseFromunAssignManyPermissionsFromRole =
+        await controlAccessUtil.unAssignManyPermissionsFromRole(request);
+
+      if (responseFromunAssignManyPermissionsFromRole.success === true) {
+        const status = responseFromunAssignManyPermissionsFromRole.status
+          ? responseFromunAssignManyPermissionsFromRole.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromunAssignManyPermissionsFromRole.message,
+          modified_role: responseFromunAssignManyPermissionsFromRole.data,
+        });
+      } else if (
+        responseFromunAssignManyPermissionsFromRole.success === false
+      ) {
+        const status = responseFromunAssignManyPermissionsFromRole.status
+          ? responseFromunAssignManyPermissionsFromRole.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+
+        return res.status(status).json({
+          success: true,
+          message: responseFromunAssignManyPermissionsFromRole.message,
+          errors: responseFromunAssignManyPermissionsFromRole.errors
+            ? responseFromunAssignManyPermissionsFromRole.errors
             : { message: "" },
         });
       }

@@ -17,6 +17,7 @@ const generateFilter = require("@utils/generate-filter");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const moment = require("moment-timezone");
+const ObjectId = mongoose.Types.ObjectId;
 
 const log4js = require("log4js");
 const logger = log4js.getLogger(
@@ -88,6 +89,7 @@ const RoleModel = (tenant) => {
     let roles = mongoose.model("roles");
     return roles;
   } catch (error) {
+    logObject("error in Role Model", error);
     let roles = getModelByTenant(tenant, "role", RoleSchema);
     return roles;
   }
@@ -1171,62 +1173,124 @@ const controlAccess = {
 
   unAssignUserFromRole: async (request) => {
     try {
-      /**
-       * logged in user needs to have the right permission to perform this
-       * action
-       *
-       * send error message of 400 in case user was not assigned to that role
-       */
-
-      logText("the util for unAssignUserFromRole...");
-      let filter = {};
-      const limit = parseInt(request.query.limit, 0);
-      const skip = parseInt(request.query.skip, 0);
       const { query, params } = request;
       const { role_id, user_id } = params;
       const { tenant } = query;
-      let newRequest = Object.assign({}, request);
-      newRequest["query"]["role_id"] = role_id;
 
-      filter = { _id: role_id };
-      const responseFromListRole = await RoleModel(tenant.toLowerCase()).list({
-        filter,
-        skip,
-        limit,
-      });
-
-      logObject("responseFromListRole", responseFromListRole);
-
-      if (responseFromListRole.success === true) {
-        if (responseFromListRole.status === httpStatus.NOT_FOUND) {
-          return responseFromListRole;
-        }
-      } else if (responseFromListRole.success === false) {
-        return responseFromListRole;
+      // Check if the role exists
+      const roleObject = await RoleModel(tenant).findById(role_id).lean();
+      if (isEmpty(roleObject)) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: {
+            message: `Role ${role_id.toString()} does not exist`,
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
       }
 
-      filter = { _id: user_id };
-      const update = { $unset: { role: "" } };
-      const responseFromUnAssignUserFromRole = await UserModel(tenant).modify({
-        filter,
-        update,
-      });
+      // Check if the user exists and is not a super_admin already
+      const userObject = await UserModel(tenant)
+        .findById(user_id)
+        .populate("role")
+        .lean();
+      logObject("userObject", userObject);
 
-      logObject(
-        "responseFromUnAssignUserFromRole",
-        responseFromUnAssignUserFromRole
+      if (
+        isEmpty(userObject) ||
+        (userObject.role && userObject.role.role_name.endsWith("SUPER_ADMIN"))
+      ) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: {
+            message: `provided User ${user.toString()} does not exist or super admin user may not be unassigned from their role`,
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      // Check if user's role is pointing to a valid role ID
+      if (isEmpty(userObject.role)) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: "User is not assigned to any role" },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      // check to see if the role has any users assigned to it
+
+      if (isEmpty(roleObject.role_users)) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: {
+            message: `The provided role ${role_id.toString()} does not have any users assigned to it `,
+          },
+        };
+      }
+
+      // Check if role_name doesn't end with SUPER_ADMIN
+      if (roleObject.role_name.endsWith("SUPER_ADMIN")) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: "Cannot unassign user from SUPER_ADMIN role" },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      // Check if the user is already unassigned from the role
+      if (
+        !roleObject.role_users
+          .map((id) => id.toString())
+          .includes(user_id.toString())
+      ) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: {
+            message: `Role ${role_id.toString()} does not have User ${user_id.toString()}  assigned to it`,
+          },
+        };
+      }
+
+      // Check if the user is not assigned to the role
+      if (
+        userObject.role &&
+        !userObject.role._id.toString() === roleObject._id.toString()
+      ) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: {
+            message: `User ${user_id.toString()} is not assigned to the role ${roleObject._id.toString()}`,
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const updatedUser = await UserModel(tenant).findByIdAndUpdate(
+        user_id,
+        { $unset: { role: "" } },
+        { new: true }
       );
 
-      if (responseFromUnAssignUserFromRole.success === true) {
-        if (responseFromUnAssignUserFromRole.status === httpStatus.NOT_FOUND) {
-          return responseFromUnAssignUserFromRole;
-        }
-        newResponse = Object.assign({}, responseFromUnAssignUserFromRole);
-        newResponse.message = "successfully unassigned user from role";
-        return newResponse;
-      } else if (responseFromUnAssignUserFromRole.success === false) {
-        return responseFromUnAssignUserFromRole;
-      }
+      const updatedRole = await RoleModel(tenant).findByIdAndUpdate(
+        role_id,
+        { $pull: { role_users: user_id } },
+        { new: true }
+      );
+
+      return {
+        success: true,
+        message: "User unassigned from the role",
+        data: { updated_user: updatedUser, updated_role: updatedRole },
+        status: httpStatus.OK,
+      };
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
       logObject("error", error);
@@ -1239,6 +1303,53 @@ const controlAccess = {
     }
   },
 
+  unAssignManyUsersFromRole: async (request) => {
+    try {
+      const role_id = req.params.role_id;
+      const user_ids = req.body.user_ids;
+
+      // Validate the inputs
+      if (!role_id || !user_ids || !Array.isArray(user_ids)) {
+        return res.status(400).send("Invalid input data");
+      }
+
+      // Check if the role exists
+      const role = await Role.findById(role_id);
+      if (!role) {
+        return res.status(404).send("Role not found");
+      }
+
+      // Check if any of the user's role ends with SUPER_ADMIN
+      const users = await User.find({ _id: { $in: user_ids } });
+      for (const user of users) {
+        if (user.role.endsWith("SUPER_ADMIN")) {
+          return res.status(400).send("Cannot unassign SUPER_ADMIN role");
+        }
+      }
+
+      // Unassign the users from the role
+      const result = await User.updateMany(
+        { _id: { $in: user_ids }, role: role_id },
+        { $pull: { role: role_id } }
+      );
+
+      // Check the result
+      if (result.nModified !== user_ids.length) {
+        return res.status(500).send("Could not unassign all users from role");
+      }
+
+      res.send("Users successfully unassigned from role");
+    } catch (error) {
+      logObject("error", error);
+      logger.error(`Internal Server Error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
   listPermissionsForRole: async (request) => {
     try {
       logText("listPermissionsForRole...");
@@ -1308,33 +1419,37 @@ const controlAccess = {
         filter,
       });
 
+      logObject(
+        "responseFromListAvailablePermissionsForRole",
+        responseFromListAvailablePermissionsForRole
+      );
+
       if (responseFromListAvailablePermissionsForRole.success === true) {
         if (
-          responseFromListAvailablePermissionsForRole.status === httpStatus.OK
-        ) {
-          const permissions =
-            responseFromListAvailablePermissionsForRole.data[0]
-              .role_permissions;
-          const permissionsArray = permissions.map((obj) => obj.permission);
-          filter = { permission: { $nin: permissionsArray } };
-          let responseFromListPermissions = await PermissionModel(tenant).list({
-            skip,
-            limit,
-            filter,
-          });
-          return responseFromListPermissions;
-        } else if (
-          responseFromListAvailablePermissionsForRole.status ===
-          httpStatus.NOT_FOUND
+          responseFromListAvailablePermissionsForRole.message ===
+            "roles not found for this operation" ||
+          isEmpty(responseFromListAvailablePermissionsForRole.data)
         ) {
           return responseFromListAvailablePermissionsForRole;
         }
+
+        const permissions =
+          responseFromListAvailablePermissionsForRole.data[0].role_permissions;
+        const permissionsArray = permissions.map((obj) => obj.permission);
+        filter = { permission: { $nin: permissionsArray } };
+        let responseFromListPermissions = await PermissionModel(tenant).list({
+          skip,
+          limit,
+          filter,
+        });
+        return responseFromListPermissions;
       } else if (
         responseFromListAvailablePermissionsForRole.success === false
       ) {
         return responseFromListAvailablePermissionsForRole;
       }
     } catch (error) {
+      logObject("error", error);
       logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
@@ -1345,51 +1460,133 @@ const controlAccess = {
     }
   },
 
-  assignPermissionToRole: async (request) => {
+  assignPermissionsToRole: async (request) => {
     try {
-      logText("assignPermissionToRole...");
-      let filter = {};
-      let update = {};
       const { query, params, body } = request;
       const { role_id } = params;
       const { tenant } = query;
       const { permissions } = body;
 
-      update.permissions = permissions;
-      filter._id = role_id;
+      const role = await RoleModel(tenant).findById(role_id);
+      if (!role) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: `Role ${role_id.toString()} Not Found` },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
 
-      const responseFromAssignPermissionToRole = await RoleModel(
-        tenant.toLowerCase()
-      ).modify({
-        filter,
-        update,
+      const permissionsResponse = await PermissionModel(tenant).find({
+        _id: { $in: permissions.map((id) => ObjectId(id)) },
       });
 
-      if (responseFromAssignPermissionToRole.success === true) {
-        return responseFromAssignPermissionToRole;
-      } else if (responseFromAssignPermissionToRole.success === false) {
-        return responseFromAssignPermissionToRole;
+      if (permissionsResponse.length !== permissions.length) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            message: "not all provided permissions exist, please crosscheck",
+          },
+        };
+      }
+
+      const assignedPermissions = role.role_permissions.map((permission) =>
+        permission.toString()
+      );
+
+      const alreadyAssigned = permissions.filter((permission) =>
+        assignedPermissions.includes(permission)
+      );
+
+      if (alreadyAssigned.length > 0) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: {
+            message: `Some permissions already assigned to the Role ${role_id.toString()}`,
+          },
+        };
+      }
+      const updatedRole = await RoleModel(tenant).findOneAndUpdate(
+        { _id: role_id },
+        { $addToSet: { role_permissions: { $each: permissions } } },
+        { new: true }
+      );
+
+      if (!isEmpty(updatedRole)) {
+        return {
+          success: true,
+          message: "Permissions added successfully",
+          status: httpStatus.OK,
+          data: updatedRole,
+        };
+      } else if (isEmpty(updatedRole)) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: "unable to update Role" },
+          status: httpStatus.BAD_REQUEST,
+        };
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+      return {
+        status: httpStatus.INTERNAL_SERVER_ERROR,
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
-      });
+      };
     }
   },
 
   unAssignPermissionFromRole: async (request) => {
     try {
-      let filter = {};
-
       const { query, params } = request;
       const { role_id, permission_id } = params;
       const { tenant } = query;
 
-      filter = { _id: role_id };
+      const role = await RoleModel(tenant).findById(role_id);
+      if (!role) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: `Role ${role_id.toString()} Not Found` },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const filter = { _id: role_id };
       const update = { $pull: { role_permissions: permission_id } };
+
+      const permission = await PermissionModel(tenant).findById(permission_id);
+      if (!permission) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: {
+            message: `Permission ${permission_id.toString()} Not Found`,
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const roleResponse = await RoleModel(tenant).findOne({
+        _id: role_id,
+        role_permissions: permission_id,
+      });
+
+      if (!roleResponse) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: {
+            message: `Permission ${permission_id.toString()} is not assigned to the Role ${role_id.toString()}`,
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
 
       const responseFromUnAssignPermissionFromRole = await RoleModel(
         tenant
@@ -1403,15 +1600,118 @@ const controlAccess = {
           {},
           responseFromUnAssignPermissionFromRole
         );
-        if (responseFromUnAssignPermissionFromRole.status === httpStatus.OK) {
+        if (
+          responseFromUnAssignPermissionFromRole.message ===
+          "successfully modified the Permission"
+        ) {
           modifiedResponse.message = "permission has been unassigned from role";
-          return modifiedResponse;
         }
         return modifiedResponse;
       } else if (responseFromUnAssignPermissionFromRole.success === false) {
         return responseFromUnAssignPermissionFromRole;
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  unAssignManyPermissionsFromRole: async (request) => {
+    try {
+      const { query, params, body } = request;
+      const { role_id } = params;
+      const { tenant } = query;
+      const { permission_ids } = body;
+
+      // Check if role exists
+      const role = await RoleModel(tenant).findById(role_id).lean();
+      if (!role) {
+        return {
+          success: false,
+          message: "Bad Request Errors",
+          errors: { message: `Role ${role_id} not found` },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      // Check if any of the provided permission IDs don't exist
+      const permissions = await PermissionModel(tenant).find({
+        _id: { $in: permission_ids },
+      });
+      const missingPermissions = permission_ids.filter((permission_id) => {
+        return !permissions.some((permission) =>
+          permission._id.equals(permission_id)
+        );
+      });
+      if (missingPermissions.length > 0) {
+        return {
+          success: false,
+          message: "Bad Request Errors",
+          errors: {
+            message: `Permissions not found: ${missingPermissions.join(", ")}`,
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      // Check if any of the provided permissions are not already assigned to the role
+      logObject("role", role);
+
+      const stringPermissions = role.role_permissions.map((perm) => {
+        perm.toString();
+      });
+
+      const assignedPermissions = stringPermissions;
+
+      const unassignedPermissions = permission_ids.filter((permission_id) => {
+        return !assignedPermissions.includes(permission_id.toString());
+      });
+
+      logObject("unassignedPermissions", unassignedPermissions);
+      logObject("permission_ids", permission_ids);
+      if (unassignedPermissions.length === permission_ids.length) {
+        return {
+          success: false,
+          message: "Bad Request Errors",
+          errors: {
+            message: `Permissions not assigned to role: ${unassignedPermissions.join(
+              ","
+            )}`,
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      // Remove the permissions from the role
+      const result = await RoleModel(tenant).updateMany(
+        { _id: role_id },
+        { $pull: { permissions: { $in: permission_ids } } }
+      );
+
+      // Check if any permissions were actually removed
+      if (result.nModified === 0) {
+        return {
+          success: false,
+          message: "Internal Server Error",
+          errors: {
+            message: "Permissions not removed from role",
+          },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+
+      return {
+        success: true,
+        message: `${result.nModified} permissions were unassigned from the role.`,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logObject("error", error);
       logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,

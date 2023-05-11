@@ -280,8 +280,6 @@ UserSchema.statics = {
         updatedAt: 1,
       };
 
-      const projectSummary = {};
-
       const response = await this.aggregate()
         .match(filter)
         .lookup({
@@ -356,7 +354,6 @@ UserSchema.statics = {
 
         .project({
           "role.__v": 0,
-          "role._id": 0,
           "role.createdAt": 0,
           "role.updatedAt": 0,
           "role.role_users": 0,

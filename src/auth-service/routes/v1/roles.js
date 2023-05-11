@@ -5,6 +5,7 @@ const { check, oneOf, query, body, param } = require("express-validator");
 const { setJWTAuth, authJWT } = require("@middleware/passport");
 const httpStatus = require("http-status");
 const mongoose = require("mongoose");
+const bodyParser = require("body-parser");
 const ObjectId = mongoose.Types.ObjectId;
 
 const headers = (req, res, next) => {
@@ -623,6 +624,58 @@ router.post(
   setJWTAuth,
   authJWT,
   createRoleController.assignPermissionToRole
+);
+
+router.delete(
+  "/:role_id/permissions",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      param("role_id")
+        .exists()
+        .withMessage("the role ID param is missing in the request")
+        .bail()
+        .notEmpty()
+        .withMessage("the role ID param cannot be empty")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the role ID must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("permission_ids")
+        .exists()
+        .withMessage("the permission_ids are missing in the request body")
+        .bail()
+        .notEmpty()
+        .withMessage("the permission_ids should not be empty")
+        .bail()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the permission_ids should be an array"),
+      body("permission_ids.*")
+        .isMongoId()
+        .withMessage("Every permission_id provided must be an object ID"),
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  createRoleController.unAssignManyPermissionsFromRole
 );
 
 router.delete(
