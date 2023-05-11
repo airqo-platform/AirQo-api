@@ -1,4 +1,5 @@
 import logging
+import traceback
 from datetime import timedelta
 
 from celery.utils.log import get_task_logger
@@ -9,12 +10,7 @@ from flask_pymongo import PyMongo
 from celery import Celery
 
 from config import Config, CONFIGURATIONS
-from api.models import (
-    DataExportModel,
-    DataExportStatus,
-    DataExportRequest,
-    EventsModel
-)
+from api.models import DataExportModel, DataExportStatus, DataExportRequest, EventsModel
 
 celery_logger = get_task_logger(__name__)
 _logger = logging.getLogger(__name__)
@@ -33,32 +29,35 @@ def create_app():
 
 
 def make_celery():
-    config = {"broker_url": f"{Config.CACHE_REDIS_URL}/0", "result_backend": f"{Config.CACHE_REDIS_URL}/0",
-              "beat_schedule": {
-                  "data_export_periodic_task": {
-                      "task": "data_export_periodic_task",
-                      "schedule": timedelta(hours=5),
-                  }
-              },
-              "app_name": "data_export",
-              }
+    config = {
+        "broker_url": f"{Config.CACHE_REDIS_URL}/0",
+        "result_backend": f"{Config.CACHE_REDIS_URL}/0",
+        "beat_schedule": {
+            "data_export_periodic_task": {
+                "task": "data_export_periodic_task",
+                "schedule": timedelta(seconds=5),
+            }
+        },
+        "app_name": "data_export",
+    }
 
-    celery_application = Celery(
-        config["app_name"], broker=config["broker_url"]
-    )
+    celery_application = Celery(config["app_name"], broker=config["broker_url"])
     celery_application.conf.update(config)
     return celery_application
 
 
 celery = make_celery()
 
+
 @celery.task(name="data_export_periodic_task")
 def data_export_task():
     celery_logger.info("Data export periodic task running")
 
-
     data_export_model = DataExportModel()
-    scheduled_requests: [DataExportRequest] = data_export_model.get_scheduled_requests()
+    scheduled_requests: [
+        DataExportRequest
+    ] = data_export_model.get_scheduled_and_failed_requests()
+
     requests_for_processing: [DataExportRequest] = []
 
     for request in scheduled_requests:
@@ -69,7 +68,7 @@ def data_export_task():
 
     for request in requests_for_processing:
         try:
-            request_data = EventsModel.download_from_bigquery(
+            request_data = EventsModel.query_data_from_bigquery(
                 sites=request.sites,
                 devices=request.devices,
                 airqlouds=request.airqlouds,
@@ -85,8 +84,12 @@ def data_export_task():
             request.download_link = download_link
             request.status = DataExportStatus.READY
 
-            data_export_model.update_request_status_and_download_link(request)
+            success = data_export_model.update_request_status_and_download_link(request)
+
+            if not success:
+                raise Exception("Update failed")
         except Exception as ex:
             print(ex)
+            traceback.print_exc()
             request.status = DataExportStatus.FAILED
             data_export_model.update_request_status(request)

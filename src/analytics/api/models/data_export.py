@@ -3,10 +3,12 @@ from dataclasses import dataclass, asdict
 from enum import Enum
 
 import pandas as pd
+from bson import ObjectId
 from google.cloud import storage
 
 from api.models.base.base_model import BaseMongoModel
 from api.utils.dates import str_to_date, date_to_str
+from config import Config
 
 
 class DataExportStatus(Enum):
@@ -57,8 +59,8 @@ class DataExportRequest:
 
 
 class DataExportModel(BaseMongoModel):
-    collection_name = "data_export"
-    bucket_name = "data_export_requests"
+    bucket_name = Config.DATA_EXPORT_BUCKET
+    collection_name = Config.DATA_EXPORT_COLLECTION
 
     @staticmethod
     def doc_to_data_export_request(doc) -> DataExportRequest:
@@ -81,7 +83,6 @@ class DataExportModel(BaseMongoModel):
     def docs_to_data_export_requests(self, docs: list) -> list[DataExportRequest]:
         data: list[DataExportRequest] = []
         for doc in docs:
-            print(doc)
             doc_data = self.doc_to_data_export_request(doc)
             data.append(doc_data)
         return data
@@ -90,17 +91,24 @@ class DataExportModel(BaseMongoModel):
         super().__init__(collection_name=self.collection_name)
 
     def create_request(self, request: DataExportRequest):
-        self.insert(request.to_dict())
+        self.db.data_eport.insert_one(request.to_dict())
 
-    def get_scheduled_requests(self) -> list[DataExportRequest]:
-        docs = self.find({"status": str(DataExportStatus.SCHEDULED)})
-
+    def get_scheduled_and_failed_requests(self) -> list[DataExportRequest]:
+        filter_set = {
+            "status": {
+                "$in": [str(DataExportStatus.SCHEDULED), str(DataExportStatus.FAILED)]
+            }
+        }
+        docs = self.db.data_eport.find(filter_set)
         return self.docs_to_data_export_requests(docs)
 
     def update_request_status(self, request: DataExportRequest) -> bool:
         try:
-            self.update_one({"_id": request.request_id}, {"status": str(request.status)})
-            return True
+            data = request.to_dict()
+            filter_set = {"_id": ObjectId(f"{request.request_id}")}
+            update_set = {"$set": {"status": data["status"]}}
+            result = self.db.data_eport.update_one(filter_set, update_set)
+            return result.modified_count == 1
         except Exception as ex:
             print(ex)
         return False
@@ -109,18 +117,28 @@ class DataExportModel(BaseMongoModel):
         self, request: DataExportRequest
     ) -> bool:
         try:
-            self.update_one(
-                {"_id": request.request_id},
-                {"status": request.status, "download_link": request.download_link},
-            )
-            return True
+            filter_set = {"_id": ObjectId(f"{request.request_id}")}
+            data = request.to_dict()
+            update_set = {
+                "$set": {
+                    "status": data["status"],
+                    "download_link": data["download_link"],
+                }
+            }
+            result = self.db.data_eport.update_one(filter_set, update_set)
+            return result.modified_count == 1
         except Exception as ex:
             print(ex)
         return False
 
     def get_user_requests(self, user_id: str) -> list[DataExportRequest]:
-        docs = self.find({"user_id": user_id})
+        docs = self.db.data_eport.find({"user_id": user_id})
         return self.docs_to_data_export_requests(docs)
+
+    def get_request_by_id(self, request_id: str) -> DataExportRequest:
+        filter_set = {"_id": ObjectId(f"{request_id}")}
+        doc = self.db.data_eport.find_one(filter_set)
+        return self.doc_to_data_export_request(doc)
 
     def upload_dataframe_to_gcs(
         self, contents: pd.DataFrame, export_request: DataExportRequest
@@ -131,11 +149,5 @@ class DataExportModel(BaseMongoModel):
 
         contents.reset_index(drop=True, inplace=True)
         blob.upload_from_string(contents.to_csv(index=False), "text/csv")
-
-        print(
-            "{} with contents {} has been uploaded to {}.".format(
-                export_request.destination_file(), len(contents), self.bucket_name
-            )
-        )
 
         return f"https://storage.cloud.google.com/{self.bucket_name}/{export_request.destination_file()}"

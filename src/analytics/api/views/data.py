@@ -295,6 +295,70 @@ class DataExportV2Resource(Resource):
                 Status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
+    @swag_from("/api/docs/dashboard/monitoring_site_get.yml")
+    def get(self):
+        user_id = request.args.get("userId")
+        try:
+            data_export_model = DataExportModel()
+            requests = data_export_model.get_user_requests(user_id)
+
+            data = [x.to_dict() for x in requests]
+
+            return (
+                create_response(
+                    "request successfully received",
+                    data=data,
+                ),
+                Status.HTTP_200_OK,
+            )
+
+        except Exception as ex:
+            print(ex)
+            traceback.print_exc()
+            return (
+                create_response(
+                    f"An Error occurred while processing your request. Please contact support",
+                    success=False,
+                ),
+                Status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    @swag_from("/api/docs/dashboard/monitoring_site_get.yml")
+    def patch(self):
+        request_id = request.args.get("requestId")
+        try:
+            data_export_model = DataExportModel()
+            export_request = data_export_model.get_request_by_id(request_id)
+            export_request.status = DataExportStatus.SCHEDULED
+            success = data_export_model.update_request_status(export_request)
+            if success:
+                return (
+                    create_response(
+                        "request successfully updated",
+                        data=export_request.to_dict(),
+                    ),
+                    Status.HTTP_200_OK,
+                )
+            else:
+                return (
+                    create_response(
+                        f"An Error occurred while processing your request. Please contact support",
+                        success=False,
+                    ),
+                    Status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
+
+        except Exception as ex:
+            print(ex)
+            traceback.print_exc()
+            return (
+                create_response(
+                    f"An Error occurred while processing your request. Please contact support",
+                    success=False,
+                ),
+                Status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
 
 @rest_api_v1.route("/data/summary")
 @rest_api_v2.route("/data/summary")
