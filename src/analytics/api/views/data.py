@@ -270,7 +270,7 @@ class DataExportV2Resource(Resource):
                 end_date=str_to_date(end_date),
                 sites=sites,
                 status=DataExportStatus.SCHEDULED,
-                download_link="",
+                data_links=[],
                 request_date=datetime.datetime.utcnow(),
                 user_id=user_id,
                 frequency=Frequency[frequency.upper()],

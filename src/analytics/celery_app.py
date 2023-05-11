@@ -74,7 +74,7 @@ def data_export_task():
 
     for request in requests_for_processing:
         try:
-            request_data = EventsModel.query_data_from_bigquery(
+            query = EventsModel.data_export_query(
                 sites=request.sites,
                 devices=request.devices,
                 airqlouds=request.airqlouds,
@@ -84,13 +84,16 @@ def data_export_task():
                 pollutants=request.pollutants,
             )
 
-            download_link = data_export_model.upload_file_to_gcs(
-                contents=request_data, export_request=request
+            data_export_model.export_query_results_to_table(
+                query=query, export_request=request
             )
-            request.download_link = download_link
+            data_export_model.export_table_to_gcs(export_request=request)
+            data_links: [str] = data_export_model.get_data_links(export_request=request)
+
+            request.data_links = data_links
             request.status = DataExportStatus.READY
 
-            success = data_export_model.update_request_status_and_download_link(request)
+            success = data_export_model.update_request_status_and_data_links(request)
 
             if not success:
                 raise Exception("Update failed")

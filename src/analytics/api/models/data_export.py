@@ -5,7 +5,7 @@ from enum import Enum
 
 import pandas as pd
 from bson import ObjectId
-from google.cloud import storage
+from google.cloud import storage, bigquery
 
 from api.models.base.base_model import BaseMongoModel
 from api.utils.dates import date_to_str
@@ -40,7 +40,7 @@ class DataExportRequest:
     start_date: datetime
     end_date: datetime
 
-    download_link: str
+    data_links: list[str]
     request_id: str
     user_id: str
 
@@ -63,11 +63,28 @@ class DataExportRequest:
         return _dict
 
     def destination_file(self) -> str:
-        return f"{self.user_id}_{date_to_str(self.request_date) }.{self.export_format.value}"
+        return f"{self.user_id}_{date_to_str(self.request_date) }-*.{self.export_format.value}"
+
+    def destination_bucket(self) -> str:
+        return f"{self.user_id}/{self.request_id}/{date_to_str(self.request_date)}-*.{self.export_format.value}"
+
+    def gcs_folder(self) -> str:
+        return f"{self.user_id}/{self.request_id}/"
+
+    def gcs_file(self) -> str:
+        return f"download_*.{self.export_format.value}"
+
+    def bigquery_table(self) -> str:
+        return f"{self.user_id}_{self.request_id.replace('-', '_')}"
+
+    def export_table_name(self) -> str:
+        return f"{self.user_id}_{date_to_str(self.request_date)}"
 
 
 class DataExportModel(BaseMongoModel):
     bucket_name = Config.DATA_EXPORT_BUCKET
+    dataset = Config.DATA_EXPORT_DATASET
+    project = Config.DATA_EXPORT_GCP_PROJECT
     collection_name = Config.DATA_EXPORT_COLLECTION
 
     @staticmethod
@@ -79,7 +96,7 @@ class DataExportModel(BaseMongoModel):
             end_date=doc["end_date"],
             airqlouds=doc["airqlouds"],
             sites=doc["sites"],
-            download_link=doc["download_link"],
+            data_links=doc["data_links"],
             request_date=doc["request_date"],
             user_id=doc["user_id"],
             status=DataExportStatus[str(doc["status"]).upper()],
@@ -97,6 +114,8 @@ class DataExportModel(BaseMongoModel):
 
     def __init__(self):
         super().__init__(collection_name=self.collection_name)
+        self.bigquery_client = bigquery.Client()
+        self.cloud_storage_client = storage.Client()
 
     def create_request(self, request: DataExportRequest):
         self.db.data_eport.insert_one(request.to_dict())
@@ -121,16 +140,14 @@ class DataExportModel(BaseMongoModel):
             print(ex)
         return False
 
-    def update_request_status_and_download_link(
-        self, request: DataExportRequest
-    ) -> bool:
+    def update_request_status_and_data_links(self, request: DataExportRequest) -> bool:
         try:
             filter_set = {"_id": ObjectId(f"{request.request_id}")}
             data = request.to_dict()
             update_set = {
                 "$set": {
                     "status": data["status"],
-                    "download_link": data["download_link"],
+                    "data_links": data["data_links"],
                 }
             }
             result = self.db.data_eport.update_one(filter_set, update_set)
@@ -148,18 +165,95 @@ class DataExportModel(BaseMongoModel):
         doc = self.db.data_eport.find_one(filter_set)
         return self.doc_to_data_export_request(doc)
 
+    def export_table_to_gcs(self, export_request: DataExportRequest):
+        bucket = self.cloud_storage_client.get_bucket(self.bucket_name)
+        blobs = bucket.list_blobs(prefix=export_request.gcs_folder())
+        for blob in blobs:
+            blob.delete()
+
+        destination_uri = f"https://storage.cloud.google.com/{self.bucket_name}/{export_request.gcs_folder()}{export_request.gcs_file()}"
+        extract_job_config = bigquery.job.ExtractJobConfig()
+        if export_request.export_format == DataExportFormat.CSV:
+            extract_job_config.destination_format = bigquery.DestinationFormat.CSV
+        elif export_request.export_format == DataExportFormat.JSON:
+            extract_job_config.destination_format = (
+                bigquery.DestinationFormat.NEWLINE_DELIMITED_JSON
+            )
+
+        extract_job_config.print_header = True
+        extract_job = self.bigquery_client.extract_table(
+            f"{self.dataset}.{export_request.bigquery_table()}",
+            destination_uri,
+            job_config=extract_job_config,
+            location="EU",
+        )
+
+        extract_job.result()
+
+    def get_data_links(self, export_request: DataExportRequest) -> [str]:
+        bucket = self.cloud_storage_client.get_bucket(self.bucket_name)
+        blobs = bucket.list_blobs(prefix=export_request.gcs_folder())
+        return [
+            f"https://storage.cloud.google.com/{self.bucket_name}/{blob.name}"
+            for blob in blobs
+            if not blob.name.endswith("/")
+        ]
+
+    def export_query_results_to_table(self, query, export_request: DataExportRequest):
+        job_config = bigquery.QueryJobConfig(
+            destination=f"{self.project}.{self.dataset}.{export_request.bigquery_table()}"
+        )
+        job_config.write_disposition = bigquery.WriteDisposition.WRITE_TRUNCATE
+        job = self.bigquery_client.query(query, job_config=job_config)
+        job.result()
+
     def upload_file_to_gcs(
         self, contents: pd.DataFrame, export_request: DataExportRequest
     ) -> str:
-        storage_client = storage.Client()
-        bucket = storage_client.bucket(self.bucket_name)
+        bucket = self.cloud_storage_client.bucket(self.bucket_name)
         blob = bucket.blob(export_request.destination_file())
 
         contents.reset_index(drop=True, inplace=True)
         if export_request.export_format == DataExportFormat.CSV:
-            blob.upload_from_string(data=contents.to_csv(index=False), content_type="text/csv", timeout=300, num_retries=2)
+            blob.upload_from_string(
+                data=contents.to_csv(index=False),
+                content_type="text/csv",
+                timeout=300,
+                num_retries=2,
+            )
         elif export_request.export_format == DataExportFormat.JSON:
             data = contents.to_dict("records")
-            blob.upload_from_string(data=json.dumps(data), content_type="application/json", timeout=300, num_retries=2)
+            blob.upload_from_string(
+                data=json.dumps(data),
+                content_type="application/json",
+                timeout=300,
+                num_retries=2,
+            )
 
         return f"https://storage.cloud.google.com/{self.bucket_name}/{export_request.destination_file()}"
+
+    def export_query_results_to_gcs(self, query, export_request: DataExportRequest):
+        destination_uri = f"https://storage.cloud.google.com/{self.bucket_name}/{export_request.destination_file()}.gz"
+
+        job_config = bigquery.QueryJobConfig()
+        extract_job_config = bigquery.job.ExtractJobConfig()
+        extract_job_config.destination_format = bigquery.DestinationFormat.CSV
+        extract_job_config.compression = bigquery.Compression.GZIP
+        extract_job_config.print_header = True
+
+        job = self.bigquery_client.query(query, job_config=job_config)
+        job.result()
+
+        destination_table = job.destination
+
+        extract_job = self.bigquery_client.extract_table(
+            destination_table,
+            destination_uri,
+            job_config=extract_job_config,
+            location="US",
+        )
+
+        extract_job.result()
+
+        print(f"Query results exported to {destination_uri}")
+        return destination_uri
