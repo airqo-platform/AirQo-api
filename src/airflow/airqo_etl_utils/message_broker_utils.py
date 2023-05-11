@@ -77,7 +77,7 @@ class MessageBrokerUtils:
             columns={"device_id": "device_name", "mongo_id": "device_id"}, inplace=True
         )
 
-        # del data["device_id"]
+        del data["device_number"]
 
         data = pd.merge(
             left=data, right=devices, on=["device_id", "site_id"], how="left"

@@ -28,6 +28,7 @@ from airqo_etl_utils.utils import Utils
 from airqo_etl_utils.weather_data_utils import WeatherDataUtils
 from airqo_etl_utils.airnow_api import AirNowApi
 from airqo_etl_utils.date import date_to_str
+from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
 
 BASE_DIR = Path(__file__).resolve().parent
 dotenv_path = os.path.join(BASE_DIR, ".env")
@@ -363,8 +364,8 @@ class MainClass:
         with open('airnow_bigquery_data.json', 'w') as f:
             json.dump(bigquery_data.to_dict(orient='records'), f)
 
-        message_broker_data = processed_bam_data
-        
+        message_broker_data = MessageBrokerUtils.update_hourly_data_topic(processed_bam_data)
+
         message_broker_data.to_csv("airnow_message_broker_data.csv", index=False)
         message_broker_data["timestamp"] = pd.to_datetime(message_broker_data["timestamp"])
         message_broker_data["timestamp"] = message_broker_data["timestamp"].apply(date_to_str)
