@@ -89,7 +89,6 @@ const RoleModel = (tenant) => {
     let roles = mongoose.model("roles");
     return roles;
   } catch (error) {
-    logObject("error in Role Model", error);
     let roles = getModelByTenant(tenant, "role", RoleSchema);
     return roles;
   }
@@ -1067,7 +1066,7 @@ const controlAccess = {
             success: false,
             message: "Bad Request Error",
             errors: {
-              message: `User with ID ${user._id} has a role ending with SUPER_ADMIN or has no role assigned`,
+              message: `User with ID ${user._id} has a role ending with SUPER_ADMIN`,
             },
             status: httpStatus.BAD_REQUEST,
           };
@@ -1092,15 +1091,17 @@ const controlAccess = {
       );
 
       let message = "";
+      let status = httpStatus.OK;
       if (result.nModified === user_ids.length) {
-        message = "All provided users were successfully updated.";
+        message = "All provided users were successfully assigned.";
       } else {
-        message = "Some or all of the provided users were not updated.";
+        message = "Could not assign all provided users to the Role.";
+        status = httpStatus.INTERNAL_SERVER_ERROR;
       }
       return {
         success: true,
         message,
-        status: httpStatus.OK,
+        status,
       };
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
@@ -1279,16 +1280,10 @@ const controlAccess = {
         { new: true }
       );
 
-      const updatedRole = await RoleModel(tenant).findByIdAndUpdate(
-        role_id,
-        { $pull: { role_users: user_id } },
-        { new: true }
-      );
-
       return {
         success: true,
         message: "User unassigned from the role",
-        data: { updated_user: updatedUser, updated_role: updatedRole },
+        data: { updated_user: updatedUser },
         status: httpStatus.OK,
       };
     } catch (error) {
@@ -1305,40 +1300,95 @@ const controlAccess = {
 
   unAssignManyUsersFromRole: async (request) => {
     try {
-      const role_id = req.params.role_id;
-      const user_ids = req.body.user_ids;
-
-      // Validate the inputs
-      if (!role_id || !user_ids || !Array.isArray(user_ids)) {
-        return res.status(400).send("Invalid input data");
-      }
+      const { query, params, body } = request;
+      const { role_id } = params;
+      const { tenant } = query;
+      const { user_ids } = body;
 
       // Check if the role exists
-      const role = await Role.findById(role_id);
+      const role = await RoleModel(tenant).findById(role_id).lean();
       if (!role) {
         return res.status(404).send("Role not found");
       }
 
       // Check if any of the user's role ends with SUPER_ADMIN
-      const users = await User.find({ _id: { $in: user_ids } });
+      // const users = await UserModel(tenant).find({ _id: { $in: user_ids } })
+      //   .populate("role")
+      //   .lean();
+
+      const users = await Promise.all(
+        user_ids.map((id) =>
+          UserModel(tenant).findById(id).populate("role").lean()
+        )
+      );
+
       for (const user of users) {
-        if (user.role.endsWith("SUPER_ADMIN")) {
-          return res.status(400).send("Cannot unassign SUPER_ADMIN role");
+        const role = user.role;
+        if (!isEmpty(role) && role.role_name.endsWith("SUPER_ADMIN")) {
+          logObject("");
+          return {
+            success: false,
+            message: "Bad Request Error",
+            errors: {
+              message: `Cannot unassign SUPER_ADMIN role`,
+            },
+            status: httpStatus.BAD_REQUEST,
+          };
+          //continue;
+        }
+
+        if (isEmpty(user)) {
+          return {
+            success: false,
+            message: "Bad Reqest Error",
+            errors: { message: `One of the Users does not exist` },
+            status: httpStatus.BAD_REQUEST,
+          };
+          //continue;
+        }
+
+        if (isEmpty(role)) {
+          return {
+            success: false,
+            message: "Bad Request Error",
+            errors: {
+              message: `User ${user._id.toString()} is not assigned to any role`,
+            },
+            status: httpStatus.BAD_REQUEST,
+          };
+        }
+
+        if (!isEmpty(role) && role._id.toString() !== role_id.toString()) {
+          return {
+            success: false,
+            message: "Bad Request Error",
+            errors: {
+              message: `User ${user._id.toString()} is not assigned to the role ${role_id.toString()}`,
+            },
+            status: httpStatus.BAD_REQUEST,
+          };
         }
       }
 
       // Unassign the users from the role
-      const result = await User.updateMany(
+      const result = await UserModel(tenant).updateMany(
         { _id: { $in: user_ids }, role: role_id },
-        { $pull: { role: role_id } }
+        { $unset: { role: "" } }
       );
 
-      // Check the result
-      if (result.nModified !== user_ids.length) {
-        return res.status(500).send("Could not unassign all users from role");
+      let message = "";
+      let status = httpStatus.OK;
+      if (result.nModified === user_ids.length) {
+        message = "All provided users were successfully unassigned.";
+      } else {
+        message = "Could not unassign all users from role.";
+        status = httpStatus.INTERNAL_SERVER_ERROR;
       }
-
-      res.send("Users successfully unassigned from role");
+      return {
+        success: true,
+        message,
+        status,
+      };
     } catch (error) {
       logObject("error", error);
       logger.error(`Internal Server Error -- ${error.message}`);
