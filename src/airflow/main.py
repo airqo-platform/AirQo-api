@@ -27,6 +27,7 @@ from airqo_etl_utils.urban_better_utils import UrbanBetterUtils
 from airqo_etl_utils.utils import Utils
 from airqo_etl_utils.weather_data_utils import WeatherDataUtils
 from airqo_etl_utils.airnow_api import AirNowApi
+from airqo_etl_utils.date import date_to_str
 
 BASE_DIR = Path(__file__).resolve().parent
 dotenv_path = os.path.join(BASE_DIR, ".env")
@@ -332,25 +333,43 @@ class MainClass:
                 network_data=AirnowDataUtils.extract_bam_data(
             api_key= network["api_key"], start_date_time=self.start_date_time, end_date_time=self.end_date_time)
             extracted_bam_data=pd.concat([extracted_bam_data ,network_data], ignore_index=True)
-        extracted_bam_data.to_csv("airnow_unprocessed_data.csv", index=False)
         
+        extracted_bam_data.to_csv("airnow_unprocessed_data.csv", index=False)
         with open('airnow_unprocessed_data.json', 'w') as f:
-            json.dump(extracted_bam_data.to_json(orient='columns'), f)
-
-        processed_bam_data = AirnowDataUtils.process_bam_data(extracted_bam_data)
+            json.dump(extracted_bam_data.to_dict(orient='records'), f)
+        
+        processed_bam_data =pd.DataFrame()
+        for network in networks:
+          network_data = AirnowDataUtils.process_bam_data(data=extracted_bam_data, tenant=network["network"])
+          processed_bam_data = pd.concat([processed_bam_data, network_data], ignore_index=True)
+        
         processed_bam_data.to_csv("airnow_processed_data.csv", index=False)
+        processed_bam_data['timestamp'] = processed_bam_data['timestamp'].dt.strftime('%Y-%m-%d %H:%M:%S')
+        with open('airnow_processed_data.json', 'w') as f:
+            json.dump(processed_bam_data.to_dict(orient='records'), f)
 
-        bigquery_data = DataValidationUtils.process_for_big_query(
-            dataframe=processed_bam_data,
-            tenant=Tenant.US_EMBASSY,
-            table=self.bigquery_api.bam_measurements_table,
-        )
+        bigquery_data = pd.DataFrame()
+        for network in networks:
+            network_data = DataValidationUtils.process_for_big_query(
+                    dataframe=processed_bam_data, 
+                    tenant=network["network"],
+                    table=self.bigquery_api.bam_measurements_table,
+                )
+            bigquery_data = pd.concat([bigquery_data, network_data], ignore_index=True)
+            
         bigquery_data.to_csv("airnow_bigquery_data.csv", index=False)
+        bigquery_data["timestamp"] = pd.to_datetime(bigquery_data["timestamp"])
+        bigquery_data["timestamp"] = bigquery_data["timestamp"].apply(date_to_str)
+        with open('airnow_bigquery_data.json', 'w') as f:
+            json.dump(bigquery_data.to_dict(orient='records'), f)
 
-        message_broker_data = DataValidationUtils.process_for_message_broker(
-            data=processed_bam_data, tenant=Tenant.US_EMBASSY
-        )
+        message_broker_data = processed_bam_data
+        
         message_broker_data.to_csv("airnow_message_broker_data.csv", index=False)
+        message_broker_data["timestamp"] = pd.to_datetime(message_broker_data["timestamp"])
+        message_broker_data["timestamp"] = message_broker_data["timestamp"].apply(date_to_str)
+        with open('airnow_message_broker_data.json', 'w') as f:
+            json.dump(message_broker_data.to_dict(orient='records'), f)
 
     def airqo_bam_data(self):
         from airqo_etl_utils.airqo_utils import AirQoDataUtils

@@ -9,6 +9,8 @@ from .data_validator import DataValidationUtils
 from .date import str_to_date, date_to_str
 from .utils import Utils
 
+import json
+
 
 class AirnowDataUtils:
     @staticmethod
@@ -24,7 +26,9 @@ class AirnowDataUtils:
             raise Exception(f"Unknown parameter {parameter}")
 
     @staticmethod
-    def query_bam_data(api_key:str, start_date_time: str, end_date_time: str) -> pd.DataFrame:
+    def query_bam_data(
+        api_key: str, start_date_time: str, end_date_time: str
+    ) -> pd.DataFrame:
         airnow_api = AirNowApi()
         start_date_time = date_to_str(
             str_to_date(start_date_time), str_format="%Y-%m-%dT%H:%M"
@@ -43,7 +47,9 @@ class AirnowDataUtils:
         return pd.DataFrame(data)
 
     @staticmethod
-    def extract_bam_data(api_key: str, start_date_time: str, end_date_time: str) -> pd.DataFrame:
+    def extract_bam_data(
+        api_key: str, start_date_time: str, end_date_time: str
+    ) -> pd.DataFrame:
         dates = Utils.query_dates_array(
             start_date_time=start_date_time,
             end_date_time=end_date_time,
@@ -54,17 +60,17 @@ class AirnowDataUtils:
 
         for start, end in dates:
             query_data = AirnowDataUtils.query_bam_data(
-               api_key=api_key, start_date_time=start, end_date_time=end
+                api_key=api_key, start_date_time=start, end_date_time=end
             )
             data = pd.concat([data, query_data], ignore_index=True)
 
         return data
 
     @staticmethod
-    def process_bam_data(data: pd.DataFrame) -> pd.DataFrame:
+    def process_bam_data(data: pd.DataFrame, tenant) -> pd.DataFrame:
         air_now_data = []
 
-        devices = AirQoApi().get_devices(tenant=Tenant.US_EMBASSY)
+        devices = AirQoApi().get_devices(tenant=tenant)
         for _, row in data.iterrows():
             try:
                 device_id = row["FullAQSCode"]
@@ -82,10 +88,9 @@ class AirnowDataUtils:
                 air_now_data.append(
                     {
                         "timestamp": row["UTC"],
-                        "tenant": str(Tenant.US_EMBASSY),
+                        "tenant": str(tenant),
                         "site_id": device_details.get("site_id"),
                         "device_id": device_details.get("device_id"),
-                        "mongo_id": device_details.get("mongo_id"),
                         "device_number": device_details.get("device_number"),
                         "frequency": str(Frequency.HOURLY),
                         "latitude": row["Latitude"],

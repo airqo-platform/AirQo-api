@@ -72,15 +72,15 @@ class MessageBrokerUtils:
     def update_hourly_data_topic(data: pd.DataFrame):
         devices = AirQoApi().get_devices(tenant=Tenant.ALL)
         devices = pd.DataFrame(devices)
-        devices = devices[["mongo_id", "name", "device_number", "site_id"]]
+        devices = devices[["mongo_id", "device_id", "device_number", "site_id"]]
         devices.rename(
-            columns={"mongo_id": "device_id", "name": "device_name"}, inplace=True
+            columns={"device_id": "device_name", "mongo_id": "device_id"}, inplace=True
         )
 
-        del data["device_id"]
+        # del data["device_id"]
 
         data = pd.merge(
-            left=data, right=devices, on=["device_number", "site_id"], how="left"
+            left=data, right=devices, on=["device_id", "site_id"], how="left"
         )
         data["network"] = data["tenant"]
         data["tenant"] = str(Tenant.AIRQO)
