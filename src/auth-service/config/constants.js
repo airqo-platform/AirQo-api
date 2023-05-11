@@ -13,6 +13,7 @@ const devConfig = {
   KAFKA_RAW_MEASUREMENTS_TOPICS: process.env.KAFKA_RAW_MEASUREMENTS_TOPICS_DEV,
   KAFKA_CLIENT_ID: process.env.KAFKA_CLIENT_ID_DEV,
   KAFKA_CLIENT_GROUP: process.env.KAFKA_CLIENT_GROUP_DEV,
+  DEFAULT_ROLE: process.env.DEFAULT_ROLE_DEV,
 };
 
 const prodConfig = {
@@ -30,6 +31,7 @@ const prodConfig = {
   KAFKA_RAW_MEASUREMENTS_TOPICS: process.env.KAFKA_RAW_MEASUREMENTS_TOPICS_PROD,
   KAFKA_CLIENT_ID: process.env.KAFKA_CLIENT_ID_PROD,
   KAFKA_CLIENT_GROUP: process.env.KAFKA_CLIENT_GROUP_PROD,
+  DEFAULT_ROLE: process.env.DEFAULT_ROLE_PROD,
 };
 
 const stageConfig = {
@@ -48,6 +50,7 @@ const stageConfig = {
     process.env.KAFKA_RAW_MEASUREMENTS_TOPICS_STAGE,
   KAFKA_CLIENT_ID: process.env.KAFKA_CLIENT_ID_STAGE,
   KAFKA_CLIENT_GROUP: process.env.KAFKA_CLIENT_GROUP_STAGE,
+  DEFAULT_ROLE: process.env.DEFAULT_ROLE_STAGE,
 };
 
 const defaultConfig = {
@@ -110,6 +113,189 @@ const defaultConfig = {
   MAILCHIMP_API_KEY: process.env.MAILCHIMP_API_KEY,
   MAILCHIMP_SERVER_PREFIX: process.env.MAILCHIMP_SERVER_PREFIX,
   MAILCHIMP_LIST_ID: process.env.MAILCHIMP_LIST_ID,
+  NETWORKS_INCLUSION_PROJECTION: {
+    _id: 1,
+    net_email: 1,
+    net_website: 1,
+    net_category: 1,
+    net_status: 1,
+    net_phoneNumber: 1,
+    net_name: 1,
+    net_description: 1,
+    net_acronym: 1,
+    createdAt: 1,
+    net_manager: { $arrayElemAt: ["$net_manager", 0] },
+    net_users: "$net_users",
+    net_permissions: "$net_permissions",
+    net_roles: "$net_roles",
+    net_groups: "$net_groups",
+    net_departments: "$net_departments",
+  },
+  NETWORKS_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = {
+      "net_users.__v": 0,
+      "net_users.notifications": 0,
+      "net_users.emailConfirmed": 0,
+      "net_users.networks": 0,
+      "net_users.locationCount": 0,
+      "net_users.network": 0,
+      "net_users.long_network": 0,
+      "net_users.privilege": 0,
+      "net_users.password": 0,
+      "net_users.duration": 0,
+      "net_users.updatedAt": 0,
+      "net_users.organization": 0,
+      "net_users.phoneNumber": 0,
+      "net_users.profilePicture": 0,
+      "net_users.resetPasswordExpires": 0,
+      "net_users.resetPasswordToken": 0,
+      "net_users.verified": 0,
+      "net_users.groups": 0,
+      "net_users.permissions": 0,
+      "net_users.long_organization": 0,
+      "net_manager.__v": 0,
+      "net_manager.notifications": 0,
+      "net_manager.emailConfirmed": 0,
+      "net_manager.networks": 0,
+      "net_manager.locationCount": 0,
+      "net_manager.network": 0,
+      "net_manager.long_network": 0,
+      "net_manager.privilege": 0,
+      "net_manager.userName": 0,
+      "net_manager.password": 0,
+      "net_manager.duration": 0,
+      "net_manager.createdAt": 0,
+      "net_manager.updatedAt": 0,
+      "net_manager.groups": 0,
+      "net_manager.roles": 0,
+      "net_manager.permissions": 0,
+      "net_permissions.__v": 0,
+      "net_permissions.createdAt": 0,
+      "net_permissions.updatedAt": 0,
+      "net_roles.__v": 0,
+      "net_roles.createdAt": 0,
+      "net_roles.updatedAt": 0,
+      "net_groups.__v": 0,
+      "net_groups.createdAt": 0,
+      "net_groups.updatedAt": 0,
+      "net_departments.__v": 0,
+      "net_departments.createdAt": 0,
+      "net_departments.updatedAt": 0,
+    };
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign(
+        {},
+        {
+          net_status: 0,
+          net_email: 0,
+          net_phoneNumber: 0,
+          net_category: 0,
+          net_description: 0,
+          net_website: 0,
+          net_acronym: 0,
+          createdAt: 0,
+          net_users: 0,
+          net_permissions: 0,
+          net_roles: 0,
+          net_groups: 0,
+          net_departments: 0,
+          net_manager: 0,
+        }
+      );
+    }
+
+    return projection;
+  },
+  ROLES_INCLUSION_PROJECTION: {
+    role_name: 1,
+    role_description: 1,
+    role_status: 1,
+    role_code: 1,
+    network_id: 1,
+    role_permissions: 1,
+    role_users: 1,
+    network: { $arrayElemAt: ["$network", 0] },
+    createdAt: 1,
+    updatedAt: 1,
+  },
+  ROLES_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = {
+      "role_users.notifications": 0,
+      "role_users.emailConfirmed": 0,
+      "role_users.locationCount": 0,
+      "role_users.password": 0,
+      "role_users.privilege": 0,
+      "role_users.organization": 0,
+      "role_users.duration": 0,
+      "role_users.__v": 0,
+      "role_users.phoneNumber": 0,
+      "role_users.profilePicture": 0,
+      "role_users.resetPasswordExpires": 0,
+      "role_users.resetPasswordToken": 0,
+      "role_users.updatedAt": 0,
+      "role_users.role": 0,
+      "role_users.interest": 0,
+      "role_users.org_name": 0,
+      "role_users.accountStatus": 0,
+      "role_users.hasAccess": 0,
+      "role_users.collaborators": 0,
+      "role_users.publisher": 0,
+      "role_users.bus_nature": 0,
+      "role_users.org_department": 0,
+      "role_users.uni_faculty": 0,
+      "role_users.uni_course_yr": 0,
+      "role_users.pref_locations": 0,
+      "role_users.job_title": 0,
+      "role_users.userName": 0,
+      "role_users.product": 0,
+      "role_users.website": 0,
+      "role_users.description": 0,
+      "role_users.networks": 0,
+      "role_users.jobTitle": 0,
+      "role_users.category": 0,
+      "role_users.long_organization": 0,
+      "network.__v": 0,
+      "network.net_status": 0,
+      "network.net_children": 0,
+      "network.net_users": 0,
+      "network.net_departments": 0,
+      "network.net_permissions": 0,
+      "network.net_roles": 0,
+      "network.net_groups": 0,
+      "network.net_email": 0,
+      "network.net_phoneNumber": 0,
+      "network.net_category": 0,
+      "network.createdAt": 0,
+      "network.updatedAt": 0,
+      "network.net_acronym": 0,
+      "network.net_manager": 0,
+      "role_permissions.description": 0,
+      "role_permissions.createdAt": 0,
+      "role_permissions.updatedAt": 0,
+      "role_permissions.__v": 0,
+      "role_permissions.network_id": 0,
+    };
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign(
+        {},
+        {
+          role_description: 0,
+          role_status: 0,
+          role_code: 0,
+          network_id: 0,
+          role_permissions: 0,
+          role_users: 0,
+          network: 0,
+          createdAt: 0,
+          updatedAt: 0,
+        }
+      );
+    }
+
+    return projection;
+  },
 };
 
 function envConfig(env) {

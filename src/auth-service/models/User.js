@@ -20,7 +20,8 @@ function oneMonthFromNow() {
   }
   return d;
 }
-const passwordReg = /(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{6,}/;
+// const passwordReg = /(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{6,}/;
+const passwordReg = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{6,}$/;
 
 const UserSchema = new Schema(
   {
@@ -80,13 +81,18 @@ const UserSchema = new Schema(
         message: "{VALUE} is not a valid password, please check documentation!",
       },
     },
-    privilege: { type: String, required: [true, "the role is required!"] },
+    privilege: {
+      type: String,
+      required: [true, "the privilege is required!"],
+      default: "user",
+    },
     isActive: { type: Boolean },
     duration: { type: Date, default: oneMonthFromNow },
     networks: [
       {
         type: ObjectId,
         ref: "network",
+        unique: true,
       },
     ],
     groups: [
@@ -98,6 +104,7 @@ const UserSchema = new Schema(
     role: {
       type: ObjectId,
       ref: "role",
+      default: constants.DEFAULT_ROLE,
     },
     permissions: [
       {
@@ -108,10 +115,12 @@ const UserSchema = new Schema(
     organization: {
       type: String,
       required: [true, "the organization is required!"],
+      default: "airqo",
     },
     long_organization: {
       type: String,
       required: [true, "the long_organization is required!"],
+      default: "airqo",
     },
     phoneNumber: { type: Number },
     locationCount: { type: Number, default: 5 },
@@ -257,6 +266,10 @@ UserSchema.statics = {
         verified: 1,
         country: 1,
         privilege: 1,
+        website: 1,
+        category: 1,
+        jobTitle: 1,
+        description: 1,
         profilePicture: 1,
         phoneNumber: 1,
         role: { $arrayElemAt: ["$role", 0] },
@@ -266,8 +279,6 @@ UserSchema.statics = {
         createdAt: 1,
         updatedAt: 1,
       };
-
-      const projectSummary = {};
 
       const response = await this.aggregate()
         .match(filter)
@@ -300,6 +311,14 @@ UserSchema.statics = {
           localField: "role",
           foreignField: "_id",
           as: "role",
+        })
+        .addFields({
+          createdAt: {
+            $dateToString: {
+              format: "%Y-%m-%d %H:%M:%S",
+              date: "$_id",
+            },
+          },
         })
         .sort({ createdAt: -1 })
         .project(projectAll)
@@ -335,9 +354,9 @@ UserSchema.statics = {
 
         .project({
           "role.__v": 0,
-          "role._id": 0,
           "role.createdAt": 0,
           "role.updatedAt": 0,
+          "role.role_users": 0,
         })
         .project({
           "groups.__v": 0,
@@ -444,10 +463,10 @@ UserSchema.statics = {
   },
   async remove({ filter = {} } = {}) {
     try {
-      let options = {
+      const options = {
         projection: { _id: 0, email: 1, firstName: 1, lastName: 1 },
       };
-      let removedUser = await this.findOneAndRemove(filter, options).exec();
+      const removedUser = await this.findOneAndRemove(filter, options).exec();
 
       if (!isEmpty(removedUser)) {
         return {
@@ -467,8 +486,7 @@ UserSchema.statics = {
     } catch (error) {
       return {
         success: false,
-        message: "User model server error - remove",
-        error: error.message,
+        message: "Internal Server Error",
         errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
@@ -546,6 +564,8 @@ UserSchema.methods = {
         lastName: this.lastName,
         userName: this.userName,
         email: this.email,
+        role: this.role,
+        networks: this.networks,
         privilege: this.privilege,
         country: this.country,
         profilePicture: this.profilePicture,
@@ -596,6 +616,7 @@ UserSchema.methods = {
       updatedAt: this.updatedAt,
       role: this.role,
       verified: this.verified,
+      networks: this.networks,
     };
   },
 };

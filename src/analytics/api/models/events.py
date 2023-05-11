@@ -68,7 +68,7 @@ class EventsModel(BasePyMongoModel):
             raise Exception("Invalid frequency")
 
         pollutant_columns = []
-
+        bam_pollutant_columns = []
         for pollutant in pollutants:
             pollutant_mapping = BIGQUERY_FREQUENCY_MAPPER.get(frequency).get(
                 pollutant, []
@@ -80,14 +80,25 @@ class EventsModel(BasePyMongoModel):
                 ]
             )
 
+            if pollutant == "pm2_5":
+                bam_pollutant_columns.extend(
+                    ["pm2_5 as pm2_5_raw_value", "pm2_5 as pm2_5_calibrated_value"]
+                )
+            elif pollutant == "pm10":
+                bam_pollutant_columns.extend(
+                    ["pm10 as pm10_raw_value", "pm10 as pm10_calibrated_value"]
+                )
+            elif pollutant == "no2":
+                bam_pollutant_columns.extend(
+                    ["no2 as no2_raw_value", "no2 as no2_calibrated_value"]
+                )
+
         pollutants_query = (
             f" SELECT {', '.join(map(str, set(pollutant_columns)))} ,"
             f" FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', {data_table}.timestamp) AS datetime "
         )
-
         bam_pollutants_query = (
-            f" SELECT pm2_5 as  pm2_5_raw_value, pm10 as  pm10_raw_value, no2 as no2_raw_value, "
-            f" pm2_5 as  pm2_5_calibrated_value, pm10 as  pm10_calibrated_value, no2 as no2_calibrated_value,"
+            f" SELECT {', '.join(map(str, set(bam_pollutant_columns)))} ,"
             f" FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', {cls.BIGQUERY_BAM_DATA}.timestamp) AS datetime "
         )
 

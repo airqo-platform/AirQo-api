@@ -95,7 +95,9 @@ const createUser = {
         tenant = constants.DEFAULT_TENANT;
       }
 
-      const responseFromListStatistics = await createUserUtil.listLogs(tenant);
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
+      const responseFromListStatistics = await createUserUtil.listLogs(request);
 
       if (responseFromListStatistics.success === true) {
         res.status(httpStatus.OK).json({
@@ -511,27 +513,11 @@ const createUser = {
 
       let { tenant } = req.query;
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
+        tenant = constants.DEFAULT_TENANT || "airqo";
       }
-      const {
-        firstName,
-        lastName,
-        email,
-        organization,
-        long_organization,
-        privilege,
-        network_id,
-      } = req.body;
 
-      let request = {};
-      request["tenant"] = tenant.toLowerCase();
-      request["firstName"] = firstName;
-      request["lastName"] = lastName;
-      request["email"] = email;
-      request["organization"] = organization;
-      request["long_organization"] = long_organization;
-      request["privilege"] = privilege;
-      request["network_id"] = network_id;
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant.toLowerCase();
 
       let responseFromCreateUser = await createUserUtil.register(request);
       logObject("responseFromCreateUser in controller", responseFromCreateUser);
@@ -568,7 +554,7 @@ const createUser = {
     logText("..................................................");
     logText("create user.............");
     try {
-      const { query, body, params } = req;
+      const { query } = req;
       let { tenant } = query;
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
@@ -584,9 +570,9 @@ const createUser = {
       }
 
       let request = req.body;
-      request["tenant"] = tenant.toLowerCase();
+      request.tenant = tenant.toLowerCase();
 
-      let responseFromCreateUser = await createUserUtil.create(request);
+      const responseFromCreateUser = await createUserUtil.create(request);
       logObject("responseFromCreateUser in controller", responseFromCreateUser);
       if (responseFromCreateUser.success === true) {
         const status = responseFromCreateUser.status
@@ -696,7 +682,7 @@ const createUser = {
     logText("..................................");
     logText("user login......");
     try {
-      const { tenant } = req.query;
+      let { tenant } = req.query;
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -712,7 +698,11 @@ const createUser = {
         );
       }
 
-      if (!isEmpty(tenant) && tenant != "airqo") {
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+
+      if (!isEmpty(tenant) && tenant !== "airqo") {
         logObject("tenant", tenant);
         res.status(httpStatus.MOVED_PERMANENTLY).json({
           message:
@@ -877,30 +867,41 @@ const createUser = {
           convertErrorArrayToObject(nestedErrors)
         );
       }
-      let responseFromUpdateUser = await createUserUtil.update(req);
+      let { tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT || "airqo";
+      }
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
+      let responseFromUpdateUser = await createUserUtil.update(request);
       logObject("responseFromUpdateUser", responseFromUpdateUser);
       if (responseFromUpdateUser.success === true) {
-        return res.status(httpStatus.OK).json({
+        const status = responseFromUpdateUser.status
+          ? responseFromUpdateUser.status
+          : httpStatus.OK;
+        return res.status(status).json({
           success: true,
           message: responseFromUpdateUser.message,
           user: responseFromUpdateUser.data,
         });
       } else if (responseFromUpdateUser.success === false) {
-        if (responseFromUpdateUser.error) {
-          return res.status(httpStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromUpdateUser.message,
-            error: responseFromUpdateUser.error,
-          });
-        } else {
-          return res.status(httpStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromUpdateUser.message,
-          });
-        }
+        const status = responseFromUpdateUser.status
+          ? responseFromUpdateUser.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromUpdateUser.message,
+          errors: responseFromUpdateUser.errors
+            ? responseFromUpdateUser.errors
+            : { message: "Internal Server Error" },
+        });
       }
     } catch (error) {
-      tryCatchErrors(res, error, "createUser controller");
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
     }
   },
 
@@ -1041,9 +1042,8 @@ const createUser = {
         tenant = constants.DEFAULT_TENANT;
       }
 
-      let request = {};
-      request["body"] = body;
-      request["tenant"] = tenant;
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
       const responseFromUpdateForgottenPassword =
         await createUserUtil.updateForgottenPassword(request);
 

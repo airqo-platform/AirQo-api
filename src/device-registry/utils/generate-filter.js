@@ -708,6 +708,8 @@ const generateFilter = {
     let {
       id,
       device_id,
+      airqloud_id,
+      site_id,
       device_number,
       device_name,
       network,
@@ -720,6 +722,14 @@ const generateFilter = {
 
     if (device_id) {
       filter["device_id"] = ObjectId(device_id);
+    }
+
+    if (airqloud_id) {
+      filter["airqloud_id"] = ObjectId(airqloud_id);
+    }
+
+    if (site_id) {
+      filter["site_id"] = ObjectId(site_id);
     }
 
     if (tags) {
