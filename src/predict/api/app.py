@@ -7,7 +7,6 @@ from flask_cors import CORS
 from flask_pymongo import PyMongo
 
 from config import constants
-from controllers.prediction import ml_app
 from flask_caching import Cache
 
 app_configuration = constants.app_config.get(os.getenv('FLASK_ENV'))
@@ -26,6 +25,8 @@ cache = Cache(config={
 
 
 def create_app(environment):
+    from controllers.prediction import ml_app
+
     app = Flask(__name__)
     app.config.from_object(constants.app_config[environment])
     cache.init_app(app)

@@ -4,6 +4,8 @@ import traceback
 from dotenv import load_dotenv
 from flask import Blueprint, request
 
+from helpers.utils import get_all_gp_predictions, get_gp_predictions, get_gp_predictions_id, get_forecasts_helper, \
+    get_predictions_by_geo_coordinates
 from routes import api
 
 load_dotenv()
@@ -18,7 +20,6 @@ def get_next_24hr_forecasts():
     """
     Get forecasts for the next 24 hours from specified start time.
     """
-    from helpers.utils import get_forecasts_helper
     return get_forecasts_helper(db_name='hourly_forecasts')
 
 
@@ -27,7 +28,6 @@ def get_next_1_week_forecasts():
     """
     Get forecasts for the next 1 week from specified start day.
     """
-    from helpers.utils import get_forecasts_helper
     return get_forecasts_helper(db_name='daily_forecasts')
 
 
@@ -36,7 +36,6 @@ def predictions_for_heatmap():
     """
     makes predictions for a specified location at a given time.
     """
-    from helpers.utils import get_all_gp_predictions, get_gp_predictions, get_gp_predictions_id
     if request.method == 'GET':
         try:
             airqloud = request.args.get('airqloud').lower()
@@ -63,7 +62,6 @@ def predictions_for_heatmap():
 
 @ml_app.route(api.route['search_predictions'], methods=['GET'])
 def search_predictions():
-    from helpers.utils import get_predictions_by_geo_coordinates
     try:
         latitude = float(request.args.get('latitude'))
         longitude = float(request.args.get('longitude'))

@@ -62,7 +62,7 @@ def geo_coordinates_cache_key():
 
 
 @cache.cached(timeout=3600, key_prefix=geo_coordinates_cache_key)
-def get_predictions_by_geo_coordinates(latitude: float, longitude: float, distance_in_metres: int) -> {}:
+def get_predictions_by_geo_coordinates(latitude: float, longitude: float, distance_in_metres: int) -> dict:
 
     client = bigquery.Client()
 

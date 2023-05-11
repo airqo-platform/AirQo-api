@@ -123,7 +123,6 @@ def save_predictions_on_bigquery(predictions):
     }, predictions["values"]))
 
     client = bigquery.Client()
-    client.query(f"DELETE FROM `{Config.BIGQUERY_MEASUREMENTS_PREDICTIONS}` where airqloud_id='{airqloud_id}'")
     errors = client.insert_rows_json(
         json_rows=data, table=Config.BIGQUERY_MEASUREMENTS_PREDICTIONS, skip_invalid_rows=True
     )
@@ -131,6 +130,9 @@ def save_predictions_on_bigquery(predictions):
     if errors:
         print("Encountered errors while inserting rows:", errors)
     else:
+        client.query(f"DELETE FROM `{Config.BIGQUERY_MEASUREMENTS_PREDICTIONS}` "
+                     f"WHERE airqloud_id ='{airqloud_id}' "
+                     f"AND timestamp < {timestamp}")
         print("Data inserted successfully.")
 
 
@@ -184,7 +186,7 @@ def predict_model(m, tenant, airqloud, aq_id, poly, x1, x2, y1, y2):
         collection.delete_many({'airqloud': airqloud})
 
     collection.insert_many(result)
-    save_predictions_on_bigquery(result)
+    # save_predictions_on_bigquery(result) TODO : setup saving data on BigQuery.
 
     return result
 
