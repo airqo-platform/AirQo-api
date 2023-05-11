@@ -866,7 +866,7 @@ const createRole = {
 
   unAssignManyPermissionsFromRole: async (req, res) => {
     try {
-      logText("unAssign Many Permissions FromRole....");
+      logText("unAssign Many Permissions From Role....");
       const { query, body } = req;
       let { tenant } = query;
       const hasErrors = !validationResult(req).isEmpty();
