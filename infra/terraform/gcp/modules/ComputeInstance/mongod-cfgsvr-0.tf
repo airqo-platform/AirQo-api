@@ -23,7 +23,7 @@ resource "google_compute_instance" "mongod_cfgsvr_0" {
     }
 
     network = "default"
-    network_ip = "10.132.0.49"
+    network_ip = "10.132.0.45"
   }
 
   project = var.project_id
