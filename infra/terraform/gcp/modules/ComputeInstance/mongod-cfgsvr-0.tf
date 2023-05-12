@@ -9,7 +9,7 @@ resource "google_compute_instance" "mongod_cfgsvr_0" {
     "type" = "mongo-config-server"
   }
 
-  machine_type = "e2-highmem-2 "
+  machine_type = "e2-highmem-2"
 
   metadata = {
     startup-script = "sudo ufw allow ssh"
