@@ -63,6 +63,7 @@ const createUser = {
         });
       }
     } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -121,6 +122,7 @@ const createUser = {
         });
       }
     } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -200,6 +202,7 @@ const createUser = {
         });
       }
     } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -213,6 +216,7 @@ const createUser = {
     try {
       res.redirect("/");
     } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
       res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -274,6 +278,7 @@ const createUser = {
       }
     } catch (error) {
       logObject("error", error);
+      logger.error(`Internal Server Error ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "internal server error",
@@ -351,6 +356,7 @@ const createUser = {
         }
       });
     } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -409,6 +415,7 @@ const createUser = {
         });
       }
     } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -488,7 +495,13 @@ const createUser = {
         }
       }
     } catch (error) {
-      tryCatchErrors(res, error, "createUser controller");
+      logger.error(`Internal Server Error ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        error: "Internal Server Error",
+      };
     }
   },
 
@@ -546,7 +559,13 @@ const createUser = {
         });
       }
     } catch (error) {
-      tryCatchErrors(res, error, "createUser controller");
+      logger.error(`Internal Server Error ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        error: "Internal Server Error",
+      };
     }
   },
 
@@ -597,6 +616,7 @@ const createUser = {
         });
       }
     } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
       return {
         success: false,
         message: "internal server errors",
@@ -674,7 +694,13 @@ const createUser = {
       }
     } catch (error) {
       logElement("controller server error", error.message);
-      tryCatchErrors(res, error, "createUser controller");
+      logger.error(`Internal Server Error ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        error: "Internal Server Error",
+      };
     }
   },
 
@@ -732,6 +758,7 @@ const createUser = {
         });
       }
     } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
       res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -771,11 +798,12 @@ const createUser = {
       });
     } catch (error) {
       logObject("error", error);
+      logger.error(`Internal Server Error ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "internal server errors",
         errors: { message: error.message },
-        error: "",
+        error: "internal server errors",
       });
     }
   },
@@ -842,9 +870,11 @@ const createUser = {
         });
       }
     } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
       res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         message: "Internal Server Error",
         error: error.message,
+        errors: { message: error.message },
       });
     }
   },
@@ -897,6 +927,7 @@ const createUser = {
         });
       }
     } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -952,6 +983,7 @@ const createUser = {
         }
       });
     } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -1009,6 +1041,7 @@ const createUser = {
         }
       });
     } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -1070,6 +1103,7 @@ const createUser = {
         });
       }
     } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
       res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -1148,7 +1182,12 @@ const createUser = {
         }
       }
     } catch (error) {
-      tryCatchErrors(res, error, "createUser controller");
+      logger.error(`Internal Server Error ${error.message}`);
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
     }
   },
   subscribeToNewsLetter: async (req, res) => {
@@ -1199,7 +1238,9 @@ const createUser = {
         });
       }
     } catch (error) {
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+      logger.error(`Internal Server Error ${error.message}`);
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
       });
