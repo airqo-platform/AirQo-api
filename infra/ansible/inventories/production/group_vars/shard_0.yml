@@ -5,5 +5,5 @@ cfg_server:
   group: "config_servers"
 
 replica_set:
-  name: "mongod-shard-1"
-  group: "shard_1"
+  name: "shard-0"
+  group: "shard_0"

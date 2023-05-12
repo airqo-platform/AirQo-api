@@ -10,8 +10,8 @@
     userPass: "userPass" # encrypt with ansible-vault
     roles: ["readWrite", "userAdmin"]
     new_shard:
-      name: mongod-shard-1
-      server: mongod-shard-1-1.europe-west1-b.c.airqo-250220.internal
+      name: shard-0
+      server: mongod-shard-0-0.europe-west1-b.c.airqo-250220.internal
 
   pre_tasks:
     - name: Generate random string with OpenSSL on ansible controller

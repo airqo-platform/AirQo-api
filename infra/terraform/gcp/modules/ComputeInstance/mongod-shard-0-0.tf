@@ -1,7 +1,7 @@
-resource "google_compute_instance" "mongod_shard_1_1" {
+resource "google_compute_instance" "mongod_shard_0_0" {
   boot_disk {
     auto_delete = true
-    source      = "mongod-shard-1-1"
+    source      = "mongod-shard-0-0"
   }
 
   labels = {
@@ -15,7 +15,7 @@ resource "google_compute_instance" "mongod_shard_1_1" {
     startup-script = "sudo ufw allow ssh"
   }
 
-  name = "mongod-shard-1-1"
+  name = "mongod-shard-0-0"
 
   network_interface {
     access_config {
@@ -45,4 +45,4 @@ resource "google_compute_instance" "mongod_shard_1_1" {
 
   zone = var.zone["b"]
 }
-# terraform import google_compute_instance.mongod_shard_1_1 projects/${var.project_id}/zones/${var.zone["b"]}/instances/mongod-shard-1-1
+# terraform import google_compute_instance.mongod_shard_0_0 projects/${var.project_id}/zones/${var.zone["b"]}/instances/mongod-shard-0-0
