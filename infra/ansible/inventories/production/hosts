@@ -39,3 +39,8 @@ all:
             mongod-shard-0-0.europe-west1-b.c.airqo-250220.internal:
             mongod-shard-0-1.europe-west1-c.c.airqo-250220.internal:
             mongod-shard-0-2.europe-west1-d.c.airqo-250220.internal:
+        shard_1:
+          hosts:
+            mongod-shard-1-0.europe-west1-b.c.airqo-250220.internal:
+            mongod-shard-1-1.europe-west1-c.c.airqo-250220.internal:
+            mongod-shard-1-2.europe-west1-d.c.airqo-250220.internal:
