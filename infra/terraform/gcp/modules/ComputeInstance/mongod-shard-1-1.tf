@@ -9,7 +9,7 @@ resource "google_compute_instance" "mongod_shard_1_1" {
     "type" = "mongo-shard"
   }
 
-  machine_type = "e2-custom-4-8192"
+  machine_type = "e2-highmem-2 "
 
   metadata = {
     startup-script = "sudo ufw allow ssh"
