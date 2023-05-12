@@ -246,7 +246,6 @@ NetworkSchema.statics = {
           ],
           as: "net_users",
         })
-
         .lookup({
           from: "permissions",
           localField: "net_permissions",

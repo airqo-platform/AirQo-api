@@ -296,6 +296,77 @@ const defaultConfig = {
 
     return projection;
   },
+
+  USERS_INCLUSION_PROJECTION: {
+    _id: 1,
+    firstName: 1,
+    lastName: 1,
+    userName: 1,
+    email: 1,
+    verified: 1,
+    country: 1,
+    privilege: 1,
+    website: 1,
+    category: 1,
+    jobTitle: 1,
+    description: 1,
+    profilePicture: 1,
+    phoneNumber: 1,
+    role: 1,
+    networks: "$networks",
+    access_tokens: "$access_tokens",
+    permissions: "$permissions",
+    createdAt: 1,
+    updatedAt: 1,
+  },
+  USERS_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = {
+      "networks.__v": 0,
+      "networks.net_status": 0,
+      "networks.net_acronym": 0,
+      "networks.createdAt": 0,
+      "networks.updatedAt": 0,
+      "networks.net_users": 0,
+      "networks.net_roles": 0,
+      "networks.net_groups": 0,
+      "networks.net_description": 0,
+      "networks.net_departments": 0,
+      "networks.net_permissions": 0,
+      "networks.net_email": 0,
+      "networks.net_category": 0,
+      "networks.net_phoneNumber": 0,
+      "networks.net_manager": 0,
+      "access_tokens.__v": 0,
+      "access_tokens.user_id": 0,
+      "access_tokens.createdAt": 0,
+      "access_tokens.updatedAt": 0,
+      "permissions.__v": 0,
+      "permissions._id": 0,
+      "permissions.createdAt": 0,
+      "permissions.updatedAt": 0,
+      "role.__v": 0,
+      "role.createdAt": 0,
+      "role.updatedAt": 0,
+      "role.role_users": 0,
+      "role.network_id": 0,
+      "role.role_code": 0,
+      "role.role_permissions.__v": 0,
+      "role.role_permissions.updatedAt": 0,
+      "role.role_permissions.createdAt": 0,
+      "role.role_permissions.network_id": 0,
+      "role.role_permissions.description": 0,
+      "groups.__v": 0,
+      "groups._id": 0,
+      "groups.createdAt": 0,
+      "groups.updatedAt": 0,
+    };
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign({}, {});
+    }
+
+    return projection;
+  },
 };
 
 function envConfig(env) {
