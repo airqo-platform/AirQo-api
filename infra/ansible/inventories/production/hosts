@@ -31,7 +31,11 @@ all:
       children:
         config_servers:
           hosts:
-            mongod-cfgsvr-[0:2].europe-west1-b.c.airqo-250220.internal
+            mongod-cfgsvr-0.europe-west1-b.c.airqo-250220.internal:
+            mongod-cfgsvr-1.europe-west1-c.c.airqo-250220.internal:
+            mongod-cfgsvr-2.europe-west1-d.c.airqo-250220.internal:
         shard_0:
           hosts:
-            mongod-shard-0-[0:2].europe-west1-b.c.airqo-250220.internal
+            mongod-shard-0-0.europe-west1-b.c.airqo-250220.internal:
+            mongod-shard-0-1.europe-west1-c.c.airqo-250220.internal:
+            mongod-shard-0-2.europe-west1-d.c.airqo-250220.internal:
