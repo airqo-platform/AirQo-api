@@ -1811,29 +1811,11 @@ const controlAccess = {
         };
       }
 
-      const assignedPermissions = role.role_permissions.map((permission) =>
-        permission.toString()
-      );
-
-      // const notAssigned = permission_ids.filter(
-      //   (permission) => !assignedPermissions.includes(permission)
-      // );
-
-      // if (notAssigned.length > 0) {
-      //   return {
-      //     success: false,
-      //     message: "Bad Request Error",
-      //     errors: {
-      //       message: `Some of the provided permissions are not assigned to the Role ${role_id.toString()}, they include: ${notAssigned.join(
-      //         ", "
-      //       )}`,
-      //     },
-      //   };
-      // }
+      const uniquePermissions = [...new Set(permission_ids)];
 
       const updatedRole = await RoleModel(tenant).findByIdAndUpdate(
         role_id,
-        { role_permissions: permission_ids },
+        { role_permissions: uniquePermissions },
         { new: true }
       );
 
