@@ -922,6 +922,63 @@ const createRole = {
       });
     }
   },
+
+  updateRolePermissions: async (req, res) => {
+    try {
+      logText("  updateRolePermissions....");
+      const { query, body } = req;
+      let { tenant } = query;
+      const hasErrors = !validationResult(req).isEmpty();
+      logObject("hasErrors", hasErrors);
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT;
+      }
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
+
+      const responseFromUpdateRolePermissions =
+        await controlAccessUtil.updateRolePermissions(request);
+
+      if (responseFromUpdateRolePermissions.success === true) {
+        const status = responseFromUpdateRolePermissions.status
+          ? responseFromUpdateRolePermissions.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromUpdateRolePermissions.message,
+          modified_role: responseFromUpdateRolePermissions.data,
+        });
+      } else if (responseFromUpdateRolePermissions.success === false) {
+        const status = responseFromUpdateRolePermissions.status
+          ? responseFromUpdateRolePermissions.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+
+        return res.status(status).json({
+          success: true,
+          message: responseFromUpdateRolePermissions.message,
+          errors: responseFromUpdateRolePermissions.errors
+            ? responseFromUpdateRolePermissions.errors
+            : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
 };
 
 module.exports = createRole;

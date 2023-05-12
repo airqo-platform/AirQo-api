@@ -1773,6 +1773,102 @@ const controlAccess = {
       };
     }
   },
+  updateRolePermissions: async (request) => {
+    try {
+      const { query, params, body } = request;
+      const { role_id } = params;
+      const { tenant } = query;
+      const { permission_ids } = body;
+
+      // Check if role exists
+      const role = await RoleModel(tenant).findById(role_id);
+      if (!role) {
+        return {
+          success: false,
+          message: "Bad Request Errors",
+          errors: { message: `Role ${role_id} not found` },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      // Check if any of the provided permission IDs don't exist
+      const permissions = await PermissionModel(tenant).find({
+        _id: { $in: permission_ids },
+      });
+      const missingPermissions = permission_ids.filter((permission_id) => {
+        return !permissions.some((permission) =>
+          permission._id.equals(permission_id)
+        );
+      });
+      if (missingPermissions.length > 0) {
+        return {
+          success: false,
+          message: "Bad Request Errors",
+          errors: {
+            message: `Permissions not found: ${missingPermissions.join(", ")}`,
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const assignedPermissions = role.role_permissions.map((permission) =>
+        permission.toString()
+      );
+
+      // const notAssigned = permission_ids.filter(
+      //   (permission) => !assignedPermissions.includes(permission)
+      // );
+
+      // if (notAssigned.length > 0) {
+      //   return {
+      //     success: false,
+      //     message: "Bad Request Error",
+      //     errors: {
+      //       message: `Some of the provided permissions are not assigned to the Role ${role_id.toString()}, they include: ${notAssigned.join(
+      //         ", "
+      //       )}`,
+      //     },
+      //   };
+      // }
+
+      const updatedRole = await RoleModel(tenant).findByIdAndUpdate(
+        role_id,
+        { role_permissions: permission_ids },
+        { new: true }
+      );
+
+      if (!isEmpty(updatedRole)) {
+        return {
+          success: true,
+          message: "Permissions updated successfully",
+          status: httpStatus.OK,
+          data: updatedRole,
+        };
+      } else if (isEmpty(updatedRole)) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: "unable to update the permissions" },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      return {
+        success: true,
+        message: `permissions successfully updated.`,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logObject("error", error);
+      logger.error(`internal server error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
 
   /******* permissions *******************************************/
   listPermission: async (request) => {
