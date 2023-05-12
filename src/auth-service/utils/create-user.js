@@ -2,6 +2,8 @@ const UserSchema = require("@models/User");
 const LogSchema = require("@models/log");
 const AccessTokenSchema = require("@models/AccessToken");
 const ClientSchema = require("@models/Client");
+const NetworkSchema = require("@models/Network");
+const RoleSchema = require("@models/Role");
 const { getModelByTenant } = require("@config/dbConnection");
 const { logObject, logElement, logText } = require("./log");
 const mailer = require("./mailer");
@@ -60,6 +62,26 @@ const ClientModel = (tenant) => {
   } catch (error) {
     let clients = getModelByTenant(tenant, "client", ClientSchema);
     return clients;
+  }
+};
+
+const NetworkModel = (tenant) => {
+  try {
+    const networks = mongoose.model("networks");
+    return networks;
+  } catch (error) {
+    const networks = getModelByTenant(tenant, "network", NetworkSchema);
+    return networks;
+  }
+};
+
+const RoleModel = (tenant) => {
+  try {
+    let roles = mongoose.model("roles");
+    return roles;
+  } catch (error) {
+    let roles = getModelByTenant(tenant, "role", RoleSchema);
+    return roles;
   }
 };
 
@@ -386,58 +408,48 @@ const join = {
   },
   delete: async (tenant, filter) => {
     try {
-      let responseFromRemoveUser = await UserModel(tenant.toLowerCase()).remove(
-        {
-          filter,
-        }
+      await RoleModel(tenant).updateMany(
+        { role_users: filter._id },
+        { $pull: { role_users: filter._id } }
       );
 
-      /**
-       * cascase delete of user details...
-       */
-      // let responseFromRemoveUser = await UserModel(
-      //   tenant.toLowerCase()
-      // ).v2_remove({
-      //   filter,
-      // });
-
-      if (responseFromRemoveUser.success == true) {
-        return {
-          success: true,
-          message: responseFromRemoveUser.message,
-          data: responseFromRemoveUser.data,
-          status: responseFromRemoveUser.status
-            ? responseFromRemoveUser.status
-            : "",
-        };
-      } else if (responseFromRemoveUser.success == false) {
-        if (responseFromRemoveUser.error) {
-          return {
-            success: false,
-            message: responseFromRemoveUser.message,
-            error: responseFromRemoveUser.error
-              ? responseFromRemoveUser.error
-              : "",
-            status: responseFromRemoveUser.status
-              ? responseFromRemoveUser.status
-              : "",
-          };
-        } else {
-          return {
-            success: false,
-            message: responseFromRemoveUser.message,
-            status: responseFromRemoveUser.status
-              ? responseFromRemoveUser.status
-              : "",
-          };
+      await NetworkModel(tenant).updateMany(
+        { net_users: filter._id },
+        {
+          $pull: { net_users: filter._id },
+          $cond: {
+            if: { $eq: ["$net_manager", filter._id] },
+            then: { $set: { net_manager: null } },
+            else: {},
+          },
         }
+      );
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      };
+    }
+
+    try {
+      const responseFromRemoveUser = await UserModel(
+        tenant.toLowerCase()
+      ).remove({
+        filter,
+      });
+      if (responseFromRemoveUser.success === true) {
+        return responseFromRemoveUser;
+      } else if (responseFromRemoveUser.success === false) {
+        return responseFromRemoveUser;
       }
     } catch (e) {
       logElement("delete users util", e.message);
       return {
         success: false,
-        message: "util server error",
-        error: e.message,
+        message: "Internal Server Error",
+        errors: { message: e.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -474,6 +486,16 @@ const join = {
     try {
       const { tenant, firstName, email, network_id } = request;
       let { password } = request;
+
+      const user = await UserModel(tenant).findOne({ email });
+      if (!isEmpty(user)) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: "User is already part of the AirQo platform" },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
 
       password = password
         ? password

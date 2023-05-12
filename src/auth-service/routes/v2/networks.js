@@ -83,6 +83,24 @@ router.get(
   createNetworkController.list
 );
 
+router.get(
+  "/summary",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  createNetworkController.listSummary
+);
+
 router.put(
   "/:net_id/set-manager/:user_id",
   oneOf([
@@ -372,6 +390,55 @@ router.post(
   setJWTAuth,
   authJWT,
   createNetworkController.getNetworkFromEmail
+);
+
+router.delete(
+  "/:net_id/unassign-many-users",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      param("net_id")
+        .exists()
+        .withMessage("the network ID is missing in request")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the network ID must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("user_ids")
+        .exists()
+        .withMessage("the user_ids should be provided")
+        .bail()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the user_ids should be an array")
+        .bail()
+        .notEmpty()
+        .withMessage("the user_ids should not be empty"),
+      body("user_ids.*")
+        .isMongoId()
+        .withMessage("user_id provided must be an object ID"),
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  createNetworkController.unAssignManyUsers
 );
 
 router.delete(

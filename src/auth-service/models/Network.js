@@ -65,25 +65,26 @@ const NetworkSchema = new Schema(
     net_departments: [
       {
         type: ObjectId,
-        ref: "departments",
+        ref: "department",
       },
     ],
     net_permissions: [
       {
         type: ObjectId,
-        ref: "permissions",
+        ref: "permission",
       },
     ],
     net_roles: [
       {
         type: ObjectId,
-        ref: "roles",
+        ref: "role",
       },
     ],
     net_groups: [
       {
         type: ObjectId,
-        ref: "groups",
+        ref: "group",
+        unique: true,
       },
     ],
   },
@@ -197,14 +198,55 @@ NetworkSchema.statics = {
   },
   async list({ skip = 0, limit = 100, filter = {} } = {}) {
     try {
+      const inclusionProjection = constants.NETWORKS_INCLUSION_PROJECTION;
+      const exclusionProjection = constants.NETWORKS_EXCLUSION_PROJECTION(
+        filter.category ? filter.category : ""
+      );
+      logObject("inclusionProjection", inclusionProjection);
+      logObject("exclusionProjection", exclusionProjection);
+
+      let filterCopy = Object.assign({}, filter);
+      if (!isEmpty(filterCopy.category)) {
+        delete filterCopy.category;
+      }
       const response = await this.aggregate()
-        .match(filter)
+        .match(filterCopy)
         .lookup({
           from: "users",
-          localField: "net_users",
-          foreignField: "_id",
+          let: { users: "$net_users" },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $in: ["$_id", "$$users"] },
+              },
+            },
+            {
+              $lookup: {
+                from: "roles",
+                localField: "role",
+                foreignField: "_id",
+                as: "role",
+              },
+            },
+            {
+              $addFields: {
+                role: { $arrayElemAt: ["$role", 0] },
+              },
+            },
+            {
+              $project: {
+                "role.role_status": 0,
+                "role.role_permissions": 0,
+                "role.role_users": 0,
+                "role.role_code": 0,
+                "role.network_id": 0,
+                "role.__v": 0,
+              },
+            },
+          ],
           as: "net_users",
         })
+
         .lookup({
           from: "permissions",
           localField: "net_permissions",
@@ -236,81 +278,11 @@ NetworkSchema.statics = {
           as: "net_manager",
         })
         .sort({ createdAt: -1 })
-        .project({
-          _id: 1,
-          net_email: 1,
-          net_website: 1,
-          net_category: 1,
-          net_status: 1,
-          net_phoneNumber: 1,
-          net_name: 1,
-          net_description: 1,
-          net_acronym: 1,
-          createdAt: 1,
-          net_manager: { $arrayElemAt: ["$net_manager", 0] },
-          net_users: "$net_users",
-          net_permissions: "$net_permissions",
-          net_roles: "$net_roles",
-          net_groups: "$net_groups",
-          net_departments: "$net_departments",
-        })
-        .project({
-          "net_users.__v": 0,
-          "net_users.notifications": 0,
-          "net_users.emailConfirmed": 0,
-          "net_users.networks": 0,
-          "net_users.locationCount": 0,
-          "net_users.network": 0,
-          "net_users.long_network": 0,
-          "net_users.privilege": 0,
-          "net_users.userName": 0,
-          "net_users.password": 0,
-          "net_users.duration": 0,
-          "net_users.createdAt": 0,
-          "net_users.updatedAt": 0,
-        })
-        .project({
-          "net_manager.__v": 0,
-          "net_manager.notifications": 0,
-          "net_manager.emailConfirmed": 0,
-          "net_manager.networks": 0,
-          "net_manager.locationCount": 0,
-          "net_manager.network": 0,
-          "net_manager.long_network": 0,
-          "net_manager.privilege": 0,
-          "net_manager.userName": 0,
-          "net_manager.password": 0,
-          "net_manager.duration": 0,
-          "net_manager.createdAt": 0,
-          "net_manager.updatedAt": 0,
-          "net_manager.groups": 0,
-          "net_manager.roles": 0,
-          "net_manager.permissions": 0,
-        })
-        .project({
-          "net_permissions.__v": 0,
-          "net_permissions.createdAt": 0,
-          "net_permissions.updatedAt": 0,
-        })
-        .project({
-          "net_roles.__v": 0,
-          "net_roles.createdAt": 0,
-          "net_roles.updatedAt": 0,
-        })
-        .project({
-          "net_groups.__v": 0,
-          "net_groups.createdAt": 0,
-          "net_groups.updatedAt": 0,
-        })
-        .project({
-          "net_departments.__v": 0,
-          "net_departments.createdAt": 0,
-          "net_departments.updatedAt": 0,
-        })
+        .project(inclusionProjection)
+        .project(exclusionProjection)
         .skip(skip ? skip : 0)
         .limit(limit ? limit : 100)
         .allowDiskUse(true);
-
       if (!isEmpty(response)) {
         return {
           success: true,
@@ -328,6 +300,7 @@ NetworkSchema.statics = {
         };
       }
     } catch (err) {
+      logObject("error", err);
       let response = {};
       let message = "validation errors for some of the provided fields";
       let status = httpStatus.CONFLICT;
