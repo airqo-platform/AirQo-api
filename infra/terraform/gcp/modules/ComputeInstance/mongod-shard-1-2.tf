@@ -1,4 +1,4 @@
-resource "google_compute_instance" "mongod_shard_0_2" {
+resource "google_compute_instance" "mongod_shard_1_2" {
   boot_disk {
     auto_delete = true
     source      = "mongod-shard-1-2"
@@ -45,4 +45,4 @@ resource "google_compute_instance" "mongod_shard_0_2" {
 
   zone = var.zone["d"]
 }
-# terraform import google_compute_instance.mongod_shard_0_2 projects/${var.project_id}/zones/${var.zone["b"]}/instances/mongod-shard-1-2
+# terraform import google_compute_instance.mongod_shard_1_2 projects/${var.project_id}/zones/${var.zone["b"]}/instances/mongod-shard-1-2
