@@ -86,7 +86,7 @@ class Config:
     )
 
     # US Embassy
-    USEMBASSY_API_KEY = os.getenv("USEMBASSY_API_KEY")
+    US_EMBASSY_API_KEY = os.getenv("US_EMBASSY_API_KEY")
 
     # FIREBASE
     FIREBASE_AIR_QUALITY_READINGS_COLLECTION = os.getenv(

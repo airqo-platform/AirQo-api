@@ -47,30 +47,36 @@ class AirnowDataUtils:
         return pd.DataFrame(data)
 
     @staticmethod
-    def extract_bam_data(
-        api_key: str, start_date_time: str, end_date_time: str
-    ) -> pd.DataFrame:
+    def extract_bam_data(start_date_time: str, end_date_time: str) -> pd.DataFrame:
+        tenants = AirNowApi().get_tenants()
+        bam_data = pd.DataFrame()
         dates = Utils.query_dates_array(
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             data_source=DataSource.AIRNOW,
         )
 
-        data = pd.DataFrame()
+        for tenant in tenants:
+            network_api_key = tenant["api_key"]
+            network_data = pd.DataFrame()
 
-        for start, end in dates:
-            query_data = AirnowDataUtils.query_bam_data(
-                api_key=api_key, start_date_time=start, end_date_time=end
-            )
-            data = pd.concat([data, query_data], ignore_index=True)
+            for start, end in dates:
+                query_data = AirnowDataUtils.query_bam_data(
+                    api_key=network_api_key, start_date_time=start, end_date_time=end
+                )
+                network_data = pd.concat([network_data, query_data], ignore_index=True)
 
-        return data
+            network_data["tenant"] = tenant["network"]
+
+            bam_data = pd.concat([bam_data, network_data], ignore_index=True)
+
+        return bam_data
 
     @staticmethod
-    def process_bam_data(data: pd.DataFrame, tenant) -> pd.DataFrame:
+    def process_bam_data(data: pd.DataFrame) -> pd.DataFrame:
         air_now_data = []
 
-        devices = AirQoApi().get_devices(tenant=tenant)
+        devices = AirQoApi().get_devices(tenant=Tenant.ALL)
         for _, row in data.iterrows():
             try:
                 device_id = row["FullAQSCode"]
@@ -85,10 +91,14 @@ class AirnowDataUtils:
                 )
 
                 pollutant_value[parameter_col_name] = row["Value"]
+
+                if row["tenant"] != device_details.get("tenant"):
+                    raise Exception("tenants dont match")
+
                 air_now_data.append(
                     {
                         "timestamp": row["UTC"],
-                        "tenant": str(tenant),
+                        "tenant": row["tenant"],
                         "site_id": device_details.get("site_id"),
                         "device_id": device_details.get("device_id"),
                         "device_number": device_details.get("device_number"),

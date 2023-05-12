@@ -2,6 +2,7 @@ import pandas as pd
 
 from .airqo_api import AirQoApi
 from .airqo_utils import AirQoDataUtils
+
 # from .app_insights_utils import AirQoAppUtils
 from .bigquery_api import BigQueryApi
 from .constants import Tenant, DeviceCategory

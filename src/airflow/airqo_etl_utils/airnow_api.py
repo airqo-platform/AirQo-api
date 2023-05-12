@@ -8,10 +8,11 @@ from typing import List
 
 from .constants import Tenant, DataSource
 
+
 class AirNowApi:
     def __init__(self):
         self.AIRNOW_BASE_URL = configuration.AIRNOW_BASE_URL
-        self.USEMBASSY_API_KEY = configuration.USEMBASSY_API_KEY
+        self.US_EMBASSY_API_KEY = configuration.US_EMBASSY_API_KEY
         self.AIRNOW_COUNTRIES_METADATA = (
             configuration.AIRNOW_COUNTRIES_METADATA_JSON_FILE
         )
@@ -42,10 +43,9 @@ class AirNowApi:
             "dataType": "B",
         }
 
-        return self.__request(endpoint="/aq/data", params=params,api_key=api_key)
+        return self.__request(endpoint="/aq/data", params=params, api_key=api_key)
 
-    def __request(self, endpoint, params,api_key):
-
+    def __request(self, endpoint, params, api_key):
         params["API_KEY"] = api_key
 
         api_request = requests.get(
@@ -61,14 +61,14 @@ class AirNowApi:
         else:
             handle_api_error(api_request)
             return None
-        
-    def get_networks(self) ->List[str]:
+
+    def get_tenants(self) -> List[dict]:
         # TODO: Create endpoint to return networks
         return [
             {
-                "network":Tenant.US_EMBASSY,
-                "data_source":DataSource.AIRNOW,
-                "api_key":self.USEMBASSY_API_KEY,
+                "network": str(Tenant.US_EMBASSY),
+                "data_source": str(DataSource.AIRNOW),
+                "api_key": self.US_EMBASSY_API_KEY,
             }
         ]
 
