@@ -1,7 +1,7 @@
-resource "google_compute_instance" "mongod_cfgsvr_3" {
+resource "google_compute_instance" "mongod_cfgsvr_0" {
   boot_disk {
     auto_delete = true
-    source      = "mongod-cfgsvr-3"
+    source      = "mongod-cfgsvr-0"
   }
 
   labels = {
@@ -15,7 +15,7 @@ resource "google_compute_instance" "mongod_cfgsvr_3" {
     startup-script = "sudo ufw allow ssh"
   }
 
-  name = "mongod-cfgsvr-3"
+  name = "mongod-cfgsvr-0"
 
   network_interface {
     access_config {
@@ -23,7 +23,7 @@ resource "google_compute_instance" "mongod_cfgsvr_3" {
     }
 
     network = "default"
-    network_ip = "10.132.0.50"
+    network_ip = "10.132.0.49"
   }
 
   project = var.project_id
@@ -43,6 +43,6 @@ resource "google_compute_instance" "mongod_cfgsvr_3" {
     scopes = ["https://www.googleapis.com/auth/devstorage.read_only", "https://www.googleapis.com/auth/logging.write", "https://www.googleapis.com/auth/monitoring.write", "https://www.googleapis.com/auth/service.management.readonly", "https://www.googleapis.com/auth/servicecontrol", "https://www.googleapis.com/auth/trace.append"]
   }
 
-  zone = var.zone["d"]
+  zone = var.zone["b"]
 }
-# terraform import google_compute_instance.mongod_cfgsvr_3 projects/${var.project_id}/zones/${var.zone["b"]}/instances/mongod-cfgsvr-3
+# terraform import google_compute_instance.mongod_cfgsvr_0 projects/${var.project_id}/zones/${var.zone["b"]}/instances/mongod-cfgsvr-0

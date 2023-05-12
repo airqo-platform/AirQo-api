@@ -23,7 +23,7 @@ resource "google_compute_instance" "mongod_cfgsvr_2" {
     }
 
     network = "default"
-    network_ip = "10.132.0.48"
+    network_ip = "10.132.0.50"
   }
 
   project = var.project_id
@@ -43,6 +43,6 @@ resource "google_compute_instance" "mongod_cfgsvr_2" {
     scopes = ["https://www.googleapis.com/auth/devstorage.read_only", "https://www.googleapis.com/auth/logging.write", "https://www.googleapis.com/auth/monitoring.write", "https://www.googleapis.com/auth/service.management.readonly", "https://www.googleapis.com/auth/servicecontrol", "https://www.googleapis.com/auth/trace.append"]
   }
 
-  zone = var.zone["c"]
+  zone = var.zone["d"]
 }
 # terraform import google_compute_instance.mongod_cfgsvr_2 projects/${var.project_id}/zones/${var.zone["b"]}/instances/mongod-cfgsvr-2

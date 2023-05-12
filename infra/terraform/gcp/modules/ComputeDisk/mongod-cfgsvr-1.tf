@@ -5,7 +5,7 @@ resource "google_compute_disk" "mongod_cfgsvr_1" {
   project                   = var.project_id
   size                      = var.disk_size["small"]
   type                      = "pd-ssd"
-  zone                      = var.zone["b"]
+  zone                      = var.zone["c"]
   description               = "Disk for a mongodb sharded cluster config server"
 }
 # terraform import google_compute_disk.mongod_cfgsvr_1 projects/${var.project_id}/zones/${var.zone["b"]}/disks/mongod-cfgsvr-1
