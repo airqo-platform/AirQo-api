@@ -6,7 +6,7 @@ from flask_restx import Resource
 from flask import request
 
 # Middlewares
-from main import rest_api
+from main import rest_api_v1, rest_api_v2
 
 # models
 from api.models import ReportTemplateModel
@@ -17,7 +17,8 @@ from api.utils.http import create_response, Status
 from api.utils.case_converters import camel_to_snake
 
 
-@rest_api.route('/report/default_template')
+@rest_api_v1.route('/report/default_template')
+@rest_api_v2.route('/report/default_template')
 class DefaultReportTemplateResource(Resource):
 
     @swag_from('/api/docs/report/default_report_template_post.yml')
@@ -109,7 +110,8 @@ class DefaultReportTemplateResource(Resource):
         ), Status.HTTP_404_NOT_FOUND
 
 
-@rest_api.route('/report/monthly')
+@rest_api_v1.route('/report/monthly')
+@rest_api_v2.route('/report/monthly')
 class MonthlyReportResource(Resource):
 
     @swag_from('/api/docs/report/monthly_report_post.yml')
@@ -167,7 +169,8 @@ class MonthlyReportResource(Resource):
         return create_response("report(s) not found", success=False), Status.HTTP_404_NOT_FOUND
 
 
-@rest_api.route('/report/monthly/<report_name>')
+@rest_api_v1.route('/report/monthly/<report_name>')
+@rest_api_v2.route('/report/monthly/<report_name>')
 class MonthlyReportExtraResource(Resource):
 
     @swag_from('/api/docs/report/monthly_report_extra_post.yml')

@@ -54,6 +54,41 @@ router.post(
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
+  oneOf([
+    [
+      body("permission")
+        .exists()
+        .withMessage("permission is missing in your request")
+        .bail()
+        .notEmpty()
+        .withMessage("the permission must not be empty")
+        .bail()
+        .trim()
+        .escape()
+        .customSanitizer((value) => {
+          return value.replace(/ /g, "_").toUpperCase();
+        }),
+      body("network_id")
+        .optional()
+        .notEmpty()
+        .withMessage("network_id should not be empty if provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("network_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("description")
+        .exists()
+        .withMessage("description is missing in your request")
+        .bail()
+        .notEmpty()
+        .withMessage("the description must not be empty")
+        .trim(),
+    ],
+  ]),
   setJWTAuth,
   authJWT,
   createPermissionController.create

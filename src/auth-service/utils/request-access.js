@@ -17,7 +17,9 @@ const CandidateModel = (tenant) => {
 };
 
 const log4js = require("log4js");
-const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- request-util`);
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- request-access-util`
+);
 
 const requestAccess = {
   create: async (req, callback) => {
@@ -56,6 +58,9 @@ const requestAccess = {
         responseFromListCandidates.message ===
         "successfully listed the candidates"
       ) {
+        logger.error(
+          `candidate ${email} already exists in the System, they just need to be approved`
+        );
         callback({
           success: true,
           message: "candidate already exists",
@@ -67,11 +72,18 @@ const requestAccess = {
         ).list({
           filter,
         });
-        if (responseFromListUsers.message === "successfully listed the users") {
+        if (
+          responseFromListUsers.message ===
+          "successfully retrieved the user details"
+        ) {
+          logger.error(
+            `candidate ${email} already exists as a User in the System`
+          );
           callback({
-            success: true,
-            message: "candidate already exists as a user",
-            status: httpStatus.OK,
+            success: false,
+            message: "Bad Request Error",
+            status: httpStatus.BAD_REQUEST,
+            errors: { message: "candidate already exists as a user" },
           });
         } else if (responseFromListUsers.message === "no users exist") {
           const responseFromCreateCandidate = await CandidateModel(
@@ -103,7 +115,7 @@ const requestAccess = {
               const status = responseFromSendEmail.status
                 ? responseFromSendEmail.status
                 : httpStatus.INTERNAL_SERVER_ERROR;
-
+              logger.error(`${responseFromCreateCandidate.message}`);
               callback({
                 success: false,
                 message: responseFromCreateCandidate.message,
@@ -118,6 +130,7 @@ const requestAccess = {
             const status = responseFromCreateCandidate.status
               ? responseFromCreateCandidate.status
               : httpStatus.INTERNAL_SERVER_ERROR;
+            logger.error(`${responseFromCreateCandidate.message}`);
             callback({
               success: false,
               message: responseFromCreateCandidate.message,
@@ -132,6 +145,7 @@ const requestAccess = {
           const status = responseFromListUsers.status
             ? responseFromListUsers.status
             : httpStatus.INTERNAL_SERVER_ERROR;
+          logger.error(`${responseFromListUsers.message}`);
           callback({
             success: false,
             message: responseFromListUsers.message,
@@ -146,6 +160,7 @@ const requestAccess = {
         const status = responseFromListCandidates.status
           ? responseFromListCandidates.status
           : httpStatus.INTERNAL_SERVER_ERROR;
+        logger.error(`${responseFromListCandidates.message}`);
         callback({
           success: false,
           message: responseFromListCandidates.message,
@@ -154,6 +169,7 @@ const requestAccess = {
         });
       }
     } catch (e) {
+      logger.error(`${e.message}`);
       callback({
         success: false,
         message: "Internal Server Error",
@@ -199,6 +215,7 @@ const requestAccess = {
         }
       }
     } catch (e) {
+      logger.error(`${e.message}`);
       return {
         success: false,
         message: "utils server error",
@@ -237,6 +254,7 @@ const requestAccess = {
         }
       }
     } catch (e) {
+      logger.error(`${e.message}`);
       return {
         success: false,
         message: "util server error",
@@ -363,6 +381,7 @@ const requestAccess = {
         };
       }
     } catch (e) {
+      logger.error(`${e.message}`);
       if (e.code === 11000) {
         return {
           success: false,
@@ -389,6 +408,7 @@ const requestAccess = {
       });
       return responseFromRemoveCandidate;
     } catch (e) {
+      logger.error(`${e.message}`);
       return {
         success: false,
         message: "util server error",
