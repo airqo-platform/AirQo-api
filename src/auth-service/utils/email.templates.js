@@ -75,7 +75,7 @@ module.exports = {
         <p> Welcome to AirQo Analytics 🎉</p>
         <p> Thanks for signing up; we can't wait for you to get started! Click the button to verify your email:</p>
 
-        <div style="height:56px, width:268px;">
+        <div>
             <button
                 style="background-color: #135DFF; border: none; color: white; padding: 15px 32px; text-align: center; text-decoration: none; display: inline-block; font-size: 16px; margin: 4px 2px; cursor: pointer;">
                 <a href="${constants.PLATFORM_BASE_URL}/api/v1/users/verify/${user_id}/${token}"
@@ -91,12 +91,13 @@ module.exports = {
             personal settings</p>
         <p style="color: #344054; opacity: 0.6;">Didn't make this request? You can safely ignore and delete this email
         </p>
-        <hr style="width: 1000px; height: 8px; background-color: #EBF1FF; 
+        </div>
+        <hr style="width: 800px; height: 8px; background-color: #EBF1FF; 
   border: none; margin-top: 48px; margin-bottom: 48px;">
-
-        <div style="margin-left: 24px;margin-right: 24px;">
-
-            <div style="display: flex;flex-wrap: wrap; justify-content: center;  align-items: center; margin-left:380px">
+         <div
+        style="margin-left: 24px;margin-right: 24px;margin-top:32px;margin-bottom:32px; font-family: 'Inter'; font-style: normal; font-weight: 400; font-size: 16px; line-height: 24px;">
+        
+            <div style="display: flex;flex-wrap: wrap; justify-content: center;  align-items: center; margin-left:290px">
               
                  <a href="https://www.facebook.com/AirQo/" target="_blank"> <img src="cid:FacebookLogo"
                             alt="FacebookLogo"
@@ -114,18 +115,16 @@ module.exports = {
                             alt="Twitter"
                             style="width:24px; height: 24px;margin-right: 20px;"></a>
 
-
             </div>
 
             <br />
             <div style = "text-align: center;" >
-            <p style="">© 2022 AirQo. </p>
+            <p>© 2022 AirQo. </p>
 
             <p>Makerere University, Software Systems Centre, Block B, Level 3, College of Computing and Information
                 Sciences, Plot 56 University Pool Road</p>
             </div>
-            
-        </div>
+                   
     </div>
 
 </html>
