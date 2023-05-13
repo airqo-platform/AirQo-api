@@ -33,6 +33,10 @@ module "ComputeInstanceTemplate" {
   disk_size      = var.disk_size
 }
 
+module "ComputeNetworkPeering" {
+  source = "./modules/ComputeNetworkPeering"
+}
+
 module "ComputeResourcePolicy" {
   source = "./modules/ComputeResourcePolicy"
 
