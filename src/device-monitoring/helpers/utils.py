@@ -10,7 +10,7 @@ def decode_user_token(auth_value: str):
         user_details["first_name"] = decoded.get("firstName", "")
         user_details["last_name"] = decoded.get("lastName", "")
         user_details["email"] = decoded.get("email", "")
-        user_details["id"] = decoded.get("_id", "")
+        user_details["batch_id"] = decoded.get("_id", "")
     except:
         pass
 

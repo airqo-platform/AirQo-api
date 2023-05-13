@@ -191,8 +191,7 @@ def compute_differences(
             failed_devices.extend([device_x, device_y])
 
     passed_devices = list(set(passed_devices))
-    failed_devices = list(set(failed_devices))
-
+    failed_devices = list(set(failed_devices).difference(set(passed_devices)))
     neutral_devices = list(
         set(devices).difference(set(passed_devices)).difference(set(failed_devices))
     )
@@ -234,17 +233,17 @@ def compute_devices_inter_sensor_correlation(
     device_pair_correlation = {}
 
     for col in correlation_cols:
-        if col == "timestamp":
-            continue
-
-        comp_cols = [f"{device_x}_{col}", f"{device_y}_{col}"]
-
-        device_pair_correlation_data = device_pair_data[comp_cols].corr().round(4)
-        device_pair_correlation_data.replace(np.nan, None, inplace=True)
-        correlation_value = device_pair_correlation_data.iloc[0][comp_cols[1]]
-        device_pair_correlation[f"{col}_pearson"] = correlation_value
-
         try:
+            if col == "timestamp":
+                continue
+
+            comp_cols = [f"{device_x}_{col}", f"{device_y}_{col}"]
+
+            device_pair_correlation_data = device_pair_data[comp_cols].corr().round(4)
+            device_pair_correlation_data.replace(np.nan, None, inplace=True)
+            correlation_value = device_pair_correlation_data.iloc[0][comp_cols[1]]
+            device_pair_correlation[f"{col}_pearson"] = correlation_value
+
             device_pair_correlation[f"{col}_r2_pearson"] = math.sqrt(correlation_value)
         except Exception:
             device_pair_correlation[f"{col}_r2_pearson"] = None
@@ -282,7 +281,7 @@ def compute_inter_sensor_correlation(
     correlation_cols.extend(other_parameters)
     correlation_cols = list(set(correlation_cols))
 
-    if base_device is not None:
+    if base_device is not None and base_device != "":
         for device in data.keys():
             if device == base_device:
                 continue

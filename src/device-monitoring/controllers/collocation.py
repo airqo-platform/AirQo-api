@@ -1,6 +1,7 @@
 import datetime
 import logging
 import traceback
+import uuid
 
 from flask import Blueprint, request, jsonify
 
@@ -13,7 +14,11 @@ from helpers.collocation_utils import (
 )
 from helpers.convert_dates import validate_date, str_to_date
 from helpers.utils import decode_user_token
-from models import CollocationData, CollocationStatus
+from models import (
+    CollocationBatch,
+    CollocationBatchStatus,
+    CollocationBatchResult,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -22,7 +27,7 @@ collocation_bp = Blueprint("collocation", __name__)
 
 #  v2 endpoints
 @collocation_bp.route(routes.COLLOCATION_V2, methods=["POST"])
-def collocation_schedule():
+def create_collocation_batch():
     token = request.headers.get("Authorization", "")
     json_data = request.get_json()
     devices = json_data.get("devices", [])
@@ -32,6 +37,10 @@ def collocation_schedule():
 
     expected_records_per_hour = json_data.get(
         "expectedRecordsPerHour", CollocationDefaults.ExpectedRecordsPerHour
+    )
+
+    batch_name = json_data.get(
+        "batchName", str(str(uuid.uuid4()).replace("-", "")[:8]).upper()
     )
 
     data_completeness_threshold = json_data.get(
@@ -96,13 +105,14 @@ def collocation_schedule():
         start_date = str_to_date(start_date, str_format="%Y-%m-%d")
         end_date = str_to_date(end_date, str_format="%Y-%m-%d")
 
-        x_collocation_data = CollocationData(
-            id=None,
+        batch = CollocationBatch(
+            batch_id="",
+            batch_name=batch_name,
             devices=list(set(devices)),
             base_device=base_device,
             start_date=start_date,
             end_date=end_date,
-            date_added=datetime.datetime.utcnow(),
+            date_created=datetime.datetime.utcnow(),
             expected_hourly_records=expected_records_per_hour,
             inter_correlation_threshold=inter_correlation_threshold,
             intra_correlation_threshold=intra_correlation_threshold,
@@ -115,15 +125,16 @@ def collocation_schedule():
             intra_correlation_parameter=intra_correlation_parameter,
             differences_parameter=differences_parameter,
             inter_correlation_additional_parameters=inter_correlation_additional_parameters,
-            added_by=user_details,
-            status=CollocationStatus.SCHEDULED,
-            results=None,
+            created_by=user_details,
+            status=CollocationBatchStatus.SCHEDULED,
+            results=CollocationBatchResult.empty_results(),
+            summary=[],
         )
 
         collocation_scheduling = CollocationScheduling()
-        collocation_scheduling.create_collocation_data(x_collocation_data)
+        batch = collocation_scheduling.save_batch(batch)
 
-        return jsonify({"message": "success"}), 200
+        return jsonify({"message": "success", "data": batch.to_dict()}), 200
     except Exception as ex:
         traceback.print_exc()
         print(ex)
@@ -131,15 +142,21 @@ def collocation_schedule():
 
 
 @collocation_bp.route(routes.COLLOCATION_V2, methods=["DELETE"])
-def collocation_deletion():
+def delete_collocation_batch():
     json_data = request.get_json()
-    x_id = json_data.get("id")
+    batch_id = json_data.get("batch_id")
     devices = json_data.get("devices", [])
 
     try:
         collocation_scheduling = CollocationScheduling()
-        collocation_scheduling.delete(x_id=x_id, devices=devices)
-        return jsonify({"message": "Successful"}), 200
+        batch: CollocationBatch = collocation_scheduling.delete_batch(
+            batch_id=batch_id, devices=devices
+        )
+
+        if batch is None:
+            return jsonify({"message": "Successful"}), 404
+        return jsonify({"message": "Successful", "data": batch.to_dict()}), 200
+
     except Exception as ex:
         traceback.print_exc()
         print(ex)
@@ -151,7 +168,7 @@ def collocation_summary():
     try:
         collocation_scheduling = CollocationScheduling()
         summary = collocation_scheduling.summary()
-        return jsonify({"data": map(lambda x: x.to_dict(), summary)}), 200
+        return jsonify({"data": list(map(lambda x: x.to_dict(), summary))}), 200
     except Exception as ex:
         traceback.print_exc()
         print(ex)
@@ -159,14 +176,16 @@ def collocation_summary():
 
 
 @collocation_bp.route(routes.COLLOCATION_DATA_v2, methods=["POST"])
-def collocation_data():
+def collocation_batch_data():
     json_data = request.get_json()
     devices = json_data.get("devices", [])
-    x_id = json_data.get("id")
+    batch_id = json_data.get("batch_id")
 
     try:
         collocation_scheduling = CollocationScheduling()
-        results = collocation_scheduling.get_hourly_data(x_id=x_id, devices=devices)
+        results = collocation_scheduling.get_hourly_data(
+            batch_id=batch_id, devices=devices
+        )
         return jsonify({"data": results}), 200
     except Exception as ex:
         traceback.print_exc()
@@ -175,14 +194,16 @@ def collocation_data():
 
 
 @collocation_bp.route(routes.COLLOCATION_RESULTS_v2, methods=["POST"])
-def collocation_results():
+def collocation_batch_results():
     json_data = request.get_json()
     devices = json_data.get("devices", [])
-    x_id = json_data.get("id")
+    batch_id = json_data.get("batch_id")
 
     try:
         collocation_scheduling = CollocationScheduling()
-        results = collocation_scheduling.get_hourly_data(x_id=x_id, devices=devices)
+        results = collocation_scheduling.get_hourly_data(
+            batch_id=batch_id, devices=devices
+        )
         return jsonify({"data": results}), 200
     except Exception as ex:
         traceback.print_exc()

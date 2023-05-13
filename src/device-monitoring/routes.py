@@ -33,10 +33,10 @@ DEVICE_UPTIME_LEADERBOARD = f"{BASE_URL}/device/uptime/leaderboard"
 
 BASE_URL_V2 = "/api/v2/monitor"
 
-COLLOCATION_V2 = f"{BASE_URL}/collocation"
+COLLOCATION_V2 = f"{BASE_URL_V2}/collocation"
 
-SUMMARY_COLLOCATION_V2 = f"{BASE_URL}/collocation/summary"
+SUMMARY_COLLOCATION_V2 = f"{BASE_URL_V2}/collocation/summary"
 
-COLLOCATION_DATA_v2 = f"{BASE_URL}/collocation/data"
+COLLOCATION_DATA_v2 = f"{BASE_URL_V2}/collocation/data"
 
-COLLOCATION_RESULTS_v2 = f"{BASE_URL}/collocation/results"
+COLLOCATION_RESULTS_v2 = f"{BASE_URL_V2}/collocation/results"

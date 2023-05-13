@@ -1,5 +1,5 @@
 from dataclasses import dataclass, asdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from enum import Enum
 
 from pymongo import DESCENDING
@@ -146,39 +146,18 @@ class DeviceUptime(BaseModel):
         )
 
 
-class CollocationStatus(Enum):
-    SCHEDULED = 1
-    RUNNING = 2
-    PASSED = 3
-    COMPLETED = 4
-
-    def __str__(self) -> str:
-        if self == self.SCHEDULED:
-            return "SCHEDULED"
-        elif self == self.RUNNING:
-            return "RUNNING"
-        elif self == self.PASSED:
-            return "PASSED"
-        elif self == self.COMPLETED:
-            return "COMPLETED"
-        else:
-            return ""
+class CollocationBatchStatus(Enum):
+    SCHEDULED = "SCHEDULED"
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
 
 
-class DeviceCollocationStatus(Enum):
-    RE_RUN_REQUIRED = 1
-    FAILED = 2
-    PASSED = 3
-
-    def __str__(self) -> str:
-        if self == self.RE_RUN_REQUIRED:
-            return "RE_RUN_REQUIRED"
-        elif self == self.FAILED:
-            return "FAILED"
-        elif self == self.PASSED:
-            return "PASSED"
-        else:
-            return ""
+class CollocationDeviceStatus(Enum):
+    RE_RUN_REQUIRED = "RE_RUN_REQUIRED"
+    FAILED = "FAILED"
+    PASSED = "PASSED"
+    RUNNING = "RUNNING"
+    SCHEDULED = "SCHEDULED"
 
 
 @dataclass
@@ -226,30 +205,58 @@ class IntraSensorCorrelationResult:
 
 
 @dataclass
-class CollocationResult:
+class CollocationBatchResultSummary:
+    device: str
+    status: CollocationDeviceStatus
+
+    def to_dict(self):
+        data = asdict(self)
+        data["status"] = self.status.value
+        return data
+
+
+@dataclass
+class CollocationBatchResult:
     data_completeness: DataCompletenessResult
     statistics: list
     differences: BaseResult
     intra_sensor_correlation: IntraSensorCorrelationResult
     inter_sensor_correlation: BaseResult
     data_source: str
-    passed_devices: list[str]
-    failed_devices: list[str]
-    neutral_devices: list[str]
 
     def to_dict(self):
         return asdict(self)
 
+    @staticmethod
+    def empty_results():
+        return CollocationBatchResult(
+                data_completeness=DataCompletenessResult(
+                    failed_devices=[], passed_devices=[], neutral_devices=[], results=[]
+                ),
+                statistics=[],
+                differences=BaseResult(
+                    failed_devices=[], passed_devices=[], neutral_devices=[], results=[]
+                ),
+                intra_sensor_correlation=IntraSensorCorrelationResult(
+                    failed_devices=[], passed_devices=[], neutral_devices=[], results=[]
+                ),
+                inter_sensor_correlation=BaseResult(
+                    failed_devices=[], passed_devices=[], neutral_devices=[], results=[]
+                ),
+                data_source="",
+            )
+
 
 @dataclass
-class CollocationData:
-    id: str
+class CollocationBatch:
+    batch_id: str
+    batch_name: str
     devices: list
     base_device: str
 
     start_date: datetime
     end_date: datetime
-    date_added: datetime
+    date_created: datetime
 
     expected_hourly_records: int
     inter_correlation_threshold: float
@@ -266,21 +273,40 @@ class CollocationData:
 
     inter_correlation_additional_parameters: list[str]
 
-    added_by: dict
+    created_by: dict
 
-    status: CollocationStatus
-    results: CollocationResult
+    status: CollocationBatchStatus
+    results: CollocationBatchResult
+    summary: list[CollocationBatchResultSummary]
 
     def to_dict(self):
         data = asdict(self)
-        del data["id"]
-        data["status"] = str(self.status)
+        del data["batch_id"]
+        summary = []
+        for record in self.summary:
+            summary.append(record.to_dict())
+        data["status"] = self.status.value
+        data["summary"] = summary
         return data
+
+    def summary_to_dict(self) -> dict:
+        data = asdict(self)
+        del data["batch_id"]
+        data["status"] = self.status.value
+        return data
+
+    def is_running(self) -> bool:
+        now = datetime.utcnow()
+        return self.end_date + timedelta(hours=2) > now >= self.start_date
+
+    def is_completed(self) -> bool:
+        now = datetime.utcnow()
+        return now >= self.end_date + timedelta(hours=2)
 
 
 @dataclass
 class CollocationSummary:
-    id: str
+    batch_id: str
     device_name: str
     added_by: str
     start_date: datetime
