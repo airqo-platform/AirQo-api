@@ -54,6 +54,7 @@ class Config:
     BIGQUERY_DEVICES = os.getenv("BIGQUERY_DEVICES")
     BIGQUERY_HOURLY_DATA = os.getenv("BIGQUERY_HOURLY_DATA")
     COLLOCATION_DATABASE = os.getenv("MONGO_DATABASE", "collocation")
+    COLLOCATION_CELERY_MINUTES_INTERVAL = int(os.getenv("COLLOCATION_CELERY_MINUTES_INTERVAL", 30))
 
 
 class ProductionConfig(Config):

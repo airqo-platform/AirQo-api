@@ -11,7 +11,6 @@ from config import constants
 from config.constants import Config
 from helpers.pre_request import PreRequest
 
-
 celery_logger = get_task_logger(__name__)
 _logger = logging.getLogger(__name__)
 
@@ -54,7 +53,7 @@ def make_celery(application):
     application.config["beat_schedule"] = {
         "collocation_periodic_task": {
             "task": "collocation_periodic_task",
-            "schedule": timedelta(seconds=5),
+            "schedule": timedelta(minutes=Config.COLLOCATION_CELERY_MINUTES_INTERVAL),
         }
     }
 
@@ -79,17 +78,34 @@ celery = make_celery(app)
 
 
 @celery.task(name="collocation_periodic_task")
-def collocation_task():
+def collocation_periodic_task():
     celery_logger.info("Collocation periodic task running")
     from helpers.collocation import CollocationScheduling
+    from models import CollocationBatch
 
-    scheduling = CollocationScheduling()
-    scheduling.update_status_from_scheduled_to_running()
-    scheduling.update_results()
-    scheduling.update_completed_devices()
+    collocation = CollocationScheduling()
 
-    scheduling.run_scheduled_collocated_devices()
-    scheduling.update_scheduled_status()
+    # update statuses
+    collocation.update_scheduled_batches_to_running()
+    collocation.update_passed_batches_to_complete()
+
+    # get batches
+    batches: list[CollocationBatch] = []
+
+    running_batches = collocation.get_running_batches()
+    batches.extend(running_batches)
+
+    completed_batches = collocation.get_completed_batches()
+    batches.extend(completed_batches)
+
+    # compute and save results and summary
+    for x_batch in batches:
+        batch_results = collocation.compute_batch_results(x_batch)
+        updated_batch = collocation.update_batch_results(
+            (x_batch.batch_id, batch_results)
+        )
+        batch_summary = collocation.compute_batch_results_summary(updated_batch)
+        collocation.update_batch_summary((updated_batch.batch_id, batch_summary))
 
 
 @app.before_request
