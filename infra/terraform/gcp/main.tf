@@ -35,6 +35,8 @@ module "ComputeInstanceTemplate" {
 
 module "ComputeNetworkPeering" {
   source = "./modules/ComputeNetworkPeering"
+  
+  project_id     = var.project_id
 }
 
 module "ComputeResourcePolicy" {
