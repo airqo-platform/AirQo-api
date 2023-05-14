@@ -1,0 +1,12 @@
+pandas
+numpy
+python-dotenv
+pymongo
+gcsfs
+pandas-gbq
+google-cloud-bigquery
+tensorflow
+mlflow
+sklearn
+joblib
+
