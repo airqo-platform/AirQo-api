@@ -1,3 +1,4 @@
+import copy
 from datetime import datetime, timedelta
 
 import numpy as np
@@ -180,7 +181,7 @@ class Collocation(MongoBDBaseModel):
             devices=collocation_batch.devices,
             r2_threshold=collocation_batch.intra_correlation_r2_threshold,
         )
-        statistics = compute_statistics(data=data)
+
         inter_sensor_correlation = compute_inter_sensor_correlation(
             data=data,
             threshold=collocation_batch.inter_correlation_threshold,
@@ -190,8 +191,9 @@ class Collocation(MongoBDBaseModel):
             base_device=collocation_batch.base_device,
             r2_threshold=collocation_batch.inter_correlation_r2_threshold,
         )
+        statistics = compute_statistics(data=data)
         differences = compute_differences(
-            statistics=statistics,
+            statistics=copy.deepcopy(statistics),
             base_device=collocation_batch.base_device,
             devices=collocation_batch.devices,
             parameter=collocation_batch.differences_parameter,
@@ -417,18 +419,8 @@ class Collocation(MongoBDBaseModel):
         records = self.__query_by_status(CollocationBatchStatus.RUNNING)
         return records
 
-    def get_passed_batches(self) -> list[CollocationBatch]:
-        docs = self.db.collocation.find(
-            {
-                "status": {"$ne": CollocationBatchStatus.COMPLETED.value},
-                "end_date": {"$lt": datetime.utcnow() + timedelta(hours=2)},
-            }
-        )
-
-        return docs_to_collocation_data_list(docs)
-
-    def get_completed_batches(self) -> list[CollocationBatch]:
-        records = self.__query_by_status(CollocationBatchStatus.COMPLETED)
+    def get_overdue_batches(self) -> list[CollocationBatch]:
+        records = self.__query_by_status(CollocationBatchStatus.OVERDUE)
         return records
 
     def update_scheduled_batches_to_running(self):
@@ -440,12 +432,22 @@ class Collocation(MongoBDBaseModel):
                 self.__update_batch_status(record)
                 self.__update_batch_summary(record)
 
-    def update_passed_batches_to_complete(self):
-        records = self.get_passed_batches()
+    def update_running_batches_to_completed(self):
+        records = self.get_running_batches()
         for record in records:
             if record.is_completed():
                 record.status = CollocationBatchStatus.COMPLETED
+                record.summary = self.compute_batch_results_summary(record)
                 self.__update_batch_status(record)
+                self.__update_batch_summary(record)
+
+    def update_overdue_batches_to_running(self):
+        records = self.get_overdue_batches()
+        for record in records:
+            record.status = CollocationBatchStatus.RUNNING
+            record.summary = self.compute_batch_results_summary(record)
+            self.__update_batch_status(record)
+            self.__update_batch_summary(record)
 
     def update_batch_results(
         self, batch_tuple: tuple[str, CollocationBatchResult]
@@ -556,7 +558,7 @@ class Collocation(MongoBDBaseModel):
             end_date_time=batch.end_date,
         )
         hourly_data: dict[str, list[dict]] = {}
-        for device, device_data in raw_data:
+        for device, device_data in raw_data.items():
             hourly_device_data = device_data.resample("1H", on="timestamp").mean()
             hourly_device_data = hourly_device_data.replace(np.nan, None)
             hourly_data[device] = hourly_device_data.to_dict("records")
@@ -631,14 +633,10 @@ if __name__ == "__main__":
 
     # update statuses
     collocation.update_scheduled_batches_to_running()
-    collocation.update_passed_batches_to_complete()
+    collocation.update_overdue_batches_to_running()
 
     # get running batches
-    x_batches: list[CollocationBatch] = []
-    running_batches = collocation.get_running_batches()
-    x_batches.extend(running_batches)
-    completed_batches = collocation.get_completed_batches()
-    x_batches.extend(completed_batches)
+    x_batches: list[CollocationBatch] = collocation.get_running_batches()
 
     # compute and save results and summary
     for x_batch in x_batches:
@@ -648,3 +646,6 @@ if __name__ == "__main__":
         )
         batch_summary = collocation.compute_batch_results_summary(updated_batch)
         collocation.update_batch_summary((updated_batch.batch_id, batch_summary))
+
+    # update status for completed batches
+    collocation.update_running_batches_to_completed()

@@ -1,3 +1,4 @@
+import copy
 import math
 from datetime import datetime, timedelta
 
@@ -89,12 +90,12 @@ def compute_differences(
     base_device: str,
     devices: list[str],
 ) -> BaseResult:
+    statistics_list = copy.copy(statistics)
     differences = []
     # TODO compute base device
     data: dict[str, dict] = {}
-    for device_statistics in statistics:
-        device = device_statistics.get("device_name")
-        del device_statistics["device_name"]
+    for device_statistics in statistics_list:
+        device = device_statistics.pop("device_name")
         data[device] = device_statistics
 
     pairs = device_pairs(list(data.keys()))
@@ -386,9 +387,11 @@ def compute_statistics(data: dict[str, pd.DataFrame]) -> list[dict]:
                 },
             }
 
-        statistics.append({**{"device_name": device}, **device_statistics})
+        statistics.append({**device_statistics, **{"device_name": device}})
 
-    return statistics
+    statistics_df = pd.DataFrame(statistics)
+    statistics_df.replace(np.nan, None, inplace=True)
+    return statistics_df.to_dict("records")
 
 
 def compute_data_completeness(

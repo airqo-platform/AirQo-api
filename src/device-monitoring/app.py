@@ -86,27 +86,24 @@ def collocation_periodic_task():
 
     collocation = Collocation()
 
-    # update statuses
+    # update status for scheduled and overdue batches
     collocation.update_scheduled_batches_to_running()
-    collocation.update_passed_batches_to_complete()
+    collocation.update_overdue_batches_to_running()
 
     # get batches
-    batches: list[CollocationBatch] = []
-
-    running_batches = collocation.get_running_batches()
-    batches.extend(running_batches)
-
-    completed_batches = collocation.get_completed_batches()
-    batches.extend(completed_batches)
+    running_batches: list[CollocationBatch] = collocation.get_running_batches()
 
     # compute and save results and summary
-    for x_batch in batches:
-        batch_results = collocation.compute_batch_results(x_batch)
+    for batch in running_batches:
+        batch_results = collocation.compute_batch_results(batch)
         updated_batch = collocation.update_batch_results(
-            (x_batch.batch_id, batch_results)
+            (batch.batch_id, batch_results)
         )
         batch_summary = collocation.compute_batch_results_summary(updated_batch)
         collocation.update_batch_summary((updated_batch.batch_id, batch_summary))
+
+    # update status for completed batches
+    collocation.update_running_batches_to_completed()
 
 
 @app.before_request

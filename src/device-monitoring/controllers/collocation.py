@@ -129,6 +129,8 @@ def save_collocation_batch():
             results=CollocationBatchResult.empty_results(),
             summary=[],
         )
+        if batch.is_overdue():
+            batch.status = CollocationBatchStatus.OVERDUE
 
         collocation = Collocation()
         batch = collocation.save_batch(batch)

@@ -150,6 +150,7 @@ class CollocationBatchStatus(Enum):
     SCHEDULED = "SCHEDULED"
     RUNNING = "RUNNING"
     COMPLETED = "COMPLETED"
+    OVERDUE = "OVERDUE"
 
 
 class CollocationDeviceStatus(Enum):
@@ -230,21 +231,21 @@ class CollocationBatchResult:
     @staticmethod
     def empty_results():
         return CollocationBatchResult(
-                data_completeness=DataCompletenessResult(
-                    failed_devices=[], passed_devices=[], neutral_devices=[], results=[]
-                ),
-                statistics=[],
-                differences=BaseResult(
-                    failed_devices=[], passed_devices=[], neutral_devices=[], results=[]
-                ),
-                intra_sensor_correlation=IntraSensorCorrelationResult(
-                    failed_devices=[], passed_devices=[], neutral_devices=[], results=[]
-                ),
-                inter_sensor_correlation=BaseResult(
-                    failed_devices=[], passed_devices=[], neutral_devices=[], results=[]
-                ),
-                data_source="",
-            )
+            data_completeness=DataCompletenessResult(
+                failed_devices=[], passed_devices=[], neutral_devices=[], results=[]
+            ),
+            statistics=[],
+            differences=BaseResult(
+                failed_devices=[], passed_devices=[], neutral_devices=[], results=[]
+            ),
+            intra_sensor_correlation=IntraSensorCorrelationResult(
+                failed_devices=[], passed_devices=[], neutral_devices=[], results=[]
+            ),
+            inter_sensor_correlation=BaseResult(
+                failed_devices=[], passed_devices=[], neutral_devices=[], results=[]
+            ),
+            data_source="",
+        )
 
 
 @dataclass
@@ -289,6 +290,9 @@ class CollocationBatch:
         data["summary"] = summary
         return data
 
+    def logical_end_date(self) -> datetime:
+        return self.end_date + timedelta(minutes=90)
+
     def summary_to_dict(self) -> dict:
         data = asdict(self)
         del data["batch_id"]
@@ -296,12 +300,16 @@ class CollocationBatch:
         return data
 
     def is_running(self) -> bool:
-        now = datetime.utcnow()
-        return self.end_date + timedelta(hours=2) > now >= self.start_date
+        return self.logical_end_date() > datetime.utcnow() >= self.start_date
 
     def is_completed(self) -> bool:
-        now = datetime.utcnow()
-        return now >= self.end_date + timedelta(hours=2)
+        return datetime.utcnow() >= self.logical_end_date()
+
+    def is_overdue(self) -> bool:
+        return (
+            datetime.utcnow() >= self.logical_end_date()
+            and self.status != CollocationBatchStatus.COMPLETED
+        )
 
 
 @dataclass
