@@ -80,10 +80,10 @@ celery = make_celery(app)
 @celery.task(name="collocation_periodic_task")
 def collocation_periodic_task():
     celery_logger.info("Collocation periodic task running")
-    from helpers.collocation import CollocationScheduling
+    from helpers.collocation import Collocation
     from models import CollocationBatch
 
-    collocation = CollocationScheduling()
+    collocation = Collocation()
 
     # update statuses
     collocation.update_scheduled_batches_to_running()

@@ -7,7 +7,7 @@ from flask import Blueprint, request, jsonify
 
 import routes
 from config.constants import CollocationDefaults
-from helpers.collocation import CollocationScheduling
+from helpers.collocation import Collocation
 from helpers.collocation_utils import (
     validate_collocation_request,
 )
@@ -129,8 +129,8 @@ def save_collocation_batch():
             summary=[],
         )
 
-        collocation_scheduling = CollocationScheduling()
-        batch = collocation_scheduling.save_batch(batch)
+        collocation = Collocation()
+        batch = collocation.save_batch(batch)
 
         return jsonify({"message": "success", "data": batch.to_dict()}), 200
     except Exception as ex:
@@ -146,8 +146,8 @@ def delete_collocation_batch():
     devices = json_data.get("devices", [])
 
     try:
-        collocation_scheduling = CollocationScheduling()
-        batch: CollocationBatch = collocation_scheduling.delete_batch(
+        collocation = Collocation()
+        batch: CollocationBatch = collocation.delete_batch(
             batch_id=batch_id, devices=devices
         )
 
@@ -164,8 +164,8 @@ def delete_collocation_batch():
 @collocation_bp.route(routes.COLLOCATION_SUMMARY, methods=["GET"])
 def collocation_summary():
     try:
-        collocation_scheduling = CollocationScheduling()
-        summary = collocation_scheduling.summary()
+        collocation = Collocation()
+        summary = collocation.summary()
         return jsonify({"data": list(map(lambda x: x.to_dict(), summary))}), 200
     except Exception as ex:
         traceback.print_exc()
@@ -180,10 +180,8 @@ def collocation_batch_data():
     batch_id = json_data.get("batchId")
 
     try:
-        collocation_scheduling = CollocationScheduling()
-        results = collocation_scheduling.get_hourly_data(
-            batch_id=batch_id, devices=devices
-        )
+        collocation = Collocation()
+        results = collocation.get_hourly_data(batch_id=batch_id, devices=devices)
         return jsonify({"data": results}), 200
     except Exception as ex:
         traceback.print_exc()
@@ -198,10 +196,8 @@ def collocation_batch_results():
     batch_id = json_data.get("batchId")
 
     try:
-        collocation_scheduling = CollocationScheduling()
-        results = collocation_scheduling.get_hourly_data(
-            batch_id=batch_id, devices=devices
-        )
+        collocation = Collocation()
+        results = collocation.get_hourly_data(batch_id=batch_id, devices=devices)
         return jsonify({"data": results}), 200
     except Exception as ex:
         traceback.print_exc()
@@ -216,8 +212,8 @@ def collocation_data_completeness():
     batch_id = json_data.get("batchId")
 
     try:
-        collocation_scheduling = CollocationScheduling()
-        completeness = collocation_scheduling.get_data_completeness(
+        collocation = Collocation()
+        completeness = collocation.get_data_completeness(
             batch_id=batch_id, devices=devices
         )
         return jsonify({"data": completeness}), 200
@@ -234,10 +230,8 @@ def collocation_data_statistics():
     batch_id = json_data.get("batchId")
 
     try:
-        collocation_scheduling = CollocationScheduling()
-        completeness = collocation_scheduling.get_statistics(
-            batch_id=batch_id, devices=devices
-        )
+        collocation = Collocation()
+        completeness = collocation.get_statistics(batch_id=batch_id, devices=devices)
         return jsonify({"data": completeness}), 200
     except Exception as ex:
         traceback.print_exc()
@@ -252,8 +246,8 @@ def collocation_intra():
     batch_id = json_data.get("batchId")
 
     try:
-        collocation_scheduling = CollocationScheduling()
-        intra_sensor_correlation = collocation_scheduling.get_intra_sensor_correlation(
+        collocation = Collocation()
+        intra_sensor_correlation = collocation.get_intra_sensor_correlation(
             batch_id=batch_id, devices=devices
         )
         return jsonify({"data": intra_sensor_correlation}), 200
