@@ -50,6 +50,7 @@ app = create_app(os.getenv("FLASK_ENV"))
 def make_celery(application):
     application.config["broker_url"] = f"{Config.REDIS_URL}/0"
     application.config["result_backend"] = f"{Config.REDIS_URL}/0"
+    application.config["task_default_queue"] = "collocation"
     application.config["beat_schedule"] = {
         "collocation_periodic_task": {
             "task": "collocation_periodic_task",
