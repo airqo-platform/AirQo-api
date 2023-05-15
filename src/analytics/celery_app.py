@@ -32,6 +32,7 @@ def make_celery():
     config = {
         "broker_url": f"{Config.CACHE_REDIS_URL}/0",
         "result_backend": f"{Config.CACHE_REDIS_URL}/0",
+        "task_default_queue": "analytics",
         "beat_schedule": {
             "data_export_periodic_task": {
                 "task": "data_export_periodic_task",

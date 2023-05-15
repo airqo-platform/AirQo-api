@@ -33,4 +33,4 @@ FROM base as celery-beat
 CMD celery -A celery_app.celery beat
 
 FROM base as celery-worker
-CMD celery -A celery_app.celery worker --loglevel=info
+CMD celery -A celery_app.celery worker -Q analytics --loglevel=info
