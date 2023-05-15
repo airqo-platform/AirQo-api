@@ -16,7 +16,8 @@ def get_airqloud_sites(airqloud, tenant="airqo"):
             configuration.VIEW_AIRQLOUD_URI, params=params, headers=headers
         )
     else:
-        airqloud_response = requests.get(configuration.VIEW_AIRQLOUD_URI, params=params)
+        airqloud_response = requests.get(
+            configuration.VIEW_AIRQLOUD_URI, params=params)
     airqloud_response_json = airqloud_response.json()
 
     sites_details = airqloud_response_json["airqlouds"][0]["sites"]
@@ -143,9 +144,8 @@ def download_airqloud_data_from_bigquery(
 
 
 def get_airqloud_data(airqloud_id) -> list:
-    start_time = (
-        (datetime.utcnow() - timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%SZ"),
-    )
+    start_time = (datetime.utcnow() - timedelta(days=7)
+                  ).strftime("%Y-%m-%dT%H:%M:%SZ")
     end_time = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
     airqloud_data = download_airqloud_data_from_bigquery(
         airqloud_id=airqloud_id, start_time=start_time, end_time=end_time
