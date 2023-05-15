@@ -544,7 +544,10 @@ class CollocationScheduling(MongoBDBaseModel):
 
     def get_hourly_data(self, batch_id: str, devices: list) -> dict[str, list[dict]]:
         batch: CollocationBatch = self.__query_by_batch_id(batch_id=batch_id)
-        batch_devices = list(set(batch.devices).intersection(set(devices)))
+        if len(devices) != 0:
+            batch_devices = list(set(batch.devices).intersection(set(devices)))
+        else:
+            batch_devices = devices
         raw_data, _ = CollocationScheduling.get_data(
             devices=batch_devices,
             start_date_time=batch.start_date,
@@ -557,6 +560,68 @@ class CollocationScheduling(MongoBDBaseModel):
             hourly_data[device] = hourly_device_data.to_dict("records")
 
         return hourly_data
+
+    def get_data_completeness(self, batch_id: str, devices: list) -> list:
+        batch: CollocationBatch = self.__query_by_batch_id(batch_id=batch_id)
+        if len(devices) != 0:
+            batch_devices = list(set(batch.devices).intersection(set(devices)))
+        else:
+            batch_devices = devices
+
+        data_completeness = list(
+            filter(
+                lambda x: x.device_name in batch_devices,
+                batch.results.data_completeness.results,
+            )
+        )
+        return [
+            {
+                "expected_number_of_records": result.expected,
+                "start_date": batch.start_date,
+                "end_date": batch.end_date,
+                "actual_number_of_records": result.actual,
+                "completeness": result.completeness,
+                "missing": result.missing,
+            }
+            for result in data_completeness
+        ]
+
+    def get_statistics(self, batch_id: str, devices: list) -> list:
+        batch: CollocationBatch = self.__query_by_batch_id(batch_id=batch_id)
+        if len(devices) != 0:
+            batch_devices = list(set(batch.devices).intersection(set(devices)))
+        else:
+            batch_devices = devices
+
+        return list(
+            filter(
+                lambda x: x["device_name"] in batch_devices, batch.results.statistics
+            )
+        )
+
+    def get_intra_sensor_correlation(self, batch_id: str, devices: list) -> list:
+        batch: CollocationBatch = self.__query_by_batch_id(batch_id=batch_id)
+        if len(devices) != 0:
+            batch_devices = list(set(batch.devices).intersection(set(devices)))
+        else:
+            batch_devices = devices
+
+        intra_sensor_correlation = list(
+            filter(
+                lambda x: x.device_name in batch_devices,
+                batch.results.intra_sensor_correlation.results,
+            )
+        )
+
+        return [
+            {
+                "pm2_5_pearson_correlation": result.pm2_5_pearson,
+                "pm10_pearson_correlation": result.pm10_pearson,
+                "pm2_5_r2": result.pm2_5_r2,
+                "pm10_r2": result.pm10_r2,
+            }
+            for result in intra_sensor_correlation
+        ]
 
 
 def get_status(passed: bool):
@@ -793,50 +858,6 @@ class Collocation(BaseModel):
             "errors": self.__errors,
             "data_source": self.__data_query,
         }
-
-    def schedule(self):
-        results = self.db.collocation.find_one(
-            {
-                "start_date": self.__start_date,
-                "end_date": self.__end_date,
-                "devices": {"$in": self.__devices},
-            }
-        )
-
-        if results:
-            del results["_id"]
-            return results
-
-        results = self.__create_results_object(status=CollocationBatchStatus.SCHEDULED)
-        self.__save_collocation(results)
-        return results
-
-    def collocate(self):
-        self.__load_device_data()
-
-        if not self.__data.empty:
-            self.__aggregate_data()
-            self.compute_data_completeness()
-            self.compute_inter_sensor_correlation()
-            self.compute_intra_sensor_correlation()
-            self.compute_statistics()
-            self.compute_differences()
-            self.compute_summary()
-
-            self.__data_completeness = self.__data_completeness.replace(np.nan, None)
-            self.__statistics = self.__statistics.replace(np.nan, None)
-            self.__intra_sensor_correlation = self.__intra_sensor_correlation.replace(
-                np.nan, None
-            )
-            self.__inter_sensor_correlation = self.__inter_sensor_correlation.replace(
-                np.nan, None
-            )
-            self.__differences = self.__differences.replace(np.nan, None)
-            self.__summary = self.__summary.replace(np.nan, None)
-
-            return self.__create_results_object(status=CollocationBatchStatus.PASSED)
-
-        return {}
 
     def __aggregate_data(self) -> pd.DataFrame:
         data = self.__data

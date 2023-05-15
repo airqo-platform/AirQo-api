@@ -32,71 +32,12 @@ def dates_array(start_date_time: datetime, end_date_time: datetime) -> list[date
     return list(set(dates))
 
 
-def validate_collocation_request_v2(
-    devices,
-    start_date,
-    end_date,
-) -> dict:
-    errors = {}
-    try:
-        if not devices or not isinstance(
-            devices, list
-        ):  # TODO add device restrictions e.g not more that 3 devices
-            raise Exception
-    except Exception:
-        errors["devices"] = "Provide a list of devices"
-
-    try:
-        start_date = validate_date(start_date)
-    except Exception:
-        errors["startDate"] = (
-            "This query param is required."
-            "Please provide a valid date formatted datetime string (%Y-%m-%d)"
-        )
-
-    try:
-        end_date = validate_date(end_date)
-    except Exception:
-        errors["endDate"] = (
-            "This query param is required."
-            "Please provide a valid date formatted datetime string (%Y-%m-%d)"
-        )
-
-    if (
-        start_date > end_date
-    ):  # TODO add interval restrictions e.g not more that 10 days
-        errors["dates"] = "endDate must be greater or equal to the startDate"
-
-    return errors
-
-
 def validate_collocation_request(
-    completeness_threshold,
-    correlation_threshold,
-    expected_records_per_day,
     devices,
     start_date,
     end_date,
 ) -> dict:
     errors = {}
-    try:
-        if not (0 <= completeness_threshold <= 1):
-            raise Exception
-    except Exception:
-        errors["completenessThreshold"] = f"Must be a value between 0 and 1"
-
-    try:
-        if not (0 <= correlation_threshold <= 1):
-            raise Exception
-    except Exception:
-        errors["correlationThreshold"] = f"Must be a value between 0 and 1"
-
-    try:
-        if not (1 <= expected_records_per_day <= 24):
-            raise Exception
-    except Exception:
-        errors["expectedRecordsPerDay"] = f"Must be a value between 1 and 24"
-
     try:
         if not devices or not isinstance(
             devices, list
