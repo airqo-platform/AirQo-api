@@ -5,6 +5,8 @@ import pandas as pd
 from bson import ObjectId
 from google.cloud import bigquery
 
+from app import cache
+
 # from app import cache
 from config.constants import Config
 from helpers.collocation_utils import (
@@ -15,6 +17,7 @@ from helpers.collocation_utils import (
     compute_differences,
     populate_missing_columns,
 )
+from helpers.exceptions import CollocationBatchNotFound
 from models import (
     CollocationBatchStatus,
     CollocationBatch,
@@ -277,7 +280,7 @@ class Collocation(MongoBDBaseModel):
         return summary
 
     @staticmethod
-    # @cache.memoize(timeout=1800)
+    @cache.memoize(timeout=1800)
     def get_data(
         devices: list[str], start_date_time: datetime, end_date_time: datetime
     ) -> tuple[dict[str, pd.DataFrame], str]:
@@ -508,6 +511,8 @@ class Collocation(MongoBDBaseModel):
     def __query_by_batch_id(self, batch_id: str) -> CollocationBatch:
         filter_set = {"_id": ObjectId(batch_id)}
         result = self.db.collocation.find_one(filter_set)
+        if result is None:
+            raise CollocationBatchNotFound(batch_id=batch_id)
         return doc_to_collocation_data(result)
 
     def __query_all_batches(self) -> list[CollocationBatch]:
@@ -629,14 +634,14 @@ if __name__ == "__main__":
     collocation.update_passed_batches_to_complete()
 
     # get running batches
-    batches: list[CollocationBatch] = []
+    x_batches: list[CollocationBatch] = []
     running_batches = collocation.get_running_batches()
-    batches.extend(running_batches)
+    x_batches.extend(running_batches)
     completed_batches = collocation.get_completed_batches()
-    batches.extend(completed_batches)
+    x_batches.extend(completed_batches)
 
     # compute and save results and summary
-    for x_batch in batches:
+    for x_batch in x_batches:
         batch_results = collocation.compute_batch_results(x_batch)
         updated_batch = collocation.update_batch_results(
             (x_batch.batch_id, batch_results)

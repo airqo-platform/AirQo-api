@@ -12,6 +12,7 @@ from helpers.collocation_utils import (
     validate_collocation_request,
 )
 from helpers.convert_dates import str_to_date
+from helpers.exceptions import CollocationBatchNotFound
 from helpers.utils import decode_user_token
 from models import (
     CollocationBatch,
@@ -136,7 +137,7 @@ def save_collocation_batch():
     except Exception as ex:
         traceback.print_exc()
         print(ex)
-        return jsonify({"error": "Error occurred. Contact support"}), 500
+        return jsonify({"message": "Error occurred. Contact support"}), 500
 
 
 @collocation_bp.route(routes.COLLOCATION, methods=["DELETE"])
@@ -158,7 +159,7 @@ def delete_collocation_batch():
     except Exception as ex:
         traceback.print_exc()
         print(ex)
-        return jsonify({"error": "Error occurred. Contact support"}), 500
+        return jsonify({"message": "Error occurred. Contact support"}), 500
 
 
 @collocation_bp.route(routes.COLLOCATION_SUMMARY, methods=["GET"])
@@ -170,7 +171,7 @@ def collocation_summary():
     except Exception as ex:
         traceback.print_exc()
         print(ex)
-        return jsonify({"error": "Error occurred. Contact support"}), 500
+        return jsonify({"message": "Error occurred. Contact support"}), 500
 
 
 @collocation_bp.route(routes.COLLOCATION_DATA, methods=["POST"])
@@ -183,10 +184,12 @@ def collocation_batch_data():
         collocation = Collocation()
         results = collocation.get_hourly_data(batch_id=batch_id, devices=devices)
         return jsonify({"data": results}), 200
+    except CollocationBatchNotFound as ex:
+        return jsonify({"message": ex.message}), 404
     except Exception as ex:
         traceback.print_exc()
         print(ex)
-        return jsonify({"error": "Error occurred. Contact support"}), 500
+        return jsonify({"message": "Error occurred. Contact support"}), 500
 
 
 @collocation_bp.route(routes.COLLOCATION_RESULTS, methods=["POST"])
@@ -199,10 +202,12 @@ def collocation_batch_results():
         collocation = Collocation()
         results = collocation.get_hourly_data(batch_id=batch_id, devices=devices)
         return jsonify({"data": results}), 200
+    except CollocationBatchNotFound as ex:
+        return jsonify({"message": ex.message}), 404
     except Exception as ex:
         traceback.print_exc()
         print(ex)
-        return jsonify({"error": "Error occurred. Contact support"}), 500
+        return jsonify({"message": "Error occurred. Contact support"}), 500
 
 
 @collocation_bp.route(routes.COLLOCATION_DATA_COMPLETENESS, methods=["POST"])
@@ -217,10 +222,12 @@ def collocation_data_completeness():
             batch_id=batch_id, devices=devices
         )
         return jsonify({"data": completeness}), 200
+    except CollocationBatchNotFound as ex:
+        return jsonify({"message": ex.message}), 404
     except Exception as ex:
         traceback.print_exc()
         print(ex)
-        return jsonify({"error": "Error occurred. Contact support"}), 500
+        return jsonify({"message": "Error occurred. Contact support"}), 500
 
 
 @collocation_bp.route(routes.COLLOCATION_STATISTICS, methods=["POST"])
@@ -233,10 +240,12 @@ def collocation_data_statistics():
         collocation = Collocation()
         completeness = collocation.get_statistics(batch_id=batch_id, devices=devices)
         return jsonify({"data": completeness}), 200
+    except CollocationBatchNotFound as ex:
+        return jsonify({"message": ex.message}), 404
     except Exception as ex:
         traceback.print_exc()
         print(ex)
-        return jsonify({"error": "Error occurred. Contact support"}), 500
+        return jsonify({"message": "Error occurred. Contact support"}), 500
 
 
 @collocation_bp.route(routes.COLLOCATION_INTRA, methods=["POST"])
@@ -251,7 +260,9 @@ def collocation_intra():
             batch_id=batch_id, devices=devices
         )
         return jsonify({"data": intra_sensor_correlation}), 200
+    except CollocationBatchNotFound as ex:
+        return jsonify({"message": ex.message}), 404
     except Exception as ex:
         traceback.print_exc()
         print(ex)
-        return jsonify({"error": "Error occurred. Contact support"}), 500
+        return jsonify({"message": "Error occurred. Contact support"}), 500

@@ -11,16 +11,18 @@ DEVICE_UPTIME = f"{BASE_URL}/devices/uptime"
 DEVICE_UPTIME_LEADERBOARD = f"{BASE_URL}/device/uptime/leaderboard"
 
 # collocation endpoints
-COLLOCATION = f"{BASE_URL}/collocation"
+BASE_URL_V2 = "/api/v2/monitor"
 
-COLLOCATION_SUMMARY = f"{BASE_URL}/collocation/summary"
+COLLOCATION = f"{BASE_URL_V2}/collocation"
 
-COLLOCATION_DATA = f"{BASE_URL}/collocation/data"
+COLLOCATION_SUMMARY = f"{BASE_URL_V2}/collocation/summary"
 
-COLLOCATION_DATA_COMPLETENESS = f"{BASE_URL}/collocation/data-completeness"
+COLLOCATION_DATA = f"{BASE_URL_V2}/collocation/data"
 
-COLLOCATION_STATISTICS = f"{BASE_URL}/collocation/statistics"
+COLLOCATION_DATA_COMPLETENESS = f"{BASE_URL_V2}/collocation/data-completeness"
 
-COLLOCATION_INTRA = f"{BASE_URL}/collocation/intra"
+COLLOCATION_STATISTICS = f"{BASE_URL_V2}/collocation/statistics"
 
-COLLOCATION_RESULTS = f"{BASE_URL}/collocation/results"
+COLLOCATION_INTRA = f"{BASE_URL_V2}/collocation/intra"
+
+COLLOCATION_RESULTS = f"{BASE_URL_V2}/collocation/results"
