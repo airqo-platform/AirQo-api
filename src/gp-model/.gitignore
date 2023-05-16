@@ -1,5 +1,5 @@
 .env
-AirQo-e37846081569.json
+*.json
 env/
 __pycache__/
 .vscode

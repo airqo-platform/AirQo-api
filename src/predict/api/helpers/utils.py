@@ -1,5 +1,3 @@
-from datetime import datetime, timedelta
-
 from dotenv import load_dotenv
 from flask import request, jsonify
 
@@ -10,59 +8,55 @@ load_dotenv()
 db = connect_mongo()
 
 
-def get_all_gp_predictions():
-    """
-    returns pm 2.5 predictions for all airqloud
-    """
-
-    today = datetime.today()
-    query = {"created_at": {"$gt": today - timedelta(minutes=60)}}
-    projection = {'_id': 0,
-                  'latitude': 1,
-                  'longitude': 1,
-                  'predicted_value': 1,
-                  'variance': 1,
-                  'interval': 1,
-                  'airqloud': 1,
-                  'created_at': 1,
-                  'airqloud_id': 1,
-                  'values': 1}
-    records = list(db.gp_predictions.find(query, projection))
-    return records
-
-
-def get_gp_predictions(airqloud):
-    """
-    returns pm 2.5 predictions for a particular airqloud
-    """
-    if airqloud is None:
-        records = get_all_gp_predictions()
+def get_gp_predictions(airqloud, aq_id, page, limit):
+    """ returns pm 2.5 predictions for a particular airqloud name or id with pagination """
+    if airqloud:
+        query = {'airqloud': airqloud.lower()}
+    elif aq_id:
+        query = {'airqloud_id': aq_id}
     else:
-        query = {'airqloud': airqloud}
-        projection = {'_id': 0,
-                      'latitude': 1,
-                      'longitude': 1,
-                      'predicted_value': 1,
-                      'variance': 1,
-                      'interval': 1,
-                      'airqloud': 1,
-                      'created_at': 1,
-                      'airqloud_id': 1,
-                      'values': 1}
-        records = list(db.gp_predictions.find(query, projection))
+        query = {}
+
+    projection = {
+        '_id': 0,
+        'latitude': 1,
+        'longitude': 1,
+        'predicted_value': 1,
+        'variance': 1,
+        'interval': 1,
+        'airqloud': 1,
+        'created_at': 1,
+        'airqloud_id': 1,
+        'values': 1
+    }
+    offset = (page - 1) * limit
+    records = list(db.gp_predictions.find(query, projection).skip(offset).limit(limit))
     return records
 
 
-def get_gp_predictions_id(aq_id):
-    """
-    returns pm 2.5 predictions for a particular airqloud
-    """
+def get_total_count(airqloud, aq_id):
+    if airqloud:
+        query = {'airqloud': airqloud.lower()}
+    elif aq_id:
+        query = {'airqloud_id': aq_id}
+    else:
+        query = {}
+    count = db.gp_predictions.count_documents(query)
+    return count
 
-    query = {'airqloud_id': aq_id}
-    projection = {'_id': 0, 'latitude': 1, 'longitude': 1, 'predicted_value': 1, 'variance': 1, 'interval': 1,
-                  'airqloud': 1, 'created_at': 1, 'airqloud_id': 1}
-    records = list(db.gp_predictions.find(query, projection))
-    return records
+
+def get_total_values(airqloud, aq_id):
+    if airqloud:
+        query = {'airqloud': airqloud.lower()}
+    elif aq_id:
+        query = {'airqloud_id': aq_id}
+    else:
+        query = {}
+    record = db.gp_predictions.find_one(query)
+    if record:
+        return len(record['values'])
+    else:
+        return 0
 
 
 def get_forecasts_helper(db_name):
