@@ -14,15 +14,18 @@ variable "region" {
 }
 
 variable "zone" {
-  default     = "europe-west1-b"
-  description = "Default zone"
+  default     = {
+    "b"  = "europe-west1-b"
+    "c"  = "europe-west1-c"
+    "d"  = "europe-west1-d"
+  }
+  description = "Available zones in the default project region (europe-west1)"
 }
 
 variable "os" {
   default = {
-    "ubuntu-xenial" = "ubuntu-1604-xenial-v20200129"
-    "ubuntu-bionic" = "ubuntu-1804-bionic-v20200916"
     "ubuntu-focal"  = "ubuntu-2004-focal-v20220712"
+    "ubuntu-jammy"  = "ubuntu-2204-jammy-v20230425"
   }
   description = "Operating systems to use"
 }
