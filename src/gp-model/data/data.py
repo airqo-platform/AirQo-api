@@ -60,10 +60,8 @@ def get_site_data(site, tenant="airqo"):
 
     for data in site_data:
         try:
-            pm2_5 = data.get("pm2_5").get(
-                "calibratedValue", data.get("pm2_5").get("value")
-            )
-
+            pm2_5 = data.get('pm2_5').get('calibratedValue',
+                                          data.get('pm2_5').get('value'))
         except:
             pm2_5 = None
         site_dd.append(

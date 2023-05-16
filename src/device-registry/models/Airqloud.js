@@ -366,6 +366,9 @@ airqloudSchema.statics = {
           "sites.airqloud_id": 0,
           "sites.createdAt": 0,
           "sites.lat_long": 0,
+          "sites.weather_stations": 0,
+          "sites.site_codes": 0,
+          "sites.network": 0,
         })
         .skip(skip ? skip : 0)
         .limit(limit ? limit : 1000)

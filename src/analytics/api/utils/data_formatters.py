@@ -139,7 +139,7 @@ def format_to_aqcsv(data: list, pollutants: list, frequency: str) -> dict:
             ]
             pollutant_dataframe.dropna(subset=[mapping], inplace=True)
 
-            if pollutant_dataframe.empty:
+            if pollutant_dataframe.empty or mapping not in AQCSV_DATA_STATUS_MAPPER.keys():
                 continue
 
             pollutant_dataframe["data_status"] = AQCSV_DATA_STATUS_MAPPER[mapping]

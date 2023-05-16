@@ -160,3 +160,11 @@ class MetaDataUtils:
                 )
 
         airqo_api.update_sites(updated_sites)
+
+    @staticmethod
+    def refresh_airqlouds(tenant: Tenant) -> None:
+        airqo_api = AirQoApi()
+        airqlouds = airqo_api.get_airqlouds(tenant=tenant)
+
+        for airqloud in airqlouds:
+            airqo_api.refresh_airqloud(airqloud_id=airqloud.get("id"))

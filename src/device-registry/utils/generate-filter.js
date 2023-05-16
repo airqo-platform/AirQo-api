@@ -314,7 +314,7 @@ const generateFilter = {
   },
   devices: (req) => {
     try {
-      let filter = {};
+      let filter = { name: {} };
       let {
         name,
         channel,
@@ -340,24 +340,46 @@ const generateFilter = {
       } = req.query;
 
       if (name) {
-        // let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-        //   name
-        // );
-        filter["name"] = name;
-      }
-
-      if (device) {
-        // let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-        //   name
-        // );
-        filter["name"] = device;
-      }
-
-      if (device_name) {
-        // let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-        //   name
-        // );
-        filter["name"] = device_name;
+        let deviceArray = name.split(",");
+        let modifiedDeviceArray = deviceArray.map((value) => {
+          if (isLowerCase(value)) {
+            return value.toUpperCase();
+          }
+          if (!isLowerCase(value)) {
+            return value.toLowerCase();
+          }
+          return value;
+        });
+        let mergedArray = [].concat(modifiedDeviceArray, deviceArray);
+        filter["name"]["$in"] = mergedArray;
+      } else if (device) {
+        let deviceArray = device.split(",");
+        let modifiedDeviceArray = deviceArray.map((value) => {
+          if (isLowerCase(value)) {
+            return value.toUpperCase();
+          }
+          if (!isLowerCase(value)) {
+            return value.toLowerCase();
+          }
+          return value;
+        });
+        let mergedArray = [].concat(modifiedDeviceArray, deviceArray);
+        filter["name"]["$in"] = mergedArray;
+      } else if (device_name) {
+        let deviceArray = device_name.split(",");
+        let modifiedDeviceArray = deviceArray.map((value) => {
+          if (isLowerCase(value)) {
+            return value.toUpperCase();
+          }
+          if (!isLowerCase(value)) {
+            return value.toLowerCase();
+          }
+          return value;
+        });
+        let mergedArray = [].concat(modifiedDeviceArray, deviceArray);
+        filter["name"]["$in"] = mergedArray;
+      } else {
+        delete filter["name"];
       }
 
       if (channel) {
@@ -686,6 +708,8 @@ const generateFilter = {
     let {
       id,
       device_id,
+      airqloud_id,
+      site_id,
       device_number,
       device_name,
       network,
@@ -698,6 +722,14 @@ const generateFilter = {
 
     if (device_id) {
       filter["device_id"] = ObjectId(device_id);
+    }
+
+    if (airqloud_id) {
+      filter["airqloud_id"] = ObjectId(airqloud_id);
+    }
+
+    if (site_id) {
+      filter["site_id"] = ObjectId(site_id);
     }
 
     if (tags) {

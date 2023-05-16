@@ -91,11 +91,11 @@ def update_big_query_airqlouds_sites_and_devices():
 
 
 @dag(
-    "Update-Microservice-Sites-Meta-Data",
+    "Update-AirQlouds-And-Sites-Meta-Data",
     schedule="@daily",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
-    tags=["daily", "sites", "meta-data"],
+    tags=["daily", "sites", "meta-data", "airqlouds"],
 )
 def meta_data_update_microservice_sites_meta_data():
     @task()
@@ -112,8 +112,16 @@ def meta_data_update_microservice_sites_meta_data():
 
         MetaDataUtils.update_sites_distance_measures(tenant=Tenant.ALL)
 
+    @task()
+    def refresh_airqlouds() -> None:
+        from airqo_etl_utils.meta_data_utils import MetaDataUtils
+        from airqo_etl_utils.constants import Tenant
+
+        MetaDataUtils.refresh_airqlouds(tenant=Tenant.ALL)
+
     update_nearest_weather_stations()
     update_distance_measures()
+    refresh_airqlouds()
 
 
 update_big_query_airqlouds_sites_and_devices()

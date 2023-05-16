@@ -7,6 +7,7 @@ const ActivityModel = (tenant) => {
 const createDeviceUtil = require("./create-device");
 const createSiteUtil = require("./create-site");
 const HTTPStatus = require("http-status");
+const DeviceSchema = require("@models/Device");
 const { addMonthsToProvideDateTime } = require("./date");
 const generateFilter = require("./generate-filter");
 const constants = require("@config/constants");
@@ -21,6 +22,10 @@ const kafka = new Kafka({
   clientId: constants.KAFKA_CLIENT_ID,
   brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
 });
+
+const devicesModel = (tenant) => {
+  return getModelByTenant(tenant.toLowerCase(), "device", DeviceSchema);
+};
 
 const createActivity = {
   create: async (request) => {
@@ -314,6 +319,40 @@ const createActivity = {
       const { query } = request;
       const { tenant, deviceName } = query;
 
+      let requestForFilter = {};
+      let previousSiteId = {};
+      requestForFilter["query"] = {};
+      requestForFilter["query"]["device"] = deviceName;
+      let filter = {};
+      const responseFromGenerateFilter = generateFilter.devices(
+        requestForFilter
+      );
+      if (responseFromGenerateFilter.success === false) {
+        return responseFromGenerateFilter;
+      } else {
+        filter = responseFromGenerateFilter.data;
+      }
+
+      const responseFromListDevice = await devicesModel(tenant).list({
+        filter,
+      });
+      if (
+        responseFromListDevice.success === true &&
+        responseFromListDevice.data.length === 1
+      ) {
+        previousSiteId = responseFromListDevice.data[0].site._id;
+      } else if (responseFromListDevice.success === false) {
+        return responseFromListDevice;
+      } else {
+        return {
+          success: false,
+          message: "Internal Server Error",
+          errors: {
+            message: "unable to retrieve one site ID of the current Site",
+          },
+        };
+      }
+      logObject("previousSiteId", previousSiteId);
       const siteActivityBody = {
         device: deviceName,
         date: new Date(),
@@ -333,6 +372,7 @@ const createActivity = {
       deviceBody["body"]["isActive"] = false;
       deviceBody["body"]["status"] = "recalled";
       deviceBody["body"]["site_id"] = null;
+      deviceBody["body"]["previous_sites"] = [previousSiteId];
       deviceBody["body"]["recall_date"] = new Date();
       deviceBody["query"]["name"] = deviceName;
       deviceBody["query"]["tenant"] = tenant;
