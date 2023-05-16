@@ -1,6 +1,9 @@
 replicaCount: 3
-image:
-  repository: eu.gcr.io/airqo-250220/airqo-analytics-api
+images:
+  repositories:
+    api: eu.gcr.io/airqo-250220/airqo-analytics-api
+    celeryBeat: eu.gcr.io/airqo-250220/airqo-analytics-celery-beat
+    celeryWorker: eu.gcr.io/airqo-250220/airqo-analytics-celery-worker
   tag: prod-bbc70236-1680071543
 nameOverride: ''
 fullnameOverride: ''
