@@ -13,6 +13,8 @@ chai.use(chaiHttp);
 const HTTPStatus = require("http-status");
 const mongodb = require("@config/database");
 
+const multitenancy = require("@utils/multitenancy");
+
 describe('Multitenancy Util', function () {
 
   describe('getModelByTenant', function () {
