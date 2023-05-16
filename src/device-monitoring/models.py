@@ -159,6 +159,7 @@ class CollocationDeviceStatus(Enum):
     PASSED = "PASSED"
     RUNNING = "RUNNING"
     SCHEDULED = "SCHEDULED"
+    OVERDUE = "OVERDUE"
 
 
 @dataclass

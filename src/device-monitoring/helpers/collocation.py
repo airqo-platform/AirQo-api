@@ -221,6 +221,14 @@ class Collocation(MongoBDBaseModel):
                 for device in collocation_batch.devices
             ]
 
+        if collocation_batch.status == CollocationBatchStatus.OVERDUE:
+            return [
+                CollocationBatchResultSummary(
+                    device=device, status=CollocationDeviceStatus.OVERDUE
+                )
+                for device in collocation_batch.devices
+            ]
+
         if collocation_batch.status == CollocationBatchStatus.RUNNING:
             return [
                 CollocationBatchResultSummary(
@@ -551,7 +559,7 @@ class Collocation(MongoBDBaseModel):
         if len(devices) != 0:
             batch_devices = list(set(batch.devices).intersection(set(devices)))
         else:
-            batch_devices = devices
+            batch_devices = batch.devices
         raw_data, _ = Collocation.get_data(
             devices=batch_devices,
             start_date_time=batch.start_date,
@@ -565,12 +573,16 @@ class Collocation(MongoBDBaseModel):
 
         return hourly_data
 
+    def get_results(self, batch_id: str) -> CollocationBatchResult:
+        batch: CollocationBatch = self.__query_by_batch_id(batch_id=batch_id)
+        return batch.results
+
     def get_data_completeness(self, batch_id: str, devices: list) -> list:
         batch: CollocationBatch = self.__query_by_batch_id(batch_id=batch_id)
         if len(devices) != 0:
             batch_devices = list(set(batch.devices).intersection(set(devices)))
         else:
-            batch_devices = devices
+            batch_devices = batch.devices
 
         data_completeness = list(
             filter(
@@ -595,7 +607,7 @@ class Collocation(MongoBDBaseModel):
         if len(devices) != 0:
             batch_devices = list(set(batch.devices).intersection(set(devices)))
         else:
-            batch_devices = devices
+            batch_devices = batch.devices
 
         return list(
             filter(
@@ -608,7 +620,7 @@ class Collocation(MongoBDBaseModel):
         if len(devices) != 0:
             batch_devices = list(set(batch.devices).intersection(set(devices)))
         else:
-            batch_devices = devices
+            batch_devices = batch.devices
 
         intra_sensor_correlation = list(
             filter(

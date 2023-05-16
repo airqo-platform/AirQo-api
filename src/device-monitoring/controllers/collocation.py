@@ -144,11 +144,12 @@ def save_collocation_batch():
 
 @collocation_bp.route(routes.COLLOCATION, methods=["DELETE"])
 def delete_collocation_batch():
-    json_data = request.get_json()
-    batch_id = json_data.get("batchId")
-    devices = json_data.get("devices", [])
+    devices = request.args.get("devices", "")
+    batch_id = request.args.get("batchId")
 
     try:
+        devices = str(devices).split(",")
+        batch_id = str(batch_id)
         collocation = Collocation()
         batch: CollocationBatch = collocation.delete_batch(
             batch_id=batch_id, devices=devices
@@ -176,13 +177,14 @@ def collocation_summary():
         return jsonify({"message": "Error occurred. Contact support"}), 500
 
 
-@collocation_bp.route(routes.COLLOCATION_DATA, methods=["POST"])
+@collocation_bp.route(routes.COLLOCATION_DATA, methods=["GET"])
 def collocation_batch_data():
-    json_data = request.get_json()
-    devices = json_data.get("devices", [])
-    batch_id = json_data.get("batchId")
+    devices = request.args.get("devices", "")
+    batch_id = request.args.get("batchId")
 
     try:
+        devices = str(devices).split(",")
+        batch_id = str(batch_id)
         collocation = Collocation()
         results = collocation.get_hourly_data(batch_id=batch_id, devices=devices)
         return jsonify({"data": results}), 200
@@ -194,16 +196,15 @@ def collocation_batch_data():
         return jsonify({"message": "Error occurred. Contact support"}), 500
 
 
-@collocation_bp.route(routes.COLLOCATION_RESULTS, methods=["POST"])
+@collocation_bp.route(routes.COLLOCATION_RESULTS, methods=["GET"])
 def collocation_batch_results():
-    json_data = request.get_json()
-    devices = json_data.get("devices", [])
-    batch_id = json_data.get("batchId")
+    batch_id = request.args.get("batchId")
 
     try:
+        batch_id = str(batch_id)
         collocation = Collocation()
-        results = collocation.get_hourly_data(batch_id=batch_id, devices=devices)
-        return jsonify({"data": results}), 200
+        results = collocation.get_results(batch_id=batch_id)
+        return jsonify({"data": results.to_dict()}), 200
     except CollocationBatchNotFound as ex:
         return jsonify({"message": ex.message}), 404
     except Exception as ex:
@@ -212,13 +213,14 @@ def collocation_batch_results():
         return jsonify({"message": "Error occurred. Contact support"}), 500
 
 
-@collocation_bp.route(routes.COLLOCATION_DATA_COMPLETENESS, methods=["POST"])
+@collocation_bp.route(routes.COLLOCATION_DATA_COMPLETENESS, methods=["GET"])
 def collocation_data_completeness():
-    json_data = request.get_json()
-    devices = json_data.get("devices", [])
-    batch_id = json_data.get("batchId")
+    devices = request.args.get("devices", "")
+    batch_id = request.args.get("batchId")
 
     try:
+        devices = str(devices).split(",")
+        batch_id = str(batch_id)
         collocation = Collocation()
         completeness = collocation.get_data_completeness(
             batch_id=batch_id, devices=devices
@@ -232,13 +234,14 @@ def collocation_data_completeness():
         return jsonify({"message": "Error occurred. Contact support"}), 500
 
 
-@collocation_bp.route(routes.COLLOCATION_STATISTICS, methods=["POST"])
+@collocation_bp.route(routes.COLLOCATION_STATISTICS, methods=["GET"])
 def collocation_data_statistics():
-    json_data = request.get_json()
-    devices = json_data.get("devices", [])
-    batch_id = json_data.get("batchId")
+    devices = request.args.get("devices", "")
+    batch_id = request.args.get("batchId")
 
     try:
+        devices = str(devices).split(",")
+        batch_id = str(batch_id)
         collocation = Collocation()
         completeness = collocation.get_statistics(batch_id=batch_id, devices=devices)
         return jsonify({"data": completeness}), 200
@@ -250,13 +253,14 @@ def collocation_data_statistics():
         return jsonify({"message": "Error occurred. Contact support"}), 500
 
 
-@collocation_bp.route(routes.COLLOCATION_INTRA, methods=["POST"])
+@collocation_bp.route(routes.COLLOCATION_INTRA, methods=["GET"])
 def collocation_intra():
-    json_data = request.get_json()
-    devices = json_data.get("devices", [])
-    batch_id = json_data.get("batchId")
+    devices = request.args.get("devices", "")
+    batch_id = request.args.get("batchId")
 
     try:
+        devices = str(devices).split(",")
+        batch_id = str(batch_id)
         collocation = Collocation()
         intra_sensor_correlation = collocation.get_intra_sensor_correlation(
             batch_id=batch_id, devices=devices
