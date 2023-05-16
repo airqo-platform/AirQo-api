@@ -4,7 +4,7 @@ from enum import Enum
 
 from pymongo import DESCENDING
 
-# from app import cache
+from app import cache
 from config.db_connection import connect_mongo, connect_mongo_db
 
 
@@ -40,7 +40,7 @@ class DeviceStatus(BaseModel):
     def __init__(self, tenant):
         super().__init__(tenant, "device_status")
 
-    # @cache.memoize()
+    @cache.memoize()
     def get_device_status(self, start_date, end_date, limit):
         db_filter = {"created_at": {"$gte": start_date, "$lt": end_date}}
 
@@ -56,7 +56,7 @@ class NetworkUptime(BaseModel):
     def __init__(self, tenant):
         super().__init__(tenant, "network_uptime")
 
-    # @cache.memoize()
+    @cache.memoize()
     def get_network_uptime(self, start_date, end_date):
         db_filter = {"created_at": {"$gte": start_date, "$lt": end_date}}
         return list(
@@ -86,7 +86,7 @@ class DeviceUptime(BaseModel):
     def __init__(self, tenant):
         super().__init__(tenant, "device_uptime")
 
-    # @cache.memoize()
+    @cache.memoize()
     def get_uptime_leaderboard(self, start_date, end_date):
         db_filter = {"created_at": {"$gte": start_date, "$lt": end_date}}
 
@@ -106,7 +106,7 @@ class DeviceUptime(BaseModel):
             )
         )
 
-    # @cache.memoize()
+    @cache.memoize()
     def get_device_uptime(self, start_date, end_date, device_name):
         db_filter = {"created_at": {"$gte": start_date, "$lt": end_date}}
 
@@ -318,6 +318,7 @@ class CollocationBatch:
 @dataclass
 class CollocationSummary:
     batch_id: str
+    batch_name: str
     device_name: str
     added_by: str
     start_date: datetime

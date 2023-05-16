@@ -530,21 +530,17 @@ class Collocation(MongoBDBaseModel):
         batches: list[CollocationBatch] = self.__query_all_batches()
         summary: list[CollocationSummary] = []
         for batch in batches:
-            batch_start_date = batch.start_date
-            batch_end_date = batch.end_date
-            batch_id = batch.batch_id
-            date_added = batch.date_created
             created_by = f"{batch.created_by.get('first_name', '')} {batch.created_by.get('last_name', '')}"
-
             summary.extend(
                 CollocationSummary(
-                    batch_id=batch_id,
+                    batch_id=batch.batch_id,
                     device_name=result_summary.device,
                     added_by=created_by,
-                    start_date=batch_start_date,
-                    end_date=batch_end_date,
+                    start_date=batch.start_date,
+                    end_date=batch.end_date,
                     status=result_summary.status.value,
-                    date_added=date_added,
+                    date_added=batch.date_created,
+                    batch_name=batch.batch_name,
                 )
                 for result_summary in batch.summary
             )
