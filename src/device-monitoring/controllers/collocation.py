@@ -129,7 +129,9 @@ def save_collocation_batch():
             results=CollocationBatchResult.empty_results(),
             summary=[],
         )
-        if batch.is_overdue():
+
+        batch.update_status()
+        if batch == CollocationBatchStatus.COMPLETED:
             batch.status = CollocationBatchStatus.OVERDUE
 
         collocation = Collocation()
@@ -148,7 +150,7 @@ def delete_collocation_batch():
     batch_id = request.args.get("batchId")
 
     try:
-        devices = str(devices).split(",")
+        devices = [] if devices.strip() == "" else str(devices).split(",")
         batch_id = str(batch_id)
         collocation = Collocation()
         batch: CollocationBatch = collocation.delete_batch(
@@ -158,7 +160,8 @@ def delete_collocation_batch():
         if batch is None:
             return jsonify({"message": "Successful"}), 404
         return jsonify({"message": "Successful", "data": batch.to_dict()}), 200
-
+    except CollocationBatchNotFound as ex:
+        return jsonify({"message": ex.message}), 404
     except Exception as ex:
         traceback.print_exc()
         print(ex)
@@ -183,7 +186,7 @@ def collocation_batch_data():
     batch_id = request.args.get("batchId")
 
     try:
-        devices = str(devices).split(",")
+        devices = [] if devices.strip() == "" else str(devices).split(",")
         batch_id = str(batch_id)
         collocation = Collocation()
         results = collocation.get_hourly_data(batch_id=batch_id, devices=devices)
@@ -219,7 +222,7 @@ def collocation_data_completeness():
     batch_id = request.args.get("batchId")
 
     try:
-        devices = str(devices).split(",")
+        devices = [] if devices.strip() == "" else str(devices).split(",")
         batch_id = str(batch_id)
         collocation = Collocation()
         completeness = collocation.get_data_completeness(
@@ -240,7 +243,7 @@ def collocation_data_statistics():
     batch_id = request.args.get("batchId")
 
     try:
-        devices = str(devices).split(",")
+        devices = [] if devices.strip() == "" else str(devices).split(",")
         batch_id = str(batch_id)
         collocation = Collocation()
         completeness = collocation.get_statistics(batch_id=batch_id, devices=devices)
@@ -259,7 +262,7 @@ def collocation_intra():
     batch_id = request.args.get("batchId")
 
     try:
-        devices = str(devices).split(",")
+        devices = [] if devices.strip() == "" else str(devices).split(",")
         batch_id = str(batch_id)
         collocation = Collocation()
         intra_sensor_correlation = collocation.get_intra_sensor_correlation(

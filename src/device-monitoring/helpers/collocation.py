@@ -1,5 +1,5 @@
 import copy
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import numpy as np
 import pandas as pd
@@ -374,19 +374,20 @@ class Collocation(MongoBDBaseModel):
 
         if count == 0:
             data = batch
-            data.summary = self.compute_batch_results_summary(batch)
+            data.summary = self.compute_batch_results_summary(data)
             self.db.collocation.insert_one(data.to_dict())
 
         return self.__query_by_devices_and_collocation_dates(
             devices=devices, end_date=end_date, start_date=start_date
         )
 
-    def __update_batch_status(self, data: CollocationBatch):
+    def __update_batch_status(self, data: CollocationBatch) -> CollocationBatch:
         data_dict = data.to_dict()
         filter_set = {"_id": ObjectId(data.batch_id)}
         update_set = {"$set": {"status": data_dict["status"]}}
         self.db.collocation.update_one(filter_set, update_set)
         print(f"updated status for batch {data.batch_id} to {data.status.value}")
+        return self.__query_by_batch_id(data.batch_id)
 
     def __update_batch_summary(self, data: CollocationBatch):
         data_dict = data.to_dict()
@@ -419,45 +420,42 @@ class Collocation(MongoBDBaseModel):
 
         return doc_to_collocation_data(doc)
 
-    def get_scheduled_batches(self) -> list[CollocationBatch]:
-        records = self.__query_by_status(CollocationBatchStatus.SCHEDULED)
-        return records
-
     def get_running_batches(self) -> list[CollocationBatch]:
         records = self.__query_by_status(CollocationBatchStatus.RUNNING)
         return records
 
-    def get_overdue_batches(self) -> list[CollocationBatch]:
-        records = self.__query_by_status(CollocationBatchStatus.OVERDUE)
-        return records
+    def update_batches_statues(self):
+        scheduled_batches = self.__query_by_status(CollocationBatchStatus.SCHEDULED)
+        running_batches = self.__query_by_status(CollocationBatchStatus.RUNNING)
 
-    def update_scheduled_batches_to_running(self):
-        records = self.get_scheduled_batches()
-        for record in records:
-            if record.is_running():
-                record.status = CollocationBatchStatus.RUNNING
-                record.summary = self.compute_batch_results_summary(record)
-                self.__update_batch_status(record)
-                self.__update_batch_summary(record)
+        records = []
+        records.extend(scheduled_batches)
+        records.extend(running_batches)
 
-    def update_running_batches_to_completed(self):
-        records = self.get_running_batches()
         for record in records:
-            if record.is_completed():
-                record.status = CollocationBatchStatus.COMPLETED
-                record.summary = self.compute_batch_results_summary(record)
-                self.__update_batch_status(record)
-                self.__update_batch_summary(record)
-
-    def update_overdue_batches_to_running(self):
-        records = self.get_overdue_batches()
-        for record in records:
-            record.status = CollocationBatchStatus.RUNNING
-            record.summary = self.compute_batch_results_summary(record)
+            record.update_status()
             self.__update_batch_status(record)
-            self.__update_batch_summary(record)
 
-    def update_batch_results(
+    def compute_and_update_results(self, batches: list[CollocationBatch]):
+        for batch in batches:
+            results = self.compute_batch_results(batch)
+            updated_batch = self.__update_batch_results((batch.batch_id, results))
+            self.__compute_and_update_summary(updated_batch)
+
+    def compute_and_update_overdue_batches(self):
+        overdue_batches = self.__query_by_status(CollocationBatchStatus.OVERDUE)
+        batches = []
+        for batch in overdue_batches:
+            batch.status = CollocationBatchStatus.COMPLETED
+            updated_batch = self.__update_batch_status(batch)
+            batches.append(updated_batch)
+        self.compute_and_update_results(batches)
+
+    def __compute_and_update_summary(self, batch: CollocationBatch):
+        summary = self.compute_batch_results_summary(batch)
+        self.update_batch_summary((batch.batch_id, summary))
+
+    def __update_batch_results(
         self, batch_tuple: tuple[str, CollocationBatchResult]
     ) -> CollocationBatch:
         _batch_id, _results = batch_tuple
@@ -499,11 +497,10 @@ class Collocation(MongoBDBaseModel):
 
     def __reset_batch(self, data: CollocationBatch) -> CollocationBatch:
         reset_batch: CollocationBatch = data
+        reset_batch.update_status()
 
-        if reset_batch.is_running() or reset_batch.is_completed():
-            reset_batch.status = CollocationBatchStatus.RUNNING
-        else:
-            reset_batch.status = CollocationBatchStatus.SCHEDULED
+        if reset_batch == CollocationBatchStatus.COMPLETED:
+            reset_batch.status = CollocationBatchStatus.OVERDUE
 
         reset_batch.results = CollocationBatchResult.empty_results()
         reset_batch.summary = self.compute_batch_results_summary(reset_batch)
@@ -579,6 +576,7 @@ class Collocation(MongoBDBaseModel):
 
     def get_data_completeness(self, batch_id: str, devices: list) -> list:
         batch: CollocationBatch = self.__query_by_batch_id(batch_id=batch_id)
+
         if len(devices) != 0:
             batch_devices = list(set(batch.devices).intersection(set(devices)))
         else:
@@ -642,22 +640,7 @@ class Collocation(MongoBDBaseModel):
 
 if __name__ == "__main__":
     collocation = Collocation()
-
-    # update statuses
-    collocation.update_scheduled_batches_to_running()
-    collocation.update_overdue_batches_to_running()
-
-    # get running batches
-    x_batches: list[CollocationBatch] = collocation.get_running_batches()
-
-    # compute and save results and summary
-    for x_batch in x_batches:
-        batch_results = collocation.compute_batch_results(x_batch)
-        updated_batch = collocation.update_batch_results(
-            (x_batch.batch_id, batch_results)
-        )
-        batch_summary = collocation.compute_batch_results_summary(updated_batch)
-        collocation.update_batch_summary((updated_batch.batch_id, batch_summary))
-
-    # update status for completed batches
-    collocation.update_running_batches_to_completed()
+    collocation.compute_and_update_overdue_batches()
+    collocation.update_batches_statues()
+    x_running_batches: list[CollocationBatch] = collocation.get_running_batches()
+    collocation.compute_and_update_results(x_running_batches)

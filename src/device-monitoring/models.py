@@ -300,17 +300,19 @@ class CollocationBatch:
         data["status"] = self.status.value
         return data
 
-    def is_running(self) -> bool:
-        return self.logical_end_date() > datetime.utcnow() >= self.start_date
-
-    def is_completed(self) -> bool:
-        return datetime.utcnow() >= self.logical_end_date()
-
-    def is_overdue(self) -> bool:
-        return (
-            datetime.utcnow() >= self.logical_end_date()
+    def update_status(self):
+        now = datetime.utcnow()
+        if (
+            now >= self.logical_end_date()
             and self.status != CollocationBatchStatus.COMPLETED
-        )
+        ):
+            self.status = CollocationBatchStatus.OVERDUE
+        elif self.start_date > now:
+            self.status = CollocationBatchStatus.SCHEDULED
+        elif self.logical_end_date() > now >= self.start_date:
+            self.status = CollocationBatchStatus.RUNNING
+        elif self.logical_end_date() >= now:
+            self.status = CollocationBatchStatus.COMPLETED
 
 
 @dataclass
