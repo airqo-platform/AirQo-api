@@ -165,7 +165,6 @@ def predict_model(m, tenant, airqloud, aq_id, poly, x1, x2, y1, y2):
             {
                 "latitude": latitude,
                 "longitude": longitude,
-                "location": {type: "Point", "coordinates": [longitude, latitude]},
                 "predicted_value": means[i],
                 "variance": variances[i],
                 "interval": interval[i],
@@ -179,7 +178,6 @@ def predict_model(m, tenant, airqloud, aq_id, poly, x1, x2, y1, y2):
 
     if collection.count_documents({"airqloud": airqloud}) != 0:
         collection.delete_many({"airqloud": airqloud})
-    # print(result)
     collection.insert_many(result)
 
     return result
@@ -192,16 +190,12 @@ def periodic_function(tenant, airqloud, aq_id):
 
     poly, min_long, max_long, min_lat, max_lat = get_airqloud_polygon(
         tenant, airqloud)
-    # all_sites_data = get_all_sites_data(airqloud=airqloud, tenant=tenant)
     all_sites_data = get_airqloud_data(airqloud_id=aq_id)
-    # print('AirQloud = ', airqloud)
-    # print('AirQloud_id = ', aq_id)
-    # print(len(all_sites_data))
+
     if len(all_sites_data) >= 1:
         train_data_df = data_to_df(data=all_sites_data)
         train_data_df = drop_missing_value(train_data_df)
         train_data_df = train_data_df.drop('site_id', axis=1)
-        print(train_data_df.columns)
         train_data_preprocessed = preprocess(df=train_data_df)
         X_features = np.asarray(
             train_data_preprocessed.drop("pm2_5", axis=1).values)
