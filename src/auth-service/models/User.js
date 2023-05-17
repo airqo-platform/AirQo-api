@@ -88,13 +88,23 @@ const UserSchema = new Schema(
     },
     isActive: { type: Boolean },
     duration: { type: Date, default: oneMonthFromNow },
-    networks: [
-      {
-        type: ObjectId,
-        ref: "network",
-        unique: true,
-      },
-    ],
+    networks: {
+      type: [
+        {
+          type: ObjectId,
+          ref: "network",
+          unique: true,
+        },
+      ],
+      default: [mongoose.Types.ObjectId(constants.DEFAULT_NETWORK)],
+    },
+    // networks: [
+    //   {
+    //     type: ObjectId,
+    //     ref: "network",
+    //     unique: true,
+    //   },
+    // ],
     groups: [
       {
         type: ObjectId,
