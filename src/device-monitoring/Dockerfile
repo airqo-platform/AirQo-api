@@ -28,4 +28,4 @@ FROM base as celery-beat
 CMD celery -A app.celery beat
 
 FROM base as celery-worker
-CMD celery -A app.celery worker --loglevel=info
+CMD celery -A app.celery worker -Q collocation --loglevel=info
