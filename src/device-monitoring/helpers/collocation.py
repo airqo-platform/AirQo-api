@@ -31,7 +31,8 @@ from models import (
     DataCompleteness,
     IntraSensorCorrelationResult,
     IntraSensorCorrelation,
-    BaseResult, BaseModel,
+    BaseResult,
+    BaseModel,
 )
 
 
@@ -482,6 +483,9 @@ class Collocation(BaseModel):
     API functions
     """
 
+    def get_batch(self, batch_id: str) -> CollocationBatch:
+        return self.__query_by_batch_id(batch_id)
+
     def delete_batch(self, batch_id: str, devices: list) -> CollocationBatch:
         if len(devices) == 0:
             self.__delete_by_batch_id(batch_id)
@@ -573,6 +577,7 @@ class Collocation(BaseModel):
             hourly_device_data = device_data.resample("1H", on="timestamp").mean(
                 numeric_only=True
             )
+            hourly_device_data["timestamp"] = hourly_device_data.index
             hourly_device_data = hourly_device_data.replace(np.nan, None)
             hourly_data[device] = hourly_device_data.to_dict("records")
 

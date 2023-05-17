@@ -134,7 +134,10 @@ def save_collocation_batch():
     collocation = Collocation()
     batch = collocation.save_batch(batch)
 
-    return jsonify({"message": "success", "data": batch.to_dict(retain_batch_id=True)}), 200
+    return (
+        jsonify({"message": "success", "data": batch.to_dict(retain_batch_id=True)}),
+        200,
+    )
 
 
 @collocation_bp.route(routes.COLLOCATION, methods=["DELETE"])
@@ -153,7 +156,27 @@ def delete_collocation_batch():
 
     if batch is None:
         return jsonify({"message": "Successful"}), 404
-    return jsonify({"message": "Successful", "data": batch.to_dict(retain_batch_id=True)}), 200
+    return (
+        jsonify({"message": "Successful", "data": batch.to_dict(retain_batch_id=True)}),
+        200,
+    )
+
+
+@collocation_bp.route(routes.COLLOCATION, methods=["GET"])
+def get_collocation_batch():
+    batch_id = request.args.get("batchId", "")
+    batch_id = str(batch_id)
+    if batch_id == "":
+        return jsonify({"message": "Please specify batchId as a query parameter"}), 400
+    collocation = Collocation()
+    batch: CollocationBatch = collocation.get_batch(batch_id=batch_id)
+
+    if batch is None:
+        return jsonify({"message": "Successful"}), 404
+    return (
+        jsonify({"message": "Successful", "data": batch.to_dict(retain_batch_id=True)}),
+        200,
+    )
 
 
 @collocation_bp.route(routes.COLLOCATION_SUMMARY, methods=["GET"])
