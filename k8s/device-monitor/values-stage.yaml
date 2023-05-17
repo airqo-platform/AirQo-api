@@ -9,7 +9,7 @@ images:
     deviceMonitor: eu.gcr.io/airqo-250220/airqo-stage-device-monitor-api
     celeryBeat: eu.gcr.io/airqo-250220/airqo-stage-device-monitor-celery-beat
     celeryWorker: eu.gcr.io/airqo-250220/airqo-stage-device-monitor-celery-worker
-  tag: stage-4db24bee-1680247320
+  tag: stage-1fd7b1d0-1684301677
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
