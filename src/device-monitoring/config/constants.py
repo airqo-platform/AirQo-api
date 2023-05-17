@@ -29,7 +29,9 @@ class CollocationDefaults:
     IntraCorrelationParameter = os.getenv("INTRA_CORRELATION_PARAMETER", "pm2_5")
     DataCompletenessParameter = os.getenv("DATA_COMPLETENESS_PARAMETER", "timestamp")
     DifferencesParameter = os.getenv("DIFFERENCES_PARAMETER", "pm2_5")
-    InterCorrelationAdditionalParameters = os.getenv("INTER_CORRELATION_ADDITIONAL_PARAMETERS", ["pm10"])
+    InterCorrelationAdditionalParameters = os.getenv(
+        "INTER_CORRELATION_ADDITIONAL_PARAMETERS", ["pm10"]
+    )
 
     ExpectedRecordsPerHour = os.getenv("EXPECTED_RECORDS_PER_HOUR", 30)
 
@@ -53,8 +55,9 @@ class Config:
     BIGQUERY_RAW_DATA = os.getenv("BIGQUERY_RAW_DATA")
     BIGQUERY_DEVICES = os.getenv("BIGQUERY_DEVICES")
     BIGQUERY_HOURLY_DATA = os.getenv("BIGQUERY_HOURLY_DATA")
-    COLLOCATION_DATABASE = os.getenv("MONGO_DATABASE", "collocation")
-    COLLOCATION_CELERY_MINUTES_INTERVAL = int(os.getenv("COLLOCATION_CELERY_MINUTES_INTERVAL", 30))
+    COLLOCATION_CELERY_MINUTES_INTERVAL = int(
+        os.getenv("COLLOCATION_CELERY_MINUTES_INTERVAL", 10)
+    )
 
 
 class ProductionConfig(Config):

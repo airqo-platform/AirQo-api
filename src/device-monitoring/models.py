@@ -5,7 +5,7 @@ from enum import Enum
 from pymongo import DESCENDING
 
 from app import cache
-from config.db_connection import connect_mongo, connect_mongo_db
+from config.db_connection import connect_mongo, connect_to_mongo_db
 
 
 class BaseModel:
@@ -29,7 +29,7 @@ class MongoBDBaseModel:
 
     def __init__(self, collection_name):
         self.collection_name = collection_name
-        self.db = connect_mongo_db()
+        self.db = connect_to_mongo_db()
         self.collection = self.db[collection_name]
 
     def __repr__(self):

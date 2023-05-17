@@ -364,7 +364,7 @@ class Collocation(MongoBDBaseModel):
         start_date = batch.start_date
         end_date = batch.end_date
 
-        count = self.db.collocation.count_documents(
+        count = self.collection.count_documents(
             {
                 "devices": {"$all": devices},
                 "start_date": {"$eq": start_date},
@@ -375,7 +375,7 @@ class Collocation(MongoBDBaseModel):
         if count == 0:
             data = batch
             data.summary = self.compute_batch_results_summary(data)
-            self.db.collocation.insert_one(data.to_dict())
+            self.collection.insert_one(data.to_dict())
 
         return self.__query_by_devices_and_collocation_dates(
             devices=devices, end_date=end_date, start_date=start_date
@@ -385,7 +385,7 @@ class Collocation(MongoBDBaseModel):
         data_dict = data.to_dict()
         filter_set = {"_id": ObjectId(data.batch_id)}
         update_set = {"$set": {"status": data_dict["status"]}}
-        self.db.collocation.update_one(filter_set, update_set)
+        self.collection.update_one(filter_set, update_set)
         print(f"updated status for batch {data.batch_id} to {data.status.value}")
         return self.__query_by_batch_id(data.batch_id)
 
@@ -393,13 +393,13 @@ class Collocation(MongoBDBaseModel):
         data_dict = data.to_dict()
         filter_set = {"_id": ObjectId(data.batch_id)}
         update_set = {"$set": {"summary": data_dict["summary"]}}
-        self.db.collocation.update_one(filter_set, update_set)
+        self.collection.update_one(filter_set, update_set)
         print(f"updated summary for batch {data.batch_id}")
 
     def __query_by_status(
         self, status: CollocationBatchStatus
     ) -> list[CollocationBatch]:
-        docs = self.db.collocation.find(
+        docs = self.collection.find(
             {
                 "status": status.value,
             }
@@ -410,7 +410,7 @@ class Collocation(MongoBDBaseModel):
     def __query_by_devices_and_collocation_dates(
         self, devices: list[str], start_date: datetime, end_date: datetime
     ) -> CollocationBatch:
-        doc = self.db.collocation.find_one(
+        doc = self.collection.find_one(
             {
                 "devices": {"$all": devices},
                 "start_date": {"$eq": start_date},
@@ -461,7 +461,7 @@ class Collocation(MongoBDBaseModel):
         _batch_id, _results = batch_tuple
         filter_set = {"_id": ObjectId(_batch_id)}
         update_set = {"$set": {"results": _results.to_dict()}}
-        self.db.collocation.update_one(filter_set, update_set)
+        self.collection.update_one(filter_set, update_set)
         print(f"updated results for batch {_batch_id}")
         return self.__query_by_batch_id(_batch_id)
 
@@ -475,7 +475,7 @@ class Collocation(MongoBDBaseModel):
 
         filter_set = {"_id": ObjectId(_batch_id)}
         update_set = {"$set": {"summary": _summary}}
-        self.db.collocation.update_one(filter_set, update_set)
+        self.collection.update_one(filter_set, update_set)
         print(f"updated summary for batch {_batch_id}")
 
     """
@@ -506,24 +506,24 @@ class Collocation(MongoBDBaseModel):
         reset_batch.summary = self.compute_batch_results_summary(reset_batch)
         filter_set = {"_id": ObjectId(reset_batch.batch_id)}
         update_set = {"$set": reset_batch.to_dict()}
-        self.db.collocation.update_one(filter_set, update_set)
+        self.collection.update_one(filter_set, update_set)
         reset_batch = self.__query_by_batch_id(reset_batch.batch_id)
         return reset_batch
 
     def __delete_by_batch_id(self, batch_id: str):
         filter_set = {"_id": ObjectId(batch_id)}
-        self.db.collocation.delete_one(filter_set)
+        self.collection.delete_one(filter_set)
         print(f"Deleted {batch_id}")
 
     def __query_by_batch_id(self, batch_id: str) -> CollocationBatch:
         filter_set = {"_id": ObjectId(batch_id)}
-        result = self.db.collocation.find_one(filter_set)
+        result = self.collection.find_one(filter_set)
         if result is None:
             raise CollocationBatchNotFound(batch_id=batch_id)
         return doc_to_collocation_data(result)
 
     def __query_all_batches(self) -> list[CollocationBatch]:
-        docs = self.db.collocation.find()
+        docs = self.collection.find()
         return docs_to_collocation_data_list(docs)
 
     def summary(self) -> list[CollocationSummary]:
