@@ -256,33 +256,6 @@ describe('list function', () => {
     expect(generateFilterStub.calledOnce).to.be.true;
   });
 
-  it.skip('should return an error message if getModelByTenant fails', async () => {
-    const getModelByTenantStub = sinon.stub(deviceModel,"getModelByTenant").returns({
-      success: false,
-      message: "Failed to retrieve the device details",
-      data:"",
-      status:" ",
-    });
-     const generateFilterStub = sinon.stub(generateFilter,"devices").returns({
-      success: true,
-      message: "successfully generated the filter",
-      data: stubValue,
-     });
-
-    const result = await deviceUtil.list(request, {
-      getModelByTenant: getModelByTenantStub,
-      generateFilter: generateFilterStub,
-    });
-    expect(getModelByTenantStub.calledOnce).to.be.true;
-    expect(generateFilterStub.calledOnce).to.be.true;
-    expect(result).to.deep.equal({
-      success: false,
-      message: 'getModelByTenant failed',
-      errors: { message: '' },
-      status: '',
-    });
-    
-  });
 
   it('should return an error message if generateFilter fails', async () => {
     const getModelByTenantStub = sinon.stub(deviceModel,"getModelByTenant").resolves({
