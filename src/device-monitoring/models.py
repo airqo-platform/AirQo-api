@@ -5,7 +5,7 @@ from enum import Enum
 from pymongo import DESCENDING
 
 from app import cache
-from config.db_connection import connect_mongo, connect_to_mongo_db
+from config.db_connection import connect_mongo
 
 
 class BaseModel:
@@ -22,18 +22,6 @@ class BaseModel:
 
     def __repr__(self):
         return f"{self.__class__.__name__}({self.tenant}, {self.collection_name})"
-
-
-class MongoBDBaseModel:
-    __abstract__ = True
-
-    def __init__(self, collection_name):
-        self.collection_name = collection_name
-        self.db = connect_to_mongo_db()
-        self.collection = self.db[collection_name]
-
-    def __repr__(self):
-        return f"{self.__class__.__name__}({self.collection_name})"
 
 
 class DeviceStatus(BaseModel):
@@ -281,9 +269,10 @@ class CollocationBatch:
     results: CollocationBatchResult
     summary: list[CollocationBatchResultSummary]
 
-    def to_dict(self):
+    def to_dict(self, retain_batch_id=False):
         data = asdict(self)
-        del data["batch_id"]
+        if not retain_batch_id:
+            del data["batch_id"]
         summary = []
         for record in self.summary:
             summary.append(record.to_dict())

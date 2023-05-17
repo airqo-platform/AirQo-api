@@ -4,11 +4,11 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 from bson import ObjectId
+from bson.errors import InvalidId
 from google.cloud import bigquery
 
 from app import cache
 
-# from app import cache
 from config.constants import Config
 from helpers.collocation_utils import (
     compute_data_completeness,
@@ -17,13 +17,13 @@ from helpers.collocation_utils import (
     compute_inter_sensor_correlation,
     compute_differences,
     populate_missing_columns,
+    map_data_to_api_format,
 )
 from helpers.exceptions import CollocationBatchNotFound
 from models import (
     CollocationBatchStatus,
     CollocationBatch,
     CollocationBatchResult,
-    MongoBDBaseModel,
     CollocationSummary,
     CollocationDeviceStatus,
     CollocationBatchResultSummary,
@@ -31,7 +31,7 @@ from models import (
     DataCompleteness,
     IntraSensorCorrelationResult,
     IntraSensorCorrelation,
-    BaseResult,
+    BaseResult, BaseModel,
 )
 
 
@@ -143,11 +143,11 @@ def docs_to_collocation_data_list(docs: list) -> list[CollocationBatch]:
     return data
 
 
-class Collocation(MongoBDBaseModel):
+class Collocation(BaseModel):
     def __init__(
         self,
     ):
-        super().__init__("collocation")
+        super().__init__("airqo", "collocation")
 
     @staticmethod
     def compute_batch_results(
@@ -511,12 +511,19 @@ class Collocation(MongoBDBaseModel):
         return reset_batch
 
     def __delete_by_batch_id(self, batch_id: str):
-        filter_set = {"_id": ObjectId(batch_id)}
+        try:
+            filter_set = {"_id": ObjectId(batch_id)}
+        except InvalidId:
+            raise CollocationBatchNotFound(batch_id=batch_id)
+
         self.collection.delete_one(filter_set)
         print(f"Deleted {batch_id}")
 
     def __query_by_batch_id(self, batch_id: str) -> CollocationBatch:
-        filter_set = {"_id": ObjectId(batch_id)}
+        try:
+            filter_set = {"_id": ObjectId(batch_id)}
+        except InvalidId:
+            raise CollocationBatchNotFound(batch_id=batch_id)
         result = self.collection.find_one(filter_set)
         if result is None:
             raise CollocationBatchNotFound(batch_id=batch_id)
@@ -560,7 +567,12 @@ class Collocation(MongoBDBaseModel):
         )
         hourly_data: dict[str, list[dict]] = {}
         for device, device_data in raw_data.items():
-            hourly_device_data = device_data.resample("1H", on="timestamp").mean()
+            if len(device_data.index) == 0:
+                hourly_data[device] = []
+                continue
+            hourly_device_data = device_data.resample("1H", on="timestamp").mean(
+                numeric_only=True
+            )
             hourly_device_data = hourly_device_data.replace(np.nan, None)
             hourly_data[device] = hourly_device_data.to_dict("records")
 
@@ -570,7 +582,7 @@ class Collocation(MongoBDBaseModel):
         batch: CollocationBatch = self.__query_by_batch_id(batch_id=batch_id)
         return batch.results
 
-    def get_data_completeness(self, batch_id: str, devices: list) -> list:
+    def get_data_completeness(self, batch_id: str, devices: list) -> dict[str, dict]:
         batch: CollocationBatch = self.__query_by_batch_id(batch_id=batch_id)
 
         if len(devices) != 0:
@@ -584,32 +596,39 @@ class Collocation(MongoBDBaseModel):
                 batch.results.data_completeness.results,
             )
         )
-        return [
+        data = [
             {
                 "expected_number_of_records": result.expected,
                 "start_date": batch.start_date,
                 "end_date": batch.end_date,
                 "actual_number_of_records": result.actual,
+                "device_name": result.device_name,
                 "completeness": result.completeness,
                 "missing": result.missing,
             }
             for result in data_completeness
         ]
 
-    def get_statistics(self, batch_id: str, devices: list) -> list:
+        return map_data_to_api_format(data)
+
+    def get_statistics(self, batch_id: str, devices: list) -> dict[str, dict]:
         batch: CollocationBatch = self.__query_by_batch_id(batch_id=batch_id)
         if len(devices) != 0:
             batch_devices = list(set(batch.devices).intersection(set(devices)))
         else:
             batch_devices = batch.devices
 
-        return list(
+        statistics = list(
             filter(
                 lambda x: x["device_name"] in batch_devices, batch.results.statistics
             )
         )
 
-    def get_intra_sensor_correlation(self, batch_id: str, devices: list) -> list:
+        return map_data_to_api_format(statistics)
+
+    def get_intra_sensor_correlation(
+        self, batch_id: str, devices: list
+    ) -> dict[str, dict]:
         batch: CollocationBatch = self.__query_by_batch_id(batch_id=batch_id)
         if len(devices) != 0:
             batch_devices = list(set(batch.devices).intersection(set(devices)))
@@ -623,15 +642,18 @@ class Collocation(MongoBDBaseModel):
             )
         )
 
-        return [
+        data = [
             {
                 "pm2_5_pearson_correlation": result.pm2_5_pearson,
                 "pm10_pearson_correlation": result.pm10_pearson,
                 "pm2_5_r2": result.pm2_5_r2,
                 "pm10_r2": result.pm10_r2,
+                "device_name": result.device_name,
             }
             for result in intra_sensor_correlation
         ]
+
+        return map_data_to_api_format(data)
 
 
 if __name__ == "__main__":

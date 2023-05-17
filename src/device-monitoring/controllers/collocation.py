@@ -1,6 +1,5 @@
 import datetime
 import logging
-import traceback
 import uuid
 
 from flask import Blueprint, request, jsonify
@@ -12,7 +11,6 @@ from helpers.collocation_utils import (
     validate_collocation_request,
 )
 from helpers.convert_dates import str_to_date
-from helpers.exceptions import CollocationBatchNotFound
 from helpers.utils import decode_user_token
 from models import (
     CollocationBatch,
@@ -99,179 +97,137 @@ def save_collocation_batch():
             400,
         )
 
-    try:
-        user_details = decode_user_token(token)
-        start_date = str_to_date(start_date, str_format="%Y-%m-%d")
-        end_date = str_to_date(end_date, str_format="%Y-%m-%d")
+    user_details = decode_user_token(token)
+    start_date = str_to_date(start_date, str_format="%Y-%m-%d")
+    end_date = str_to_date(end_date, str_format="%Y-%m-%d")
 
-        batch = CollocationBatch(
-            batch_id="",
-            batch_name=batch_name,
-            devices=list(set(devices)),
-            base_device=base_device,
-            start_date=start_date,
-            end_date=end_date,
-            date_created=datetime.datetime.utcnow(),
-            expected_hourly_records=expected_records_per_hour,
-            inter_correlation_threshold=inter_correlation_threshold,
-            intra_correlation_threshold=intra_correlation_threshold,
-            inter_correlation_r2_threshold=inter_correlation_r2_threshold,
-            intra_correlation_r2_threshold=intra_correlation_r2_threshold,
-            data_completeness_threshold=data_completeness_threshold,
-            differences_threshold=differences_threshold,
-            data_completeness_parameter=data_completeness_parameter,
-            inter_correlation_parameter=inter_correlation_parameter,
-            intra_correlation_parameter=intra_correlation_parameter,
-            differences_parameter=differences_parameter,
-            inter_correlation_additional_parameters=inter_correlation_additional_parameters,
-            created_by=user_details,
-            status=CollocationBatchStatus.SCHEDULED,
-            results=CollocationBatchResult.empty_results(),
-            summary=[],
-        )
+    batch = CollocationBatch(
+        batch_id="",
+        batch_name=batch_name,
+        devices=list(set(devices)),
+        base_device=base_device,
+        start_date=start_date,
+        end_date=end_date,
+        date_created=datetime.datetime.utcnow(),
+        expected_hourly_records=expected_records_per_hour,
+        inter_correlation_threshold=inter_correlation_threshold,
+        intra_correlation_threshold=intra_correlation_threshold,
+        inter_correlation_r2_threshold=inter_correlation_r2_threshold,
+        intra_correlation_r2_threshold=intra_correlation_r2_threshold,
+        data_completeness_threshold=data_completeness_threshold,
+        differences_threshold=differences_threshold,
+        data_completeness_parameter=data_completeness_parameter,
+        inter_correlation_parameter=inter_correlation_parameter,
+        intra_correlation_parameter=intra_correlation_parameter,
+        differences_parameter=differences_parameter,
+        inter_correlation_additional_parameters=inter_correlation_additional_parameters,
+        created_by=user_details,
+        status=CollocationBatchStatus.SCHEDULED,
+        results=CollocationBatchResult.empty_results(),
+        summary=[],
+    )
 
-        batch.update_status()
-        if batch == CollocationBatchStatus.COMPLETED:
-            batch.status = CollocationBatchStatus.OVERDUE
+    batch.update_status()
+    if batch == CollocationBatchStatus.COMPLETED:
+        batch.status = CollocationBatchStatus.OVERDUE
 
-        collocation = Collocation()
-        batch = collocation.save_batch(batch)
+    collocation = Collocation()
+    batch = collocation.save_batch(batch)
 
-        return jsonify({"message": "success", "data": batch.to_dict()}), 200
-    except Exception as ex:
-        traceback.print_exc()
-        print(ex)
-        return jsonify({"message": "Error occurred. Contact support"}), 500
+    return jsonify({"message": "success", "data": batch.to_dict(retain_batch_id=True)}), 200
 
 
 @collocation_bp.route(routes.COLLOCATION, methods=["DELETE"])
 def delete_collocation_batch():
     devices = request.args.get("devices", "")
-    batch_id = request.args.get("batchId")
+    batch_id = request.args.get("batchId", "")
 
-    try:
-        devices = [] if devices.strip() == "" else str(devices).split(",")
-        batch_id = str(batch_id)
-        collocation = Collocation()
-        batch: CollocationBatch = collocation.delete_batch(
-            batch_id=batch_id, devices=devices
-        )
+    devices = [] if devices.strip() == "" else str(devices).split(",")
+    batch_id = str(batch_id)
+    if batch_id == "":
+        return jsonify({"message": "Please specify batchId as a query parameter"}), 400
+    collocation = Collocation()
+    batch: CollocationBatch = collocation.delete_batch(
+        batch_id=batch_id, devices=devices
+    )
 
-        if batch is None:
-            return jsonify({"message": "Successful"}), 404
-        return jsonify({"message": "Successful", "data": batch.to_dict()}), 200
-    except CollocationBatchNotFound as ex:
-        return jsonify({"message": ex.message}), 404
-    except Exception as ex:
-        traceback.print_exc()
-        print(ex)
-        return jsonify({"message": "Error occurred. Contact support"}), 500
+    if batch is None:
+        return jsonify({"message": "Successful"}), 404
+    return jsonify({"message": "Successful", "data": batch.to_dict(retain_batch_id=True)}), 200
 
 
 @collocation_bp.route(routes.COLLOCATION_SUMMARY, methods=["GET"])
 def collocation_summary():
-    try:
-        collocation = Collocation()
-        summary = collocation.summary()
-        return jsonify({"data": list(map(lambda x: x.to_dict(), summary))}), 200
-    except Exception as ex:
-        traceback.print_exc()
-        print(ex)
-        return jsonify({"message": "Error occurred. Contact support"}), 500
+    collocation = Collocation()
+    summary = collocation.summary()
+    return jsonify({"data": list(map(lambda x: x.to_dict(), summary))}), 200
 
 
 @collocation_bp.route(routes.COLLOCATION_DATA, methods=["GET"])
 def collocation_batch_data():
     devices = request.args.get("devices", "")
-    batch_id = request.args.get("batchId")
+    batch_id = request.args.get("batchId", "")
 
-    try:
-        devices = [] if devices.strip() == "" else str(devices).split(",")
-        batch_id = str(batch_id)
-        collocation = Collocation()
-        results = collocation.get_hourly_data(batch_id=batch_id, devices=devices)
-        return jsonify({"data": results}), 200
-    except CollocationBatchNotFound as ex:
-        return jsonify({"message": ex.message}), 404
-    except Exception as ex:
-        traceback.print_exc()
-        print(ex)
-        return jsonify({"message": "Error occurred. Contact support"}), 500
+    devices = [] if devices.strip() == "" else str(devices).split(",")
+    batch_id = str(batch_id)
+    if batch_id == "":
+        return jsonify({"message": "Please specify batchId as a query parameter"}), 400
+    collocation = Collocation()
+    results = collocation.get_hourly_data(batch_id=batch_id, devices=devices)
+    return jsonify({"data": results}), 200
 
 
 @collocation_bp.route(routes.COLLOCATION_RESULTS, methods=["GET"])
 def collocation_batch_results():
-    batch_id = request.args.get("batchId")
+    batch_id = request.args.get("batchId", "")
+    batch_id = str(batch_id)
 
-    try:
-        batch_id = str(batch_id)
-        collocation = Collocation()
-        results = collocation.get_results(batch_id=batch_id)
-        return jsonify({"data": results.to_dict()}), 200
-    except CollocationBatchNotFound as ex:
-        return jsonify({"message": ex.message}), 404
-    except Exception as ex:
-        traceback.print_exc()
-        print(ex)
-        return jsonify({"message": "Error occurred. Contact support"}), 500
+    if batch_id == "":
+        return jsonify({"message": "Please specify batchId as a query parameter"}), 400
+    collocation = Collocation()
+    results = collocation.get_results(batch_id=batch_id)
+    return jsonify({"data": results.to_dict()}), 200
 
 
 @collocation_bp.route(routes.COLLOCATION_DATA_COMPLETENESS, methods=["GET"])
 def collocation_data_completeness():
     devices = request.args.get("devices", "")
-    batch_id = request.args.get("batchId")
+    batch_id = request.args.get("batchId", "")
 
-    try:
-        devices = [] if devices.strip() == "" else str(devices).split(",")
-        batch_id = str(batch_id)
-        collocation = Collocation()
-        completeness = collocation.get_data_completeness(
-            batch_id=batch_id, devices=devices
-        )
-        return jsonify({"data": completeness}), 200
-    except CollocationBatchNotFound as ex:
-        return jsonify({"message": ex.message}), 404
-    except Exception as ex:
-        traceback.print_exc()
-        print(ex)
-        return jsonify({"message": "Error occurred. Contact support"}), 500
+    devices = [] if devices.strip() == "" else str(devices).split(",")
+    batch_id = str(batch_id)
+    if batch_id == "":
+        return jsonify({"message": "Please specify batchId as a query parameter"}), 400
+    collocation = Collocation()
+    completeness = collocation.get_data_completeness(batch_id=batch_id, devices=devices)
+    return jsonify({"data": completeness}), 200
 
 
 @collocation_bp.route(routes.COLLOCATION_STATISTICS, methods=["GET"])
 def collocation_data_statistics():
     devices = request.args.get("devices", "")
-    batch_id = request.args.get("batchId")
+    batch_id = request.args.get("batchId", "")
 
-    try:
-        devices = [] if devices.strip() == "" else str(devices).split(",")
-        batch_id = str(batch_id)
-        collocation = Collocation()
-        completeness = collocation.get_statistics(batch_id=batch_id, devices=devices)
-        return jsonify({"data": completeness}), 200
-    except CollocationBatchNotFound as ex:
-        return jsonify({"message": ex.message}), 404
-    except Exception as ex:
-        traceback.print_exc()
-        print(ex)
-        return jsonify({"message": "Error occurred. Contact support"}), 500
+    devices = [] if devices.strip() == "" else str(devices).split(",")
+    batch_id = str(batch_id)
+    if batch_id == "":
+        return jsonify({"message": "Please specify batchId as a query parameter"}), 400
+    collocation = Collocation()
+    completeness = collocation.get_statistics(batch_id=batch_id, devices=devices)
+    return jsonify({"data": completeness}), 200
 
 
 @collocation_bp.route(routes.COLLOCATION_INTRA, methods=["GET"])
 def collocation_intra():
     devices = request.args.get("devices", "")
-    batch_id = request.args.get("batchId")
+    batch_id = request.args.get("batchId", "")
 
-    try:
-        devices = [] if devices.strip() == "" else str(devices).split(",")
-        batch_id = str(batch_id)
-        collocation = Collocation()
-        intra_sensor_correlation = collocation.get_intra_sensor_correlation(
-            batch_id=batch_id, devices=devices
-        )
-        return jsonify({"data": intra_sensor_correlation}), 200
-    except CollocationBatchNotFound as ex:
-        return jsonify({"message": ex.message}), 404
-    except Exception as ex:
-        traceback.print_exc()
-        print(ex)
-        return jsonify({"message": "Error occurred. Contact support"}), 500
+    devices = [] if devices.strip() == "" else str(devices).split(",")
+    batch_id = str(batch_id)
+    if batch_id == "":
+        return jsonify({"message": "Please specify batchId as a query parameter"}), 400
+    collocation = Collocation()
+    intra_sensor_correlation = collocation.get_intra_sensor_correlation(
+        batch_id=batch_id, devices=devices
+    )
+    return jsonify({"data": intra_sensor_correlation}), 200

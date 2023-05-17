@@ -1,5 +1,6 @@
+import traceback
 from datetime import timedelta
-from flask import Flask
+from flask import Flask, jsonify
 from celery import Celery
 from celery.utils.log import get_task_logger
 import logging
@@ -9,6 +10,7 @@ from flask_cors import CORS
 from flask_pymongo import PyMongo
 from config import constants
 from config.constants import Config
+from helpers.exceptions import CollocationBatchNotFound
 from helpers.pre_request import PreRequest
 
 celery_logger = get_task_logger(__name__)
@@ -89,6 +91,18 @@ def collocation_periodic_task():
     collocation.update_batches_statues()
     running_batches: list[CollocationBatch] = collocation.get_running_batches()
     collocation.compute_and_update_results(running_batches)
+
+
+@app.errorhandler(Exception)
+def handle_exception(error):
+    traceback.print_exc()
+    print(error)
+    return jsonify({"message": "Error occurred. Contact support"}), 500
+
+
+@app.errorhandler(CollocationBatchNotFound)
+def batch_not_found_exception(error):
+    return jsonify({"message": error.message}), 404
 
 
 @app.before_request
