@@ -458,6 +458,10 @@ const controlAccess = {
       modifiedBody["client_secret"] = client_secret;
       modifiedBody["client_id"] = client_id;
 
+      /**
+       * does the user or client ID actually exist?
+       */
+
       const responseFromCreateToken = await AccessTokenModel(
         tenant.toLowerCase()
       ).register(modifiedBody);
