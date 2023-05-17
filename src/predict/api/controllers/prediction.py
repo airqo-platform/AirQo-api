@@ -1,13 +1,13 @@
+import json
 import logging
-import math
 import os
 
 from dotenv import load_dotenv
-from flask import Blueprint, request
+from flask import Blueprint, request, make_response
 from flask_caching import Cache
 
 from config import constants
-from helpers.utils import get_gp_predictions, get_forecasts_helper, get_total_count, get_total_values
+from helpers.utils import get_gp_predictions, get_forecasts_helper, convert_to_geojson, CustomEncoder
 from routes import api
 
 load_dotenv()
@@ -44,7 +44,7 @@ def get_next_1_week_forecasts():
 
 @ml_app.route(api.route['predict_for_heatmap'], methods=['GET'])
 def predictions_for_heatmap():
-    """ makes predictions for a specified location at a given time. """
+    """Makes predictions for a specified location at a given time."""
     if request.method != 'GET':
         return {
             'message': 'Wrong request method. This is a GET endpoint.',
@@ -53,39 +53,30 @@ def predictions_for_heatmap():
 
     airqloud = request.args.get('airqloud')
     aq_id = request.args.get('aq_id')
-    page = int(request.args.get('page', 1))
-    limit = int(request.args.get('limit', 1000))
 
     if not (airqloud or aq_id):
         return {
             'message': 'Please specify either an airqloud name or an id',
             'success': False
         }, 400
+
     if airqloud and not isinstance(airqloud, str):
         return {
             'message': 'airqloud must be a string',
             'success': False
         }, 400
+
     if aq_id and not isinstance(aq_id, str):
         return {
             'message': 'aq_id must be a string',
             'success': False
         }, 400
+
     if airqloud and aq_id:
         aq_id = None
-
-    if not isinstance(page, int):
-        return {
-            'message': 'page must be an integer',
-            'success': False
-        }, 400
-    if not isinstance(limit, int):
-        return {
-            'message': 'limit must be an integer',
-            'success': False
-        }, 400
     try:
-        data = get_gp_predictions(airqloud, aq_id, page, limit)
+        data = get_gp_predictions(airqloud, aq_id)
+        geojson_data = convert_to_geojson(data)
     except Exception as e:
         _logger.error(e)
         return {
@@ -94,23 +85,12 @@ def predictions_for_heatmap():
         }, 500
 
     if data:
-        total_values = get_total_values(airqloud, aq_id)
-        offset = (page - 1) * limit
-        values = data[0]['values'][offset:offset + limit]
-        return {
-            'success': True,
-            'message': 'successfully returned the predictions',
-            'meta': {
-                'total': total_values,
-                'skip': offset,
-                'limit': limit,
-                'page': page,
-                'pages': math.ceil(total_values / limit)
-            },
-            'predictions': values
-        }, 200
+        geojson_string = json.dumps(geojson_data, cls=CustomEncoder)
+        response = make_response(geojson_string)
+        response.headers['Content-Type'] = 'application/json'
+        return response, 200
     else:
         return {
-            'message': 'No data for specified airqloud',
+            'message': 'No data for the specified airqloud',
             'success': False
         }, 400

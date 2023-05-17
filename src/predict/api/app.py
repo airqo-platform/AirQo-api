@@ -8,6 +8,7 @@ from flask_pymongo import PyMongo
 
 from config import constants
 from controllers.prediction import cache, ml_app
+from flask_compress import Compress
 
 load_dotenv()
 
@@ -23,6 +24,7 @@ def create_app(environment):
     mongo.init_app(app)
     CORS(app)
     app.register_blueprint(ml_app)
+    Compress(app)
 
     return app
 
