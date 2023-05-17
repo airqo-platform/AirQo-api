@@ -478,3 +478,13 @@ def compute_data_completeness(
         failed_devices=failed_devices,
         neutral_devices=neutral_devices,
     )
+
+
+def map_data_to_api_format(data: list) -> dict[str, dict]:
+    api_data = {}
+    for row in data:
+        data = copy.deepcopy(row)
+        device = data.pop("device_name")
+        api_data[device] = data
+
+    return api_data

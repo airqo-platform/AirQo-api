@@ -15,9 +15,3 @@ def connect_mongo(tenant):
     client = MongoClient(app_configuration.MONGO_URI)
     db = client[f"{app_configuration.DB_NAME}_{tenant.lower()}"]
     return db
-
-
-def connect_to_mongo_db():
-    client = MongoClient(app_configuration.MONGO_URI)
-    db = client[f"{app_configuration.DB_NAME}"]
-    return db
