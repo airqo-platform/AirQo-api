@@ -1,16 +1,17 @@
-import traceback
-from datetime import timedelta
-from flask import Flask, jsonify
-from celery import Celery
-from celery.utils.log import get_task_logger
 import logging
 import os
+import traceback
+from datetime import timedelta
+
+from celery import Celery
+from celery.utils.log import get_task_logger
+from flask import Flask, jsonify
 from flask_caching import Cache
 from flask_cors import CORS
 from flask_pymongo import PyMongo
+
 from config import constants
 from config.constants import Config
-from helpers.exceptions import CollocationBatchNotFound
 from helpers.pre_request import PreRequest
 
 celery_logger = get_task_logger(__name__)
@@ -98,11 +99,6 @@ def handle_exception(error):
     traceback.print_exc()
     print(error)
     return jsonify({"message": "Error occurred. Contact support"}), 500
-
-
-@app.errorhandler(CollocationBatchNotFound)
-def batch_not_found_exception(error):
-    return jsonify({"message": error.message}), 404
 
 
 @app.before_request
