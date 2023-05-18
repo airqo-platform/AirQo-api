@@ -462,6 +462,66 @@ const createNetwork = {
     }
   },
 
+  refresh: async (req, res) => {
+    try {
+      logText("update user....");
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+
+      let { tenant } = req.query;
+      logElement("tenant", tenant);
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT;
+      }
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
+
+      const responseFromRefreshNetwork = await createNetworkUtil.refresh(
+        request
+      );
+
+      logObject("responseFromRefreshNetwork", responseFromRefreshNetwork);
+
+      if (responseFromRefreshNetwork.success === true) {
+        const status = responseFromRefreshNetwork.status
+          ? responseFromRefreshNetwork.status
+          : httpStatus.OK;
+
+        return res.status(status).json({
+          success: true,
+          message: responseFromRefreshNetwork.message,
+          refreshed_network: responseFromRefreshNetwork.data || {},
+        });
+      } else if (responseFromRefreshNetwork.success === false) {
+        const status = responseFromRefreshNetwork.status
+          ? responseFromRefreshNetwork.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+
+        return res.status(status).json({
+          success: false,
+          message: responseFromRefreshNetwork.message,
+          errors: responseFromRefreshNetwork.errors
+            ? responseFromRefreshNetwork.errors
+            : { message: "" },
+        });
+      }
+    } catch (error) {
+      logObject("error", error);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
   delete: async (req, res) => {
     try {
       logText("delete user....");
