@@ -6,7 +6,7 @@ schedule: 0 1 1 * *
 suspend: false
 image:
   repository: eu.gcr.io/airqo-250220/airqo-train-job
-  tag: prod-1b6e5014-1683239318
+  tag: prod-edc5e641-1684417021
 nameOverride: ''
 fullnameOverride: ''
 resources:
