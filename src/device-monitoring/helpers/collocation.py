@@ -400,11 +400,7 @@ class Collocation(BaseModel):
     def __query_by_status(
         self, status: CollocationBatchStatus
     ) -> list[CollocationBatch]:
-        docs = self.collection.find(
-            {
-                "status": status.value,
-            }
-        )
+        docs = self.collection.find({"status": {"$eq": status.value}})
 
         return docs_to_collocation_data_list(docs)
 
@@ -525,7 +521,7 @@ class Collocation(BaseModel):
 
     def __query_by_batch_id(self, batch_id: str) -> CollocationBatch:
         try:
-            filter_set = {"_id": ObjectId(batch_id)}
+            filter_set = {"_id": {"$eq": ObjectId(batch_id)}}
         except InvalidId:
             raise CollocationBatchNotFound(batch_id=batch_id)
         result = self.collection.find_one(filter_set)
