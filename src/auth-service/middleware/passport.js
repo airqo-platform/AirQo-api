@@ -183,10 +183,10 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
             service: service ? service : "none",
           }
         );
-        logger.info(`successful login`, {
-          username: user.userName,
-          email: user.email,
-        });
+        // logger.info(`successful login`, {
+        //   username: user.userName,
+        //   email: user.email,
+        // });
         return done(null, user);
       } catch (e) {
         req.auth.success = false;
