@@ -5,7 +5,6 @@ const validator = require("validator");
 var uniqueValidator = require("mongoose-unique-validator");
 const { logObject, logElement, logText } = require("../utils/log");
 const isEmpty = require("is-empty");
-const { getModelByTenant } = require("@config/dbConnection");
 const httpStatus = require("http-status");
 
 const NetworkSchema = new Schema(
@@ -254,8 +253,8 @@ NetworkSchema.statics = {
         })
         .lookup({
           from: "roles",
-          localField: "net_roles",
-          foreignField: "_id",
+          localField: "_id",
+          foreignField: "network_id",
           as: "net_roles",
         })
         .lookup({
