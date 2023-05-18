@@ -26,7 +26,7 @@ const createRole = {
         );
       }
 
-      let request = req;
+      let request = Object.assign({}, req);
 
       if (isEmpty(tenant)) {
         request.query.tenant = constants.DEFAULT_TENANT;

@@ -36,6 +36,7 @@ class MessageBrokerUtils:
         print(exception)
 
     def __send_data(self, topic: str, data: pd.DataFrame, partition: int = None):
+        data.to_csv("message_broker_data.csv", index=False)
         producer = KafkaProducer(
             bootstrap_servers=self.__bootstrap_servers,
             api_version_auto_timeout_ms=300000,
@@ -61,11 +62,11 @@ class MessageBrokerUtils:
                 if partition or partition == 0
                 else self.__get_partition(current_partition=current_partition)
             )
-            kafkaMessage=json.dumps(message, allow_nan=True).encode("utf-8")
-            print(kafkaMessage)
+            kafka_message = json.dumps(message, allow_nan=True).encode("utf-8")
+            print(kafka_message)
             producer.send(
                 topic=topic,
-                value=kafkaMessage,
+                value=kafka_message,
                 partition=current_partition,
             ).add_callback(self.__on_success).add_errback(self.__on_error)
 
@@ -76,7 +77,8 @@ class MessageBrokerUtils:
         devices = devices[
             [
                 "mongo_id",
-                "name",
+                "tenant",
+                "device_id",
                 "device_number",
                 "site_id",
                 "latitude",
@@ -87,20 +89,35 @@ class MessageBrokerUtils:
         ]
         devices.rename(
             columns={
+                "device_id": "device_name",
                 "mongo_id": "device_id",
-                "name": "device_name",
                 "latitude": "device_latitude",
                 "longitude": "device_longitude",
             },
             inplace=True,
         )
 
-        del data["device_id"]
+        data.rename(
+            columns={
+                "device_id": "device_name",
+            },
+            inplace=True,
+        )
+
+        del data["device_number"]
 
         data = pd.merge(
-            left=data, right=devices, on=["device_number", "site_id"], how="left"
+            left=data,
+            right=devices,
+            on=["device_name", "site_id", "tenant"],
+            how="left",
         )
-        data["network"] = data["tenant"]
+        data.rename(
+            columns={
+                "tenant": "network",
+            },
+            inplace=True,
+        )
         data["tenant"] = str(Tenant.AIRQO)
         data["timestamp"] = pd.to_datetime(data["timestamp"])
         data["timestamp"] = data["timestamp"].apply(date_to_str)

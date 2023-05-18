@@ -183,10 +183,10 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
             service: service ? service : "none",
           }
         );
-        logger.info(`successful login`, {
-          username: user.userName,
-          email: user.email,
-        });
+        // logger.info(`successful login`, {
+        //   username: user.userName,
+        //   email: user.email,
+        // });
         return done(null, user);
       } catch (e) {
         req.auth.success = false;
@@ -205,6 +205,7 @@ const useGoogleStrategy = (tenant, req, res, next) =>
       passReqToCallback: true,
     },
     function (accessToken, refreshToken, profile, cb) {
+      logObject("profile", profile);
       req.auth = {};
       UserModel(tenant.toLowerCase())
         .findOneAndUpdate(
@@ -422,10 +423,13 @@ const authLocal = passport.authenticate("user-local", {
   failureFlash: true,
 });
 
-const authGoogle = passport.authenticate("google", { scope: ["profile"] });
+const authGoogle = passport.authenticate("google", {
+  scope: ["profile", "email"],
+});
 
 const authGoogleCallback = passport.authenticate("google", {
-  failureRedirect: "/login",
+  failureRedirect: "/account/creation/",
+  successRedirect: "/",
 });
 
 const authGuest = (req, res, next) => {

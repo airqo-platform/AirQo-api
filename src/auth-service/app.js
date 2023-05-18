@@ -13,7 +13,7 @@ const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- app entry`);
 const { mongodb } = require("@config/dbConnection");
 mongodb;
 
-const { logText } = require("@utils/log");
+const { logText, logObject } = require("@utils/log");
 
 const app = express();
 
@@ -77,62 +77,64 @@ app.use(function (err, req, res, next) {
     res.status(err.status).json({
       success: false,
       message: "this endpoint does not exist",
-      error: err.message,
+      errors: { message: err.message },
     });
   } else if (err.status === 400) {
     logger.error(`bad request error --- ${err.message}`);
     res.status(err.status).json({
       success: false,
       message: "bad request error",
-      error: err.message,
+      errors: { message: err.message },
     });
   } else if (err.status === 401) {
     logger.error(`Unauthorized --- ${err.message}`);
     res.status(err.status).json({
       success: false,
       message: "Unauthorized",
-      error: err.message,
+      errors: { message: err.message },
     });
   } else if (err.status === 403) {
     logger.error(`Forbidden --- ${err.message}`);
     res.status(err.status).json({
       success: false,
       message: "Forbidden",
-      error: err.message,
+      errors: { message: err.message },
     });
   } else if (err.status === 500) {
     logger.error(`Internal Server Error --- ${err.message}`);
     res.status(err.status).json({
       success: false,
       message: "Internal Server Error",
-      error: err.message,
+      errors: { message: err.message },
     });
   } else if (err.status === 502) {
     logger.error(`Bad Gateway --- ${err.message}`);
     res.status(err.status).json({
       success: false,
       message: "Bad Gateway",
-      error: err.message,
+      errors: { message: err.message },
     });
   } else if (err.status === 503) {
     logger.error(`Service Unavailable --- ${err.message}`);
     res.status(err.status).json({
       success: false,
       message: "Service Unavailable",
-      error: err.message,
+      errors: { message: err.message },
     });
   } else if (err.status === 504) {
     logger.error(`Gateway Timeout. --- ${err.message}`);
     res.status(err.status).json({
       success: false,
       message: " Gateway Timeout.",
-      error: err.message,
+      errors: { message: err.message },
     });
   } else {
+    logger.error(`Internal Server Error --- ${err.message}`);
+    logObject("Internal Server Error", err);
     res.status(err.status || 500).json({
       success: false,
-      message: "server side error - app entry",
-      error: err.message,
+      message: "Internal Server Error - app entry",
+      errors: { message: err.message },
     });
   }
 });

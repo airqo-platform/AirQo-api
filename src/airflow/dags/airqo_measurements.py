@@ -448,7 +448,6 @@ def airqo_realtime_measurements():
         big_query_api = BigQueryApi()
         big_query_api.load_data(data, table=big_query_api.raw_measurements_table)
 
-
     @task()
     def update_latest_data_topic(data: pd.DataFrame):
         from airqo_etl_utils.airqo_utils import AirQoDataUtils

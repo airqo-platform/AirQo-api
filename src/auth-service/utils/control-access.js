@@ -458,6 +458,10 @@ const controlAccess = {
       modifiedBody["client_secret"] = client_secret;
       modifiedBody["client_id"] = client_id;
 
+      /**
+       * does the user or client ID actually exist?
+       */
+
       const responseFromCreateToken = await AccessTokenModel(
         tenant.toLowerCase()
       ).register(modifiedBody);
@@ -844,6 +848,12 @@ const controlAccess = {
           },
         };
       }
+
+      /***
+       * add to the Network's "net_roles" will be done at this step
+       * Still exploring the pros and cons
+       */
+
       const organizationName = network.net_name.toUpperCase();
       newBody.role_name = `${organizationName}_${body.role_name}`;
       newBody.role_code = `${organizationName}_${body.role_code}`;
