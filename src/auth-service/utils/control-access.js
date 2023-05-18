@@ -848,6 +848,12 @@ const controlAccess = {
           },
         };
       }
+
+      /***
+       * add to the Network's "net_roles" will be done at this step
+       * Still exploring the pros and cons
+       */
+
       const organizationName = network.net_name.toUpperCase();
       newBody.role_name = `${organizationName}_${body.role_name}`;
       newBody.role_code = `${organizationName}_${body.role_code}`;

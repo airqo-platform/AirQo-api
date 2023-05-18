@@ -253,8 +253,8 @@ NetworkSchema.statics = {
         })
         .lookup({
           from: "roles",
-          localField: "net_roles",
-          foreignField: "_id",
+          localField: "_id",
+          foreignField: "network_id",
           as: "net_roles",
         })
         .lookup({
