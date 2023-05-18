@@ -111,14 +111,19 @@ def compute_differences(
 
         differences_df = abs(device_x_data - device_y_data)
         differences_df.replace(np.nan, None, inplace=True)
+        results = differences_df.to_dict("records")
 
-        results = differences_df.to_dict("records")[0]
+        try:
+            results = results[0]
+            passed = (
+                results[f"{parameter}_mean"] <= threshold
+                if results[f"{parameter}_mean"]
+                else False
+            )
+        except IndexError:
+            results = []
+            passed = False
 
-        passed = (
-            results[f"{parameter}_mean"] <= threshold
-            if results[f"{parameter}_mean"]
-            else False
-        )
         differences.append(
             {
                 "devices": device_pair,

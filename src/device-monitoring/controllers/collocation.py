@@ -54,6 +54,17 @@ def save_collocation_batch():
     start_date = json_data.get("startDate", None)
     end_date = json_data.get("endDate", None)
 
+    if start_date is None or end_date is None:
+        return (
+            jsonify(
+                {
+                    "message": "Some errors occurred while processing this request",
+                    "errors": "startDate and endDate are missing",
+                }
+            ),
+            400,
+        )
+
     expected_records_per_hour = json_data.get(
         "expectedRecordsPerHour", CollocationDefaults.ExpectedRecordsPerHour
     )
