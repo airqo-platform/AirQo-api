@@ -554,7 +554,7 @@ class Collocation(BaseModel):
 
         return summary
 
-    def get_hourly_data(self, batch_id: str, devices: list) -> dict[str, list[dict]]:
+    def get_hourly_data(self, batch_id: str, devices: list) -> list[dict]:
         batch: CollocationBatch = self.__query_by_batch_id(batch_id=batch_id)
         if len(devices) != 0:
             batch_devices = list(set(batch.devices).intersection(set(devices)))
@@ -565,19 +565,49 @@ class Collocation(BaseModel):
             start_date_time=batch.start_date,
             end_date_time=batch.end_date,
         )
-        hourly_data: dict[str, list[dict]] = {}
+        hourly_data: pd.DataFrame = pd.DataFrame()
+
         for device, device_data in raw_data.items():
             if len(device_data.index) == 0:
-                hourly_data[device] = []
                 continue
             hourly_device_data = device_data.resample("1H", on="timestamp").mean(
                 numeric_only=True
             )
             hourly_device_data["timestamp"] = hourly_device_data.index
-            hourly_device_data = hourly_device_data.replace(np.nan, None)
-            hourly_data[device] = hourly_device_data.to_dict("records")
+            hourly_device_data["device_name"] = device
+            hourly_device_data.reset_index(drop=True, inplace=True)
+            hourly_data = pd.concat(
+                [hourly_data, hourly_device_data], ignore_index=True
+            )
 
-        return hourly_data
+        if len(hourly_data.index) == 0:
+            return []
+
+        timestamps = set(hourly_data["timestamp"].to_list())
+        devices = set(list(hourly_data["device_name"].to_list()))
+        data_columns = list(
+            set(hourly_data.columns.to_list()).difference(["timestamp", "device_name"])
+        )
+        data: list[dict] = []
+
+        for timestamp in timestamps:
+            row_data = {"timestamp": str(timestamp)}
+            timestamp_data = hourly_data[hourly_data["timestamp"] == timestamp]
+            for device in devices:
+                device_data = pd.DataFrame(
+                    timestamp_data[timestamp_data["device_name"] == device]
+                )
+                if len(device_data.index) == 0:
+                    device_data = pd.DataFrame(columns=data_columns)
+                    device_data.loc[0] = [None] * len(data_columns)
+                    device_data.reset_index(drop=True, inplace=True)
+
+                device_data.replace(np.nan, None, inplace=True)
+                row_data[device] = device_data[data_columns].to_dict("records")[0]
+
+            data.append(row_data)
+
+        return data
 
     def get_results(self, batch_id: str) -> CollocationBatchResult:
         batch: CollocationBatch = self.__query_by_batch_id(batch_id=batch_id)
