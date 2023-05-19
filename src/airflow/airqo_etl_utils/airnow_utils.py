@@ -101,6 +101,7 @@ class AirnowDataUtils:
                         "tenant": row["tenant"],
                         "site_id": device_details.get("site_id"),
                         "device_id": device_details.get("device_id"),
+                        "mongo_id": device_details.get("mongo_id"),
                         "device_number": device_details.get("device_number"),
                         "frequency": str(Frequency.HOURLY),
                         "latitude": row["Latitude"],
