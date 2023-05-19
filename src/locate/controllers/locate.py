@@ -19,6 +19,94 @@ client = MongoClient(configuration.MONGO_URI)
 dbs = client.list_database_names()
 
 
+@locate_blueprint.route(
+    routes.RECOMMEND, methods=["DELETE", "GET", "PUT", "PATCH", "POST"]
+)
+def recommend_sensor_placement():
+    """
+    Returns administrative levels recommended by the model given the polygon and must-have coordinates
+    """
+    errors = {}
+    if request.method == "POST":
+        json_data = request.get_json()
+        tenant = request.args.get("tenant")
+
+        if tenant is None or tenant == "":
+            errors["tenant"] = (
+                "This query param is required. " "Please specify the organization name."
+            )
+
+        if errors:
+            return (
+                jsonify(
+                    {
+                        "message": "Some errors occurred while processing this request",
+                        "errors": errors,
+                    }
+                ),
+                400,
+            )
+
+        if not json_data:
+            return {
+                "message": "missing request body: sensor_number, must_have_coordinates, polygon. please refer to API documentation for details"
+            }, 400
+        else:
+            try:
+                sensor_number = int(json_data["sensor_number"])
+
+                polygon = json_data["polygon"]
+                if polygon == {}:
+                    return jsonify({"message": "Please draw a polygon"}), 200
+                geometry = polygon["geometry"]["coordinates"]
+
+                must_have_coordinates = json_data["must_have_coordinates"]
+            except KeyError as err:
+                return {
+                    "message": f"missing parameter: {str(err)}. please refer to API documentation for details",
+                    "success": False,
+                }, 400
+            except Exception as err:
+                return {
+                    "message": f"Some errors occurred: {str(err)}",
+                    "success": False,
+                }, 400
+            if must_have_coordinates == "":
+                must_have_coordinates = None
+                return helper.recommend_locations_for_sensor_placement(
+                    sensor_number, must_have_coordinates, geometry, tenant
+                )
+            else:
+                try:
+                    must_have_coordinates = ast.literal_eval(must_have_coordinates)
+                except:
+                    print("EXCEPTION")
+                    return {
+                        "message": "Coordinates must be in the form [[long, lat], [long, lat]]"
+                    }, 200
+                try:
+                    if all(isinstance(x, list) for x in must_have_coordinates):
+                        return helper.recommend_locations_for_sensor_placement(
+                            sensor_number, must_have_coordinates, geometry, tenant
+                        )
+                except (ValueError, TypeError) as err:
+                    return {
+                        "message": f"Invalid input for parameter: must_have_coordinates. please refer to the API documentation",
+                        "success": False,
+                    }, 400
+
+    else:
+        return (
+            jsonify(
+                {
+                    "message": "Invalid request method. Please refer to the API documentation",
+                    "success": False,
+                }
+            ),
+            400,
+        )
+
+
 @locate_blueprint.route(routes.LIST_ADMINLEVELS, methods=["GET"])
 def get_admin_level_data():
     """'"""

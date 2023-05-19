@@ -55,7 +55,7 @@ def scaling(data):
     return scaled_data
 
 
-def kmeans_algorithm_v1(data, sensor_number=None):
+def kmeans_algorithm(data, sensor_number=None):
     """
     Clustering data using K-Means Model
     """
@@ -102,7 +102,7 @@ def kmeans_algorithm_v1(data, sensor_number=None):
     return json.loads(kmeans_samples.to_json(orient="records"))
 
 
-def kmeans_algorithm(data, sensor_number=None):
+def kmeans_algorithm_v2(data, sensor_number=None):
     """
     Clustering data using K-Means Model
     """
@@ -233,22 +233,10 @@ def recommend_locations(sensor_number, must_have_coordinates, polygon, tenant):
             )
 
             keys_to_delete = [
-                "type",
-                "region",
-                "county",
-                "centroid",
-                "km2",
-                "population",
-                "households",
+                "type_4",
+                "elevation",
+                "greenness",
                 "population_density",
-                "household_density",
-                "charcoal_per_km2",
-                "firewood_per_km2",
-                "grass_per_km2",
-                "wasteburning_per_km2",
-                "kitch_outsidebuilt_per_km2",
-                "kitch_makeshift_per_km2",
-                "kitch_openspace_per_km2",
             ]
 
             for parish in recommended_parishes:
@@ -288,20 +276,20 @@ def recommend_locations_for_sensor_placement(
     """
     recommends administrative level (location) in which to place sensors
     """
-    locate_parish = Parish(tenant)
+
     admin_level_instance = AdminLevel(tenant)
     if polygon == None:
         return jsonify({"response": "Please draw a polygon"}), 200
     elif must_have_coordinates == None:
         all_admin_levels = admin_level_instance.get_administrative_level_map(polygon)
         print("All Admin Levels")
-        print(len(all_admin_levels), file=sys.stderr)
+        print(len(all_admin_levels))
         if all_admin_levels == "Invalid polygon" or len(all_admin_levels) < 2:
             return jsonify({"response": "Invalid polygon"}), 200
         else:
             all_admin_levels_df = json_to_df(all_admin_levels)
             all_admin_levels_df = process_data(all_admin_levels_df)  # drop nans
-            recommended_admin_levels = kmeans_algorithm(
+            recommended_admin_levels = kmeans_algorithm_v2(
                 all_admin_levels_df, sensor_number
             )
             for admin_level in recommended_admin_levels:
@@ -342,27 +330,15 @@ def recommend_locations_for_sensor_placement(
         difference_admin_levels_df = process_data(difference_admin_levels_df)
         new_sensor_number = sensor_number - len(must_have_admin_levels)
         try:
-            recommended_admin_levels = kmeans_algorithm(
+            recommended_admin_levels = kmeans_algorithm_v2(
                 difference_admin_levels_df, new_sensor_number
             )
 
             keys_to_delete = [
-                "type",
-                "region",
-                "county",
-                "centroid",
-                "km2",
-                "population",
-                "households",
+                "type_4",
+                "elevation",
+                "greenness",
                 "population_density",
-                "household_density",
-                "charcoal_per_km2",
-                "firewood_per_km2",
-                "grass_per_km2",
-                "wasteburning_per_km2",
-                "kitch_outsidebuilt_per_km2",
-                "kitch_makeshift_per_km2",
-                "kitch_openspace_per_km2",
             ]
 
             for admin_level in recommended_admin_levels:
