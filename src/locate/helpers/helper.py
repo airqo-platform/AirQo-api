@@ -325,9 +325,9 @@ def recommend_locations_for_sensor_placement(
                 admin_level_instance.get_administrative_region_for_point(coordinates)
             )
             if admin_level_region and exists:
-                known_must_have_admin_levels.append(parish[0])
+                known_must_have_admin_levels.append(admin_level_region[0])
             elif admin_level_region:
-                unknown_must_have_admin_levels.append(parish[0])
+                unknown_must_have_admin_levels.append(admin_level_region[0])
             else:
                 count += 1
         must_have_admin_levels = (
