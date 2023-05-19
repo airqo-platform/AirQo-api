@@ -70,11 +70,11 @@ def airqo_calibrate_measurements():
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(**kwargs)
 
         bigquery_api = BigQueryApi()
+        data["tenant"] = str(Tenant.AIRQO)
 
         data = DataValidationUtils.process_for_big_query(
             dataframe=data,
             table=bigquery_api.hourly_measurements_table,
-            tenant=Tenant.AIRQO,
         )
 
         bigquery_api.reload_data(
