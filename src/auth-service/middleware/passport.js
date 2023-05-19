@@ -139,10 +139,10 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
             service: service ? service : "none",
           }
         );
-        logger.info(`successful login`, {
-          username: user.userName,
-          email: user.email,
-        });
+        // logger.info(`successful login`, {
+        //   username: user.userName,
+        //   email: user.email,
+        // });
         return done(null, user);
       } catch (e) {
         req.auth.success = false;
@@ -205,7 +205,8 @@ const useGoogleStrategy = (tenant, req, res, next) =>
       passReqToCallback: true,
     },
     function (accessToken, refreshToken, profile, cb) {
-      logObject("profile", profile);
+      logObject("Google profile", profile);
+      logger.info(`the value of the Google account ${JSON.stringify(profile)}`);
       req.auth = {};
       UserModel(tenant.toLowerCase())
         .findOneAndUpdate(
@@ -364,6 +365,8 @@ function setGoogleAuth(req, res, next) {
      * do input validations and then just call the set
      * set local strategy afterwards -- the function is called from here
      */
+
+    logText("we are setting the Google Auth");
     const hasErrors = !validationResult(req).isEmpty();
     if (hasErrors) {
       let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -380,6 +383,7 @@ function setGoogleAuth(req, res, next) {
     setGoogleStrategy(tenant, req, res, next);
     next();
   } catch (e) {
+    logObject("e", e);
     console.log("the error in setLocalAuth is: ", e.message);
     res.json({ success: false, message: e.message });
   }
