@@ -59,7 +59,7 @@ class MetaData:
         return dataframe["device_id"].to_list()
 
 
-class DeviceUptime:
+class Uptime:
     def __init__(
         self,
         start_date_time: datetime,

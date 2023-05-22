@@ -9,6 +9,7 @@ from flask import Flask, jsonify
 from flask_caching import Cache
 from flask_cors import CORS
 from flask_pymongo import PyMongo
+from werkzeug.exceptions import NotFound
 
 from config import constants
 from config.constants import Config
@@ -40,13 +41,11 @@ def create_app(environment):
     from controllers.uptime_controller import uptime_bp
     from controllers.collocation import collocation_bp
 
-
     # register blueprints
     application.register_blueprint(health_check_bp)
     application.register_blueprint(device_status_bp)
     application.register_blueprint(uptime_bp)
     application.register_blueprint(collocation_bp)
-
 
     return application
 
@@ -103,6 +102,12 @@ def handle_exception(error):
     traceback.print_exc()
     print(error)
     return jsonify({"message": "Error occurred. Contact support"}), 500
+
+
+@app.errorhandler(NotFound)
+def handle_404_exception(error):
+    print(error)
+    return jsonify({"message": "Requested Url not found on this service"}), 404
 
 
 @app.before_request

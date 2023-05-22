@@ -5,14 +5,17 @@ from flask import Blueprint, request, jsonify
 import routes
 from helpers.convert_dates import str_to_date
 from helpers.request_validators import validate_request_json
-from helpers.uptime import DeviceUptime, MetaData
+from helpers.uptime import Uptime, MetaData
 
 _logger = logging.getLogger(__name__)
 
-uptime_bp = Blueprint("uptime", __name__)
+
+uptime_bp = Blueprint(
+    name="uptime", import_name=__name__, url_prefix=routes.UPTIME_BASE_URL
+)
 
 
-@uptime_bp.route(routes.UPTIME, methods=["POST"])
+@uptime_bp.route("", methods=["POST"])
 @validate_request_json(
     "startDateTime|required:datetime",
     "endDateTime|required:datetime",
@@ -58,7 +61,7 @@ def get_uptime():
                 data={"devices": f"airqloud {airqloud} does not have devices"},
             )
             return jsonify(response), 400
-        uptime = DeviceUptime(
+        uptime = Uptime(
             devices=devices,
             start_date_time=start_date_time,
             end_date_time=end_date_time,
@@ -74,7 +77,7 @@ def get_uptime():
                 data={"devices": f"site {site} does not have devices"},
             )
             return jsonify(response), 400
-        uptime = DeviceUptime(
+        uptime = Uptime(
             devices=devices,
             start_date_time=start_date_time,
             end_date_time=end_date_time,
@@ -82,7 +85,7 @@ def get_uptime():
         )
 
     elif devices:
-        uptime = DeviceUptime(
+        uptime = Uptime(
             devices=devices,
             start_date_time=start_date_time,
             end_date_time=end_date_time,
