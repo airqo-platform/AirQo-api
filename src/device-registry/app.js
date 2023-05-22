@@ -9,27 +9,23 @@ require("app-module-path").addPath(__dirname);
 const cookieParser = require("cookie-parser");
 const constants = require("@config/constants");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- app entry`);
-const { mongodb } = require("@config/database");
-const createEvent = require("@utils/create-event");
-const isEmpty = require("is-empty");
+require("@config/database");
 const routes = require("@routes");
 
-mongodb;
-
-const moesif = require("moesif-nodejs");
+// const moesif = require("moesif-nodejs");
 const compression = require("compression");
 
 const app = express();
 app.use(compression());
 
-const moesifMiddleware = moesif({
-  applicationId: constants.MOESIF_APPLICATION_ID,
-  identifyUser: function(req, res) {
-    return req.user ? req.user.id : undefined;
-  },
-});
+// const moesifMiddleware = moesif({
+//   applicationId: constants.MOESIF_APPLICATION_ID,
+//   identifyUser: function(req, res) {
+//     return req.user ? req.user.id : undefined;
+//   },
+// });
 
-app.use(moesifMiddleware);
+// app.use(moesifMiddleware);
 
 app.use(log4js.connectLogger(log4js.getLogger("http"), { level: "auto" }));
 app.use(bodyParser.json({ limit: "50mb" }));
@@ -51,6 +47,7 @@ app.use("/api/v1/devices/sites", routes.v1.sites);
 app.use("/api/v1/devices/events", routes.v1.events);
 app.use("/api/v1/devices/locations", routes.v1.locations);
 app.use("/api/v1/devices/photos", routes.v1.photos);
+app.use("/api/v1/devices/tips", routes.v1.tips);
 app.use("/api/v1/devices/sensors", routes.v1.sensors);
 app.use("/api/v1/devices", routes.v1.devices);
 
@@ -59,8 +56,10 @@ app.use("/api/v2/devices/activities", routes.v2.activities);
 app.use("/api/v2/devices/airqlouds", routes.v2.airqlouds);
 app.use("/api/v2/devices/sites", routes.v2.sites);
 app.use("/api/v2/devices/events", routes.v2.events);
+app.use("/api/v2/devices/measurements", routes.v2.measurements);
 app.use("/api/v2/devices/locations", routes.v2.locations);
 app.use("/api/v2/devices/photos", routes.v2.photos);
+app.use("/api/v2/devices/tips", routes.v2.tips);
 app.use("/api/v2/devices/sensors", routes.v2.sensors);
 app.use("/api/v2/devices", routes.v2.devices);
 

@@ -1,0 +1,5 @@
+---
+roles:
+  # https://github.com/Oefenweb/ansible-haproxy
+  - name: Oefenweb.haproxy
+    version: "v6.16.4"

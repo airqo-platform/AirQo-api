@@ -1,7 +1,7 @@
-const transporter = require("../config/mailer");
+const transporter = require("@config/mailer");
 const { logObject, logText } = require("./log");
 const isEmpty = require("is-empty");
-const constants = require("../config/constants");
+const constants = require("@config/constants");
 const msgs = require("./email.msgs");
 const msgTemplates = require("./email.templates");
 const httpStatus = require("http-status");
@@ -42,14 +42,16 @@ const mailer = {
         return {
           success: false,
           message: "email not sent",
-          status: httpStatus.BAD_GATEWAY,
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: { message: data },
         };
       }
     } catch (error) {
       return {
         success: false,
-        message: "mailer server error",
+        message: "Internal Server Error",
         error: error.message,
+        errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -121,14 +123,16 @@ const mailer = {
         return {
           success: false,
           message: "email not sent",
-          status: httpStatus.BAD_GATEWAY,
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: { message: data },
         };
       }
     } catch (error) {
       return {
         success: false,
-        message: "mailer server error",
+        message: "Internal Server Error",
         error: error.message,
+        errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -173,18 +177,22 @@ const mailer = {
           success: true,
           message: "email successfully sent",
           data,
+          status: httpStatus.OK,
         };
       } else {
         return {
           success: false,
-          message: "email not sent",
+          message: "Internal Server Error",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: { message: data },
         };
       }
     } catch (error) {
       return {
         success: false,
-        message: "mailer server error",
+        message: "Internal Server Error",
         error: error.message,
+        errors: { message: error.message },
       };
     }
   },
@@ -207,6 +215,37 @@ const mailer = {
         subject: "Verify your AirQo Platform account",
         html: msgTemplates.v2_emailVerification(firstName, user_id, token),
         bcc,
+       attachments: [
+      {
+        filename: "airqoLogo.png",
+        path: "../config/images/airqoLogo.png",
+        cid: "AirQoEmailLogo",
+        contentDisposition: "inline",
+      },
+      {
+        filename: "faceBookLogo.png",
+        path: "../config/images/facebookLogo.png",
+        cid: "FacebookLogo",
+        contentDisposition: "inline",
+      },
+      {
+        filename: "youtubeLogo.png",
+        path: "../config/images/youtubeLogo.png",
+        cid: "YoutubeLogo",
+        contentDisposition: "inline",
+      },
+       {
+        filename: "twitterLogo.png",
+        path: "../config/images/Twitter.png",
+        cid: "Twitter",
+        contentDisposition: "inline",
+      },
+     {
+        filename: "linkedInLogo.png",
+        path: "../config/images/linkedInLogo.png",
+        cid: "LinkedInLogo",
+        contentDisposition: "inline",
+      }],
       };
 
       let response = transporter.sendMail(mailOptions);
@@ -223,13 +262,13 @@ const mailer = {
           success: false,
           message: "email not sent",
           errors: { message: data },
-          status: httpStatus.BAD_GATEWAY,
+          status: httpStatus.INTERNAL_SERVER_ERROR,
         };
       }
     } catch (error) {
       return {
         success: false,
-        message: "mailer server error",
+        message: "Internal Server Error",
         errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
@@ -274,13 +313,13 @@ const mailer = {
           success: false,
           message: "email not sent",
           errors: { message: data },
-          status: httpStatus.BAD_GATEWAY,
+          status: httpStatus.INTERNAL_SERVER_ERROR,
         };
       }
     } catch (error) {
       return {
         success: false,
-        message: "mailer server error",
+        message: "Internal Server Error",
         errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
@@ -305,18 +344,22 @@ const mailer = {
           success: true,
           message: "email successfully sent",
           data,
+          status: httpStatus.OK,
         };
       } else {
         return {
           success: false,
-          message: "email not sent",
+          message: "Internal Server Error",
+          errors: { message: data },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
         };
       }
     } catch (error) {
       return {
         success: false,
-        message: "mailer server error",
+        message: "Internal Server Error",
         error: error.message,
+        errors: { message: error.message },
       };
     }
   },
@@ -339,14 +382,13 @@ const mailer = {
           success: true,
           message: "email successfully sent",
           data,
+          status: httpStatus.OK,
         };
       } else {
         return {
           success: false,
-          message: "email not sent",
-          errors: {
-            message: "email not sent",
-          },
+          message: "Internal Server Error",
+          errors: { message: data },
         };
       }
     } catch (error) {
@@ -377,14 +419,14 @@ const mailer = {
           success: true,
           message: "email successfully sent",
           data,
+          status: httpStatus.OK,
         };
       } else {
         return {
           success: false,
-          message: "email not sent",
-          errors: {
-            message: "email not sent",
-          },
+          message: "Internal Server Error",
+          errors: { message: data },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
         };
       }
     } catch (error) {
@@ -392,6 +434,7 @@ const mailer = {
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -414,18 +457,72 @@ const mailer = {
           success: true,
           message: "email successfully sent",
           data,
+          status: httpStatus.OK,
         };
       } else {
         return {
           success: false,
-          message: "email not sent",
+          message: "Internal Server Error",
+          errors: { message: data },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
         };
       }
     } catch (error) {
       return {
         success: false,
-        message: "mailer server error",
+        message: "Internal Server Error",
         error: error.message,
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  newMobileAppUser: async ({ email, message, subject } = {}) => {
+    try {
+      logObject("the values to send to email function", {
+        email,
+        message,
+        subject,
+      });
+      const bcc = constants.REQUEST_ACCESS_EMAILS;
+      const mailOptions = {
+        from: {
+          name: constants.EMAIL_NAME,
+          address: constants.EMAIL,
+        },
+        subject,
+        html: message,
+        to: email,
+        bcc,
+      };
+
+      const response = await transporter.sendMail(mailOptions);
+
+      const data = response;
+      if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
+        return {
+          success: true,
+          message: "email successfully sent",
+          data,
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: false,
+          message: "email not sent",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: { message: data },
+        };
+      }
+    } catch (error) {
+      return {
+        message: "internal server error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        success: false,
+        errors: {
+          message: error.message,
+        },
       };
     }
   },
@@ -446,9 +543,18 @@ const mailer = {
         bcc,
       };
 
-      let response = await transporter.sendMail(mailOptions);
+      if (email === "automated-tests@airqo.net") {
+        return {
+          success: true,
+          message: "email successfully sent",
+          data: [],
+          status: httpStatus.OK,
+        };
+      }
 
-      let data = response;
+      const response = await transporter.sendMail(mailOptions);
+
+      const data = response;
       if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
         return {
           success: true,
@@ -460,12 +566,13 @@ const mailer = {
         return {
           success: false,
           message: "email not sent",
-          status: httpStatus.BAD_GATEWAY,
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: { message: data },
         };
       }
     } catch (error) {
       return {
-        message: "",
+        message: "Internal Server Error",
         status: httpStatus.INTERNAL_SERVER_ERROR,
         success: false,
         errors: {

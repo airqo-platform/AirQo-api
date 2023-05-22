@@ -23,6 +23,7 @@ class ProductionConfig(Config):
     VIEW_AIRQLOUD_URI = os.getenv('VIEW_AIRQLOUD_URI_PROD')
     LIST_DEVICES_URI = os.getenv('LIST_DEVICES_URI_PROD')
     EVENTS_URI = os.getenv('EVENTS_URI_PROD')
+    API_TOKEN = os.getenv('PROD_TOKEN')
 
 
 class DevelopmentConfig(Config):
@@ -35,6 +36,7 @@ class DevelopmentConfig(Config):
     VIEW_AIRQLOUD_URI = os.getenv('VIEW_AIRQLOUD_URI_DEV')
     LIST_DEVICES_URI = os.getenv('LIST_DEVICES_URI_DEV')
     EVENTS_URI = os.getenv('EVENTS_URI_DEV')
+    API_TOKEN = os.getenv('DEV_TOKEN')
 
 
 class TestingConfig(Config):
@@ -47,6 +49,7 @@ class TestingConfig(Config):
     VIEW_AIRQLOUD_URI = os.getenv('VIEW_AIRQLOUD_URI_STAGE')
     LIST_DEVICES_URI = os.getenv('LIST_DEVICES_URI_STAGE')
     EVENTS_URI = os.getenv('EVENTS_URI_STAGE')
+    API_TOKEN = os.getenv('STAGE_TOKEN')
 
 
 app_config = {

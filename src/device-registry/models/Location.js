@@ -227,14 +227,12 @@ locationSchema.statics = {
           data,
           status: HTTPStatus.OK,
         };
-      }
-
-      if (isEmpty(data)) {
+      } else if (isEmpty(data)) {
         return {
           success: true,
           message: "there are no records for this search",
-          data,
-          status: HTTPStatus.NOT_FOUND,
+          data: [],
+          status: HTTPStatus.OK,
         };
       }
     } catch (err) {
@@ -274,18 +272,17 @@ locationSchema.statics = {
       ).exec();
 
       if (!isEmpty(updatedLocation)) {
-        let data = updatedLocation._doc;
         return {
           success: true,
           message: "successfully modified the location",
-          data,
+          data: updatedLocation._doc,
           status: HTTPStatus.OK,
         };
-      } else {
+      } else if (isEmpty(updatedLocation)) {
         return {
           success: false,
           message: "location does not exist, please crosscheck",
-          status: HTTPStatus.NOT_FOUND,
+          status: HTTPStatus.BAD_REQUEST,
           errors: filter,
         };
       }
@@ -319,31 +316,26 @@ locationSchema.statics = {
       let removedLocation = await this.findOneAndRemove(filter, options).exec();
 
       if (!isEmpty(removedLocation)) {
-        let data = removedLocation._doc;
         return {
           success: true,
           message: "successfully removed the location",
-          data,
+          data: removedLocation._doc,
           status: HTTPStatus.OK,
         };
       } else if (isEmpty(removedLocation)) {
         return {
           success: false,
           message: "location does not exist, please crosscheck",
-          status: HTTPStatus.NOT_FOUND,
+          status: HTTPStatus.BAD_REQUEST,
           errors: filter,
         };
       }
     } catch (err) {
-      let errors = { message: err.message };
-      let message = err.message;
-      let status = HTTPStatus.INTERNAL_SERVER_ERROR;
-
       return {
         success: false,
-        message,
-        errors,
-        status,
+        message: "Internal Server Error",
+        errors: { message: err.message },
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },

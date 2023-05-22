@@ -12,7 +12,6 @@ urllib3.disable_warnings()
 
 
 class Config:
-
     # Kcca
     CLARITY_API_KEY = os.getenv("CLARITY_API_KEY")
     CLARITY_API_BASE_URL = os.getenv("CLARITY_API_BASE_URL")
@@ -85,6 +84,9 @@ class Config:
     AIRNOW_COUNTRIES_METADATA_JSON_FILE = os.getenv(
         "AIRNOW_COUNTRIES_METADATA_JSON_FILE"
     )
+
+    # US Embassy
+    US_EMBASSY_API_KEY = os.getenv("US_EMBASSY_API_KEY")
 
     # FIREBASE
     FIREBASE_AIR_QUALITY_READINGS_COLLECTION = os.getenv(

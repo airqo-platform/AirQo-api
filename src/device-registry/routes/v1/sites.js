@@ -39,7 +39,7 @@ router.put(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "unep"])
+      .isIn(["kcca", "airqo", "urban_better", "usembassy", "nasa", "unep"])
       .withMessage("the network value is not among the expected ones"),
   ]),
   siteController.bulkUpdate
@@ -56,7 +56,7 @@ router.post(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "unep"])
+      .isIn(["kcca", "airqo", "urban_better", "usembassy", "nasa", "unep"])
       .withMessage("the network value is not among the expected ones"),
   ]),
   siteController.bulkCreate
@@ -66,8 +66,9 @@ router.get(
   "/",
   oneOf([
     query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
       .bail()
       .trim()
       .toLowerCase()
@@ -75,6 +76,22 @@ router.get(
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   siteController.list
+);
+
+router.get(
+  "/summary",
+  oneOf([
+    query("tenant")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(constants.NETWORKS)
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  siteController.listSummary
 );
 
 router.get("/weather", siteController.listWeatherStations);

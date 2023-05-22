@@ -3,7 +3,11 @@ from airflow.decorators import dag, task
 from airqo_etl_utils.airflow_custom_utils import AirflowUtils
 from airqo_etl_utils.constants import Frequency
 from dag_docs import airqo_realtime_low_cost_measurements_doc
-from task_docs import extract_raw_airqo_data_doc, clean_data_raw_data_doc, send_raw_measurements_to_bigquery_doc
+from task_docs import (
+    extract_raw_airqo_data_doc,
+    clean_data_raw_data_doc,
+    send_raw_measurements_to_bigquery_doc,
+)
 
 
 @dag(
@@ -66,11 +70,11 @@ def airqo_calibrate_measurements():
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(**kwargs)
 
         bigquery_api = BigQueryApi()
+        data["tenant"] = str(Tenant.AIRQO)
 
         data = DataValidationUtils.process_for_big_query(
             dataframe=data,
             table=bigquery_api.hourly_measurements_table,
-            tenant=Tenant.AIRQO,
         )
 
         bigquery_api.reload_data(
@@ -445,17 +449,6 @@ def airqo_realtime_measurements():
         big_query_api.load_data(data, table=big_query_api.raw_measurements_table)
 
     @task()
-    def update_latest_data_table(data: pd.DataFrame):
-        from airqo_etl_utils.airqo_utils import AirQoDataUtils
-        from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
-        from airqo_etl_utils.constants import Tenant, DeviceCategory
-
-        data = AirQoDataUtils.process_latest_data(
-            data=data, device_category=DeviceCategory.LOW_COST
-        )
-        DataWarehouseUtils.update_latest_measurements(data=data, tenant=Tenant.AIRQO)
-
-    @task()
     def update_latest_data_topic(data: pd.DataFrame):
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
         from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
@@ -479,7 +472,6 @@ def airqo_realtime_measurements():
     send_hourly_measurements_to_api(calibrated_data)
     send_hourly_measurements_to_message_broker(calibrated_data)
     send_hourly_measurements_to_bigquery(calibrated_data)
-    update_latest_data_table(calibrated_data)
     update_latest_data_topic(calibrated_data)
 
 
@@ -512,17 +504,13 @@ def airqo_raw_data_measurements():
             device_category=DeviceCategory.LOW_COST,
         )
 
-    @task(
-        doc_md=clean_data_raw_data_doc
-    )
+    @task(doc_md=clean_data_raw_data_doc)
     def clean_data_raw_data(data: pd.DataFrame):
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
         return AirQoDataUtils.clean_low_cost_sensor_data(data=data)
 
-    @task(
-       doc_md= send_raw_measurements_to_bigquery_doc
-    )
+    @task(doc_md=send_raw_measurements_to_bigquery_doc)
     def send_raw_measurements_to_bigquery(airqo_data: pd.DataFrame):
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
         from airqo_etl_utils.bigquery_api import BigQueryApi

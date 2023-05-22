@@ -1,11 +1,11 @@
 from datetime import datetime, timedelta
 
 
-def str_to_date(st):
+def str_to_date(st, str_format='%Y-%m-%dT%H:%M:%S.%fZ'):
     """
     Converts a string to datetime
     """
-    return datetime.strptime(st, '%Y-%m-%dT%H:%M:%S.%fZ')
+    return datetime.strptime(st, str_format)
 
 
 def date_to_str(date, str_format='%Y-%m-%dT%H:%M:%S.%fZ'):
@@ -14,6 +14,10 @@ def date_to_str(date, str_format='%Y-%m-%dT%H:%M:%S.%fZ'):
     """
     return datetime.strftime(date, str_format)
 
+
+def format_date(date: datetime, str_format='%Y-%m-%dT%H:%M:%S.%fZ'):
+    st = date.strftime(str_format)
+    return datetime.strptime(st, str_format)
 
 def convert_GMT_time_to_EAT_local_time(gmt_datetime):
     """

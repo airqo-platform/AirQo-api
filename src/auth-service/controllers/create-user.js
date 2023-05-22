@@ -1,19 +1,137 @@
 const httpStatus = require("http-status");
-const { logElement, logText, logObject } = require("../utils/log");
-const { tryCatchErrors, missingQueryParams } = require("../utils/errors");
-const createUserUtil = require("../utils/create-user");
-const generateFilter = require("../utils/generate-filter");
+const { logElement, logText, logObject } = require("@utils/log");
+const { tryCatchErrors, missingQueryParams } = require("@utils/errors");
+const createUserUtil = require("@utils/create-user");
+const generateFilter = require("@utils/generate-filter");
 const { validationResult } = require("express-validator");
-const { badRequest, convertErrorArrayToObject } = require("../utils/errors");
+const { badRequest, convertErrorArrayToObject } = require("@utils/errors");
 const isEmpty = require("is-empty");
-const controlAccessUtil = require("../utils/control-access");
-const constants = require("../config/constants");
+const controlAccessUtil = require("@utils/control-access");
+const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-user-controller`
 );
 
 const createUser = {
+  listStatistics: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        logger.error(
+          `input validation errors ${JSON.stringify(
+            convertErrorArrayToObject(nestedErrors)
+          )}`
+        );
+        return badRequest(
+          res,
+          "bad request errors",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      logText(".....................................");
+      logText("list all users by query params provided");
+      let { tenant, id } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT;
+      }
+
+      const responseFromListStatistics = await createUserUtil.listStatistics(
+        tenant
+      );
+
+      if (responseFromListStatistics.success === true) {
+        res.status(httpStatus.OK).json({
+          success: true,
+          message: responseFromListStatistics.message,
+          users_stats: responseFromListStatistics.data,
+        });
+      } else if (responseFromListStatistics.success === false) {
+        const status = responseFromListStatistics.status
+          ? responseFromListStatistics.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+
+        return res.status(status).json({
+          success: false,
+          message: responseFromListStatistics.message,
+          errors: {
+            message: responseFromListStatistics.errors
+              ? responseFromListStatistics.errors
+              : { message: "Internal Server Error" },
+          },
+        });
+      }
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: {
+          message: error.message,
+        },
+      });
+    }
+  },
+  listLogs: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        logger.error(
+          `input validation errors ${JSON.stringify(
+            convertErrorArrayToObject(nestedErrors)
+          )}`
+        );
+        return badRequest(
+          res,
+          "bad request errors",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      logText(".....................................");
+      logText("list all users by query params provided");
+      let { tenant, id } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT;
+      }
+
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
+      const responseFromListStatistics = await createUserUtil.listLogs(request);
+
+      if (responseFromListStatistics.success === true) {
+        res.status(httpStatus.OK).json({
+          success: true,
+          message: responseFromListStatistics.message,
+          users_stats: responseFromListStatistics.data,
+        });
+      } else if (responseFromListStatistics.success === false) {
+        const status = responseFromListStatistics.status
+          ? responseFromListStatistics.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+
+        return res.status(status).json({
+          success: false,
+          message: responseFromListStatistics.message,
+          errors: {
+            message: responseFromListStatistics.errors
+              ? responseFromListStatistics.errors
+              : "",
+          },
+        });
+      }
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: {
+          message: error.message,
+        },
+      });
+    }
+  },
   list: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -21,7 +139,7 @@ const createUser = {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         logger.error(
           `input validation errors ${JSON.stringify(
-            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+            convertErrorArrayToObject(nestedErrors)
           )}`
         );
         return badRequest(
@@ -38,55 +156,72 @@ const createUser = {
       }
       const limit = parseInt(req.query.limit, 0);
       const skip = parseInt(req.query.skip, 0);
-
-      let responseFromFilter = generateFilter.users(req);
+      let filter = {};
+      const responseFromFilter = generateFilter.users(req);
       logObject("responseFromFilter", responseFromFilter);
       if (responseFromFilter.success === true) {
-        let filter = responseFromFilter.data;
+        filter = responseFromFilter.data;
         logObject("Zi filter", filter);
-        let responseFromListUsers = await createUserUtil.list(
-          tenant,
-          filter,
-          limit,
-          skip
-        );
-
-        if (responseFromListUsers.success === true) {
-          res.status(httpStatus.OK).json({
-            success: true,
-            message: responseFromListUsers.message,
-            users: responseFromListUsers.data,
-          });
-        } else if (responseFromListUsers.success === false) {
-          if (responseFromListUsers.error) {
-            return res.status(httpStatus.BAD_GATEWAY).json({
-              success: false,
-              message: responseFromListUsers.message,
-              error: responseFromListUsers.error,
-            });
-          } else {
-            return res.status(httpStatus.BAD_GATEWAY).json({
-              success: false,
-              message: responseFromListUsers.message,
-            });
-          }
-        }
       } else if (responseFromFilter.success === false) {
-        if (responseFromFilter.error) {
-          return res.status(httpStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromFilter.message,
-            error: responseFromFilter.error,
-          });
-        } else {
-          return res.status(httpStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromFilter.message,
-          });
-        }
+        return res.status(httpStatus.BAD_GATEWAY).json({
+          success: false,
+          message: responseFromFilter.message,
+          error: responseFromFilter.error
+            ? responseFromFilter.error
+            : { message: "" },
+        });
+      }
+
+      const responseFromListUsers = await createUserUtil.list(
+        tenant,
+        filter,
+        limit,
+        skip
+      );
+
+      if (responseFromListUsers.success === true) {
+        const status = responseFromListUsers.status
+          ? responseFromListUsers.status
+          : httpStatus.OK;
+        res.status(status).json({
+          success: true,
+          message: responseFromListUsers.message,
+          users: responseFromListUsers.data,
+        });
+      } else if (responseFromListUsers.success === false) {
+        const status = responseFromListUsers.status
+          ? responseFromListUsers.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+
+        return res.status(status).json({
+          success: false,
+          message: responseFromListUsers.message,
+          errors: responseFromListUsers.errors
+            ? responseFromListUsers.errors
+            : { message: "" },
+        });
       }
     } catch (error) {
-      tryCatchErrors(res, error, "createUser controller");
+      logger.error(`Internal Server Error ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: {
+          message: error.message,
+        },
+      });
+    }
+  },
+  googleCallback: async (req, res) => {
+    try {
+      res.redirect("/");
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
     }
   },
   verify: (req, res) => {
@@ -143,6 +278,7 @@ const createUser = {
       }
     } catch (error) {
       logObject("error", error);
+      logger.error(`Internal Server Error ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "internal server error",
@@ -155,12 +291,15 @@ const createUser = {
       const { email, phoneNumber, uid, providerId, providerUid } = req.body;
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
+        logObject("hasErrors", hasErrors);
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+
         logger.error(
           `input validation errors ${JSON.stringify(
-            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+            convertErrorArrayToObject(nestedErrors)
           )}`
         );
+
         return badRequest(
           res,
           "User does not exist",
@@ -217,6 +356,7 @@ const createUser = {
         }
       });
     } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -234,7 +374,7 @@ const createUser = {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         logger.error(
           `input validation errors ${JSON.stringify(
-            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+            convertErrorArrayToObject(nestedErrors)
           )}`
         );
         return badRequest(
@@ -275,6 +415,7 @@ const createUser = {
         });
       }
     } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -292,7 +433,7 @@ const createUser = {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         logger.error(
           `input validation errors ${JSON.stringify(
-            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+            convertErrorArrayToObject(nestedErrors)
           )}`
         );
         return badRequest(
@@ -354,7 +495,13 @@ const createUser = {
         }
       }
     } catch (error) {
-      tryCatchErrors(res, error, "createUser controller");
+      logger.error(`Internal Server Error ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        error: "Internal Server Error",
+      };
     }
   },
 
@@ -367,7 +514,7 @@ const createUser = {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         logger.error(
           `input validation errors ${JSON.stringify(
-            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+            convertErrorArrayToObject(nestedErrors)
           )}`
         );
         return badRequest(
@@ -379,27 +526,11 @@ const createUser = {
 
       let { tenant } = req.query;
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
+        tenant = constants.DEFAULT_TENANT || "airqo";
       }
-      const {
-        firstName,
-        lastName,
-        email,
-        organization,
-        long_organization,
-        privilege,
-        network_id,
-      } = req.body;
 
-      let request = {};
-      request["tenant"] = tenant.toLowerCase();
-      request["firstName"] = firstName;
-      request["lastName"] = lastName;
-      request["email"] = email;
-      request["organization"] = organization;
-      request["long_organization"] = long_organization;
-      request["privilege"] = privilege;
-      request["network_id"] = network_id;
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant.toLowerCase();
 
       let responseFromCreateUser = await createUserUtil.register(request);
       logObject("responseFromCreateUser in controller", responseFromCreateUser);
@@ -428,7 +559,13 @@ const createUser = {
         });
       }
     } catch (error) {
-      tryCatchErrors(res, error, "createUser controller");
+      logger.error(`Internal Server Error ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        error: "Internal Server Error",
+      };
     }
   },
 
@@ -436,7 +573,7 @@ const createUser = {
     logText("..................................................");
     logText("create user.............");
     try {
-      const { query, body, params } = req;
+      const { query } = req;
       let { tenant } = query;
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
@@ -452,9 +589,9 @@ const createUser = {
       }
 
       let request = req.body;
-      request["tenant"] = tenant.toLowerCase();
+      request.tenant = tenant.toLowerCase();
 
-      let responseFromCreateUser = await createUserUtil.create(request);
+      const responseFromCreateUser = await createUserUtil.create(request);
       logObject("responseFromCreateUser in controller", responseFromCreateUser);
       if (responseFromCreateUser.success === true) {
         const status = responseFromCreateUser.status
@@ -479,6 +616,7 @@ const createUser = {
         });
       }
     } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
       return {
         success: false,
         message: "internal server errors",
@@ -496,7 +634,7 @@ const createUser = {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         logger.error(
           `input validation errors ${JSON.stringify(
-            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+            convertErrorArrayToObject(nestedErrors)
           )}`
         );
         return badRequest(
@@ -556,7 +694,13 @@ const createUser = {
       }
     } catch (error) {
       logElement("controller server error", error.message);
-      tryCatchErrors(res, error, "createUser controller");
+      logger.error(`Internal Server Error ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        error: "Internal Server Error",
+      };
     }
   },
 
@@ -564,12 +708,13 @@ const createUser = {
     logText("..................................");
     logText("user login......");
     try {
+      let { tenant } = req.query;
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         logger.error(
           `input validation errors ${JSON.stringify(
-            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+            convertErrorArrayToObject(nestedErrors)
           )}`
         );
         return badRequest(
@@ -579,23 +724,45 @@ const createUser = {
         );
       }
 
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+
+      if (!isEmpty(tenant) && tenant !== "airqo") {
+        logObject("tenant", tenant);
+        res.status(httpStatus.MOVED_PERMANENTLY).json({
+          message:
+            "The account has been moved permanently to a new location, please reach out to: info@airqo.net",
+          location: "https://platform.airqo.net/",
+          errors: {
+            message:
+              "The account has been moved permanently to a new location, please reach out to: info@airqo.net",
+            location: "https://platform.airqo.net/",
+          },
+        });
+      }
+
       if (req.auth.success === true) {
         res.status(httpStatus.OK).json(req.user.toAuthJSON());
       } else {
         if (req.auth.error) {
-          res.status(httpStatus.BAD_GATEWAY).json({
+          res.status(httpStatus.BAD_REQUEST).json({
             success: req.auth.success,
             error: req.auth.error,
             message: req.auth.message,
           });
         }
-        res.status(httpStatus.BAD_GATEWAY).json({
+        res.status(httpStatus.BAD_REQUEST).json({
           success: req.auth.success,
           message: req.auth.message,
         });
       }
     } catch (error) {
-      tryCatchErrors(res, error, "createUser controller");
+      logger.error(`Internal Server Error ${error.message}`);
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
     }
   },
 
@@ -608,7 +775,7 @@ const createUser = {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         logger.error(
           `input validation errors ${JSON.stringify(
-            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+            convertErrorArrayToObject(nestedErrors)
           )}`
         );
         return badRequest(
@@ -631,11 +798,12 @@ const createUser = {
       });
     } catch (error) {
       logObject("error", error);
+      logger.error(`Internal Server Error ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "internal server errors",
         errors: { message: error.message },
-        error: "",
+        error: "internal server errors",
       });
     }
   },
@@ -702,9 +870,11 @@ const createUser = {
         });
       }
     } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
       res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         message: "Internal Server Error",
         error: error.message,
+        errors: { message: error.message },
       });
     }
   },
@@ -718,7 +888,7 @@ const createUser = {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         logger.error(
           `input validation errors ${JSON.stringify(
-            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+            convertErrorArrayToObject(nestedErrors)
           )}`
         );
         return badRequest(
@@ -727,30 +897,42 @@ const createUser = {
           convertErrorArrayToObject(nestedErrors)
         );
       }
-      let responseFromUpdateUser = await createUserUtil.update(req);
+      let { tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT || "airqo";
+      }
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
+      let responseFromUpdateUser = await createUserUtil.update(request);
       logObject("responseFromUpdateUser", responseFromUpdateUser);
       if (responseFromUpdateUser.success === true) {
-        return res.status(httpStatus.OK).json({
+        const status = responseFromUpdateUser.status
+          ? responseFromUpdateUser.status
+          : httpStatus.OK;
+        return res.status(status).json({
           success: true,
           message: responseFromUpdateUser.message,
           user: responseFromUpdateUser.data,
         });
       } else if (responseFromUpdateUser.success === false) {
-        if (responseFromUpdateUser.error) {
-          return res.status(httpStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromUpdateUser.message,
-            error: responseFromUpdateUser.error,
-          });
-        } else {
-          return res.status(httpStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromUpdateUser.message,
-          });
-        }
+        const status = responseFromUpdateUser.status
+          ? responseFromUpdateUser.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromUpdateUser.message,
+          errors: responseFromUpdateUser.errors
+            ? responseFromUpdateUser.errors
+            : { message: "Internal Server Error" },
+        });
       }
     } catch (error) {
-      tryCatchErrors(res, error, "createUser controller");
+      logger.error(`Internal Server Error ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
     }
   },
 
@@ -761,7 +943,7 @@ const createUser = {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         logger.error(
           `input validation errors ${JSON.stringify(
-            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+            convertErrorArrayToObject(nestedErrors)
           )}`
         );
         return badRequest(
@@ -801,6 +983,7 @@ const createUser = {
         }
       });
     } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -818,7 +1001,7 @@ const createUser = {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         logger.error(
           `input validation errors ${JSON.stringify(
-            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+            convertErrorArrayToObject(nestedErrors)
           )}`
         );
         return badRequest(
@@ -858,6 +1041,7 @@ const createUser = {
         }
       });
     } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -875,7 +1059,7 @@ const createUser = {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         logger.error(
           `input validation errors ${JSON.stringify(
-            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+            convertErrorArrayToObject(nestedErrors)
           )}`
         );
         return badRequest(
@@ -885,63 +1069,46 @@ const createUser = {
         );
       }
       let { tenant } = req.query;
+      const { body } = req;
 
       if (isEmpty(tenant)) {
         tenant = constants.DEFAULT_TENANT;
       }
-      const { password, resetPasswordToken } = req.body;
-      let responseFromFilter = generateFilter.users(req);
-      // logObject("responseFromFilter", responseFromFilter);
-      if (responseFromFilter.success === true) {
-        let update = {
-          password,
-          resetPasswordToken,
-        };
-        let filter = responseFromFilter.data;
-        // logObject("the filter in controller", filter);
-        // logObject("the update in controller", update);
-        let responseFromUpdateForgottenPassword =
-          await createUserUtil.updateForgottenPassword(tenant, filter, update);
-        logObject(
-          "responseFromUpdateForgottenPassword",
-          responseFromUpdateForgottenPassword
-        );
-        if (responseFromUpdateForgottenPassword.success === true) {
-          return res.status(httpStatus.OK).json({
-            success: true,
-            message: responseFromUpdateForgottenPassword.message,
-            user: responseFromUpdateForgottenPassword.data,
-          });
-        } else if (responseFromUpdateForgottenPassword.success === false) {
-          if (responseFromUpdateForgottenPassword.error) {
-            res.status(httpStatus.BAD_GATEWAY).json({
-              success: false,
-              message: responseFromUpdateForgottenPassword.message,
-              error: responseFromUpdateForgottenPassword.error,
-            });
-          } else {
-            res.status(httpStatus.BAD_GATEWAY).json({
-              success: false,
-              message: responseFromUpdateForgottenPassword.message,
-            });
-          }
-        }
-      } else if (responseFromFilter.success === false) {
-        if (responseFromFilter.error) {
-          res.status(httpStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromFilter.message,
-            error: responseFromFilter.error,
-          });
-        } else {
-          res.status(httpStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromFilter.message,
-          });
-        }
+
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
+      const responseFromUpdateForgottenPassword =
+        await createUserUtil.updateForgottenPassword(request);
+
+      if (responseFromUpdateForgottenPassword.success === true) {
+        const status = responseFromUpdateForgottenPassword.status
+          ? responseFromUpdateForgottenPassword.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: "successfully updated the password",
+          user: responseFromUpdateForgottenPassword.data,
+        });
+      } else if (responseFromUpdateForgottenPassword.success === false) {
+        const status = responseFromUpdateForgottenPassword.status
+          ? responseFromUpdateForgottenPassword.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+
+        res.status(status).json({
+          success: false,
+          message: responseFromUpdateForgottenPassword.message,
+          errors: responseFromUpdateForgottenPassword.errors
+            ? responseFromUpdateForgottenPassword.errors
+            : { message: "Internal Server Error" },
+        });
       }
     } catch (error) {
-      tryCatchErrors(res, error, "createUser controller");
+      logger.error(`Internal Server Error ${error.message}`);
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
     }
   },
 
@@ -953,7 +1120,7 @@ const createUser = {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         logger.error(
           `input validation errors ${JSON.stringify(
-            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+            convertErrorArrayToObject(nestedErrors)
           )}`
         );
         return badRequest(
@@ -1015,7 +1182,12 @@ const createUser = {
         }
       }
     } catch (error) {
-      tryCatchErrors(res, error, "createUser controller");
+      logger.error(`Internal Server Error ${error.message}`);
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
     }
   },
   subscribeToNewsLetter: async (req, res) => {
@@ -1025,7 +1197,7 @@ const createUser = {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         logger.error(
           `input validation errors ${JSON.stringify(
-            manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+            convertErrorArrayToObject(nestedErrors)
           )}`
         );
         return badRequest(
@@ -1066,7 +1238,9 @@ const createUser = {
         });
       }
     } catch (error) {
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+      logger.error(`Internal Server Error ${error.message}`);
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
       });

@@ -66,17 +66,69 @@ module.exports = {
 `;
   },
 
-  v2_emailVerification: (firstName, user_id, token) => {
+ v2_emailVerification: (firstName, user_id, token) => {
     return `
-<h3>Dear ${firstName}</h3>
-<p> Thank you for signing up to join the AirQo data platform! We are excited to have you on board</p>
-<p> To complete your account setup, please verify that this is your email address by <a href=${constants.PLATFORM_BASE_URL}/api/v1/users/verify/${user_id}/${token}>clicking on this verification link</a></p>
-<p> This link will be valid for ${constants.EMAIL_VERIFICATION_HOURS} hour(s). If you did not initiate this request, please disregard this email!</p>
-<p> For help, please contact our support team: support@airqo.net.</p>
-<br>
-<p> See you in the platform,</p>
-<br>
-<p> The AirQo Data Team</p>
+<html>
+    <img src="cid:AirQoEmailLogo" alt="logo" style="height: 50px; margin-left: 24px;">
+    <div
+        style="margin-left: 24px;margin-right: 32px;margin-top:32px;margin-bottom:32px; font-family: 'Inter'; font-style: normal; font-weight: 400; font-size: 16px; line-height: 24px;">
+        <p> Welcome to AirQo Analytics 🎉</p>
+        <p> Thanks for signing up; we can't wait for you to get started! Click the button to verify your email:</p>
+
+        <div style="height:56px, width:268px;">
+            <button
+                style="background-color: #135DFF; border: none; color: white; padding: 15px 32px; text-align: center; text-decoration: none; display: inline-block; font-size: 16px; margin: 4px 2px; cursor: pointer;">
+                <a href="${constants.PLATFORM_BASE_URL}/api/v1/users/verify/${user_id}/${token}"
+                    style="color: white; padding-left:89.5px; padding-right:89.5px; padding-top:16px; padding-bottom:16px; text-decoration: none;">Verify
+                    Email</a>
+            </button>
+        </div>
+
+        <p>Trouble logging in? Paste this URL into your browser:</p>
+        <a
+            href=${constants.PLATFORM_BASE_URL}/api/v1/users/verify/${user_id}/${token}>${constants.PLATFORM_BASE_URL}/api/v1/users/verify/${user_id}/${token}</a>
+        <p style="color: #344054; opacity: 0.6;">You can set a permanent password anytime within your AirQo Analytics
+            personal settings</p>
+        <p style="color: #344054; opacity: 0.6;">Didn't make this request? You can safely ignore and delete this email
+        </p>
+        <hr style="width: 1000px; height: 8px; background-color: #EBF1FF; 
+  border: none; margin-top: 48px; margin-bottom: 48px;">
+
+        <div style="margin-left: 24px;margin-right: 24px;">
+
+            <div style="display: flex;flex-wrap: wrap; justify-content: center;  align-items: center; margin-left:380px">
+              
+                 <a href="https://www.facebook.com/AirQo/" target="_blank"> <img src="cid:FacebookLogo"
+                            alt="FacebookLogo"
+                            style="width:24px; height: 24px;margin-right: 20px;"></a>
+                
+                <a href="https://www.youtube.com/@airqo7875" target="_blank"> <img src="cid:YoutubeLogo"
+                            alt="YoutubeLogo"
+                            style="width:24px; height: 24px;margin-right: 20px;"></a>
+                
+                <a href="https://www.linkedin.com/company/airqo/" target="_blank"> <img src="cid:LinkedInLogo"
+                            alt="LinkedInLogo"
+                            style="width:24px; height: 24px;margin-right: 20px;"></a> 
+
+                <a href="https://twitter.com/AirQoProject" target="_blank"> <img src="cid:Twitter"
+                            alt="Twitter"
+                            style="width:24px; height: 24px;margin-right: 20px;"></a>
+
+
+            </div>
+
+            <br />
+            <div style = "text-align: center;" >
+            <p style="">© 2022 AirQo. </p>
+
+            <p>Makerere University, Software Systems Centre, Block B, Level 3, College of Computing and Information
+                Sciences, Plot 56 University Pool Road</p>
+            </div>
+            
+        </div>
+    </div>
+
+</html>
 `;
   },
 
@@ -89,9 +141,6 @@ module.exports = {
 <p>YOUR USERAME: ${username} </p>
 <p>YOUR PASSWORD: ${password} </p>
 <p>ACCESS LINK: ${constants.PLATFORM_BASE_URL}/login </p>
-<br>
-<p> Thank you for your patience and understanding during the verification process.</p>
-<p> We take the security and privacy of our users very seriously, and the verification process is an important part of ensuring that our platform is safe and secure for all.</p>
 <br>
 <p> If you have any questions or need assistance with anything, please don't hesitate to reach out to our customer support team. We are here to help.</p>
 <p> Thank you for choosing our platform, and we look forward to helping you achieve your goals </p>
@@ -136,5 +185,18 @@ module.exports = {
     <p> Thank you for your interest in accessing our air quality data to further research in air quality monitoring and management.</p>
     <p> You can visit our website at airqo.net and navigate to https://airqo.net/explore-data or click here to access data.</p>
     <p> If you still need further support, please contact our Data Scientists Richard Sserujogi at richard.sserunjogi@airqo.net or Wabinyai Fidel Raja at raja@airqo.net for further support.</p>`;
+  },
+
+  mobileAppWelcome: (fullName) => {
+    return `
+    <p> We're thrilled to have you onboard and excited for you to experience all that our app has to offer. This is the first step to Know Your Air and Breathe Clean.</p>  
+    <p> With the AirQo app, you'll have access to:<p/>
+    <p>1. Air quality analytics - view air quality readings by day/week in different locations</p>
+    <p>2. For You - personalized air quality recommendations based on what you share frequently and your favorite locations</p>
+    <p>3. Search - find locations by location name or by navigating the map</p>
+    <p>4. Know your air - a fun way of learning about air quality</p>
+    <p>We've designed it to be easy to use and navigate, so you can find what you're looking for quickly. Get air quality information like air quality lessons and tips on how to reduce air pollution that you can share with your pals through text or visual updates.</p>
+    <p>We're constantly updating and improving our app to make sure you have the best experience possible. If you have any questions or feedback, please don't hesitate to reach out to us through the app's support feature</p>
+    <p>Thank you for choosing our app, and we can't wait for you to see what it can do for you. Happy exploring!</p>`;
   },
 };

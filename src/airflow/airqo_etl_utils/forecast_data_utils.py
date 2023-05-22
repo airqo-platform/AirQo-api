@@ -44,7 +44,6 @@ class ForecastDataUtils:
             tenant = device_dict.get("tenant", None)
 
             if device_number:
-
                 forecast = airqo_api.get_forecast(
                     channel_id=device_number, timestamp=time
                 )
@@ -85,7 +84,6 @@ class ForecastDataUtils:
         data = DataValidationUtils.process_for_big_query(
             dataframe=data,
             table=table,
-            tenant=Tenant.ALL,
         )
 
         bigquery_api.load_data(
@@ -107,7 +105,6 @@ class ForecastDataUtils:
         data = DataValidationUtils.process_for_big_query(
             dataframe=data,
             table=table,
-            tenant=Tenant.ALL,
         )
 
         bigquery_api.reload_data(

@@ -7,12 +7,16 @@ const {
   setJWTAuth,
   authJWT,
   setLocalAuth,
-  authLocal,
+  authGoogleCallback,
+  setGoogleAuth,
   setGuestToken,
+  authLocal,
   authGuest,
+  authGoogle,
 } = require("@middleware/passport");
 
 const mongoose = require("mongoose");
+const { login } = require("@controllers/create-user");
 const ObjectId = mongoose.Types.ObjectId;
 
 const headers = (req, res, next) => {
@@ -203,6 +207,20 @@ router.get(
 );
 
 router.get(
+  "/auth/google/callback",
+  setGoogleAuth,
+  authGoogleCallback,
+  createUserController.googleCallback
+);
+
+router.get(
+  "/auth/google",
+  setGoogleAuth,
+  authGoogle,
+  createUserController.login
+);
+
+router.get(
   "/",
   oneOf([
     query("tenant")
@@ -265,10 +283,11 @@ router.post(
         .bail()
         .trim(),
       body("privilege")
-        .exists()
-        .withMessage("privilege is missing in your request")
+        .optional()
+        .notEmpty()
+        .withMessage("privilege should not be empty if provided")
         .bail()
-        .isIn(["admin", "netmanager", "superadmin", "user"])
+        .isIn(["admin", "netmanager", "user", "super"])
         .withMessage("the privilege value is not among the expected ones")
         .trim(),
     ],
@@ -311,26 +330,42 @@ router.post(
         .withMessage("this is not a valid email address")
         .trim(),
       body("organization")
-        .exists()
-        .withMessage("organization is missing in your request")
+        .optional()
+        .notEmpty()
+        .withMessage("organization should not be empty if provided")
         .bail()
         .trim(),
       body("long_organization")
-        .exists()
-        .withMessage("long_organization is missing in your request")
+        .optional()
+        .notEmpty()
+        .withMessage("long_organization should not be empty if provided")
         .bail()
         .trim(),
       body("privilege")
-        .exists()
-        .withMessage("privilege is missing in your request")
+        .optional()
+        .notEmpty()
+        .withMessage("privilege should not be empty if provided")
         .bail()
-        .isIn(["admin", "netmanager", "superadmin", "user"])
+        .isIn(["admin", "netmanager", "user", "super"])
         .withMessage("the privilege value is not among the expected ones")
         .trim(),
+      body("password")
+        .exists()
+        .withMessage("password is missing in your request")
+        .bail()
+        .trim()
+        .isLength({ min: 6, max: 30 })
+        .withMessage("Password must be between 6 and 30 characters long")
+        .bail()
+        .matches(/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{6,}$/)
+        .withMessage(
+          "Password must contain at least one letter and one number"
+        ),
     ],
   ]),
   createUserController.create
 );
+
 router.get(
   "/email/confirm/",
   oneOf([
@@ -642,6 +677,42 @@ router.post(
     ],
   ]),
   createUserController.subscribeToNewsLetter
+);
+
+router.get(
+  "/stats",
+  oneOf([
+    query("tenant")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
+      .trim()
+      .toLowerCase()
+      .bail()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  setJWTAuth,
+  authJWT,
+  createUserController.listStatistics
+);
+
+router.get(
+  "/logs",
+  oneOf([
+    query("tenant")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
+      .trim()
+      .toLowerCase()
+      .bail()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  setJWTAuth,
+  authJWT,
+  createUserController.listLogs
 );
 
 router.get(

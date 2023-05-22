@@ -8,7 +8,6 @@ from airqo_etl_utils.data_validator import DataValidationUtils
 class DailyDataUtils:
     @staticmethod
     def average_data(data: pd.DataFrame) -> pd.DataFrame:
-
         averaged_data = pd.DataFrame()
         data["timestamp"] = data["timestamp"].apply(pd.to_datetime)
 
@@ -77,7 +76,6 @@ class DailyDataUtils:
         data = DataValidationUtils.process_for_big_query(
             dataframe=data,
             table=table,
-            tenant=Tenant.ALL,
         )
 
         bigquery_api.reload_data(
@@ -97,7 +95,6 @@ class DailyDataUtils:
         data = DataValidationUtils.process_for_big_query(
             dataframe=data,
             table=table,
-            tenant=Tenant.ALL,
         )
 
         bigquery_api.load_data(

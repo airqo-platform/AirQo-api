@@ -1,6 +1,6 @@
 const UserSchema = require("../models/User");
 const CandidateSchema = require("../models/Candidate");
-const { getModelByTenant } = require("./multitenancy");
+const { getModelByTenant } = require("@config/dbConnection");
 const { logObject, logElement, logText } = require("./log");
 const mailer = require("./mailer");
 const isEmpty = require("is-empty");
@@ -17,7 +17,9 @@ const CandidateModel = (tenant) => {
 };
 
 const log4js = require("log4js");
-const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- request-util`);
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- request-access-util`
+);
 
 const requestAccess = {
   create: async (req, callback) => {
@@ -56,6 +58,9 @@ const requestAccess = {
         responseFromListCandidates.message ===
         "successfully listed the candidates"
       ) {
+        logger.error(
+          `candidate ${email} already exists in the System, they just need to be approved`
+        );
         callback({
           success: true,
           message: "candidate already exists",
@@ -67,11 +72,18 @@ const requestAccess = {
         ).list({
           filter,
         });
-        if (responseFromListUsers.message === "successfully listed the users") {
+        if (
+          responseFromListUsers.message ===
+          "successfully retrieved the user details"
+        ) {
+          logger.error(
+            `candidate ${email} already exists as a User in the System`
+          );
           callback({
-            success: true,
-            message: "candidate already exists as a user",
-            status: httpStatus.OK,
+            success: false,
+            message: "Bad Request Error",
+            status: httpStatus.BAD_REQUEST,
+            errors: { message: "candidate already exists as a user" },
           });
         } else if (responseFromListUsers.message === "no users exist") {
           const responseFromCreateCandidate = await CandidateModel(
@@ -97,13 +109,13 @@ const requestAccess = {
                 status,
               });
             } else if (responseFromSendEmail.success === false) {
-              const errors = responseFromSendEmail.error
-                ? responseFromSendEmail.error
+              const errors = responseFromSendEmail.errors
+                ? responseFromSendEmail.errors
                 : { message: "Internal Server Error" };
               const status = responseFromSendEmail.status
                 ? responseFromSendEmail.status
-                : httpStatus.BAD_GATEWAY;
-
+                : httpStatus.INTERNAL_SERVER_ERROR;
+              logger.error(`${responseFromCreateCandidate.message}`);
               callback({
                 success: false,
                 message: responseFromCreateCandidate.message,
@@ -118,6 +130,7 @@ const requestAccess = {
             const status = responseFromCreateCandidate.status
               ? responseFromCreateCandidate.status
               : httpStatus.INTERNAL_SERVER_ERROR;
+            logger.error(`${responseFromCreateCandidate.message}`);
             callback({
               success: false,
               message: responseFromCreateCandidate.message,
@@ -132,6 +145,7 @@ const requestAccess = {
           const status = responseFromListUsers.status
             ? responseFromListUsers.status
             : httpStatus.INTERNAL_SERVER_ERROR;
+          logger.error(`${responseFromListUsers.message}`);
           callback({
             success: false,
             message: responseFromListUsers.message,
@@ -146,6 +160,7 @@ const requestAccess = {
         const status = responseFromListCandidates.status
           ? responseFromListCandidates.status
           : httpStatus.INTERNAL_SERVER_ERROR;
+        logger.error(`${responseFromListCandidates.message}`);
         callback({
           success: false,
           message: responseFromListCandidates.message,
@@ -154,6 +169,7 @@ const requestAccess = {
         });
       }
     } catch (e) {
+      logger.error(`${e.message}`);
       callback({
         success: false,
         message: "Internal Server Error",
@@ -199,6 +215,7 @@ const requestAccess = {
         }
       }
     } catch (e) {
+      logger.error(`${e.message}`);
       return {
         success: false,
         message: "utils server error",
@@ -237,6 +254,7 @@ const requestAccess = {
         }
       }
     } catch (e) {
+      logger.error(`${e.message}`);
       return {
         success: false,
         message: "util server error",
@@ -336,31 +354,10 @@ const requestAccess = {
                 data: jsonifyCreatedUser,
               };
             } else if (responseFromDeleteCandidate.success === false) {
-              if (responseFromDeleteCandidate.error) {
-                return {
-                  success: false,
-                  message: responseFromDeleteCandidate.message,
-                  data: responseFromDeleteCandidate.data,
-                  error: responseFromDeleteCandidate.error,
-                };
-              } else {
-                return {
-                  success: false,
-                  message: responseFromDeleteCandidate.message,
-                  data: responseFromDeleteCandidate.data,
-                };
-              }
+              return responseFromDeleteCandidate;
             }
           } else if (responseFromSendEmail.success === false) {
-            const error = responseFromSendEmail.error
-              ? responseFromSendEmail.error
-              : {};
-
-            return {
-              success: false,
-              message: responseFromSendEmail.message,
-              error,
-            };
+            return responseFromSendEmail;
           }
         } else if (responseFromCreateUser.success === false) {
           return responseFromCreateUser;
@@ -384,6 +381,7 @@ const requestAccess = {
         };
       }
     } catch (e) {
+      logger.error(`${e.message}`);
       if (e.code === 11000) {
         return {
           success: false,
@@ -403,33 +401,14 @@ const requestAccess = {
 
   delete: async (tenant, filter) => {
     try {
-      let responseFromRemoveCandidate = await CandidateModel(
+      const responseFromRemoveCandidate = await CandidateModel(
         tenant.toLowerCase()
       ).remove({
         filter,
       });
-
-      if (responseFromRemoveCandidate.success == true) {
-        return {
-          success: true,
-          message: responseFromRemoveCandidate.message,
-          data: responseFromRemoveCandidate.data,
-        };
-      } else if (responseFromRemoveCandidate.success == false) {
-        if (responseFromRemoveCandidate.error) {
-          return {
-            success: false,
-            message: responseFromRemoveCandidate.message,
-            error: responseFromRemoveCandidate.error,
-          };
-        } else {
-          return {
-            success: false,
-            message: responseFromRemoveCandidate.message,
-          };
-        }
-      }
+      return responseFromRemoveCandidate;
     } catch (e) {
+      logger.error(`${e.message}`);
       return {
         success: false,
         message: "util server error",

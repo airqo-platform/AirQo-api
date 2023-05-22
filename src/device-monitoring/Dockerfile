@@ -14,12 +14,18 @@ EXPOSE 4001
 
 FROM base as dev
 ENV FLASK_ENV=development
-CMD ["flask", "run", "--host=0.0.0.0"]
+CMD flask run --host=0.0.0.0
 
 FROM base as staging
 ENV FLASK_ENV=staging
-CMD ["gunicorn", "--bind=0.0.0.0:4001", "app:app"]
+CMD gunicorn --bind=0.0.0.0:4001 app:app
 
 FROM base as production
 ENV FLASK_ENV=production
-CMD ["gunicorn", "--bind=0.0.0.0:4001", "app:app"]
+CMD gunicorn --bind=0.0.0.0:4001 app:app
+
+FROM base as celery-beat
+CMD celery -A app.celery beat
+
+FROM base as celery-worker
+CMD celery -A app.celery worker -Q collocation --loglevel=info

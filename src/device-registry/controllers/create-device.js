@@ -12,7 +12,6 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-device-controller`
 );
 
-const httpStatus = require("http-status");
 const isEmpty = require("is-empty");
 
 const device = {
@@ -43,7 +42,7 @@ const device = {
       }
     } catch (error) {
       logObject("error", error);
-      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "updating all the metadata",
         errors: { message: error.message },
@@ -77,7 +76,7 @@ const device = {
       }
     } catch (error) {
       logObject("error", error);
-      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "updating all the metadata",
         errors: { message: error.message },
@@ -514,6 +513,70 @@ const device = {
     }
   },
 
+  refresh: async (req, res) => {
+    try {
+      logText("refreshing device details................");
+      let { tenant } = req.query;
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_NEWORK || "airqo";
+      }
+
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
+
+      let responseFromRefreshDevice = await createDeviceUtil.refresh(request);
+      logObject("responseFromRefreshDevice", responseFromRefreshDevice);
+      if (responseFromRefreshDevice.success === true) {
+        const status = responseFromRefreshDevice.status
+          ? responseFromRefreshDevice.status
+          : HTTPStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromRefreshDevice.message,
+          refreshed_device: responseFromRefreshDevice.data,
+        });
+      } else if (responseFromRefreshDevice.success === false) {
+        const status = responseFromRefreshDevice.status
+          ? responseFromRefreshDevice.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromRefreshDevice.message,
+          errors: responseFromRefreshDevice.errors
+            ? responseFromRefreshDevice.errors
+            : { message: "" },
+        });
+      }
+    } catch (error) {
+      logObject("error", error);
+      logger.error(`internal server error -- ${error.message}`);
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
   encryptKeys: async (req, res) => {
     try {
       logText("the soft update operation starts....");
@@ -610,7 +673,7 @@ const device = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      let responseFromListDeviceDetails = await createDeviceUtil.list(req);
+      const responseFromListDeviceDetails = await createDeviceUtil.list(req);
       logElement(
         "is responseFromListDeviceDetails in controller a success?",
         responseFromListDeviceDetails.success

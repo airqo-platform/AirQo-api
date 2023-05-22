@@ -1,20 +1,26 @@
-const UserSchema = require("../models/User");
+const UserSchema = require("@models/User");
+const LogSchema = require("@models/log");
 const AccessTokenSchema = require("@models/AccessToken");
 const ClientSchema = require("@models/Client");
-const { getModelByTenant } = require("./multitenancy");
+const NetworkSchema = require("@models/Network");
+const RoleSchema = require("@models/Role");
+const { getModelByTenant } = require("@config/dbConnection");
 const { logObject, logElement, logText } = require("./log");
 const mailer = require("./mailer");
 const bcrypt = require("bcrypt");
+const mongoose = require("mongoose").set("debug", true);
+const ObjectId = mongoose.Types.ObjectId;
 const crypto = require("crypto");
 const isEmpty = require("is-empty");
 const { getAuth, sendSignInLinkToEmail } = require("firebase-admin/auth");
-const actionCodeSettings = require("../config/firebase-settings");
+const actionCodeSettings = require("@config/firebase-settings");
 const httpStatus = require("http-status");
-const constants = require("../config/constants");
-const mailchimp = require("../config/mailchimp");
+const constants = require("@config/constants");
+const mailchimp = require("@config/mailchimp");
 const md5 = require("md5");
 const accessCodeGenerator = require("generate-password");
 const generateFilter = require("./generate-filter");
+const moment = require("moment-timezone");
 
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- join-util`);
@@ -26,6 +32,16 @@ const UserModel = (tenant) => {
   } catch (error) {
     let users = getModelByTenant(tenant, "user", UserSchema);
     return users;
+  }
+};
+
+const LogModel = (tenant) => {
+  try {
+    const logs = mongoose.model("logs");
+    return logs;
+  } catch (error) {
+    const logs = getModelByTenant(tenant, "log", LogSchema);
+    return logs;
   }
 };
 
@@ -49,45 +65,145 @@ const ClientModel = (tenant) => {
   }
 };
 
+const NetworkModel = (tenant) => {
+  try {
+    const networks = mongoose.model("networks");
+    return networks;
+  } catch (error) {
+    const networks = getModelByTenant(tenant, "network", NetworkSchema);
+    return networks;
+  }
+};
+
+const RoleModel = (tenant) => {
+  try {
+    let roles = mongoose.model("roles");
+    return roles;
+  } catch (error) {
+    let roles = getModelByTenant(tenant, "role", RoleSchema);
+    return roles;
+  }
+};
+
 const join = {
+  listLogs: async (request) => {
+    try {
+      const { tenant, limit = 1000, skip = 0 } = request.query;
+      let filter = {};
+      const responseFromFilter = generateFilter.logs(request);
+      if (responseFromFilter.success === false) {
+        return responseFromFilter;
+      } else {
+        filter = responseFromFilter;
+      }
+      const responseFromListLogs = await LogModel(tenant).list({
+        filter,
+        limit,
+        skip,
+      });
+      if (responseFromListLogs.success === true) {
+        return {
+          success: true,
+          message: responseFromListLogs.message,
+          data: responseFromListLogs.data,
+          status: responseFromListLogs.status
+            ? responseFromListLogs.status
+            : httpStatus.OK,
+        };
+      } else if (responseFromListLogs.success === false) {
+        return {
+          success: false,
+          message: responseFromListLogs.message,
+          errors: responseFromListLogs.errors
+            ? responseFromListLogs.errors
+            : { message: "Internal Server Error" },
+          status: responseFromListLogs.status
+            ? responseFromListLogs.status
+            : httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+    } catch (e) {
+      logElement("list users util", e.message);
+      logger.error(`Internal Server Error ${e.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: e.message },
+      };
+    }
+  },
+  listStatistics: async (tenant) => {
+    try {
+      const responseFromListStatistics = await UserModel(tenant).listStatistics(
+        tenant
+      );
+      if (responseFromListStatistics.success === true) {
+        return {
+          success: true,
+          message: responseFromListStatistics.message,
+          data: responseFromListStatistics.data,
+          status: responseFromListStatistics.status
+            ? responseFromListStatistics.status
+            : httpStatus.OK,
+        };
+      } else if (responseFromListStatistics.success === false) {
+        return {
+          success: false,
+          message: responseFromListStatistics.message,
+          errors: responseFromListStatistics.errors
+            ? responseFromListStatistics.errors
+            : { message: "Internal Server Error" },
+          status: responseFromListStatistics.status
+            ? responseFromListStatistics.status
+            : httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+    } catch (e) {
+      logElement("list users util", e.message);
+      logger.error(`Internal Server Error ${e.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: e.message },
+      };
+    }
+  },
+
   list: async (tenant, filter, limit, skip) => {
     try {
-      let responseFromListUser = await UserModel(tenant).list({
+      const responseFromListUser = await UserModel(tenant).list({
         filter,
         limit,
         skip,
       });
       if (responseFromListUser.success === true) {
-        const status = responseFromListUser.status
-          ? responseFromListUser.status
-          : httpStatus.OK;
         return {
           success: true,
           message: responseFromListUser.message,
           data: responseFromListUser.data,
-          status,
+          status: responseFromListUser.status
+            ? responseFromListUser.status
+            : httpStatus.OK,
         };
       } else if (responseFromListUser.success === false) {
-        const status = responseFromListUser.status
-          ? responseFromListUser.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        const errors = responseFromListUser.errors
-          ? responseFromListUser.errors
-          : { message: "Internal Server Error" };
-
         return {
           success: false,
           message: responseFromListUser.message,
-          errors,
-          status,
+          errors: responseFromListUser.errors
+            ? responseFromListUser.errors
+            : { message: "Internal Server Error" },
+          status: responseFromListUser.status
+            ? responseFromListUser.status
+            : httpStatus.INTERNAL_SERVER_ERROR,
         };
       }
     } catch (e) {
       logElement("list users util", e.message);
+      logger.error(`Internal Server Error ${e.message}`);
       return {
         success: false,
-        message: "list users util server error",
-        error: e.message,
+        message: "Internal Server Error",
+        errors: { message: e.message },
       };
     }
   },
@@ -96,27 +212,34 @@ const join = {
       let filter = {};
       const { query, body } = request;
       let update = body;
-      delete update.password;
-      delete update._id;
+
+      if (!isEmpty(update.password)) {
+        delete update.password;
+      }
+      if (!isEmpty(update._id)) {
+        delete update._id;
+      }
+
       const { tenant } = query;
 
       const responseFromGenerateFilter = generateFilter.users(request);
-      logObject("responseFromGenerateFilter", responseFromGenerateFilter);
 
       if (responseFromGenerateFilter.success === true) {
         filter = responseFromGenerateFilter.data;
       } else if (responseFromGenerateFilter.success === false) {
         return responseFromGenerateFilter;
       }
-      let responseFromModifyUser = await UserModel(tenant.toLowerCase()).modify(
-        {
-          filter,
-          update,
-        }
-      );
+
+      const responseFromModifyUser = await UserModel(
+        tenant.toLowerCase()
+      ).modify({
+        filter,
+        update,
+      });
+
       if (responseFromModifyUser.success === true) {
-        let user = responseFromModifyUser.data;
-        let responseFromSendEmail = await mailer.update(
+        const user = responseFromModifyUser.data;
+        const responseFromSendEmail = await mailer.update(
           user.email,
           user.firstName,
           user.lastName
@@ -135,7 +258,7 @@ const join = {
         return responseFromModifyUser;
       }
     } catch (e) {
-      logElement("update users util", e);
+      logger.error(`Internal Server Error ${e.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -196,6 +319,7 @@ const join = {
           });
         });
     } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
       callback({
         success: false,
         message: "Internal Server Error",
@@ -251,14 +375,13 @@ const join = {
                 emailLinkCode,
               },
             });
-          }
-
-          if (responseFromSendEmail.success === false) {
+          } else if (responseFromSendEmail.success === false) {
+            logger.error(`email sending process unsuccessful`);
             callback({
               success: false,
               message: "email sending process unsuccessful",
               errors: responseFromSendEmail.errors,
-              status: httpStatus.BAD_GATEWAY,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
             });
           }
         })
@@ -269,6 +392,7 @@ const join = {
           if (error.code === "auth/invalid-email") {
             status = httpStatus.BAD_REQUEST;
           }
+          logger.error(`unable to sign in using email link`);
           callback({
             success: false,
             message: "unable to sign in using email link",
@@ -279,6 +403,7 @@ const join = {
           });
         });
     } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
       callback({
         success: false,
         message: "Internal Server Error",
@@ -291,58 +416,49 @@ const join = {
   },
   delete: async (tenant, filter) => {
     try {
-      let responseFromRemoveUser = await UserModel(tenant.toLowerCase()).remove(
-        {
-          filter,
-        }
+      await RoleModel(tenant).updateMany(
+        { role_users: filter._id },
+        { $pull: { role_users: filter._id } }
       );
 
-      /**
-       * cascase delete of user details...
-       */
-      // let responseFromRemoveUser = await UserModel(
-      //   tenant.toLowerCase()
-      // ).v2_remove({
-      //   filter,
-      // });
-
-      if (responseFromRemoveUser.success == true) {
-        return {
-          success: true,
-          message: responseFromRemoveUser.message,
-          data: responseFromRemoveUser.data,
-          status: responseFromRemoveUser.status
-            ? responseFromRemoveUser.status
-            : "",
-        };
-      } else if (responseFromRemoveUser.success == false) {
-        if (responseFromRemoveUser.error) {
-          return {
-            success: false,
-            message: responseFromRemoveUser.message,
-            error: responseFromRemoveUser.error
-              ? responseFromRemoveUser.error
-              : "",
-            status: responseFromRemoveUser.status
-              ? responseFromRemoveUser.status
-              : "",
-          };
-        } else {
-          return {
-            success: false,
-            message: responseFromRemoveUser.message,
-            status: responseFromRemoveUser.status
-              ? responseFromRemoveUser.status
-              : "",
-          };
+      await NetworkModel(tenant).updateMany(
+        { net_users: filter._id },
+        {
+          $pull: { net_users: filter._id },
+          $cond: {
+            if: { $eq: ["$net_manager", filter._id] },
+            then: { $set: { net_manager: null } },
+            else: {},
+          },
         }
+      );
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      };
+    }
+
+    try {
+      const responseFromRemoveUser = await UserModel(
+        tenant.toLowerCase()
+      ).remove({
+        filter,
+      });
+      if (responseFromRemoveUser.success === true) {
+        return responseFromRemoveUser;
+      } else if (responseFromRemoveUser.success === false) {
+        return responseFromRemoveUser;
       }
     } catch (e) {
       logElement("delete users util", e.message);
+      logger.error(`Internal Server Error ${e.message}`);
       return {
         success: false,
-        message: "util server error",
-        error: e.message,
+        message: "Internal Server Error",
+        errors: { message: e.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -350,7 +466,7 @@ const join = {
 
   sendFeedback: async ({ email, message, subject }) => {
     try {
-      let responseFromSendEmail = await mailer.feedback({
+      const responseFromSendEmail = await mailer.feedback({
         email,
         message,
         subject,
@@ -364,20 +480,10 @@ const join = {
           message: "email successfully sent",
         };
       } else if (responseFromSendEmail.success === false) {
-        let status = responseFromSendEmail.status
-          ? responseFromSendEmail.status
-          : "";
-        let errors = responseFromSendEmail.errors
-          ? responseFromSendEmail.errors
-          : "";
-        return {
-          success: false,
-          message: responseFromSendEmail.message,
-          errors,
-          status,
-        };
+        return responseFromSendEmail;
       }
     } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -389,9 +495,23 @@ const join = {
   create: async (request) => {
     try {
       const { tenant, firstName, email, network_id } = request;
-      const password = accessCodeGenerator.generate(
-        constants.RANDOM_PASSWORD_CONFIGURATION(10)
-      );
+      let { password } = request;
+
+      const user = await UserModel(tenant).findOne({ email });
+      if (!isEmpty(user)) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: "User is already part of the AirQo platform" },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      password = password
+        ? password
+        : accessCodeGenerator.generate(
+            constants.RANDOM_PASSWORD_CONFIGURATION(10)
+          );
 
       const newRequest = Object.assign({ userName: email, password }, request);
 
@@ -450,7 +570,7 @@ const join = {
           logObject("created user in util", createdUser._doc);
           const user_id = createdUser._doc._id;
 
-          let responseFromSendEmail = await mailer.verifyEmail({
+          const responseFromSendEmail = await mailer.verifyEmail({
             user_id,
             token,
             email,
@@ -468,43 +588,17 @@ const join = {
                 : "",
             };
           } else if (responseFromSendEmail.success === false) {
-            return {
-              success: false,
-              message: responseFromSendEmail.message,
-              errors: responseFromSendEmail.errors
-                ? responseFromSendEmail.errors
-                : "",
-              status: responseFromSendEmail.status
-                ? responseFromSendEmail.status
-                : "",
-            };
+            return responseFromSendEmail;
           }
         } else if (responseFromSaveToken.success === false) {
-          return {
-            success: false,
-            message: responseFromSaveToken.message,
-            status: responseFromSaveToken.status
-              ? responseFromSaveToken.status
-              : "",
-            errors: responseFromSaveToken.errors
-              ? responseFromSaveToken.errors
-              : "",
-          };
+          return responseFromSaveToken;
         }
       } else if (responseFromCreateUser.success === false) {
-        return {
-          success: false,
-          message: responseFromCreateUser.message,
-          errors: responseFromCreateUser.error
-            ? responseFromCreateUser.error
-            : "",
-          status: responseFromCreateUser.status
-            ? responseFromCreateUser.status
-            : "",
-        };
+        return responseFromCreateUser;
       }
     } catch (e) {
       logObject("e", e);
+      logger.error(`Internal Server Error ${e.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -516,8 +610,7 @@ const join = {
 
   register: async (request) => {
     try {
-      let {
-        tenant,
+      const {
         firstName,
         lastName,
         email,
@@ -525,7 +618,9 @@ const join = {
         long_organization,
         privilege,
         network_id,
-      } = request;
+      } = request.body;
+
+      const { tenant } = request.query;
 
       const password = accessCodeGenerator.generate(
         constants.RANDOM_PASSWORD_CONFIGURATION(10)
@@ -550,7 +645,7 @@ const join = {
       if (responseFromCreateUser.success === true) {
         const createdUser = await responseFromCreateUser.data;
         logObject("created user in util", createdUser._doc);
-        let responseFromSendEmail = await mailer.user(
+        const responseFromSendEmail = await mailer.user(
           firstName,
           lastName,
           email,
@@ -569,34 +664,18 @@ const join = {
               : "",
           };
         } else if (responseFromSendEmail.success === false) {
-          return {
-            success: false,
-            message: responseFromSendEmail.message,
-            error: responseFromSendEmail.error
-              ? responseFromSendEmail.error
-              : "",
-            status: responseFromSendEmail.status
-              ? responseFromSendEmail.status
-              : "",
-          };
+          return responseFromSendEmail;
         }
       } else if (responseFromCreateUser.success === false) {
-        return {
-          success: false,
-          message: responseFromCreateUser.message,
-          error: responseFromCreateUser.error
-            ? responseFromCreateUser.error
-            : "",
-          status: responseFromCreateUser.status
-            ? responseFromCreateUser.status
-            : "",
-        };
+        return responseFromCreateUser;
       }
     } catch (e) {
+      logger.error(`Internal Server Error ${e.message}`);
       return {
         success: false,
         message: "Internal Server Error",
         error: e.message,
+        errors: { message: e.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -643,6 +722,7 @@ const join = {
       }
     } catch (error) {
       logElement("confirm email util", error.message);
+      logger.error(`Internal Server Error ${error.message}`);
       return {
         success: false,
         message: "join util server error",
@@ -653,26 +733,26 @@ const join = {
 
   forgotPassword: async (tenant, filter) => {
     try {
-      let responseFromGenerateResetToken = join.generateResetToken();
+      const responseFromGenerateResetToken = join.generateResetToken();
       logObject(
         "responseFromGenerateResetToken",
         responseFromGenerateResetToken
       );
       logObject("filter", filter);
       if (responseFromGenerateResetToken.success === true) {
-        let token = responseFromGenerateResetToken.data;
-        let update = {
+        const token = responseFromGenerateResetToken.data;
+        const update = {
           resetPasswordToken: token,
           resetPasswordExpires: Date.now() + 3600000,
         };
-        let responseFromModifyUser = await UserModel(
+        const responseFromModifyUser = await UserModel(
           tenant.toLowerCase()
         ).modify({
           filter,
           update,
         });
         if (responseFromModifyUser.success === true) {
-          let responseFromSendEmail = await mailer.forgot(
+          const responseFromSendEmail = await mailer.forgot(
             filter.email,
             token,
             tenant
@@ -682,126 +762,78 @@ const join = {
             return {
               success: true,
               message: "forgot email successfully sent",
+              status: httpStatus.OK,
             };
           } else if (responseFromSendEmail.success === false) {
-            if (responseFromSendEmail.error) {
-              return {
-                success: false,
-                error: responseFromSendEmail.error,
-                message: "unable to send the email request",
-              };
-            } else {
-              return {
-                success: false,
-                message: responseFromSendEmail.message,
-              };
-            }
+            return responseFromSendEmail;
           }
-        }
-
-        if (responseFromModifyUser.success === false) {
-          if (responseFromModifyUser.error) {
-            return {
-              success: false,
-              error: responseFromModifyUser.error,
-              message: responseFromModifyUser.message,
-            };
-          } else {
-            return {
-              success: false,
-              message: responseFromModifyUser.message,
-            };
-          }
+        } else if (responseFromModifyUser.success === false) {
+          return responseFromModifyUser;
         }
       } else if (responseFromGenerateResetToken.success === false) {
-        if (responseFromGenerateResetToken.error) {
-          return {
-            success: false,
-            error: responseFromGenerateResetToken.error,
-            message: responseFromGenerateResetToken.message,
-          };
-        } else {
-          return {
-            success: false,
-            message: responseFromGenerateResetToken.message,
-          };
-        }
+        return responseFromGenerateResetToken;
       }
     } catch (e) {
       logElement("forgot password util", e.message);
+      logger.error(`Internal Server Error ${e.message}`);
       return {
         success: false,
-        message: "util server error",
+        message: "Internal Server Error",
         error: e.message,
+        errors: { message: e.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
 
-  updateForgottenPassword: async (tenant, filter, update) => {
+  updateForgottenPassword: async (request) => {
     try {
-      let responseFromCheckTokenValidity = await join.isPasswordTokenValid(
-        tenant.toLowerCase(),
-        filter
-      );
+      const { resetPasswordToken, password } = request.body;
+      const { tenant } = request.query;
+      const timeZone = moment.tz.guess();
+      let filter = {
+        resetPasswordToken,
+        resetPasswordExpires: {
+          $gt: moment().tz(timeZone).toDate(),
+        },
+      };
+
+      logObject("isPasswordTokenValid FILTER", filter);
+      const responseFromCheckTokenValidity = await join.isPasswordTokenValid({
+        tenant,
+        filter,
+      });
+
       logObject(
         "responseFromCheckTokenValidity",
         responseFromCheckTokenValidity
       );
+
       if (responseFromCheckTokenValidity.success === true) {
-        let modifiedUpdate = {
-          ...update,
+        const update = {
           resetPasswordToken: null,
           resetPasswordExpires: null,
+          password,
         };
-        let responseFromUpdateUser = await join.update(
-          tenant.toLowerCase(),
+        const userDetails = responseFromCheckTokenValidity.data;
+        logObject("userDetails", userDetails);
+        filter = { _id: ObjectId(userDetails._id) };
+        logObject("updateForgottenPassword FILTER", filter);
+        const responseFromModifyUser = await UserModel(tenant).modify({
           filter,
-          modifiedUpdate
-        );
-        logObject(
-          "responseFromUpdateUser in update forgotten password",
-          responseFromUpdateUser
-        );
-        if (responseFromUpdateUser.success === true) {
-          return {
-            success: true,
-            message: responseFromUpdateUser.message,
-            data: responseFromUpdateUser.data,
-          };
-        } else if (responseFromUpdateUser === false) {
-          return {
-            success: false,
-            status: responseFromUpdateUser.status
-              ? responseFromUpdateUser.status
-              : "",
-            message: responseFromUpdateUser.message
-              ? responseFromUpdateUser.message
-              : "",
-            error: responseFromUpdateUser.error
-              ? responseFromUpdateUser.error
-              : "",
-          };
-        }
+          update,
+        });
+        return responseFromModifyUser;
       } else if (responseFromCheckTokenValidity.success === false) {
-        return {
-          success: false,
-          status: responseFromCheckTokenValidity.status
-            ? responseFromCheckTokenValidity.status
-            : "",
-          message: responseFromCheckTokenValidity.message
-            ? responseFromCheckTokenValidity.message
-            : "",
-          error: responseFromCheckTokenValidity.error
-            ? responseFromCheckTokenValidity.error
-            : "",
-        };
+        return responseFromCheckTokenValidity;
       }
     } catch (error) {
-      logElement("update forgotten password", error.message);
+      logObject("error updateForgottenPassword UTIL", error);
+      logger.error(`Internal Server Error ${error.message}`);
       return {
         success: false,
         message: "util server error",
-        error: error.message,
+        errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -862,6 +894,7 @@ const join = {
       }
     } catch (e) {
       logElement("update known password", e.message);
+      logger.error(`Internal Server Error ${e.message}`);
       return {
         success: false,
         message: "update known password util server error",
@@ -897,6 +930,7 @@ const join = {
       }
     } catch (error) {
       logElement("compare passwords util server error", error.message);
+      logger.error(`Internal Server Error ${error.message}`);
       return {
         success: false,
         message: "compare passwords utils server error",
@@ -914,6 +948,7 @@ const join = {
       };
     } catch (error) {
       logElement("generate reset token util", error.message);
+      logger.error(`Internal Server Error ${error.message}`);
       return {
         success: false,
         message: "util server error",
@@ -922,45 +957,43 @@ const join = {
     }
   },
 
-  isPasswordTokenValid: async (tenant, filter) => {
+  isPasswordTokenValid: async ({ tenant = "airqo", filter = {} } = {}) => {
     try {
-      let responseFromListUser = await UserModel(tenant.toLowerCase()).list({
+      const responseFromListUser = await UserModel(tenant.toLowerCase()).list({
         filter,
       });
       logObject("responseFromListUser", responseFromListUser);
-      if (responseFromListUser.success == true) {
-        if (isEmpty(responseFromListUser.data)) {
+      if (responseFromListUser.success === true) {
+        if (
+          isEmpty(responseFromListUser.data) ||
+          responseFromListUser.data.length > 1
+        ) {
           return {
+            status: httpStatus.BAD_REQUEST,
             success: false,
             message: "password reset link is invalid or has expired",
+            errors: {
+              message: "password reset link is invalid or has expired",
+            },
           };
-        } else {
+        } else if (responseFromListUser.data.length === 1) {
           return {
             success: true,
-            message: responseFromListUser.message,
-            data: responseFromListUser.data,
+            message: "password reset link is valid",
+            status: httpStatus.OK,
+            data: responseFromListUser.data[0],
           };
         }
-      } else if (responseFromListUser.success == false) {
-        if (responseFromListUser.error) {
-          return {
-            success: false,
-            message: responseFromListUser.message,
-            error: responseFromListUser.error,
-          };
-        } else {
-          return {
-            success: false,
-            message: responseFromListUser.message,
-          };
-        }
+      } else if (responseFromListUser.success === false) {
+        return responseFromListUser;
       }
     } catch (error) {
-      logElement("is password token valid", error.message);
+      logger.error(`Internal Server Error ${error.message}`);
       return {
+        status: httpStatus.INTERNAL_SERVER_ERROR,
         success: false,
-        message: "util server error",
-        error: error.message,
+        message: "Internal Server Error",
+        errors: { message: error.message },
       };
     }
   },
@@ -1008,7 +1041,7 @@ const join = {
       } else {
         return {
           success: false,
-          status: httpStatus.BAD_GATEWAY,
+          status: httpStatus.INTERNAL_SERVER_ERROR,
           message: "unable to subscribe user to the AirQo newsletter",
           errors: {
             message:
@@ -1017,6 +1050,7 @@ const join = {
         };
       }
     } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
       const errorResponse = error.response ? error.response : {};
       const text = errorResponse ? errorResponse.text : "";
       const status = errorResponse

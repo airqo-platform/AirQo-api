@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 "use strict";
 require("dotenv").config();
 
@@ -7,6 +8,19 @@ const {getFirestore} = require("firebase-admin/firestore");
 
 const functions = require("firebase-functions");
 const {getAuth} = require("firebase-admin/auth");
+const {Kafka} = require("kafkajs");
+const nodemailer = require("nodemailer");
+
+const emailTemplate = require("./config/emailTemplates");
+
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: `${process.env.MAIL_USER}`,
+    pass: `${process.env.MAIL_PASS}`,
+  },
+});
+
 
 initializeApp();
 const firestoreDb = getFirestore();
@@ -20,36 +34,104 @@ async function sendGoodByeMessage(_user) {
 }
 
 /**
+ * @param {any} email The user's email
+ * @param {any} name The user's name
+ */
+async function sendWelcomeEmail(email, name) {
+  const mailOptions = {
+    from: {
+      name: "AirQo Data Team",
+      address: process.env.MAIL_USER,
+    },
+    to: email,
+    subject: "Welcome to AirQo!",
+    html: emailTemplate.mobileAppWelcome(email, name),
+    attachments: [{
+      filename: "welcomeImage.png",
+      path: "./config/images/welcomeImage.png",
+      cid: "AirQoEmailWelcomeImage",
+      contentDisposition: "inline",
+    },
+    {
+      filename: "airqoLogo.png",
+      path: "./config/images/airqoLogo.png",
+      cid: "AirQoEmailLogo",
+      contentDisposition: "inline",
+    },
+    {
+      filename: "faceBookLogo.png",
+      path: "./config/images/facebookLogo.png",
+      cid: "FacebookLogo",
+      contentDisposition: "inline",
+    },
+    {
+      filename: "youtubeLogo.png",
+      path: "./config/images/youtubeLogo.png",
+      cid: "YoutubeLogo",
+      contentDisposition: "inline",
+    },
+    {
+      filename: "twitterLogo.png",
+      path: "./config/images/Twitter.png",
+      cid: "Twitter",
+      contentDisposition: "inline",
+    },
+    {
+      filename: "linkedInLogo.png",
+      path: "./config/images/linkedInLogo.png",
+      cid: "LinkedInLogo",
+      contentDisposition: "inline",
+    }],
+  };
+  try {
+    await transporter.sendMail(mailOptions);
+    functions.logger.log("New welcome email sent to:", email);
+    return null;
+  } catch (error) {
+    functions.logger.log("Transporter failed to send email", error);
+  }
+}
+
+
+// kafka configuration
+const kafka = new Kafka({
+  clientId: process.env.KAFKA_CLIENT_ID,
+  brokers: process.env.KAFKA_BOOTSTRAP_SERVERS.split(","),
+  // clientId: process.env.KAFKA_CLIENT_ID_DEV,
+  // brokers: ["localhost:9092"],
+});
+
+
+// Function to produce messages
+
+/**
  * @param {any} user The new user
  */
-async function sendWelcomeMessage(user) {
+async function produceMessage(user) {
   try {
-    const emailAddress = user.emailAddress == null ? "" : user.emailAddress;
+    const producer = kafka.producer();
+    const emailAddress = user.email == null ? "" : user.email;
     if (emailAddress === "") {
       return null;
     }
 
-    const displayName = user.displayName == null ? "" : user.displayName;
-    const endPoint = process.env.WELCOME_MESSAGE_ENDPOINT;
-    const body = {
-      "platform": "mobile",
-      "firstName": displayName,
-      "emailAddress": emailAddress,
+    await producer.connect();
+
+    const topic = process.env.NEW_MOBILE_APP_USER_TOPIC;
+    const message = {
+      value: `{email:${emailAddress}}`,
     };
 
-    // eslint-disable-next-line max-len
-    axios.post(endPoint, JSON.stringify(body), {headers: {"Content-Type": "application/json"}})
-        .then((res) => {
-          console.log(`Welcome message status code: ${res.status}`);
-        })
-        .catch((error) => {
-          console.error(error);
-        });
+    await producer.send({
+      topic,
+      messages: [
+        message,
+      ],
+    });
+    await producer.disconnect();
   } catch (error) {
     console.log(error);
   }
-
-  return null;
 }
 
 /**
@@ -99,6 +181,33 @@ async function checkIfUserExists(data) {
   }
 }
 
+exports.sendWelcomeEmail = functions.auth.user().onCreate((user) => {
+  if (user.email !== null) {
+    const email = user.email;
+    try {
+      setTimeout(async () => {
+        const userRef = firestoreDb.collection(process.env.USERS_COLLECTION)
+            .doc(user.uid);
+        const userDoc = await userRef.get();
+
+        let firstName = userDoc.data().firstName;
+        if (firstName == null) {
+          firstName = "";
+        }
+        sendWelcomeEmail(email, firstName);
+      }, 300000);
+    } catch (error) {
+      functions.logger.log("Error fetching user data:", error);
+    }
+  }
+});
+
+exports.onUserSignUp = functions.auth.user().onCreate(async (user) => {
+  if (user.email !== null) {
+    // return await produceMessage(user);
+  }
+});
+
 exports.httpCheckIfUserExists = functions.https.onRequest(async (req, res) => {
   try {
     let exists;
@@ -138,7 +247,7 @@ exports.appCheckIfUserExists = functions.https.onCall(async (data, _) => {
 
 exports.sendWelcomeMessages = functions.https.onCall(async (data, _) => {
   await sendWelcomeNotification(data);
-  await sendWelcomeMessage(data);
+  // await sendWelcomeMessage(data);
   return null;
 });
 
