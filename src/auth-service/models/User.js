@@ -88,13 +88,23 @@ const UserSchema = new Schema(
     },
     isActive: { type: Boolean },
     duration: { type: Date, default: oneMonthFromNow },
-    networks: [
-      {
-        type: ObjectId,
-        ref: "network",
-        unique: true,
-      },
-    ],
+    networks: {
+      type: [
+        {
+          type: ObjectId,
+          ref: "network",
+          unique: true,
+        },
+      ],
+      default: [mongoose.Types.ObjectId(constants.DEFAULT_NETWORK)],
+    },
+    // networks: [
+    //   {
+    //     type: ObjectId,
+    //     ref: "network",
+    //     unique: true,
+    //   },
+    // ],
     groups: [
       {
         type: ObjectId,
@@ -256,32 +266,10 @@ UserSchema.statics = {
   },
   async list({ skip = 0, limit = 5, filter = {} } = {}) {
     try {
-      logText("we are inside the model/collection....");
-      const projectAll = {
-        _id: 1,
-        firstName: 1,
-        lastName: 1,
-        userName: 1,
-        email: 1,
-        verified: 1,
-        country: 1,
-        privilege: 1,
-        website: 1,
-        category: 1,
-        jobTitle: 1,
-        description: 1,
-        profilePicture: 1,
-        phoneNumber: 1,
-        role: { $arrayElemAt: ["$role", 0] },
-        networks: "$networks",
-        access_tokens: "$access_tokens",
-        permissions: "$permissions",
-        createdAt: 1,
-        updatedAt: 1,
-      };
-
-      const projectSummary = {};
-
+      const inclusionProjection = constants.USERS_INCLUSION_PROJECTION;
+      const exclusionProjection = constants.USERS_EXCLUSION_PROJECTION(
+        filter.category ? filter.category : "none"
+      );
       const response = await this.aggregate()
         .match(filter)
         .lookup({
@@ -314,6 +302,13 @@ UserSchema.statics = {
           foreignField: "_id",
           as: "role",
         })
+        .unwind("$role")
+        .lookup({
+          from: "permissions",
+          localField: "role.role_permissions",
+          foreignField: "_id",
+          as: "role.role_permissions",
+        })
         .addFields({
           createdAt: {
             $dateToString: {
@@ -323,50 +318,8 @@ UserSchema.statics = {
           },
         })
         .sort({ createdAt: -1 })
-        .project(projectAll)
-        .project({
-          "networks.__v": 0,
-          "networks.net_status": 0,
-          "networks.net_acronym": 0,
-          "networks.createdAt": 0,
-          "networks.updatedAt": 0,
-          "networks.net_users": 0,
-          "networks.net_roles": 0,
-          "networks.net_groups": 0,
-          "networks.net_description": 0,
-          "networks.net_departments": 0,
-          "networks.net_permissions": 0,
-          "networks.net_email": 0,
-          "networks.net_category": 0,
-          "networks.net_phoneNumber": 0,
-          "networks.net_manager": 0,
-        })
-        .project({
-          "access_tokens.__v": 0,
-          "access_tokens.user_id": 0,
-          "access_tokens.createdAt": 0,
-          "access_tokens.updatedAt": 0,
-        })
-        .project({
-          "permissions.__v": 0,
-          "permissions._id": 0,
-          "permissions.createdAt": 0,
-          "permissions.updatedAt": 0,
-        })
-
-        .project({
-          "role.__v": 0,
-          "role._id": 0,
-          "role.createdAt": 0,
-          "role.updatedAt": 0,
-          "role.role_users": 0,
-        })
-        .project({
-          "groups.__v": 0,
-          "groups._id": 0,
-          "groups.createdAt": 0,
-          "groups.updatedAt": 0,
-        })
+        .project(inclusionProjection)
+        .project(exclusionProjection)
         .skip(skip ? skip : 0)
         .limit(limit ? limit : parseInt(constants.DEFAULT_LIMIT))
         .allowDiskUse(true);
@@ -466,10 +419,10 @@ UserSchema.statics = {
   },
   async remove({ filter = {} } = {}) {
     try {
-      let options = {
+      const options = {
         projection: { _id: 0, email: 1, firstName: 1, lastName: 1 },
       };
-      let removedUser = await this.findOneAndRemove(filter, options).exec();
+      const removedUser = await this.findOneAndRemove(filter, options).exec();
 
       if (!isEmpty(removedUser)) {
         return {
@@ -489,8 +442,7 @@ UserSchema.statics = {
     } catch (error) {
       return {
         success: false,
-        message: "User model server error - remove",
-        error: error.message,
+        message: "Internal Server Error",
         errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
@@ -620,6 +572,7 @@ UserSchema.methods = {
       updatedAt: this.updatedAt,
       role: this.role,
       verified: this.verified,
+      networks: this.networks,
     };
   },
 };

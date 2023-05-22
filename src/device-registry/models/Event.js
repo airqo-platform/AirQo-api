@@ -477,6 +477,9 @@ eventSchema.statics = {
         brief,
         index,
       } = filter;
+
+      logObject("filter", filter);
+
       let search = filter;
       let groupId = "$device";
       let localField = "device";
@@ -617,8 +620,16 @@ eventSchema.statics = {
       }
 
       if (running === "yes") {
+        delete projection["pm2_5.uncertaintyValue"];
+        delete projection["pm2_5.standardDeviationValue"];
+
         Object.assign(projection, {
-          average_pm2_5: 0,
+          site_image: 0,
+          is_reading_primary: 0,
+          deviceDetails: 0,
+          aqi_color: 0,
+          aqi_category: 0,
+          aqi_color_name: 0,
           pm2_5: 0,
           average_pm10: 0,
           pm10: 0,
@@ -651,6 +662,9 @@ eventSchema.statics = {
           stc_v: 0,
           stc: 0,
           siteDetails: 0,
+          aqi_color: 0,
+          aqi_category: 0,
+          aqi_color_name: 0,
         });
       }
 
@@ -1008,6 +1022,7 @@ eventSchema.statics = {
       }
     } catch (error) {
       logger.error(`list events -- ${error.message}`);
+      logObject("error", error);
       return {
         success: false,
         message: "Internal Server Error",

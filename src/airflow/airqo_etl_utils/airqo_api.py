@@ -118,8 +118,6 @@ class AirQoApi:
                 **device,
                 **{
                     "device_number": device.get("device_number", None),
-                    "latitude": device.get("latitude", None),
-                    "longitude": device.get("longitude", None),
                     "approximate_latitude": device.get(
                         "approximate_latitude", device.get("latitude", None)
                     ),
@@ -133,6 +131,9 @@ class AirQoApi:
                     "mongo_id": device.get("_id", None),
                     "site_id": device.get("site", {}).get("_id", None),
                     "site_latitude": device.get("site", {}).get("latitude", None),
+                    "site_generated_name": device.get("site", {}).get(
+                        "generated_name", None
+                    ),
                     "site_longitude": device.get("site", {}).get("longitude", None),
                     "device_category": str(
                         DeviceCategory.from_str(device.get("category", ""))
