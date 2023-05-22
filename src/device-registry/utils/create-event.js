@@ -512,8 +512,8 @@ const createEvent = {
         }
       });
     } catch (error) {
+      logObject("error", error);
       logger.error(`internal server error -- ${error.message}`);
-      logObject("error in util", error);
       callback({
         success: false,
         errors: { message: error.message },

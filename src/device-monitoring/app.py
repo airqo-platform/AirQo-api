@@ -1,16 +1,18 @@
-from datetime import timedelta
-from flask import Flask
-from celery import Celery
-from celery.utils.log import get_task_logger
 import logging
 import os
+import traceback
+from datetime import timedelta
+
+from celery import Celery
+from celery.utils.log import get_task_logger
+from flask import Flask, jsonify
 from flask_caching import Cache
 from flask_cors import CORS
 from flask_pymongo import PyMongo
+
 from config import constants
 from config.constants import Config
 from helpers.pre_request import PreRequest
-
 
 celery_logger = get_task_logger(__name__)
 _logger = logging.getLogger(__name__)
@@ -51,10 +53,11 @@ app = create_app(os.getenv("FLASK_ENV"))
 def make_celery(application):
     application.config["broker_url"] = f"{Config.REDIS_URL}/0"
     application.config["result_backend"] = f"{Config.REDIS_URL}/0"
+    application.config["task_default_queue"] = "collocation"
     application.config["beat_schedule"] = {
         "collocation_periodic_task": {
             "task": "collocation_periodic_task",
-            "schedule": timedelta(seconds=5),
+            "schedule": timedelta(minutes=Config.COLLOCATION_CELERY_MINUTES_INTERVAL),
         }
     }
 
@@ -79,13 +82,23 @@ celery = make_celery(app)
 
 
 @celery.task(name="collocation_periodic_task")
-def collocation_task():
+def collocation_periodic_task():
     celery_logger.info("Collocation periodic task running")
-    from helpers.collocation import CollocationScheduling
+    from helpers.collocation import Collocation
+    from models import CollocationBatch
 
-    scheduling = CollocationScheduling()
-    scheduling.run_scheduled_collocated_devices()
-    scheduling.update_scheduled_status()
+    collocation = Collocation()
+    collocation.compute_and_update_overdue_batches()
+    collocation.update_batches_statues()
+    running_batches: list[CollocationBatch] = collocation.get_running_batches()
+    collocation.compute_and_update_results(running_batches)
+
+
+@app.errorhandler(Exception)
+def handle_exception(error):
+    traceback.print_exc()
+    print(error)
+    return jsonify({"message": "Error occurred. Contact support"}), 500
 
 
 @app.before_request

@@ -154,7 +154,8 @@ class KccaUtils:
             row_data = {
                 "frequency": str(Frequency.HOURLY),
                 "time": row.get("timestamp", None),
-                "tenant": str(Tenant.KCCA),
+                "network": str(Tenant.KCCA),
+                "tenant": str(Tenant.AIRQO),
                 "site_id": row.get("site_id", None),
                 "device_id": device_details.get("_id", None),
                 "device": device_details.get("name", None),
