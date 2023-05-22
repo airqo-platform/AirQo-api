@@ -4,5 +4,3 @@ pymongo
 python-dateutil
 python-dotenv
 requests
-google-cloud-bigquery[pandas]
-db-dtypes

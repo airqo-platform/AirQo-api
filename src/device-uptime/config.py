@@ -19,9 +19,6 @@ class Config:
     MONITOR_FREQUENCY_MINUTES = int(os.getenv("MONITOR_FREQUENCY_MINUTES", 60))
     BASE_API_URL = os.getenv("BASE_API_URL")
     DEVICE_RECENT_EVENTS_URL = f"{BASE_API_URL}/feeds/transform/recent"
-    BIGQUERY_RAW_DATA = os.getenv("BIGQUERY_RAW_DATA")
-    BIGQUERY_DEVICE_UPTIME_TABLE = os.getenv("BIGQUERY_DEVICE_UPTIME_TABLE")
-    UPTIME_EXPECTED_DATA_POINTS = int(os.getenv("UPTIME_EXPECTED_DATA_POINTS"))
 
 
 class ProductionConfig(Config):
