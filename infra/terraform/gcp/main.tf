@@ -17,7 +17,6 @@ module "ComputeInstance" {
 
   project_id     = var.project_id
   project_number = var.project_number
-  region         = var.region
   zone           = var.zone
   os             = var.os
   disk_size      = var.disk_size

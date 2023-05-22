@@ -41,7 +41,7 @@ def kcca_hourly_measurements():
         kcca_data = KccaUtils.transform_data_for_api(data)
 
         airqo_api = AirQoApi()
-        airqo_api.save_events(measurements=kcca_data)
+        airqo_api.save_events(measurements=kcca_data, tenant="kcca")
 
     @task()
     def send_to_message_broker(data: pd.DataFrame):
@@ -63,12 +63,24 @@ def kcca_hourly_measurements():
 
         big_query_api = BigQueryApi()
         table = big_query_api.hourly_measurements_table
-        data["tenant"] = str(Tenant.KCCA)
-        data = DataValidationUtils.process_for_big_query(dataframe=data, table=table)
+
+        data = DataValidationUtils.process_for_big_query(
+            dataframe=data, tenant=Tenant.KCCA, table=table
+        )
         big_query_api.load_data(
             dataframe=data,
             table=table,
         )
+
+    @task()
+    def update_latest_data_table(data: pd.DataFrame):
+        from airqo_etl_utils.kcca_utils import KccaUtils
+        from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
+        from airqo_etl_utils.constants import Tenant
+
+        data = KccaUtils.process_latest_data(data=data)
+
+        DataWarehouseUtils.update_latest_measurements(data=data, tenant=Tenant.KCCA)
 
     @task()
     def update_latest_data_topic(data: pd.DataFrame):
@@ -83,6 +95,7 @@ def kcca_hourly_measurements():
     transformed_data = transform(extracted_data)
     send_to_message_broker(transformed_data)
     send_to_api(transformed_data)
+    update_latest_data_table(transformed_data)
     update_latest_data_topic(transformed_data)
     send_to_bigquery(transformed_data)
 
@@ -121,8 +134,10 @@ def kcca_historical_hourly_measurements():
 
         big_query_api = BigQueryApi()
         table = big_query_api.hourly_measurements_table
-        data["tenant"] = str(Tenant.KCCA)
-        data = DataValidationUtils.process_for_big_query(dataframe=data, table=table)
+
+        data = DataValidationUtils.process_for_big_query(
+            dataframe=data, tenant=Tenant.KCCA, table=table
+        )
         big_query_api.load_data(
             dataframe=data,
             table=table,

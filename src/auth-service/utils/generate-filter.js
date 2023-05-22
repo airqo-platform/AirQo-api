@@ -88,7 +88,6 @@ const filter = {
         net_phoneNumber,
         net_website,
         net_acronym,
-        category,
       } = req.query;
 
       const { net_id } = req.params;
@@ -97,10 +96,6 @@ const filter = {
       if (net_email) {
         filter["net_email"] = net_email;
       }
-      if (category) {
-        filter["category"] = category;
-      }
-
       if (net_category) {
         filter["net_category"] = net_category;
       }
@@ -319,8 +314,7 @@ const filter = {
   roles: (req) => {
     try {
       const { query, params } = req;
-      const { id, role_name, role_code, network_id, role_status, category } =
-        query;
+      const { id, role_name, role_code, network, role_status } = query;
       const { role_id } = params;
       let filter = {};
 
@@ -330,14 +324,9 @@ const filter = {
       if (role_id) {
         filter["_id"] = ObjectId(role_id);
       }
-      if (network_id) {
-        filter["network_id"] = ObjectId(network_id);
+      if (network) {
+        filter["network_id"] = network;
       }
-
-      if (category) {
-        filter["category"] = category;
-      }
-
       if (role_name) {
         filter["role_name"] = role_name;
       }

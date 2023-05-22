@@ -5,7 +5,7 @@ resource "google_compute_disk" "mongos_router" {
   project                   = var.project_id
   size                      = var.disk_size["small"]
   type                      = "pd-balanced"
-  zone                      = var.zone["b"]
+  zone                      = var.zone
   description               = "Disk for the production mongodb sharded cluster mongos query router"
 }
-# terraform import google_compute_disk.mongos_router projects/${var.project_id}/zones/${var.zone["b"]}/disks/mongos-router
+# terraform import google_compute_disk.mongos_router projects/${var.project_id}/zones/${var.zone}/disks/mongos-router

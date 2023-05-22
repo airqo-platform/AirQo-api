@@ -29,11 +29,14 @@ const RoleSchema = new mongoose.Schema(
       ref: "network",
       required: [true, "network_id is required"],
     },
-    role_permissions: [
+    role_permissions: {
+      type: Array,
+      default: [],
+    },
+    role_users: [
       {
         type: ObjectId,
-        ref: "permission",
-        unique: true,
+        ref: "user",
       },
     ],
   },
@@ -116,20 +119,20 @@ RoleSchema.statics = {
 
   async list({ skip = 0, limit = 100, filter = {} } = {}) {
     try {
-      const inclusionProjection = constants.ROLES_INCLUSION_PROJECTION;
-      const exclusionProjection = constants.ROLES_EXCLUSION_PROJECTION(
-        filter.category ? filter.category : ""
-      );
-      logObject("inclusionProjection", inclusionProjection);
-      logObject("exclusionProjection", exclusionProjection);
-
-      let filterCopy = Object.assign({}, filter);
-      if (!isEmpty(filterCopy.category)) {
-        delete filterCopy.category;
-      }
-
+      const projectAll = {
+        role_name: 1,
+        role_description: 1,
+        role_status: 1,
+        role_code: 1,
+        network_id: 1,
+        role_permissions: 1,
+        role_users: 1,
+        network: { $arrayElemAt: ["$network", 0] },
+        createdAt: 1,
+        updatedAt: 1,
+      };
       const roles = await this.aggregate()
-        .match(filterCopy)
+        .match(filter)
         .lookup({
           from: "networks",
           localField: "network_id",
@@ -139,7 +142,7 @@ RoleSchema.statics = {
         .lookup({
           from: "permissions",
           localField: "role_permissions",
-          foreignField: "_id",
+          foreignField: "permission",
           as: "role_permissions",
         })
         .lookup({
@@ -157,8 +160,60 @@ RoleSchema.statics = {
           },
         })
         .sort({ createdAt: -1 })
-        .project(inclusionProjection)
-        .project(exclusionProjection)
+        .project(projectAll)
+        .project({
+          "role_users.notifications": 0,
+          "role_users.emailConfirmed": 0,
+          "role_users.locationCount": 0,
+          "role_users.password": 0,
+          "role_users.privilege": 0,
+          "role_users.organization": 0,
+          "role_users.duration": 0,
+          "role_users.__v": 0,
+          "role_users.phoneNumber": 0,
+          "role_users.profilePicture": 0,
+          "role_users.resetPasswordExpires": 0,
+          "role_users.resetPasswordToken": 0,
+          "role_users.updatedAt": 0,
+          "role_users.role": 0,
+          "role_users.interest": 0,
+          "role_users.org_name": 0,
+          "role_users.accountStatus": 0,
+          "role_users.hasAccess": 0,
+          "role_users.collaborators": 0,
+          "role_users.publisher": 0,
+          "role_users.bus_nature": 0,
+          "role_users.org_department": 0,
+          "role_users.uni_faculty": 0,
+          "role_users.uni_course_yr": 0,
+          "role_users.pref_locations": 0,
+          "role_users.job_title": 0,
+          "role_users.userName": 0,
+          "role_users.product": 0,
+          "role_users.website": 0,
+          "role_users.description": 0,
+        })
+        .project({
+          "network.__v": 0,
+          "network.net_status": 0,
+          "network.net_children": 0,
+          "network.net_users": 0,
+          "network.net_departments": 0,
+          "network.net_permissions": 0,
+          "network.net_roles": 0,
+          "network.net_groups": 0,
+          "network.net_email": 0,
+          "network.net_phoneNumber": 0,
+          "network.net_category": 0,
+          "network.createdAt": 0,
+          "network.updatedAt": 0,
+        })
+        .project({
+          "role_permissions.description": 0,
+          "role_permissions.createdAt": 0,
+          "role_permissions.updatedAt": 0,
+          "role_permissions.__v": 0,
+        })
         .skip(skip ? skip : 0)
         .limit(limit ? limit : 100)
         .allowDiskUse(true);
@@ -193,11 +248,11 @@ RoleSchema.statics = {
       let modifiedUpdate = Object.assign({}, update);
       modifiedUpdate["$addToSet"] = {};
 
-      if (modifiedUpdate.role_permissions) {
+      if (modifiedUpdate.permissions) {
         modifiedUpdate["$addToSet"]["role_permissions"] = {};
         modifiedUpdate["$addToSet"]["role_permissions"]["$each"] =
-          modifiedUpdate.role_permissions;
-        delete modifiedUpdate.role_permissions;
+          modifiedUpdate.permissions;
+        delete modifiedUpdate.permissions;
       }
       if (modifiedUpdate.role_name) {
         delete modifiedUpdate.role_name;
@@ -223,13 +278,13 @@ RoleSchema.statics = {
           success: true,
           message: "role not found",
           data: [],
-          status: httpStatus.OK,
+          status: httpStatus.NOT_FOUND,
         };
       }
     } catch (error) {
       return {
         success: false,
-        message: "Internal Server Errors",
+        message: "internal server errors",
         error: error.message,
         errors: { message: "internal server errors" },
         status: httpStatus.INTERNAL_SERVER_ERROR,
@@ -255,15 +310,17 @@ RoleSchema.statics = {
       } else {
         return {
           success: false,
-          message: "Bad Request Error",
-          status: httpStatus.BAD_REQUEST,
+          message: "Role does not exist, please crosscheck",
+          data: [],
+          status: httpStatus.NOT_FOUND,
           errors: { message: "Role does not exist, please crosscheck" },
         };
       }
     } catch (error) {
       return {
         success: false,
-        message: "Internal Server Error",
+        message: "internal server errors",
+        error: error.message,
         errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
@@ -281,7 +338,6 @@ RoleSchema.methods = {
       role_permissions: this.role_permissions,
       role_description: this.role_description,
       network_id: this.network_id,
-      role_users: this.role_users,
     };
   },
 };

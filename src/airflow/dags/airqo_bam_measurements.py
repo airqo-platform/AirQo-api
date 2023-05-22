@@ -130,6 +130,17 @@ def airqo_bam_realtime_measurements():
         )
 
     @task()
+    def update_latest_data_table(data: pd.DataFrame):
+        from airqo_etl_utils.airqo_utils import AirQoDataUtils
+        from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
+        from airqo_etl_utils.constants import Tenant, DeviceCategory
+
+        data = AirQoDataUtils.process_latest_data(
+            data=data, device_category=DeviceCategory.BAM
+        )
+        DataWarehouseUtils.update_latest_measurements(data=data, tenant=Tenant.AIRQO)
+
+    @task()
     def update_latest_data_topic(data: pd.DataFrame):
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
         from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
@@ -144,6 +155,7 @@ def airqo_bam_realtime_measurements():
     save_unclean_data(unclean_data)
     measurements = clean_bam_data(unclean_data)
     save_clean_bam_data(measurements)
+    update_latest_data_table(measurements)
     update_latest_data_topic(measurements)
 
 

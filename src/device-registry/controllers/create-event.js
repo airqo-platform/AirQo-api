@@ -461,7 +461,6 @@ const createEvent = {
         }
       });
     } catch (error) {
-      logObject("error", error);
       logger.error(`internal server error -- ${error.message}`);
       res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,

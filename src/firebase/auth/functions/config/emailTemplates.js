@@ -1,7 +1,7 @@
 /* eslint-disable max-len */
 
 module.exports = {
-  mobileAppWelcome: (email, name) => {
+  mobileAppWelcome: (name) => {
     return `
     <div style="display: flex; align-items: center;">
       <img src="cid:AirQoEmailLogo" alt="logo" style="height: 50px; margin-right: 10px;">
@@ -26,43 +26,6 @@ module.exports = {
      <br/>
     <p>We're constantly updating and improving our app to make sure you have the best experience possible. If you have any questions or feedback, please don't hesitate to reach out to us through the app's support feature</p>
     <br/>
-    <p>Thank you for choosing our app, and we can't wait for you to see what it can do for you.</p>
-    <hr style="width: 1000px; height: 8px; background-color: #EBF1FF; 
-  border: none; margin-top: 48px; margin-bottom: 48px;"></hr>
-
-        <div style="margin-left: 24px;margin-right: 24px;">
-
-            <div
-                style="display: flex;flex-wrap: wrap; justify-content: center;  align-items: center; margin-left:380px">
-
-                <a href="https://www.facebook.com/AirQo/" target="_blank"> <img src="cid:FacebookLogo"
-                        alt="FacebookLogo" style="width:24px; height: 24px;margin-right: 20px;"></a>
-
-                <a href="https://www.youtube.com/@airqo7875" target="_blank"> <img src="cid:YoutubeLogo"
-                        alt="YoutubeLogo" style="width:24px; height: 24px;margin-right: 20px;"></a>
-
-                <a href="https://www.linkedin.com/company/airqo/" target="_blank"> <img src="cid:LinkedInLogo"
-                        alt="LinkedInLogo" style="width:24px; height: 24px;margin-right: 20px;"></a>
-
-                <a href="https://twitter.com/AirQoProject" target="_blank"> <img src="cid:Twitter" alt="Twitter"
-                        style="width:24px; height: 24px;margin-right: 20px;"></a>
-
-
-            </div>
-
-            <br />
-            <div style="text-align: center;">
-                <p >
-                This email was sent to ${email}. If you'd rather not receive this kind of email, you can unsubscribe or manage your email preferences.
-                </p>
-                <p >© 2022 AirQo. </p>
-
-                <p>Makerere University, Software Systems Centre, Block B, Level 3, College of Computing and Information
-                    Sciences, Plot 56 University Pool Road</p>
-            </div>
-
-        </div>
-        `
-    ;
+    <p>Thank you for choosing our app, and we can't wait for you to see what it can do for you.</p>`;
   },
 };

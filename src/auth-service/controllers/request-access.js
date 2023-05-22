@@ -7,7 +7,7 @@ const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- request-access-controller`
+  `${constants.ENVIRONMENT} -- request-controller`
 );
 const { logText, logObject, logElement } = require("@utils/log");
 
@@ -73,15 +73,13 @@ const requestAccess = {
           }
         })
         .catch((error) => {
-          logger.error(`Internal Server Error ${error}`);
-          res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+          return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
             success: false,
-            message: "Internal Server Error",
+            message: "internal server error",
             errors: { message: error },
           });
         });
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -155,7 +153,6 @@ const requestAccess = {
         }
       }
     } catch (e) {
-      logger.error(`Internal Server Error ${e.message}`);
       return res.status(httpStatus.BAD_GATEWAY).json({
         success: false,
         message: "controller server error",
@@ -257,12 +254,10 @@ const requestAccess = {
         }
       }
     } catch (e) {
-      logger.error(`Internal Server Error ${e.message}`);
       return res.status(httpStatus.BAD_GATEWAY).json({
         success: false,
         message: "contoller server error",
         error: e.message,
-        errors: { message: e.message },
       });
     }
   },
@@ -326,12 +321,10 @@ const requestAccess = {
         }
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
       return res.status(httpStatus.BAD_GATEWAY).json({
         success: false,
         message: "controller server error",
         error: error.message,
-        errors: { message: error.message },
       });
     }
   },
@@ -400,7 +393,6 @@ const requestAccess = {
         }
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
       return res.status(httpStatus.BAD_GATEWAY).json({
         success: false,
         message: "controller server error",

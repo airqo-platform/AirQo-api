@@ -2,8 +2,6 @@ const UserSchema = require("@models/User");
 const LogSchema = require("@models/log");
 const AccessTokenSchema = require("@models/AccessToken");
 const ClientSchema = require("@models/Client");
-const NetworkSchema = require("@models/Network");
-const RoleSchema = require("@models/Role");
 const { getModelByTenant } = require("@config/dbConnection");
 const { logObject, logElement, logText } = require("./log");
 const mailer = require("./mailer");
@@ -65,26 +63,6 @@ const ClientModel = (tenant) => {
   }
 };
 
-const NetworkModel = (tenant) => {
-  try {
-    const networks = mongoose.model("networks");
-    return networks;
-  } catch (error) {
-    const networks = getModelByTenant(tenant, "network", NetworkSchema);
-    return networks;
-  }
-};
-
-const RoleModel = (tenant) => {
-  try {
-    let roles = mongoose.model("roles");
-    return roles;
-  } catch (error) {
-    let roles = getModelByTenant(tenant, "role", RoleSchema);
-    return roles;
-  }
-};
-
 const join = {
   listLogs: async (request) => {
     try {
@@ -124,7 +102,6 @@ const join = {
       }
     } catch (e) {
       logElement("list users util", e.message);
-      logger.error(`Internal Server Error ${e.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -160,7 +137,6 @@ const join = {
       }
     } catch (e) {
       logElement("list users util", e.message);
-      logger.error(`Internal Server Error ${e.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -199,7 +175,6 @@ const join = {
       }
     } catch (e) {
       logElement("list users util", e.message);
-      logger.error(`Internal Server Error ${e.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -258,7 +233,6 @@ const join = {
         return responseFromModifyUser;
       }
     } catch (e) {
-      logger.error(`Internal Server Error ${e.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -319,7 +293,6 @@ const join = {
           });
         });
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
       callback({
         success: false,
         message: "Internal Server Error",
@@ -376,7 +349,6 @@ const join = {
               },
             });
           } else if (responseFromSendEmail.success === false) {
-            logger.error(`email sending process unsuccessful`);
             callback({
               success: false,
               message: "email sending process unsuccessful",
@@ -392,7 +364,6 @@ const join = {
           if (error.code === "auth/invalid-email") {
             status = httpStatus.BAD_REQUEST;
           }
-          logger.error(`unable to sign in using email link`);
           callback({
             success: false,
             message: "unable to sign in using email link",
@@ -403,7 +374,6 @@ const join = {
           });
         });
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
       callback({
         success: false,
         message: "Internal Server Error",
@@ -416,49 +386,58 @@ const join = {
   },
   delete: async (tenant, filter) => {
     try {
-      await RoleModel(tenant).updateMany(
-        { role_users: filter._id },
-        { $pull: { role_users: filter._id } }
-      );
-
-      await NetworkModel(tenant).updateMany(
-        { net_users: filter._id },
+      let responseFromRemoveUser = await UserModel(tenant.toLowerCase()).remove(
         {
-          $pull: { net_users: filter._id },
-          $cond: {
-            if: { $eq: ["$net_manager", filter._id] },
-            then: { $set: { net_manager: null } },
-            else: {},
-          },
+          filter,
         }
       );
-    } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      };
-    }
 
-    try {
-      const responseFromRemoveUser = await UserModel(
-        tenant.toLowerCase()
-      ).remove({
-        filter,
-      });
-      if (responseFromRemoveUser.success === true) {
-        return responseFromRemoveUser;
-      } else if (responseFromRemoveUser.success === false) {
-        return responseFromRemoveUser;
+      /**
+       * cascase delete of user details...
+       */
+      // let responseFromRemoveUser = await UserModel(
+      //   tenant.toLowerCase()
+      // ).v2_remove({
+      //   filter,
+      // });
+
+      if (responseFromRemoveUser.success == true) {
+        return {
+          success: true,
+          message: responseFromRemoveUser.message,
+          data: responseFromRemoveUser.data,
+          status: responseFromRemoveUser.status
+            ? responseFromRemoveUser.status
+            : "",
+        };
+      } else if (responseFromRemoveUser.success == false) {
+        if (responseFromRemoveUser.error) {
+          return {
+            success: false,
+            message: responseFromRemoveUser.message,
+            error: responseFromRemoveUser.error
+              ? responseFromRemoveUser.error
+              : "",
+            status: responseFromRemoveUser.status
+              ? responseFromRemoveUser.status
+              : "",
+          };
+        } else {
+          return {
+            success: false,
+            message: responseFromRemoveUser.message,
+            status: responseFromRemoveUser.status
+              ? responseFromRemoveUser.status
+              : "",
+          };
+        }
       }
     } catch (e) {
       logElement("delete users util", e.message);
-      logger.error(`Internal Server Error ${e.message}`);
       return {
         success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
+        message: "util server error",
+        error: e.message,
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -483,7 +462,6 @@ const join = {
         return responseFromSendEmail;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -496,16 +474,6 @@ const join = {
     try {
       const { tenant, firstName, email, network_id } = request;
       let { password } = request;
-
-      const user = await UserModel(tenant).findOne({ email });
-      if (!isEmpty(user)) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: { message: "User is already part of the AirQo platform" },
-          status: httpStatus.BAD_REQUEST,
-        };
-      }
 
       password = password
         ? password
@@ -598,7 +566,6 @@ const join = {
       }
     } catch (e) {
       logObject("e", e);
-      logger.error(`Internal Server Error ${e.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -670,7 +637,6 @@ const join = {
         return responseFromCreateUser;
       }
     } catch (e) {
-      logger.error(`Internal Server Error ${e.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -722,7 +688,6 @@ const join = {
       }
     } catch (error) {
       logElement("confirm email util", error.message);
-      logger.error(`Internal Server Error ${error.message}`);
       return {
         success: false,
         message: "join util server error",
@@ -775,7 +740,6 @@ const join = {
       }
     } catch (e) {
       logElement("forgot password util", e.message);
-      logger.error(`Internal Server Error ${e.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -829,7 +793,6 @@ const join = {
       }
     } catch (error) {
       logObject("error updateForgottenPassword UTIL", error);
-      logger.error(`Internal Server Error ${error.message}`);
       return {
         success: false,
         message: "util server error",
@@ -894,7 +857,6 @@ const join = {
       }
     } catch (e) {
       logElement("update known password", e.message);
-      logger.error(`Internal Server Error ${e.message}`);
       return {
         success: false,
         message: "update known password util server error",
@@ -930,7 +892,6 @@ const join = {
       }
     } catch (error) {
       logElement("compare passwords util server error", error.message);
-      logger.error(`Internal Server Error ${error.message}`);
       return {
         success: false,
         message: "compare passwords utils server error",
@@ -948,7 +909,6 @@ const join = {
       };
     } catch (error) {
       logElement("generate reset token util", error.message);
-      logger.error(`Internal Server Error ${error.message}`);
       return {
         success: false,
         message: "util server error",
@@ -988,7 +948,6 @@ const join = {
         return responseFromListUser;
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
       return {
         status: httpStatus.INTERNAL_SERVER_ERROR,
         success: false,
@@ -1050,7 +1009,6 @@ const join = {
         };
       }
     } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
       const errorResponse = error.response ? error.response : {};
       const text = errorResponse ? errorResponse.text : "";
       const status = errorResponse

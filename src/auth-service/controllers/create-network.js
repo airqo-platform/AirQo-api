@@ -291,63 +291,6 @@ const createNetwork = {
     }
   },
 
-  unAssignManyUsers: async (req, res) => {
-    try {
-      logText("unAssign user....");
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
-        );
-      }
-
-      let { tenant } = req.query;
-      if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
-      }
-      let request = Object.assign({}, req);
-      request.query.tenant = tenant;
-
-      const responseFromUnassignManyUsers =
-        await createNetworkUtil.unAssignManyUsers(request);
-
-      logObject("responseFromUnassignManyUsers", responseFromUnassignManyUsers);
-
-      if (responseFromUnassignManyUsers.success === true) {
-        const status = responseFromUnassignManyUsers.status
-          ? responseFromUnassignManyUsers.status
-          : httpStatus.OK;
-
-        return res.status(status).json({
-          message: "users successully unassigned",
-          updated_records: responseFromUnassignManyUsers.data,
-          success: true,
-        });
-      } else if (responseFromUnassignManyUsers.success === false) {
-        const status = responseFromUnassignManyUsers.status
-          ? responseFromUnassignManyUsers.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: responseFromUnassignManyUsers.message,
-          errors: responseFromUnassignManyUsers.errors
-            ? responseFromUnassignManyUsers.errors
-            : { message: "Internal Server Errors" },
-        });
-      }
-    } catch (error) {
-      logObject("error", error);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
-    }
-  },
-
   setManager: async (req, res) => {
     try {
       logText("set the manager....");
@@ -363,35 +306,36 @@ const createNetwork = {
 
       let { tenant } = req.query;
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT || "airqo";
+        tenant = constants.DEFAULT_TENANT;
       }
       let request = Object.assign({}, req);
+      request.action = "setManager";
       request.query.tenant = tenant;
 
-      const responseFromSetManager = await createNetworkUtil.setManager(
+      const responseFromUpdateUser = await createNetworkUtil.setManager(
         request
       );
 
-      if (responseFromSetManager.success === true) {
-        const status = responseFromSetManager.status
-          ? responseFromSetManager.status
+      if (responseFromUpdateUser.success === true) {
+        const status = responseFromUpdateUser.status
+          ? responseFromUpdateUser.status
           : httpStatus.OK;
 
         return res.status(status).json({
           success: true,
-          message: "Network manager successffuly set",
-          updated_network: responseFromSetManager.data,
+          message: "network manager successffuly set",
+          updated_records: responseFromUpdateUser.data,
         });
-      } else if (responseFromSetManager.success === false) {
-        const status = responseFromSetManager.status
-          ? responseFromSetManager.status
+      } else if (responseFromUpdateUser.success === false) {
+        const status = responseFromUpdateUser.status
+          ? responseFromUpdateUser.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromSetManager.message,
-          errors: responseFromSetManager.errors
-            ? responseFromSetManager.errors
-            : { message: "Internal Server Error" },
+          message: responseFromUpdateUser.message,
+          errors: responseFromUpdateUser.errors
+            ? responseFromUpdateUser.errors
+            : { message: "" },
         });
       }
     } catch (error) {
@@ -449,66 +393,6 @@ const createNetwork = {
           message: responseFromUpdateNetwork.message,
           errors: responseFromUpdateNetwork.errors
             ? responseFromUpdateNetwork.errors
-            : { message: "" },
-        });
-      }
-    } catch (error) {
-      logObject("error", error);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
-    }
-  },
-
-  refresh: async (req, res) => {
-    try {
-      logText("update user....");
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
-        );
-      }
-
-      let { tenant } = req.query;
-      logElement("tenant", tenant);
-      if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
-      }
-      let request = Object.assign({}, req);
-      request.query.tenant = tenant;
-
-      const responseFromRefreshNetwork = await createNetworkUtil.refresh(
-        request
-      );
-
-      logObject("responseFromRefreshNetwork", responseFromRefreshNetwork);
-
-      if (responseFromRefreshNetwork.success === true) {
-        const status = responseFromRefreshNetwork.status
-          ? responseFromRefreshNetwork.status
-          : httpStatus.OK;
-
-        return res.status(status).json({
-          success: true,
-          message: responseFromRefreshNetwork.message,
-          refreshed_network: responseFromRefreshNetwork.data || {},
-        });
-      } else if (responseFromRefreshNetwork.success === false) {
-        const status = responseFromRefreshNetwork.status
-          ? responseFromRefreshNetwork.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-
-        return res.status(status).json({
-          success: false,
-          message: responseFromRefreshNetwork.message,
-          errors: responseFromRefreshNetwork.errors
-            ? responseFromRefreshNetwork.errors
             : { message: "" },
         });
       }
@@ -610,68 +494,6 @@ const createNetwork = {
       }
       let request = Object.assign({}, req);
       request.query.tenant = tenant;
-
-      const responseFromListNetworks = await createNetworkUtil.list(request);
-
-      logObject(
-        "responseFromListNetworks in controller",
-        responseFromListNetworks
-      );
-
-      if (responseFromListNetworks.success === true) {
-        const status = responseFromListNetworks.status
-          ? responseFromListNetworks.status
-          : httpStatus.OK;
-
-        return res.status(status).json({
-          success: true,
-          message: responseFromListNetworks.message,
-          networks: responseFromListNetworks.data,
-        });
-      } else if (responseFromListNetworks.success === false) {
-        const status = responseFromListNetworks.status
-          ? responseFromListNetworks.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-
-        return res.status(status).json({
-          message: responseFromListNetworks.message,
-          errors: responseFromListNetworks.errors
-            ? responseFromListNetworks.errors
-            : { message: "" },
-        });
-      }
-    } catch (error) {
-      logElement("internal server error", error.message);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
-    }
-  },
-
-  listSummary: async (req, res) => {
-    try {
-      logText("listing summary of network....");
-
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
-        );
-      }
-
-      let { tenant } = req.query;
-      logElement("tenant", tenant);
-      if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT || "airqo";
-      }
-      let request = Object.assign({}, req);
-      request.query.tenant = tenant;
-      request.query.category = "summary";
 
       const responseFromListNetworks = await createNetworkUtil.list(request);
 

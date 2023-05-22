@@ -9,8 +9,6 @@ from .data_validator import DataValidationUtils
 from .date import str_to_date, date_to_str
 from .utils import Utils
 
-import json
-
 
 class AirnowDataUtils:
     @staticmethod
@@ -26,9 +24,7 @@ class AirnowDataUtils:
             raise Exception(f"Unknown parameter {parameter}")
 
     @staticmethod
-    def query_bam_data(
-        api_key: str, start_date_time: str, end_date_time: str
-    ) -> pd.DataFrame:
+    def query_bam_data(start_date_time: str, end_date_time: str) -> pd.DataFrame:
         airnow_api = AirNowApi()
         start_date_time = date_to_str(
             str_to_date(start_date_time), str_format="%Y-%m-%dT%H:%M"
@@ -38,7 +34,6 @@ class AirnowDataUtils:
         )
 
         data = airnow_api.get_data(
-            api_key=api_key,
             start_date_time=start_date_time,
             boundary_box="-16.9530804676,-33.957634112,54.8058474018,37.2697926495",
             end_date_time=end_date_time,
@@ -48,35 +43,27 @@ class AirnowDataUtils:
 
     @staticmethod
     def extract_bam_data(start_date_time: str, end_date_time: str) -> pd.DataFrame:
-        tenants = AirNowApi().get_tenants()
-        bam_data = pd.DataFrame()
         dates = Utils.query_dates_array(
             start_date_time=start_date_time,
             end_date_time=end_date_time,
             data_source=DataSource.AIRNOW,
         )
 
-        for tenant in tenants:
-            network_api_key = tenant["api_key"]
-            network_data = pd.DataFrame()
+        data = pd.DataFrame()
 
-            for start, end in dates:
-                query_data = AirnowDataUtils.query_bam_data(
-                    api_key=network_api_key, start_date_time=start, end_date_time=end
-                )
-                network_data = pd.concat([network_data, query_data], ignore_index=True)
+        for start, end in dates:
+            query_data = AirnowDataUtils.query_bam_data(
+                start_date_time=start, end_date_time=end
+            )
+            data = pd.concat([data, query_data], ignore_index=True)
 
-            network_data["tenant"] = tenant["network"]
-
-            bam_data = pd.concat([bam_data, network_data], ignore_index=True)
-
-        return bam_data
+        return data
 
     @staticmethod
     def process_bam_data(data: pd.DataFrame) -> pd.DataFrame:
         air_now_data = []
 
-        devices = AirQoApi().get_devices(tenant=Tenant.ALL)
+        devices = AirQoApi().get_devices(tenant=Tenant.US_EMBASSY)
         for _, row in data.iterrows():
             try:
                 device_id = row["FullAQSCode"]
@@ -91,14 +78,10 @@ class AirnowDataUtils:
                 )
 
                 pollutant_value[parameter_col_name] = row["Value"]
-
-                if row["tenant"] != device_details.get("tenant"):
-                    raise Exception("tenants dont match")
-
                 air_now_data.append(
                     {
                         "timestamp": row["UTC"],
-                        "tenant": row["tenant"],
+                        "tenant": str(Tenant.US_EMBASSY),
                         "site_id": device_details.get("site_id"),
                         "device_id": device_details.get("device_id"),
                         "mongo_id": device_details.get("mongo_id"),

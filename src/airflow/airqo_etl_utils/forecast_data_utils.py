@@ -84,6 +84,7 @@ class ForecastDataUtils:
         data = DataValidationUtils.process_for_big_query(
             dataframe=data,
             table=table,
+            tenant=Tenant.ALL,
         )
 
         bigquery_api.load_data(
@@ -105,6 +106,7 @@ class ForecastDataUtils:
         data = DataValidationUtils.process_for_big_query(
             dataframe=data,
             table=table,
+            tenant=Tenant.ALL,
         )
 
         bigquery_api.reload_data(

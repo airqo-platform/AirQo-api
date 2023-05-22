@@ -45,7 +45,7 @@ async function sendWelcomeEmail(email, name) {
     },
     to: email,
     subject: "Welcome to AirQo!",
-    html: emailTemplate.mobileAppWelcome(email, name),
+    html: emailTemplate.mobileAppWelcome(name),
     attachments: [{
       filename: "welcomeImage.png",
       path: "./config/images/welcomeImage.png",
@@ -56,30 +56,6 @@ async function sendWelcomeEmail(email, name) {
       filename: "airqoLogo.png",
       path: "./config/images/airqoLogo.png",
       cid: "AirQoEmailLogo",
-      contentDisposition: "inline",
-    },
-    {
-      filename: "faceBookLogo.png",
-      path: "./config/images/facebookLogo.png",
-      cid: "FacebookLogo",
-      contentDisposition: "inline",
-    },
-    {
-      filename: "youtubeLogo.png",
-      path: "./config/images/youtubeLogo.png",
-      cid: "YoutubeLogo",
-      contentDisposition: "inline",
-    },
-    {
-      filename: "twitterLogo.png",
-      path: "./config/images/Twitter.png",
-      cid: "Twitter",
-      contentDisposition: "inline",
-    },
-    {
-      filename: "linkedInLogo.png",
-      path: "./config/images/linkedInLogo.png",
-      cid: "LinkedInLogo",
       contentDisposition: "inline",
     }],
   };

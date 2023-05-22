@@ -66,6 +66,20 @@ router.post(
         .customSanitizer((value) => {
           return ObjectId(value);
         }),
+      body("user_id")
+        .exists()
+        .withMessage("the user ID is missing in request")
+        .bail()
+        .notEmpty()
+        .withMessage("this user ID cannot be empty")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("user_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
       body("expires")
         .optional()
         .notEmpty()
