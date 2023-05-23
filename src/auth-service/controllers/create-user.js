@@ -289,41 +289,31 @@ const createUser = {
   },
   deleteMobileUserData: async (req, res) => {
     try {
-      const { query, body } = req;
-      let { tenant } = query;
       let responseFromDeleteAppData;
       logText("We are deleting the app data.....");
-      const { email, phoneNumber } = req.query;
+      const { uid } = req.query;
+      const { ct } = req.query;
       
-       if (!email && !phoneNumber) {
-         return res.status(400).json({ errors: [{ msg: 'Either email or phoneNumber is required' }] });
-    }
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        logObject("hasErrors", hasErrors);
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            convertErrorArrayToObject(nestedErrors)
-          )}`
-        );
-
-        return badRequest(
-          res,
-          "User does not exist",
-          convertErrorArrayToObject(nestedErrors)
-        );
+      if (!uid) {
+         return res.status(httpStatus.BAD_REQUEST).json({
+        success: false,
+        message: 'bad request errors',
+        errors: { message: 'User Id is required' },
+      });
       }
-      logText("Finished Validating.....");
+       if (!ct) {
+         return res.status(httpStatus.BAD_REQUEST).json({
+        success: false,
+        message: 'bad request errors',
+        errors: { message: 'Creation time is required' },
+      });
+    }
 
       let request = {};
-      console.log(request);
       request["body"] = {};
-      request["body"]["email"] = email;
-      request["body"]["phoneNumber"] = phoneNumber;
-      console.log(request);
-      logText("Finished cleaning object.....");
+      request["body"]["uid"] = uid;
+      request["body"]["ct"] = ct;
+      logObject("request:", request);
      try {
        responseFromDeleteAppData = await deleteMobileUserUtil.deleteMobileUserData(
          request

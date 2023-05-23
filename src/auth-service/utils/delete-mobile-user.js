@@ -13,45 +13,22 @@ const deleteMobileUser = {
     deleteMobileUserData: async (request) => { 
     try {
       const { body } = request;
-      let { email, phoneNumber } = body;
-      let user;
-      if (phoneNumber !== undefined) {
-        phoneNumber = '+'+phoneNumber.replace(/\s/g, "");
+      let { uid } = body; 
+      let { ct } = body;
+      const userRecord = await admin.auth().getUser(uid);
+      
+      //get creation time and compare with ct
+      let creationTime = userRecord.metadata.creationTime;
+      creationTime = creationTime.replace(/\D/g, "");
+      if (creationTime !== ct) {
+        return {
+          success: false,
+          message: "Invalid request",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "Invalid request" },
+        };
       }
 
-      if (email === undefined&&phoneNumber===undefined) {         
-         return {
-        success: false,
-        message: "Either email or phoneNumber is required",
-         };
-        
-      }
-        
-      if (email !== undefined) {
-        try {
-            user = await getAuth().getUserByEmail(email);
-        } catch (error) {
-          return {
-            success: false,
-            message: "Failed to get user.",
-            errors: { message: error.message },
-          };
-        }   
-
-      }
-        if (phoneNumber !== undefined) {
-          try {
-            user = await getAuth().getUserByPhoneNumber(phoneNumber);
-          } catch (error) {
-            return {
-              success: false,
-              message: "Failed to get user.",
-              errors: { message: error.message },
-              status: httpStatus.OK,
-            };
-          }
-      }
-        let uid = user.uid;
       try {
         await getAuth().deleteUser(uid);
         const collectionList = [
