@@ -240,6 +240,12 @@ async function sendDeleteConfirmationEmail(email, uid, creationTime) {
 exports.confirmAccountDeletionMobile =
   functions.https.onRequest(async (request, response) => {
     const {email} = request.body;
+    if (!email) {
+      response.status(400).json({
+        success: false,
+        message: "Email is required",
+      });
+    }
     let user;
     try {
       try {
