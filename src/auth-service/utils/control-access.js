@@ -782,6 +782,53 @@ const controlAccess = {
     }
   },
 
+  listRolesForNetwork: async (request) => {
+    try {
+      const { query, params } = request;
+      const { net_id } = params;
+      const { tenant } = query;
+
+      const network = await NetworkModel(tenant).findById(net_id);
+      if (!network) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: {
+            message: `Network ${net_id.toString()} Not Found`,
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const roleResponse = await RoleModel(tenant).find({
+        network_id: ObjectId(net_id),
+      });
+
+      if (!isEmpty(roleResponse)) {
+        return {
+          success: true,
+          message: "Successful Operation",
+          status: httpStatus.OK,
+          data: roleResponse,
+        };
+      } else if (isEmpty(roleResponse)) {
+        return {
+          success: true,
+          message: "No roles for this Network",
+          status: httpStatus.OK,
+          data: [],
+        };
+      }
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
   deleteRole: async (request) => {
     try {
       const { query } = request;
