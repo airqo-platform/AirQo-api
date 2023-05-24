@@ -214,7 +214,7 @@ const createUser = {
   },
   googleCallback: async (req, res) => {
     try {
-      res.redirect("/");
+      res.redirect("https://analytics.airqo.net/");
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
       res.status(httpStatus.INTERNAL_SERVER_ERROR).json({

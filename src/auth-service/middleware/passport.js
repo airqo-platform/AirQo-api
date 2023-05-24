@@ -10,6 +10,12 @@ const { logElement, logText, logObject, winstonLogger } = require("@utils/log");
 const { Strategy: JwtStrategy, ExtractJwt } = require("passport-jwt");
 const AuthTokenStrategy = require("passport-auth-token");
 const jwt = require("jsonwebtoken");
+const accessCodeGenerator = require("generate-password");
+
+const session = require("express-session");
+const MongoStore = require("connect-mongo")(session);
+const mongoose = require("mongoose");
+const app = require("@root/app");
 
 const { getModelByTenant } = require("@config/dbConnection");
 
@@ -202,36 +208,114 @@ const useGoogleStrategy = (tenant, req, res, next) =>
       clientID: constants.GOOGLE_CLIENT_ID,
       clientSecret: constants.GOOGLE_CLIENT_SECRET,
       callbackURL: `${constants.PLATFORM_BASE_URL}/api/v1/users/auth/google/callback`,
-      passReqToCallback: true,
     },
-    function (accessToken, refreshToken, profile, cb) {
-      logObject("Google profile", profile);
-      logger.info(`the value of the Google account ${JSON.stringify(profile)}`);
-      req.auth = {};
-      UserModel(tenant.toLowerCase())
-        .findOneAndUpdate(
-          { google_id: profile.id },
-          {
-            google_id: profile.id,
-            firstName: profile.givenName,
-            lastName: profile.familyName,
-            profilePicture: profile.photos[0].value,
-            email: profile.emails[0].value,
-            userName: profile.displayName,
-          },
-          { upsert: true, new: true }
-        )
-        .then((user) => {
-          req.auth.success = true;
-          req.auth.message = "successful login or registration";
-          return cb(null, user);
-        })
-        .catch((error) => {
-          req.auth.success = false;
-          req.auth.message = "Server Error";
-          req.auth.error = error.message;
-          next();
+    async (accessToken, refreshToken, profile, cb) => {
+      // logObject("type of profile", typeof profile);
+      logObject("Google profile Object", profile._json);
+      // logObject("accessToken", accessToken);
+      // logObject("refreshToken", refreshToken);
+      // logger.info(
+      //   `the profile value of the Google account ${JSON.stringify(profile)}`
+      // );
+
+      try {
+        // Check if the user already exists in the database
+        const service = req.headers["service"];
+        let user = await UserModel(tenant.toLowerCase()).findOne({
+          email: profile._json.email,
         });
+        req.auth = {};
+        if (user) {
+          // User exists, return the user
+          /**
+           * we could update some user details
+           */
+          logObject("the user", user);
+          req.auth.success = true;
+          req.auth.message = "successful login";
+
+          winstonLogger.info(
+            `successful login through ${service ? service : "unknown"} service`,
+            {
+              username: user.userName,
+              email: user.email,
+              service: service ? service : "none",
+            }
+          );
+          return cb(null, user);
+        } else {
+          // User doesn't exist, create a new user
+          user = await UserModel(tenant).create({
+            google_id: profile._json.sub,
+            firstName: profile._json.given_name,
+            lastName: profile._json.family_name,
+            email: profile._json.email,
+            userName: profile._json.email,
+            profilePicture: profile._json.picture,
+            website: profile._json.hd,
+            password: accessCodeGenerator.generate(
+              constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH)
+            ),
+          });
+
+          // Return the new user
+          return cb(null, user);
+        }
+        // req.auth = {};
+        // const updatedUser = await UserModel(
+        //   tenant.toLowerCase()
+        // ).findOneAndUpdate(
+        //   { google_id: profile._json.sub },
+        //   {
+        //     google_id: profile._json.sub,
+        //     firstName: profile._json.given_name,
+        //     lastName: profile._json.family_name,
+        //     email: profile._json.email,
+        //     userName: profile._json.email,
+        //     profilePicture: profile._json.picture,
+        //     website: profile._json.hd,
+        //   },
+        //   { upsert: true, new: true }
+        // );
+        // if (updatedUser) {
+        //   req.auth.success = true;
+        //   req.auth.message = "successful login or registration";
+        //   return cb(null, updatedUser);
+        // }
+      } catch (error) {
+        // req.auth.success = false;
+        // req.auth.message = "Server Error";
+        // req.auth.error = error.message;
+        // next();
+        return cb(error, false);
+      }
+
+      // UserModel(tenant.toLowerCase())
+      //   .findOneAndUpdate(
+      //     { google_id: profile._json.sub },
+      //     {
+      //       google_id: profile._json.sub,
+      //       firstName: profile._json.given_name,
+      //       lastName: profile._json.family_name,
+      //       email: profile._json.email,
+      //       userName: profile._json.email,
+      //       profilePicture: profile._json.picture,
+      //       website: profile._json.hd,
+      //     },
+      //     { upsert: true, new: true }
+      //   )
+      //   .then((user) => {
+      //     req.auth.success = true;
+      //     req.auth.message = "successful login or registration";
+      //     return cb(null, user);
+      //   })
+      //   .catch((error) => {
+      //     req.auth.success = false;
+      //     req.auth.message = "Server Error";
+      //     req.auth.error = error.message;
+      //     next();
+      //     // return cb(error, false);
+      //   });
     }
   );
 const useJWTStrategy = (tenant, req, res, next) =>
@@ -321,7 +405,32 @@ const setLocalStrategy = (tenant, req, res, next) => {
 };
 
 const setGoogleStrategy = (tenant, req, res, next) => {
-  passport.use("google", useGoogleStrategy(tenant, req, res, next));
+  passport.use(useGoogleStrategy(tenant, req, res, next));
+  passport.serializeUser((user, done) => {
+    done(null, user);
+  });
+  passport.deserializeUser(async (user, done) => {
+    await UserModel(tenant.toLowerCase())
+      .findById(id)
+      .then((user) => {
+        done(null, user);
+      });
+  });
+
+  const options = { mongooseConnection: mongoose.connection };
+
+  // Configure session middleware
+  // app.use(
+  //   session({
+  //     secret: process.env.SESSION_SECRET,
+  //     store: new MongoStore(options),
+  //     resave: false,
+  //     saveUninitialized: false,
+  //   })
+  // );
+
+  // app.use(passport.initialize());
+  // app.use(passport.session());
 };
 
 const setJWTStrategy = (tenant, req, res, next) => {
@@ -432,8 +541,7 @@ const authGoogle = passport.authenticate("google", {
 });
 
 const authGoogleCallback = passport.authenticate("google", {
-  failureRedirect: "/account/creation/",
-  successRedirect: "/",
+  failureRedirect: "https://airqo.net/",
 });
 
 const authGuest = (req, res, next) => {
