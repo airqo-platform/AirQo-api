@@ -142,7 +142,7 @@ class CollocationBatchStatus(Enum):
 
 
 class CollocationDeviceStatus(Enum):
-    RE_RUN_REQUIRED = "RE_RUN_REQUIRED"
+    ERROR = "ERROR"
     FAILED = "FAILED"
     PASSED = "PASSED"
     RUNNING = "RUNNING"
