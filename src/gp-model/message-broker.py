@@ -27,35 +27,7 @@ class MessageBroker:
                 data = msg.value
                 topic = msg.topic
 
-                if topic == Config.MEASUREMENTS_TOPIC:
-                    print(f"\n\nReceived measurements: {data}\n\n")
-                    try:
-                        formatted_data = [
-                            {
-                                "site_id": row.get("site_id", None),
-                                "network": row.get("network", None),
-                                "pm2_5_calibrated_value": row.get(
-                                    "pm2_5_calibrated_value", None
-                                ),
-                                "pm2_5_raw_value": row.get("pm2_5_raw_value", None),
-                                "pm10_calibrated_value": row.get(
-                                    "pm10_calibrated_value", None
-                                ),
-                                "pm10_raw_value": row.get("pm10_raw_value", None),
-                                "timestamp": row.get("timestamp", None),
-                                "site_longitude": row.get("site_longitude", None),
-                                "site_latitude": row.get("site_latitude", None),
-                            }
-                            for row in data["data"]
-                        ]
-
-                        db_client.measurements.insert_many(formatted_data)
-                        print(f"\n\nSaved measurements: {formatted_data}\n\n")
-                    except Exception as ex:
-                        print(ex)
-                        traceback.print_exc()
-
-                elif topic == Config.AIRQLOUDS_TOPIC:
+                if topic == Config.AIRQLOUDS_TOPIC:
                     try:
                         print(f"\n\nReceived airqlouds: {data}\n\n")
                         formatted_data = [
