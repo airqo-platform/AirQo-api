@@ -110,7 +110,14 @@ const createNetwork = {
           segments = net_email.split("@").filter((segment) => segment);
           network = segments[1].split(".")[0];
         } else if (!isCompanyEmail) {
-          network = "airqo";
+          return {
+            success: false,
+            message: "Bad Request Error",
+            errors: {
+              message: "You need a company email for this operation",
+            },
+            status: httpStatus.BAD_REQUEST,
+          };
         }
       }
 
@@ -165,6 +172,41 @@ const createNetwork = {
       } else if (responseFromExtractNetworkName.success === false) {
         return responseFromExtractNetworkName;
       }
+
+      const networkObject = await NetworkModel(tenant.toLowerCase())
+        .findOne({ net_website: modifiedBody.net_website })
+        .lean();
+      if (!isEmpty(networkObject)) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: {
+            message: `Network for ${modifiedBody.net_website} already exists`,
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const user = request.user;
+      logObject("the user making the request", user);
+      if (!isEmpty(user)) {
+        modifiedBody.net_manager = ObjectId(user._id);
+        modifiedBody.net_manager_username = user.email;
+        modifiedBody.net_manager_firstname = user.firstName;
+        modifiedBody.net_manager_lastname = user.lastName;
+      } else if (isEmpty(user)) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: "creator's details are not provided" },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      /**
+       * this person needs to be added to be assigned to this network?
+       * this user also needs to be assigned a rolem, super ADMIN
+       */
 
       logObject("modifiedBody", modifiedBody);
       const responseFromRegisterNetwork = await NetworkModel(tenant).register(

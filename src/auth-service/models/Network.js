@@ -25,7 +25,11 @@ const NetworkSchema = new Schema(
       type: ObjectId,
       ref: "network",
     },
-    net_name: { type: String, required: [true, "net_name is required"] },
+    net_name: {
+      type: String,
+      required: [true, "net_name is required"],
+      unique: true,
+    },
     net_status: { type: String, default: "inactive" },
     net_manager: { type: ObjectId },
     net_last: { type: Number },
@@ -49,6 +53,7 @@ const NetworkSchema = new Schema(
     net_acronym: {
       type: String,
       required: [true, "net_acronym is required"],
+      unique: true,
     },
     net_category: {
       type: String,
