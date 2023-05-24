@@ -16,10 +16,10 @@ def airqo_bam_historical_measurements():
     @task()
     def extract_bam_data(**kwargs):
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
-        from airqo_etl_utils.utils import Utils
         from airqo_etl_utils.constants import DeviceCategory
+        from airqo_etl_utils.date import DateUtils
 
-        start_date_time, end_date_time = Utils.get_dag_date_time_config(**kwargs)
+        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(historical=True, **kwargs)
 
         return AirQoDataUtils.extract_devices_data(
             start_date_time=start_date_time,
