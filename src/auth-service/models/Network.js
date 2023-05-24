@@ -49,7 +49,6 @@ const NetworkSchema = new Schema(
     net_acronym: {
       type: String,
       required: [true, "net_acronym is required"],
-      unique: true,
     },
     net_category: {
       type: String,
@@ -58,7 +57,6 @@ const NetworkSchema = new Schema(
       {
         type: ObjectId,
         ref: "user",
-        unique: true,
       },
     ],
     net_departments: [
@@ -83,7 +81,6 @@ const NetworkSchema = new Schema(
       {
         type: ObjectId,
         ref: "group",
-        unique: true,
       },
     ],
   },
