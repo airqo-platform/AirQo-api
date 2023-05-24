@@ -232,6 +232,12 @@ NetworkSchema.statics = {
             {
               $addFields: {
                 role: { $arrayElemAt: ["$role", 0] },
+                createdAt: {
+                  $dateToString: {
+                    format: "%Y-%m-%d %H:%M:%S",
+                    date: "$_id",
+                  },
+                },
               },
             },
             {
