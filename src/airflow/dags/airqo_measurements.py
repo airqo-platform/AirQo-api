@@ -112,7 +112,7 @@ def airqo_historical_hourly_measurements():
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
-            days=7, **kwargs
+            historical=True, days=7, **kwargs
         )
         return AirQoDataUtils.extract_aggregated_raw_data(
             start_date_time=start_date_time,
@@ -124,7 +124,7 @@ def airqo_historical_hourly_measurements():
         from airqo_etl_utils.date import DateUtils
         from airqo_etl_utils.weather_data_utils import WeatherDataUtils
 
-        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(**kwargs)
+        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(historical=True,**kwargs)
 
         return WeatherDataUtils.extract_hourly_weather_data(
             start_date_time=start_date_time,
@@ -184,7 +184,7 @@ def airqo_historical_raw_measurements():
         from airqo_etl_utils.constants import DeviceCategory
 
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
-            days=2, **kwargs
+            historical=True,days=2, **kwargs
         )
         return AirQoDataUtils.extract_devices_data(
             start_date_time=start_date_time,
