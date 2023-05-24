@@ -13,11 +13,13 @@ class DateUtils:
     @staticmethod
     def get_dag_date_time_values(days: int = None, hours: int = None, **kwargs):
         try:
-            args = kwargs.get("kwargs")
-            dag_run = args.get("dag_run", None)
-            start_date_time = dag_run.conf["start_date_time"]
-            end_date_time = dag_run.conf["end_date_time"]
-        except Exception:
+            params = kwargs.get("params", {})
+            start_date_time = kwargs.get("params", {}).get("start_date_time")
+            end_date_time = kwargs.get("params", {}).get("end_date_time")
+            print("START DATE TIME:", start_date_time)
+            print("END DATE TIME:", end_date_time)
+        except Exception as e:
+            print(repr(e))
             if hours is not None:
                 start_date_time = datetime.utcnow() - timedelta(hours=hours)
                 end_date_time = start_date_time + timedelta(hours=hours)
