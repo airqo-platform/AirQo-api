@@ -8,7 +8,6 @@ const { badRequest, convertErrorArrayToObject } = require("@utils/errors");
 const isEmpty = require("is-empty");
 const controlAccessUtil = require("@utils/control-access");
 const constants = require("@config/constants");
-const deleteMobileUserUtil  = require("@utils/delete-mobile-user");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-user-controller`
@@ -293,21 +292,6 @@ const createUser = {
       logText("We are deleting the app data.....");
       const { uid } = req.query;
       const { ct } = req.query;
-      
-      if (!uid) {
-         return res.status(httpStatus.BAD_REQUEST).json({
-        success: false,
-        message: 'bad request errors',
-        errors: { message: 'User Id is required' },
-      });
-      }
-       if (!ct) {
-         return res.status(httpStatus.BAD_REQUEST).json({
-        success: false,
-        message: 'bad request errors',
-        errors: { message: 'Creation time is required' },
-      });
-    }
 
       let request = {};
       request["body"] = {};
@@ -315,7 +299,7 @@ const createUser = {
       request["body"]["ct"] = ct;
       logObject("request:", request);
      try {
-       responseFromDeleteAppData = await deleteMobileUserUtil.deleteMobileUserData(
+       responseFromDeleteAppData = await createUserUtil.deleteMobileUserData(
          request
        );
      } catch (error) {
