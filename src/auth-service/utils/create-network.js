@@ -975,16 +975,29 @@ const createNetwork = {
       }
 
       const responseFromListAvailableUsers = await UserModel(tenant)
-        .find({ networks: { $nin: [net_id.toString()] } })
-        .select({
-          _id: 1,
-          email: 1,
-          firstName: 1,
-          lastName: 1,
-          createdAt: 1,
-          userName: 1,
-        })
-        .lean();
+        .aggregate([
+          {
+            $match: {
+              networks: { $nin: [net_id.toString()] },
+            },
+          },
+          {
+            $project: {
+              _id: 1,
+              email: 1,
+              firstName: 1,
+              lastName: 1,
+              createdAt: {
+                $dateToString: {
+                  format: "%Y-%m-%d %H:%M:%S",
+                  date: "$_id",
+                },
+              },
+              userName: 1,
+            },
+          },
+        ])
+        .exec();
 
       logObject(
         "responseFromListAvailableUsers",
