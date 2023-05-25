@@ -123,7 +123,12 @@ const defaultConfig = {
     net_name: 1,
     net_description: 1,
     net_acronym: 1,
-    createdAt: 1,
+    createdAt: {
+      $dateToString: {
+        format: "%Y-%m-%d %H:%M:%S",
+        date: "$_id",
+      },
+    },
     net_manager: { $arrayElemAt: ["$net_manager", 0] },
     net_users: "$net_users",
     net_permissions: "$net_permissions",
