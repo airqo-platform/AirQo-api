@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from flask import Blueprint, request
 
 from helpers.utils import get_all_gp_predictions, get_gp_predictions, get_gp_predictions_id, get_forecasts_helper, \
-    get_predictions_by_geo_coordinates
+    get_predictions_by_geo_coordinates, get_health_tips
 from routes import api
 
 load_dotenv()
@@ -70,7 +70,18 @@ def search_predictions():
                                                   longitude=longitude,
                                                   distance_in_metres=distance_in_metres
                                                   )
+        if data:
+            health_tips = get_health_tips()
+            pm2_5 = data["pm2_5"]
+            data["health_tips"] = list(
+                filter(
+                    lambda x: x["aqi_category"]["max"] >= pm2_5 >= x["aqi_category"]["min"],
+                    health_tips,
+                )
+            )
+
         return {'success': True, 'data': data}, 200
+
     except Exception as ex:
         print(ex)
         traceback.print_exc()
