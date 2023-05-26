@@ -1,0 +1,8 @@
+pandas
+requests
+google-cloud-bigquery
+google-cloud-bigquery[pandas]
+geopandas
+pymongo
+xgboost
+python-dotenv
