@@ -791,39 +791,40 @@ const createNetwork = {
 
       request.query.tenant = tenant;
 
-      const responseFromListNetworks = await createNetworkUtil.list(request);
+      const responseFromListAssignedUsers =
+        await createNetworkUtil.listAssignedUsers(request);
 
       logObject(
-        "responseFromListNetworks in controller",
-        responseFromListNetworks
+        "responseFromListAssignedUsers in controller",
+        responseFromListAssignedUsers
       );
 
-      if (responseFromListNetworks.success === true) {
-        const status = responseFromListNetworks.status
-          ? responseFromListNetworks.status
+      if (responseFromListAssignedUsers.success === true) {
+        const status = responseFromListAssignedUsers.status
+          ? responseFromListAssignedUsers.status
           : httpStatus.OK;
-        if (responseFromListNetworks.data.length === 0) {
+        if (responseFromListAssignedUsers.data.length === 0) {
           return res.status(status).json({
             success: true,
-            message: responseFromListNetworks.message,
+            message: "no assigned users to this network",
             assigned_users: [],
           });
         }
         return res.status(status).json({
           success: true,
-          message: "successfully retrieved the users for this network",
-          assigned_users: responseFromListNetworks.data[0].net_users,
+          message: "successfully retrieved the assigned users for this network",
+          assigned_users: responseFromListAssignedUsers.data,
         });
-      } else if (responseFromListNetworks.success === false) {
-        const status = responseFromListNetworks.status
-          ? responseFromListNetworks.status
+      } else if (responseFromListAssignedUsers.success === false) {
+        const status = responseFromListAssignedUsers.status
+          ? responseFromListAssignedUsers.status
           : httpStatus.INTERNAL_SERVER_ERROR;
 
         return res.status(status).json({
           success: false,
-          message: responseFromListNetworks.message,
-          errors: responseFromListNetworks.errors
-            ? responseFromListNetworks.errors
+          message: responseFromListAssignedUsers.message,
+          errors: responseFromListAssignedUsers.errors
+            ? responseFromListAssignedUsers.errors
             : { message: "" },
         });
       }
