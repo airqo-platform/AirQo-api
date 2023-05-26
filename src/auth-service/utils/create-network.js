@@ -11,6 +11,7 @@ const mongoose = require("mongoose").set("debug", true);
 const ObjectId = mongoose.Types.ObjectId;
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- network-util`);
+const controlAccessUtil = require("@utils/control-access");
 
 const NetworkModel = (tenant) => {
   try {
@@ -203,11 +204,6 @@ const createNetwork = {
         };
       }
 
-      /**
-       * this person needs to be added to be assigned to this network?
-       * this user also needs to be assigned a rolem, super ADMIN
-       */
-
       logObject("modifiedBody", modifiedBody);
       const responseFromRegisterNetwork = await NetworkModel(tenant).register(
         modifiedBody
@@ -216,11 +212,105 @@ const createNetwork = {
       logObject("responseFromRegisterNetwork", responseFromRegisterNetwork);
 
       if (responseFromRegisterNetwork.success === true) {
-        return responseFromRegisterNetwork;
+        logObject("responseFromRegisterNetwork", responseFromRegisterNetwork);
+        const net_id = responseFromRegisterNetwork.data._doc._id;
+        if (isEmpty(net_id)) {
+          return {
+            success: false,
+            message: "Internal Server Error",
+            errors: {
+              message: "Unable to retrieve the network Id of created network",
+            },
+          };
+        }
+
+        /**
+         * create the SUPER ADMIN role for this network
+         * assign the main permissions to the role
+         * assign this user to this new super ADMIN role
+         */
+
+        let requestForRole = {};
+        requestForRole.query = {};
+        requestForRole.query.tenant = tenant;
+        requestForRole.body = {
+          role_code: "SUPER ADMIN",
+          role_name: "SUPER ADMIN",
+          network_id: net_id,
+        };
+
+        const responseFromCreateRole = await controlAccessUtil.createRole(
+          requestForRole
+        );
+
+        if (responseFromCreateRole.success === false) {
+          return responseFromCreateRole;
+        } else if (responseFromCreateRole.success === true) {
+          /**
+           *  * assign the main permissions to the role
+           */
+          logObject("responseFromCreateRole", responseFromCreateRole);
+          const role_id = responseFromCreateRole.data._id;
+          if (isEmpty(role_id)) {
+            return {
+              success: false,
+              message: "Internal Server Error",
+              errors: {
+                message:
+                  "Unable to retrieve the role id of the newly create super admin of this network",
+              },
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+            };
+          }
+          const superAdminPermissions = constants.SUPER_ADMIN_PERMISSIONS
+            ? constants.SUPER_ADMIN_PERMISSIONS
+            : [];
+          logObject(
+            "constants.SUPER_ADMIN_PERMISSIONS",
+            constants.SUPER_ADMIN_PERMISSIONS
+          );
+
+          let requestToAssignPermissions = {};
+          requestToAssignPermissions.body = {};
+          requestToAssignPermissions.body.permissions = superAdminPermissions;
+          requestToAssignPermissions.query = {};
+          requestToAssignPermissions.query.tenant = tenant;
+          requestToAssignPermissions.params = {};
+          requestToAssignPermissions.params = { role_id };
+
+          const responseFromAssignPermissionsToRole =
+            await controlAccessUtil.assignPermissionsToRole(
+              requestToAssignPermissions
+            );
+          if (responseFromAssignPermissionsToRole.success === false) {
+            return responseFromAssignPermissionsToRole;
+          } else if (responseFromAssignPermissionsToRole.success === true) {
+            /**
+             * assign this user to this new super ADMIN role and this new network
+             */
+            const updatedUser = await UserModel(tenant).findByIdAndUpdate(
+              user._id,
+              { $addToSet: { networks: net_id }, role: role_id },
+              { new: true }
+            );
+
+            if (isEmpty(updatedUser)) {
+              return {
+                success: false,
+                message: "Internal Server Error",
+                errors: {
+                  message: `Unable to assign the network to the User ${user._id}`,
+                },
+              };
+            }
+            return responseFromRegisterNetwork;
+          }
+        }
       } else if (responseFromRegisterNetwork.success === false) {
         return responseFromRegisterNetwork;
       }
     } catch (err) {
+      logObject("error here is big", err);
       return {
         success: false,
         message: "network util server errors",
@@ -731,7 +821,7 @@ const createNetwork = {
       }
     } catch (error) {
       logElement("internal server error", error.message);
-      logObject("error", error);
+      logObject("error here again", error);
       logger.error(`Internal Server Error ${error.message}`);
       return {
         success: false,
