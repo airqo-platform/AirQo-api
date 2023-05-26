@@ -978,7 +978,7 @@ const createNetwork = {
         .aggregate([
           {
             $match: {
-              networks: { $nin: [net_id.toString()] },
+              networks: { $nin: [net_id] },
             },
           },
           {
