@@ -458,6 +458,10 @@ const controlAccess = {
       modifiedBody["client_secret"] = client_secret;
       modifiedBody["client_id"] = client_id;
 
+      /**
+       * does the user or client ID actually exist?
+       */
+
       const responseFromCreateToken = await AccessTokenModel(
         tenant.toLowerCase()
       ).register(modifiedBody);
@@ -778,6 +782,53 @@ const controlAccess = {
     }
   },
 
+  listRolesForNetwork: async (request) => {
+    try {
+      const { query, params } = request;
+      const { net_id } = params;
+      const { tenant } = query;
+
+      const network = await NetworkModel(tenant).findById(net_id);
+      if (!network) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: {
+            message: `Network ${net_id.toString()} Not Found`,
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const roleResponse = await RoleModel(tenant).find({
+        network_id: ObjectId(net_id),
+      });
+
+      if (!isEmpty(roleResponse)) {
+        return {
+          success: true,
+          message: "Successful Operation",
+          status: httpStatus.OK,
+          data: roleResponse,
+        };
+      } else if (isEmpty(roleResponse)) {
+        return {
+          success: true,
+          message: "No roles for this Network",
+          status: httpStatus.OK,
+          data: [],
+        };
+      }
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
   deleteRole: async (request) => {
     try {
       const { query } = request;
@@ -844,6 +895,12 @@ const controlAccess = {
           },
         };
       }
+
+      /***
+       * add to the Network's "net_roles" will be done at this step
+       * Still exploring the pros and cons
+       */
+
       const organizationName = network.net_name.toUpperCase();
       newBody.role_name = `${organizationName}_${body.role_name}`;
       newBody.role_code = `${organizationName}_${body.role_code}`;

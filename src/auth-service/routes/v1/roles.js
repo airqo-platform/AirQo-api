@@ -52,6 +52,18 @@ router.get(
         .bail()
         .isIn(["kcca", "airqo"])
         .withMessage("the tenant value is not among the expected ones"),
+      query("network_id")
+        .optional()
+        .notEmpty()
+        .withMessage("network_id must not be empty if provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("network_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
     ],
   ]),
   setJWTAuth,

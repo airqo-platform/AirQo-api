@@ -1,9 +1,15 @@
 import decimal
+import traceback
+from datetime import datetime, timedelta
 
+import pandas as pd
+import requests
 from dotenv import load_dotenv
 from flask import request, jsonify
+from google.cloud import bigquery
 
-from config.constants import connect_mongo
+from app import cache
+from config.constants import connect_mongo, Config
 from models.predict import get_forecasts
 from geojson import Feature, FeatureCollection, Point
 
@@ -31,24 +37,87 @@ class CustomEncoder(json.JSONEncoder):
             return int(obj)
         else:
             return super(CustomEncoder, self).default(obj)
+def date_to_str(date: datetime):
+    return date.isoformat()
 
+def geo_coordinates_cache_key():
+    key = (
+        "geo_coordinates:"
+        + str(round(float(request.args.get("latitude")), 6))
+        + ":"
+        + str(round(float(request.args.get("longitude")), 6))
+        + ":"
+        + str(request.args.get("distance_in_metres"))
+    )
+    return key
+
+
+@cache.memoize(timeout=3600)
+def get_health_tips() -> list[dict]:
+    try:
+        response = requests.get(
+            f"{Config.AIRQO_BASE_URL}/api/v2/devices/tips?token={Config.AIRQO_API_AUTH_TOKEN}",
+            timeout=3,
+        )
+        result = response.json()
+        return result["tips"]
+    except Exception as ex:
+        print(ex)
+        traceback.print_exc()
+        cache.delete_memoized(get_health_tips)
+        return []
+
+
+@cache.cached(timeout=3600, key_prefix=geo_coordinates_cache_key)
+def get_predictions_by_geo_coordinates(
+    latitude: float, longitude: float, distance_in_metres: int
+) -> dict:
+    client = bigquery.Client()
+
+    query = (
+        f"SELECT pm2_5, timestamp, pm2_5_confidence_interval "
+        f"FROM `{Config.BIGQUERY_MEASUREMENTS_PREDICTIONS}` "
+        f"WHERE ST_DISTANCE(location, ST_GEOGPOINT({longitude}, {latitude})) <= {distance_in_metres} "
+        f"ORDER BY pm2_5_confidence_interval "
+        f"LIMIT 1"
+    )
+    dataframe = client.query(query=query).result().to_dataframe()
+
+    if dataframe.empty:
+        return {}
+
+    dataframe["timestamp"] = dataframe["timestamp"].apply(pd.to_datetime)
+    dataframe["timestamp"] = dataframe["timestamp"].apply(date_to_str)
+    dataframe.drop_duplicates(keep="first", inplace=True)
+
+    data = dataframe.to_dict("records")[0]
+
+    return data
 
 def get_forecasts_helper(db_name):
     """
     Helper function to get forecasts for a given site_id and db_name
     """
-    if request.method == 'GET':
-        site_id = request.args.get('site_id')
+    if request.method == "GET":
+        site_id = request.args.get("site_id")
         if site_id is None or not isinstance(site_id, str):
-            return jsonify({"message": "Please specify a site_id", "success": False}), 400
+            return (
+                jsonify({"message": "Please specify a site_id", "success": False}),
+                400,
+            )
         if len(site_id) != 24:
-            return jsonify({"message": "Please enter a valid site_id", "success": False}), 400
+            return (
+                jsonify({"message": "Please enter a valid site_id", "success": False}),
+                400,
+            )
         result = get_forecasts(site_id, db_name)
         if result:
             response = result
         else:
             response = {
-                "message": "forecasts for this site are not available", "success": False}
+                "message": "forecasts for this site are not available",
+                "success": False,
+            }
         data = jsonify(response)
         return data, 200
     else:
@@ -98,3 +167,5 @@ def convert_to_geojson(records):
 
     feature_collection = FeatureCollection(features)
     return feature_collection
+if __name__ == "__main__":
+    print("main")

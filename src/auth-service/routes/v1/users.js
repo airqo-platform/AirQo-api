@@ -7,6 +7,7 @@ const {
   setJWTAuth,
   authJWT,
   setLocalAuth,
+  authGoogleCallback,
   setGoogleAuth,
   setGuestToken,
   authLocal,
@@ -207,7 +208,8 @@ router.get(
 
 router.get(
   "/auth/google/callback",
-  authGoogle,
+  setGoogleAuth,
+  authGoogleCallback,
   createUserController.googleCallback
 );
 

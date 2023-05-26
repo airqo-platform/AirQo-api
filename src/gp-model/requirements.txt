@@ -6,3 +6,5 @@ gpflow
 tensorflow
 requests
 shapely
+google-cloud-bigquery
+google-cloud-bigquery[pandas]
