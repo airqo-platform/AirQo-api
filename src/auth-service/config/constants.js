@@ -7,9 +7,11 @@ const devConfig = {
   FORGOT_PAGE: `${process.env.PLATFORM_DEV_BASE_URL}/forgot`,
   PLATFORM_BASE_URL: process.env.PLATFORM_DEV_BASE_URL,
   ENVIRONMENT: "DEVELOPMENT ENVIRONMENT",
-  KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_DEV.split(
-    ","
-  ).filter((value) => value.trim() !== ""),
+  KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_DEV
+    ? process.env.KAFKA_BOOTSTRAP_SERVERS_DEV.split(",").filter(
+        (value) => value.trim() !== ""
+      )
+    : [],
   KAFKA_TOPICS: process.env.KAFKA_TOPICS_DEV,
   SCHEMA_REGISTRY: process.env.SCHEMA_REGISTRY_DEV,
   KAFKA_RAW_MEASUREMENTS_TOPICS: process.env.KAFKA_RAW_MEASUREMENTS_TOPICS_DEV,
@@ -27,9 +29,11 @@ const prodConfig = {
   FORGOT_PAGE: `${process.env.PLATFORM_PRODUCTION_BASE_URL}/forgot`,
   PLATFORM_BASE_URL: process.env.PLATFORM_PRODUCTION_BASE_URL,
   ENVIRONMENT: "PRODUCTION ENVIRONMENT",
-  KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_PROD.split(
-    ","
-  ).filter((value) => value.trim() !== ""),
+  KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_PROD
+    ? process.env.KAFKA_BOOTSTRAP_SERVERS_PROD.split(",").filter(
+        (value) => value.trim() !== ""
+      )
+    : [],
   KAFKA_TOPICS: process.env.KAFKA_TOPICS_PROD,
   SCHEMA_REGISTRY: process.env.SCHEMA_REGISTRY_PROD,
   KAFKA_RAW_MEASUREMENTS_TOPICS: process.env.KAFKA_RAW_MEASUREMENTS_TOPICS_PROD,
@@ -47,9 +51,11 @@ const stageConfig = {
   FORGOT_PAGE: `${process.env.PLATFORM_STAGING_BASE_URL}/forgot`,
   PLATFORM_BASE_URL: process.env.PLATFORM_STAGING_BASE_URL,
   ENVIRONMENT: "STAGING ENVIRONMENT",
-  KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_STAGE.split(
-    ","
-  ).filter((value) => value.trim() !== ""),
+  KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_STAGE
+    ? process.env.KAFKA_BOOTSTRAP_SERVERS_STAGE.split(",").filter(
+        (value) => value.trim() !== ""
+      )
+    : [],
   KAFKA_TOPICS: process.env.KAFKA_TOPICS_STAGE,
   SCHEMA_REGISTRY: process.env.SCHEMA_REGISTRY_STAGE,
   KAFKA_RAW_MEASUREMENTS_TOPICS:
@@ -60,9 +66,11 @@ const stageConfig = {
 };
 
 const defaultConfig = {
-  SUPER_ADMIN_PERMISSIONS: process.env.SUPER_ADMIN_PERMISSIONS.split(
-    ","
-  ).filter((value) => value.trim() !== ""),
+  SUPER_ADMIN_PERMISSIONS: process.env.SUPER_ADMIN_PERMISSIONS
+    ? process.env.SUPER_ADMIN_PERMISSIONS.split(",").filter(
+        (value) => value.trim() !== ""
+      )
+    : [],
   UNIQUE_CONSUMER_GROUP: process.env.UNIQUE_CONSUMER_GROUP,
   UNIQUE_PRODUCER_GROUP: process.env.UNIQUE_PRODUCER_GROUP,
   NEW_MOBILE_APP_USER_TOPIC: process.env.NEW_MOBILE_APP_USER_TOPIC,
