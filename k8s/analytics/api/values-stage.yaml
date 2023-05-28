@@ -1,7 +1,10 @@
 replicaCount: 2
-image:
-  repository: eu.gcr.io/airqo-250220/airqo-stage-analytics-api
-  tag: stage-51eff596-1683097185
+images:
+  repositories:
+    api: eu.gcr.io/airqo-250220/airqo-stage-analytics-api
+    celeryBeat: eu.gcr.io/airqo-250220/airqo-stage-analytics-celery-beat
+    celeryWorker: eu.gcr.io/airqo-250220/airqo-stage-analytics-celery-worker
+  tag: stage-8df87f45-1679916944
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
@@ -36,3 +39,5 @@ app:
   label: sta-alytics-api
   namespace: staging
   configmap: env-analytics-staging
+image:
+  tag: stage-0282c90c-1685277036
