@@ -11,7 +11,7 @@ const ObjectId = mongoose.Types.ObjectId;
 const url = "http://localhost:3000/api/v1/users/roles";
 const config = {
   headers: {
-    Authorization: "JWT VALUE",
+    Authorization: "",
   },
 };
 axios
@@ -32,7 +32,7 @@ axios
          * more of an update operation using update endpoint
          */
         const data = {
-          network_id: ObjectId("63d8b4ce1e5ba20013856e0a"),
+          network_id: ObjectId("user_id"),
         };
 
         // if (isEmpty(role.network)) {

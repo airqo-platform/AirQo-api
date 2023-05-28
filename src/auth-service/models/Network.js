@@ -214,7 +214,7 @@ NetworkSchema.statics = {
         .match(filterCopy)
         .lookup({
           from: "users",
-          let: { users: "$net_users" },
+          let: { users: { $ifNull: ["$networks", []] } },
           pipeline: [
             {
               $match: {
