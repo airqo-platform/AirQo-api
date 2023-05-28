@@ -119,7 +119,7 @@ def get_next_1week_forecasts(target_column, model):
     next_1week_forecasts['device_number'] = next_1week_forecasts['device_number'].astype(int)
     next_1week_forecasts['pm2_5'] = next_1week_forecasts['pm2_5'].astype(float)
     return next_1week_forecasts[['site_id', 'created_at', 'pm2_5', 'device_number']][
-        next_1week_forecasts['created_at'] > configuration.TEST_DATE_DAILY_START]
+        next_1week_forecasts['created_at'] >= configuration.TEST_DATE_DAILY_START]
 
 
 if __name__ == '__main__':

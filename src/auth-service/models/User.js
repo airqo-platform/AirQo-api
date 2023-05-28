@@ -88,13 +88,23 @@ const UserSchema = new Schema(
     },
     isActive: { type: Boolean },
     duration: { type: Date, default: oneMonthFromNow },
-    networks: [
-      {
-        type: ObjectId,
-        ref: "network",
-        unique: true,
-      },
-    ],
+    networks: {
+      type: [
+        {
+          type: ObjectId,
+          ref: "network",
+          unique: true,
+        },
+      ],
+      default: [mongoose.Types.ObjectId(constants.DEFAULT_NETWORK)],
+    },
+    // networks: [
+    //   {
+    //     type: ObjectId,
+    //     ref: "network",
+    //     unique: true,
+    //   },
+    // ],
     groups: [
       {
         type: ObjectId,
@@ -267,6 +277,12 @@ UserSchema.statics = {
           localField: "networks",
           foreignField: "_id",
           as: "networks",
+        })
+        .lookup({
+          from: "networks",
+          localField: "_id",
+          foreignField: "net_manager",
+          as: "my_networks",
         })
         .lookup({
           from: "access_tokens",

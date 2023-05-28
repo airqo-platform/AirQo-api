@@ -5,7 +5,6 @@ const validator = require("validator");
 var uniqueValidator = require("mongoose-unique-validator");
 const { logObject, logElement, logText } = require("../utils/log");
 const isEmpty = require("is-empty");
-const { getModelByTenant } = require("@config/dbConnection");
 const httpStatus = require("http-status");
 
 const NetworkSchema = new Schema(
@@ -26,7 +25,11 @@ const NetworkSchema = new Schema(
       type: ObjectId,
       ref: "network",
     },
-    net_name: { type: String, required: [true, "net_name is required"] },
+    net_name: {
+      type: String,
+      required: [true, "net_name is required"],
+      unique: true,
+    },
     net_status: { type: String, default: "inactive" },
     net_manager: { type: ObjectId },
     net_last: { type: Number },
@@ -59,7 +62,6 @@ const NetworkSchema = new Schema(
       {
         type: ObjectId,
         ref: "user",
-        unique: true,
       },
     ],
     net_departments: [
@@ -84,7 +86,6 @@ const NetworkSchema = new Schema(
       {
         type: ObjectId,
         ref: "group",
-        unique: true,
       },
     ],
   },
@@ -213,7 +214,7 @@ NetworkSchema.statics = {
         .match(filterCopy)
         .lookup({
           from: "users",
-          let: { users: "$net_users" },
+          let: { users: { $ifNull: ["$networks", []] } },
           pipeline: [
             {
               $match: {
@@ -231,6 +232,12 @@ NetworkSchema.statics = {
             {
               $addFields: {
                 role: { $arrayElemAt: ["$role", 0] },
+                createdAt: {
+                  $dateToString: {
+                    format: "%Y-%m-%d %H:%M:%S",
+                    date: "$_id",
+                  },
+                },
               },
             },
             {
@@ -254,8 +261,8 @@ NetworkSchema.statics = {
         })
         .lookup({
           from: "roles",
-          localField: "net_roles",
-          foreignField: "_id",
+          localField: "_id",
+          foreignField: "network_id",
           as: "net_roles",
         })
         .lookup({
