@@ -21,7 +21,7 @@ class BasePyMongoModel(ModelOperations):
 
     def _connect(self):
         client = MongoClient(APP_CONFIG.MONGO_URI)
-        db = client[f'{APP_CONFIG.DB_NAME}_{self.tenant}']
+        db = client[f"{APP_CONFIG.DB_NAME}_{self.tenant}"]
 
         # lets hard code the db here for dev purposes
         # db = client['airqo_analytics']
@@ -29,23 +29,3 @@ class BasePyMongoModel(ModelOperations):
 
     def __repr__(self):
         return f"{self.__class__.__name__}({self.tenant}, {self.collection_name})"
-
-
-class BaseMongoModel(ModelOperations):
-    """base model for all database models"""
-
-    __abstract__ = True
-
-    def __init__(self, collection_name):
-        super().__init__()
-        self.collection_name = collection_name
-        self.db = self._connect()
-        self.collection = self.db[collection_name]
-
-    def _connect(self):
-        client = MongoClient(APP_CONFIG.MONGO_URI)
-        db = client[f'{APP_CONFIG.DB_NAME}']
-        return db
-
-    def __repr__(self):
-        return f"{self.__class__.__name__}({self.collection_name})"

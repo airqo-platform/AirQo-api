@@ -1,13 +1,14 @@
 import json
+import traceback
 from dataclasses import dataclass, asdict
 from datetime import datetime
 from enum import Enum
 
 import pandas as pd
 from bson import ObjectId
-from google.cloud import storage, bigquery
+from google.cloud import bigquery, storage
 
-from api.models.base.base_model import BaseMongoModel
+from api.models.base.base_model import BasePyMongoModel
 from api.utils.dates import date_to_str
 from config import Config
 
@@ -81,11 +82,14 @@ class DataExportRequest:
         return f"{self.user_id}_{date_to_str(self.request_date)}"
 
 
-class DataExportModel(BaseMongoModel):
-    bucket_name = Config.DATA_EXPORT_BUCKET
-    dataset = Config.DATA_EXPORT_DATASET
-    project = Config.DATA_EXPORT_GCP_PROJECT
-    collection_name = Config.DATA_EXPORT_COLLECTION
+class DataExportModel(BasePyMongoModel):
+    def __init__(self):
+        super().__init__(collection_name=Config.DATA_EXPORT_COLLECTION, tenant="airqo")
+        self.bigquery_client = bigquery.Client()
+        self.cloud_storage_client = storage.Client()
+        self.dataset = Config.DATA_EXPORT_DATASET
+        self.project = Config.DATA_EXPORT_GCP_PROJECT
+        self.bucket = self.cloud_storage_client.get_bucket(Config.DATA_EXPORT_BUCKET)
 
     @staticmethod
     def doc_to_data_export_request(doc) -> DataExportRequest:
@@ -108,17 +112,17 @@ class DataExportModel(BaseMongoModel):
     def docs_to_data_export_requests(self, docs: list) -> list[DataExportRequest]:
         data: list[DataExportRequest] = []
         for doc in docs:
-            doc_data = self.doc_to_data_export_request(doc)
-            data.append(doc_data)
+            try:
+                doc_data = self.doc_to_data_export_request(doc)
+                data.append(doc_data)
+            except Exception as ex:
+                print(ex)
+                traceback.print_exc()
+
         return data
 
-    def __init__(self):
-        super().__init__(collection_name=self.collection_name)
-        self.bigquery_client = bigquery.Client()
-        self.cloud_storage_client = storage.Client()
-
     def create_request(self, request: DataExportRequest):
-        self.db.data_eport.insert_one(request.to_dict())
+        self.collection.insert_one(request.to_dict())
 
     def get_scheduled_and_failed_requests(self) -> list[DataExportRequest]:
         filter_set = {
@@ -126,7 +130,7 @@ class DataExportModel(BaseMongoModel):
                 "$in": [DataExportStatus.SCHEDULED.value, DataExportStatus.FAILED.value]
             }
         }
-        docs = self.db.data_eport.find(filter_set)
+        docs = self.collection.find(filter_set)
         return self.docs_to_data_export_requests(docs)
 
     def update_request_status(self, request: DataExportRequest) -> bool:
@@ -134,7 +138,7 @@ class DataExportModel(BaseMongoModel):
             data = request.to_dict()
             filter_set = {"_id": ObjectId(f"{request.request_id}")}
             update_set = {"$set": {"status": data["status"]}}
-            result = self.db.data_eport.update_one(filter_set, update_set)
+            result = self.collection.update_one(filter_set, update_set)
             return result.modified_count == 1
         except Exception as ex:
             print(ex)
@@ -150,28 +154,27 @@ class DataExportModel(BaseMongoModel):
                     "data_links": data["data_links"],
                 }
             }
-            result = self.db.data_eport.update_one(filter_set, update_set)
+            result = self.collection.update_one(filter_set, update_set)
             return result.modified_count == 1
         except Exception as ex:
             print(ex)
         return False
 
     def get_user_requests(self, user_id: str) -> list[DataExportRequest]:
-        docs = self.db.data_eport.find({"user_id": user_id})
+        docs = self.collection.find({"user_id": user_id})
         return self.docs_to_data_export_requests(docs)
 
     def get_request_by_id(self, request_id: str) -> DataExportRequest:
         filter_set = {"_id": ObjectId(f"{request_id}")}
-        doc = self.db.data_eport.find_one(filter_set)
+        doc = self.collection.find_one(filter_set)
         return self.doc_to_data_export_request(doc)
 
     def export_table_to_gcs(self, export_request: DataExportRequest):
-        bucket = self.cloud_storage_client.get_bucket(self.bucket_name)
-        blobs = bucket.list_blobs(prefix=export_request.gcs_folder())
+        blobs = self.bucket.list_blobs(prefix=export_request.gcs_folder())
         for blob in blobs:
             blob.delete()
 
-        destination_uri = f"https://storage.cloud.google.com/{self.bucket_name}/{export_request.gcs_folder()}{export_request.gcs_file()}"
+        destination_uri = f"https://storage.cloud.google.com/{self.bucket.name}/{export_request.gcs_folder()}{export_request.gcs_file()}"
         extract_job_config = bigquery.job.ExtractJobConfig()
         if export_request.export_format == DataExportFormat.CSV:
             extract_job_config.destination_format = bigquery.DestinationFormat.CSV
@@ -191,10 +194,9 @@ class DataExportModel(BaseMongoModel):
         extract_job.result()
 
     def get_data_links(self, export_request: DataExportRequest) -> [str]:
-        bucket = self.cloud_storage_client.get_bucket(self.bucket_name)
-        blobs = bucket.list_blobs(prefix=export_request.gcs_folder())
+        blobs = self.bucket.list_blobs(prefix=export_request.gcs_folder())
         return [
-            f"https://storage.cloud.google.com/{self.bucket_name}/{blob.name}"
+            f"https://storage.cloud.google.com/{self.bucket.name}/{blob.name}"
             for blob in blobs
             if not blob.name.endswith("/")
         ]
@@ -210,8 +212,7 @@ class DataExportModel(BaseMongoModel):
     def upload_file_to_gcs(
         self, contents: pd.DataFrame, export_request: DataExportRequest
     ) -> str:
-        bucket = self.cloud_storage_client.bucket(self.bucket_name)
-        blob = bucket.blob(export_request.destination_file())
+        blob = self.bucket.blob(export_request.destination_file())
 
         contents.reset_index(drop=True, inplace=True)
         if export_request.export_format == DataExportFormat.CSV:
@@ -230,10 +231,10 @@ class DataExportModel(BaseMongoModel):
                 num_retries=2,
             )
 
-        return f"https://storage.cloud.google.com/{self.bucket_name}/{export_request.destination_file()}"
+        return f"https://storage.cloud.google.com/{self.bucket.name}/{export_request.destination_file()}"
 
     def export_query_results_to_gcs(self, query, export_request: DataExportRequest):
-        destination_uri = f"https://storage.cloud.google.com/{self.bucket_name}/{export_request.destination_file()}.gz"
+        destination_uri = f"https://storage.cloud.google.com/{self.bucket.name}/{export_request.destination_file()}.gz"
 
         job_config = bigquery.QueryJobConfig()
         extract_job_config = bigquery.job.ExtractJobConfig()
