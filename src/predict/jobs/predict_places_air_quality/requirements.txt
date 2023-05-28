@@ -6,3 +6,6 @@ geopandas
 pymongo
 xgboost
 python-dotenv
+numpy
+scipy
+scikit-learn
