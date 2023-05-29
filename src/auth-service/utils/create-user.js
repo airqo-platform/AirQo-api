@@ -5,7 +5,7 @@ const ClientSchema = require("@models/Client");
 const NetworkSchema = require("@models/Network");
 const RoleSchema = require("@models/Role");
 const { getModelByTenant } = require("@config/dbConnection");
-const { logObject, logElement, logText } = require("./log");
+const { logObject, logElement, logText, logError } = require("./log");
 const mailer = require("./mailer");
 const bcrypt = require("bcrypt");
 const mongoose = require("mongoose").set("debug", true);
@@ -1145,9 +1145,10 @@ const join = {
             docRef = collectionRef.doc(uid);
             docRef.delete();
           }
-          console.log('Document successfully deleted!');
+          logText('Document successfully deleted!');
         }).catch((error) => {
-          console.error('Error deleting document:', error);
+          logError('Error deleting document:', error);
+          logger.error(`Internal Server Error -- ${error.message}`);
           return {
             success: false,
             message: "Error deleting Firestore documents",
@@ -1176,6 +1177,7 @@ const join = {
     } catch (error) {
       return {
         success: false,
+        status:httpStatus.INTERNAL_SERVER_ERROR,
         message: "Internal Server Error",
         errors: { message: error.message },
       };

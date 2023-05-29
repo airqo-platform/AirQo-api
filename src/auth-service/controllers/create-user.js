@@ -303,7 +303,8 @@ const createUser = {
          request
        );
      } catch (error) {
-       console.error(error);
+       logger.error(`Internal Server Error -- ${error.message}`);
+       logObject("Error :", error)
      }
       
       logObject("responseFromDeleteAppData", responseFromDeleteAppData);
@@ -330,11 +331,11 @@ const createUser = {
       }
 
     } catch (error) {
-      return {
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+        message: "Internal server error",
+        errors: { message: error.message },
+      });
     }
   },
 
