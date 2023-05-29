@@ -40,4 +40,4 @@ app:
   namespace: staging
   configmap: env-analytics-staging
 image:
-  tag: stage-0282c90c-1685277036
+  tag: stage-4e8bcf78-1685368175
