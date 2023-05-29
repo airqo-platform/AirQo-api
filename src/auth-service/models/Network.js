@@ -58,12 +58,6 @@ const NetworkSchema = new Schema(
     net_category: {
       type: String,
     },
-    net_users: [
-      {
-        type: ObjectId,
-        ref: "user",
-      },
-    ],
     net_departments: [
       {
         type: ObjectId,
@@ -74,12 +68,6 @@ const NetworkSchema = new Schema(
       {
         type: ObjectId,
         ref: "permission",
-      },
-    ],
-    net_roles: [
-      {
-        type: ObjectId,
-        ref: "role",
       },
     ],
     net_groups: [
