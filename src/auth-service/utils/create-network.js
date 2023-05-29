@@ -1,5 +1,6 @@
 const constants = require("@config/constants");
 const NetworkSchema = require("@models/Network");
+const PermissionSchema = require("@models/Permission");
 const UserSchema = require("@models/User");
 const { getModelByTenant } = require("@config/dbConnection");
 const { logElement, logText, logObject } = require("./log");
@@ -20,6 +21,20 @@ const NetworkModel = (tenant) => {
   } catch (error) {
     const networks = getModelByTenant(tenant, "network", NetworkSchema);
     return networks;
+  }
+};
+
+const PermissionModel = (tenant) => {
+  try {
+    const permissions = mongoose.model("permissions");
+    return permissions;
+  } catch (error) {
+    const permissions = getModelByTenant(
+      tenant,
+      "permission",
+      PermissionSchema
+    );
+    return permissions;
   }
 };
 
@@ -225,17 +240,19 @@ const createNetwork = {
         }
 
         /**
-         * create the SUPER ADMIN role for this network
-         * assign the main permissions to the role
-         * assign this user to this new super ADMIN role
+         ************** STEPS:
+         * create the SUPER_ADMIN role for this network
+         * create the SUPER_ADMIN  permissions IF they do not yet exist
+         * assign the these SUPER_ADMIN permissions to the SUPER_ADMIN role
+         * assign the creating User to this new SUPER_ADMIN role of their Network
          */
 
         let requestForRole = {};
         requestForRole.query = {};
         requestForRole.query.tenant = tenant;
         requestForRole.body = {
-          role_code: "SUPER ADMIN",
-          role_name: "SUPER ADMIN",
+          role_code: "SUPER_ADMIN",
+          role_name: "SUPER_ADMIN",
           network_id: net_id,
         };
 
@@ -262,20 +279,70 @@ const createNetwork = {
               status: httpStatus.INTERNAL_SERVER_ERROR,
             };
           }
-          const superAdminPermissions = constants.SUPER_ADMIN_PERMISSIONS
-            ? constants.SUPER_ADMIN_PERMISSIONS
-            : [];
+
           logObject(
             "constants.SUPER_ADMIN_PERMISSIONS",
             constants.SUPER_ADMIN_PERMISSIONS
           );
 
+          const superAdminPermissions = constants.SUPER_ADMIN_PERMISSIONS
+            ? constants.SUPER_ADMIN_PERMISSIONS
+            : [];
+          const trimmedPermissions = superAdminPermissions.map((permission) =>
+            permission.trim()
+          );
+
+          const uniquePermissions = [...new Set(trimmedPermissions)];
+
+          const existingPermissionIds = await PermissionModel(tenant)
+            .find({
+              permission: { $in: uniquePermissions },
+            })
+            .distinct("_id");
+
+          const existingPermissionNames = await PermissionModel(tenant)
+            .find({
+              permission: { $in: uniquePermissions },
+            })
+            .distinct("permission");
+
+          logObject("existingPermissionIds", existingPermissionIds);
+
+          const newPermissionDocuments = uniquePermissions
+            .filter(
+              (permission) => !existingPermissionNames.includes(permission)
+            )
+            .map((permission) => ({
+              permission: permission
+                .replace(/[^A-Za-z]/g, " ")
+                .toUpperCase()
+                .replace(/ /g, "_"),
+              description: permission
+                .replace(/[^A-Za-z]/g, " ")
+                .toUpperCase()
+                .replace(/ /g, "_"),
+            }));
+
+          logObject("newPermissionDocuments", newPermissionDocuments);
+
+          // Step 3: Insert the filtered permissions
+          const insertedPermissions = await PermissionModel(tenant).insertMany(
+            newPermissionDocuments
+          );
+          logObject("insertedPermissions", insertedPermissions);
+          const allPermissionIds = [
+            ...existingPermissionIds,
+            ...insertedPermissions.map((permission) => permission._id),
+          ];
+
+          logObject("allPermissionIds", allPermissionIds);
+
           let requestToAssignPermissions = {};
           requestToAssignPermissions.body = {};
-          requestToAssignPermissions.body.permissions = superAdminPermissions;
           requestToAssignPermissions.query = {};
-          requestToAssignPermissions.query.tenant = tenant;
           requestToAssignPermissions.params = {};
+          requestToAssignPermissions.body.permissions = allPermissionIds;
+          requestToAssignPermissions.query.tenant = tenant;
           requestToAssignPermissions.params = { role_id };
 
           const responseFromAssignPermissionsToRole =
@@ -391,7 +458,7 @@ const createNetwork = {
         success: true,
         message: "successfully assigned all the provided users to the Network",
         status: httpStatus.OK,
-        data: updatedNetwork,
+        data: [],
       };
     } catch (error) {
       logger.error(`Internal Server Error -- ${error.message}`);
@@ -441,7 +508,7 @@ const createNetwork = {
       return {
         success: true,
         message: "User assigned to the Network",
-        data: { updatedNetwork, updatedUser },
+        data: updatedUser,
         status: httpStatus.OK,
       };
     } catch (error) {
