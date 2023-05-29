@@ -4,9 +4,9 @@ images:
     api: eu.gcr.io/airqo-250220/airqo-analytics-api
     celeryBeat: eu.gcr.io/airqo-250220/airqo-analytics-celery-beat
     celeryWorker: eu.gcr.io/airqo-250220/airqo-analytics-celery-worker
-  tag: prod-bbc70236-1680071543
-nameOverride: ''
-fullnameOverride: ''
+  tag: prod-1b6e5014-1683239318
+nameOverride: ""
+fullnameOverride: ""
 podAnnotations: {}
 resources:
   limits:
