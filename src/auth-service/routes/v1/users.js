@@ -7,6 +7,7 @@ const {
   setJWTAuth,
   authJWT,
   setLocalAuth,
+  authGoogleCallback,
   setGoogleAuth,
   setGuestToken,
   authLocal,
@@ -207,7 +208,8 @@ router.get(
 
 router.get(
   "/auth/google/callback",
-  authGoogle,
+  setGoogleAuth,
+  authGoogleCallback,
   createUserController.googleCallback
 );
 
@@ -281,8 +283,9 @@ router.post(
         .bail()
         .trim(),
       body("privilege")
-        .exists()
-        .withMessage("privilege is missing in your request")
+        .optional()
+        .notEmpty()
+        .withMessage("privilege should not be empty if provided")
         .bail()
         .isIn(["admin", "netmanager", "user", "super"])
         .withMessage("the privilege value is not among the expected ones")
@@ -327,26 +330,42 @@ router.post(
         .withMessage("this is not a valid email address")
         .trim(),
       body("organization")
-        .exists()
-        .withMessage("organization is missing in your request")
+        .optional()
+        .notEmpty()
+        .withMessage("organization should not be empty if provided")
         .bail()
         .trim(),
       body("long_organization")
-        .exists()
-        .withMessage("long_organization is missing in your request")
+        .optional()
+        .notEmpty()
+        .withMessage("long_organization should not be empty if provided")
         .bail()
         .trim(),
       body("privilege")
-        .exists()
-        .withMessage("privilege is missing in your request")
+        .optional()
+        .notEmpty()
+        .withMessage("privilege should not be empty if provided")
         .bail()
         .isIn(["admin", "netmanager", "user", "super"])
         .withMessage("the privilege value is not among the expected ones")
         .trim(),
+      body("password")
+        .exists()
+        .withMessage("password is missing in your request")
+        .bail()
+        .trim()
+        .isLength({ min: 6, max: 30 })
+        .withMessage("Password must be between 6 and 30 characters long")
+        .bail()
+        .matches(/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{6,}$/)
+        .withMessage(
+          "Password must contain at least one letter and one number"
+        ),
     ],
   ]),
   createUserController.create
 );
+
 router.get(
   "/email/confirm/",
   oneOf([

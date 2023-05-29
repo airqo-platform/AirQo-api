@@ -11,7 +11,8 @@ load_dotenv(dotenv_path=env_path, verbose=True)
 
 TWO_HOURS = 7200  # seconds
 
-BASE_URL = "/api/v1/analytics"
+API_V1_BASE_URL = "/api/v1/analytics"
+API_V2_BASE_URL = "/api/v2/analytics"
 
 APP_ENV = env_var("FLASK_ENV", "production")
 
@@ -44,6 +45,12 @@ class Config:
     BIGQUERY_HOURLY_DATA = env_var("BIGQUERY_HOURLY_DATA")
     BIGQUERY_BAM_DATA = env_var("BIGQUERY_BAM_DATA")
     BIGQUERY_DAILY_DATA = env_var("BIGQUERY_DAILY_DATA")
+    DATA_EXPORT_LIMIT = os.getenv("DATA_EXPORT_LIMIT", 2000)
+
+    DATA_EXPORT_BUCKET = os.getenv("DATA_EXPORT_BUCKET")
+    DATA_EXPORT_DATASET = os.getenv("DATA_EXPORT_DATASET")
+    DATA_EXPORT_GCP_PROJECT = os.getenv("DATA_EXPORT_GCP_PROJECT")
+    DATA_EXPORT_COLLECTION = os.getenv("DATA_EXPORT_COLLECTION", "data_export")
 
     SWAGGER = {
         "swagger": "2.0",
@@ -63,7 +70,7 @@ class Config:
         "ui_params_text": """{
             "operationsSorter" : (a, b) => a.get("path").localeCompare(b.get("path"))
         }""",
-        "url_prefix": f"{BASE_URL}",
+        "url_prefix": f"{API_V2_BASE_URL}",
     }
 
 

@@ -9,6 +9,14 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- generate-filter-util`
 );
 
+const {
+  addMonthsToProvideDateTime,
+  monthsInfront,
+  isTimeEmpty,
+  getDifferenceInMonths,
+  addDays,
+} = require("./date");
+
 const filter = {
   users: (req) => {
     try {
@@ -80,6 +88,7 @@ const filter = {
         net_phoneNumber,
         net_website,
         net_acronym,
+        category,
       } = req.query;
 
       const { net_id } = req.params;
@@ -88,6 +97,10 @@ const filter = {
       if (net_email) {
         filter["net_email"] = net_email;
       }
+      if (category) {
+        filter["category"] = category;
+      }
+
       if (net_category) {
         filter["net_category"] = net_category;
       }
@@ -306,7 +319,8 @@ const filter = {
   roles: (req) => {
     try {
       const { query, params } = req;
-      const { id, role_name, role_code, network, role_status } = query;
+      const { id, role_name, role_code, network_id, role_status, category } =
+        query;
       const { role_id } = params;
       let filter = {};
 
@@ -316,9 +330,14 @@ const filter = {
       if (role_id) {
         filter["_id"] = ObjectId(role_id);
       }
-      if (network) {
-        filter["network_id"] = network;
+      if (network_id) {
+        filter["network_id"] = ObjectId(network_id);
       }
+
+      if (category) {
+        filter["category"] = category;
+      }
+
       if (role_name) {
         filter["role_name"] = role_name;
       }
@@ -589,6 +608,72 @@ const filter = {
         success: false,
         message: "internal server error",
         errors: { message: err.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  logs: (req) => {
+    try {
+      const { service, startTime, endTime, email } = req.query;
+      const today = monthsInfront(0);
+      const oneWeekBack = addDays(-7);
+
+      let filter = {
+        timestamp: {
+          $gte: oneWeekBack,
+          $lte: today,
+        },
+      };
+
+      if (service) {
+        filter["meta.service"] = service;
+      }
+
+      if (startTime && isEmpty(endTime)) {
+        if (isTimeEmpty(startTime) === false) {
+          filter["timestamp"]["$lte"] = addMonthsToProvideDateTime(
+            startTime,
+            1
+          );
+        } else {
+          delete filter["timestamp"];
+        }
+      }
+
+      if (endTime && isEmpty(startTime)) {
+        if (isTimeEmpty(endTime) === false) {
+          filter["timestamp"]["$gte"] = addMonthsToProvideDateTime(endTime, -1);
+        } else {
+          delete filter["timestamp"];
+        }
+      }
+
+      if (endTime && startTime) {
+        let months = getDifferenceInMonths(startTime, endTime);
+        logElement("the number of months", months);
+        if (months > 1) {
+          if (isTimeEmpty(endTime) === false) {
+            filter["timestamp"]["$gte"] = addMonthsToProvideDateTime(
+              endTime,
+              -1
+            );
+          } else {
+            delete filter["timestamp"];
+          }
+        }
+      }
+
+      if (email) {
+        filter["meta.email"] = email;
+      }
+
+      return filter;
+    } catch (error) {
+      logger.error(`Internal Server Error`, error.message);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }

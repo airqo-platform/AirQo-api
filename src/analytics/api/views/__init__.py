@@ -1,9 +1,8 @@
 from .dashboard import (
-    DownloadCustomisedDataResource,
     ExceedancesResource,
     DailyAveragesResource,
     ChartDataResource,
     MonitoringSiteResource,
 )
 
-from .data import DataExportResource, DataSummaryResource
+from .data import DataExportResource, DataSummaryResource, DataExportV2Resource

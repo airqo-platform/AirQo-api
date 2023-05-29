@@ -6,8 +6,8 @@ schedule: 0 0 * * *
 image:
   repository: eu.gcr.io/airqo-250220/stage-airqo-predict-job
   tag: stage-a00beb99-1685011960
-nameOverride: ''
-fullnameOverride: ''
+nameOverride: ""
+fullnameOverride: ""
 resources:
   limits:
     cpu: 1000m

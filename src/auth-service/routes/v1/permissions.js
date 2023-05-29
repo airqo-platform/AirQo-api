@@ -66,14 +66,17 @@ router.post(
         .trim()
         .escape()
         .customSanitizer((value) => {
-          return value.replace(/ /g, "_").toUpperCase();
+          const sanitizedValue = value.replace(/[^a-zA-Z]/g, " ");
+          const processedValue = sanitizedValue
+            .toUpperCase()
+            .replace(/ /g, "_");
+
+          return processedValue;
         }),
       body("network_id")
-        .exists()
-        .withMessage("network_id is missing in your request")
-        .bail()
+        .optional()
         .notEmpty()
-        .withMessage("the network_id must not be empty")
+        .withMessage("network_id should not be empty if provided")
         .bail()
         .trim()
         .isMongoId()

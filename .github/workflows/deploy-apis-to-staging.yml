@@ -622,7 +622,7 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           push: true
-          context: src/predict/jobs/predict
+          context: src/predict/jobs/forecast
           target: staging
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-airqo-predict-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-airqo-predict-job:latest
 
@@ -641,7 +641,7 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           push: true
-          context: src/predict/jobs/train
+          context: src/predict/jobs/forecast_training
           target: staging
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-airqo-train-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-airqo-train-job:latest
 
@@ -965,13 +965,29 @@ jobs:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
 
-      - name: Build and Push API Docker Image
-        run: |
-          cd src/analytics/
-          docker build --target=staging --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-api:${{ needs.image-tag.outputs.build_id }} .
-          docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-api:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-api:latest
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-api:${{ needs.image-tag.outputs.build_id }}
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-api:latest
+      - name: Build and push API Docker Image
+        uses: docker/build-push-action@v3
+        with:
+          push: true
+          context: src/analytics/
+          target: staging
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-api:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-api:latest
+
+      - name: Build and push Celery beat Docker Image
+        uses: docker/build-push-action@v3
+        with:
+          push: true
+          context: src/analytics/
+          target: celery-beat
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-celery-beat:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-celery-beat:latest
+
+      - name: Build and push Celery worker Docker Image
+        uses: docker/build-push-action@v3
+        with:
+          push: true
+          context: src/analytics/
+          target: celery-worker
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-celery-worker:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-celery-worker:latest
 
       - name: Update corresponding helm values file(with retry)
         uses: Wandalen/wretry.action@master # Retries action on fail
@@ -1786,9 +1802,9 @@ jobs:
           gcloud secrets versions access latest --secret="sta-key-channel-data-service-account" > google_application_credentials.json
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json env-update-channel-data-staging-files | kubectl replace -f - -n staging
 
-  ### apply nginx ingress ###
-  nginx-ingress:
-    name: apply-nginx-ingress
+  ### apply nginx ###
+  nginx:
+    name: apply-nginx
     needs: [check]
     if: needs.check.outputs.run_nginx == 'true'
     runs-on: ubuntu-latest
@@ -1802,8 +1818,5 @@ jobs:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
 
-      - name: Apply ingress changes
-        run: |
-          kubectl apply -f k8s/nginx/staging/ingress.yaml
-          kubectl apply -f k8s/nginx/staging/virtual-server.yaml
-          kubectl apply -f k8s/nginx/staging/global-config.yaml
+      - name: Apply nginx changes
+        run: kubectl apply -f k8s/nginx/staging/

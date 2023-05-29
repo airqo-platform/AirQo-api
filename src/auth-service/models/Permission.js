@@ -8,13 +8,12 @@ const PermissionSchema = new mongoose.Schema(
   {
     permission: {
       type: String,
-      unique: true,
       required: [true, "permission is required"],
+      unique: true,
     },
     network_id: {
       type: ObjectId,
       ref: "network",
-      required: [true, "network ID is required"],
     },
     description: { type: String, required: [true, "description is required"] },
   },
@@ -48,6 +47,7 @@ PermissionSchema.pre("update", function (next) {
   return next();
 });
 
+PermissionSchema.index({ permission: 1, network_id: 1 }, { unique: true });
 PermissionSchema.index({ permission: 1 }, { unique: true });
 
 PermissionSchema.statics = {
@@ -90,7 +90,7 @@ PermissionSchema.statics = {
     }
   },
 
-  async list({ skip = 0, limit = 5, filter = {} } = {}) {
+  async list({ skip = 0, limit = 100, filter = {} } = {}) {
     try {
       let permissions = await this.aggregate()
         .match(filter)
@@ -146,7 +146,11 @@ PermissionSchema.statics = {
       let options = { new: true };
       let modifiedUpdate = update;
 
-      let updatedPermission = await this.findOneAndUpdate(
+      if (modifiedUpdate.permission) {
+        delete modifiedUpdate.permission;
+      }
+
+      const updatedPermission = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,
         options
@@ -164,7 +168,7 @@ PermissionSchema.statics = {
           success: true,
           message: "Permission does not exist, please crosscheck",
           data: [],
-          status: httpStatus.NOT_FOUND,
+          status: httpStatus.OK,
         };
       }
     } catch (error) {

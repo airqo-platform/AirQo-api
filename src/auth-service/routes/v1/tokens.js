@@ -51,35 +51,41 @@ router.post(
     ],
   ]),
   oneOf([
+    body("user_id")
+      .exists()
+      .withMessage(
+        "a token requirement is missing in request, consider using the user_id"
+      )
+      .bail()
+      .notEmpty()
+      .withMessage("this user_id cannot be empty")
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("user_id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+    // body("client_id")
+    //   .exists()
+    //   .withMessage(
+    //     "a token identifier is missing in request, consider using the client_id"
+    //   )
+    //   .bail()
+    //   .notEmpty()
+    //   .withMessage("this client_id cannot be empty")
+    //   .bail()
+    //   .trim()
+    //   .isMongoId()
+    //   .withMessage("client_id must be an object ID")
+    //   .bail()
+    //   .customSanitizer((value) => {
+    //     return ObjectId(value);
+    //   }),
+  ]),
+  oneOf([
     [
-      body("user_id")
-        .exists()
-        .withMessage("the user ID is missing in request")
-        .bail()
-        .notEmpty()
-        .withMessage("this user ID cannot be empty")
-        .bail()
-        .trim()
-        .isMongoId()
-        .withMessage("user_id must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
-      body("user_id")
-        .exists()
-        .withMessage("the user ID is missing in request")
-        .bail()
-        .notEmpty()
-        .withMessage("this user ID cannot be empty")
-        .bail()
-        .trim()
-        .isMongoId()
-        .withMessage("user_id must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
       body("expires")
         .optional()
         .notEmpty()

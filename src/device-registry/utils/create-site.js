@@ -22,7 +22,6 @@ const SiteModel = (tenant) => {
 };
 const createAirqloudUtil = require("./create-airqloud");
 const pointInPolygon = require("point-in-polygon");
-const httpStatus = require("http-status");
 const geolib = require("geolib");
 const DeviceSchema = require("@models/Device");
 const SiteActivitySchema = require("@models/SiteActivity");
@@ -237,7 +236,7 @@ const createSite = {
             success: false,
             errors: { message: error },
             message: "Bad Gateway Error",
-            status: httpStatus.BAD_GATEWAY,
+            status: HTTPStatus.BAD_GATEWAY,
           };
         });
     } catch (error) {
@@ -519,7 +518,7 @@ const createSite = {
                 success: false,
                 errors: { message: error },
                 message: "Internal Server Error",
-                status: httpStatus.INTERNAL_SERVER_ERROR,
+                status: HTTPStatus.INTERNAL_SERVER_ERROR,
               };
             })
         );
@@ -548,7 +547,7 @@ const createSite = {
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -756,6 +755,26 @@ const createSite = {
           responseFromNearestWeatherStation
         );
       }
+
+      // if (
+      //   !isEmpty(request["body"]["site_codes"]) &&
+      //   request["body"]["site_codes"].length < 7
+      // ) {
+      //   const siteCodeValues = [
+      //     "site_id",
+      //     "name",
+      //     "_id",
+      //     "lat_long",
+      //     "generated name",
+      //     "location_name",
+      //     "search_name",
+      //     "formatted_name",
+      //   ];
+
+      //   for (const siteCode of siteCodeValues) {
+      //     request["body"]["site_codes"].push(siteCode);
+      //   }
+      // }
 
       request["query"]["tenant"] = tenant;
       let responseFromGenerateMetadata = await createSite.generateMetadata(

@@ -63,6 +63,7 @@ const createUser = {
         });
       }
     } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -95,7 +96,9 @@ const createUser = {
         tenant = constants.DEFAULT_TENANT;
       }
 
-      const responseFromListStatistics = await createUserUtil.listLogs(tenant);
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
+      const responseFromListStatistics = await createUserUtil.listLogs(request);
 
       if (responseFromListStatistics.success === true) {
         res.status(httpStatus.OK).json({
@@ -119,6 +122,7 @@ const createUser = {
         });
       }
     } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -146,7 +150,7 @@ const createUser = {
       }
       logText(".....................................");
       logText("list all users by query params provided");
-      let { tenant, id } = req.query;
+      let { tenant } = req.query;
       if (isEmpty(tenant)) {
         tenant = constants.DEFAULT_TENANT;
       }
@@ -159,7 +163,7 @@ const createUser = {
         filter = responseFromFilter.data;
         logObject("Zi filter", filter);
       } else if (responseFromFilter.success === false) {
-        return res.status(httpStatus.BAD_GATEWAY).json({
+        return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
           success: false,
           message: responseFromFilter.message,
           error: responseFromFilter.error
@@ -198,6 +202,7 @@ const createUser = {
         });
       }
     } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -211,6 +216,7 @@ const createUser = {
     try {
       res.redirect("/");
     } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
       res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -272,6 +278,7 @@ const createUser = {
       }
     } catch (error) {
       logObject("error", error);
+      logger.error(`Internal Server Error ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "internal server error",
@@ -349,6 +356,7 @@ const createUser = {
         }
       });
     } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -407,6 +415,7 @@ const createUser = {
         });
       }
     } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -439,7 +448,7 @@ const createUser = {
         tenant = constants.DEFAULT_TENANT;
       }
 
-      let responseFromFilter = generateFilter.users(req);
+      const responseFromFilter = generateFilter.users(req);
       logObject("responseFromFilter", responseFromFilter);
       if (responseFromFilter.success === true) {
         let filter = responseFromFilter.data;
@@ -457,36 +466,32 @@ const createUser = {
             response: responseFromForgotPassword.data,
           });
         } else if (responseFromForgotPassword.success === false) {
-          if (responseFromForgotPassword.error) {
-            return res.status(httpStatus.BAD_GATEWAY).json({
-              success: false,
-              message: responseFromForgotPassword.message,
-              error: responseFromForgotPassword.error,
-            });
-          } else {
-            return res.status(httpStatus.BAD_GATEWAY).json({
-              success: false,
-              message: responseFromForgotPassword.message,
-            });
-          }
+          return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+            success: false,
+            message: responseFromForgotPassword.message,
+            error: responseFromForgotPassword.error
+              ? responseFromForgotPassword.error
+              : "",
+            errors: responseFromForgotPassword.errors
+              ? responseFromForgotPassword.errors
+              : { message: "Internal Server Error" },
+          });
         }
       } else if (responseFromFilter.success === false) {
-        if (responseFromFilter.error) {
-          return res.status(httpStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromFilter.message,
-            error: responseFromFilter.error,
-          });
-        } else {
-          return res.status(httpStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromFilter.message,
-            error: responseFromFilter.error,
-          });
-        }
+        return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+          success: false,
+          message: responseFromFilter.message,
+          error: responseFromFilter.error ? responseFromFilter.error : "",
+        });
       }
     } catch (error) {
-      tryCatchErrors(res, error, "createUser controller");
+      logger.error(`Internal Server Error ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        error: "Internal Server Error",
+      };
     }
   },
 
@@ -511,27 +516,11 @@ const createUser = {
 
       let { tenant } = req.query;
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
+        tenant = constants.DEFAULT_TENANT || "airqo";
       }
-      const {
-        firstName,
-        lastName,
-        email,
-        organization,
-        long_organization,
-        privilege,
-        network_id,
-      } = req.body;
 
-      let request = {};
-      request["tenant"] = tenant.toLowerCase();
-      request["firstName"] = firstName;
-      request["lastName"] = lastName;
-      request["email"] = email;
-      request["organization"] = organization;
-      request["long_organization"] = long_organization;
-      request["privilege"] = privilege;
-      request["network_id"] = network_id;
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant.toLowerCase();
 
       let responseFromCreateUser = await createUserUtil.register(request);
       logObject("responseFromCreateUser in controller", responseFromCreateUser);
@@ -560,7 +549,13 @@ const createUser = {
         });
       }
     } catch (error) {
-      tryCatchErrors(res, error, "createUser controller");
+      logger.error(`Internal Server Error ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        error: "Internal Server Error",
+      };
     }
   },
 
@@ -568,7 +563,7 @@ const createUser = {
     logText("..................................................");
     logText("create user.............");
     try {
-      const { query, body, params } = req;
+      const { query } = req;
       let { tenant } = query;
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
@@ -584,9 +579,9 @@ const createUser = {
       }
 
       let request = req.body;
-      request["tenant"] = tenant.toLowerCase();
+      request.tenant = tenant.toLowerCase();
 
-      let responseFromCreateUser = await createUserUtil.create(request);
+      const responseFromCreateUser = await createUserUtil.create(request);
       logObject("responseFromCreateUser in controller", responseFromCreateUser);
       if (responseFromCreateUser.success === true) {
         const status = responseFromCreateUser.status
@@ -611,6 +606,7 @@ const createUser = {
         });
       }
     } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
       return {
         success: false,
         message: "internal server errors",
@@ -659,13 +655,13 @@ const createUser = {
           });
         } else if (responseFromConfirmEmail.success === false) {
           if (responseFromConfirmEmail.error) {
-            return res.status(httpStatus.BAD_GATEWAY).json({
+            return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
               success: false,
               message: responseFromConfirmEmail.message,
               error: responseFromConfirmEmail.error,
             });
           } else {
-            return res.status(httpStatus.BAD_GATEWAY).json({
+            return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
               success: false,
               message: responseFromConfirmEmail.message,
             });
@@ -673,13 +669,13 @@ const createUser = {
         }
       } else if (responseFromFilter.success === false) {
         if (responseFromFilter.error) {
-          return res.status(httpStatus.BAD_GATEWAY).json({
+          return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
             success: false,
             message: responseFromFilter.message,
             error: responseFromFilter.error,
           });
         } else {
-          return res.status(httpStatus.BAD_GATEWAY).json({
+          return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
             success: false,
             message: responseFromFilter.message,
             error: responseFromFilter.error,
@@ -688,7 +684,13 @@ const createUser = {
       }
     } catch (error) {
       logElement("controller server error", error.message);
-      tryCatchErrors(res, error, "createUser controller");
+      logger.error(`Internal Server Error ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        error: "Internal Server Error",
+      };
     }
   },
 
@@ -696,7 +698,7 @@ const createUser = {
     logText("..................................");
     logText("user login......");
     try {
-      const { tenant } = req.query;
+      let { tenant } = req.query;
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -712,7 +714,11 @@ const createUser = {
         );
       }
 
-      if (!isEmpty(tenant) && tenant != "airqo") {
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+
+      if (!isEmpty(tenant) && tenant !== "airqo") {
         logObject("tenant", tenant);
         res.status(httpStatus.MOVED_PERMANENTLY).json({
           message:
@@ -742,6 +748,7 @@ const createUser = {
         });
       }
     } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
       res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -781,11 +788,12 @@ const createUser = {
       });
     } catch (error) {
       logObject("error", error);
+      logger.error(`Internal Server Error ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "internal server errors",
         errors: { message: error.message },
-        error: "",
+        error: "internal server errors",
       });
     }
   },
@@ -852,9 +860,11 @@ const createUser = {
         });
       }
     } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
       res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         message: "Internal Server Error",
         error: error.message,
+        errors: { message: error.message },
       });
     }
   },
@@ -877,30 +887,42 @@ const createUser = {
           convertErrorArrayToObject(nestedErrors)
         );
       }
-      let responseFromUpdateUser = await createUserUtil.update(req);
+      let { tenant } = req.query;
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT || "airqo";
+      }
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
+      let responseFromUpdateUser = await createUserUtil.update(request);
       logObject("responseFromUpdateUser", responseFromUpdateUser);
       if (responseFromUpdateUser.success === true) {
-        return res.status(httpStatus.OK).json({
+        const status = responseFromUpdateUser.status
+          ? responseFromUpdateUser.status
+          : httpStatus.OK;
+        return res.status(status).json({
           success: true,
           message: responseFromUpdateUser.message,
           user: responseFromUpdateUser.data,
         });
       } else if (responseFromUpdateUser.success === false) {
-        if (responseFromUpdateUser.error) {
-          return res.status(httpStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromUpdateUser.message,
-            error: responseFromUpdateUser.error,
-          });
-        } else {
-          return res.status(httpStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromUpdateUser.message,
-          });
-        }
+        const status = responseFromUpdateUser.status
+          ? responseFromUpdateUser.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromUpdateUser.message,
+          errors: responseFromUpdateUser.errors
+            ? responseFromUpdateUser.errors
+            : { message: "Internal Server Error" },
+        });
       }
     } catch (error) {
-      tryCatchErrors(res, error, "createUser controller");
+      logger.error(`Internal Server Error ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
     }
   },
 
@@ -951,6 +973,7 @@ const createUser = {
         }
       });
     } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -1008,6 +1031,7 @@ const createUser = {
         }
       });
     } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -1041,9 +1065,8 @@ const createUser = {
         tenant = constants.DEFAULT_TENANT;
       }
 
-      let request = {};
-      request["body"] = body;
-      request["tenant"] = tenant;
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
       const responseFromUpdateForgottenPassword =
         await createUserUtil.updateForgottenPassword(request);
 
@@ -1070,6 +1093,7 @@ const createUser = {
         });
       }
     } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
       res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -1121,13 +1145,13 @@ const createUser = {
           });
         } else if (responseFromUpdatePassword.success === false) {
           if (responseFromUpdatePassword.error) {
-            return res.status(httpStatus.BAD_GATEWAY).json({
+            return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
               success: false,
               message: responseFromUpdatePassword.message,
               error: responseFromUpdatePassword.error,
             });
           } else {
-            return res.status(httpStatus.BAD_GATEWAY).json({
+            return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
               success: false,
               message: responseFromUpdatePassword.message,
             });
@@ -1135,20 +1159,25 @@ const createUser = {
         }
       } else if (responseFromFilter.success === false) {
         if (responseFromFilter.error) {
-          res.status(httpStatus.BAD_GATEWAY).json({
+          res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
             success: false,
             message: responseFromFilter.message,
             error: responseFromFilter.error,
           });
         } else {
-          res.status(httpStatus.BAD_GATEWAY).json({
+          res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
             success: false,
             message: responseFromFilter.message,
           });
         }
       }
     } catch (error) {
-      tryCatchErrors(res, error, "createUser controller");
+      logger.error(`Internal Server Error ${error.message}`);
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
     }
   },
   subscribeToNewsLetter: async (req, res) => {
@@ -1199,7 +1228,9 @@ const createUser = {
         });
       }
     } catch (error) {
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+      logger.error(`Internal Server Error ${error.message}`);
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
       });

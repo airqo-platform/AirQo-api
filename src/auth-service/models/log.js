@@ -32,8 +32,6 @@ logSchema.pre("update", function (next) {
   return next();
 });
 
-logSchema.index({ Log_name: 1, Log_code: 1 }, { unique: true });
-
 logSchema.statics = {
   async register(args) {
     try {

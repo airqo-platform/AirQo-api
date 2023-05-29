@@ -3,13 +3,14 @@ from datetime import datetime
 import pandas as pd
 import numpy as np
 import gpflow
+from google.cloud import bigquery
 from gpflow import set_trainable
-from config import connect_mongo
+from config import connect_mongo, Config
 from config import configuration, environment
 import argparse
 from threading import Thread
 from shapely.geometry import Point, Polygon
-from helpers.get_data import get_pm_data
+from helpers.get_data import get_pm_data, date_to_str
 from data.data import get_airqloud_sites, get_site_data, get_all_sites_data
 from data.preprocess import data_to_df, drop_missing_value, preprocess
 pd.set_option('mode.chained_assignment', None)
@@ -46,7 +47,7 @@ def train_model(X, Y, airqloud):
         Ytraining = Y[::2, :]
     else:
         Xtraining = X
-        Ytraining = Y
+        Ytraining = Y.reshape(-1, 1)
 
     print('Number of rows in Xtraining for ' +
           airqloud + ' airqloud', Xtraining.shape[0])
@@ -106,6 +107,35 @@ def point_in_polygon(row, polygon):
         return 'False'
 
 
+def save_predictions_on_bigquery(predictions):
+    predictions = predictions[0]
+    airqloud_id = predictions["airqloud_id"]
+    timestamp = date_to_str(predictions["created_at"])
+
+    data = list(map(lambda record: {
+        "airqloud_id": airqloud_id,
+        "timestamp": timestamp,
+        "pm2_5": record["predicted_value"],
+        "pm2_5_variance": record["variance"],
+        "pm2_5_confidence_interval": record["interval"],
+        "location": Point(record["longitude"], record["latitude"]).wkt,
+
+    }, predictions["values"]))
+
+    client = bigquery.Client()
+    errors = client.insert_rows_json(
+        json_rows=data, table=Config.BIGQUERY_MEASUREMENTS_PREDICTIONS, skip_invalid_rows=True
+    )
+
+    if errors:
+        print("Encountered errors while inserting rows:", errors)
+    else:
+        client.query(f"DELETE FROM `{Config.BIGQUERY_MEASUREMENTS_PREDICTIONS}` "
+                     f"WHERE airqloud_id ='{airqloud_id}' "
+                     f"AND timestamp < {timestamp}")
+        print("Data inserted successfully.")
+
+
 def predict_model(m, tenant, airqloud, aq_id, poly, x1, x2, y1, y2):
     '''
     Makes the predictions and stores them in a database
@@ -156,6 +186,7 @@ def predict_model(m, tenant, airqloud, aq_id, poly, x1, x2, y1, y2):
         collection.delete_many({'airqloud': airqloud})
 
     collection.insert_many(result)
+    # save_predictions_on_bigquery(result) TODO : setup saving data on BigQuery.
 
     return result
 
@@ -168,7 +199,7 @@ def periodic_function(tenant, airqloud, aq_id):
     poly, min_long, max_long, min_lat, max_lat = get_airqloud_polygon(
         tenant, airqloud)
     all_sites_data = get_all_sites_data(airqloud=airqloud, tenant=tenant)
-    if len(all_sites_data) != 0:
+    if len(all_sites_data) >= 1:
         train_data_df = data_to_df(data=all_sites_data)
         train_data_df = drop_missing_value(train_data_df)
         train_data_preprocessed = preprocess(df=train_data_df)
@@ -201,7 +232,7 @@ def get_all_airqlouds(tenant):
     names = [aq['name'] for aq in airqlouds]
     aq_ids = [aq['_id'] for aq in airqlouds]
     # Esxcluding Country level AirQloud
-    exclude = ['kenya', 'uganda', 'cameroon', 'senegal', 'gulu']
+    exclude = ['kenya', 'uganda', 'cameroon', 'senegal']
     names_update = set(names).difference(set(exclude))
     exclude_ind = list(map(names.index, exclude))
     aq_ids_update = [aq_ind for ind, aq_ind in enumerate(

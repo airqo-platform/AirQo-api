@@ -84,7 +84,7 @@ ClientSchema.statics = {
           success: true,
           data: [],
           message: "operation successful but client NOT successfully created",
-          status: httpStatus.NOT_FOUND,
+          status: httpStatus.OK,
         };
       }
     } catch (err) {
@@ -114,7 +114,7 @@ ClientSchema.statics = {
       };
     }
   },
-  async list({ skip = 0, limit = 5, filter = {} } = {}) {
+  async list({ skip = 0, limit = 100, filter = {} } = {}) {
     try {
       logText("we are inside the model/collection....");
       const projectAll = {
