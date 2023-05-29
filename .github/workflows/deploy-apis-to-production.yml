@@ -807,14 +807,13 @@ jobs:
           target: celery-worker
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-celery-worker:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-celery-worker:latest
 
-
       - name: Update corresponding helm values file(with retry)
         uses: Wandalen/wretry.action@master # Retries action on fail
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
             valueFile: "k8s/analytics/api/values-prod.yaml"
-            propertyPath: "image.tag"
+            propertyPath: "images.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
             message: "Update analytics production image tag to ${{ needs.image-tag.outputs.build_id }}"
