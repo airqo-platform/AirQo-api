@@ -453,36 +453,89 @@ const controlAccess = {
     try {
       const { query, body } = request;
       const { tenant } = query;
+      let { user_id } = body;
+
       const token = accessCodeGenerator
         .generate(
           constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH)
         )
         .toUpperCase();
+
+      /**
+       * Does the User ID actually exist?
+       */
+
+      const userExists = await UserModel(tenant).exists({ _id: user_id });
+      if (!userExists) {
+        return {
+          success: false,
+          message: "User not found",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: `Invalid request, User ${user_id} not found` },
+        };
+      }
+
+      /**
+       * Does the client ID actually exist?
+       * We shall not just create random access IDs from here.
+       */
+
+      // if (!isEmpty(client_id)) {
+      //   const clientExists = await ClientModel(tenant).exists({
+      //     _id: client_id,
+      //   });
+      //   if (!clientExists) {
+      //     return {
+      //       success: false,
+      //       message: "Client not found",
+      //       status: httpStatus.BAD_REQUEST,
+      //       errors: {
+      //         message: `Invalid request, Client ${client_id} not found`,
+      //       },
+      //     };
+      //   }
+      // }
+
+      /**
+       * just create the client from here?
+       */
+
       const client_id = accessCodeGenerator
         .generate(
           constants.RANDOM_PASSWORD_CONFIGURATION(constants.CLIENT_ID_LENGTH)
         )
         .toUpperCase();
+
       const client_secret = accessCodeGenerator.generate(
         constants.RANDOM_PASSWORD_CONFIGURATION(constants.CLIENT_SECRET_LENGTH)
       );
-      let modifiedBody = Object.assign({}, body);
-      modifiedBody["token"] = token;
-      modifiedBody["client_secret"] = client_secret;
-      modifiedBody["client_id"] = client_id;
+      const clientName = request.user ? request.user.email : "no_email";
+      let clientRequestBody = {};
+      clientRequestBody["client_secret"] = client_secret;
+      clientRequestBody["client_id"] = client_id;
+      clientRequestBody["name"] = `client_${clientName}`;
 
-      /**
-       * does the user or client ID actually exist?
-       */
-
-      const responseFromCreateToken = await AccessTokenModel(
+      const responseFromCreateClient = await ClientModel(
         tenant.toLowerCase()
-      ).register(modifiedBody);
+      ).register(clientRequestBody);
 
-      if (responseFromCreateToken.success === true) {
-        return responseFromCreateToken;
-      } else if (responseFromCreateToken.success === false) {
-        return responseFromCreateToken;
+      if (responseFromCreateClient.success === true) {
+        let modifiedBody = Object.assign({}, body);
+        modifiedBody["token"] = token;
+        modifiedBody["client_secret"] = client_secret;
+        modifiedBody["client_id"] = client_id;
+
+        const responseFromCreateToken = await AccessTokenModel(
+          tenant.toLowerCase()
+        ).register(modifiedBody);
+
+        if (responseFromCreateToken.success === true) {
+          return responseFromCreateToken;
+        } else if (responseFromCreateToken.success === false) {
+          return responseFromCreateToken;
+        }
+      } else if (responseFromCreateClient.success === false) {
+        return responseFromCreateClient;
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
@@ -618,13 +671,9 @@ const controlAccess = {
           constants.RANDOM_PASSWORD_CONFIGURATION(constants.CLIENT_ID_LENGTH)
         )
         .toUpperCase();
-      const client_secret = accessCodeGenerator
-        .generate(
-          constants.RANDOM_PASSWORD_CONFIGURATION(
-            constants.CLIENT_SECRET_LENGTH
-          )
-        )
-        .toUpperCase();
+      const client_secret = accessCodeGenerator.generate(
+        constants.RANDOM_PASSWORD_CONFIGURATION(constants.CLIENT_SECRET_LENGTH)
+      );
 
       let modifiedBody = Object.assign({}, body);
       modifiedBody["client_secret"] = client_secret;
