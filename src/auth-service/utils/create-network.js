@@ -405,7 +405,7 @@ const createNetwork = {
       }
 
       for (const user_id of user_ids) {
-        const user = await UserModel(tenant).findById(ObjectId(user_id));
+        const user = await UserModel(tenant).findById(ObjectId(user_id)).lean();
 
         if (!user) {
           return {
@@ -418,7 +418,7 @@ const createNetwork = {
           };
         }
 
-        if (user.networks.includes(net_id)) {
+        if (user.networks && user.networks.includes(net_id.toString())) {
           return {
             success: false,
             message: "Bad Request Error",
@@ -488,9 +488,11 @@ const createNetwork = {
         };
       }
 
-      const user = await UserModel(tenant).findById(user_id);
+      const user = await UserModel(tenant).findById(user_id).lean();
 
-      if (user.networks.includes(net_id)) {
+      logObject("user", user);
+
+      if (user.networks && user.networks.includes(net_id.toString())) {
         return {
           success: false,
           message: "Bad Request Error",
