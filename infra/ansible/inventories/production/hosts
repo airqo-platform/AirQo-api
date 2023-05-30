@@ -25,12 +25,29 @@ all:
                     10.240.0.22:
                       name: airqo-k8s-worker-4                
     mongo_cluster:
-      hosts:
-        mongos-router.europe-west1-b.c.airqo-250220.internal
       children:
+        mongos_routers:
+          hosts:
+            mongos-router-0.europe-west1-b.c.airqo-250220.internal:
+            mongos-router-1.europe-west1-c.c.airqo-250220.internal:
+            mongos-router-2.europe-west1-d.c.airqo-250220.internal:
         config_servers:
           hosts:
-            mongod-cfgsvr-[1:3].europe-west1-b.c.airqo-250220.internal
-        shards_1:
+            mongod-cfgsvr-0.europe-west1-b.c.airqo-250220.internal:
+            mongod-cfgsvr-1.europe-west1-c.c.airqo-250220.internal:
+            mongod-cfgsvr-2.europe-west1-d.c.airqo-250220.internal:
+        shard_0:
           hosts:
-            mongod-shard-1-[1:3].europe-west1-b.c.airqo-250220.internal
+            mongod-shard-0-0.europe-west1-b.c.airqo-250220.internal:
+            mongod-shard-0-1.europe-west1-c.c.airqo-250220.internal:
+            mongod-shard-0-2.europe-west1-d.c.airqo-250220.internal:
+        shard_1:
+          hosts:
+            mongod-shard-1-0.europe-west1-b.c.airqo-250220.internal:
+            mongod-shard-1-1.europe-west1-c.c.airqo-250220.internal:
+            mongod-shard-1-2.europe-west1-d.c.airqo-250220.internal:
+        shard_2:
+          hosts:
+            mongod-shard-2-0.europe-west1-b.c.airqo-250220.internal:
+            mongod-shard-2-1.europe-west1-c.c.airqo-250220.internal:
+            mongod-shard-2-2.europe-west1-d.c.airqo-250220.internal:

@@ -1,28 +1,29 @@
-resource "google_compute_instance" "ansible_controller" {
+resource "google_compute_instance" "mongod_cfgsvr_0" {
   boot_disk {
     auto_delete = false
-    source      = "https://www.googleapis.com/compute/v1/projects/${var.project_id}/zones/${var.zone["b"]}/disks/ansible-controller"
+    source      = "mongod-cfgsvr-0"
   }
 
   labels = {
-    "env" = "prod"
+    "env"  = "prod"
+    "type" = "mongo-config-server"
   }
 
-  machine_type = "e2-small"
+  machine_type = "e2-highmem-2"
 
   metadata = {
     startup-script = "sudo ufw allow ssh"
   }
 
-  name = "ansible-controller"
+  name = "mongod-cfgsvr-0"
 
   network_interface {
     access_config {
       network_tier = "PREMIUM"
     }
 
-    network    = "default"
-    network_ip = "10.132.0.44"
+    network = "default"
+    network_ip = "10.132.0.45"
   }
 
   project = var.project_id
@@ -44,4 +45,4 @@ resource "google_compute_instance" "ansible_controller" {
 
   zone = var.zone["b"]
 }
-# terraform import google_compute_instance.ansible_controller projects/${var.project_id}/zones/${var.zone["b"]}/instances/ansible-controller
+# terraform import google_compute_instance.mongod_cfgsvr_0 projects/${var.project_id}/zones/${var.zone["b"]}/instances/mongod-cfgsvr-0
