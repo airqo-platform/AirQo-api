@@ -146,6 +146,10 @@ PermissionSchema.statics = {
       let options = { new: true };
       let modifiedUpdate = update;
 
+      if (modifiedUpdate.permission) {
+        delete modifiedUpdate.permission;
+      }
+
       const updatedPermission = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,

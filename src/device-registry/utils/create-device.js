@@ -1,5 +1,4 @@
 "use strict";
-const HTTPStatus = require("http-status");
 const DeviceSchema = require("@models/Device");
 const { getModelByTenant } = require("./multitenancy");
 const axios = require("axios");
@@ -21,6 +20,7 @@ let devicesModel = (tenant) => {
 };
 
 const { Kafka } = require("kafkajs");
+const httpStatus = require("http-status");
 const kafka = new Kafka({
   clientId: constants.KAFKA_CLIENT_ID,
   brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
@@ -75,7 +75,7 @@ const createDevice = {
           callback({
             success: true,
             message: "retrieved the number of devices",
-            status: HTTPStatus.OK,
+            status: httpStatus.OK,
             data: count,
           });
         }
@@ -84,7 +84,7 @@ const createDevice = {
             success: false,
             message: "Internal Server Error",
             errors: { message: err },
-            status: HTTPStatus.INTERNAL_SERVER_ERROR,
+            status: httpStatus.INTERNAL_SERVER_ERROR,
           });
         }
       });
@@ -124,14 +124,14 @@ const createDevice = {
               success: false,
               errors: { message: err },
               message: "unable to generate QR code",
-              status: HTTPStatus.INTERNAL_SERVER_ERROR,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
             });
           }
           return callback({
             success: true,
             message: "successfully generated the QR Code",
             data: url,
-            status: HTTPStatus.OK,
+            status: httpStatus.OK,
           });
         });
       } else if (responseFromListDevice.success === false) {
@@ -143,7 +143,7 @@ const createDevice = {
         success: false,
         message: "Internal Server Error",
         errors: { message: err.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       });
     }
   },
@@ -153,9 +153,22 @@ const createDevice = {
         return {
           success: false,
           message: "creation is not yet possible for this organisation",
-          status: HTTPStatus.NOT_IMPLEMENTED,
+          status: httpStatus.NOT_IMPLEMENTED,
         };
       }
+
+      if (process.env.NODE_ENV !== "production") {
+        return {
+          success: false,
+          message: "Bad Request",
+          errors: {
+            message:
+              "please utilise SOFT creation when operating in testing environments",
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
       let responseFromCreateOnThingspeak = await createDevice.createOnThingSpeak(
         request
       );
@@ -274,7 +287,7 @@ const createDevice = {
         success: false,
         message: "server error",
         errors: { message: error.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -326,7 +339,7 @@ const createDevice = {
         success: false,
         message: "Internal Server Error",
         errors: { message: e.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -378,7 +391,7 @@ const createDevice = {
       return {
         success: false,
         message: "Internal Server Error",
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
         errors: { message: error.message },
       };
     }
@@ -388,7 +401,7 @@ const createDevice = {
       return {
         success: false,
         message: "feature temporarily disabled --coming soon",
-        status: HTTPStatus.SERVICE_UNAVAILABLE,
+        status: httpStatus.SERVICE_UNAVAILABLE,
         errors: { message: "Service Unavailable" },
       };
       const { device_number } = request.query;
@@ -449,7 +462,7 @@ const createDevice = {
         success: false,
         message: "server error --delete -- create-device util",
         errors: { message: e.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -528,7 +541,7 @@ const createDevice = {
         success: false,
         message: "Internal Server Error",
         errors: { message: e.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -593,7 +606,7 @@ const createDevice = {
         success: false,
         errors: { message: error.message },
         message: "Internal Server Error",
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -673,7 +686,7 @@ const createDevice = {
             return {
               success: false,
               message: "Bad Gateway Error",
-              status: HTTPStatus.BAD_GATEWAY,
+              status: httpStatus.BAD_GATEWAY,
               errors: {
                 message:
                   "unable to create the device on thingspeak, crosscheck why",
@@ -685,7 +698,7 @@ const createDevice = {
       return {
         success: false,
         message: "Internal Server Error",
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
         errors: { message: error.message },
       };
     }
@@ -730,7 +743,7 @@ const createDevice = {
         success: true,
         message: "successfully updated the device on thingspeak",
         data: response.data,
-        status: HTTPStatus.OK,
+        status: httpStatus.OK,
       };
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
@@ -738,7 +751,7 @@ const createDevice = {
         success: false,
         message:
           "corresponding device_number does not exist on external system, consider SOFT update",
-        status: HTTPStatus.NOT_FOUND,
+        status: httpStatus.NOT_FOUND,
         errors: { message: error.message },
       };
     }
@@ -797,7 +810,7 @@ const createDevice = {
       return {
         success: false,
         message: "Internal Server Error",
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
         errors: { message: error.message },
       };
     }
@@ -901,7 +914,7 @@ const createDevice = {
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -910,7 +923,7 @@ const createDevice = {
       success: false,
       message: "coming soon",
       errors: "not yet integrated with the clarity system",
-      status: HTTPStatus.NOT_IMPLEMENTED,
+      status: httpStatus.NOT_IMPLEMENTED,
     };
   },
 
@@ -935,7 +948,7 @@ const createDevice = {
         success: true,
         message: "successfully decrypted the provided keys",
         data: results,
-        status: HTTPStatus.OK,
+        status: httpStatus.OK,
       };
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
@@ -944,7 +957,7 @@ const createDevice = {
         success: false,
         message: "unable to decrypt the key",
         errors: { message: error.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -960,7 +973,7 @@ const createDevice = {
       if (isKeyUnknown) {
         return {
           success: false,
-          status: HTTPStatus.NOT_FOUND,
+          status: httpStatus.NOT_FOUND,
           message: "the provided encrypted key is not recognizable",
           errors: { message: "the provided encrypted key is not recognizable" },
         };
@@ -969,7 +982,7 @@ const createDevice = {
           success: true,
           message: "successfully decrypted the text",
           data: originalText,
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       }
     } catch (err) {
@@ -978,7 +991,7 @@ const createDevice = {
         success: false,
         message: "Internal Server Error",
         errors: { message: err.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -1017,7 +1030,7 @@ const createDevice = {
       return {
         success: false,
         message: "feature temporarily disabled --coming soon",
-        status: HTTPStatus.SERVICE_UNAVAILABLE,
+        status: httpStatus.SERVICE_UNAVAILABLE,
         errors: { message: "Service Unavailable" },
       };
 
@@ -1084,7 +1097,7 @@ const createDevice = {
         errors: { message: error.message },
         message: "Internal Server Error",
         success: false,
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },

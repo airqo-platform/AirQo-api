@@ -150,7 +150,7 @@ const createUser = {
       }
       logText(".....................................");
       logText("list all users by query params provided");
-      let { tenant, id } = req.query;
+      let { tenant } = req.query;
       if (isEmpty(tenant)) {
         tenant = constants.DEFAULT_TENANT;
       }
@@ -163,7 +163,7 @@ const createUser = {
         filter = responseFromFilter.data;
         logObject("Zi filter", filter);
       } else if (responseFromFilter.success === false) {
-        return res.status(httpStatus.BAD_GATEWAY).json({
+        return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
           success: false,
           message: responseFromFilter.message,
           error: responseFromFilter.error
@@ -448,7 +448,7 @@ const createUser = {
         tenant = constants.DEFAULT_TENANT;
       }
 
-      let responseFromFilter = generateFilter.users(req);
+      const responseFromFilter = generateFilter.users(req);
       logObject("responseFromFilter", responseFromFilter);
       if (responseFromFilter.success === true) {
         let filter = responseFromFilter.data;
@@ -466,33 +466,23 @@ const createUser = {
             response: responseFromForgotPassword.data,
           });
         } else if (responseFromForgotPassword.success === false) {
-          if (responseFromForgotPassword.error) {
-            return res.status(httpStatus.BAD_GATEWAY).json({
-              success: false,
-              message: responseFromForgotPassword.message,
-              error: responseFromForgotPassword.error,
-            });
-          } else {
-            return res.status(httpStatus.BAD_GATEWAY).json({
-              success: false,
-              message: responseFromForgotPassword.message,
-            });
-          }
+          return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+            success: false,
+            message: responseFromForgotPassword.message,
+            error: responseFromForgotPassword.error
+              ? responseFromForgotPassword.error
+              : "",
+            errors: responseFromForgotPassword.errors
+              ? responseFromForgotPassword.errors
+              : { message: "Internal Server Error" },
+          });
         }
       } else if (responseFromFilter.success === false) {
-        if (responseFromFilter.error) {
-          return res.status(httpStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromFilter.message,
-            error: responseFromFilter.error,
-          });
-        } else {
-          return res.status(httpStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromFilter.message,
-            error: responseFromFilter.error,
-          });
-        }
+        return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+          success: false,
+          message: responseFromFilter.message,
+          error: responseFromFilter.error ? responseFromFilter.error : "",
+        });
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
@@ -665,13 +655,13 @@ const createUser = {
           });
         } else if (responseFromConfirmEmail.success === false) {
           if (responseFromConfirmEmail.error) {
-            return res.status(httpStatus.BAD_GATEWAY).json({
+            return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
               success: false,
               message: responseFromConfirmEmail.message,
               error: responseFromConfirmEmail.error,
             });
           } else {
-            return res.status(httpStatus.BAD_GATEWAY).json({
+            return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
               success: false,
               message: responseFromConfirmEmail.message,
             });
@@ -679,13 +669,13 @@ const createUser = {
         }
       } else if (responseFromFilter.success === false) {
         if (responseFromFilter.error) {
-          return res.status(httpStatus.BAD_GATEWAY).json({
+          return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
             success: false,
             message: responseFromFilter.message,
             error: responseFromFilter.error,
           });
         } else {
-          return res.status(httpStatus.BAD_GATEWAY).json({
+          return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
             success: false,
             message: responseFromFilter.message,
             error: responseFromFilter.error,
@@ -1155,13 +1145,13 @@ const createUser = {
           });
         } else if (responseFromUpdatePassword.success === false) {
           if (responseFromUpdatePassword.error) {
-            return res.status(httpStatus.BAD_GATEWAY).json({
+            return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
               success: false,
               message: responseFromUpdatePassword.message,
               error: responseFromUpdatePassword.error,
             });
           } else {
-            return res.status(httpStatus.BAD_GATEWAY).json({
+            return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
               success: false,
               message: responseFromUpdatePassword.message,
             });
@@ -1169,13 +1159,13 @@ const createUser = {
         }
       } else if (responseFromFilter.success === false) {
         if (responseFromFilter.error) {
-          res.status(httpStatus.BAD_GATEWAY).json({
+          res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
             success: false,
             message: responseFromFilter.message,
             error: responseFromFilter.error,
           });
         } else {
-          res.status(httpStatus.BAD_GATEWAY).json({
+          res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
             success: false,
             message: responseFromFilter.message,
           });

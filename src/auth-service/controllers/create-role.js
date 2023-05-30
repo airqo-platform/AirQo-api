@@ -847,7 +847,7 @@ const createRole = {
           : httpStatus.INTERNAL_SERVER_ERROR;
 
         return res.status(status).json({
-          success: true,
+          success: false,
           message: responseFromUnAssignPermissionFromRole.message,
           errors: responseFromUnAssignPermissionFromRole.errors
             ? responseFromUnAssignPermissionFromRole.errors

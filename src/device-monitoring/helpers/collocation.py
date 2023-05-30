@@ -1,4 +1,5 @@
 import copy
+import traceback
 from datetime import datetime
 
 import numpy as np
@@ -139,8 +140,13 @@ def doc_to_collocation_data(doc) -> CollocationBatch:
 def docs_to_collocation_data_list(docs: list) -> list[CollocationBatch]:
     data: list[CollocationBatch] = []
     for doc in docs:
-        doc_data = doc_to_collocation_data(doc)
-        data.append(doc_data)
+        try:
+            doc_data = doc_to_collocation_data(doc)
+            data.append(doc_data)
+        except Exception as ex:
+            print(ex)
+            traceback.print_exc()
+
     return data
 
 
@@ -283,7 +289,7 @@ class Collocation(BaseModel):
         )
         summary.extend(
             CollocationBatchResultSummary(
-                device=device, status=CollocationDeviceStatus.RE_RUN_REQUIRED
+                device=device, status=CollocationDeviceStatus.ERROR
             )
             for device in neutral_devices
         )

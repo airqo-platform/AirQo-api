@@ -279,6 +279,12 @@ UserSchema.statics = {
           as: "networks",
         })
         .lookup({
+          from: "networks",
+          localField: "_id",
+          foreignField: "net_manager",
+          as: "my_networks",
+        })
+        .lookup({
           from: "access_tokens",
           localField: "_id",
           foreignField: "user_id",
@@ -324,6 +330,7 @@ UserSchema.statics = {
         .limit(limit ? limit : parseInt(constants.DEFAULT_LIMIT))
         .allowDiskUse(true);
 
+      logObject("response", response);
       if (!isEmpty(response)) {
         return {
           success: true,

@@ -2,7 +2,6 @@ import pandas as pd
 
 from api.utils.dates import str_to_aqcsv_date_format
 from api.utils.pollutants.pm_25 import (
-    POLLUTANT_BIGQUERY_MAPPER,
     AQCSV_PARAMETER_MAPPER,
     FREQUENCY_MAPPER,
     AQCSV_UNIT_MAPPER,
