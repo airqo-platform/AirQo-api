@@ -17,6 +17,7 @@ redis
 python-decouple
 celery
 google-cloud-storage
+gunicorn
 
 # Ports for stable python 3 functionality
 dataclasses # for py < 3.7

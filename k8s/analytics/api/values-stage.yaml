@@ -39,3 +39,5 @@ app:
   label: sta-alytics-api
   namespace: staging
   configmap: env-analytics-staging
+image:
+  tag: stage-0282c90c-1685277036
