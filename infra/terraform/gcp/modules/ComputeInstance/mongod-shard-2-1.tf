@@ -1,6 +1,6 @@
 resource "google_compute_instance" "mongod_shard_2_1" {
   boot_disk {
-    auto_delete = true
+    auto_delete = false
     source      = "mongod-shard-2-1"
   }
 
@@ -23,7 +23,7 @@ resource "google_compute_instance" "mongod_shard_2_1" {
     }
 
     network    = "default"
-    network_ip = "10.132.0.52"
+    network_ip = "10.132.0.56"
   }
 
   project = var.project_id

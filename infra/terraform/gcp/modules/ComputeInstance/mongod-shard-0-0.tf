@@ -1,6 +1,6 @@
 resource "google_compute_instance" "mongod_shard_0_0" {
   boot_disk {
-    auto_delete = true
+    auto_delete = false
     source      = "mongod-shard-1-0"
   }
 
