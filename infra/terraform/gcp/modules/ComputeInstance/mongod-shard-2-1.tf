@@ -23,7 +23,7 @@ resource "google_compute_instance" "mongod_shard_2_1" {
     }
 
     network    = "default"
-    network_ip = "10.132.0.56"
+    network_ip = "10.132.0.58"
   }
 
   project = var.project_id

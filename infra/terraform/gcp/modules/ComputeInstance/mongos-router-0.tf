@@ -1,7 +1,7 @@
-resource "google_compute_instance" "mongos_router" {
+resource "google_compute_instance" "mongos_router_0" {
   boot_disk {
     auto_delete = false
-    source      = "mongos-router"
+    source      = "mongos-router-0"
   }
 
   labels = {
@@ -14,7 +14,7 @@ resource "google_compute_instance" "mongos_router" {
     startup-script = "sudo ufw allow ssh"
   }
 
-  name = "mongos-router"
+  name = "mongos-router-0"
 
   network_interface {
     access_config {
@@ -45,4 +45,4 @@ resource "google_compute_instance" "mongos_router" {
   tags = ["http-server", "https-server"]
   zone = var.zone["b"]
 }
-# terraform import google_compute_instance.mongos_router projects/${var.project_id}/zones/${var.zone["b"]}/instances/mongos-router
+# terraform import google_compute_instance.mongos_router_0 projects/${var.project_id}/zones/${var.zone["b"]}/instances/mongos-router-0
