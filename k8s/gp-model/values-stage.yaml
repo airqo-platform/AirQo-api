@@ -23,4 +23,4 @@ resources:
     cpu: 50m
     memory: 100Mi
 image:
-  tag: stage-1df196f0-1685436992
+  tag: stage-316eda9e-1685444679
