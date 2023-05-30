@@ -1,5 +1,5 @@
 resource "google_compute_disk" "mongos_router_1" {
-  image                     = var.os["ubuntu-focal"]
+  snapshot                  = "https://www.googleapis.com/compute/v1/projects/${var.project_id}/global/snapshots/mongos-router-1"
   name                      = "mongos-router-1"
   physical_block_size_bytes = 4096
   project                   = var.project_id
