@@ -8,7 +8,7 @@ resource "google_compute_instance" "mongos_router" {
     "env"  = "prod"
   }
 
-  machine_type = "e2-standard-2"
+  machine_type = "e2-medium"
 
   metadata = {
     startup-script = "sudo ufw allow ssh"
