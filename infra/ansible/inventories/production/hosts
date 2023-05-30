@@ -28,7 +28,7 @@ all:
       children:
         mongos_routers:
           hosts:
-            mongos-router-0.europe-west1-b.c.airqo-250220.internal
+            mongos-router-0.europe-west1-b.c.airqo-250220.internal:
             mongos-router-1.europe-west1-c.c.airqo-250220.internal:
             mongos-router-2.europe-west1-d.c.airqo-250220.internal:
         config_servers:
