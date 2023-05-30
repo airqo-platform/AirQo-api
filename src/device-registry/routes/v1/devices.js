@@ -827,7 +827,7 @@ router.put(
         .notEmpty()
         .withMessage("long_name should not be empty IF provided")
         .bail()
-        .matches(/^[a-zA-Z0-9]+$/)
+        .matches(/^[a-zA-Z0-9_-]+$/)
         .withMessage("long_name should only contain alphanumeric characters.")
         .trim(),
       body("mountType")

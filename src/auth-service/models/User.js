@@ -88,13 +88,23 @@ const UserSchema = new Schema(
     },
     isActive: { type: Boolean },
     duration: { type: Date, default: oneMonthFromNow },
-    networks: [
-      {
-        type: ObjectId,
-        ref: "network",
-        unique: true,
-      },
-    ],
+    networks: {
+      type: [
+        {
+          type: ObjectId,
+          ref: "network",
+          unique: true,
+        },
+      ],
+      default: [mongoose.Types.ObjectId(constants.DEFAULT_NETWORK)],
+    },
+    // networks: [
+    //   {
+    //     type: ObjectId,
+    //     ref: "network",
+    //     unique: true,
+    //   },
+    // ],
     groups: [
       {
         type: ObjectId,
@@ -269,6 +279,12 @@ UserSchema.statics = {
           as: "networks",
         })
         .lookup({
+          from: "networks",
+          localField: "_id",
+          foreignField: "net_manager",
+          as: "my_networks",
+        })
+        .lookup({
           from: "access_tokens",
           localField: "_id",
           foreignField: "user_id",
@@ -314,6 +330,7 @@ UserSchema.statics = {
         .limit(limit ? limit : parseInt(constants.DEFAULT_LIMIT))
         .allowDiskUse(true);
 
+      logObject("response", response);
       if (!isEmpty(response)) {
         return {
           success: true,

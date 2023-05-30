@@ -3,19 +3,16 @@ from datetime import datetime
 import pandas as pd
 import numpy as np
 import gpflow
+from google.cloud import bigquery
 from gpflow import set_trainable
-from config import connect_mongo
-from config import configuration, environment
+from config import connect_mongo, Config
+from config import configuration
 import argparse
-from threading import Thread
 from shapely.geometry import Point, Polygon
-from helpers.get_data import get_pm_data
 from data.data import (
-    get_airqloud_sites,
-    get_site_data,
-    get_all_sites_data,
     get_airqloud_data,
 )
+from helpers.get_data import date_to_str
 from data.preprocess import data_to_df, drop_missing_value, preprocess
 
 pd.set_option("mode.chained_assignment", None)
@@ -119,6 +116,35 @@ def point_in_polygon(row, polygon):
         return "False"
 
 
+def save_predictions_on_bigquery(predictions):
+    predictions = predictions[0]
+    airqloud_id = predictions["airqloud_id"]
+    timestamp = date_to_str(predictions["created_at"])
+
+    data = list(map(lambda record: {
+        "airqloud_id": airqloud_id,
+        "timestamp": timestamp,
+        "pm2_5": record["predicted_value"],
+        "pm2_5_variance": record["variance"],
+        "pm2_5_confidence_interval": record["interval"],
+        "location": Point(record["longitude"], record["latitude"]).wkt,
+
+    }, predictions["values"]))
+
+    client = bigquery.Client()
+    errors = client.insert_rows_json(
+        json_rows=data, table=Config.BIGQUERY_MEASUREMENTS_PREDICTIONS, skip_invalid_rows=True
+    )
+
+    if errors:
+        print("Encountered errors while inserting rows:", errors)
+    else:
+        client.query(f"DELETE FROM `{Config.BIGQUERY_MEASUREMENTS_PREDICTIONS}` "
+                     f"WHERE airqloud_id ='{airqloud_id}' "
+                     f"AND timestamp < {timestamp}")
+        print("Data inserted successfully.")
+
+
 def predict_model(m, tenant, airqloud, aq_id, poly, x1, x2, y1, y2):
     """
     Makes the predictions and stores them in a database
@@ -179,6 +205,7 @@ def predict_model(m, tenant, airqloud, aq_id, poly, x1, x2, y1, y2):
     if collection.count_documents({"airqloud": airqloud}) != 0:
         collection.delete_many({"airqloud": airqloud})
     collection.insert_many(result)
+    # save_predictions_on_bigquery(result) TODO : setup saving data on BigQuery.
 
     return result
 
