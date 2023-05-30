@@ -205,7 +205,7 @@ def predict_model(m, tenant, airqloud, aq_id, poly, x1, x2, y1, y2):
     if collection.count_documents({"airqloud": airqloud}) != 0:
         collection.delete_many({"airqloud": airqloud})
     collection.insert_many(result)
-    # save_predictions_on_bigquery(result) TODO : setup saving data on BigQuery.
+    save_predictions_on_bigquery(result)
 
     return result
 
