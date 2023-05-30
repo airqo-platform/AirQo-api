@@ -1,6 +1,6 @@
 resource "google_compute_instance" "mongod_cfgsvr_2" {
   boot_disk {
-    auto_delete = true
+    auto_delete = false
     source      = "mongod-cfgsvr-2"
   }
 

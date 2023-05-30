@@ -1,12 +1,11 @@
 resource "google_compute_instance" "mongos_router" {
   boot_disk {
-    auto_delete = true
+    auto_delete = false
     source      = "mongos-router"
   }
 
   labels = {
     "env"  = "prod"
-    "type" = "mongo-shard"
   }
 
   machine_type = "e2-standard-2"
