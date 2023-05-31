@@ -4,9 +4,9 @@ images:
     api: eu.gcr.io/airqo-250220/airqo-stage-analytics-api
     celeryBeat: eu.gcr.io/airqo-250220/airqo-stage-analytics-celery-beat
     celeryWorker: eu.gcr.io/airqo-250220/airqo-stage-analytics-celery-worker
-  tag: stage-453bc606-1685431719
-nameOverride: ""
-fullnameOverride: ""
+  tag: stage-100447fd-1685533251
+nameOverride: ''
+fullnameOverride: ''
 podAnnotations: {}
 resources:
   limits:
