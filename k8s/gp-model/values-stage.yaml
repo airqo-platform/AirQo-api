@@ -5,7 +5,6 @@ app:
   label: gpmodel
   namespace: staging
   configMap: env-gp-model-staging
-replicaCount: 1
 images:
   tag: stage-948d4315-1680198467
   repositories:
