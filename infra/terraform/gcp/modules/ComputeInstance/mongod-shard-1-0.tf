@@ -1,29 +1,29 @@
-resource "google_compute_instance" "mongod_cfgsvr_3" {
+resource "google_compute_instance" "mongod_shard_1_0" {
   boot_disk {
-    auto_delete = true
-    source      = "mongod-cfgsvr-3"
+    auto_delete = false
+    source      = "mongod-shard-1-0"
   }
 
   labels = {
     "env"  = "prod"
-    "type" = "mongo-config-server"
+    "type" = "mongo-shard"
   }
 
-  machine_type = "e2-custom-4-8192"
+  machine_type = "e2-highmem-2"
 
   metadata = {
     startup-script = "sudo ufw allow ssh"
   }
 
-  name = "mongod-cfgsvr-3"
+  name = "mongod-shard-1-0"
 
   network_interface {
     access_config {
       network_tier = "PREMIUM"
     }
 
-    network = "default"
-    network_ip = "10.132.0.50"
+    network    = "default"
+    network_ip = "10.132.0.51"
   }
 
   project = var.project_id
@@ -45,4 +45,4 @@ resource "google_compute_instance" "mongod_cfgsvr_3" {
 
   zone = var.zone["b"]
 }
-# terraform import google_compute_instance.mongod_cfgsvr_3 projects/${var.project_id}/zones/${var.zone["b"]}/instances/mongod-cfgsvr-3
+# terraform import google_compute_instance.mongod_shard_1_0 projects/${var.project_id}/zones/${var.zone["b"]}/instances/mongod-shard-1-0

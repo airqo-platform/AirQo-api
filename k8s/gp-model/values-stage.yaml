@@ -1,5 +1,8 @@
 app:
   name: stage-gpmodel
+  cronJobName: stage-gpmodel-cron-job
+  brokerConsumerName: stage-gpmodel-broker-consumer
+  label: gpmodel
   namespace: staging
   configmap: env-gp-model-staging
 image:

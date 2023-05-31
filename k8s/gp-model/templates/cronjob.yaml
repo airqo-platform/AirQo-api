@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: {{ .Values.app.name }}
+  name: {{ .Values.app.cronJobName }}
   namespace: {{ .Values.app.namespace }}
 spec:
   concurrencyPolicy: Allow
@@ -11,7 +11,7 @@ spec:
   suspend: false
   jobTemplate:
     metadata:
-      name: {{ .Values.app.name }}
+      name: {{ .Values.app.cronJobName }}
     spec:
       template:
         spec:
@@ -36,6 +36,6 @@ spec:
               terminationMessagePolicy: File
               envFrom:
                 - configMapRef:
-                    name: {{ .Values.app.configmap }}
+                    name: {{ .Values.app.configMap }}
               resources:
                 {{- toYaml .Values.resources | nindent 16 }}
