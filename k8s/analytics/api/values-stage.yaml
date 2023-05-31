@@ -1,14 +1,17 @@
 replicaCount: 2
-image:
-  repository: eu.gcr.io/airqo-250220/airqo-stage-analytics-api
-  tag: stage-8df87f45-1679916944
-nameOverride: ''
-fullnameOverride: ''
+images:
+  repositories:
+    api: eu.gcr.io/airqo-250220/airqo-stage-analytics-api
+    celeryBeat: eu.gcr.io/airqo-250220/airqo-stage-analytics-celery-beat
+    celeryWorker: eu.gcr.io/airqo-250220/airqo-stage-analytics-celery-worker
+  tag: stage-453bc606-1685431719
+nameOverride: ""
+fullnameOverride: ""
 podAnnotations: {}
 resources:
   limits:
     cpu: 100m
-    memory: 400Mi
+    memory: 600Mi
   requests:
     cpu: 10m
     memory: 250Mi
@@ -36,3 +39,5 @@ app:
   label: sta-alytics-api
   namespace: staging
   configmap: env-analytics-staging
+image:
+  tag: stage-0282c90c-1685277036

@@ -115,6 +115,19 @@ const GroupModel = (tenant) => {
 };
 
 const controlAccess = {
+  sample: async (request) => {
+    try {
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: "Internal Server Error" },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
   /******* hashing ******************************************/
   hash: (string) => {
     try {
@@ -440,36 +453,89 @@ const controlAccess = {
     try {
       const { query, body } = request;
       const { tenant } = query;
+      let { user_id } = body;
+
       const token = accessCodeGenerator
         .generate(
           constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH)
         )
         .toUpperCase();
+
+      /**
+       * Does the User ID actually exist?
+       */
+
+      const userExists = await UserModel(tenant).exists({ _id: user_id });
+      if (!userExists) {
+        return {
+          success: false,
+          message: "User not found",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: `Invalid request, User ${user_id} not found` },
+        };
+      }
+
+      /**
+       * Does the client ID actually exist?
+       * We shall not just create random access IDs from here.
+       */
+
+      // if (!isEmpty(client_id)) {
+      //   const clientExists = await ClientModel(tenant).exists({
+      //     _id: client_id,
+      //   });
+      //   if (!clientExists) {
+      //     return {
+      //       success: false,
+      //       message: "Client not found",
+      //       status: httpStatus.BAD_REQUEST,
+      //       errors: {
+      //         message: `Invalid request, Client ${client_id} not found`,
+      //       },
+      //     };
+      //   }
+      // }
+
+      /**
+       * just create the client from here?
+       */
+
       const client_id = accessCodeGenerator
         .generate(
           constants.RANDOM_PASSWORD_CONFIGURATION(constants.CLIENT_ID_LENGTH)
         )
         .toUpperCase();
+
       const client_secret = accessCodeGenerator.generate(
         constants.RANDOM_PASSWORD_CONFIGURATION(constants.CLIENT_SECRET_LENGTH)
       );
-      let modifiedBody = Object.assign({}, body);
-      modifiedBody["token"] = token;
-      modifiedBody["client_secret"] = client_secret;
-      modifiedBody["client_id"] = client_id;
+      const clientName = request.user ? request.user.email : "no_email";
+      let clientRequestBody = {};
+      clientRequestBody["client_secret"] = client_secret;
+      clientRequestBody["client_id"] = client_id;
+      clientRequestBody["name"] = `client_${clientName}`;
 
-      /**
-       * does the user or client ID actually exist?
-       */
-
-      const responseFromCreateToken = await AccessTokenModel(
+      const responseFromCreateClient = await ClientModel(
         tenant.toLowerCase()
-      ).register(modifiedBody);
+      ).register(clientRequestBody);
 
-      if (responseFromCreateToken.success === true) {
-        return responseFromCreateToken;
-      } else if (responseFromCreateToken.success === false) {
-        return responseFromCreateToken;
+      if (responseFromCreateClient.success === true) {
+        let modifiedBody = Object.assign({}, body);
+        modifiedBody["token"] = token;
+        modifiedBody["client_secret"] = client_secret;
+        modifiedBody["client_id"] = client_id;
+
+        const responseFromCreateToken = await AccessTokenModel(
+          tenant.toLowerCase()
+        ).register(modifiedBody);
+
+        if (responseFromCreateToken.success === true) {
+          return responseFromCreateToken;
+        } else if (responseFromCreateToken.success === false) {
+          return responseFromCreateToken;
+        }
+      } else if (responseFromCreateClient.success === false) {
+        return responseFromCreateClient;
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
@@ -605,13 +671,9 @@ const controlAccess = {
           constants.RANDOM_PASSWORD_CONFIGURATION(constants.CLIENT_ID_LENGTH)
         )
         .toUpperCase();
-      const client_secret = accessCodeGenerator
-        .generate(
-          constants.RANDOM_PASSWORD_CONFIGURATION(
-            constants.CLIENT_SECRET_LENGTH
-          )
-        )
-        .toUpperCase();
+      const client_secret = accessCodeGenerator.generate(
+        constants.RANDOM_PASSWORD_CONFIGURATION(constants.CLIENT_SECRET_LENGTH)
+      );
 
       let modifiedBody = Object.assign({}, body);
       modifiedBody["client_secret"] = client_secret;
@@ -781,7 +843,6 @@ const controlAccess = {
       };
     }
   },
-
   listRolesForNetwork: async (request) => {
     try {
       const { query, params } = request;
@@ -800,9 +861,37 @@ const controlAccess = {
         };
       }
 
-      const roleResponse = await RoleModel(tenant).find({
-        network_id: ObjectId(net_id),
-      });
+      const roleResponse = await RoleModel(tenant).aggregate([
+        {
+          $match: {
+            network_id: ObjectId(net_id),
+          },
+        },
+        {
+          $lookup: {
+            from: "permissions",
+            localField: "role_permissions",
+            foreignField: "_id",
+            as: "role_permissions",
+          },
+        },
+        {
+          $project: {
+            _id: 1,
+            name: 1,
+            role_permissions: {
+              $map: {
+                input: "$role_permissions",
+                as: "role_permission",
+                in: {
+                  _id: "$$role_permission._id",
+                  permission: "$$role_permission.permission",
+                },
+              },
+            },
+          },
+        },
+      ]);
 
       if (!isEmpty(roleResponse)) {
         return {
@@ -851,7 +940,6 @@ const controlAccess = {
       };
     }
   },
-
   updateRole: async (request) => {
     try {
       const { query, body } = request;
@@ -876,7 +964,6 @@ const controlAccess = {
       };
     }
   },
-
   createRole: async (request) => {
     try {
       const { query, body } = request;
@@ -890,20 +977,16 @@ const controlAccess = {
           status: httpStatus.BAD_REQUEST,
           message: "Bad Request Error",
           errors: {
-            message:
-              "Provided network or organisation cannot be found, please crosscheck",
+            message: `Provided organisation ${body.network_id} is invalid, please crosscheck`,
           },
         };
       }
 
-      /***
-       * add to the Network's "net_roles" will be done at this step
-       * Still exploring the pros and cons
-       */
-
       const organizationName = network.net_name.toUpperCase();
       newBody.role_name = `${organizationName}_${body.role_name}`;
-      newBody.role_code = `${organizationName}_${body.role_code}`;
+      newBody.role_code = `${organizationName}_${
+        body.role_code ? body.role_code : body.role_name
+      }`;
 
       const responseFromCreateRole = await RoleModel(
         tenant.toLowerCase()
@@ -922,154 +1005,155 @@ const controlAccess = {
       };
     }
   },
-
-  listUserWithRole: async (req, res) => {
-    try {
-    } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
-    }
-  },
-
   listAvailableUsersForRole: async (request) => {
     try {
-      logText("listAvailableUsersForRole...");
-      let filter = {};
-      const limit = parseInt(request.query.limit, 0);
-      const skip = parseInt(request.query.skip, 0);
-      const { query, params } = request;
-      const { role_id } = params;
-      const { tenant } = query;
-      let newRequest = Object.assign({}, request);
-      newRequest["query"]["role_id"] = role_id;
+      const { tenant } = request.query;
+      const { role_id } = request.params;
 
-      function manipulateFilter(obj) {
-        const newObj = {};
-        for (var key in obj) {
-          newObj[key] = { $ne: obj[key] };
-        }
-        return newObj;
+      const role = await RoleModel(tenant).findById(role_id);
+
+      if (!role) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: {
+            message: `Invalid role ID ${role_id}, please crosscheck`,
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
       }
 
-      const filterResponse = generateFilter.users(newRequest);
-      if (filterResponse.success === false) {
-        return filter;
-      } else {
-        filter = manipulateFilter(filterResponse.data);
-      }
-
-      logObject("filter", filter);
-
-      const responseFromListAvailableUsersForRole = await UserModel(
-        tenant
-      ).list({
-        skip,
-        limit,
-        filter,
-      });
+      const responseFromListAvailableUsers = await UserModel(tenant)
+        .aggregate([
+          {
+            $match: {
+              role: { $ne: role_id },
+            },
+          },
+          {
+            $project: {
+              _id: 1,
+              email: 1,
+              firstName: 1,
+              lastName: 1,
+              createdAt: {
+                $dateToString: {
+                  format: "%Y-%m-%d %H:%M:%S",
+                  date: "$_id",
+                },
+              },
+              userName: 1,
+            },
+          },
+        ])
+        .exec();
 
       logObject(
-        "responseFromListAvailableUsersForRole",
-        responseFromListAvailableUsersForRole
+        "responseFromListAvailableUsers",
+        responseFromListAvailableUsers
       );
 
-      if (responseFromListAvailableUsersForRole.success === true) {
-        return responseFromListAvailableUsersForRole;
-      } else if (responseFromListAvailableUsersForRole.success === false) {
-        return responseFromListAvailableUsersForRole;
-      }
+      return {
+        success: true,
+        message: `retrieved all available users for the role ${role_id}`,
+        data: responseFromListAvailableUsers,
+      };
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+      logElement("internal server error", error.message);
+      logger.error(`Internal Server Error ${error.message}`);
+      return {
         success: false,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
         message: "Internal Server Error",
         errors: { message: error.message },
-      });
+      };
     }
   },
-
   assignUserToRole: async (request) => {
     try {
-      const { query, params, body } = request;
-      const { role_id } = params;
-      const { tenant } = query;
-      const { user } = body;
+      const { role_id, user_id } = request.params;
+      const { tenant } = request.query;
+      const { user } = request.body;
+      const userIdFromBody = user;
+      const userIdFromQuery = user_id;
 
-      // Check if the role exists
-      const roleObject = await RoleModel(tenant).findById(role_id).lean();
-      if (isEmpty(roleObject)) {
+      if (!isEmpty(userIdFromBody) && !isEmpty(userIdFromQuery)) {
         return {
           success: false,
           message: "Bad Request Error",
           errors: {
-            message: `Role ${role_id.toString()} does not exist`,
+            message:
+              "You can not provide the user ID using query params and query body, choose one approach",
           },
           status: httpStatus.BAD_REQUEST,
         };
       }
 
-      // Check if the user exists and is not a super_admin already
+      const userId = userIdFromQuery || userIdFromBody;
+      logObject("userId", userId);
+
+      const userExists = await UserModel(tenant).exists({ _id: userId });
+      const roleExists = await RoleModel(tenant).exists({ _id: role_id });
+
+      if (!userExists || !roleExists) {
+        return {
+          success: false,
+          message: "User or Role not found",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: `User ${userId} or Role ${role_id} not found` },
+        };
+      }
+
       const userObject = await UserModel(tenant)
-        .findById(user)
+        .findById(userId)
         .populate("role")
         .lean();
+
       logObject("userObject", userObject);
+
       if (
-        isEmpty(userObject) ||
-        (userObject.role && userObject.role.role_name.endsWith("SUPER_ADMIN"))
+        userObject.role &&
+        userObject.role._id.toString() === role_id.toString()
       ) {
         return {
           success: false,
           message: "Bad Request Error",
           errors: {
-            message: `provided User ${user.toString()} does not exist or super admin user may not be reassigned to a different role`,
+            message: `Role ${role_id} already assigned to User ${userId}`,
           },
           status: httpStatus.BAD_REQUEST,
         };
       }
 
-      // Check if the user is already assigned to the role
       if (
         userObject.role &&
-        userObject.role._id.toString() === roleObject._id.toString()
+        userObject.role.role_name.endsWith("SUPER_ADMIN")
       ) {
         return {
           success: false,
           message: "Bad Request Error",
           errors: {
-            message: `User ${user.toString()} is already assigned to the role ${roleObject._id.toString()}`,
+            message: `SUPER ADMIN user ${userId} can not be reassigned to a different role`,
           },
           status: httpStatus.BAD_REQUEST,
         };
       }
 
       const updatedUser = await UserModel(tenant).findByIdAndUpdate(
-        user,
-        {
-          role: role_id,
-        },
-        { new: true }
-      );
-
-      const updatedRole = await RoleModel(tenant).findOneAndUpdate(
-        { _id: role_id },
-        { $addToSet: { role_users: user } },
+        userId,
+        { role: role_id },
         { new: true }
       );
 
       return {
         success: true,
-        message: "User assigned to the role",
-        data: { updated_user: updatedUser, updated_role: updatedRole },
+        message: "User assigned to the Role",
+        data: updatedUser,
         status: httpStatus.OK,
       };
     } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
       logObject("error", error);
+      logger.error(`Internal Server Error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -1078,7 +1162,6 @@ const controlAccess = {
       };
     }
   },
-
   assignManyUsersToRole: async (request) => {
     try {
       const { query, params, body } = request;
@@ -1113,7 +1196,6 @@ const controlAccess = {
             errors: { message: `One of the Users does not exist` },
             status: httpStatus.BAD_REQUEST,
           };
-          //continue;
         }
 
         const role = user.role;
@@ -1123,11 +1205,10 @@ const controlAccess = {
             success: false,
             message: "Bad Request Error",
             errors: {
-              message: `User with ID ${user._id} has a role ending with SUPER_ADMIN`,
+              message: `SUPER ADMIN user ${user._id} can not be reassigned to a different role`,
             },
             status: httpStatus.BAD_REQUEST,
           };
-          //continue;
         }
 
         if (!isEmpty(role) && role._id.toString() === role_id.toString()) {
@@ -1172,51 +1253,63 @@ const controlAccess = {
     }
   },
 
-  sample: async (request) => {
-    try {
-    } catch (error) {
-      logger.error(`internal server error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: "Internal Server Error" },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
-    }
-  },
-
   listUsersWithRole: async (request) => {
     try {
       logText("listUsersWithRole...");
       let filter = {};
-      const limit = parseInt(request.query.limit, 0);
-      const skip = parseInt(request.query.skip, 0);
-      const { query, body, params } = request;
+      const { query, params } = request;
       const { role_id } = params;
       const { tenant } = query;
-      let newRequest = Object.assign({}, request);
-      newRequest["query"]["role_id"] = role_id;
-      const filterResponse = generateFilter.users(newRequest);
-      if (filterResponse.success === false) {
-        return filter;
-      } else {
-        filter = filterResponse.data;
+
+      if (!isEmpty(role_id)) {
+        filter["role"] = ObjectId(role_id);
       }
-      logObject("the filter", filter);
 
-      const responseFromListUsersWithRole = await UserModel(tenant).list({
-        skip,
-        limit,
-        filter,
-      });
+      const role = await RoleModel(tenant).findById(role_id);
 
-      logObject("responseFromListUsersWithRole", responseFromListUsersWithRole);
-
-      if (responseFromListUsersWithRole.success === true) {
-        return responseFromListUsersWithRole;
-      } else if (responseFromListUsersWithRole.success === false) {
-        return responseFromListUsersWithRole;
+      if (!role) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: {
+            message: `Invalid role ID ${role_id.toString()}, please crosscheck`,
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
       }
+
+      const responseFromListAssignedUsers = await UserModel(tenant)
+        .aggregate([
+          {
+            $match: {
+              role: role_id,
+            },
+          },
+          {
+            $project: {
+              _id: 1,
+              email: 1,
+              firstName: 1,
+              lastName: 1,
+              createdAt: {
+                $dateToString: {
+                  format: "%Y-%m-%d %H:%M:%S",
+                  date: "$_id",
+                },
+              },
+              userName: 1,
+            },
+          },
+        ])
+        .exec();
+
+      logObject("responseFromListAssignedUsers", responseFromListAssignedUsers);
+
+      return {
+        success: true,
+        message: `retrieved all assigned users for role ${role_id}`,
+        data: responseFromListAssignedUsers,
+      };
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
       logObject("error", error);
@@ -1248,22 +1341,34 @@ const controlAccess = {
         };
       }
 
-      // Check if the user exists and is not a super_admin already
+      // Check if the user exists
       const userObject = await UserModel(tenant)
         .findById(user_id)
         .populate("role")
         .lean();
       logObject("userObject", userObject);
 
+      if (isEmpty(userObject)) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: {
+            message: `provided User ${user_id.toString()} does not exist`,
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      // check if User is not a super_admin
       if (
-        isEmpty(userObject) ||
-        (userObject.role && userObject.role.role_name.endsWith("SUPER_ADMIN"))
+        userObject.role &&
+        userObject.role.role_name.endsWith("SUPER_ADMIN")
       ) {
         return {
           success: false,
           message: "Bad Request Error",
           errors: {
-            message: `provided User ${user.toString()} does not exist or super admin user may not be unassigned from their role`,
+            message: `SUPER_ADMIN User ${user_id.toString()} may not be unassigned from their role`,
           },
           status: httpStatus.BAD_REQUEST,
         };
@@ -1279,53 +1384,16 @@ const controlAccess = {
         };
       }
 
-      // check to see if the role has any users assigned to it
-
-      if (isEmpty(roleObject.role_users)) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: {
-            message: `The provided role ${role_id.toString()} does not have any users assigned to it `,
-          },
-        };
-      }
-
-      // Check if role_name doesn't end with SUPER_ADMIN
-      if (roleObject.role_name.endsWith("SUPER_ADMIN")) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: { message: "Cannot unassign user from SUPER_ADMIN role" },
-          status: httpStatus.BAD_REQUEST,
-        };
-      }
-
-      // Check if the user is already unassigned from the role
-      if (
-        !roleObject.role_users
-          .map((id) => id.toString())
-          .includes(user_id.toString())
-      ) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: {
-            message: `Role ${role_id.toString()} does not have User ${user_id.toString()}  assigned to it`,
-          },
-        };
-      }
-
       // Check if the user is not assigned to the role
       if (
         userObject.role &&
-        !userObject.role._id.toString() === roleObject._id.toString()
+        userObject.role._id.toString() !== role_id.toString()
       ) {
         return {
           success: false,
           message: "Bad Request Error",
           errors: {
-            message: `User ${user_id.toString()} is not assigned to the role ${roleObject._id.toString()}`,
+            message: `User ${user_id.toString()} is not assigned to the role ${role_id.toString()}`,
           },
           status: httpStatus.BAD_REQUEST,
         };
@@ -1340,7 +1408,7 @@ const controlAccess = {
       return {
         success: true,
         message: "User unassigned from the role",
-        data: { updated_user: updatedUser },
+        data: updatedUser,
         status: httpStatus.OK,
       };
     } catch (error) {
@@ -1354,7 +1422,6 @@ const controlAccess = {
       };
     }
   },
-
   unAssignManyUsersFromRole: async (request) => {
     try {
       const { query, params, body } = request;
@@ -1365,13 +1432,52 @@ const controlAccess = {
       // Check if the role exists
       const role = await RoleModel(tenant).findById(role_id).lean();
       if (!role) {
-        return res.status(404).send("Role not found");
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: "Role not found" },
+          status: httpStatus.BAD_REQUEST,
+        };
       }
 
-      // Check if any of the user's role ends with SUPER_ADMIN
-      // const users = await UserModel(tenant).find({ _id: { $in: user_ids } })
-      //   .populate("role")
-      //   .lean();
+      //check of all these provided users actually do exist?
+      const existingUsers = await UserModel(tenant).find(
+        { _id: { $in: user_ids } },
+        "_id"
+      );
+
+      if (existingUsers.length !== user_ids.length) {
+        const nonExistentUsers = user_ids.filter(
+          (user_id) => !existingUsers.find((user) => user._id.equals(user_id))
+        );
+
+        return {
+          success: false,
+          message: `Bad Request Error`,
+          errors: {
+            message: `The following users do not exist: ${nonExistentUsers}`,
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      //check if all the provided user_ids are assigned to the provided role?
+
+      const usersAssignedToRole = await UserModel(tenant).find({
+        _id: { $in: user_ids },
+        role: { $all: role_id },
+      });
+
+      if (usersAssignedToRole.length !== user_ids.length) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: {
+            message: `Some of the provided User IDs are not assigned to this role ${role_id}`,
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
 
       const users = await Promise.all(
         user_ids.map((id) =>
@@ -1387,21 +1493,19 @@ const controlAccess = {
             success: false,
             message: "Bad Request Error",
             errors: {
-              message: `Cannot unassign SUPER_ADMIN role`,
+              message: `Cannot unassign SUPER_ADMIN role from user ${user._id}`,
             },
             status: httpStatus.BAD_REQUEST,
           };
-          //continue;
         }
 
         if (isEmpty(user)) {
           return {
             success: false,
             message: "Bad Reqest Error",
-            errors: { message: `One of the Users does not exist` },
+            errors: { message: `One of the Users ${user._id} does not exist` },
             status: httpStatus.BAD_REQUEST,
           };
-          //continue;
         }
 
         if (isEmpty(role)) {
@@ -1457,6 +1561,8 @@ const controlAccess = {
       };
     }
   },
+
+  /*********************roles and permissions....*/
   listPermissionsForRole: async (request) => {
     try {
       logText("listPermissionsForRole...");
@@ -1498,7 +1604,6 @@ const controlAccess = {
       };
     }
   },
-
   listAvailablePermissionsForRole: async (request) => {
     try {
       logText("listAvailablePermissionsForRole...");
@@ -1566,7 +1671,6 @@ const controlAccess = {
       };
     }
   },
-
   assignPermissionsToRole: async (request) => {
     try {
       const { query, params, body } = request;
@@ -1653,7 +1757,6 @@ const controlAccess = {
       };
     }
   },
-
   unAssignPermissionFromRole: async (request) => {
     try {
       const { query, params } = request;
@@ -1733,7 +1836,6 @@ const controlAccess = {
       };
     }
   },
-
   unAssignManyPermissionsFromRole: async (request) => {
     try {
       const { query, params, body } = request;

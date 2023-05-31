@@ -365,7 +365,12 @@ const defaultConfig = {
     networks: "$networks",
     access_tokens: "$access_tokens",
     permissions: "$permissions",
-    createdAt: 1,
+    createdAt: {
+      $dateToString: {
+        format: "%Y-%m-%d %H:%M:%S",
+        date: "$_id",
+      },
+    },
     updatedAt: 1,
     my_networks: "$my_networks",
   },

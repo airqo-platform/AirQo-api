@@ -330,6 +330,7 @@ UserSchema.statics = {
         .limit(limit ? limit : parseInt(constants.DEFAULT_LIMIT))
         .allowDiskUse(true);
 
+      logObject("response", response);
       if (!isEmpty(response)) {
         return {
           success: true,

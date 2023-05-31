@@ -20,7 +20,7 @@ resource "google_compute_instance_template" "mongod_shard" {
     managed-by-cnrm = "true"
   }
 
-  machine_type = "e2-custom-4-8192"
+  machine_type = "e2-highmem-2"
   name         = "mongod-shard"
 
   network_interface {

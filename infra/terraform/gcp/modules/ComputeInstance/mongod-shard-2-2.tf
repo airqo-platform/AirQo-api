@@ -1,7 +1,7 @@
-resource "google_compute_instance" "mongos_router" {
+resource "google_compute_instance" "mongod_shard_2_2" {
   boot_disk {
-    auto_delete = true
-    source      = "mongos-router"
+    auto_delete = false
+    source      = "mongod-shard-2-2"
   }
 
   labels = {
@@ -9,13 +9,13 @@ resource "google_compute_instance" "mongos_router" {
     "type" = "mongo-shard"
   }
 
-  machine_type = "e2-standard-2"
+  machine_type = "e2-highmem-2"
 
   metadata = {
     startup-script = "sudo ufw allow ssh"
   }
 
-  name = "mongos-router"
+  name = "mongod-shard-2-2"
 
   network_interface {
     access_config {
@@ -23,7 +23,7 @@ resource "google_compute_instance" "mongos_router" {
     }
 
     network    = "default"
-    network_ip = "10.132.0.54"
+    network_ip = "10.132.0.59"
   }
 
   project = var.project_id
@@ -43,7 +43,6 @@ resource "google_compute_instance" "mongos_router" {
     scopes = ["https://www.googleapis.com/auth/devstorage.read_only", "https://www.googleapis.com/auth/logging.write", "https://www.googleapis.com/auth/monitoring.write", "https://www.googleapis.com/auth/service.management.readonly", "https://www.googleapis.com/auth/servicecontrol", "https://www.googleapis.com/auth/trace.append"]
   }
 
-  tags = ["http-server", "https-server"]
-  zone = var.zone["b"]
+  zone = var.zone["d"]
 }
-# terraform import google_compute_instance.mongos_router projects/${var.project_id}/zones/${var.zone["b"]}/instances/mongos-router
+# terraform import google_compute_instance.mongod_shard_2_2 projects/${var.project_id}/zones/${var.zone["b"]}/instances/mongod-shard-2-2
