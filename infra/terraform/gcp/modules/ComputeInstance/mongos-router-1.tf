@@ -1,20 +1,20 @@
-resource "google_compute_instance" "ansible_controller" {
+resource "google_compute_instance" "mongos_router_1" {
   boot_disk {
     auto_delete = false
-    source      = "https://www.googleapis.com/compute/v1/projects/${var.project_id}/zones/${var.zone["b"]}/disks/ansible-controller"
+    source      = "mongos-router-1"
   }
 
   labels = {
-    "env" = "prod"
+    "env"  = "prod"
   }
 
-  machine_type = "e2-small"
+  machine_type = "e2-medium"
 
   metadata = {
     startup-script = "sudo ufw allow ssh"
   }
 
-  name = "ansible-controller"
+  name = "mongos-router-1"
 
   network_interface {
     access_config {
@@ -22,7 +22,7 @@ resource "google_compute_instance" "ansible_controller" {
     }
 
     network    = "default"
-    network_ip = "10.132.0.44"
+    network_ip = "10.132.0.55"
   }
 
   project = var.project_id
@@ -42,6 +42,7 @@ resource "google_compute_instance" "ansible_controller" {
     scopes = ["https://www.googleapis.com/auth/devstorage.read_only", "https://www.googleapis.com/auth/logging.write", "https://www.googleapis.com/auth/monitoring.write", "https://www.googleapis.com/auth/service.management.readonly", "https://www.googleapis.com/auth/servicecontrol", "https://www.googleapis.com/auth/trace.append"]
   }
 
-  zone = var.zone["b"]
+  tags = ["http-server", "https-server"]
+  zone = var.zone["c"]
 }
-# terraform import google_compute_instance.ansible_controller projects/${var.project_id}/zones/${var.zone["b"]}/instances/ansible-controller
+# terraform import google_compute_instance.mongos_router_1 projects/${var.project_id}/zones/${var.zone["b"]}/instances/mongos-router-1

@@ -1,0 +1,57 @@
+- hosts: mongo_cluster
+  become: yes
+
+  tasks:
+    - name: stat for mongodb
+      stat:
+        path: /etc/systemd/system/mongodb.service
+      register: stat_db
+
+    - name: stat for mongod
+      stat:
+        path: /etc/systemd/system/mongod.service
+      register: stat_d
+
+    - name: stat for mongos
+      stat:
+        path: /etc/systemd/system/mongos.service
+      register: stat_s
+
+    - name: Stop the daemon service
+      become: true
+      service:
+        name: mongod
+        state: stopped
+      when:
+        - stat_db.stat.exists
+
+    - name: Stop the daemon service
+      become: true
+      service:
+        name: mongod
+        state: stopped
+      when:
+        - stat_d.stat.exists
+
+    - name: Stop the shard service
+      become: true
+      service:
+        name: mongos
+        state: stopped
+      when:
+        - stat_s.stat.exists
+
+    - name: Remove old mongodb packages
+      apt:
+        update_cache: yes
+        name: mongodb
+        state: absent
+
+    - name: Remove all mongo-org* packages
+      apt:
+        update_cache: yes
+        name: mongodb-org*
+        state: absent
+
+    - name: Ansible delete file wildcard example
+      shell: rm -r /var/log/mongodb /var/lib/mongodb

@@ -1,20 +1,21 @@
-resource "google_compute_instance" "ansible_controller" {
+resource "google_compute_instance" "mongod_shard_2_1" {
   boot_disk {
     auto_delete = false
-    source      = "https://www.googleapis.com/compute/v1/projects/${var.project_id}/zones/${var.zone["b"]}/disks/ansible-controller"
+    source      = "mongod-shard-2-1"
   }
 
   labels = {
-    "env" = "prod"
+    "env"  = "prod"
+    "type" = "mongo-shard"
   }
 
-  machine_type = "e2-small"
+  machine_type = "e2-highmem-2"
 
   metadata = {
     startup-script = "sudo ufw allow ssh"
   }
 
-  name = "ansible-controller"
+  name = "mongod-shard-2-1"
 
   network_interface {
     access_config {
@@ -22,7 +23,7 @@ resource "google_compute_instance" "ansible_controller" {
     }
 
     network    = "default"
-    network_ip = "10.132.0.44"
+    network_ip = "10.132.0.58"
   }
 
   project = var.project_id
@@ -42,6 +43,6 @@ resource "google_compute_instance" "ansible_controller" {
     scopes = ["https://www.googleapis.com/auth/devstorage.read_only", "https://www.googleapis.com/auth/logging.write", "https://www.googleapis.com/auth/monitoring.write", "https://www.googleapis.com/auth/service.management.readonly", "https://www.googleapis.com/auth/servicecontrol", "https://www.googleapis.com/auth/trace.append"]
   }
 
-  zone = var.zone["b"]
+  zone = var.zone["c"]
 }
-# terraform import google_compute_instance.ansible_controller projects/${var.project_id}/zones/${var.zone["b"]}/instances/ansible-controller
+# terraform import google_compute_instance.mongod_shard_2_1 projects/${var.project_id}/zones/${var.zone["b"]}/instances/mongod-shard-2-1
