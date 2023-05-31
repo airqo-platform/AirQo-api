@@ -9,7 +9,7 @@ spec:
   selector:
     matchLabels:
         app: {{ .Values.app.label }}
-  replicas: {{ .Values.replicaCount }}
+  replicas: 1
   revisionHistoryLimit: 1
   strategy:
     type: RollingUpdate

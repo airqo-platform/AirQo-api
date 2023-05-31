@@ -4,14 +4,14 @@ images:
     api: eu.gcr.io/airqo-250220/airqo-stage-analytics-api
     celeryBeat: eu.gcr.io/airqo-250220/airqo-stage-analytics-celery-beat
     celeryWorker: eu.gcr.io/airqo-250220/airqo-stage-analytics-celery-worker
-  tag: stage-8df87f45-1679916944
-nameOverride: ''
-fullnameOverride: ''
+  tag: stage-453bc606-1685431719
+nameOverride: ""
+fullnameOverride: ""
 podAnnotations: {}
 resources:
   limits:
     cpu: 100m
-    memory: 400Mi
+    memory: 600Mi
   requests:
     cpu: 10m
     memory: 250Mi
