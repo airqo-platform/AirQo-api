@@ -10,4 +10,6 @@ DEVICE_UPTIME = f"{BASE_URL}/devices/uptime"
 
 DEVICE_UPTIME_LEADERBOARD = f"{BASE_URL}/device/uptime/leaderboard"
 
+UPTIME_BASE_URL = f"/api/v2/monitor/uptime"
+
 COLLOCATION_BASE_URL = "/api/v2/monitor/collocation"
