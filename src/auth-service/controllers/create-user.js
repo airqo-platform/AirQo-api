@@ -224,6 +224,124 @@ const createUser = {
       });
     }
   },
+  generateVerification: async (req, res) => {
+    try {
+      const { query, body } = req;
+      let { tenant } = query;
+      logText("we are verifying the email.....");
+      const hasErrors = !validationResult(req).isEmpty();
+
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      let request = req;
+      if (isEmpty(tenant)) {
+        request.query.tenant = "airqo";
+      }
+
+      const responseFromGenerateVerification =
+        await controlAccessUtil.generateVerification(request);
+
+      logObject(
+        "responseFromGenerateVerification",
+        responseFromGenerateVerification
+      );
+
+      if (responseFromGenerateVerification.success === true) {
+        const status = responseFromGenerateVerification.status
+          ? responseFromGenerateVerification.status
+          : httpStatus.OK;
+        res.status(status).json({
+          success: true,
+          message: "token generated sucessfully",
+          token: responseFromGenerateVerification.token,
+        });
+      } else if (responseFromGenerateVerification.success === false) {
+        const status = responseFromGenerateVerification.status
+          ? responseFromGenerateVerification.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromGenerateVerification.message,
+          errors: responseFromGenerateVerification.errors
+            ? responseFromGenerateVerification.errors
+            : { message: "internal server errors" },
+        });
+      }
+    } catch (error) {
+      logObject("error", error);
+      logger.error(`Internal Server Error ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "internal server error",
+        errors: { message: error.message },
+      });
+    }
+  },
+  verifyVerification: async (req, res) => {
+    try {
+      const { query, body } = req;
+      let { tenant } = query;
+      logText("we are verifying the email.....");
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      let request = req;
+      if (isEmpty(tenant)) {
+        request.query.tenant = "airqo";
+      }
+
+      const responseFromVerifyVerification =
+        await controlAccessUtil.verifyVerification(request);
+
+      logObject(
+        "responseFromVerifyVerification",
+        responseFromVerifyVerification
+      );
+
+      if (responseFromVerifyVerification.success === true) {
+        const status = responseFromVerifyVerification.status
+          ? responseFromVerifyVerification.status
+          : httpStatus.OK;
+        res.status(status).json({
+          success: true,
+          message: "token verified sucessfully",
+          sign_in_link: responseFromVerifyVerification.data,
+        });
+      } else if (responseFromVerifyVerification.success === false) {
+        const status = responseFromVerifyVerification.status
+          ? responseFromVerifyVerification.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromVerifyVerification.message,
+          errors: responseFromVerifyVerification.errors
+            ? responseFromVerifyVerification.errors
+            : { message: "internal server errors" },
+        });
+      }
+    } catch (error) {
+      logObject("error", error);
+      logger.error(`Internal Server Error ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "internal server error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
   verify: (req, res) => {
     return res.status(httpStatus.OK).json({
       success: true,
