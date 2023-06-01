@@ -776,7 +776,7 @@ router.delete(
       .exists()
       .withMessage("There's a missing required parameter in your request")
       .bail(),
-    query("ct")
+    query("creationTime")
     .exists()
     .withMessage("There's a missing required parameter in your request")
     .bail()

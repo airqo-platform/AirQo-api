@@ -230,7 +230,6 @@ async function sendDeleteConfirmationEmail(email, uid, creationTime) {
   try {
     await transporter.sendMail(mailOptions);
     functions.logger.log("Delete Confirmation email sent to:", email);
-    console.log("Delete Confirmation email sent to:", email);
     return null;
   } catch (error) {
     functions.logger.log("Transporter failed to send email", error);
@@ -268,7 +267,8 @@ exports.confirmAccountDeletionMobile =
         message: "Account deletion email sent",
       });
     } catch (error) {
-      console.error("Error sending Account deletion confirmation Email:",
+      functions.logger.log(
+          "Error sending Account deletion confirmation Email:",
           error,
       );
       response.status(500).json({

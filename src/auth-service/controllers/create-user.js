@@ -291,12 +291,12 @@ const createUser = {
       let responseFromDeleteAppData;
       logText("We are deleting the app data.....");
       const { uid } = req.query;
-      const { ct } = req.query;
+      const { creationTime } = req.query;
 
       let request = {};
       request["body"] = {};
       request["body"]["uid"] = uid;
-      request["body"]["ct"] = ct;
+      request["body"]["creationTime"] = creationTime;
       logObject("request:", request);
      try {
        responseFromDeleteAppData = await createUserUtil.deleteMobileUserData(

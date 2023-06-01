@@ -100,7 +100,7 @@ function deleteQueryBatch(db, query, batchSize, resolve, reject) {
   query.get()
     .then((snapshot) => {
       // When there are no documents left, we are done
-      if (snapshot.size == 0) {
+      if (snapshot.size === 0) {
         return 0;
       }
 
@@ -1112,13 +1112,13 @@ const join = {
     try {
       const { body } = request;
       let { uid } = body;
-      let { ct } = body;
+      let { creationTime } = body;
       const userRecord = await admin.auth().getUser(uid);
       
-      //get creation time and compare with ct
-      let creationTime = userRecord.metadata.creationTime;
-      creationTime = creationTime.replace(/\D/g, "");
-      if (creationTime !== ct) {
+      //get creation time and compare with creationTime
+      let userCreationTime = userRecord.metadata.creationTime;
+      userCreationTime = userCreationTime.replace(/\D/g, "");
+      if (userCreationTime !== creationTime) {
         return {
           success: false,
           message: "Invalid request",
@@ -1165,7 +1165,8 @@ const join = {
           status: httpStatus.OK,
         };
       } catch (error) {
-        console.error("Error deleting user:", error);
+        logError('Error deleting user:', error);
+        logger.error(`Internal Server Error -- ${error.message}`);
         return {
           success: false,
           message: "Error deleting user",
