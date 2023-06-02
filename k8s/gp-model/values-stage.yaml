@@ -6,7 +6,7 @@ app:
   namespace: staging
   configMap: env-gp-model-staging
 images:
-  tag: stage-100447fd-1685533251
+  tag: stage-d00179fa-1685686869
   repositories:
     cronJob: eu.gcr.io/airqo-250220/airqo-stage-gp-model-job
     brokerConsumer: eu.gcr.io/airqo-250220/airqo-stage-gp-model-broker-consumer
