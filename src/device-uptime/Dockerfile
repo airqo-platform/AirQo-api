@@ -1,16 +1,20 @@
-# Inherit from the Python Docker image
-FROM python:3.7-slim
+# syntax=docker/dockerfile:1
 
-# Copy the source code to app folder
+FROM python:3.9-slim-buster as base
+
 COPY . /app/
-# Change the working directory
 WORKDIR /app/
 
-# Install the Flask package via pip
+RUN pip install --upgrade pip setuptools wheel
 RUN pip install -r requirements.txt
-# Set "python" as the entry point
-# Set environment variables
-ENV ENV=production
 
-# Run the application
+FROM base as staging
+ENV ENV=staging
 CMD ["python", "main.py", "--tenant=airqo"]
+
+FROM base as production
+ENV ENV=production
+CMD ["python", "main.py", "--tenant=airqo"]
+
+FROM base as uptime
+CMD ["python", "uptime.py"]
