@@ -1071,7 +1071,7 @@ jobs:
       - name: Build and Push Docker Image
         run: |
           cd src/device-uptime/
-          docker build --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-uptime-job:${{ needs.image-tag.outputs.build_id }} -f Dockerfile.stage .
+          docker build --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-uptime-job:${{ needs.image-tag.outputs.build_id }} -f Dockerfile .
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-uptime-job:${{ needs.image-tag.outputs.build_id }}
           docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-uptime-job:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-uptime-job:latest
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-uptime-job:latest
