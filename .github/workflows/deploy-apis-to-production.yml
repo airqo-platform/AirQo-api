@@ -1166,6 +1166,8 @@ jobs:
           cd src/gp-model/
           gcloud secrets versions access latest --secret="prod-env-gp-model" > .env
           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-gp-model-production | kubectl replace -f - -n production
+          gcloud secrets versions access latest --secret="prod-key-gp-model-service-account" > google_application_credentials.json
+          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json gp-model-job-config-files | kubectl replace -f - -n production
 
   ### exceddences ###
   exceedance:
