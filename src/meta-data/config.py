@@ -9,10 +9,12 @@ from flask import request
 env_path = Path(".") / ".env"
 load_dotenv(dotenv_path=env_path, verbose=True)
 
-BASE_URL = "/api/v1/meta-data"
-
 
 class Config:
+    # APIs
+    BASE_URL_V2 = "/api/v2/meta-data"
+    BASE_URL_V1 = "/api/v1/meta-data"
+
     TAHMO_API_BASE_URL = os.getenv("TAHMO_API_BASE_URL")
     TAHMO_API_MAX_PERIOD = os.getenv("TAHMO_API_MAX_PERIOD")
     TAHMO_API_CREDENTIALS_USERNAME = os.getenv("TAHMO_API_CREDENTIALS_USERNAME")
@@ -36,7 +38,7 @@ class Config:
     CENTER_OF_KAMPALA_LONGITUDE = os.getenv("CENTER_OF_KAMPALA_LONGITUDE")
     SWAGGER_CONFIG = {
         **Swagger.DEFAULT_CONFIG,
-        **{"specs_route": f"{BASE_URL}/apidocs/"},
+        **{"specs_route": f"{BASE_URL_V2}/apidocs/"},
     }
     SWAGGER_TEMPLATE = {
         "swagger": "2.0",
@@ -54,14 +56,14 @@ class Config:
         },
         "host": LazyString(lambda: request.host),  # overrides localhost:5000
         "schemes": [LazyString(lambda: "https" if request.is_secure else "http")],
-        "basePath": f"{BASE_URL}",  # base bash for blueprint registration
+        "basePath": f"{BASE_URL_V2}",  # base bash for blueprint registration
         "head_text": "<style>.top_text{color: red;}</style>",
         "doc_expansion": "list",
         "ui_params": {
             "apisSorter": "alpha",
             "operationsSorter": "alpha",
         },
-        "url_prefix": f"{BASE_URL}",
+        "url_prefix": f"{BASE_URL_V2}",
         "footer_text": f"&copy; AirQo. {datetime.now().year}",
         "swaggerUiPrefix": LazyString(
             lambda: request.environ.get("HTTP_X_SCRIPT_NAME", "")
