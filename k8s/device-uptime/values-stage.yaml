@@ -5,9 +5,16 @@ app:
 image:
   repository: eu.gcr.io/airqo-250220/airqo-stage-device-uptime-job
   tag: stage-e5328267-1685425338
-nameOverride: ''
-fullnameOverride: ''
+nameOverride: ""
+fullnameOverride: ""
 resources:
   limits:
     cpu: 1000m
     memory: 4000Mi
+volumeMounts:
+  - name: config-volume
+    mountPath: /etc/config
+volumes:
+  - name: config-volume
+    configMap:
+      name: device-uptime-v2-files
