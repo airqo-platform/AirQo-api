@@ -7,7 +7,6 @@ jobs:
     schedule: "@hourly"
     image:
       repository: eu.gcr.io/airqo-250220/stage-events-monitor-job
-      pullPolicy: Always
       tag: "latest"
 
     configMap: stage-events-monitor-cronjob-config
@@ -22,7 +21,6 @@ jobs:
     schedule: "@hourly"
     image:
       repository: eu.gcr.io/airqo-250220/stage-events-notifs-job
-      pullPolicy: Always
       tag: "latest"
 
     configMap: stage-events-notifs-cronjob-config
