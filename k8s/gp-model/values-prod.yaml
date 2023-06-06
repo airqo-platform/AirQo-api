@@ -20,3 +20,10 @@ resources:
   requests:
     cpu: 50m
     memory: 100Mi
+volumeMounts:
+  - name: config-volume
+    mountPath: /etc/config
+volumes:
+  - name: config-volume
+    configMap:
+      name: gp-model-job-config-files
