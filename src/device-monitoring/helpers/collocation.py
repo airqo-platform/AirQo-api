@@ -9,7 +9,6 @@ from bson.errors import InvalidId
 from google.cloud import bigquery
 
 from app import cache
-
 from config.constants import Config
 from helpers.collocation_utils import (
     compute_data_completeness,
@@ -387,6 +386,13 @@ class Collocation(BaseModel):
         return self.__query_by_devices_and_collocation_dates(
             devices=devices, end_date=end_date, start_date=start_date
         )
+
+    def log_collection(self):
+        docs = self.collection.find()
+        data = []
+        for doc in docs:
+            data.append(doc)
+        print(data)
 
     def __update_batch_status(self, data: CollocationBatch) -> CollocationBatch:
         data_dict = data.to_dict()
