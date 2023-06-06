@@ -65,7 +65,7 @@ def doc_to_collocation_data(doc) -> CollocationBatch:
             data_completeness=DataCompletenessResult(
                 failed_devices=doc["results"]["data_completeness"]["failed_devices"],
                 passed_devices=doc["results"]["data_completeness"]["passed_devices"],
-                neutral_devices=doc["results"]["data_completeness"]["neutral_devices"],
+                errors=doc["results"]["data_completeness"].get("errors", []),
                 results=[
                     DataCompleteness(
                         device_name=record["device_name"],
@@ -85,9 +85,7 @@ def doc_to_collocation_data(doc) -> CollocationBatch:
                 passed_devices=doc["results"]["intra_sensor_correlation"][
                     "passed_devices"
                 ],
-                neutral_devices=doc["results"]["intra_sensor_correlation"][
-                    "neutral_devices"
-                ],
+                errors=doc["results"]["intra_sensor_correlation"].get("errors", []),
                 results=[
                     IntraSensorCorrelation(
                         device_name=record["device_name"],
@@ -103,7 +101,7 @@ def doc_to_collocation_data(doc) -> CollocationBatch:
             differences=BaseResult(
                 failed_devices=doc["results"]["differences"]["failed_devices"],
                 passed_devices=doc["results"]["differences"]["passed_devices"],
-                neutral_devices=doc["results"]["differences"]["neutral_devices"],
+                errors=doc["results"]["differences"].get("errors", []),
                 results=[
                     dict(record) for record in doc["results"]["differences"]["results"]
                 ],
@@ -115,9 +113,7 @@ def doc_to_collocation_data(doc) -> CollocationBatch:
                 passed_devices=doc["results"]["inter_sensor_correlation"][
                     "passed_devices"
                 ],
-                neutral_devices=doc["results"]["inter_sensor_correlation"][
-                    "neutral_devices"
-                ],
+                errors=doc["results"]["inter_sensor_correlation"].get("errors", []),
                 results=[
                     dict(record)
                     for record in doc["results"]["inter_sensor_correlation"]["results"]
@@ -125,6 +121,7 @@ def doc_to_collocation_data(doc) -> CollocationBatch:
             ),
             statistics=doc["results"]["statistics"],
             data_source=doc["results"]["data_source"],
+            errors=doc["results"].get("errors", []),
         ),
         summary=[
             CollocationBatchResultSummary(
@@ -133,6 +130,7 @@ def doc_to_collocation_data(doc) -> CollocationBatch:
             )
             for record in doc.get("summary", [])
         ],
+        errors=doc.get("errors", []),
     )
 
 
@@ -197,6 +195,7 @@ class Collocation(BaseModel):
             base_device=collocation_batch.base_device,
             r2_threshold=collocation_batch.inter_correlation_r2_threshold,
         )
+
         statistics = compute_statistics(data=data)
         differences = compute_differences(
             statistics=copy.deepcopy(statistics),
@@ -205,6 +204,11 @@ class Collocation(BaseModel):
             parameter=collocation_batch.differences_parameter,
             threshold=collocation_batch.differences_threshold,
         )
+        errors = []
+        errors.extend(inter_sensor_correlation.errors)
+        errors.extend(differences.errors)
+        errors.extend(inter_sensor_correlation.errors)
+        errors.extend(data_completeness.errors)
 
         return CollocationBatchResult(
             data_completeness=data_completeness,
@@ -213,6 +217,7 @@ class Collocation(BaseModel):
             statistics=statistics,
             inter_sensor_correlation=inter_sensor_correlation,
             differences=differences,
+            errors=errors,
         )
 
     @staticmethod
@@ -267,12 +272,6 @@ class Collocation(BaseModel):
             )
             failed_devices = set(collocation_batch.devices).difference(passed_devices)
 
-        neutral_devices = (
-            set(collocation_batch.devices)
-            .difference(passed_devices)
-            .difference(failed_devices)
-        )
-
         summary: list[CollocationBatchResultSummary] = []
         summary.extend(
             CollocationBatchResultSummary(
@@ -285,12 +284,6 @@ class Collocation(BaseModel):
                 device=device, status=CollocationDeviceStatus.FAILED
             )
             for device in failed_devices
-        )
-        summary.extend(
-            CollocationBatchResultSummary(
-                device=device, status=CollocationDeviceStatus.ERROR
-            )
-            for device in neutral_devices
         )
 
         return summary
@@ -560,6 +553,7 @@ class Collocation(BaseModel):
                     status=result_summary.status.value,
                     date_added=batch.date_created,
                     batch_name=batch.batch_name,
+                    errors=batch.results.errors,
                 )
                 for result_summary in batch.summary
             )
@@ -648,6 +642,7 @@ class Collocation(BaseModel):
                 "device_name": result.device_name,
                 "completeness": result.completeness,
                 "missing": result.missing,
+                "errors": batch.errors,
             }
             for result in data_completeness
         ]

@@ -170,6 +170,7 @@ def save_collocation_batch():
         status=CollocationBatchStatus.SCHEDULED,
         results=CollocationBatchResult.empty_results(),
         summary=[],
+        errors=[],
     )
 
     batch.update_status()
