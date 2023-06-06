@@ -1108,6 +1108,8 @@ jobs:
           cd src/device-uptime/
           gcloud secrets versions access latest --secret="sta-env-device-uptime" > .env
           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-device-uptime-staging | kubectl replace -f - -n staging
+          gcloud secrets versions access latest --secret="sta-key-device-uptime-v2-service-account" > google_application_credentials.json
+          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json device-uptime-v2-files | kubectl replace -f - -n staging
 
   ### device status ###
   device-status:
