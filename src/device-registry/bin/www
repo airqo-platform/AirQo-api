@@ -153,11 +153,11 @@ const run = async() => {
                             // )}`
                             //         );
                         } else if (responseFromInsertMeasurements.success === true) {
-                            logger.info(
-                                `KAFKA: successfully inserted the measurements --- ${JSON.stringify(responseFromInsertMeasurements.message ?
-                                responseFromInsertMeasurements.message :
-                                "")}`
-                            );
+                            // logger.info(
+                            //     `KAFKA: successfully inserted the measurements --- ${JSON.stringify(responseFromInsertMeasurements.message ?
+                            //     responseFromInsertMeasurements.message :
+                            //     "")}`
+                            // );
                         }
                     }
 
