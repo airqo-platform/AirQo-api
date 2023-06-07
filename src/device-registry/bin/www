@@ -30,7 +30,7 @@ const eventSchema = Joi.object({
     "longitude": Joi.number().precision(5).optional(),
     "satellites": Joi.number().optional(),
     "hdop": Joi.number().optional(),
-    "altitude": Joi.number().integer().min(-Infinity).max(Infinity).optional(),
+    "altitude": Joi.number().optional(),
     "s1_pm2_5": Joi.number().optional(),
     "battery": Joi.number().optional(),
     "device_humidity": Joi.number().optional(),
@@ -134,6 +134,12 @@ const run = async() => {
                         logger.error(
                             `KAFKA: ALL the input validation errors --- ${JSON.stringify(error.details)}`
                         );
+
+                        logger.info(
+                            `KAFKA: the VALUE for ALL the shared input validation errors --- ${JSON.stringify(value)}`
+                        );
+
+
                     } else {
                         logObject("value", value)
                         logObject("cleanedMeasurements", cleanedMeasurements)
