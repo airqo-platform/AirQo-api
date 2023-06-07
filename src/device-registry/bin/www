@@ -30,7 +30,7 @@ const eventSchema = Joi.object({
     "longitude": Joi.number().precision(5).optional(),
     "satellites": Joi.number().optional(),
     "hdop": Joi.number().optional(),
-    "altitude": Joi.number().optional(),
+    "altitude": Joi.number().integer().min(-Infinity).max(Infinity).optional(),
     "s1_pm2_5": Joi.number().optional(),
     "battery": Joi.number().optional(),
     "device_humidity": Joi.number().optional(),
