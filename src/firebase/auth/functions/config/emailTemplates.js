@@ -68,8 +68,8 @@ module.exports = {
         `
     ;
   },
-  deleteConfirmationEmail: (email, uid, creationTime) => {
-    const deletionLink=`${baseUrl}/api/v1/users/deleteMobileUserData?uid=${uid}&creationTime=${creationTime}`;
+  deleteConfirmationEmail: (email, userId, creationTime) => {
+    const deletionLink=`${baseUrl}/api/v1/users/deleteMobileUserData?userId=${userId}&creationTime=${creationTime}`;
     return `
       <div style="display: flex; align-items: center;">
     <img src="cid:AirQoEmailLogo" alt="logo" style="height: 50px; margin-right: 10px;">

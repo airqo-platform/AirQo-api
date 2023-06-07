@@ -290,12 +290,12 @@ const createUser = {
     try {
       let responseFromDeleteAppData;
       logText("We are deleting the app data.....");
-      const { uid } = req.query;
+      const { userId } = req.query;
       const { creationTime } = req.query;
 
       let request = {};
       request["body"] = {};
-      request["body"]["uid"] = uid;
+      request["body"]["userId"] = userId;
       request["body"]["creationTime"] = creationTime;
       logObject("request:", request);
      try {

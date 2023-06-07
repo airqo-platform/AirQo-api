@@ -772,7 +772,7 @@ router.get(
 router.delete(
   "/deleteMobileUserData",
    oneOf([
-    query("uid")
+    query("userId")
       .exists()
       .withMessage("There's a missing required parameter in your request")
       .bail(),

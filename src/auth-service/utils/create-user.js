@@ -1111,9 +1111,9 @@ const join = {
   deleteMobileUserData: async (request) => {
     try {
       const { body } = request;
-      let { uid } = body;
+      let { userId } = body;
       let { creationTime } = body;
-      const userRecord = await admin.auth().getUser(uid);
+      const userRecord = await admin.auth().getUser(userId);
       
       //get creation time and compare with creationTime
       let userCreationTime = userRecord.metadata.creationTime;
@@ -1128,7 +1128,7 @@ const join = {
       }
 
       try {
-        await getAuth().deleteUser(uid);
+        await getAuth().deleteUser(userId);
         const collectionList = [
           constants.FIREBASE_COLLECTION_KYA,
           constants.FIREBASE_COLLECTION_ANALYTICS,
@@ -1136,13 +1136,13 @@ const join = {
           constants.FIREBASE_COLLECTION_FAVORITE_PLACES
         ];
         let collectionRef = db.collection(`${constants.FIREBASE_COLLECTION_USERS}`);
-        let docRef = collectionRef.doc(uid);
+        let docRef = collectionRef.doc(userId);
 
         docRef.delete().then(async () => {
           for (var collection of collectionList) {
-            await deleteCollection(db, `${collection}/${uid}/${uid}`, 100);
+            await deleteCollection(db, `${collection}/${userId}/${userId}`, 100);
             collectionRef = db.collection(`${collection}`);
-            docRef = collectionRef.doc(uid);
+            docRef = collectionRef.doc(userId);
             docRef.delete();
           }
           logText('Document successfully deleted!');

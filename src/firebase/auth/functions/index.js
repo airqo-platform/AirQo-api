@@ -183,10 +183,10 @@ async function checkIfUserExists(data) {
 
 /**
  * @param {any} email The user's email
- * @param {any} uid The user's uid
+ * @param {any} userId The user's userId
  * @param {any} creationTime The user's creation time
  */
-async function sendDeleteConfirmationEmail(email, uid, creationTime) {
+async function sendDeleteConfirmationEmail(email, userId, creationTime) {
   const mailOptions = {
     from: {
       name: "AirQo Data Team",
@@ -194,7 +194,7 @@ async function sendDeleteConfirmationEmail(email, uid, creationTime) {
     },
     to: email,
     subject: "Welcome to AirQo!",
-    html: emailTemplate.deleteConfirmationEmail(email, uid, creationTime),
+    html: emailTemplate.deleteConfirmationEmail(email, userId, creationTime),
     attachments: [
       {
         filename: "airqoLogo.png",
@@ -257,11 +257,11 @@ exports.confirmAccountDeletionMobile =
         });
       }
 
-      const uid = user.uid;
+      const userId = user.uid;
       let creationTime = user.metadata.creationTime;
       creationTime=creationTime.replace(/\D/g, "");
 
-      sendDeleteConfirmationEmail(email, uid, creationTime);
+      sendDeleteConfirmationEmail(email, userId, creationTime);
       response.status(200).json({
         success: true,
         message: "Account deletion email sent",
