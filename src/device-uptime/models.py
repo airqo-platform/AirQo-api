@@ -1,3 +1,6 @@
+from dataclasses import dataclass, asdict
+from datetime import datetime
+
 from config import connect_mongo
 
 
@@ -7,7 +10,7 @@ class Device:
         self.db = self._connect()
 
     def _connect(self):
-        return connect_mongo(self.tenant, 'device_registry')
+        return connect_mongo(self.tenant, "device_registry")
 
     def get_all_devices(self):
         return list(self.db.devices.find())
@@ -19,18 +22,13 @@ class DeviceUptime:
         self.db = self._connect()
 
     def _connect(self):
-        return connect_mongo(self.tenant, 'device_monitoring')
+        return connect_mongo(self.tenant, "device_monitoring")
 
     def get_device_uptime(self, device_name, days):
-
         return list(
-            self.db.device_uptime
-                .find(
-                    {'device_name': device_name},
-                    {'_id': 0}
-                )
-                .sort([('$natural', -1)])
-                .limit(days)
+            self.db.device_uptime.find({"device_name": device_name}, {"_id": 0})
+            .sort([("$natural", -1)])
+            .limit(days)
         )
 
     def save_device_uptime(self, records):
@@ -43,18 +41,30 @@ class NetworkUptime:
         self.db = self._connect()
 
     def _connect(self):
-        return connect_mongo(self.tenant, 'device_monitoring')
+        return connect_mongo(self.tenant, "device_monitoring")
 
     def get_network_uptime(self, network_name, days):
         return (
-            self.db.network_uptime
-                .find(
-                    {'network_name': network_name},
-                    {'_id': 0}
-                )
-                .sort([('$natural', -1)])
-                .limit(days)
+            self.db.network_uptime.find({"network_name": network_name}, {"_id": 0})
+            .sort([("$natural", -1)])
+            .limit(days)
         )
 
     def save_network_uptime(self, records):
         return self.db.network_uptime.insert_many(records)
+
+
+@dataclass
+class UptimeData:
+    device: str
+    site_id: str
+    timestamp: datetime
+    hourly_threshold: int
+    data_points: int
+    uptime: float
+    downtime: float
+    average_battery: float
+
+    def to_dict(self):
+        data = asdict(self)
+        return data
