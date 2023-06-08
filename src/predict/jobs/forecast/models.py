@@ -27,7 +27,7 @@ class Events:
     @staticmethod
     def fetch_health_tips():
         "fetch health tips from the api"
-        response = requests.get(Events.events_tips_url, params={"TOKEN": configuration.AIRQO_API_AUTH_TOKEN})
+        response = requests.get(Events.events_tips_url, params={"token": configuration.AIRQO_API_AUTH_TOKEN})
         if response.status_code == 200:
             result = response.json()
         return result["tips"]
