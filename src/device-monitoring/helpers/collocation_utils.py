@@ -139,13 +139,18 @@ def compute_differences(
 
     passed_devices = list(set(passed_devices))
     failed_devices = list(set(failed_devices).difference(set(passed_devices)))
-    neutral_devices = list(
+    error_devices = list(
         set(devices).difference(set(passed_devices)).difference(set(failed_devices))
     )
+    errors = []
+    if error_devices:
+        errors = [
+            f"Failed to compute differences for devices {', '.join(error_devices) }"
+        ]
     return BaseResult(
         passed_devices=passed_devices,
         failed_devices=failed_devices,
-        neutral_devices=neutral_devices,
+        errors=errors,
         results=differences,
     )
 
@@ -284,15 +289,19 @@ def compute_inter_sensor_correlation(
                 passed_pairs.remove(first_pair)
 
     failed_devices = list(set(failed_devices).difference(set(passed_devices)))
-    neutral_devices = list(
+    error_devices = list(
         set(devices).difference(set(passed_devices)).difference(set(failed_devices))
     )
-
+    errors = []
+    if error_devices:
+        errors = [
+            f"Failed to compute inter sensor correlation  for devices {', '.join(error_devices) }"
+        ]
     return BaseResult(
         results=results,
         passed_devices=passed_devices,
         failed_devices=failed_devices,
-        neutral_devices=neutral_devices,
+        errors=errors,
     )
 
 
@@ -358,15 +367,21 @@ def compute_intra_sensor_correlation(
     passed_devices = [x.device_name for x in passed_devices]
     failed_devices = list(filter(lambda x: x.passed is False, correlation))
     failed_devices = [x.device_name for x in failed_devices]
-    neutral_devices = list(
+    error_devices = list(
         set(devices).difference(set(passed_devices)).difference(set(failed_devices))
     )
+
+    errors = []
+    if error_devices:
+        errors = [
+            f"Failed to compute intra sensor correlation  for devices {', '.join(error_devices) }"
+        ]
 
     return IntraSensorCorrelationResult(
         results=correlation,
         passed_devices=passed_devices,
         failed_devices=failed_devices,
-        neutral_devices=neutral_devices,
+        errors=errors,
     )
 
 
@@ -474,14 +489,21 @@ def compute_data_completeness(
     passed_devices = [x.device_name for x in passed_devices]
     failed_devices = list(filter(lambda x: x.passed is False, completeness))
     failed_devices = [x.device_name for x in failed_devices]
-    neutral_devices = list(
+    error_devices = list(
         set(devices).difference(set(passed_devices)).difference(set(failed_devices))
     )
+
+    errors = []
+    if error_devices:
+        errors = [
+            f"Failed to compute data completeness for devices {', '.join(error_devices) }"
+        ]
+
     return DataCompletenessResult(
         results=completeness,
         passed_devices=passed_devices,
         failed_devices=failed_devices,
-        neutral_devices=neutral_devices,
+        errors=errors,
     )
 
 

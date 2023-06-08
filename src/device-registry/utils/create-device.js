@@ -294,6 +294,17 @@ const createDevice = {
   update: async (request) => {
     try {
       // logger.info(`in the update util....`);
+      if (process.env.NODE_ENV !== "production") {
+        return {
+          success: false,
+          message: "Bad Request",
+          errors: {
+            message:
+              "please utilise SOFT update when operating in testing environments",
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
       let { device_number } = request.query;
       let modifiedRequest = Object.assign({}, request);
       if (isEmpty(device_number)) {
