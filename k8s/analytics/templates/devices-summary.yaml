@@ -1,17 +1,17 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: {{ .Values.app.name }}
-  namespace: {{ .Values.app.namespace }}
+  name: {{ .Values.jobs.devicesSummaryJob.name }}
+  namespace: {{ .Values.namespace }}
 spec:
   concurrencyPolicy: Allow
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 1
-  schedule: "0 0 1 */3 *" # Once every 3 months
+  schedule: "0 4 * * *" # Every day at 4am
   suspend: false
   jobTemplate:
     metadata:
-      name: {{ .Values.app.name }}
+      name: {{ .Values.jobs.devicesSummaryJob.name }}
     spec:
       template:
         spec:
@@ -29,20 +29,20 @@ spec:
                     values:
                       - compute
           containers:
-            - name: {{ .Values.app.name }}
-              image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-              imagePullPolicy: {{ .Values.image.pullPolicy }}
+            - name: {{ .Values.jobs.devicesSummaryJob.name }}
+              image: "{{ .Values.images.repositories.devicesSummaryJob }}:{{ .Values.images.tag }}"
+              imagePullPolicy: IfNotPresent
               terminationMessagePath: /dev/termination-log
               terminationMessagePolicy: File
               envFrom:
                 - configMapRef:
-                    name: {{ .Values.app.configmap }} 
+                    name: {{ .Values.jobs.devicesSummaryJob.configmap }} 
+              resources:
+                {{- toYaml .Values.api.resources | nindent 16 }}
               {{- with .Values.volumeMounts }}
               volumeMounts:
                 {{- toYaml . | nindent 16 }}
               {{- end }}
-              resources:
-                {{- toYaml .Values.resources | nindent 16 }}
           {{- with .Values.volumes }}
           volumes:
             {{- toYaml . | nindent 12 }}
