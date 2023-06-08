@@ -1,3 +1,6 @@
+namespace: production
+nameOverride: ""
+fullnameOverride: ""
 images:
   repositories:
     api: eu.gcr.io/airqo-250220/airqo-analytics-api
@@ -6,9 +9,10 @@ images:
     reportJob: eu.gcr.io/airqo-250220/airqo-analytics-report-job
   tag: prod-1b6e5014-1683239318
 api:
+  name: airqo-analytics-api
+  label: analytics-api
+  configmap: env-analytics-production
   replicaCount: 3
-  nameOverride: ""
-  fullnameOverride: ""
   podAnnotations: {}
   resources:
     limits:
@@ -17,45 +21,29 @@ api:
     requests:
       cpu: 10m
       memory: 250Mi
-  volumeMounts:
-    - name: config-volume
-      mountPath: /etc/config
-  volumes:
-    - name: config-volume
-      configMap:
-        name: prod-analytics-config-files
-  service:
-    type: NodePort
-    port: 5000
-    protocol: TCP
-    targetPort: 5000
-    nodePort: 30003
-  ingress:
-    enabled: false
-  autoscaling:
-    minReplicas: 1
-    maxReplicas: 3
-    targetMemoryUtilizationPercentage: 70
-  app:
-    name: airqo-analytics-api
-    label: analytics-api
-    namespace: production
-    configmap: env-analytics-production
 job:
-  app:
-    name: prod-analytics-report-job
-    namespace: production
-    configmap: env-analytics-report-production
-  nameOverride: ""
-  fullnameOverride: ""
+  name: prod-analytics-report-job
+  configmap: env-analytics-report-production
   resources:
     limits:
       cpu: 1000m
       memory: 4000Mi
-  volumeMounts:
-    - name: config-volume
-      mountPath: /etc/config
-  volumes:
-    - name: config-volume
-      configMap:
-        name: env-analytics-report-production-files
+volumeMounts:
+  - name: config-volume
+    mountPath: /etc/config
+volumes:
+  - name: config-volume
+    configMap:
+      name: prod-analytics-config-files
+service:
+  type: NodePort
+  port: 5000
+  protocol: TCP
+  targetPort: 5000
+  nodePort: 30003
+ingress:
+  enabled: false
+autoscaling:
+  minReplicas: 1
+  maxReplicas: 3
+  targetMemoryUtilizationPercentage: 70

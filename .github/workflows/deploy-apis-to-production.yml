@@ -828,21 +828,11 @@ jobs:
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
-            valueFile: "k8s/analytics/api/values-prod.yaml"
+            valueFile: "k8s/analytics/values-prod.yaml"
             propertyPath: "images.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
             message: "Update analytics production image tag to ${{ needs.image-tag.outputs.build_id }}"
-
-      - name: Update corresponding helm values file
-        uses: fjogeleit/yaml-update-action@main
-        with:
-          valueFile: "k8s/analytics/job/values-prod.yaml"
-          propertyPath: "image.tag"
-          value: ${{ needs.image-tag.outputs.build_id }}
-          updateFile: true
-          branch: deployment/argocd
-          message: "Update analytics report job production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
         uses: google-github-actions/auth@v0
@@ -861,7 +851,6 @@ jobs:
           kubectl create configmap --dry-run=client -o yaml --from-env-file=api.env env-analytics-production | kubectl replace -f - -n production
           kubectl create configmap --dry-run=client -o yaml --from-env-file=reports.env env-analytics-report-production | kubectl replace -f - -n production
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json prod-analytics-config-files | kubectl replace -f - -n production
-          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json env-analytics-report-production-files | kubectl replace -f - -n production
 
   ### device uptime ###
   device-uptime:

@@ -1010,21 +1010,11 @@ jobs:
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
-            valueFile: "k8s/analytics/api/values-stage.yaml"
+            valueFile: "k8s/analytics/values-stage.yaml"
             propertyPath: "images.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
-            message: "Update analytics staging image tag to ${{ needs.image-tag.outputs.build_id }}"
-
-      - name: Update corresponding helm values file
-        uses: fjogeleit/yaml-update-action@main
-        with:
-          valueFile: "k8s/analytics/job/values-stage.yaml"
-          propertyPath: "image.tag"
-          value: ${{ needs.image-tag.outputs.build_id }}
-          updateFile: true
-          branch: deployment/argocd
-          message: "Update analytics report job staging image tag to ${{ needs.image-tag.outputs.build_id }}"
+            message: "Update analytics staging images tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
         uses: google-github-actions/auth@v0
@@ -1043,7 +1033,6 @@ jobs:
           kubectl create configmap --dry-run=client -o yaml --from-env-file=api.env env-analytics-staging | kubectl replace -f - -n staging
           kubectl create configmap --dry-run=client -o yaml --from-env-file=reports.env env-analytics-report-staging | kubectl replace -f - -n staging
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json stage-analytics-config-files | kubectl replace -f - -n staging
-          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json env-analytics-report-staging-files | kubectl replace -f - -n staging
 
   ### device uptime ###
   device-uptime:

@@ -1,14 +1,14 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Values.api.app.name }}
-  namespace: {{ .Values.api.app.namespace }}
+  name: {{ .Values.api.name }}
+  namespace: {{ .Values.namespace }}
   labels:
     {{- include "airqo-analytics.labels" . | nindent 4 }}
 spec:
   selector:
     matchLabels:
-        app: {{ .Values.api.app.label }}
+        app: {{ .Values.api.label }}
   replicas: {{ .Values.api.replicaCount }}
   revisionHistoryLimit: 2
   strategy:
@@ -24,7 +24,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
-        app: {{ .Values.api.app.label }}
+        app: {{ .Values.api.label }}
     spec:
       affinity:
         nodeAffinity:
@@ -44,16 +44,16 @@ spec:
                     values:
                       - general-purpose
       containers:
-        - name: {{ .Values.api.app.label }}
+        - name: {{ .Values.api.label }}
           image: "{{ .Values.images.repositories.api }}:{{ .Values.images.tag}}"
           imagePullPolicy: IfNotPresent
           ports:
-            - containerPort: {{ .Values.api.service.targetPort }}
-              name: {{ .Values.api.app.label }}
+            - containerPort: {{ .Values.service.targetPort }}
+              name: {{ .Values.api.label }}
           envFrom:
             - configMapRef:
-                name: {{ .Values.api.app.configmap }}          
-          {{- with .Values.api.volumeMounts }}
+                name: {{ .Values.api.configmap }}          
+          {{- with .Values.volumeMounts }}
           volumeMounts:
             {{- toYaml . | nindent 12 }}
           {{- end }}
@@ -64,8 +64,8 @@ spec:
           imagePullPolicy: IfNotPresent
           envFrom:
             - configMapRef:
-                name: {{ .Values.api.app.configmap }} 
-          {{- with .Values.api.volumeMounts }}
+                name: {{ .Values.api.configmap }} 
+          {{- with .Values.volumeMounts }}
           volumeMounts:
             {{- toYaml . | nindent 12 }}
           {{- end }}
@@ -76,14 +76,14 @@ spec:
           imagePullPolicy: IfNotPresent
           envFrom:
             - configMapRef:
-                name: {{ .Values.api.app.configmap }} 
-          {{- with .Values.api.volumeMounts }}
+                name: {{ .Values.api.configmap }} 
+          {{- with .Values.volumeMounts }}
           volumeMounts:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           resources:
             {{- toYaml .Values.api.resources | nindent 12 }}
-      {{- with .Values.api.volumes }}
+      {{- with .Values.volumes }}
       volumes:
         {{- toYaml . | nindent 8 }}
       {{- end }}
