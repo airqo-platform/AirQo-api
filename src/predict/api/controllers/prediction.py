@@ -1,18 +1,31 @@
 import logging
 import traceback
+import os
 
 from dotenv import load_dotenv
 from flask import Blueprint, request
 
-from helpers.utils import get_all_gp_predictions, get_gp_predictions, get_gp_predictions_id, get_forecasts_helper, \
-    get_predictions_by_geo_coordinates, get_health_tips
+from config import constants
+from flask_caching import Cache
+from helpers.utils import get_gp_predictions, get_forecasts_helper, \
+    get_predictions_by_geo_coordinates, get_health_tips, convert_to_geojson
 from routes import api
+
+import math
 
 load_dotenv()
 
 _logger = logging.getLogger(__name__)
 
 ml_app = Blueprint('ml_app', __name__)
+
+app_configuration = constants.app_config.get(os.getenv('FLASK_ENV'))
+cache = Cache(config={
+    'CACHE_TYPE': 'redis',
+    'CACHE_REDIS_HOST': app_configuration.REDIS_SERVER,
+    'CACHE_REDIS_PORT': os.getenv('REDIS_PORT'),
+    'CACHE_REDIS_URL': f"redis://{app_configuration.REDIS_SERVER}:{os.getenv('REDIS_PORT')}",
+})
 
 
 @ml_app.route(api.route['next_24hr_forecasts'], methods=['GET'])
@@ -39,23 +52,22 @@ def predictions_for_heatmap():
     if request.method == 'GET':
         try:
             airqloud = request.args.get('airqloud').lower()
+            page = int(request.args.get('page', 1))
+            limit = 1000
             data = get_gp_predictions(airqloud)
+            data = convert_to_geojson(data)
+            total = len(data)  # get the total number of records
+            pages = math.ceil(total / limit)  # calculate the number of pages
+            start = (page - 1) * limit  # calculate the start index of the page
+            end = start + limit  # calculate the end index of the page
+            data = data[start:end]  # slice the data for the page
         except:
-            try:
-                aq_id = request.args.get('id')
-                data = get_gp_predictions_id(aq_id)
-            except:
-                return {'message': 'Please specify an airqloud', 'success': False}, 400
+            return {'message': 'Please specify a valid airqloud', 'success': False}, 400
 
-        print(request.args.get('airqloud'))
-        if request.args.get('airqloud') == None:
-            data = get_all_gp_predictions()
-            if not len(data) > 0:
-                return {'message': 'No predictions available', 'success': False}, 400
+        if not len(data) > 0:
+            return {'message': 'No predictions available', 'success': False}, 400
         if len(data) > 0:
-            return {'success': True, 'data': data}, 200
-        else:
-            return {'message': 'No data for specified airqloud', 'success': False}, 400
+            return {'success': True, 'data': data, 'page': page, 'pages': pages, 'total': total}, 200
     else:
         return {'message': 'Wrong request method. This is a GET endpoint.', 'success': False}, 400
 

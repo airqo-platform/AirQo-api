@@ -19,6 +19,27 @@ def date_to_str(date: datetime):
     return date.isoformat()
 
 
+def convert_to_geojson(data):
+    """
+    converts a list of predictions to geojson format
+    """
+    geojson = {
+        "type": "FeatureCollection",
+        "features": []
+    }
+    for record in data:
+        feature = {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [record["longitude"], record["latitude"]]
+            },
+            "properties": record
+        }
+        geojson["features"].append(feature)
+    return geojson
+
+
 def get_all_gp_predictions():
     """
     returns pm 2.5 predictions for all airqloud
@@ -68,12 +89,12 @@ def get_gp_predictions(airqloud):
 
 def geo_coordinates_cache_key():
     key = (
-        "geo_coordinates:"
-        + str(round(float(request.args.get("latitude")), 6))
-        + ":"
-        + str(round(float(request.args.get("longitude")), 6))
-        + ":"
-        + str(request.args.get("distance_in_metres"))
+            "geo_coordinates:"
+            + str(round(float(request.args.get("latitude")), 6))
+            + ":"
+            + str(round(float(request.args.get("longitude")), 6))
+            + ":"
+            + str(request.args.get("distance_in_metres"))
     )
     return key
 
@@ -96,7 +117,7 @@ def get_health_tips() -> list[dict]:
 
 @cache.cached(timeout=3600, key_prefix=geo_coordinates_cache_key)
 def get_predictions_by_geo_coordinates(
-    latitude: float, longitude: float, distance_in_metres: int
+        latitude: float, longitude: float, distance_in_metres: int
 ) -> dict:
     client = bigquery.Client()
 
@@ -170,7 +191,3 @@ def get_forecasts_helper(db_name):
         return data, 200
     else:
         return jsonify({"message": "Invalid request method", "success": False}), 400
-
-
-if __name__ == "__main__":
-    print("main")

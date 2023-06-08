@@ -22,3 +22,5 @@ def get_forecasts(site_id, db_name):
 
     formatted_results = {'forecasts': results}
     return formatted_results
+
+
