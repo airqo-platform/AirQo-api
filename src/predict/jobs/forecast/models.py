@@ -1,5 +1,3 @@
-import concurrent.futures
-from datetime import datetime, timedelta
 from google.oauth2 import service_account
 import pandas as pd
 import requests
@@ -29,7 +27,7 @@ class Events:
     @staticmethod
     def fetch_health_tips():
         "fetch health tips from the api"
-        response = requests.get(Events.events_tips_url, headers={"authorization": configuration.AIRQO_API_AUTH_TOKEN})
+        response = requests.get(Events.events_tips_url, params={"TOKEN": configuration.AIRQO_API_AUTH_TOKEN})
         if response.status_code == 200:
             result = response.json()
-            return result["tips"]
+        return result["tips"]
