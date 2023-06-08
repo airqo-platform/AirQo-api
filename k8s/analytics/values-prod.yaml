@@ -7,6 +7,7 @@ images:
     celeryBeat: eu.gcr.io/airqo-250220/airqo-analytics-celery-beat
     celeryWorker: eu.gcr.io/airqo-250220/airqo-analytics-celery-worker
     reportJob: eu.gcr.io/airqo-250220/airqo-analytics-report-job
+    devicesSummaryJob: eu.gcr.io/airqo-250220/airqo-analytics-devices-summary-job
   tag: prod-1b6e5014-1683239318
 api:
   name: airqo-analytics-api
@@ -21,9 +22,13 @@ api:
     requests:
       cpu: 10m
       memory: 250Mi
-job:
-  name: prod-analytics-report-job
-  configmap: env-analytics-report-production
+jobs:
+  reports:
+    name: prod-analytics-report
+    configmap: env-analytics-report-production
+  devicesSummaryJob:
+    name: analytics-devices-summary
+    configmap: env-analytics-production
   resources:
     limits:
       cpu: 1000m
