@@ -10,12 +10,12 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- device-model`);
 const HTTPStatus = require("http-status");
 const maxLength = [
-  15,
+  40,
   "The value of path `{PATH}` (`{VALUE}`) exceeds the maximum allowed length ({MAXLENGTH}).",
 ];
 
 const minLength = [
-  7,
+  3,
   "The value of path `{PATH}` (`{VALUE}`) is shorter than the minimum allowed length ({MINLENGTH}).",
 ];
 
@@ -163,8 +163,6 @@ const deviceSchema = new mongoose.Schema(
     device_number: {
       type: Number,
       trim: true,
-      unique: true,
-      required: false,
     },
     category: {
       type: String,
@@ -278,8 +276,11 @@ deviceSchema.statics = {
 
       if (!isEmpty(modifiedArgs.name)) {
         try {
-          let nameWithoutWhiteSpaces = modifiedArgs.name.replace(/\s/g, "");
-          let shortenedName = nameWithoutWhiteSpaces.substring(0, 15);
+          let nameWithoutWhiteSpaces = modifiedArgs.name.replace(
+            /[^a-zA-Z0-9]/g,
+            "_"
+          );
+          let shortenedName = nameWithoutWhiteSpaces.slice(0, 41);
           modifiedArgs.name = shortenedName.trim().toLowerCase();
         } catch (error) {
           logger.error(
@@ -297,10 +298,10 @@ deviceSchema.statics = {
       if (!isEmpty(modifiedArgs.long_name && isEmpty(modifiedArgs.name))) {
         try {
           let nameWithoutWhiteSpaces = modifiedArgs.long_name.replace(
-            /\s/g,
-            ""
+            /[^a-zA-Z0-9]/g,
+            "_"
           );
-          let shortenedName = nameWithoutWhiteSpaces.substring(0, 15);
+          let shortenedName = nameWithoutWhiteSpaces.slice(0, 41);
           modifiedArgs.name = shortenedName.trim().toLowerCase();
         } catch (error) {
           logger.error(

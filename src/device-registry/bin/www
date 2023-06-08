@@ -134,6 +134,12 @@ const run = async() => {
                         logger.error(
                             `KAFKA: ALL the input validation errors --- ${JSON.stringify(error.details)}`
                         );
+
+                        logger.info(
+                            `KAFKA: the VALUE for ALL the shared input validation errors --- ${JSON.stringify(value)}`
+                        );
+
+
                     } else {
                         logObject("value", value)
                         logObject("cleanedMeasurements", cleanedMeasurements)
@@ -153,11 +159,11 @@ const run = async() => {
                             // )}`
                             //         );
                         } else if (responseFromInsertMeasurements.success === true) {
-                            logger.info(
-                                `KAFKA: successfully inserted the measurements --- ${JSON.stringify(responseFromInsertMeasurements.message ?
-                                responseFromInsertMeasurements.message :
-                                "")}`
-                            );
+                            // logger.info(
+                            //     `KAFKA: successfully inserted the measurements --- ${JSON.stringify(responseFromInsertMeasurements.message ?
+                            //     responseFromInsertMeasurements.message :
+                            //     "")}`
+                            // );
                         }
                     }
 

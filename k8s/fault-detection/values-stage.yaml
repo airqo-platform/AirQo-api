@@ -16,8 +16,8 @@ replicaCount: 2
 image:
   repository: eu.gcr.io/airqo-250220/stage-fault-detection-api
   tag: stage-eff44c22-1686147514
-nameOverride: ''
-fullnameOverride: ''
+nameOverride: ""
+fullnameOverride: ""
 podAnnotations: {}
 resources:
   limits:
