@@ -1,11 +1,12 @@
+images:
+  repositories:
+    api: eu.gcr.io/airqo-250220/airqo-analytics-api
+    celeryBeat: eu.gcr.io/airqo-250220/airqo-analytics-celery-beat
+    celeryWorker: eu.gcr.io/airqo-250220/airqo-analytics-celery-worker
+    reportJob: eu.gcr.io/airqo-250220/airqo-analytics-report-job
+  tag: prod-1b6e5014-1683239318
 api:
   replicaCount: 3
-  images:
-    repositories:
-      api: eu.gcr.io/airqo-250220/airqo-analytics-api
-      celeryBeat: eu.gcr.io/airqo-250220/airqo-analytics-celery-beat
-      celeryWorker: eu.gcr.io/airqo-250220/airqo-analytics-celery-worker
-    tag: prod-1b6e5014-1683239318
   nameOverride: ""
   fullnameOverride: ""
   podAnnotations: {}
@@ -45,9 +46,6 @@ job:
     name: prod-analytics-report-job
     namespace: production
     configmap: env-analytics-report-production
-  image:
-    repository: eu.gcr.io/airqo-250220/airqo-analytics-report-job
-    tag: prod-1b6e5014-1683239318
   nameOverride: ""
   fullnameOverride: ""
   resources:
