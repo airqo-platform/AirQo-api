@@ -834,14 +834,22 @@ jobs:
           gcloud secrets versions access latest --secret="prod-key-analytics-service-account" > google_application_credentials.json
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json prod-analytics-config-files | kubectl replace -f - -n production
 
-      ######################### Analytics report job CI ##################################
-      - name: Build and Push Job's Docker Image
+      ######################### Analytics jobs CI ##################################
+      - name: Build and Push report job Docker Image
         run: |
           cd src/analytics/jobs/reports
           docker build --target=production --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-report-job:${{ needs.image-tag.outputs.build_id }} .
           docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-report-job:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-report-job:latest
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-report-job:${{ needs.image-tag.outputs.build_id }}
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-report-job:latest
+
+      - name: Build and push device summary job Docker Image
+        uses: docker/build-push-action@v3
+        with:
+          push: true
+          context: src/analytics/
+          target: devices-summary-job
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-devices-summary-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-devices-summary-job:latest
 
       - name: Update corresponding helm values file
         uses: fjogeleit/yaml-update-action@main
