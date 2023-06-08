@@ -1,31 +1,31 @@
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: '{{ .Values.app.name }}-hpa'
-  namespace: {{ .Values.app.namespace }}
+  name: '{{ .Values.api.app.name }}-hpa'
+  namespace: {{ .Values.api.app.namespace }}
   labels:
     {{- include "airqo-analytics.labels" . | nindent 4 }}
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: {{ .Values.app.name }}
-  minReplicas: {{ .Values.autoscaling.minReplicas }}
-  maxReplicas: {{ .Values.autoscaling.maxReplicas }}
+    name: {{ .Values.api.app.name }}
+  minReplicas: {{ .Values.api.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.api.autoscaling.maxReplicas }}
   metrics:
-    {{- if .Values.autoscaling.targetCPUUtilizationPercentage }}
+    {{- if .Values.api.autoscaling.targetCPUUtilizationPercentage }}
     - type: Resource
       resource:
         name: cpu
         target:
           type: Utilization
-          averageUtilization: {{ .Values.autoscaling.targetCPUUtilizationPercentage }}
+          averageUtilization: {{ .Values.api.autoscaling.targetCPUUtilizationPercentage }}
     {{- end }}
-    {{- if .Values.autoscaling.targetMemoryUtilizationPercentage }}
+    {{- if .Values.api.autoscaling.targetMemoryUtilizationPercentage }}
     - type: Resource
       resource:
         name: memory
         target:
           type: Utilization
-          averageUtilization: {{ .Values.autoscaling.targetMemoryUtilizationPercentage }}
+          averageUtilization: {{ .Values.api.autoscaling.targetMemoryUtilizationPercentage }}
     {{- end }}

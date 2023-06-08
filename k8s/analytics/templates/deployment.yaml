@@ -1,15 +1,15 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Values.app.name }}
-  namespace: {{ .Values.app.namespace }}
+  name: {{ .Values.api.app.name }}
+  namespace: {{ .Values.api.app.namespace }}
   labels:
     {{- include "airqo-analytics.labels" . | nindent 4 }}
 spec:
   selector:
     matchLabels:
-        app: {{ .Values.app.label }}
-  replicas: {{ .Values.replicaCount }}
+        app: {{ .Values.api.app.label }}
+  replicas: {{ .Values.api.replicaCount }}
   revisionHistoryLimit: 2
   strategy:
     type: RollingUpdate
@@ -19,12 +19,12 @@ spec:
   minReadySeconds: 5
   template:
     metadata:
-      {{- with .Values.podAnnotations }}
+      {{- with .Values.api.podAnnotations }}
       annotations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
-        app: {{ .Values.app.label }}
+        app: {{ .Values.api.app.label }}
     spec:
       affinity:
         nodeAffinity:
@@ -44,46 +44,46 @@ spec:
                     values:
                       - general-purpose
       containers:
-        - name: {{ .Values.app.label }}
-          image: "{{ .Values.images.repositories.api }}:{{ .Values.images.tag }}"
+        - name: {{ .Values.api.app.label }}
+          image: "{{ .Values.api.images.repositories.api }}:{{ .Values.api.images.tag }}"
           imagePullPolicy: IfNotPresent
           ports:
-            - containerPort: {{ .Values.service.targetPort }}
-              name: {{ .Values.app.label }}
+            - containerPort: {{ .Values.api.service.targetPort }}
+              name: {{ .Values.api.app.label }}
           envFrom:
             - configMapRef:
-                name: {{ .Values.app.configmap }}          
-          {{- with .Values.volumeMounts }}
+                name: {{ .Values.api.app.configmap }}          
+          {{- with .Values.api.volumeMounts }}
           volumeMounts:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           resources:
-            {{- toYaml .Values.resources | nindent 12 }}
+            {{- toYaml .Values.api.resources | nindent 12 }}
         - name: celery-beat
-          image: "{{ .Values.images.repositories.celeryBeat }}:{{ .Values.images.tag }}"
+          image: "{{ .Values.api.images.repositories.celeryBeat }}:{{ .Values.api.images.tag }}"
           imagePullPolicy: IfNotPresent
           envFrom:
             - configMapRef:
-                name: {{ .Values.app.configmap }} 
-          {{- with .Values.volumeMounts }}
+                name: {{ .Values.api.app.configmap }} 
+          {{- with .Values.api.volumeMounts }}
           volumeMounts:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           resources:
-            {{- toYaml .Values.resources | nindent 12 }}
+            {{- toYaml .Values.api.resources | nindent 12 }}
         - name: celery-worker
-          image: "{{ .Values.images.repositories.celeryWorker }}:{{ .Values.images.tag }}"
+          image: "{{ .Values.api.images.repositories.celeryWorker }}:{{ .Values.api.images.tag }}"
           imagePullPolicy: IfNotPresent
           envFrom:
             - configMapRef:
-                name: {{ .Values.app.configmap }} 
-          {{- with .Values.volumeMounts }}
+                name: {{ .Values.api.app.configmap }} 
+          {{- with .Values.api.volumeMounts }}
           volumeMounts:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           resources:
-            {{- toYaml .Values.resources | nindent 12 }}
-      {{- with .Values.volumes }}
+            {{- toYaml .Values.api.resources | nindent 12 }}
+      {{- with .Values.api.volumes }}
       volumes:
         {{- toYaml . | nindent 8 }}
       {{- end }}
