@@ -1,3 +1,4 @@
+import traceback
 from datetime import datetime
 
 import numpy as np
@@ -29,6 +30,8 @@ class EventsModel(BasePyMongoModel):
     BIGQUERY_HOURLY_DATA = f"`{CONFIGURATIONS.BIGQUERY_HOURLY_DATA}`"
     BIGQUERY_BAM_DATA = f"`{CONFIGURATIONS.BIGQUERY_BAM_DATA}`"
     BIGQUERY_DAILY_DATA = f"`{CONFIGURATIONS.BIGQUERY_DAILY_DATA}`"
+
+    DEVICES_SUMMARY_TABLE = CONFIGURATIONS.DEVICES_SUMMARY_TABLE
 
     def __init__(self, tenant):
         self.limit_mapper = {"pm2_5": 500.5, "pm10": 604.5, "no2": 2049}
@@ -455,6 +458,59 @@ class EventsModel(BasePyMongoModel):
 
         return f"select distinct * from ({query})"
 
+    @classmethod
+    def get_devices_hourly_data(
+        cls,
+        day: datetime,
+    ) -> pd.DataFrame:
+        hourly_data_table = cls.BIGQUERY_HOURLY_DATA
+
+        query = (
+            f" SELECT {hourly_data_table}.pm2_5_calibrated_value , "
+            f" {hourly_data_table}.pm2_5_raw_value ,"
+            f" {hourly_data_table}.site_id ,"
+            f" {hourly_data_table}.device_id AS device ,"
+            f" FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', {hourly_data_table}.timestamp) AS timestamp ,"
+            f" FROM {hourly_data_table} "
+            f" WHERE DATE({hourly_data_table}.timestamp) = '{day.strftime('%Y-%m-%d')}' "
+            f" AND {hourly_data_table}.pm2_5_raw_value is not null "
+        )
+
+        job_config = bigquery.QueryJobConfig()
+        job_config.use_query_cache = True
+
+        dataframe = (
+            bigquery.Client()
+            .query(f"select distinct * from ({query})", job_config)
+            .result()
+            .to_dataframe()
+        )
+
+        return dataframe
+
+    @classmethod
+    def save_devices_summary_data(
+        cls,
+        data: pd.DataFrame,
+    ):
+        schema = [
+            bigquery.SchemaField("device", "STRING"),
+            bigquery.SchemaField("site_id", "STRING"),
+            bigquery.SchemaField("timestamp", "TIMESTAMP"),
+            bigquery.SchemaField("uncalibrated_records", "INTEGER"),
+            bigquery.SchemaField("calibrated_records", "INTEGER"),
+            bigquery.SchemaField("hourly_records", "INTEGER"),
+            bigquery.SchemaField("calibrated_percentage", "FLOAT"),
+            bigquery.SchemaField("uncalibrated_percentage", "FLOAT"),
+        ]
+
+        job_config = bigquery.LoadJobConfig(schema=schema)
+        job = bigquery.Client().load_table_from_dataframe(
+            dataframe=data,
+            destination=cls.DEVICES_SUMMARY_TABLE,
+            job_config=job_config,
+        )
+        job.result()
 
     @classmethod
     @cache.memoize()
