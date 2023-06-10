@@ -4,7 +4,6 @@ const requestAccessController = require("@controllers/request-access");
 const { check, oneOf, query, body, param } = require("express-validator");
 
 const { setJWTAuth, authJWT } = require("@middleware/passport");
-const constants = require("@config/constants");
 
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
@@ -24,13 +23,12 @@ router.post(
   "/register",
   oneOf([
     query("tenant")
-      .optional()
-      .notEmpty()
-      .withMessage("tenant should not be empty IF provided")
+      .exists()
+      .withMessage("tenant should be provided")
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(constants.NETWORKS)
+      .isIn(["kcca", "airqo"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -78,13 +76,12 @@ router.get(
   "/",
   oneOf([
     query("tenant")
-      .optional()
-      .notEmpty()
-      .withMessage("tenant should not be empty IF provided")
+      .exists()
+      .withMessage("tenant should be provided")
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(constants.NETWORKS)
+      .isIn(["kcca", "airqo"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   setJWTAuth,
@@ -95,13 +92,12 @@ router.post(
   "/confirm",
   oneOf([
     query("tenant")
-      .optional()
-      .notEmpty()
-      .withMessage("tenant should not be empty IF provided")
+      .exists()
+      .withMessage("tenant should be provided")
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(constants.NETWORKS)
+      .isIn(["kcca", "airqo"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   setJWTAuth,
@@ -112,13 +108,12 @@ router.delete(
   "/",
   oneOf([
     query("tenant")
-      .optional()
-      .notEmpty()
-      .withMessage("tenant should not be empty IF provided")
+      .exists()
+      .withMessage("tenant should be provided")
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(constants.NETWORKS)
+      .isIn(["kcca", "airqo"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   setJWTAuth,
@@ -129,13 +124,12 @@ router.put(
   "/",
   oneOf([
     query("tenant")
-      .optional()
-      .notEmpty()
-      .withMessage("tenant should not be empty IF provided")
+      .exists()
+      .withMessage("tenant should be provided")
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(constants.NETWORKS)
+      .isIn(["kcca", "airqo"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([

@@ -73,9 +73,8 @@ const filter = {
       logger.error(`internal server error, ${JSON.stringify(e)}`);
       return {
         success: false,
-        message: "Internal Server Error",
+        message: "filter util server error",
         error: e.message,
-        errors: { message: e.message },
       };
     }
   },
@@ -135,9 +134,8 @@ const filter = {
       logger.error(`internal server error, ${JSON.stringify(err)}`);
       return {
         success: false,
-        message: "Internal Server Error",
+        message: "filter util server error",
         errors: { message: err.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -162,16 +160,13 @@ const filter = {
         success: true,
         message: "successfully created the filter",
         data: filter,
-        status: httpStatus.OK,
       };
     } catch (e) {
-      logger.error(`Internal Server Error, ${JSON.stringify(e)}`);
+      logger.error(`internal server error, ${JSON.stringify(e)}`);
       return {
         success: false,
-        message: "Internal Server Error",
+        message: "filter util server error",
         error: e.message,
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -198,16 +193,13 @@ const filter = {
         success: true,
         message: "successfully created the filter",
         data: filter,
-        status: httpStatus.OK,
       };
     } catch (e) {
       logger.error(`internal server error, ${JSON.stringify(e)}`);
       return {
         success: false,
-        message: "Internal Server Error",
+        message: "filter util server error",
         error: e.message,
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -230,16 +222,13 @@ const filter = {
         success: true,
         message: "successfully created the filter",
         data: filter,
-        status: httpStatus.OK,
       };
     } catch (e) {
       logger.error(`internal server error, ${JSON.stringify(e)}`);
       return {
         success: false,
-        message: "Internal Server Error",
+        message: "filter util server error",
         error: e.message,
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -316,16 +305,13 @@ const filter = {
         success: true,
         message: "successfully created the filter",
         data: filter,
-        status: httpStatus.OK,
       };
     } catch (e) {
       logger.error(`internal server error, ${JSON.stringify(e)}`);
       return {
         success: false,
-        message: "Internal Server Error",
+        message: "filter util server error",
         error: e.message,
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -368,7 +354,6 @@ const filter = {
         success: false,
         message: "Internal Server Error",
         errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -407,7 +392,6 @@ const filter = {
         success: false,
         message: "Internal Server Error",
         errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
