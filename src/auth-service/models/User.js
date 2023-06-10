@@ -98,13 +98,6 @@ const UserSchema = new Schema(
       ],
       default: [mongoose.Types.ObjectId(constants.DEFAULT_NETWORK)],
     },
-    // networks: [
-    //   {
-    //     type: ObjectId,
-    //     ref: "network",
-    //     unique: true,
-    //   },
-    // ],
     groups: [
       {
         type: ObjectId,
@@ -308,7 +301,6 @@ UserSchema.statics = {
           foreignField: "_id",
           as: "role",
         })
-        .unwind("$role")
         .lookup({
           from: "permissions",
           localField: "role.role_permissions",
@@ -330,7 +322,7 @@ UserSchema.statics = {
         .limit(limit ? limit : parseInt(constants.DEFAULT_LIMIT))
         .allowDiskUse(true);
 
-      logObject("response", response);
+      logObject("response in the model", response);
       if (!isEmpty(response)) {
         return {
           success: true,
@@ -392,26 +384,26 @@ UserSchema.statics = {
         delete modifiedUpdate["groups"];
       }
 
-      let updatedUser = await this.findOneAndUpdate(
+      const updatedUser = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,
         options
       ).exec();
 
       if (!isEmpty(updatedUser)) {
-        let data = updatedUser._doc;
         return {
           success: true,
           message: "successfully modified the user",
-          data,
+          data: updatedUser._doc,
           status: httpStatus.OK,
         };
-      } else {
+      } else if (isEmpty(updatedUser)) {
         return {
-          success: true,
+          success: false,
           message: "user does not exist, please crosscheck",
           status: httpStatus.BAD_REQUEST,
           data: [],
+          errors: { message: "user does not exist, please crosscheck" },
         };
       }
     } catch (error) {
@@ -440,10 +432,11 @@ UserSchema.statics = {
         };
       } else if (isEmpty(removedUser)) {
         return {
-          success: true,
+          success: false,
           message: "user does not exist, please crosscheck",
           status: httpStatus.BAD_REQUEST,
           data: [],
+          errors: { message: "user does not exist, please crosscheck" },
         };
       }
     } catch (error) {
@@ -485,19 +478,19 @@ UserSchema.statics = {
         .allowDiskUse(true);
 
       if (!isEmpty(response)) {
-        let data = response;
         return {
           success: true,
           message: "successfully deleted the user",
-          data,
+          data: response,
           status: httpStatus.OK,
         };
       } else if (isEmpty(response)) {
         return {
-          success: true,
+          success: false,
           message: "no users exist",
           data: [],
           status: httpStatus.BAD_REQUEST,
+          errors: { message: "no users exist for this operation" },
         };
       }
     } catch (error) {
