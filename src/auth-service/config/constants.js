@@ -71,12 +71,6 @@ const defaultConfig = {
         (value) => value.trim() !== ""
       )
     : [],
-  TENANTS: process.env.TENANTS
-    ? process.env.TENANTS.split(",").filter((value) => value.trim() !== "")
-    : [],
-  NETWORKS: process.env.NETWORKS
-    ? process.env.NETWORKS.split(",").filter((value) => value.trim() !== "")
-    : [],
   UNIQUE_CONSUMER_GROUP: process.env.UNIQUE_CONSUMER_GROUP,
   UNIQUE_PRODUCER_GROUP: process.env.UNIQUE_PRODUCER_GROUP,
   NEW_MOBILE_APP_USER_TOPIC: process.env.NEW_MOBILE_APP_USER_TOPIC,
@@ -195,13 +189,7 @@ const defaultConfig = {
       "net_manager.createdAt": 0,
       "net_manager.updatedAt": 0,
       "net_manager.groups": 0,
-      "net_manager.role": 0,
-      "net_manager.resetPasswordExpires": 0,
-      "net_manager.resetPasswordToken": 0,
-      "net_manager.phoneNumber": 0,
-      "net_manager.organization": 0,
-      "net_manager.profilePicture": 0,
-      "net_manager.is_email_verified": 0,
+      "net_manager.roles": 0,
       "net_manager.permissions": 0,
       "net_permissions.__v": 0,
       "net_permissions.createdAt": 0,
@@ -443,65 +431,6 @@ const defaultConfig = {
       "my_networks.createdAt": 0,
       "my_networks.updatedAt": 0,
       "my_networks.__v": 0,
-    };
-    let projection = Object.assign({}, initialProjection);
-    if (category === "summary") {
-      projection = Object.assign({}, {});
-    }
-
-    return projection;
-  },
-
-  CANDIDATES_INCLUSION_PROJECTION: {
-    _id: 1,
-    firstName: 1,
-    lastName: 1,
-    email: 1,
-    description: 1,
-    category: 1,
-    long_organization: 1,
-    jobTitle: 1,
-    website: 1,
-    status: 1,
-    createdAt: {
-      $dateToString: {
-        format: "%Y-%m-%d %H:%M:%S",
-        date: "$_id",
-      },
-    },
-    updatedAt: 1,
-    country: 1,
-    existing_user: { $arrayElemAt: ["$user", 0] },
-    network: { $arrayElemAt: ["$network", 0] },
-  },
-
-  CANDIDATES_EXCLUSION_PROJECTION: (category) => {
-    const initialProjection = {
-      "existing_user.locationCount": 0,
-      "existing_user.privilege": 0,
-      "existing_user.website": 0,
-      "existing_user.organization": 0,
-      "existing_user.long_organization": 0,
-      "existing_user.category": 0,
-      "existing_user.jobTitle": 0,
-      "existing_user.profilePicture": 0,
-      "existing_user. phoneNumber": 0,
-      "existing_user.description": 0,
-      "existing_user.createdAt": 0,
-      "existing_user.updatedAt": 0,
-      "existing_user.notifications": 0,
-      "existing_user.emailConfirmed": 0,
-      "existing_user.password": 0,
-      "existing_user.__v": 0,
-      "existing_user.duration": 0,
-      "existing_user.verified": 0,
-      "existing_user.networks": 0,
-      "existing_user.groups": 0,
-      "existing_user.role": 0,
-      "existing_user.permissions": 0,
-      "existing_user.userName": 0,
-      "existing_user.country": 0,
-      network: 0,
     };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {

@@ -5,7 +5,6 @@ const { check, oneOf, query, body, param } = require("express-validator");
 const { setJWTAuth, authJWT } = require("@middleware/passport");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
-const constants = require("@config/constants");
 
 const headers = (req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
@@ -23,13 +22,12 @@ router.post(
   oneOf([
     [
       query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant should not be empty IF provided")
+        .exists()
+        .withMessage("tenant should be provided")
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(constants.NETWORKS)
+        .isIn(["kcca", "airqo"])
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -137,7 +135,7 @@ router.get(
         .trim()
         .toLowerCase()
         .bail()
-        .isIn(constants.NETWORKS)
+        .isIn(["kcca", "airqo"])
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -150,13 +148,12 @@ router.post(
   oneOf([
     [
       query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant should not be empty IF provided")
+        .exists()
+        .withMessage("tenant should be provided")
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(constants.NETWORKS)
+        .isIn(["kcca", "airqo"])
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -214,7 +211,7 @@ router.delete(
         .trim()
         .toLowerCase()
         .bail()
-        .isIn(constants.NETWORKS)
+        .isIn(["kcca", "airqo"])
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -248,7 +245,7 @@ router.put(
         .trim()
         .toLowerCase()
         .bail()
-        .isIn(constants.NETWORKS)
+        .isIn(["kcca", "airqo"])
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
