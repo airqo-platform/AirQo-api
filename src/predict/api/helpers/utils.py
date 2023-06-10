@@ -6,7 +6,7 @@ import requests
 from dotenv import load_dotenv
 from flask import request, jsonify
 from google.cloud import bigquery
-
+import geojson
 from app import cache
 from config.constants import connect_mongo, Config
 from models.predict import get_forecasts
@@ -23,68 +23,51 @@ def convert_to_geojson(data):
     """
     converts a list of predictions to geojson format
     """
-    geojson = {
-        "type": "FeatureCollection",
-        "features": []
-    }
+    features = []
     for record in data:
-        feature = {
-            "type": "Feature",
-            "geometry": {
-                "type": "Point",
-                "coordinates": [record["longitude"], record["latitude"]]
+        # if it has no longitude or latitude, skip it
+        if not record['longitude'] or not record['latitude']:
+            continue
+        point = geojson.Point((record['longitude'], record['latitude']))
+        feature = geojson.Feature(geometry=point, properties=record)
+        features.append(feature)
+
+    return geojson.FeatureCollection(features)
+
+
+def get_gp_predictions(airqloud=None, page=1, limit=500):
+    """Returns PM 2.5 predictions for a particular airqloud name or id."""
+
+    pipeline = [
+        {"$match": {"airqloud": airqloud.lower()} if airqloud else {}},
+        {"$sort": {"created_at": -1}},
+        {"$group": {
+            "_id": {
+                "latitude": "$latitude",
+                "longitude": "$longitude"
             },
-            "properties": record
-        }
-        geojson["features"].append(feature)
-    return geojson
+            "doc": {"$first": "$$ROOT"}
+        }},
+        {"$replaceRoot": {"newRoot": "$doc"}},
+        {"$project": {
+            '_id': 0,
+            'latitude': 1,
+            'longitude': 1,
+            'predicted_value': 1,
+            'variance': 1,
+            'interval': 1,
+            'airqloud': 1,
+            'created_at': 1,
+            'airqloud_id': 1,
+            'values': 1
+        }}
+    ]
+    result = db.gp_predictions.aggregate(pipeline)
+    predictions = list(result)
+    total_count = len(predictions)
+    paginated_results = predictions[(page - 1) * limit:page * limit]
 
-
-def get_all_gp_predictions():
-    """
-    returns pm 2.5 predictions for all airqloud
-    """
-
-    today = datetime.today()
-    query = {"created_at": {"$gt": today - timedelta(minutes=60)}}
-    projection = {
-        "_id": 0,
-        "latitude": 1,
-        "longitude": 1,
-        "predicted_value": 1,
-        "variance": 1,
-        "interval": 1,
-        "airqloud": 1,
-        "created_at": 1,
-        "airqloud_id": 1,
-        "values": 1,
-    }
-    records = list(db.gp_predictions.find(query, projection))
-    return records
-
-
-def get_gp_predictions(airqloud):
-    """
-    returns pm 2.5 predictions for a particular airqloud
-    """
-    if airqloud is None:
-        records = get_all_gp_predictions()
-    else:
-        query = {"airqloud": airqloud}
-        projection = {
-            "_id": 0,
-            "latitude": 1,
-            "longitude": 1,
-            "predicted_value": 1,
-            "variance": 1,
-            "interval": 1,
-            "airqloud": 1,
-            "created_at": 1,
-            "airqloud_id": 1,
-            "values": 1,
-        }
-        records = list(db.gp_predictions.find(query, projection))
-    return records
+    return paginated_results, total_count
 
 
 def geo_coordinates_cache_key():
@@ -140,27 +123,6 @@ def get_predictions_by_geo_coordinates(
     data = dataframe.to_dict("records")[0]
 
     return data
-
-
-def get_gp_predictions_id(aq_id):
-    """
-    returns pm 2.5 predictions for a particular airqloud
-    """
-
-    query = {"airqloud_id": aq_id}
-    projection = {
-        "_id": 0,
-        "latitude": 1,
-        "longitude": 1,
-        "predicted_value": 1,
-        "variance": 1,
-        "interval": 1,
-        "airqloud": 1,
-        "created_at": 1,
-        "airqloud_id": 1,
-    }
-    records = list(db.gp_predictions.find(query, projection))
-    return records
 
 
 def get_forecasts_helper(db_name):
