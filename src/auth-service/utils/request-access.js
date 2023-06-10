@@ -7,6 +7,7 @@ const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 constants = require("../config/constants");
 const accessCodeGenerator = require("generate-password");
+const generateFilter = require("@utils/generate-filter");
 
 const UserModel = (tenant) => {
   return getModelByTenant(tenant, "user", UserSchema);
@@ -24,40 +25,14 @@ const logger = log4js.getLogger(
 const requestAccess = {
   create: async (req, callback) => {
     try {
-      let { firstName, lastName, email, tenant } = req;
+      const { firstName, lastName, email, tenant } = req;
 
-      // await validationsUtil.checkEmailExistenceUsingKickbox(email, (value) => {
-      //   if (value.success == false) {
-      //     const errors = value.errors ? value.errors : { message: "Internal Server Error" };
-      //     logObject("the validation checks results", {
-      //       success: false,
-      //       message: value.message,
-      //       errors,
-      //       status: value.status,
-      //     });
-      //     callback({
-      //       success: false,
-      //       message: value.message,
-      //       errors,
-      //       status: value.status,
-      //     });
-      //   }
-      // });
-
-      let filter = { email };
-
-      const responseFromListCandidates = await CandidateModel(
-        tenant.toLowerCase()
-      ).list({
-        filter,
+      const userExists = await UserModel(tenant).exists({ email });
+      const candidateExists = await CandidateModel(tenant).exists({
+        email,
       });
 
-      logObject("responseFromListCandidates", responseFromListCandidates);
-
-      if (
-        responseFromListCandidates.message ===
-        "successfully listed the candidates"
-      ) {
+      if (candidateExists) {
         logger.error(
           `candidate ${email} already exists in the System, they just need to be approved`
         );
@@ -66,107 +41,50 @@ const requestAccess = {
           message: "candidate already exists",
           status: httpStatus.OK,
         });
-      } else if (responseFromListCandidates.message === "no candidates exist") {
-        const responseFromListUsers = await UserModel(
-          tenant.toLowerCase()
-        ).list({
-          filter,
-        });
-        if (
-          responseFromListUsers.message ===
-          "successfully retrieved the user details"
-        ) {
-          logger.error(
-            `candidate ${email} already exists as a User in the System`
-          );
-          callback({
-            success: false,
-            message: "Bad Request Error",
-            status: httpStatus.BAD_REQUEST,
-            errors: { message: "candidate already exists as a user" },
-          });
-        } else if (responseFromListUsers.message === "no users exist") {
-          const responseFromCreateCandidate = await CandidateModel(
-            tenant
-          ).register(req);
-
-          if (responseFromCreateCandidate.success === true) {
-            let createdCandidate = await responseFromCreateCandidate.data;
-            let responseFromSendEmail = await mailer.candidate(
-              firstName,
-              lastName,
-              email,
-              tenant
-            );
-            if (responseFromSendEmail.success === true) {
-              const status = responseFromSendEmail.status
-                ? responseFromSendEmail.status
-                : httpStatus.OK;
-              callback({
-                success: true,
-                message: "candidate successfully created",
-                data: createdCandidate,
-                status,
-              });
-            } else if (responseFromSendEmail.success === false) {
-              const errors = responseFromSendEmail.errors
-                ? responseFromSendEmail.errors
-                : { message: "Internal Server Error" };
-              const status = responseFromSendEmail.status
-                ? responseFromSendEmail.status
-                : httpStatus.INTERNAL_SERVER_ERROR;
-              logger.error(`${responseFromCreateCandidate.message}`);
-              callback({
-                success: false,
-                message: responseFromCreateCandidate.message,
-                errors,
-                status,
-              });
-            }
-          } else if (responseFromCreateCandidate.success === false) {
-            const errors = responseFromCreateCandidate.errors
-              ? responseFromCreateCandidate.errors
-              : { message: "Internal Server Error" };
-            const status = responseFromCreateCandidate.status
-              ? responseFromCreateCandidate.status
-              : httpStatus.INTERNAL_SERVER_ERROR;
-            logger.error(`${responseFromCreateCandidate.message}`);
-            callback({
-              success: false,
-              message: responseFromCreateCandidate.message,
-              errors,
-              status,
-            });
-          }
-        } else if (responseFromListUsers.success === false) {
-          const errors = responseFromListUsers.error
-            ? responseFromListUsers.error
-            : { message: "Internal Server Error" };
-          const status = responseFromListUsers.status
-            ? responseFromListUsers.status
-            : httpStatus.INTERNAL_SERVER_ERROR;
-          logger.error(`${responseFromListUsers.message}`);
-          callback({
-            success: false,
-            message: responseFromListUsers.message,
-            errors,
-            status,
-          });
-        }
-      } else if (responseFromListCandidates.success === false) {
-        const errors = responseFromListCandidates.error
-          ? responseFromListCandidates.error
-          : { message: "Internal Server Error" };
-        const status = responseFromListCandidates.status
-          ? responseFromListCandidates.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        logger.error(`${responseFromListCandidates.message}`);
+      } else if (userExists) {
+        logger.error(
+          `candidate ${email} already exists as a User in the System, you can use the FORGOT PASSWORD feature`
+        );
         callback({
           success: false,
-          message: responseFromListCandidates.message,
-          errors,
-          status,
+          message: "Bad Request Error",
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            message:
+              "Candidate already exists as a User,you can use the FORGOT PASSWORD feature",
+          },
         });
+      } else {
+        const responseFromCreateCandidate = await CandidateModel(
+          tenant
+        ).register(req);
+
+        if (responseFromCreateCandidate.success === true) {
+          const createdCandidate = await responseFromCreateCandidate.data;
+          const responseFromSendEmail = await mailer.candidate(
+            firstName,
+            lastName,
+            email,
+            tenant
+          );
+          if (responseFromSendEmail.success === true) {
+            const status = responseFromSendEmail.status
+              ? responseFromSendEmail.status
+              : httpStatus.OK;
+            callback({
+              success: true,
+              message: "candidate successfully created",
+              data: createdCandidate,
+              status,
+            });
+          } else if (responseFromSendEmail.success === false) {
+            logger.error(`${responseFromCreateCandidate.message}`);
+            callback(responseFromSendEmail);
+          }
+        } else if (responseFromCreateCandidate.success === false) {
+          logger.error(`${responseFromCreateCandidate.message}`);
+          callback(responseFromCreateCandidate);
+        }
       }
     } catch (e) {
       logger.error(`${e.message}`);
@@ -179,92 +97,76 @@ const requestAccess = {
     }
   },
 
-  list: async ({ tenant, filter, limit, skip }) => {
+  list: async (request) => {
     try {
-      logElement("the tenant", tenant);
-      logObject("the filter", filter);
-      logElement("limit", limit);
-      logElement("the skip", skip);
+      const { query } = request;
+      const { tenant } = query;
+      const limit = parseInt(request.query.limit, 0);
+      const skip = parseInt(request.query.skip, 0);
 
-      let responseFromListCandidate = await CandidateModel(
+      const responseFromFilter = generateFilter.candidates(request);
+      logObject("responseFromFilter", responseFromFilter);
+      if (responseFromFilter.success === false) {
+        return responseFromFilter;
+      }
+      const filter = responseFromFilter.data;
+
+      const responseFromListCandidate = await CandidateModel(
         tenant.toLowerCase()
       ).list({
         filter,
         limit,
         skip,
       });
-
-      if (responseFromListCandidate.success == true) {
-        return {
-          success: true,
-          message: responseFromListCandidate.message,
-          data: responseFromListCandidate.data,
-        };
-      } else if (responseFromListCandidate.success == false) {
-        if (responseFromListCandidate.error) {
-          return {
-            success: false,
-            message: responseFromListCandidate.message,
-            error: responseFromListCandidate.error,
-          };
-        } else {
-          return {
-            success: false,
-            message: responseFromListCandidate.message,
-          };
-        }
-      }
+      return responseFromListCandidate;
     } catch (e) {
       logger.error(`${e.message}`);
       return {
         success: false,
-        message: "utils server error",
+        message: "Internal Server Error",
         error: e.message,
+        errors: { message: e.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
 
-  update: async (tenant, filter, update) => {
+  update: async (request) => {
     try {
-      let responseFromModifyCandidate = await CandidateModel(
+      const { query, body } = request;
+
+      const responseFromFilter = generateFilter.candidates(request);
+      logObject("responseFromFilter", responseFromFilter);
+
+      if (responseFromFilter.success === false) {
+        return responseFromFilter;
+      }
+
+      const filter = responseFromFilter.data;
+      const update = body;
+      const tenant = query.tenant;
+
+      const responseFromModifyCandidate = await CandidateModel(
         tenant.toLowerCase()
       ).modify({
         filter,
         update,
       });
       logObject("responseFromModifyCandidate", responseFromModifyCandidate);
-      if (responseFromModifyCandidate.success == true) {
-        return {
-          success: true,
-          message: responseFromModifyCandidate.message,
-          data: responseFromModifyCandidate.data,
-        };
-      } else if (responseFromModifyCandidate.success == false) {
-        if (responseFromModifyCandidate.error) {
-          return {
-            success: false,
-            message: responseFromModifyCandidate.message,
-            error: responseFromModifyCandidate.error,
-          };
-        } else {
-          return {
-            success: false,
-            message: responseFromModifyCandidate.message,
-          };
-        }
-      }
+      return responseFromModifyCandidate;
     } catch (e) {
       logger.error(`${e.message}`);
       return {
         success: false,
-        message: "util server error",
+        message: "Internal Server Error",
         error: e.message,
+        errors: { message: e.message },
       };
     }
   },
 
   confirm: async (req) => {
-    let {
+    const {
       tenant,
       firstName,
       lastName,
@@ -279,128 +181,141 @@ const requestAccess = {
       country,
     } = req;
     try {
-      let responseFromListCandidate = await requestAccess.list({
-        tenant,
-        filter,
+      const candidateExists = await CandidateModel(tenant).exists({
+        email,
       });
-      if (
-        responseFromListCandidate.success === true &&
-        !isEmpty(responseFromListCandidate.data)
-      ) {
-        const password = accessCodeGenerator.generate(
-          constants.RANDOM_PASSWORD_CONFIGURATION(10)
+      const userExists = await UserModel(tenant).exists({ email });
+
+      if (!candidateExists) {
+        logger.error(
+          `Candidate ${email} not found in System, crosscheck or make another request`
         );
-
-        let requestBody = {
-          tenant,
-          firstName,
-          lastName,
-          email,
-          organization,
-          long_organization,
-          jobTitle,
-          website,
-          password,
-          description,
-          category,
-          privilege: "user",
-          userName: email,
-          country,
-        };
-        logObject("requestBody during confirmation", requestBody);
-
-        let responseFromCreateUser = await UserModel(tenant).register(
-          requestBody
-        );
-
-        logObject(
-          "responseFromCreateUser during confirmation",
-          responseFromCreateUser
-        );
-
-        if (responseFromCreateUser.success === true) {
-          const createdUser = await responseFromCreateUser.data;
-          logObject("createdUser", createdUser);
-          const jsonify = (createdUser) => {
-            let jsonData = JSON.stringify(createdUser);
-            let parsedMap = JSON.parse(jsonData);
-            return parsedMap;
-          };
-
-          const jsonifyCreatedUser = jsonify(createdUser);
-
-          logObject("jsonifyCreatedUser", jsonifyCreatedUser);
-          let responseFromSendEmail = await mailer.user(
-            firstName,
-            lastName,
-            email,
-            password,
-            tenant,
-            "confirm"
-          );
-          logObject(
-            "responseFromSendEmail during confirmation",
-            responseFromSendEmail
-          );
-          if (responseFromSendEmail.success === true) {
-            let responseFromDeleteCandidate = await requestAccess.delete(
-              tenant,
-              filter
-            );
-            if (responseFromDeleteCandidate.success === true) {
-              return {
-                success: true,
-                message: "candidate successfully confirmed",
-                data: jsonifyCreatedUser,
-              };
-            } else if (responseFromDeleteCandidate.success === false) {
-              return responseFromDeleteCandidate;
-            }
-          } else if (responseFromSendEmail.success === false) {
-            return responseFromSendEmail;
-          }
-        } else if (responseFromCreateUser.success === false) {
-          return responseFromCreateUser;
-        }
-      } else if (
-        responseFromListCandidate.success === true &&
-        isEmpty(responseFromListCandidate.data)
-      ) {
         return {
           success: false,
           message: "the candidate does not exist",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: `Candidate ${email} not found` },
         };
-      } else if (responseFromListCandidate.success === false) {
-        const error = responseFromListCandidate.error
-          ? responseFromListCandidate.error
-          : {};
+      }
+
+      if (userExists) {
+        logger.error(
+          `User ${email} already exists, try to utilise FORGOT PASSWORD feature`
+        );
         return {
           success: false,
-          message: "unable to retrieve candidate",
-          error,
+          message: "the User already exists",
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            message: `User ${email} already exists, try to utilise FORGOT PASSWORD feature`,
+          },
         };
+      }
+
+      const password = accessCodeGenerator.generate(
+        constants.RANDOM_PASSWORD_CONFIGURATION(10)
+      );
+
+      const requestBody = {
+        tenant,
+        firstName,
+        lastName,
+        email,
+        organization,
+        long_organization,
+        jobTitle,
+        website,
+        password,
+        description,
+        category,
+        privilege: "user",
+        userName: email,
+        country,
+      };
+      logObject("requestBody during confirmation", requestBody);
+
+      const responseFromCreateUser = await UserModel(tenant).register(
+        requestBody
+      );
+
+      logObject(
+        "responseFromCreateUser during confirmation",
+        responseFromCreateUser
+      );
+
+      if (responseFromCreateUser.success === true) {
+        const responseFromSendEmail = await mailer.user(
+          firstName,
+          lastName,
+          email,
+          password,
+          tenant,
+          "confirm"
+        );
+        logObject(
+          "responseFromSendEmail during confirmation",
+          responseFromSendEmail
+        );
+        if (responseFromSendEmail.success === true) {
+          const responseFromDeleteCandidate = await CandidateModel(
+            tenant.toLowerCase()
+          ).remove({
+            filter,
+          });
+
+          if (responseFromDeleteCandidate.success === true) {
+            return {
+              success: true,
+              message: "candidate successfully confirmed",
+              data: {
+                firstName,
+                lastName,
+                email,
+                userName: email,
+              },
+              status: httpStatus.OK,
+            };
+          } else if (responseFromDeleteCandidate.success === false) {
+            return responseFromDeleteCandidate;
+          }
+        } else if (responseFromSendEmail.success === false) {
+          return responseFromSendEmail;
+        }
+      } else if (responseFromCreateUser.success === false) {
+        return responseFromCreateUser;
       }
     } catch (e) {
       logger.error(`${e.message}`);
       if (e.code === 11000) {
         return {
           success: false,
-          message: "duplicate entry",
+          message: "Duplicate Entry",
           error: e.keyValue,
+          errors: { message: `duplicate entry ${e.keyValue}` },
           status: httpStatus.BAD_REQUEST,
         };
       }
       return {
         success: false,
-        message: "util server error",
+        message: "Internal Server Error",
         error: e.message,
+        errors: { message: e.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
 
-  delete: async (tenant, filter) => {
+  delete: async (request) => {
     try {
+      const { query } = request;
+      const { tenant } = query;
+
+      const responseFromFilter = generateFilter.candidates(request);
+
+      if (responseFromFilter.success === false) {
+        return responseFromFilter;
+      }
+      const filter = responseFromFilter.data;
       const responseFromRemoveCandidate = await CandidateModel(
         tenant.toLowerCase()
       ).remove({
@@ -411,8 +326,10 @@ const requestAccess = {
       logger.error(`${e.message}`);
       return {
         success: false,
-        message: "util server error",
+        message: "Internal Server Error",
         error: e.message,
+        errors: { message: e.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
