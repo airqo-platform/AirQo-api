@@ -301,6 +301,7 @@ UserSchema.statics = {
           foreignField: "_id",
           as: "role",
         })
+        .unwind("$role")
         .lookup({
           from: "permissions",
           localField: "role.role_permissions",
