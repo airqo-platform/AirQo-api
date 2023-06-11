@@ -197,7 +197,7 @@ const controlAccess = {
              * later...cases where the user never existed in the first place
              * this will not be necessary if user deletion is cascaded.
              */
-            if (responseFromUpdateUser.status === httpStatus.NOT_FOUND) {
+            if (responseFromUpdateUser.status === httpStatus.BAD_REQUEST) {
               return responseFromUpdateUser;
             }
             let user = responseFromUpdateUser.data;
@@ -551,28 +551,25 @@ const controlAccess = {
   generateVerificationToken: async (request) => {
     try {
       /**
-       * just create the token and save it on the system
+       * Just create the token and save it on the system
        * Store it alongside their email address
        * Send the token to the user so as to use it for verification
        */
-      const { tenant, firstName, email, network_id } = request;
-      let { password } = request;
+      const { query, body } = request;
+      const { email } = body;
+      const { tenant } = query;
 
-      const user = await UserModel(tenant).findOne({ email });
-      if (!isEmpty(user)) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: { message: "User is already part of the AirQo platform" },
-          status: httpStatus.BAD_REQUEST,
-        };
-      }
-
-      password = password
+      const password = password
         ? password
         : accessCodeGenerator.generate(
             constants.RANDOM_PASSWORD_CONFIGURATION(10)
           );
+
+      /**
+       *We are just going to create the user in the system and 
+       send them verification codes via email
+       It is those verification codes we shall use to verify them in the system
+       */
 
       const newRequest = Object.assign({ userName: email, password }, request);
 
@@ -728,7 +725,7 @@ const controlAccess = {
              * later...cases where the user never existed in the first place
              * this will not be necessary if user deletion is cascaded.
              */
-            if (responseFromUpdateUser.status === httpStatus.NOT_FOUND) {
+            if (responseFromUpdateUser.status === httpStatus.BAD_REQUEST) {
               return responseFromUpdateUser;
             }
             let user = responseFromUpdateUser.data;

@@ -514,6 +514,47 @@ const defaultConfig = {
 
     return projection;
   },
+
+  TOKENS_INCLUSION_PROJECTION: {
+    _id: 1,
+    user_id: 1,
+    name: 1,
+    token: 1,
+    network_id: 1,
+    last_used_at: 1,
+    expires: 1,
+    last_ip_address: 1,
+    user: { $arrayElemAt: ["$users", 0] },
+  },
+
+  TOKENS_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = {
+      "user._id": 0,
+      "user.notifications": 0,
+      "user.verified": 0,
+      "user.networks": 0,
+      "user.groups": 0,
+      "user.roles": 0,
+      "user.permissions": 0,
+      "user.locationCount": 0,
+      "user.userName": 0,
+      "user.password": 0,
+      "user.long_organization": 0,
+      "user.privilege": 0,
+      "user.duration": 0,
+      "user.createdAt": 0,
+      "user.updatedAt": 0,
+      "user.__v": 0,
+      "user.resetPasswordExpires": 0,
+      "user.resetPasswordToken": 0,
+    };
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign({}, {});
+    }
+
+    return projection;
+  },
 };
 
 function envConfig(env) {
