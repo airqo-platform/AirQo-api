@@ -146,6 +146,7 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
         // });
         return done(null, user);
       } catch (e) {
+        req.auth = {};
         req.auth.success = false;
         req.auth.message = "Server Error";
         req.auth.error = e.message;
@@ -190,6 +191,7 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
         // });
         return done(null, user);
       } catch (e) {
+        req.auth = {};
         req.auth.success = false;
         req.auth.message = "Server Error";
         req.auth.error = e.message;
@@ -209,14 +211,15 @@ const useGoogleStrategy = (tenant, req, res, next) =>
 
       try {
         const service = req.headers["service"];
-        let user = await UserModel(tenant.toLowerCase())
+        const user = await UserModel(tenant.toLowerCase())
           .findOne({
             email: profile._json.email,
           })
-          .lean();
+          .exec();
+        // let user = result.toJSON();
         req.auth = {};
         if (user) {
-          logObject("the user", user);
+          // logObject("the user", user);
           req.auth.success = true;
           req.auth.message = "successful login";
 
@@ -228,6 +231,7 @@ const useGoogleStrategy = (tenant, req, res, next) =>
               service: service ? service : "none",
             }
           );
+          cb(null, user);
           return next();
           // return cb(null, user);
         } else {
@@ -246,22 +250,24 @@ const useGoogleStrategy = (tenant, req, res, next) =>
           if (responseFromRegisterUser.success === false) {
             req.auth.success = false;
             req.auth.message = "unable to create user";
+            cb(responseFromRegisterUser.errors, false);
             next();
-            // return cb(responseFromRegisterUser.errors, false);
           } else {
             logObject("the newly created user", responseFromRegisterUser.data);
             user = responseFromRegisterUser.data;
-            // return cb(null, user);
+            cb(null, user);
+
             return next();
           }
         }
       } catch (error) {
         logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+        logObject("error", error);
+        req.auth = {};
         req.auth.success = false;
         req.auth.message = "Server Error";
         req.auth.error = e.message;
         next();
-        // return cb(error, false);
       }
     }
   );
@@ -469,7 +475,7 @@ const authGoogle = passport.authenticate("google", {
 });
 
 const authGoogleCallback = passport.authenticate("google", {
-  failureRedirect: "https://airqo.net/",
+  failureRedirect: `${constants.GMAIL_VERIFICATION_FAILURE_REDIRECT}`,
 });
 
 const authGuest = (req, res, next) => {

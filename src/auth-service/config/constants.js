@@ -66,6 +66,10 @@ const stageConfig = {
 };
 
 const defaultConfig = {
+  GMAIL_VERIFICATION_FAILURE_REDIRECT:
+    process.env.GMAIL_VERIFICATION_FAILURE_REDIRECT,
+  GMAIL_VERIFICATION_SUCCESS_REDIRECT:
+    process.env.GMAIL_VERIFICATION_SUCCESS_REDIRECT,
   SUPER_ADMIN_PERMISSIONS: process.env.SUPER_ADMIN_PERMISSIONS
     ? process.env.SUPER_ADMIN_PERMISSIONS.split(",").filter(
         (value) => value.trim() !== ""

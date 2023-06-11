@@ -192,7 +192,23 @@ const createUser = {
   },
   googleCallback: async (req, res) => {
     try {
-      res.redirect("https://analytics.airqo.net/");
+      logObject("req.user.toAuthJSON()", req.user.toAuthJSON());
+      const token = req.user.toAuthJSON().token;
+      // Set the token as an HTTP-only cookie
+      res.cookie("access_token", token, {
+        httpOnly: true,
+        secure: true, // Enable if using HTTPS
+      });
+
+      res.redirect(`${constants.GMAIL_VERIFICATION_SUCCESS_REDIRECT}`);
+
+      /***
+       * in the FRONTEND, access the cookie:
+       * ==================================
+       * npm install js-cookie
+       * import Cookies from "js-cookie";
+       * const token = Cookies.get("access_token");
+       */
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
       res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
@@ -744,6 +760,8 @@ const createUser = {
       }
 
       if (req.auth.success === true) {
+        // logObject("req.user", req.user);
+        logObject("req.user.toAuthJSON()", req.user.toAuthJSON());
         return res.status(httpStatus.OK).json(req.user.toAuthJSON());
       } else {
         if (req.auth.error) {
