@@ -744,7 +744,7 @@ const createUser = {
       }
 
       if (req.auth.success === true) {
-        res.status(httpStatus.OK).json(req.user.toAuthJSON());
+        return res.status(httpStatus.OK).json(req.user.toAuthJSON());
       } else {
         if (req.auth.error) {
           return res.status(httpStatus.BAD_REQUEST).json({

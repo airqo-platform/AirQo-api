@@ -12,11 +12,6 @@ const AuthTokenStrategy = require("passport-auth-token");
 const jwt = require("jsonwebtoken");
 const accessCodeGenerator = require("generate-password");
 
-const session = require("express-session");
-const MongoStore = require("connect-mongo")(session);
-const mongoose = require("mongoose");
-const app = require("@root/app");
-
 const { getModelByTenant } = require("@config/dbConnection");
 
 const UserModel = (tenant) => {
@@ -210,26 +205,17 @@ const useGoogleStrategy = (tenant, req, res, next) =>
       callbackURL: `${constants.PLATFORM_BASE_URL}/api/v1/users/auth/google/callback`,
     },
     async (accessToken, refreshToken, profile, cb) => {
-      // logObject("type of profile", typeof profile);
       logObject("Google profile Object", profile._json);
-      // logObject("accessToken", accessToken);
-      // logObject("refreshToken", refreshToken);
-      // logger.info(
-      //   `the profile value of the Google account ${JSON.stringify(profile)}`
-      // );
 
       try {
-        // Check if the user already exists in the database
         const service = req.headers["service"];
-        let user = await UserModel(tenant.toLowerCase()).findOne({
-          email: profile._json.email,
-        });
+        let user = await UserModel(tenant.toLowerCase())
+          .findOne({
+            email: profile._json.email,
+          })
+          .lean();
         req.auth = {};
         if (user) {
-          // User exists, return the user
-          /**
-           * we could update some user details
-           */
           logObject("the user", user);
           req.auth.success = true;
           req.auth.message = "successful login";
@@ -242,10 +228,10 @@ const useGoogleStrategy = (tenant, req, res, next) =>
               service: service ? service : "none",
             }
           );
-          return cb(null, user);
+          return next();
+          // return cb(null, user);
         } else {
-          // User doesn't exist, create a new user
-          user = await UserModel(tenant).create({
+          const responseFromRegisterUser = await UserModel(tenant).register({
             google_id: profile._json.sub,
             firstName: profile._json.given_name,
             lastName: profile._json.family_name,
@@ -257,65 +243,26 @@ const useGoogleStrategy = (tenant, req, res, next) =>
               constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH)
             ),
           });
-
-          // Return the new user
-          return cb(null, user);
+          if (responseFromRegisterUser.success === false) {
+            req.auth.success = false;
+            req.auth.message = "unable to create user";
+            next();
+            // return cb(responseFromRegisterUser.errors, false);
+          } else {
+            logObject("the newly created user", responseFromRegisterUser.data);
+            user = responseFromRegisterUser.data;
+            // return cb(null, user);
+            return next();
+          }
         }
-        // req.auth = {};
-        // const updatedUser = await UserModel(
-        //   tenant.toLowerCase()
-        // ).findOneAndUpdate(
-        //   { google_id: profile._json.sub },
-        //   {
-        //     google_id: profile._json.sub,
-        //     firstName: profile._json.given_name,
-        //     lastName: profile._json.family_name,
-        //     email: profile._json.email,
-        //     userName: profile._json.email,
-        //     profilePicture: profile._json.picture,
-        //     website: profile._json.hd,
-        //   },
-        //   { upsert: true, new: true }
-        // );
-        // if (updatedUser) {
-        //   req.auth.success = true;
-        //   req.auth.message = "successful login or registration";
-        //   return cb(null, updatedUser);
-        // }
       } catch (error) {
-        // req.auth.success = false;
-        // req.auth.message = "Server Error";
-        // req.auth.error = error.message;
-        // next();
-        return cb(error, false);
+        logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+        req.auth.success = false;
+        req.auth.message = "Server Error";
+        req.auth.error = e.message;
+        next();
+        // return cb(error, false);
       }
-
-      // UserModel(tenant.toLowerCase())
-      //   .findOneAndUpdate(
-      //     { google_id: profile._json.sub },
-      //     {
-      //       google_id: profile._json.sub,
-      //       firstName: profile._json.given_name,
-      //       lastName: profile._json.family_name,
-      //       email: profile._json.email,
-      //       userName: profile._json.email,
-      //       profilePicture: profile._json.picture,
-      //       website: profile._json.hd,
-      //     },
-      //     { upsert: true, new: true }
-      //   )
-      //   .then((user) => {
-      //     req.auth.success = true;
-      //     req.auth.message = "successful login or registration";
-      //     return cb(null, user);
-      //   })
-      //   .catch((error) => {
-      //     req.auth.success = false;
-      //     req.auth.message = "Server Error";
-      //     req.auth.error = error.message;
-      //     next();
-      //     // return cb(error, false);
-      //   });
     }
   );
 const useJWTStrategy = (tenant, req, res, next) =>
@@ -416,21 +363,6 @@ const setGoogleStrategy = (tenant, req, res, next) => {
         done(null, user);
       });
   });
-
-  const options = { mongooseConnection: mongoose.connection };
-
-  // Configure session middleware
-  // app.use(
-  //   session({
-  //     secret: process.env.SESSION_SECRET,
-  //     store: new MongoStore(options),
-  //     resave: false,
-  //     saveUninitialized: false,
-  //   })
-  // );
-
-  // app.use(passport.initialize());
-  // app.use(passport.session());
 };
 
 const setJWTStrategy = (tenant, req, res, next) => {
@@ -443,10 +375,6 @@ const setAuthTokenStrategy = (tenant, req, res, next) => {
 
 function setLocalAuth(req, res, next) {
   try {
-    /**
-     * do input validations and then just call the set
-     * set local strategy afterwards -- the function is called from here
-     */
     const hasErrors = !validationResult(req).isEmpty();
     if (hasErrors) {
       let nestedErrors = validationResult(req).errors[0].nestedErrors;
