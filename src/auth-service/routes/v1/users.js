@@ -420,25 +420,6 @@ router.post(
   createUserController.create
 );
 
-router.get(
-  "/email/confirm/",
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant should not be empty if provided")
-        .trim()
-        .toLowerCase()
-        .bail()
-        .isIn(["kcca", "airqo"])
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-  setJWTAuth,
-  authJWT,
-  createUserController.confirmEmail
-);
 router.put(
   "/updatePasswordViaEmail",
   oneOf([

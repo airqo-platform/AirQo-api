@@ -807,12 +807,28 @@ jobs:
           target: celery-worker
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-celery-worker:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-celery-worker:latest
 
+      - name: Build and push device summary job Docker Image
+        uses: docker/build-push-action@v3
+        with:
+          push: true
+          context: src/analytics/
+          target: devices-summary-job
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-devices-summary-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-devices-summary-job:latest
+
+      - name: Build and push reports job Docker Image
+        uses: docker/build-push-action@v3
+        with:
+          push: true
+          context: src/analytics/jobs/reports
+          target: production
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-report-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-report-job:latest
+
       - name: Update corresponding helm values file(with retry)
         uses: Wandalen/wretry.action@master # Retries action on fail
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
-            valueFile: "k8s/analytics/api/values-prod.yaml"
+            valueFile: "k8s/analytics/values-prod.yaml"
             propertyPath: "images.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
@@ -829,37 +845,12 @@ jobs:
       - name: Update the corresponding k8s configmap(s)
         run: |
           cd src/analytics/
-          gcloud secrets versions access latest --secret="prod-env-analytics" > .env
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-analytics-production | kubectl replace -f - -n production
+          gcloud secrets versions access latest --secret="prod-env-analytics" > api.env
+          gcloud secrets versions access latest --secret="prod-env-analytics-report-job" > reports.env
           gcloud secrets versions access latest --secret="prod-key-analytics-service-account" > google_application_credentials.json
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=api.env env-analytics-production | kubectl replace -f - -n production
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=reports.env env-analytics-report-production | kubectl replace -f - -n production
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json prod-analytics-config-files | kubectl replace -f - -n production
-
-      ######################### Analytics report job CI ##################################
-      - name: Build and Push Job's Docker Image
-        run: |
-          cd src/analytics/jobs/reports
-          docker build --target=production --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-report-job:${{ needs.image-tag.outputs.build_id }} .
-          docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-report-job:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-report-job:latest
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-report-job:${{ needs.image-tag.outputs.build_id }}
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-analytics-report-job:latest
-
-      - name: Update corresponding helm values file
-        uses: fjogeleit/yaml-update-action@main
-        with:
-          valueFile: "k8s/analytics/job/values-prod.yaml"
-          propertyPath: "image.tag"
-          value: ${{ needs.image-tag.outputs.build_id }}
-          updateFile: true
-          branch: deployment/argocd
-          message: "Update analytics report job production image tag to ${{ needs.image-tag.outputs.build_id }}"
-
-      - name: Update the corresponding k8s configmap(s)
-        run: |
-          cd src/analytics/jobs/reports
-          gcloud secrets versions access latest --secret="prod-env-analytics-report-job" > .env
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-analytics-report-production | kubectl replace -f - -n production
-          gcloud secrets versions access latest --secret="prod-key-analytics-report-job-service-account" > google_application_credentials.json
-          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json env-analytics-report-production-files | kubectl replace -f - -n production
 
   ### device uptime ###
   device-uptime:
@@ -886,13 +877,21 @@ jobs:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
 
-      - name: Build and Push Docker Image
-        run: |
-          cd src/device-uptime/
-          docker build --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-uptime-job:${{ needs.image-tag.outputs.build_id }} -f Dockerfile .
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-uptime-job:${{ needs.image-tag.outputs.build_id }}
-          docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-uptime-job:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-uptime-job:latest
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-uptime-job:latest
+      - name: Build and push device uptime v1 docker image
+        uses: docker/build-push-action@v4.0.0
+        with:
+          push: true
+          context: src/device-uptime/
+          target: production
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-uptime-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-uptime-job:latest
+
+      - name: Build and push device uptime v2 docker image
+        uses: docker/build-push-action@v4.0.0
+        with:
+          push: true
+          context: src/device-uptime/
+          target: uptime
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-uptime-job-v2:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-device-uptime-job-v2:latest
 
       - name: Update corresponding helm values file(with retry)
         uses: Wandalen/wretry.action@master # Retries action on fail
@@ -918,6 +917,8 @@ jobs:
           cd src/device-uptime/
           gcloud secrets versions access latest --secret="prod-env-device-uptime" > .env
           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-device-uptime-production | kubectl replace -f - -n production
+          gcloud secrets versions access latest --secret="prod-key-device-uptime-v2-service-account" > google_application_credentials.json
+          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json device-uptime-v2-files | kubectl replace -f - -n production
 
   ### device status ###
   device-status:
@@ -961,7 +962,7 @@ jobs:
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
-            message: "Update device uptime production image tag to ${{ needs.image-tag.outputs.build_id }}"
+            message: "Update device status production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
         uses: google-github-actions/auth@v0
@@ -1166,6 +1167,8 @@ jobs:
           cd src/gp-model/
           gcloud secrets versions access latest --secret="prod-env-gp-model" > .env
           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-gp-model-production | kubectl replace -f - -n production
+          gcloud secrets versions access latest --secret="prod-key-gp-model-service-account" > google_application_credentials.json
+          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json gp-model-job-config-files | kubectl replace -f - -n production
 
   ### exceddences ###
   exceedance:
