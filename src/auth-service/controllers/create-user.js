@@ -218,11 +218,11 @@ const createUser = {
       });
     }
   },
-  generateVerification: async (req, res) => {
+  generateVerificationToken: async (req, res) => {
     try {
       const { query, body } = req;
       let { tenant } = query;
-      logText("we are verifying the email.....");
+      logText("We are generating the verification code.....");
       const hasErrors = !validationResult(req).isEmpty();
 
       if (hasErrors) {
@@ -233,37 +233,37 @@ const createUser = {
           convertErrorArrayToObject(nestedErrors)
         );
       }
-      let request = req;
+      let request = Object.assign({}, req);
       if (isEmpty(tenant)) {
         request.query.tenant = "airqo";
       }
 
-      const responseFromGenerateVerification =
-        await controlAccessUtil.generateVerification(request);
+      const responseFromGenerateVerificationToken =
+        await controlAccessUtil.generateVerificationToken(request);
 
       logObject(
-        "responseFromGenerateVerification",
-        responseFromGenerateVerification
+        "responseFromGenerateVerificationToken",
+        responseFromGenerateVerificationToken
       );
 
-      if (responseFromGenerateVerification.success === true) {
-        const status = responseFromGenerateVerification.status
-          ? responseFromGenerateVerification.status
+      if (responseFromGenerateVerificationToken.success === true) {
+        const status = responseFromGenerateVerificationToken.status
+          ? responseFromGenerateVerificationToken.status
           : httpStatus.OK;
-        res.status(status).json({
+        return res.status(status).json({
           success: true,
-          message: "token generated sucessfully",
-          token: responseFromGenerateVerification.token,
+          message: "Token generated and sent to user's email address",
+          token: responseFromGenerateVerificationToken.token,
         });
-      } else if (responseFromGenerateVerification.success === false) {
-        const status = responseFromGenerateVerification.status
-          ? responseFromGenerateVerification.status
+      } else if (responseFromGenerateVerificationToken.success === false) {
+        const status = responseFromGenerateVerificationToken.status
+          ? responseFromGenerateVerificationToken.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromGenerateVerification.message,
-          errors: responseFromGenerateVerification.errors
-            ? responseFromGenerateVerification.errors
+          message: responseFromGenerateVerificationToken.message,
+          errors: responseFromGenerateVerificationToken.errors
+            ? responseFromGenerateVerificationToken.errors
             : { message: "internal server errors" },
         });
       }
@@ -277,7 +277,7 @@ const createUser = {
       });
     }
   },
-  verifyVerification: async (req, res) => {
+  verifyVerificationToken: async (req, res) => {
     try {
       const { query, body } = req;
       let { tenant } = query;
@@ -291,37 +291,37 @@ const createUser = {
           convertErrorArrayToObject(nestedErrors)
         );
       }
-      let request = req;
+      let request = Object.assign({}, req);
       if (isEmpty(tenant)) {
         request.query.tenant = "airqo";
       }
 
-      const responseFromVerifyVerification =
-        await controlAccessUtil.verifyVerification(request);
+      const responseFromVerifyVerificationToken =
+        await controlAccessUtil.verifyVerificationToken(request);
 
       logObject(
-        "responseFromVerifyVerification",
-        responseFromVerifyVerification
+        "responseFromVerifyVerificationToken",
+        responseFromVerifyVerificationToken
       );
 
-      if (responseFromVerifyVerification.success === true) {
-        const status = responseFromVerifyVerification.status
-          ? responseFromVerifyVerification.status
+      if (responseFromVerifyVerificationToken.success === true) {
+        const status = responseFromVerifyVerificationToken.status
+          ? responseFromVerifyVerificationToken.status
           : httpStatus.OK;
         res.status(status).json({
           success: true,
           message: "token verified sucessfully",
-          sign_in_link: responseFromVerifyVerification.data,
+          sign_in_link: responseFromVerifyVerificationToken.data,
         });
-      } else if (responseFromVerifyVerification.success === false) {
-        const status = responseFromVerifyVerification.status
-          ? responseFromVerifyVerification.status
+      } else if (responseFromVerifyVerificationToken.success === false) {
+        const status = responseFromVerifyVerificationToken.status
+          ? responseFromVerifyVerificationToken.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromVerifyVerification.message,
-          errors: responseFromVerifyVerification.errors
-            ? responseFromVerifyVerification.errors
+          message: responseFromVerifyVerificationToken.message,
+          errors: responseFromVerifyVerificationToken.errors
+            ? responseFromVerifyVerificationToken.errors
             : { message: "internal server errors" },
         });
       }

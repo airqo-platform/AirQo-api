@@ -212,7 +212,7 @@ router.post(
   "/verification/generate",
   setJWTAuth,
   authJWT,
-  createUserController.generateVerification
+  createUserController.generateVerificationToken
 );
 
 router.post(
@@ -253,7 +253,7 @@ router.post(
         .withMessage("token must be an integer"),
     ],
   ]),
-  createUserController.verifyVerification
+  createUserController.verifyVerificationToken
 );
 
 router.get(

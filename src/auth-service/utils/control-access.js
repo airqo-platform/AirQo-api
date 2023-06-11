@@ -548,7 +548,7 @@ const controlAccess = {
     }
   },
 
-  generateVerification: async (request) => {
+  generateVerificationToken: async (request) => {
     try {
       /**
        * just create the token and save it on the system
@@ -666,7 +666,7 @@ const controlAccess = {
       };
     }
   },
-  verifyVerification: async (request) => {
+  verifyVerificationToken: async (request) => {
     try {
       /**
        * create the user on the Platform
