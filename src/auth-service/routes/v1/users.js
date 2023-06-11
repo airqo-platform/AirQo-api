@@ -16,7 +16,6 @@ const {
 } = require("@middleware/passport");
 
 const mongoose = require("mongoose");
-const { login } = require("@controllers/create-user");
 const ObjectId = mongoose.Types.ObjectId;
 
 const headers = (req, res, next) => {
