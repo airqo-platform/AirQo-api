@@ -11,7 +11,7 @@ resource "google_compute_instance" "mongod_cfgsvr_2" {
   
   allow_stopping_for_update = true
 
-  machine_type = "e2-highmem-2"
+  machine_type = "e2-standard-2"
 
   metadata = {
     startup-script = "sudo ufw allow ssh"
