@@ -288,7 +288,6 @@ const createUser = {
   },
   deleteMobileUserData: async (req, res) => {
     try {
-      let responseFromDeleteAppData;
       logText("We are deleting the app data.....");
       const { userId } = req.query;
       const { creationTime } = req.query;
@@ -298,19 +297,10 @@ const createUser = {
       request["body"]["userId"] = userId;
       request["body"]["creationTime"] = creationTime;
       logObject("request:", request);
-     try {
-       responseFromDeleteAppData = await createUserUtil.deleteMobileUserData(
+     
+      const responseFromDeleteAppData = await createUserUtil.deleteMobileUserData(
          request
-       );
-     } catch (error) {
-       logger.error(`Internal Server Error -- ${error.message}`);
-       logObject("Error :", error)
-       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-         success: false,
-         message: "internal server error",
-         errors: { message: error.message },
-        });
-     }
+       );  
       
       logObject("responseFromDeleteAppData", responseFromDeleteAppData);
 
