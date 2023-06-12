@@ -4,9 +4,11 @@ resource "google_compute_instance_template" "mongos_router_template" {
   }
 
   description = "This template is used to create mongos query router instances for mongodb sharded clusters."
+  
+  allow_stopping_for_update = true
 
   disk {
-    auto_delete  = true
+    auto_delete  = false
     boot         = true
     device_name  = "mongos-router-template"
     disk_size_gb = var.disk_size["small"]

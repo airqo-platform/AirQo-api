@@ -4,9 +4,11 @@ resource "google_compute_instance_template" "mongod_cfgsvr_template" {
   }
 
   description = "This template is used to create config server instances for mongodb sharded clusters."
+  
+  allow_stopping_for_update = true
 
   disk {
-    auto_delete  = true
+    auto_delete  = false
     boot         = true
     device_name  = "mongod-cfgsvr-template"
     disk_size_gb = var.disk_size["small"]

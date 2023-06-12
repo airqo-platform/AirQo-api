@@ -4,6 +4,8 @@ resource "google_compute_instance" "airqo_dev_haproxy" {
   zone    = var.zone["b"]
 
   machine_type = "e2-small"
+  
+  allow_stopping_for_update = true
 
   boot_disk {
     auto_delete = false

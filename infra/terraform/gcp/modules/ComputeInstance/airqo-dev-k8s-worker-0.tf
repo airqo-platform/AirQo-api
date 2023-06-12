@@ -13,6 +13,8 @@ resource "google_compute_instance" "airqo_dev_k8s_worker_0" {
   metadata = {
     startup-script = "sudo ufw allow ssh"
   }
+  
+  allow_stopping_for_update = true
 
   network_interface {
     access_config {

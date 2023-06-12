@@ -8,6 +8,8 @@ resource "google_compute_instance" "mongod_cfgsvr_0" {
     "env"  = "prod"
     "type" = "mongo-config-server"
   }
+  
+  allow_stopping_for_update = true
 
   machine_type = "e2-highmem-2"
 

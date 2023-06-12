@@ -5,6 +5,8 @@ resource "google_compute_instance" "airqo_stage_k8s_worker_0" {
   zone    = var.zone["b"]
 
   machine_type = "c2-standard-4"
+  
+  allow_stopping_for_update = true
 
   boot_disk {
     auto_delete = false
