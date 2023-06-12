@@ -25,7 +25,6 @@ def convert_to_geojson(data):
     """
     features = []
     for record in data:
-        # if it has no longitude or latitude, skip it
         if not record['longitude'] or not record['latitude']:
             continue
         point = geojson.Point((record['longitude'], record['latitude']))
