@@ -398,6 +398,54 @@ const createUser = {
       });
     }
   },
+  deleteMobileUserData: async (req, res) => {
+    try {
+      logText("We are deleting the app data.....");
+      const { userId } = req.query;
+      const { creationTime } = req.query;
+
+      let request = {};
+      request["body"] = {};
+      request["body"]["userId"] = userId;
+      request["body"]["creationTime"] = creationTime;
+      logObject("request:", request);
+     
+      const responseFromDeleteAppData = await createUserUtil.deleteMobileUserData(
+         request
+       );  
+      
+      logObject("responseFromDeleteAppData", responseFromDeleteAppData);
+
+      if (responseFromDeleteAppData.success === true) {
+        const status = responseFromDeleteAppData.status
+          ? responseFromDeleteAppData.status
+          : httpStatus.OK;
+        res.status(status).json({
+          success: true,
+          message: "Data deleted sucessfully",
+        });
+      } else if (responseFromDeleteAppData.success === false) {
+        const status = responseFromDeleteAppData.status
+          ? responseFromDeleteAppData.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromDeleteAppData.message,
+          errors: responseFromDeleteAppData.errors
+            ? responseFromDeleteAppData.errors
+            : { message: "internal server errors" },
+        });
+      }
+
+    } catch (error) {
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal server error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
   lookUpFirebaseUser: async (req, res) => {
     try {
       const { email, phoneNumber, uid, providerId, providerUid } = req.body;
