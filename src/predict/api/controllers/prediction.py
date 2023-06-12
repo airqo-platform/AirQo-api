@@ -1,12 +1,9 @@
 import logging
 import traceback
-import os
 
 from dotenv import load_dotenv
 from flask import Blueprint, request
 
-from config import constants
-from flask_caching import Cache
 from helpers.utils import get_gp_predictions, get_forecasts_helper, \
     get_predictions_by_geo_coordinates, get_health_tips, convert_to_geojson
 from routes import api
@@ -18,14 +15,6 @@ load_dotenv()
 _logger = logging.getLogger(__name__)
 
 ml_app = Blueprint('ml_app', __name__)
-
-app_configuration = constants.app_config.get(os.getenv('FLASK_ENV'))
-cache = Cache(config={
-    'CACHE_TYPE': 'redis',
-    'CACHE_REDIS_HOST': app_configuration.REDIS_SERVER,
-    'CACHE_REDIS_PORT': os.getenv('REDIS_PORT'),
-    'CACHE_REDIS_URL': f"redis://{app_configuration.REDIS_SERVER}:{os.getenv('REDIS_PORT')}",
-})
 
 
 @ml_app.route(api.route['next_24hr_forecasts'], methods=['GET'])
