@@ -4,11 +4,9 @@ resource "google_compute_instance_template" "mongod_shard" {
   }
 
   description = "This template is used to create shard instances for mongodb sharded clusters."
-  
-  allow_stopping_for_update = true
 
   disk {
-    auto_delete  = false
+    auto_delete  = true
     boot         = true
     device_name  = "mongod-shard"
     disk_size_gb = var.disk_size["medium"]
