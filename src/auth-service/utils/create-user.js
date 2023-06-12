@@ -23,7 +23,7 @@ const generateFilter = require("./generate-filter");
 const moment = require("moment-timezone");
 
 const log4js = require("log4js");
-const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- join-util`);
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- create-user-util`);
 
 const UserModel = (tenant) => {
   try {
@@ -169,34 +169,26 @@ const join = {
     }
   },
 
-  list: async (tenant, filter, limit, skip) => {
+  list: async (request) => {
     try {
+      const { query } = request;
+      const { tenant } = query;
+
+      const limit = parseInt(request.query.limit, 0);
+      const skip = parseInt(request.query.skip, 0);
+
+      const responseFromFilter = generateFilter.users(request);
+      if (responseFromFilter.success === false) {
+        return responseFromFilter;
+      }
+      const filter = responseFromFilter.data;
       const responseFromListUser = await UserModel(tenant).list({
         filter,
         limit,
         skip,
       });
-      if (responseFromListUser.success === true) {
-        return {
-          success: true,
-          message: responseFromListUser.message,
-          data: responseFromListUser.data,
-          status: responseFromListUser.status
-            ? responseFromListUser.status
-            : httpStatus.OK,
-        };
-      } else if (responseFromListUser.success === false) {
-        return {
-          success: false,
-          message: responseFromListUser.message,
-          errors: responseFromListUser.errors
-            ? responseFromListUser.errors
-            : { message: "Internal Server Error" },
-          status: responseFromListUser.status
-            ? responseFromListUser.status
-            : httpStatus.INTERNAL_SERVER_ERROR,
-        };
-      }
+
+      return responseFromListUser;
     } catch (e) {
       logElement("list users util", e.message);
       logger.error(`Internal Server Error ${e.message}`);
@@ -204,6 +196,7 @@ const join = {
         success: false,
         message: "Internal Server Error",
         errors: { message: e.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -414,14 +407,31 @@ const join = {
       });
     }
   },
-  delete: async (tenant, filter) => {
+  delete: async (request) => {
     try {
-      await RoleModel(tenant).updateMany(
+      const { query } = request;
+      const { tenant } = query;
+      const responseFromFilter = generateFilter.users(request);
+      logObject("responseFromFilter", responseFromFilter);
+      if (responseFromFilter.success === false) {
+        return responseFromFilter;
+      }
+      const filter = responseFromFilter.data;
+
+      const updatedRole = await RoleModel(tenant).updateMany(
         { role_users: filter._id },
         { $pull: { role_users: filter._id } }
       );
 
-      await NetworkModel(tenant).updateMany(
+      if (!isEmpty(updatedRole.err)) {
+        logger.error(
+          `error while attempting to delete User from the corresponding Role ${JSON.stringify(
+            updatedRole.err
+          )}`
+        );
+      }
+
+      const updatedNetwork = await NetworkModel(tenant).updateMany(
         { net_users: filter._id },
         {
           $pull: { net_users: filter._id },
@@ -432,40 +442,37 @@ const join = {
           },
         }
       );
+
+      if (!isEmpty(updatedNetwork.err)) {
+        logger.error(
+          `error while attempting to delete User from the corresponding Network ${JSON.stringify(
+            updatedNetwork.err
+          )}`
+        );
+      }
+
+      const responseFromRemoveUser = await UserModel(
+        tenant.toLowerCase()
+      ).remove({
+        filter,
+      });
+
+      return responseFromRemoveUser;
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
-      };
-    }
-
-    try {
-      const responseFromRemoveUser = await UserModel(
-        tenant.toLowerCase()
-      ).remove({
-        filter,
-      });
-      if (responseFromRemoveUser.success === true) {
-        return responseFromRemoveUser;
-      } else if (responseFromRemoveUser.success === false) {
-        return responseFromRemoveUser;
-      }
-    } catch (e) {
-      logElement("delete users util", e.message);
-      logger.error(`Internal Server Error ${e.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
 
-  sendFeedback: async ({ email, message, subject }) => {
+  sendFeedback: async (request) => {
     try {
+      const { body } = request;
+      const { email, message, subject } = body;
       const responseFromSendEmail = await mailer.feedback({
         email,
         message,
@@ -478,6 +485,7 @@ const join = {
         return {
           success: true,
           message: "email successfully sent",
+          status: httpStatus.OK,
         };
       } else if (responseFromSendEmail.success === false) {
         return responseFromSendEmail;
@@ -488,6 +496,7 @@ const join = {
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -681,58 +690,32 @@ const join = {
     }
   },
 
-  confirmEmail: (tenant, filter) => {
+  forgotPassword: async (request) => {
     try {
-      let responseFromListUser = join.list({ filter });
-      if (responseFromListUser.success == true) {
-        let responseFromUpdateUser = this.update(tenant, filter, update);
-        if (responseFromUpdateUser.success == true) {
-          return {
-            success: true,
-            message: "remail successfully confirmed",
-            data: responseFromUpdateUser.data,
-          };
-        } else if (responseFromUpdateUser.success == false) {
-          if (responseFromUpdateUser.error) {
-            return {
-              success: false,
-              message: responseFromUpdateUser.message,
-              error: responseFromUpdateUser.error,
-            };
-          } else {
-            return {
-              success: false,
-              message: responseFromUpdateUser.message,
-            };
-          }
-        }
-      } else if (responseFromListUser.success == false) {
-        if (responseFromListUser.error) {
-          return {
-            success: false,
-            message: responseFromListUser.message,
-            error: responseFromListUser.error,
-          };
-        } else {
-          return {
-            success: false,
-            message: responseFromListUser.message,
-          };
-        }
-      }
-    } catch (error) {
-      logElement("confirm email util", error.message);
-      logger.error(`Internal Server Error ${error.message}`);
-      return {
-        success: false,
-        message: "join util server error",
-        error: error.message,
-      };
-    }
-  },
+      const { query } = request;
+      const { tenant } = query;
 
-  forgotPassword: async (tenant, filter) => {
-    try {
+      const responseFromFilter = generateFilter.users(request);
+      logObject("responseFromFilter", responseFromFilter);
+      if (responseFromFilter.success === false) {
+        return responseFromFilter;
+      }
+      const filter = responseFromFilter.data;
+
+      const userExists = await UserModel(tenant).exists(filter);
+
+      if (!userExists) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: {
+            message:
+              "Sorry, the provided email or username does not belong to a registered user. Please make sure you have entered the correct information or sign up for a new account.",
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
       const responseFromGenerateResetToken = join.generateResetToken();
       logObject(
         "responseFromGenerateResetToken",
@@ -839,105 +822,93 @@ const join = {
     }
   },
 
-  updateKnownPassword: async (tenant, new_pwd, old_pwd, filter) => {
+  updateKnownPassword: async (request) => {
     try {
-      logElement("the tenant", tenant);
-      logElement("the old password", old_pwd);
-      logElement("the new password ", new_pwd);
-      logObject("the filter", filter);
-      let responseFromComparePassword = await join.comparePasswords(
-        filter,
-        tenant,
-        old_pwd
-      );
-      logObject("responseFromComparePassword", responseFromComparePassword);
-      if (responseFromComparePassword.success == true) {
-        let update = {
-          password: new_pwd,
-        };
+      const { query, body } = request;
+      const { tenant } = query;
+      const { password, old_password } = body;
 
-        let responseFromUpdateUser = await join.update(tenant, filter, update);
-        logObject("responseFromUpdateUser", responseFromUpdateUser);
-        if (responseFromUpdateUser.success == true) {
-          return {
-            success: true,
-            message: responseFromUpdateUser.message,
-            data: responseFromUpdateUser.data,
-          };
-        } else if (responseFromUpdateUser.success == false) {
-          if (responseFromUpdateUser.error) {
-            return {
-              success: false,
-              message: responseFromUpdateUser.message,
-              error: responseFromUpdateUser.error,
-            };
-          } else {
-            return {
-              success: false,
-              message: responseFromUpdateUser.message,
-            };
-          }
-        }
-      } else if (responseFromComparePassword.success == false) {
-        if (responseFromComparePassword.error) {
-          return {
-            success: false,
-            message: responseFromComparePassword.message,
-            error: responseFromComparePassword.error,
-          };
-        } else {
-          return {
-            success: false,
-            message: responseFromComparePassword.message,
-          };
-        }
+      const responseFromFilter = generateFilter.users(request);
+      logObject("responseFromFilter", responseFromFilter);
+      if (responseFromFilter.success === false) {
+        return responseFromFilter;
       }
+      const filter = responseFromFilter.data;
+
+      logObject("the found filter", filter);
+
+      const user = await UserModel(tenant).find(filter).lean();
+
+      logObject("the user details with lean(", user);
+
+      if (isEmpty(user)) {
+        logger.error(
+          ` ${user[0].email} --- either your old password is incorrect or the provided user does not exist`
+        );
+        return {
+          message: "Bad Request Error",
+          success: false,
+          errors: {
+            message:
+              "either your old password is incorrect or the provided user does not exist",
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      if (isEmpty(user[0].password)) {
+        logger.error(` ${user[0].email} --- unable to do password lookup`);
+        return {
+          success: false,
+          errors: { message: "unable to do password lookup" },
+          message: "Internal Server Error",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+
+      const responseFromBcrypt = await bcrypt.compare(
+        old_password,
+        user[0].password
+      );
+
+      if (responseFromBcrypt === false) {
+        logger.error(
+          ` ${user[0].email} --- either your old password is incorrect or the provided user does not exist`
+        );
+        return {
+          message: "Bad Request Error",
+          success: false,
+          errors: {
+            message:
+              "either your old password is incorrect or the provided user does not exist",
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const update = {
+        password: password,
+      };
+      const responseFromUpdateUser = await UserModel(
+        tenant.toLowerCase()
+      ).modify({
+        filter,
+        update,
+      });
+      return responseFromUpdateUser;
     } catch (e) {
-      logElement("update known password", e.message);
+      logObject("the error when updating known password", e);
       logger.error(`Internal Server Error ${e.message}`);
       return {
         success: false,
-        message: "update known password util server error",
+        message: "Internal Server Error",
         error: e.message,
+        errors: { message: e.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
-  comparePasswords: async (filter, tenant, old_pwd) => {
-    try {
-      let user = await UserModel(tenant).findOne(filter).exec();
-      if (!isEmpty(user)) {
-        let responseFromBcrypt = await bcrypt.compare(
-          old_pwd,
-          user._doc.password
-        );
-        if (responseFromBcrypt == true) {
-          return {
-            success: true,
-            message: "the passwords match",
-          };
-        } else if (responseFromBcrypt == false) {
-          return {
-            message:
-              "either your old password is incorrect or the provided user does not exist",
-            success: false,
-          };
-        }
-      } else {
-        return {
-          success: false,
-          message: "unable to find this user",
-        };
-      }
-    } catch (error) {
-      logElement("compare passwords util server error", error.message);
-      logger.error(`Internal Server Error ${error.message}`);
-      return {
-        success: false,
-        message: "compare passwords utils server error",
-        error: error.message,
-      };
-    }
-  },
+
   generateResetToken: () => {
     try {
       const token = crypto.randomBytes(20).toString("hex");
