@@ -5,7 +5,7 @@ const ClientSchema = require("@models/Client");
 const NetworkSchema = require("@models/Network");
 const RoleSchema = require("@models/Role");
 const { getModelByTenant } = require("@config/dbConnection");
-const { logObject, logElement, logText } = require("./log");
+const { logObject, logElement, logText, logError } = require("./log");
 const mailer = require("./mailer");
 const bcrypt = require("bcrypt");
 const mongoose = require("mongoose").set("debug", true);
@@ -21,6 +21,8 @@ const md5 = require("md5");
 const accessCodeGenerator = require("generate-password");
 const generateFilter = require("./generate-filter");
 const moment = require("moment-timezone");
+const admin = require('firebase-admin');
+const {db} = require("@config/firebase-admin");
 
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- create-user-util`);
@@ -84,6 +86,47 @@ const RoleModel = (tenant) => {
     return roles;
   }
 };
+
+async function deleteCollection(db, collectionPath, batchSize) {
+  const collectionRef = db.collection(collectionPath);
+  const query = collectionRef.orderBy('__name__').limit(batchSize);
+
+  return new Promise((resolve, reject) => {
+    deleteQueryBatch(db, query, batchSize, resolve, reject);
+  });
+}
+
+function deleteQueryBatch(db, query, batchSize, resolve, reject) {
+  query.get()
+    .then((snapshot) => {
+      // When there are no documents left, we are done
+      if (snapshot.size === 0) {
+        return 0;
+      }
+
+      // Delete documents in a batch
+      const batch = db.batch();
+      snapshot.docs.forEach((doc) => {
+        batch.delete(doc.ref);
+      });
+
+      return batch.commit().then(() => {
+        return snapshot.size;
+      });
+    }).then((numDeleted) => {
+      if (numDeleted === 0) {
+        resolve();
+        return;
+      }
+
+      // Recurse on the next process tick, to avoid
+      // exploding the stack.
+      process.nextTick(() => {
+        deleteQueryBatch(db, query, batchSize, resolve, reject);
+      });
+    })
+    .catch(reject);
+}
 
 const join = {
   listLogs: async (request) => {
@@ -1032,6 +1075,83 @@ const join = {
         message: "Internal Server Error",
         errors: { message: error.message, more: text },
         status,
+      };
+    }
+  },
+
+  deleteMobileUserData: async (request) => {
+    try {
+      const { body } = request;
+      let { userId } = body;
+      let { creationTime } = body;
+      const userRecord = await admin.auth().getUser(userId);
+      
+      //get creation time and compare with creationTime
+      let userCreationTime = userRecord.metadata.creationTime;
+      userCreationTime = userCreationTime.replace(/\D/g, "");
+      if (userCreationTime !== creationTime) {
+        return {
+          success: false,
+          message: "Invalid request",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "Invalid request" },
+        };
+      }
+
+      try {
+        await getAuth().deleteUser(userId);
+        const collectionList = [
+          constants.FIREBASE_COLLECTION_KYA,
+          constants.FIREBASE_COLLECTION_ANALYTICS,
+          constants.FIREBASE_COLLECTION_NOTIFICATIONS,
+          constants.FIREBASE_COLLECTION_FAVORITE_PLACES
+        ];
+        let collectionRef = db.collection(`${constants.FIREBASE_COLLECTION_USERS}`);
+        let docRef = collectionRef.doc(userId);
+
+        docRef.delete().then(async () => {
+          for (var collection of collectionList) {
+            await deleteCollection(db, `${collection}/${userId}/${userId}`, 100);
+            collectionRef = db.collection(`${collection}`);
+            docRef = collectionRef.doc(userId);
+            docRef.delete();
+          }
+          logText('Document successfully deleted!');
+        }).catch((error) => {
+          logError('Error deleting document:', error);
+          logger.error(`Internal Server Error -- ${error.message}`);
+          return {
+            success: false,
+            message: "Error deleting Firestore documents",
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+            errors: { message: error.message }
+          };
+        });
+
+        
+
+        return {
+          success: true,
+          message: "User account has been deleted.",
+          status: httpStatus.OK,
+        };
+      } catch (error) {
+        logError('Error deleting user:', error);
+        logger.error(`Internal Server Error -- ${error.message}`);
+        return {
+          success: false,
+          message: "Error deleting user",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: { message: error.message },
+        };
+      }
+
+    } catch (error) {
+      return {
+        success: false,
+        status:httpStatus.INTERNAL_SERVER_ERROR,
+        message: "Internal Server Error",
+        errors: { message: error.message },
       };
     }
   },

@@ -18,6 +18,8 @@ initializeApp({
   databaseURL: constants.FIREBASE_DATABASE_URL,
 });
 
+const db = admin.firestore();
+
 // exports.onUserCreate = functions.auth.user().onCreate(async (user) => {
 //   try {
 //     logObject("new mobile app user created", user);
@@ -113,3 +115,5 @@ initializeApp({
 //     logger.error(`internal server error -- ${error.message}`);
 //   }
 // });
+
+module.exports = {db}

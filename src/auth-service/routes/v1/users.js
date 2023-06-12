@@ -206,6 +206,21 @@ router.get(
   createUserController.verifyEmail
 );
 
+router.delete(
+  "/deleteMobileUserData",
+  oneOf([
+    query("userId")
+      .exists()
+      .withMessage("There's a missing required parameter in your request")
+      .bail(),
+    query("creationTime")
+    .exists()
+    .withMessage("There's a missing required parameter in your request")
+    .bail()
+  ]),
+  createUserController.deleteMobileUserData
+); 
+
 router.get(
   "/auth/google/callback",
   setGoogleAuth,
