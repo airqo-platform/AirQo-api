@@ -19,16 +19,6 @@ spec:
           restartPolicy: OnFailure
           schedulerName: default-scheduler
           terminationGracePeriodSeconds: 30
-          affinity:
-            nodeAffinity:
-              requiredDuringSchedulingIgnoredDuringExecution:
-                - weight: 10
-                  preference:
-                    matchExpressions:
-                      - key: node-type
-                        operator: In
-                        values:
-                          - compute
           containers:
             - name: "{{ .Values.app.name }}-v2"
               image: "{{ .Values.image.repository }}-v2:{{ .Values.image.tag }}"
