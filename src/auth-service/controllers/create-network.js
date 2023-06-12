@@ -1,7 +1,6 @@
 const { logElement, logText, logObject } = require("../utils/log");
 const httpStatus = require("http-status");
 const createNetworkUtil = require("../utils/create-network");
-const createUserUtil = require("../utils/create-user");
 const { validationResult } = require("express-validator");
 const { badRequest, convertErrorArrayToObject } = require("../utils/errors");
 const isEmpty = require("is-empty");
@@ -10,6 +9,7 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- network-controller`
 );
+const controlAccessUtil = require("@utils/control-access");
 
 const createNetwork = {
   getNetworkFromEmail: async (req, res) => {
@@ -86,6 +86,11 @@ const createNetwork = {
 
       const responseFromCreateNetwork = await createNetworkUtil.create(request);
 
+      logObject(
+        "responseFromCreateNetwork in controller",
+        responseFromCreateNetwork
+      );
+
       if (responseFromCreateNetwork.success === true) {
         let status = responseFromCreateNetwork.status
           ? responseFromCreateNetwork.status
@@ -110,6 +115,7 @@ const createNetwork = {
         });
       }
     } catch (err) {
+      logObject("the error in production", err);
       res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -712,6 +718,63 @@ const createNetwork = {
     }
   },
 
+  listRolesForNetwork: async (req, res) => {
+    try {
+      logText("unAssignPermissionFromRole....");
+      const { query, body } = req;
+      let { tenant } = query;
+      const hasErrors = !validationResult(req).isEmpty();
+      logObject("hasErrors", hasErrors);
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT;
+      }
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
+
+      const responseFromListRolesForNetwork =
+        await controlAccessUtil.listRolesForNetwork(request);
+
+      if (responseFromListRolesForNetwork.success === true) {
+        const status = responseFromListRolesForNetwork.status
+          ? responseFromListRolesForNetwork.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromListRolesForNetwork.message,
+          network_roles: responseFromListRolesForNetwork.data,
+        });
+      } else if (responseFromListRolesForNetwork.success === false) {
+        const status = responseFromListRolesForNetwork.status
+          ? responseFromListRolesForNetwork.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+
+        return res.status(status).json({
+          success: false,
+          message: responseFromListRolesForNetwork.message,
+          errors: responseFromListRolesForNetwork.errors
+            ? responseFromListRolesForNetwork.errors
+            : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
   listAssignedUsers: async (req, res) => {
     try {
       logText("listing assigned users....");
@@ -734,39 +797,40 @@ const createNetwork = {
 
       request.query.tenant = tenant;
 
-      const responseFromListNetworks = await createNetworkUtil.list(request);
+      const responseFromListAssignedUsers =
+        await createNetworkUtil.listAssignedUsers(request);
 
       logObject(
-        "responseFromListNetworks in controller",
-        responseFromListNetworks
+        "responseFromListAssignedUsers in controller",
+        responseFromListAssignedUsers
       );
 
-      if (responseFromListNetworks.success === true) {
-        const status = responseFromListNetworks.status
-          ? responseFromListNetworks.status
+      if (responseFromListAssignedUsers.success === true) {
+        const status = responseFromListAssignedUsers.status
+          ? responseFromListAssignedUsers.status
           : httpStatus.OK;
-        if (responseFromListNetworks.data.length === 0) {
+        if (responseFromListAssignedUsers.data.length === 0) {
           return res.status(status).json({
             success: true,
-            message: responseFromListNetworks.message,
+            message: "no assigned users to this network",
             assigned_users: [],
           });
         }
         return res.status(status).json({
           success: true,
-          message: "successfully retrieved the users for this network",
-          assigned_users: responseFromListNetworks.data[0].net_users,
+          message: "successfully retrieved the assigned users for this network",
+          assigned_users: responseFromListAssignedUsers.data,
         });
-      } else if (responseFromListNetworks.success === false) {
-        const status = responseFromListNetworks.status
-          ? responseFromListNetworks.status
+      } else if (responseFromListAssignedUsers.success === false) {
+        const status = responseFromListAssignedUsers.status
+          ? responseFromListAssignedUsers.status
           : httpStatus.INTERNAL_SERVER_ERROR;
 
         return res.status(status).json({
           success: false,
-          message: responseFromListNetworks.message,
-          errors: responseFromListNetworks.errors
-            ? responseFromListNetworks.errors
+          message: responseFromListAssignedUsers.message,
+          errors: responseFromListAssignedUsers.errors
+            ? responseFromListAssignedUsers.errors
             : { message: "" },
         });
       }

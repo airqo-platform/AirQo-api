@@ -5,4 +5,4 @@ from .dashboard import (
     MonitoringSiteResource,
 )
 
-from .data import DataExportResource, DataSummaryResource
+from .data import DataExportResource, DataSummaryResource, DataExportV2Resource

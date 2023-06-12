@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM python:3.8-slim-buster as base
+FROM python:3.9-slim-buster as base
 
 WORKDIR /app/
 
@@ -21,10 +21,17 @@ CMD ["flask", "run", "--host=0.0.0.0"]
 
 FROM base as staging
 ENV FLASK_ENV=staging
-# Run the application
-CMD ["flask", "run", "--host=0.0.0.0"]
+CMD ["gunicorn", "--bind=0.0.0.0:5000", "manage:app"]
 
 FROM base as production
 ENV FLASK_ENV=production
-# Run the application
-CMD ["flask", "run", "--host=0.0.0.0"]
+CMD ["gunicorn", "--bind=0.0.0.0:5000", "manage:app"]
+
+FROM base as celery-beat
+CMD celery -A celery_app.celery beat
+
+FROM base as celery-worker
+CMD celery -A celery_app.celery worker -Q analytics --loglevel=info
+
+FROM base as devices-summary-job
+CMD ["python", "devices_summary.py"]

@@ -17,7 +17,7 @@ def nasa_historical_data():
     def extract_data(**kwargs):
         from airqo_etl_utils.date import DateUtils
 
-        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(**kwargs)
+        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(historical=True, **kwargs)
         from airqo_etl_utils.purple_air_utils import PurpleDataUtils
 
         return PurpleDataUtils.extract_data(

@@ -102,7 +102,7 @@ def kcca_historical_hourly_measurements():
         from airqo_etl_utils.date import DateUtils
         from airqo_etl_utils.kcca_utils import KccaUtils
 
-        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(**kwargs)
+        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(historical=True, **kwargs)
         return KccaUtils.extract_data(
             start_date_time=start_date_time, end_date_time=end_date_time
         )

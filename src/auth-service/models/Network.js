@@ -25,7 +25,11 @@ const NetworkSchema = new Schema(
       type: ObjectId,
       ref: "network",
     },
-    net_name: { type: String, required: [true, "net_name is required"] },
+    net_name: {
+      type: String,
+      required: [true, "net_name is required"],
+      unique: true,
+    },
     net_status: { type: String, default: "inactive" },
     net_manager: { type: ObjectId },
     net_last: { type: Number },
@@ -54,13 +58,6 @@ const NetworkSchema = new Schema(
     net_category: {
       type: String,
     },
-    net_users: [
-      {
-        type: ObjectId,
-        ref: "user",
-        unique: true,
-      },
-    ],
     net_departments: [
       {
         type: ObjectId,
@@ -73,17 +70,10 @@ const NetworkSchema = new Schema(
         ref: "permission",
       },
     ],
-    net_roles: [
-      {
-        type: ObjectId,
-        ref: "role",
-      },
-    ],
     net_groups: [
       {
         type: ObjectId,
         ref: "group",
-        unique: true,
       },
     ],
   },
@@ -212,7 +202,7 @@ NetworkSchema.statics = {
         .match(filterCopy)
         .lookup({
           from: "users",
-          let: { users: "$net_users" },
+          let: { users: { $ifNull: ["$networks", []] } },
           pipeline: [
             {
               $match: {
@@ -230,6 +220,12 @@ NetworkSchema.statics = {
             {
               $addFields: {
                 role: { $arrayElemAt: ["$role", 0] },
+                createdAt: {
+                  $dateToString: {
+                    format: "%Y-%m-%d %H:%M:%S",
+                    date: "$_id",
+                  },
+                },
               },
             },
             {

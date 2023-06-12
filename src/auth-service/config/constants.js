@@ -7,7 +7,11 @@ const devConfig = {
   FORGOT_PAGE: `${process.env.PLATFORM_DEV_BASE_URL}/forgot`,
   PLATFORM_BASE_URL: process.env.PLATFORM_DEV_BASE_URL,
   ENVIRONMENT: "DEVELOPMENT ENVIRONMENT",
-  KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_DEV.split(","),
+  KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_DEV
+    ? process.env.KAFKA_BOOTSTRAP_SERVERS_DEV.split(",").filter(
+        (value) => value.trim() !== ""
+      )
+    : [],
   KAFKA_TOPICS: process.env.KAFKA_TOPICS_DEV,
   SCHEMA_REGISTRY: process.env.SCHEMA_REGISTRY_DEV,
   KAFKA_RAW_MEASUREMENTS_TOPICS: process.env.KAFKA_RAW_MEASUREMENTS_TOPICS_DEV,
@@ -25,7 +29,11 @@ const prodConfig = {
   FORGOT_PAGE: `${process.env.PLATFORM_PRODUCTION_BASE_URL}/forgot`,
   PLATFORM_BASE_URL: process.env.PLATFORM_PRODUCTION_BASE_URL,
   ENVIRONMENT: "PRODUCTION ENVIRONMENT",
-  KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_PROD.split(","),
+  KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_PROD
+    ? process.env.KAFKA_BOOTSTRAP_SERVERS_PROD.split(",").filter(
+        (value) => value.trim() !== ""
+      )
+    : [],
   KAFKA_TOPICS: process.env.KAFKA_TOPICS_PROD,
   SCHEMA_REGISTRY: process.env.SCHEMA_REGISTRY_PROD,
   KAFKA_RAW_MEASUREMENTS_TOPICS: process.env.KAFKA_RAW_MEASUREMENTS_TOPICS_PROD,
@@ -43,7 +51,11 @@ const stageConfig = {
   FORGOT_PAGE: `${process.env.PLATFORM_STAGING_BASE_URL}/forgot`,
   PLATFORM_BASE_URL: process.env.PLATFORM_STAGING_BASE_URL,
   ENVIRONMENT: "STAGING ENVIRONMENT",
-  KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_STAGE.split(","),
+  KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_STAGE
+    ? process.env.KAFKA_BOOTSTRAP_SERVERS_STAGE.split(",").filter(
+        (value) => value.trim() !== ""
+      )
+    : [],
   KAFKA_TOPICS: process.env.KAFKA_TOPICS_STAGE,
   SCHEMA_REGISTRY: process.env.SCHEMA_REGISTRY_STAGE,
   KAFKA_RAW_MEASUREMENTS_TOPICS:
@@ -54,6 +66,17 @@ const stageConfig = {
 };
 
 const defaultConfig = {
+  SUPER_ADMIN_PERMISSIONS: process.env.SUPER_ADMIN_PERMISSIONS
+    ? process.env.SUPER_ADMIN_PERMISSIONS.split(",").filter(
+        (value) => value.trim() !== ""
+      )
+    : [],
+  TENANTS: process.env.TENANTS
+    ? process.env.TENANTS.split(",").filter((value) => value.trim() !== "")
+    : [],
+  NETWORKS: process.env.NETWORKS
+    ? process.env.NETWORKS.split(",").filter((value) => value.trim() !== "")
+    : [],
   UNIQUE_CONSUMER_GROUP: process.env.UNIQUE_CONSUMER_GROUP,
   UNIQUE_PRODUCER_GROUP: process.env.UNIQUE_PRODUCER_GROUP,
   NEW_MOBILE_APP_USER_TOPIC: process.env.NEW_MOBILE_APP_USER_TOPIC,
@@ -123,7 +146,12 @@ const defaultConfig = {
     net_name: 1,
     net_description: 1,
     net_acronym: 1,
-    createdAt: 1,
+    createdAt: {
+      $dateToString: {
+        format: "%Y-%m-%d %H:%M:%S",
+        date: "$_id",
+      },
+    },
     net_manager: { $arrayElemAt: ["$net_manager", 0] },
     net_users: "$net_users",
     net_permissions: "$net_permissions",
@@ -167,7 +195,13 @@ const defaultConfig = {
       "net_manager.createdAt": 0,
       "net_manager.updatedAt": 0,
       "net_manager.groups": 0,
-      "net_manager.roles": 0,
+      "net_manager.role": 0,
+      "net_manager.resetPasswordExpires": 0,
+      "net_manager.resetPasswordToken": 0,
+      "net_manager.phoneNumber": 0,
+      "net_manager.organization": 0,
+      "net_manager.profilePicture": 0,
+      "net_manager.is_email_verified": 0,
       "net_manager.permissions": 0,
       "net_permissions.__v": 0,
       "net_permissions.createdAt": 0,
@@ -204,7 +238,24 @@ const defaultConfig = {
           net_roles: 0,
           net_groups: 0,
           net_departments: 0,
-          net_manager: 0,
+          "net_manager.notifications": 0,
+          "net_manager.emailConfirmed": 0,
+          "net_manager.locationCount": 0,
+          "net_manager.email": 0,
+          "net_manager.firstName": 0,
+          "net_manager.lastName": 0,
+          "net_manager.userName": 0,
+          "net_manager.password": 0,
+          "net_manager.privilege": 0,
+          "net_manager.organization": 0,
+          "net_manager.duration": 0,
+          "net_manager.__v": 0,
+          "net_manager.phoneNumber": 0,
+          "net_manager.profilePicture": 0,
+          "net_manager.is_email_verified": 0,
+          "net_manager.role": 0,
+          "net_manager.updatedAt": 0,
+          "net_manager.networks": 0,
         }
       );
     }
@@ -326,8 +377,14 @@ const defaultConfig = {
     networks: "$networks",
     access_tokens: "$access_tokens",
     permissions: "$permissions",
-    createdAt: 1,
+    createdAt: {
+      $dateToString: {
+        format: "%Y-%m-%d %H:%M:%S",
+        date: "$_id",
+      },
+    },
     updatedAt: 1,
+    my_networks: "$my_networks",
   },
   USERS_EXCLUSION_PROJECTION: (category) => {
     const initialProjection = {
@@ -369,6 +426,82 @@ const defaultConfig = {
       "groups._id": 0,
       "groups.createdAt": 0,
       "groups.updatedAt": 0,
+      "my_networks.net_status": 0,
+      "my_networks.net_children": 0,
+      "my_networks.net_users": 0,
+      "my_networks.net_departments": 0,
+      "my_networks.net_permissions": 0,
+      "my_networks.net_roles": 0,
+      "my_networks.net_groups": 0,
+      "my_networks.net_category": 0,
+      "my_networks.net_description": 0,
+      "my_networks.net_acronym": 0,
+      "my_networks.net_manager": 0,
+      "my_networks.net_manager_username": 0,
+      "my_networks.net_manager_firstname": 0,
+      "my_networks.net_manager_lastname": 0,
+      "my_networks.createdAt": 0,
+      "my_networks.updatedAt": 0,
+      "my_networks.__v": 0,
+    };
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign({}, {});
+    }
+
+    return projection;
+  },
+
+  CANDIDATES_INCLUSION_PROJECTION: {
+    _id: 1,
+    firstName: 1,
+    lastName: 1,
+    email: 1,
+    description: 1,
+    category: 1,
+    long_organization: 1,
+    jobTitle: 1,
+    website: 1,
+    status: 1,
+    createdAt: {
+      $dateToString: {
+        format: "%Y-%m-%d %H:%M:%S",
+        date: "$_id",
+      },
+    },
+    updatedAt: 1,
+    country: 1,
+    existing_user: { $arrayElemAt: ["$user", 0] },
+    network: { $arrayElemAt: ["$network", 0] },
+  },
+
+  CANDIDATES_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = {
+      "existing_user.locationCount": 0,
+      "existing_user.privilege": 0,
+      "existing_user.website": 0,
+      "existing_user.organization": 0,
+      "existing_user.long_organization": 0,
+      "existing_user.category": 0,
+      "existing_user.jobTitle": 0,
+      "existing_user.profilePicture": 0,
+      "existing_user. phoneNumber": 0,
+      "existing_user.description": 0,
+      "existing_user.createdAt": 0,
+      "existing_user.updatedAt": 0,
+      "existing_user.notifications": 0,
+      "existing_user.emailConfirmed": 0,
+      "existing_user.password": 0,
+      "existing_user.__v": 0,
+      "existing_user.duration": 0,
+      "existing_user.verified": 0,
+      "existing_user.networks": 0,
+      "existing_user.groups": 0,
+      "existing_user.role": 0,
+      "existing_user.permissions": 0,
+      "existing_user.userName": 0,
+      "existing_user.country": 0,
+      network: 0,
     };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {

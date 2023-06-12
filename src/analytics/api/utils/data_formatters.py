@@ -2,7 +2,6 @@ import pandas as pd
 
 from api.utils.dates import str_to_aqcsv_date_format
 from api.utils.pollutants.pm_25 import (
-    POLLUTANT_BIGQUERY_MAPPER,
     AQCSV_PARAMETER_MAPPER,
     FREQUENCY_MAPPER,
     AQCSV_UNIT_MAPPER,
@@ -10,6 +9,51 @@ from api.utils.pollutants.pm_25 import (
     AQCSV_DATA_STATUS_MAPPER,
     BIGQUERY_FREQUENCY_MAPPER,
 )
+
+
+def compute_devices_summary(data: pd.DataFrame) -> pd.DataFrame:
+    devices_summary = pd.DataFrame()
+    data["timestamp"] = pd.to_datetime(data["timestamp"])
+    data.drop_duplicates(subset=["device", "timestamp"], inplace=True)
+    data.index = data["timestamp"]
+
+    for _, by_device in data.groupby("device"):
+        for _, by_timestamp in by_device.groupby(pd.Grouper(key="timestamp", freq="D")):
+            device_data = pd.DataFrame(by_timestamp)
+            device_data["timestamp"] = pd.to_datetime(
+                device_data["timestamp"].dt.strftime("%Y-%m-%d")
+            )
+            device_data["hourly_records"] = int(len(device_data.index))
+            device_data["calibrated_records"] = int(
+                device_data.pm2_5_calibrated_value.count()
+            )
+            device_data["uncalibrated_records"] = int(
+                device_data.pm2_5_calibrated_value.isna().sum()
+            )
+            device_data["calibrated_percentage"] = (
+                device_data["calibrated_records"] / device_data["hourly_records"]
+            ) * 100
+            device_data["uncalibrated_percentage"] = (
+                device_data["uncalibrated_records"] / device_data["hourly_records"]
+            ) * 100
+            device_data = device_data[
+                [
+                    "timestamp",
+                    "device",
+                    "site_id",
+                    "hourly_records",
+                    "calibrated_records",
+                    "uncalibrated_records",
+                    "calibrated_percentage",
+                    "uncalibrated_percentage",
+                ]
+            ]
+            device_data["hourly_records"] = device_data["hourly_records"].astype(int)
+            devices_summary = pd.concat(
+                [devices_summary, device_data], ignore_index=True
+            )
+
+    return devices_summary
 
 
 def compute_airqloud_data_statistics(
@@ -139,7 +183,10 @@ def format_to_aqcsv(data: list, pollutants: list, frequency: str) -> dict:
             ]
             pollutant_dataframe.dropna(subset=[mapping], inplace=True)
 
-            if pollutant_dataframe.empty or mapping not in AQCSV_DATA_STATUS_MAPPER.keys():
+            if (
+                pollutant_dataframe.empty
+                or mapping not in AQCSV_DATA_STATUS_MAPPER.keys()
+            ):
                 continue
 
             pollutant_dataframe["data_status"] = AQCSV_DATA_STATUS_MAPPER[mapping]
