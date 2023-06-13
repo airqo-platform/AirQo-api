@@ -17,14 +17,14 @@ controller:
   ## Support for App Protect WAF
   appprotect:
     ## Enable the App Protect WAF module in the Ingress Controller.
-    enable: true
+    enable: false
     ## Sets log level for App Protect WAF. Allowed values: fatal, error, warn, info, debug, trace
     logLevel: fatal
 
   ## Support for App Protect DoS
   appprotectdos:
     ## Enable the App Protect DoS module in the Ingress Controller.
-    enable: true
+    enable: false
     ## Enable debugging for App Protect DoS.
     debug: true
     ## Max number of nginx processes to support.
