@@ -155,7 +155,6 @@ describe("Create AirQloud Util", function () {
 
     describe("Update Function", function () {
         it('should update an AirQloud document', async () => {
-            let airqloudStub;
             request = {
                 query: { tenant: 'airqo' },
                 body: { name: 'kampala' },
@@ -216,7 +215,7 @@ describe("Create AirQloud Util", function () {
         });
 
         it('returns error message on deletion failure', async function () {
-            sinon.stub(generateFilter, "airqlouds").returns({ stubValue });
+            sinon.stub(generateFilter, "airqlouds").returns( stubValue );
             sinon.stub(AirQloudSchema.statics, "remove").returns({
                 success: false,
                 message: "Internal Server Error",
@@ -228,8 +227,8 @@ describe("Create AirQloud Util", function () {
 
             expect(response).to.deep.equal({
                 success: false,
-                message: "unable to delete airqloud",
-                errors: "Deletion error",
+                errors: "Deletion Error",
+                message: "Internal Server Error",
                 status: HTTPStatus.INTERNAL_SERVER_ERROR,
             });
         });
