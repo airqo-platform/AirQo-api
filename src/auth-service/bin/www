@@ -3,7 +3,6 @@
 const log4js = require('log4js');
 const app = require("../app");
 const constants = require("@config/constants");
-const middlewareConfig = require("@config/middleware");
 const debug = require("debug")("auth-service:server");
 const http = require("http");
 const isEmpty = require("is-empty");
@@ -15,9 +14,8 @@ const logger = log4js.getLogger(
 );
 
 
-const { logText, logObject, logElement, winstonLogger } = require("@utils/log")
+const { logText, logObject, } = require("@utils/log")
 const mailer = require("@utils/mailer");
-const emailMessages = require("@utils/email.msgs");
 const emailTemplates = require("@utils/email.templates");
 const Joi = require('joi');
 const { jsonrepair } = require('jsonrepair')
@@ -50,16 +48,6 @@ try {
         console.error("Could not set up log directory, error was: ", e);
         process.exit(1);
     }
-}
-
-
-/****
- * pass the app instance to the middleware configuration
- */
-try {
-    middlewareConfig(app);
-} catch (e) {
-    logElement("middleware error", e.message)
 }
 
 
