@@ -193,6 +193,17 @@ deviceSchema.plugin(uniqueValidator, {
   message: `{VALUE} must be unique!`,
 });
 
+deviceSchema.post("save", async function(doc) {
+  doc.device_codes = [doc._id, doc.name];
+  if (doc.device_number) {
+    doc.device_codes.push(doc.device_number);
+  }
+  if (doc.alias) {
+    doc.device_codes.push(doc.alias);
+  }
+  logObject("device_codes populated successfully:", doc);
+});
+
 deviceSchema.pre("save", function(next) {
   if (this.isModified("name")) {
     if (this.writeKey && this.readKey) {
