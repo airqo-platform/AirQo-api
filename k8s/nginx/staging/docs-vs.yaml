@@ -4,7 +4,7 @@ metadata:
   name: staging-docs-virtual-server
   namespace: staging
 spec:
-  host: staging-docs.airqo.net
+  host: staging-wiki.airqo.net
   upstreams:
     - name: docs
       service: airqo-stage-docs-svc

@@ -4,7 +4,7 @@ metadata:
   name: dev-docs-virtual-server
   namespace: development
 spec:
-  host: dev-docs.airqo.net
+  host: dev-wiki.airqo.net
   upstreams:
     - name: docs
       service: airqo-dev-docs-svc
