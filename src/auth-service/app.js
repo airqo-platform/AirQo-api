@@ -7,15 +7,54 @@ const dotenv = require("dotenv");
 dotenv.config();
 const cookieParser = require("cookie-parser");
 const bodyParser = require("body-parser");
+const session = require("express-session");
+const MongoStore = require("connect-mongo")(session);
+const mongoose = require("mongoose");
 const routes = require("@routes/index");
 const constants = require("@config/constants");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- app entry`);
 const { mongodb } = require("@config/dbConnection");
 mongodb;
-
 const { logText, logObject } = require("@utils/log");
 
+const morgan = require("morgan");
+const compression = require("compression");
+const helmet = require("helmet");
+const passport = require("passport");
+
+const isDev = process.env.NODE_ENV === "development";
+const isProd = process.env.NODE_ENV === "production";
+
 const app = express();
+
+const options = { mongooseConnection: mongoose.connection };
+
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET,
+    store: new MongoStore(options),
+    resave: false,
+    saveUninitialized: false,
+  })
+);
+
+if (isProd) {
+  app.use(compression());
+  app.use(helmet());
+}
+
+if (isDev) {
+  app.use(morgan("dev"));
+}
+
+app.use(passport.initialize());
+app.use(passport.session());
+app.use(bodyParser.json());
+app.use(
+  bodyParser.urlencoded({
+    extended: true,
+  })
+);
 
 app.use(log4js.connectLogger(log4js.getLogger("http"), { level: "auto" }));
 app.use(bodyParser.json({ limit: "50mb" }));

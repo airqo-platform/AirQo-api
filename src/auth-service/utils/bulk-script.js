@@ -4,6 +4,45 @@ const mongoose = require("mongoose").set("debug", true);
 const ObjectId = mongoose.Types.ObjectId;
 
 /**
+ * function to check for duplicates
+ */
+function findDuplicateObjects(arr) {
+  const emailCounts = {}; // Object to store email counts
+  const duplicateIds = []; // Array to store duplicate _id values
+
+  // Iterate over the array of objects
+  for (const obj of arr) {
+    const { _id, email } = obj;
+
+    // Count the number of occurrences of each email
+    if (emailCounts[email]) {
+      emailCounts[email]++;
+    } else {
+      emailCounts[email] = 1;
+    }
+
+    // Add duplicate _id values to the array
+    if (emailCounts[email] > 1) {
+      duplicateIds.push(_id);
+    }
+  }
+
+  const result = []; // Final array without objects having similar email addresses
+
+  // Filter out objects with duplicate emails
+  for (const obj of arr) {
+    const { _id, email } = obj;
+
+    // Add objects to the result array only if their email count is 1
+    if (emailCounts[email] === 1) {
+      result.push(obj);
+    }
+  }
+
+  return { duplicateIds, result, emailCounts };
+}
+
+/**
  * Update each device to have the default network of VISIBLE_DEVICES_ONLY
  */
 

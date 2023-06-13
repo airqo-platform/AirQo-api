@@ -197,7 +197,7 @@ const controlAccess = {
              * later...cases where the user never existed in the first place
              * this will not be necessary if user deletion is cascaded.
              */
-            if (responseFromUpdateUser.status === httpStatus.NOT_FOUND) {
+            if (responseFromUpdateUser.status === httpStatus.BAD_REQUEST) {
               return responseFromUpdateUser;
             }
             let user = responseFromUpdateUser.data;
@@ -542,6 +542,252 @@ const controlAccess = {
       return {
         success: false,
         message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  generateVerificationToken: async (request) => {
+    try {
+      /**
+       * Just create the token and save it on the system
+       * Store it alongside their email address
+       * Send the token to the user so as to use it for verification
+       */
+      const { query, body } = request;
+      const { email } = body;
+      const { tenant } = query;
+
+      const password = password
+        ? password
+        : accessCodeGenerator.generate(
+            constants.RANDOM_PASSWORD_CONFIGURATION(10)
+          );
+
+      /**
+       *We are just going to create the user in the system and 
+       send them verification codes via email
+       It is those verification codes we shall use to verify them in the system
+       */
+
+      const newRequest = Object.assign({ userName: email, password }, request);
+
+      const responseFromCreateUser = await UserModel(tenant).register(
+        newRequest
+      );
+      if (responseFromCreateUser.success === true) {
+        if (responseFromCreateUser.status === httpStatus.NO_CONTENT) {
+          return responseFromCreateUser;
+        }
+        const token = accessCodeGenerator
+          .generate(
+            constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH)
+          )
+          .toUpperCase();
+
+        const client_id = accessCodeGenerator
+          .generate(
+            constants.RANDOM_PASSWORD_CONFIGURATION(constants.CLIENT_ID_LENGTH)
+          )
+          .toUpperCase();
+
+        const client_secret = accessCodeGenerator.generate(
+          constants.RANDOM_PASSWORD_CONFIGURATION(31)
+        );
+
+        const responseFromSaveClient = await ClientModel(tenant).register({
+          client_id,
+          client_secret,
+          name: responseFromCreateUser.data.email,
+        });
+        if (
+          responseFromSaveClient.success === false ||
+          responseFromSaveClient.status === httpStatus.ACCEPTED
+        ) {
+          return responseFromSaveClient;
+        }
+
+        const toMilliseconds = (hrs, min, sec) =>
+          (hrs * 60 * 60 + min * 60 + sec) * 1000;
+
+        const hrs = constants.EMAIL_VERIFICATION_HOURS;
+        const min = constants.EMAIL_VERIFICATION_MIN;
+        const sec = constants.EMAIL_VERIFICATION_SEC;
+
+        const responseFromSaveToken = await AccessTokenModel(tenant).register({
+          token,
+          network_id,
+          client_id: responseFromSaveClient.data._id,
+          user_id: responseFromCreateUser.data._id,
+          expires: Date.now() + toMilliseconds(hrs, min, sec),
+        });
+
+        if (responseFromSaveToken.success === true) {
+          let createdUser = await responseFromCreateUser.data;
+          logObject("created user in util", createdUser._doc);
+          const user_id = createdUser._doc._id;
+
+          const responseFromSendEmail = await mailer.verifyEmail({
+            user_id,
+            token,
+            email,
+            firstName,
+          });
+
+          logObject("responseFromSendEmail", responseFromSendEmail);
+          if (responseFromSendEmail.success === true) {
+            return {
+              success: true,
+              message: "An Email sent to your account please verify",
+              data: createdUser._doc,
+              status: responseFromSendEmail.status
+                ? responseFromSendEmail.status
+                : "",
+            };
+          } else if (responseFromSendEmail.success === false) {
+            return responseFromSendEmail;
+          }
+        } else if (responseFromSaveToken.success === false) {
+          return responseFromSaveToken;
+        }
+      } else if (responseFromCreateUser.success === false) {
+        return responseFromCreateUser;
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "Bad Request Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  verifyVerificationToken: async (request) => {
+    try {
+      /**
+       * create the user on the Platform
+       * create the user on Firebase
+       *
+       */
+      const { query, params } = request;
+      const { tenant } = query;
+      const { user_id, token } = params;
+      const limit = parseInt(request.query.limit, 0);
+      const skip = parseInt(request.query.skip, 0);
+      const timeZone = moment.tz.guess();
+      let filter = {
+        token,
+        user_id,
+        expires: {
+          $gt: moment().tz(timeZone).toDate(),
+        },
+      };
+
+      // expires: { $gt: new Date().toISOString() },
+
+      const responseFromListAccessToken = await AccessTokenModel(tenant).list({
+        skip,
+        limit,
+        filter,
+      });
+
+      logObject("responseFromListAccessToken", responseFromListAccessToken);
+
+      if (responseFromListAccessToken.success === true) {
+        if (responseFromListAccessToken.status === httpStatus.NOT_FOUND) {
+          return {
+            success: false,
+            status: httpStatus.BAD_REQUEST,
+            message: "Invalid link",
+            errors: { message: "incorrect user or token details provided" },
+          };
+        } else if (responseFromListAccessToken.status === httpStatus.OK) {
+          const password = accessCodeGenerator.generate(
+            constants.RANDOM_PASSWORD_CONFIGURATION(10)
+          );
+          let update = {
+            verified: true,
+            password,
+            $pull: { tokens: { $in: [token] } },
+          };
+          filter = { _id: user_id };
+
+          const responseFromUpdateUser = await UserModel(tenant).modify({
+            filter,
+            update,
+          });
+          logObject("responseFromUpdateUser", responseFromUpdateUser);
+
+          if (responseFromUpdateUser.success === true) {
+            /**
+             * we shall also need to handle case where there was no update
+             * later...cases where the user never existed in the first place
+             * this will not be necessary if user deletion is cascaded.
+             */
+            if (responseFromUpdateUser.status === httpStatus.BAD_REQUEST) {
+              return responseFromUpdateUser;
+            }
+            let user = responseFromUpdateUser.data;
+            filter = { token };
+            logObject("the deletion of the token filter", filter);
+            const responseFromDeleteToken = await AccessTokenModel(
+              tenant
+            ).remove({ filter });
+
+            logObject("responseFromDeleteToken", responseFromDeleteToken);
+
+            if (responseFromDeleteToken.success === true) {
+              const responseFromSendEmail = await mailer.afterEmailVerification(
+                {
+                  firstName: user.firstName,
+                  username: user.userName,
+                  password,
+                  email: user.email,
+                }
+              );
+
+              if (responseFromSendEmail.success === true) {
+                return {
+                  success: true,
+                  message: "email verified sucessfully",
+                  status: httpStatus.OK,
+                };
+              } else if (responseFromSendEmail.success === false) {
+                return responseFromSendEmail;
+              }
+            } else if (responseFromDeleteToken.success === false) {
+              return {
+                success: false,
+                message: "unable to verify user",
+                status: responseFromDeleteToken.status
+                  ? responseFromDeleteToken.status
+                  : httpStatus.INTERNAL_SERVER_ERROR,
+                errors: responseFromDeleteToken.errors
+                  ? responseFromDeleteToken.errors
+                  : { message: "internal server errors" },
+              };
+            }
+          } else if (responseFromUpdateUser.success === false) {
+            return {
+              success: false,
+              message: "unable to verify user",
+              status: responseFromUpdateUser.status
+                ? responseFromUpdateUser.status
+                : httpStatus.INTERNAL_SERVER_ERROR,
+              errors: responseFromUpdateUser.errors
+                ? responseFromUpdateUser.errors
+                : { message: "internal server errors" },
+            };
+          }
+        }
+      } else if (responseFromListAccessToken.success === false) {
+        return responseFromListAccessToken;
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "Bad Request Error",
         errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
