@@ -14,7 +14,6 @@ chai.use(chaiHttp);
 const HTTPStatus = require("http-status");
 const { Kafka } = require("kafkajs");
 
-const airqloudUtil = require("@utils/create-airqloud");
 const locationUtil = require("@utils/create-location");
 const locationSchema = require("@models/Location");
 
