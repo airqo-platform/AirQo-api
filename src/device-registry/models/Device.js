@@ -286,6 +286,7 @@ deviceSchema.statics = {
 
       if (!isEmpty(modifiedArgs.name)) {
         try {
+          modifiedArgs.alias = modifiedArgs.name.trim().replace(/ /g, "_");
           let nameWithoutWhiteSpaces = modifiedArgs.name.replace(
             /[^a-zA-Z0-9]/g,
             "_"
