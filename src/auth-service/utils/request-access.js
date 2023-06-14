@@ -166,26 +166,29 @@ const requestAccess = {
   },
 
   confirm: async (req) => {
-    const {
-      tenant,
-      firstName,
-      lastName,
-      email,
-      organization,
-      long_organization,
-      jobTitle,
-      website,
-      category,
-      filter,
-      description,
-      country,
-    } = req;
     try {
-      const candidateExists = await CandidateModel(tenant).exists({
+      const {
+        tenant,
+        firstName,
+        lastName,
         email,
-      });
-      const userExists = await UserModel(tenant).exists({ email });
+        organization,
+        long_organization,
+        jobTitle,
+        website,
+        category,
+        description,
+        country,
+      } = req;
 
+      const candidateExists = await CandidateModel(tenant)
+        .exists({
+          email,
+        })
+        .exec();
+      const userExists = await UserModel(tenant).exists({ email }).exec();
+      logObject("candidateExists", candidateExists);
+      logObject("userExists", userExists);
       if (!candidateExists) {
         logger.error(
           `Candidate ${email} not found in System, crosscheck or make another request`
@@ -196,9 +199,7 @@ const requestAccess = {
           status: httpStatus.BAD_REQUEST,
           errors: { message: `Candidate ${email} not found` },
         };
-      }
-
-      if (userExists) {
+      } else if (userExists) {
         logger.error(
           `User ${email} already exists, try to utilise FORGOT PASSWORD feature`
         );
@@ -210,82 +211,82 @@ const requestAccess = {
             message: `User ${email} already exists, try to utilise FORGOT PASSWORD feature`,
           },
         };
-      }
+      } else {
+        const password = accessCodeGenerator.generate(
+          constants.RANDOM_PASSWORD_CONFIGURATION(10)
+        );
 
-      const password = accessCodeGenerator.generate(
-        constants.RANDOM_PASSWORD_CONFIGURATION(10)
-      );
-
-      const requestBody = {
-        tenant,
-        firstName,
-        lastName,
-        email,
-        organization,
-        long_organization,
-        jobTitle,
-        website,
-        password,
-        description,
-        category,
-        privilege: "user",
-        userName: email,
-        country,
-      };
-      logObject("requestBody during confirmation", requestBody);
-
-      const responseFromCreateUser = await UserModel(tenant).register(
-        requestBody
-      );
-
-      logObject(
-        "responseFromCreateUser during confirmation",
-        responseFromCreateUser
-      );
-
-      if (responseFromCreateUser.success === true) {
-        const responseFromSendEmail = await mailer.user(
+        const requestBody = {
+          tenant,
           firstName,
           lastName,
           email,
+          organization,
+          long_organization,
+          jobTitle,
+          website,
           password,
-          tenant,
-          "confirm"
+          description,
+          category,
+          privilege: "user",
+          userName: email,
+          country,
+        };
+        logObject("requestBody during confirmation", requestBody);
+
+        const responseFromCreateUser = await UserModel(tenant).register(
+          requestBody
         );
         logObject(
-          "responseFromSendEmail during confirmation",
-          responseFromSendEmail
+          "responseFromCreateUser during confirmation",
+          responseFromCreateUser
         );
-        if (responseFromSendEmail.success === true) {
-          const responseFromDeleteCandidate = await CandidateModel(
-            tenant.toLowerCase()
-          ).remove({
-            filter,
-          });
 
-          if (responseFromDeleteCandidate.success === true) {
-            return {
-              success: true,
-              message: "candidate successfully confirmed",
-              data: {
-                firstName,
-                lastName,
-                email,
-                userName: email,
-              },
-              status: httpStatus.OK,
-            };
-          } else if (responseFromDeleteCandidate.success === false) {
-            return responseFromDeleteCandidate;
+        if (responseFromCreateUser.success === true) {
+          const responseFromSendEmail = await mailer.user(
+            firstName,
+            lastName,
+            email,
+            password,
+            tenant,
+            "confirm"
+          );
+          logObject(
+            "responseFromSendEmail during confirmation",
+            responseFromSendEmail
+          );
+          if (responseFromSendEmail.success === true) {
+            const filter = { email };
+            const responseFromDeleteCandidate = await CandidateModel(
+              tenant.toLowerCase()
+            ).remove({
+              filter,
+            });
+
+            if (responseFromDeleteCandidate.success === true) {
+              return {
+                success: true,
+                message: "candidate successfully confirmed",
+                data: {
+                  firstName,
+                  lastName,
+                  email,
+                  userName: email,
+                },
+                status: httpStatus.OK,
+              };
+            } else if (responseFromDeleteCandidate.success === false) {
+              return responseFromDeleteCandidate;
+            }
+          } else if (responseFromSendEmail.success === false) {
+            return responseFromSendEmail;
           }
-        } else if (responseFromSendEmail.success === false) {
-          return responseFromSendEmail;
+        } else if (responseFromCreateUser.success === false) {
+          return responseFromCreateUser;
         }
-      } else if (responseFromCreateUser.success === false) {
-        return responseFromCreateUser;
       }
     } catch (e) {
-      logger.error(`${e.message}`);
+      logger.error(`${JSON.stringify(e)}`);
       if (e.code === 11000) {
         return {
           success: false,
