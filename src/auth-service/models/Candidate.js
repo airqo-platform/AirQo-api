@@ -68,7 +68,7 @@ CandidateSchema.statics = {
       }
       const data = await this.create({
         ...newArgs,
-      }).exec();
+      });
       if (!isEmpty(data)) {
         return {
           success: true,
