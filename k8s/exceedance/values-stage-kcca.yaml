@@ -5,5 +5,5 @@ app:
 image:
   repository: eu.gcr.io/airqo-250220/stage-kcca-exceedance-job
   tag: stage-23d9fe09-1686642932
-nameOverride: ''
-fullnameOverride: ''
+nameOverride: ""
+fullnameOverride: ""

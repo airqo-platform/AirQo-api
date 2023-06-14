@@ -5,5 +5,5 @@ app:
 image:
   repository: eu.gcr.io/airqo-250220/airqo-exceedance-job
   tag: prod-bcbebfd8-1686643056
-nameOverride: ''
-fullnameOverride: ''
+nameOverride: ""
+fullnameOverride: ""

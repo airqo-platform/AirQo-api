@@ -7,8 +7,8 @@ replicaCount: 1
 image:
   repository: eu.gcr.io/airqo-250220/airqo-stage-view-api
   tag: stage-23d9fe09-1686642932
-nameOverride: ''
-fullnameOverride: ''
+nameOverride: ""
+fullnameOverride: ""
 podAnnotations: {}
 resources:
   limits:

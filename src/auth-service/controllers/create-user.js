@@ -192,7 +192,23 @@ const createUser = {
   },
   googleCallback: async (req, res) => {
     try {
-      res.redirect("/");
+      logObject("req.user.toAuthJSON()", req.user.toAuthJSON());
+      const token = req.user.toAuthJSON().token;
+      // Set the token as an HTTP-only cookie
+      res.cookie("access_token", token, {
+        httpOnly: true,
+        secure: true, // Enable if using HTTPS
+      });
+
+      res.redirect(`${constants.GMAIL_VERIFICATION_SUCCESS_REDIRECT}`);
+
+      /***
+       * in the FRONTEND, access the cookie:
+       * ==================================
+       * npm install js-cookie
+       * import Cookies from "js-cookie";
+       * const token = Cookies.get("access_token");
+       */
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
       res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
@@ -202,6 +218,124 @@ const createUser = {
       });
     }
   },
+  generateVerificationToken: async (req, res) => {
+    try {
+      const { query, body } = req;
+      let { tenant } = query;
+      logText("We are generating the verification code.....");
+      const hasErrors = !validationResult(req).isEmpty();
+
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      let request = Object.assign({}, req);
+      if (isEmpty(tenant)) {
+        request.query.tenant = "airqo";
+      }
+
+      const responseFromGenerateVerificationToken =
+        await controlAccessUtil.generateVerificationToken(request);
+
+      logObject(
+        "responseFromGenerateVerificationToken",
+        responseFromGenerateVerificationToken
+      );
+
+      if (responseFromGenerateVerificationToken.success === true) {
+        const status = responseFromGenerateVerificationToken.status
+          ? responseFromGenerateVerificationToken.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: "Token generated and sent to user's email address",
+          token: responseFromGenerateVerificationToken.token,
+        });
+      } else if (responseFromGenerateVerificationToken.success === false) {
+        const status = responseFromGenerateVerificationToken.status
+          ? responseFromGenerateVerificationToken.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromGenerateVerificationToken.message,
+          errors: responseFromGenerateVerificationToken.errors
+            ? responseFromGenerateVerificationToken.errors
+            : { message: "internal server errors" },
+        });
+      }
+    } catch (error) {
+      logObject("error", error);
+      logger.error(`Internal Server Error ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "internal server error",
+        errors: { message: error.message },
+      });
+    }
+  },
+  verifyVerificationToken: async (req, res) => {
+    try {
+      const { query, body } = req;
+      let { tenant } = query;
+      logText("we are verifying the email.....");
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      let request = Object.assign({}, req);
+      if (isEmpty(tenant)) {
+        request.query.tenant = "airqo";
+      }
+
+      const responseFromVerifyVerificationToken =
+        await controlAccessUtil.verifyVerificationToken(request);
+
+      logObject(
+        "responseFromVerifyVerificationToken",
+        responseFromVerifyVerificationToken
+      );
+
+      if (responseFromVerifyVerificationToken.success === true) {
+        const status = responseFromVerifyVerificationToken.status
+          ? responseFromVerifyVerificationToken.status
+          : httpStatus.OK;
+        res.status(status).json({
+          success: true,
+          message: "token verified sucessfully",
+          sign_in_link: responseFromVerifyVerificationToken.data,
+        });
+      } else if (responseFromVerifyVerificationToken.success === false) {
+        const status = responseFromVerifyVerificationToken.status
+          ? responseFromVerifyVerificationToken.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromVerifyVerificationToken.message,
+          errors: responseFromVerifyVerificationToken.errors
+            ? responseFromVerifyVerificationToken.errors
+            : { message: "internal server errors" },
+        });
+      }
+    } catch (error) {
+      logObject("error", error);
+      logger.error(`Internal Server Error ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "internal server error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
   verify: (req, res) => {
     return res.status(httpStatus.OK).json({
       success: true,
@@ -674,7 +808,9 @@ const createUser = {
       }
 
       if (req.auth.success === true) {
-        res.status(httpStatus.OK).json(req.user.toAuthJSON());
+        // logObject("req.user", req.user);
+        logObject("req.user.toAuthJSON()", req.user.toAuthJSON());
+        return res.status(httpStatus.OK).json(req.user.toAuthJSON());
       } else {
         if (req.auth.error) {
           return res.status(httpStatus.BAD_REQUEST).json({

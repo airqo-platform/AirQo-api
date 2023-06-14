@@ -86,6 +86,7 @@ CandidateSchema.statics = {
         };
       }
     } catch (error) {
+      logger.error(`${JSON.stringify(error)}`);
       return {
         errors: { message: error.message },
         message: "unable to create candidate",
@@ -138,7 +139,7 @@ CandidateSchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`${error.message}`);
+      logger.error(`${JSON.stringify(error)}`);
       return {
         success: false,
         message: "unable to list the candidates",
@@ -173,7 +174,7 @@ CandidateSchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`${error.message}`);
+      logger.error(`${JSON.stringify(error)}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -210,7 +211,7 @@ CandidateSchema.statics = {
         };
       }
     } catch (error) {
-      logger.error(`${error.message}`);
+      logger.error(`${JSON.stringify(error)}`);
       return {
         success: false,
         message: "Internal Server Error",

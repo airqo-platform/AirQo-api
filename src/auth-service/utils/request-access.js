@@ -8,6 +8,8 @@ const httpStatus = require("http-status");
 constants = require("../config/constants");
 const accessCodeGenerator = require("generate-password");
 const generateFilter = require("@utils/generate-filter");
+const mongoose = require("mongoose").set("debug", true);
+const ObjectId = mongoose.Types.ObjectId;
 
 const UserModel = (tenant) => {
   return getModelByTenant(tenant, "user", UserSchema);
@@ -166,26 +168,16 @@ const requestAccess = {
   },
 
   confirm: async (req) => {
-    const {
-      tenant,
-      firstName,
-      lastName,
-      email,
-      organization,
-      long_organization,
-      jobTitle,
-      website,
-      category,
-      filter,
-      description,
-      country,
-    } = req;
     try {
+      const { tenant, firstName, lastName, email } = req;
+
       const candidateExists = await CandidateModel(tenant).exists({
         email,
       });
-      const userExists = await UserModel(tenant).exists({ email });
 
+      const userExists = await UserModel(tenant).exists({ email });
+      logObject("candidateExists", candidateExists);
+      logObject("userExists", userExists);
       if (!candidateExists) {
         logger.error(
           `Candidate ${email} not found in System, crosscheck or make another request`
@@ -196,9 +188,7 @@ const requestAccess = {
           status: httpStatus.BAD_REQUEST,
           errors: { message: `Candidate ${email} not found` },
         };
-      }
-
-      if (userExists) {
+      } else if (userExists) {
         logger.error(
           `User ${email} already exists, try to utilise FORGOT PASSWORD feature`
         );
@@ -210,82 +200,91 @@ const requestAccess = {
             message: `User ${email} already exists, try to utilise FORGOT PASSWORD feature`,
           },
         };
-      }
+      } else {
+        const candidateDetails = await CandidateModel(tenant)
+          .find({ email })
+          .lean();
 
-      const password = accessCodeGenerator.generate(
-        constants.RANDOM_PASSWORD_CONFIGURATION(10)
-      );
+        const password = accessCodeGenerator.generate(
+          constants.RANDOM_PASSWORD_CONFIGURATION(10)
+        );
 
-      const requestBody = {
-        tenant,
-        firstName,
-        lastName,
-        email,
-        organization,
-        long_organization,
-        jobTitle,
-        website,
-        password,
-        description,
-        category,
-        privilege: "user",
-        userName: email,
-        country,
-      };
-      logObject("requestBody during confirmation", requestBody);
+        let requestBodyForUserCreation = Object.assign({}, req);
+        requestBodyForUserCreation.privilege = "user";
+        requestBodyForUserCreation.userName = email;
+        requestBodyForUserCreation.password = password;
 
-      const responseFromCreateUser = await UserModel(tenant).register(
-        requestBody
-      );
+        logObject(
+          "requestBody during confirmation",
+          requestBodyForUserCreation
+        );
 
-      logObject(
-        "responseFromCreateUser during confirmation",
-        responseFromCreateUser
-      );
-
-      if (responseFromCreateUser.success === true) {
-        const responseFromSendEmail = await mailer.user(
-          firstName,
-          lastName,
-          email,
-          password,
-          tenant,
-          "confirm"
+        const responseFromCreateUser = await UserModel(tenant).register(
+          requestBodyForUserCreation
         );
         logObject(
-          "responseFromSendEmail during confirmation",
-          responseFromSendEmail
+          "responseFromCreateUser during confirmation",
+          responseFromCreateUser
         );
-        if (responseFromSendEmail.success === true) {
-          const responseFromDeleteCandidate = await CandidateModel(
-            tenant.toLowerCase()
-          ).remove({
-            filter,
-          });
 
-          if (responseFromDeleteCandidate.success === true) {
-            return {
-              success: true,
-              message: "candidate successfully confirmed",
-              data: {
-                firstName,
-                lastName,
-                email,
-                userName: email,
-              },
-              status: httpStatus.OK,
+        if (responseFromCreateUser.success === true) {
+          const responseFromSendEmail = await mailer.user(
+            firstName,
+            lastName,
+            email,
+            password,
+            tenant,
+            "confirm"
+          );
+          logObject(
+            "responseFromSendEmail during confirmation",
+            responseFromSendEmail
+          );
+          if (responseFromSendEmail.success === true) {
+            logObject("candidateDetails[0]", candidateDetails[0]);
+            if (
+              candidateDetails.length > 1 ||
+              candidateDetails.length === 0 ||
+              isEmpty(candidateDetails)
+            ) {
+              return {
+                success: false,
+                message: "Internal Server Error",
+                errors: { message: "unable to find the candidate details" },
+                status: httpStatus.INTERNAL_SERVER_ERROR,
+              };
+            }
+            const filter = {
+              _id: ObjectId(candidateDetails[0]._id),
             };
-          } else if (responseFromDeleteCandidate.success === false) {
-            return responseFromDeleteCandidate;
+            const responseFromDeleteCandidate = await CandidateModel(
+              tenant.toLowerCase()
+            ).remove({ filter });
+
+            if (responseFromDeleteCandidate.success === true) {
+              return {
+                success: true,
+                message: "candidate successfully confirmed",
+                data: {
+                  firstName,
+                  lastName,
+                  email,
+                  userName: email,
+                },
+                status: httpStatus.OK,
+              };
+            } else if (responseFromDeleteCandidate.success === false) {
+              return responseFromDeleteCandidate;
+            }
+          } else if (responseFromSendEmail.success === false) {
+            return responseFromSendEmail;
           }
-        } else if (responseFromSendEmail.success === false) {
-          return responseFromSendEmail;
+        } else if (responseFromCreateUser.success === false) {
+          return responseFromCreateUser;
         }
-      } else if (responseFromCreateUser.success === false) {
-        return responseFromCreateUser;
       }
     } catch (e) {
-      logger.error(`${e.message}`);
+      logger.error(`${JSON.stringify(e)}`);
       if (e.code === 11000) {
         return {
           success: false,
