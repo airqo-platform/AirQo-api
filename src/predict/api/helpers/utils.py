@@ -25,10 +25,12 @@ def convert_to_geojson(data):
     """
     features = []
     for record in data:
-        if not record['longitude'] or not record['latitude']:
-            continue
-        point = geojson.Point((record['longitude'], record['latitude']))
-        feature = geojson.Feature(geometry=point, properties=record)
+        point = geojson.Point((record['values']['latitude'], record['values']['latitude']))
+        feature = geojson.Feature(geometry=point, properties={
+            "predicted_value": record['values']["predicted_value"],
+            "variance": record['values']["variance"],
+            "interval": record['values']["interval"]
+        })
         features.append(feature)
 
     return geojson.FeatureCollection(features)
@@ -42,31 +44,27 @@ def get_gp_predictions(airqloud=None, page=1, limit=500):
         {"$sort": {"created_at": -1}},
         {"$group": {
             "_id": {
-                "latitude": "$latitude",
-                "longitude": "$longitude"
+                "airqloud_id": "$airqloud_id",
+                "airqloud": "$airqloud"
             },
             "doc": {"$first": "$$ROOT"}
         }},
         {"$replaceRoot": {"newRoot": "$doc"}},
         {"$project": {
             '_id': 0,
-            'latitude': 1,
-            'longitude': 1,
-            'predicted_value': 1,
-            'variance': 1,
-            'interval': 1,
+            'airqloud_id': 1,
             'airqloud': 1,
             'created_at': 1,
-            'airqloud_id': 1,
             'values': 1
-        }}
+        }},
+        {"$unwind": "$values"}
     ]
     result = db.gp_predictions.aggregate(pipeline)
     predictions = list(result)
     total_count = len(predictions)
     paginated_results = predictions[(page - 1) * limit:page * limit]
-
     return paginated_results, total_count
+    # return predictions, total_count
 
 
 def geo_coordinates_cache_key():
