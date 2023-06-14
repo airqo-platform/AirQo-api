@@ -41,5 +41,3 @@
 #### Local Setup using docker
 
 - Coming soon...
-
--- delete me after --
