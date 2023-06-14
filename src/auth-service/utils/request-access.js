@@ -8,6 +8,8 @@ const httpStatus = require("http-status");
 constants = require("../config/constants");
 const accessCodeGenerator = require("generate-password");
 const generateFilter = require("@utils/generate-filter");
+const mongoose = require("mongoose").set("debug", true);
+const ObjectId = mongoose.Types.ObjectId;
 
 const UserModel = (tenant) => {
   return getModelByTenant(tenant, "user", UserSchema);
@@ -167,26 +169,13 @@ const requestAccess = {
 
   confirm: async (req) => {
     try {
-      const {
-        tenant,
-        firstName,
-        lastName,
-        email,
-        organization,
-        long_organization,
-        jobTitle,
-        website,
-        category,
-        description,
-        country,
-      } = req;
+      const { tenant, firstName, lastName, email } = req;
 
-      const candidateExists = await CandidateModel(tenant)
-        .exists({
-          email,
-        })
-        .exec();
-      const userExists = await UserModel(tenant).exists({ email }).exec();
+      const candidateExists = await CandidateModel(tenant).exists({
+        email,
+      });
+
+      const userExists = await UserModel(tenant).exists({ email });
       logObject("candidateExists", candidateExists);
       logObject("userExists", userExists);
       if (!candidateExists) {
@@ -212,30 +201,26 @@ const requestAccess = {
           },
         };
       } else {
+        const candidateDetails = await CandidateModel(tenant)
+          .find({ email })
+          .lean();
+
         const password = accessCodeGenerator.generate(
           constants.RANDOM_PASSWORD_CONFIGURATION(10)
         );
 
-        const requestBody = {
-          tenant,
-          firstName,
-          lastName,
-          email,
-          organization,
-          long_organization,
-          jobTitle,
-          website,
-          password,
-          description,
-          category,
-          privilege: "user",
-          userName: email,
-          country,
-        };
-        logObject("requestBody during confirmation", requestBody);
+        let requestBodyForUserCreation = Object.assign({}, req);
+        requestBodyForUserCreation.privilege = "user";
+        requestBodyForUserCreation.userName = email;
+        requestBodyForUserCreation.password = password;
+
+        logObject(
+          "requestBody during confirmation",
+          requestBodyForUserCreation
+        );
 
         const responseFromCreateUser = await UserModel(tenant).register(
-          requestBody
+          requestBodyForUserCreation
         );
         logObject(
           "responseFromCreateUser during confirmation",
@@ -256,12 +241,25 @@ const requestAccess = {
             responseFromSendEmail
           );
           if (responseFromSendEmail.success === true) {
-            const filter = { email };
+            logObject("candidateDetails[0]", candidateDetails[0]);
+            if (
+              candidateDetails.length > 1 ||
+              candidateDetails.length === 0 ||
+              isEmpty(candidateDetails)
+            ) {
+              return {
+                success: false,
+                message: "Internal Server Error",
+                errors: { message: "unable to find the candidate details" },
+                status: httpStatus.INTERNAL_SERVER_ERROR,
+              };
+            }
+            const filter = {
+              _id: ObjectId(candidateDetails[0]._id),
+            };
             const responseFromDeleteCandidate = await CandidateModel(
               tenant.toLowerCase()
-            ).remove({
-              filter,
-            });
+            ).remove({ filter });
 
             if (responseFromDeleteCandidate.success === true) {
               return {
