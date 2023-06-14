@@ -6,12 +6,12 @@ app:
   namespace: staging
   configMap: env-gp-model-staging
 images:
-  tag: stage-23d9fe09-1686642932
+  tag: stage-3b77b6fc-1686749518
   repositories:
     cronJob: eu.gcr.io/airqo-250220/airqo-stage-gp-model-job
     brokerConsumer: eu.gcr.io/airqo-250220/airqo-stage-gp-model-broker-consumer
-nameOverride: ""
-fullnameOverride: ""
+nameOverride: ''
+fullnameOverride: ''
 podAnnotations: {}
 resources:
   limits:
