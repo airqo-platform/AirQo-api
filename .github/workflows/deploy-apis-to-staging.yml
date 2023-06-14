@@ -10,7 +10,7 @@ on:
 env:
   REGISTRY_URL: eu.gcr.io
   PROJECT_ID: airqo-250220
-  DEPLOY_BRANCH: deployment/argocd
+  DEPLOY_BRANCH: staging
 
 jobs:
   image-tag:
