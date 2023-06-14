@@ -400,6 +400,7 @@ jobs:
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update auth service production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
@@ -472,6 +473,8 @@ jobs:
           with: |
             valueFile: "k8s/fault-detection/values-prod.yaml"
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update fault detection production tags to ${{ needs.image-tag.outputs.build_id }}"
             changes: |
               {
@@ -548,6 +551,7 @@ jobs:
             propertyPath: "images.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update airflow prod image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
@@ -610,6 +614,7 @@ jobs:
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update device registry production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
@@ -684,6 +689,7 @@ jobs:
             propertyPath: "images.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update device monitor production images' tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
@@ -742,6 +748,7 @@ jobs:
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update data mgt production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
@@ -832,6 +839,7 @@ jobs:
             propertyPath: "images.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update analytics production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
@@ -902,6 +910,7 @@ jobs:
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update device uptime production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
@@ -962,6 +971,7 @@ jobs:
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update device status production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
@@ -1088,6 +1098,7 @@ jobs:
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update locate production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
@@ -1152,6 +1163,7 @@ jobs:
             propertyPath: "images.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update gp-model production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
@@ -1212,6 +1224,7 @@ jobs:
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update AirQo exceedance production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Build and push KCCA Docker image
@@ -1231,6 +1244,7 @@ jobs:
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update KCCA exceedance production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
@@ -1297,6 +1311,7 @@ jobs:
             propertyPath: "images.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update meta-data production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
@@ -1361,6 +1376,7 @@ jobs:
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update view api production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Build and push Message Broker
@@ -1380,6 +1396,7 @@ jobs:
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update view message broker production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
@@ -1446,6 +1463,7 @@ jobs:
           with: |
             valueFile: "k8s/calibrate/values-prod.yaml"
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update calibrate production tags to ${{ needs.image-tag.outputs.build_id }}"
             changes: |
               {
@@ -1625,6 +1643,7 @@ jobs:
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update predict API production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Build and push predict Job Docker Image
@@ -1644,6 +1663,7 @@ jobs:
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update predict job production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Build and push train Job Docker Image
@@ -1663,6 +1683,7 @@ jobs:
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update predict train job production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
@@ -1730,6 +1751,7 @@ jobs:
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update network-uptime production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
@@ -1786,6 +1808,7 @@ jobs:
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update channel-data production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP

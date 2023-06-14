@@ -357,6 +357,7 @@ jobs:
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update auth service staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
@@ -472,6 +473,7 @@ jobs:
           with: |
             valueFile: "k8s/fault-detection/values-stage.yaml"
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update fault detection staging tags to ${{ needs.image-tag.outputs.build_id }}"
             changes: |
               {
@@ -548,6 +550,7 @@ jobs:
             propertyPath: "images.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update airflow staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
@@ -616,6 +619,7 @@ jobs:
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update predict API staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Build and push predict Job Docker Image
@@ -635,6 +639,7 @@ jobs:
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update predict job staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Build and push train Job Docker Image
@@ -654,6 +659,7 @@ jobs:
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update predict train job staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
@@ -790,6 +796,7 @@ jobs:
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update device registry staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
@@ -866,6 +873,7 @@ jobs:
             propertyPath: "images.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update device monitor staging images' tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
@@ -924,6 +932,7 @@ jobs:
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update data mgt staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
@@ -1014,6 +1023,7 @@ jobs:
             propertyPath: "images.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update analytics staging images tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
@@ -1084,6 +1094,7 @@ jobs:
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update device uptime staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
@@ -1144,6 +1155,7 @@ jobs:
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update device uptime staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
@@ -1202,6 +1214,7 @@ jobs:
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update locate staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
@@ -1266,6 +1279,7 @@ jobs:
             propertyPath: "images.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update gp-model staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
@@ -1326,6 +1340,7 @@ jobs:
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update AirQo exceedance staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Build and push KCCA Docker image
@@ -1345,6 +1360,7 @@ jobs:
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update KCCA exceedance staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
@@ -1415,6 +1431,7 @@ jobs:
             propertyPath: "images.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update meta-data staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
@@ -1479,6 +1496,7 @@ jobs:
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update view api staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Build and push Message Broker
@@ -1498,6 +1516,7 @@ jobs:
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update view message broker staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
@@ -1564,6 +1583,7 @@ jobs:
           with: |
             valueFile: "k8s/calibrate/values-stage.yaml"
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update calibrate staging tags to ${{ needs.image-tag.outputs.build_id }}"
             changes: |
               {
@@ -1737,6 +1757,7 @@ jobs:
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update network-uptime staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
@@ -1793,6 +1814,7 @@ jobs:
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update channel-data staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
