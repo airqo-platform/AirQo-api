@@ -6,11 +6,11 @@ app:
 replicaCount: 2
 image:
   repository: eu.gcr.io/airqo-250220/airqo-stage-view-message-broker
-  tag: stage-100447fd-1685533251
-nameOverride: ''
-fullnameOverride: ''
+  tag: stage-23d9fe09-1686642932
+nameOverride: ""
+fullnameOverride: ""
 podAnnotations:
-  sidecar.istio.io/inject: 'false'
+  sidecar.istio.io/inject: "false"
 resources:
   limits:
     cpu: 50m
