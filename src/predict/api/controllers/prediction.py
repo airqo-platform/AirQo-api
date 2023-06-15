@@ -1,12 +1,15 @@
 import logging
 import traceback
+from app import cache
 
 from dotenv import load_dotenv
 from flask import Blueprint, request
 
 from helpers.utils import get_gp_predictions, get_forecasts_helper, \
-    get_predictions_by_geo_coordinates, get_health_tips, convert_to_geojson
+    get_predictions_by_geo_coordinates, get_health_tips, convert_to_geojson, weekly_forecasts_cache_key, \
+    heatmap_cache_key, geo_coordinates_cache_key
 from routes import api
+from config.constants import Config
 
 import math
 
@@ -26,6 +29,7 @@ def get_next_24hr_forecasts():
 
 
 @ml_app.route(api.route['next_1_week_forecasts'], methods=['GET'])
+@cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=weekly_forecasts_cache_key)
 def get_next_1_week_forecasts():
     """
     Get forecasts for the next 1 week from specified start day.
@@ -34,6 +38,7 @@ def get_next_1_week_forecasts():
 
 
 @ml_app.route(api.route['predict_for_heatmap'], methods=['GET'])
+@cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=heatmap_cache_key)
 def predictions_for_heatmap():
     """
     This function handles the GET requests to the predict_for_heatmap endpoint.
@@ -89,6 +94,7 @@ def predictions_for_heatmap():
 
 
 @ml_app.route(api.route['search_predictions'], methods=['GET'])
+@cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=geo_coordinates_cache_key)
 def search_predictions():
     try:
         latitude = float(request.args.get('latitude'))
