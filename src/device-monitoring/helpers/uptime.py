@@ -8,6 +8,8 @@ from google.cloud import bigquery
 from config.constants import Config
 from helpers.convert_dates import date_to_str
 
+from app import cache
+
 
 class MetaData:
     def __init__(
@@ -60,6 +62,162 @@ class MetaData:
 
 
 class Uptime:
+    @staticmethod
+    @cache.memoize(timeout=1800)
+    def get_uptime(
+        devices: list[str],
+        start_date_time: datetime,
+        end_date_time: datetime,
+        site: str,
+        airqloud: str,
+    ) -> list:
+        data_table = f"`{Config.BIGQUERY_DEVICE_UPTIME_TABLE}`"
+        sites_table = f"`{Config.BIGQUERY_SITES}`"
+        airqlouds_sites_table = f"`{Config.BIGQUERY_AIRQLOUDS_SITES}`"
+        airqlouds_table = f"`{Config.BIGQUERY_AIRQLOUDS}`"
+
+        query = (
+            f" SELECT {data_table}.timestamp ,  "
+            f" {data_table}.hourly_threshold , "
+            f" {data_table}.data_points , "
+            f" {data_table}.uptime , "
+            f" {data_table}.downtime , "
+            f" {data_table}.average_battery , "
+            f" {data_table}.device "
+        )
+
+        if len(devices) != 0:
+            query = (
+                f"{query} "
+                f"FROM {data_table} "
+                f"WHERE {data_table}.device IN UNNEST({devices}) "
+            )
+        elif site.strip() != "":
+            query = (
+                f"{query}, {sites_table}.name as site_name, {data_table}.site_id "
+                f"FROM {data_table} "
+                f"RIGHT JOIN {sites_table} on {sites_table}.id = {data_table}.site_id "
+                f"WHERE {data_table}.site_id = '{site}' "
+            )
+        elif airqloud.strip() != "":
+            meta_data_query = (
+                f" SELECT {airqlouds_sites_table}.airqloud_id , "
+                f" {airqlouds_sites_table}.site_id , "
+                f" FROM {airqlouds_sites_table} "
+                f" WHERE {airqlouds_sites_table}.airqloud_id = '{airqloud}' "
+            )
+
+            meta_data_query = (
+                f" SELECT "
+                f" {airqlouds_table}.name AS airqloud_name , "
+                f" meta_data.* "
+                f" FROM {airqlouds_table} "
+                f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.airqloud_id = {airqlouds_table}.id "
+            )
+
+            meta_data_query = (
+                f" SELECT "
+                f" {sites_table}.name  AS site_name , "
+                f" meta_data.* "
+                f" FROM {sites_table} "
+                f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.site_id = {sites_table}.id "
+            )
+
+            query = (
+                f" {query} , "
+                f" meta_data.* "
+                f" FROM {data_table} "
+                f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.site_id = {data_table}.site_id "
+                f"WHERE meta_data.airqloud_id = '{airqloud}' "
+            )
+
+        query = (
+            f"{query} "
+            f"AND {data_table}.timestamp >= '{start_date_time}' "
+            f"AND {data_table}.timestamp <= '{end_date_time}' "
+        )
+
+        job_config = bigquery.QueryJobConfig()
+        job_config.use_query_cache = True
+
+        dataframe = (
+            bigquery.Client()
+            .query(f"select distinct * from ({query})", job_config)
+            .result()
+            .to_dataframe()
+        )
+
+        return dataframe.to_dict("records")
+
+    @staticmethod
+    def compute_uptime_summary(
+        devices: list[str],
+        start_date_time: datetime,
+        end_date_time: datetime,
+        site: str,
+        airqloud: str,
+        data: list,
+    ):
+        if len(data) == 0:
+            return data
+
+        if len(devices) != 0:
+            return data
+        elif site.strip() != "":
+            site_uptime = pd.DataFrame(data)
+            uptime = float(site_uptime["uptime"].mean())
+            downtime = float(site_uptime["downtime"].mean())
+            data_points = int(site_uptime["data_points"].sum())
+            hourly_threshold = int(site_uptime.iloc[0]["hourly_threshold"])
+            return {
+                "start_date_time": start_date_time,
+                "end_date_time": end_date_time,
+                "site_id": site_uptime.iloc[0]["site_id"],
+                "site_name": site_uptime.iloc[0]["site_name"],
+                "uptime": uptime,
+                "downtime": downtime,
+                "data_points": data_points,
+                "hourly_threshold": hourly_threshold,
+                "devices": data,
+            }
+        elif airqloud.strip() != "":
+            sites_data = pd.DataFrame(data)
+            uptime = float(sites_data["uptime"].mean())
+            downtime = float(sites_data["downtime"].mean())
+            data_points = int(sites_data["data_points"].sum())
+            hourly_threshold = int(sites_data.iloc[0]["hourly_threshold"])
+
+            sites_uptime = sites_data.groupby(["site_id", "site_name"], as_index=False)[
+                "uptime"
+            ].mean()
+            sites_downtime = sites_data.groupby(
+                ["site_id", "site_name"], as_index=False
+            )["downtime"].mean()
+            sites_data_points = sites_data.groupby(
+                ["site_id", "site_name"], as_index=False
+            )["data_points"].sum()
+
+            sites = pd.merge(
+                sites_uptime, sites_downtime, on=["site_id", "site_name"]
+            ).merge(sites_data_points, on=["site_id", "site_name"])
+            sites["hourly_threshold"] = hourly_threshold
+            sites["start_date_time"] = start_date_time
+            sites["end_date_time"] = end_date_time
+
+            return {
+                "start_date_time": start_date_time,
+                "end_date_time": end_date_time,
+                "airqloud_id": sites_data.iloc[0]["airqloud_id"],
+                "airqloud_name": sites_data.iloc[0]["airqloud_name"],
+                "uptime": uptime,
+                "downtime": downtime,
+                "data_points": data_points,
+                "hourly_threshold": hourly_threshold,
+                "sites": sites.to_dict("records"),
+                "devices": data,
+            }
+        return {}
+
     def __init__(
         self,
         start_date_time: datetime,
