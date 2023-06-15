@@ -594,6 +594,80 @@ class EventsModel(BasePyMongoModel):
 
     @classmethod
     @cache.memoize()
+    def get_devices_summary(
+        cls,
+        airqloud,
+        start_date_time,
+        end_date_time,
+    ) -> list:
+        data_table = f"`{cls.DEVICES_SUMMARY_TABLE}`"
+
+        # Data sources
+        sites_table = cls.BIGQUERY_SITES
+        airqlouds_sites_table = cls.BIGQUERY_AIRQLOUDS_SITES
+        airqlouds_table = cls.BIGQUERY_AIRQLOUDS
+
+        data_query = (
+            f" SELECT {data_table}.device ,  "
+            f" SUM({data_table}.uncalibrated_records) as uncalibrated_records , "
+            f" SUM({data_table}.calibrated_records) as calibrated_records , "
+            f" SUM({data_table}.hourly_records) as hourly_records , "
+            f" (SUM({data_table}.calibrated_records) / SUM({data_table}.hourly_records)) * 100 as calibrated_percentage , "
+            f" (SUM({data_table}.uncalibrated_records) / SUM({data_table}.hourly_records)) * 100 as uncalibrated_percentage "
+        )
+
+        meta_data_query = (
+            f" SELECT {airqlouds_sites_table}.airqloud_id , "
+            f" {airqlouds_sites_table}.site_id , "
+            f" FROM {airqlouds_sites_table} "
+            f" WHERE {airqlouds_sites_table}.airqloud_id = '{airqloud}' "
+        )
+
+        # Adding airqloud information
+        meta_data_query = (
+            f" SELECT "
+            f" {airqlouds_table}.name AS airqloud , "
+            f" meta_data.* "
+            f" FROM {airqlouds_table} "
+            f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.airqloud_id = {airqlouds_table}.id "
+        )
+
+        # Adding site information
+        meta_data_query = (
+            f" SELECT "
+            f" {sites_table}.name AS site_name , "
+            f" meta_data.* "
+            f" FROM {sites_table} "
+            f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.site_id = {sites_table}.id "
+        )
+
+        # Adding start and end times
+        query = (
+            f" {data_query} , "
+            f" meta_data.* "
+            f" FROM {data_table} "
+            f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.site_id = {data_table}.site_id "
+            f" WHERE {data_table}.timestamp >= '{start_date_time}' "
+            f" AND {data_table}.timestamp <= '{end_date_time}' "
+            f" GROUP BY {data_table}.device, "
+            f" meta_data.site_id, meta_data.airqloud_id, meta_data.site_name, meta_data.airqloud"
+        )
+        print(query)
+
+        job_config = bigquery.QueryJobConfig()
+        job_config.use_query_cache = True
+
+        dataframe = (
+            bigquery.Client()
+            .query(f"select distinct * from ({query})", job_config)
+            .result()
+            .to_dataframe()
+        )
+
+        return dataframe.to_dict("records")
+
+    @classmethod
+    @cache.memoize()
     def from_bigquery(
         cls,
         tenant,
