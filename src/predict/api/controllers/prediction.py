@@ -62,7 +62,7 @@ def predictions_for_heatmap():
         }, 400
 
     try:
-        predictions, total_count = get_gp_predictions(airqloud, page=page, limit=limit)
+        predictions, total_count, pages = get_gp_predictions(airqloud, page=page, limit=limit)
         geojson_data = convert_to_geojson(predictions)
     except Exception as e:
         _logger.error(e)
@@ -72,8 +72,6 @@ def predictions_for_heatmap():
         }, 500
 
     if len(geojson_data['features']) > 0:
-        pages = math.ceil(total_count / limit)
-
         if page > pages:
             return {
                 'message': 'Page number is greater than total pages',
