@@ -74,19 +74,19 @@ def compute_airqloud_summary(
     ]
     devices = devices.to_dict("records")
 
-    sites_hourly_records = data.groupby(["site_id", "site_name"])[
+    sites_hourly_records = data.groupby(["site_id", "site_name"], as_index=False)[
         "hourly_records"
     ].sum()
-    sites_calibrated_records = data.groupby(["site_id", "site_name"])[
+    sites_calibrated_records = data.groupby(["site_id", "site_name"], as_index=False)[
         "calibrated_records"
     ].sum()
-    sites_uncalibrated_records = data.groupby(["site_id", "site_name"])[
+    sites_uncalibrated_records = data.groupby(["site_id", "site_name"], as_index=False)[
         "uncalibrated_records"
     ].sum()
 
     sites = pd.merge(
-        sites_hourly_records, sites_calibrated_records, on="site_id"
-    ).merge(sites_uncalibrated_records, on="site_id")
+        sites_hourly_records, sites_calibrated_records, on=["site_id", "site_name"]
+    ).merge(sites_uncalibrated_records, on=["site_id", "site_name"])
 
     sites["calibrated_percentage"] = (
         sites["calibrated_records"] / sites["hourly_records"]

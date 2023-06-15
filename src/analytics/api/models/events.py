@@ -641,7 +641,6 @@ class EventsModel(BasePyMongoModel):
             f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.site_id = {sites_table}.id "
         )
 
-        # Adding start and end times
         query = (
             f" {data_query} , "
             f" meta_data.* "
@@ -652,7 +651,6 @@ class EventsModel(BasePyMongoModel):
             f" GROUP BY {data_table}.device, "
             f" meta_data.site_id, meta_data.airqloud_id, meta_data.site_name, meta_data.airqloud"
         )
-        print(query)
 
         job_config = bigquery.QueryJobConfig()
         job_config.use_query_cache = True
