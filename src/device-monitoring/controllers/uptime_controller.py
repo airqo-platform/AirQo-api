@@ -25,8 +25,8 @@ uptime_bp = Blueprint(
 )
 def get_uptime():
     json_data = request.get_json()
-    start_date_time = str_to_date(json_data.get("startDateTime"))
-    end_date_time = str_to_date(json_data.get("endDateTime"))
+    start_date_time = json_data.get("startDateTime")
+    end_date_time = json_data.get("endDateTime")
     devices = json_data.get("devices", [])
     site = json_data.get("site", "")
     airqloud = json_data.get("airqloud", "")
@@ -38,5 +38,13 @@ def get_uptime():
         site=site,
         airqloud=airqloud,
     )
-    response = dict(message="Successful", data=data)
+    uptime = Uptime.compute_uptime_summary(
+        start_date_time=start_date_time,
+        end_date_time=end_date_time,
+        data=data,
+        devices=devices,
+        site=site,
+        airqloud=airqloud,
+    )
+    response = dict(message="Successful", data=uptime)
     return jsonify(response), 200
