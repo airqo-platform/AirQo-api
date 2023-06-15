@@ -7,15 +7,54 @@ const dotenv = require("dotenv");
 dotenv.config();
 const cookieParser = require("cookie-parser");
 const bodyParser = require("body-parser");
+const session = require("express-session");
+const MongoStore = require("connect-mongo")(session);
+const mongoose = require("mongoose");
 const routes = require("@routes/index");
 const constants = require("@config/constants");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- app entry`);
 const { mongodb } = require("@config/dbConnection");
 mongodb;
+const { logText, logObject } = require("@utils/log");
 
-const { logText } = require("@utils/log");
+const morgan = require("morgan");
+const compression = require("compression");
+const helmet = require("helmet");
+const passport = require("passport");
+
+const isDev = process.env.NODE_ENV === "development";
+const isProd = process.env.NODE_ENV === "production";
 
 const app = express();
+
+const options = { mongooseConnection: mongoose.connection };
+
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET,
+    store: new MongoStore(options),
+    resave: false,
+    saveUninitialized: false,
+  })
+);
+
+if (isProd) {
+  app.use(compression());
+  app.use(helmet());
+}
+
+if (isDev) {
+  app.use(morgan("dev"));
+}
+
+app.use(passport.initialize());
+app.use(passport.session());
+app.use(bodyParser.json());
+app.use(
+  bodyParser.urlencoded({
+    extended: true,
+  })
+);
 
 app.use(log4js.connectLogger(log4js.getLogger("http"), { level: "auto" }));
 app.use(bodyParser.json({ limit: "50mb" }));
@@ -77,62 +116,64 @@ app.use(function (err, req, res, next) {
     res.status(err.status).json({
       success: false,
       message: "this endpoint does not exist",
-      error: err.message,
+      errors: { message: err.message },
     });
   } else if (err.status === 400) {
     logger.error(`bad request error --- ${err.message}`);
     res.status(err.status).json({
       success: false,
       message: "bad request error",
-      error: err.message,
+      errors: { message: err.message },
     });
   } else if (err.status === 401) {
     logger.error(`Unauthorized --- ${err.message}`);
     res.status(err.status).json({
       success: false,
       message: "Unauthorized",
-      error: err.message,
+      errors: { message: err.message },
     });
   } else if (err.status === 403) {
     logger.error(`Forbidden --- ${err.message}`);
     res.status(err.status).json({
       success: false,
       message: "Forbidden",
-      error: err.message,
+      errors: { message: err.message },
     });
   } else if (err.status === 500) {
     logger.error(`Internal Server Error --- ${err.message}`);
     res.status(err.status).json({
       success: false,
       message: "Internal Server Error",
-      error: err.message,
+      errors: { message: err.message },
     });
   } else if (err.status === 502) {
     logger.error(`Bad Gateway --- ${err.message}`);
     res.status(err.status).json({
       success: false,
       message: "Bad Gateway",
-      error: err.message,
+      errors: { message: err.message },
     });
   } else if (err.status === 503) {
     logger.error(`Service Unavailable --- ${err.message}`);
     res.status(err.status).json({
       success: false,
       message: "Service Unavailable",
-      error: err.message,
+      errors: { message: err.message },
     });
   } else if (err.status === 504) {
     logger.error(`Gateway Timeout. --- ${err.message}`);
     res.status(err.status).json({
       success: false,
       message: " Gateway Timeout.",
-      error: err.message,
+      errors: { message: err.message },
     });
   } else {
+    logger.error(`Internal Server Error --- ${err.message}`);
+    logObject("Internal Server Error", err);
     res.status(err.status || 500).json({
       success: false,
-      message: "server side error - app entry",
-      error: err.message,
+      message: "Internal Server Error - app entry",
+      errors: { message: err.message },
     });
   }
 });

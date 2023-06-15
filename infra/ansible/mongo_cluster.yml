@@ -1,0 +1,29 @@
+- hosts: mongo_cluster
+  become: true
+  vars:
+    passphrase: "passphrase" # encrypt with ansible-vault
+    auth_db: "admin"
+    adminUser: "adminUser" # encrypt with ansible-vault
+    adminPass: "adminPass" # encrypt with ansible-vault
+    tgt_db: "tgt_db" # encrypt with ansible-vault
+    userName: "userName" # encrypt with ansible-vault
+    userPass: "userPass" # encrypt with ansible-vault
+    roles: ["readWrite", "userAdmin"]
+    new_shard:
+      name: shard-0
+      server: mongod-shard-0-0.europe-west1-b.c.airqo-250220.internal
+
+  pre_tasks:
+    - name: Generate random string with OpenSSL on ansible controller
+      shell: openssl rand -base64 756 > mongo-keyfile
+      delegate_to: localhost
+      run_once: true
+      args:
+        creates: mongo-keyfile
+
+  roles:
+    - { role: 123mwanjemike.ansible_mongodb, flags: ["install"] }
+    - { role: 123mwanjemike.ansible_mongodb, flags: ["configure_tls"] }
+    - { role: 123mwanjemike.ansible_mongodb, flags: ["init_replica_set"] }
+    - { role: 123mwanjemike.ansible_mongodb, flags: ["add_shard_to_cluster"] }
+    - { role: 123mwanjemike.ansible_mongodb, flags: ["create_database"] }

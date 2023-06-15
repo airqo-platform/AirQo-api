@@ -298,6 +298,20 @@ const siteSchema = new Schema(
   }
 );
 
+siteSchema.post("save", async function(doc) {
+  doc.site_codes = [doc._id, doc.name, doc.generated_name, doc.lat_long];
+  if (doc.search_name) {
+    doc.site_codes.push(doc.search_name);
+  }
+  if (doc.location_name) {
+    doc.site_codes.push(doc.location_name);
+  }
+  if (doc.formatted_name) {
+    doc.site_codes.push(doc.formatted_name);
+  }
+  logObject("site_codes populated successfully:", doc);
+});
+
 siteSchema.pre("save", function(next) {
   if (this.isModified("latitude")) {
     delete this.latitude;

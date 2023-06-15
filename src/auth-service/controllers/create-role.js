@@ -26,7 +26,7 @@ const createRole = {
         );
       }
 
-      let request = req;
+      let request = Object.assign({}, req);
 
       if (isEmpty(tenant)) {
         request.query.tenant = constants.DEFAULT_TENANT;
@@ -847,7 +847,7 @@ const createRole = {
           : httpStatus.INTERNAL_SERVER_ERROR;
 
         return res.status(status).json({
-          success: true,
+          success: false,
           message: responseFromUnAssignPermissionFromRole.message,
           errors: responseFromUnAssignPermissionFromRole.errors
             ? responseFromUnAssignPermissionFromRole.errors

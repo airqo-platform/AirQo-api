@@ -25,15 +25,6 @@ resource "google_compute_instance" "ansible_controller" {
     network_ip = "10.132.0.44"
   }
 
-  network_interface {
-    access_config {
-      network_tier = "PREMIUM"
-    }
-    network    = "airqo-k8s-cluster"
-    subnetwork = "k8s-nodes"
-    network_ip = "10.240.0.28"
-  }
-
   project = var.project_id
 
   reservation_affinity {

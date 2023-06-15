@@ -5,11 +5,18 @@ from api.routes import api
 from flask import Blueprint, request, jsonify
 from api.models import extract as ext
 from api.helpers import validation
+from config import Config
 
-extract_bp = Blueprint("extract_bp", __name__)
+extract_bp_v1 = Blueprint("extract_v1", import_name=__name__, url_prefix=Config.BASE_URL_V1)
 
 
-@extract_bp.route(api.ALL_META_DATA_URL, methods=["GET"])
+extract_bp_v2 = Blueprint(
+    name="extract_v2", import_name=__name__, url_prefix=Config.BASE_URL_V2
+)
+
+
+@extract_bp_v1.route(api.ALL_META_DATA_URL, methods=["GET"])
+@extract_bp_v2.route(api.ALL_META_DATA_URL, methods=["GET"])
 def get_all_meta_data():
     latitude = request.args.get("latitude")
     longitude = request.args.get("longitude")
@@ -86,7 +93,8 @@ def get_all_meta_data():
     return jsonify(dict(message="Operation successful", data=data)), 200
 
 
-@extract_bp.route(api.NEAREST_WEATHER_STATIONS, methods=["GET"])
+@extract_bp_v1.route(api.NEAREST_WEATHER_STATIONS, methods=["GET"])
+@extract_bp_v2.route(api.NEAREST_WEATHER_STATIONS, methods=["GET"])
 @swag_from("/api/docs/get-nearest-stations.yml")
 def get_nearest_weather_stations():
 
@@ -123,7 +131,8 @@ def get_nearest_weather_stations():
     )
 
 
-@extract_bp.route(api.ADMINISTRATIVE_LEVELS, methods=["GET"])
+@extract_bp_v1.route(api.ADMINISTRATIVE_LEVELS, methods=["GET"])
+@extract_bp_v2.route(api.ADMINISTRATIVE_LEVELS, methods=["GET"])
 def get_administrative_levels():
 
     place_id = request.args.get("place_id", None)
@@ -147,7 +156,8 @@ def get_administrative_levels():
     )
 
 
-@extract_bp.route(api.MOBILE_CARRIER, methods=["POST"])
+@extract_bp_v1.route(api.MOBILE_CARRIER, methods=["POST"])
+@extract_bp_v2.route(api.MOBILE_CARRIER, methods=["POST"])
 def get_mobile_carrier():
     try:
         phone_number = request.get_json()["phone_number"]
@@ -172,7 +182,8 @@ def get_mobile_carrier():
         )
 
 
-@extract_bp.route(api.IP_GEO_COORDINATES, methods=["GET"])
+@extract_bp_v1.route(api.IP_GEO_COORDINATES, methods=["GET"])
+@extract_bp_v2.route(api.IP_GEO_COORDINATES, methods=["GET"])
 def get_geo_coordinates():
     try:
         ip_address = request.args.get("ip_address", request.remote_addr)
@@ -197,7 +208,8 @@ def get_geo_coordinates():
         )
 
 
-@extract_bp.route(api.GREENNESS_URL, methods=["GET"])
+@extract_bp_v1.route(api.GREENNESS_URL, methods=["GET"])
+@extract_bp_v2.route(api.GREENNESS_URL, methods=["GET"])
 def get_greenness():
     input_params = {
         "latitude": request.args.get("latitude"),
@@ -230,7 +242,8 @@ def get_greenness():
     return jsonify(response), 200
 
 
-@extract_bp.route(api.ALTITUDE_URL, methods=["GET"])
+@extract_bp_v1.route(api.ALTITUDE_URL, methods=["GET"])
+@extract_bp_v2.route(api.ALTITUDE_URL, methods=["GET"])
 def get_altitude():
     latitude = request.args.get("latitude")
     longitude = request.args.get("longitude")
@@ -258,7 +271,8 @@ def get_altitude():
     return jsonify(response), 200
 
 
-@extract_bp.route(api.ASPECT_URL, methods=["GET"])
+@extract_bp_v1.route(api.ASPECT_URL, methods=["GET"])
+@extract_bp_v2.route(api.ASPECT_URL, methods=["GET"])
 def get_aspect():
     latitude = request.args.get("latitude")
     longitude = request.args.get("longitude")
@@ -286,7 +300,8 @@ def get_aspect():
     return jsonify(response), 200
 
 
-@extract_bp.route(api.LANDFORM90_URL, methods=["GET"])
+@extract_bp_v1.route(api.LANDFORM90_URL, methods=["GET"])
+@extract_bp_v2.route(api.LANDFORM90_URL, methods=["GET"])
 def get_landform90():
     latitude = request.args.get("latitude")
     longitude = request.args.get("longitude")
@@ -314,7 +329,8 @@ def get_landform90():
     return jsonify(response), 200
 
 
-@extract_bp.route(api.LANDFORM270_URL, methods=["GET"])
+@extract_bp_v1.route(api.LANDFORM270_URL, methods=["GET"])
+@extract_bp_v2.route(api.LANDFORM270_URL, methods=["GET"])
 def get_landform270():
     latitude = request.args.get("latitude")
     longitude = request.args.get("longitude")
@@ -342,7 +358,8 @@ def get_landform270():
     return jsonify(response), 200
 
 
-@extract_bp.route(api.BEARING_FROM_KAMPALA_URL, methods=["GET"])
+@extract_bp_v1.route(api.BEARING_FROM_KAMPALA_URL, methods=["GET"])
+@extract_bp_v2.route(api.BEARING_FROM_KAMPALA_URL, methods=["GET"])
 def get_bearing_from_kampala():
     latitude = request.args.get("latitude")
     longitude = request.args.get("longitude")
@@ -373,7 +390,8 @@ def get_bearing_from_kampala():
     return jsonify(response), 200
 
 
-@extract_bp.route(api.DISTANCE_FROM_KAMPALA_URL, methods=["GET"])
+@extract_bp_v1.route(api.DISTANCE_FROM_KAMPALA_URL, methods=["GET"])
+@extract_bp_v2.route(api.DISTANCE_FROM_KAMPALA_URL, methods=["GET"])
 def get_distance_from_kampala():
     latitude = request.args.get("latitude")
     longitude = request.args.get("longitude")
@@ -403,7 +421,8 @@ def get_distance_from_kampala():
     return jsonify(response), 200
 
 
-@extract_bp.route(api.DISTANCE_CLOSEST_ROAD_URL, methods=["GET"])
+@extract_bp_v1.route(api.DISTANCE_CLOSEST_ROAD_URL, methods=["GET"])
+@extract_bp_v2.route(api.DISTANCE_CLOSEST_ROAD_URL, methods=["GET"])
 def get_distance_to_closest_road():
 
     latitude = request.args.get("latitude")
@@ -434,7 +453,8 @@ def get_distance_to_closest_road():
     return jsonify(response), 200
 
 
-@extract_bp.route(api.DISTANCE_CLOSEST_PRIMARY_ROAD_URL, methods=["GET"])
+@extract_bp_v1.route(api.DISTANCE_CLOSEST_PRIMARY_ROAD_URL, methods=["GET"])
+@extract_bp_v2.route(api.DISTANCE_CLOSEST_PRIMARY_ROAD_URL, methods=["GET"])
 def get_distance_to_closest_primary_road():
 
     latitude = request.args.get("latitude")
@@ -465,7 +485,8 @@ def get_distance_to_closest_primary_road():
     return jsonify(response), 200
 
 
-@extract_bp.route(api.DISTANCE_CLOSEST_SECONDARY_ROAD_URL, methods=["GET"])
+@extract_bp_v1.route(api.DISTANCE_CLOSEST_SECONDARY_ROAD_URL, methods=["GET"])
+@extract_bp_v2.route(api.DISTANCE_CLOSEST_SECONDARY_ROAD_URL, methods=["GET"])
 def get_distance_to_closest_secondary_road():
 
     latitude = request.args.get("latitude")
@@ -496,7 +517,8 @@ def get_distance_to_closest_secondary_road():
     return jsonify(response), 200
 
 
-@extract_bp.route(api.DISTANCE_CLOSEST_RESIDENTIAL_ROAD_URL, methods=["GET"])
+@extract_bp_v1.route(api.DISTANCE_CLOSEST_RESIDENTIAL_ROAD_URL, methods=["GET"])
+@extract_bp_v2.route(api.DISTANCE_CLOSEST_RESIDENTIAL_ROAD_URL, methods=["GET"])
 def get_distance_to_closest_residential_road():
 
     latitude = request.args.get("latitude")
@@ -528,7 +550,8 @@ def get_distance_to_closest_residential_road():
     return jsonify(response), 200
 
 
-@extract_bp.route(api.DISTANCE_CLOSEST_TERTIARY_ROAD_URL, methods=["GET"])
+@extract_bp_v1.route(api.DISTANCE_CLOSEST_TERTIARY_ROAD_URL, methods=["GET"])
+@extract_bp_v2.route(api.DISTANCE_CLOSEST_TERTIARY_ROAD_URL, methods=["GET"])
 def get_distance_to_closest_tertiary_road():
 
     latitude = request.args.get("latitude")
@@ -559,7 +582,8 @@ def get_distance_to_closest_tertiary_road():
     return jsonify(response), 200
 
 
-@extract_bp.route(api.DISTANCE_CLOSEST_TRUNK_ROAD_URL, methods=["GET"])
+@extract_bp_v1.route(api.DISTANCE_CLOSEST_TRUNK_ROAD_URL, methods=["GET"])
+@extract_bp_v2.route(api.DISTANCE_CLOSEST_TRUNK_ROAD_URL, methods=["GET"])
 def get_distance_to_closest_trunk_road():
 
     latitude = request.args.get("latitude")
@@ -590,7 +614,8 @@ def get_distance_to_closest_trunk_road():
     return jsonify(response), 200
 
 
-@extract_bp.route(api.DISTANCE_CLOSEST_UNCLASSIFIED_ROAD_URL, methods=["GET"])
+@extract_bp_v1.route(api.DISTANCE_CLOSEST_UNCLASSIFIED_ROAD_URL, methods=["GET"])
+@extract_bp_v2.route(api.DISTANCE_CLOSEST_UNCLASSIFIED_ROAD_URL, methods=["GET"])
 def get_distance_to_closest_unclassified_road():
 
     latitude = request.args.get("latitude")
@@ -622,7 +647,8 @@ def get_distance_to_closest_unclassified_road():
     return jsonify(response), 200
 
 
-@extract_bp.route(api.DISTANCE_CLOSEST_MOTORWAY_ROAD_URL, methods=["GET"])
+@extract_bp_v1.route(api.DISTANCE_CLOSEST_MOTORWAY_ROAD_URL, methods=["GET"])
+@extract_bp_v2.route(api.DISTANCE_CLOSEST_MOTORWAY_ROAD_URL, methods=["GET"])
 def get_distance_to_closest_motorway_road():
 
     latitude = request.args.get("latitude")
@@ -653,7 +679,8 @@ def get_distance_to_closest_motorway_road():
     return jsonify(response), 200
 
 
-@extract_bp.route(api.LAND_USE_URL, methods=["GET"])
+@extract_bp_v1.route(api.LAND_USE_URL, methods=["GET"])
+@extract_bp_v2.route(api.LAND_USE_URL, methods=["GET"])
 def get_land_use():
 
     latitude = request.args.get("latitude")
@@ -682,7 +709,8 @@ def get_land_use():
     return jsonify(response), 200
 
 
-@extract_bp.route(api.TAHMO_WEATHER_STATIONS_ACCOUNT_HAS_ACCESS_TO_URL, methods=["GET"])
+@extract_bp_v1.route(api.TAHMO_WEATHER_STATIONS_ACCOUNT_HAS_ACCESS_TO_URL, methods=["GET"])
+@extract_bp_v2.route(api.TAHMO_WEATHER_STATIONS_ACCOUNT_HAS_ACCESS_TO_URL, methods=["GET"])
 def get_all_weather_station_account_has_access_on():
     errors = {}
     if errors:
@@ -703,7 +731,8 @@ def get_all_weather_station_account_has_access_on():
     return jsonify(response), 200
 
 
-@extract_bp.route(api.TAHMO_WEATHER_STATION_VARIABLES_URL, methods=["GET"])
+@extract_bp_v1.route(api.TAHMO_WEATHER_STATION_VARIABLES_URL, methods=["GET"])
+@extract_bp_v2.route(api.TAHMO_WEATHER_STATION_VARIABLES_URL, methods=["GET"])
 def get_all_available_variables_and_units_tahmo_api():
     errors = {}
     if errors:
@@ -724,7 +753,8 @@ def get_all_available_variables_and_units_tahmo_api():
     return jsonify(response), 200
 
 
-@extract_bp.route(api.TAHMO_WEATHER_STATION_MEASUREMENTS_URL, methods=["GET"])
+@extract_bp_v1.route(api.TAHMO_WEATHER_STATION_MEASUREMENTS_URL, methods=["GET"])
+@extract_bp_v2.route(api.TAHMO_WEATHER_STATION_MEASUREMENTS_URL, methods=["GET"])
 def get_station_measurements():
     errors = {}
     if errors:

@@ -2,14 +2,11 @@ import argparse
 import json
 import traceback
 
-import urllib3
 from kafka import KafkaConsumer
 
 from airqo_api import AirQoApi
 from config import Config
 from api.models import extract as ext
-
-urllib3.disable_warnings()
 
 
 class MessageBroker:

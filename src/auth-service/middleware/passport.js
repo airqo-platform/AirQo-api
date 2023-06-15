@@ -10,6 +10,7 @@ const { logElement, logText, logObject, winstonLogger } = require("@utils/log");
 const { Strategy: JwtStrategy, ExtractJwt } = require("passport-jwt");
 const AuthTokenStrategy = require("passport-auth-token");
 const jwt = require("jsonwebtoken");
+const accessCodeGenerator = require("generate-password");
 
 const { getModelByTenant } = require("@config/dbConnection");
 
@@ -139,12 +140,13 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
             service: service ? service : "none",
           }
         );
-        logger.info(`successful login`, {
-          username: user.userName,
-          email: user.email,
-        });
+        // logger.info(`successful login`, {
+        //   username: user.userName,
+        //   email: user.email,
+        // });
         return done(null, user);
       } catch (e) {
+        req.auth = {};
         req.auth.success = false;
         req.auth.message = "Server Error";
         req.auth.error = e.message;
@@ -183,12 +185,13 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
             service: service ? service : "none",
           }
         );
-        logger.info(`successful login`, {
-          username: user.userName,
-          email: user.email,
-        });
+        // logger.info(`successful login`, {
+        //   username: user.userName,
+        //   email: user.email,
+        // });
         return done(null, user);
       } catch (e) {
+        req.auth = {};
         req.auth.success = false;
         req.auth.message = "Server Error";
         req.auth.error = e.message;
@@ -202,34 +205,70 @@ const useGoogleStrategy = (tenant, req, res, next) =>
       clientID: constants.GOOGLE_CLIENT_ID,
       clientSecret: constants.GOOGLE_CLIENT_SECRET,
       callbackURL: `${constants.PLATFORM_BASE_URL}/api/v1/users/auth/google/callback`,
-      passReqToCallback: true,
     },
-    function (accessToken, refreshToken, profile, cb) {
-      req.auth = {};
-      UserModel(tenant.toLowerCase())
-        .findOneAndUpdate(
-          { google_id: profile.id },
-          {
-            google_id: profile.id,
-            firstName: profile.givenName,
-            lastName: profile.familyName,
-            profilePicture: profile.photos[0].value,
-            email: profile.emails[0].value,
-            userName: profile.displayName,
-          },
-          { upsert: true, new: true }
-        )
-        .then((user) => {
+    async (accessToken, refreshToken, profile, cb) => {
+      logObject("Google profile Object", profile._json);
+
+      try {
+        const service = req.headers["service"];
+        const user = await UserModel(tenant.toLowerCase())
+          .findOne({
+            email: profile._json.email,
+          })
+          .exec();
+        // let user = result.toJSON();
+        req.auth = {};
+        if (user) {
+          // logObject("the user", user);
           req.auth.success = true;
-          req.auth.message = "successful login or registration";
-          return cb(null, user);
-        })
-        .catch((error) => {
-          req.auth.success = false;
-          req.auth.message = "Server Error";
-          req.auth.error = error.message;
-          next();
-        });
+          req.auth.message = "successful login";
+
+          winstonLogger.info(
+            `successful login through ${service ? service : "unknown"} service`,
+            {
+              username: user.userName,
+              email: user.email,
+              service: service ? service : "none",
+            }
+          );
+          cb(null, user);
+          return next();
+          // return cb(null, user);
+        } else {
+          const responseFromRegisterUser = await UserModel(tenant).register({
+            google_id: profile._json.sub,
+            firstName: profile._json.given_name,
+            lastName: profile._json.family_name,
+            email: profile._json.email,
+            userName: profile._json.email,
+            profilePicture: profile._json.picture,
+            website: profile._json.hd,
+            password: accessCodeGenerator.generate(
+              constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH)
+            ),
+          });
+          if (responseFromRegisterUser.success === false) {
+            req.auth.success = false;
+            req.auth.message = "unable to create user";
+            cb(responseFromRegisterUser.errors, false);
+            next();
+          } else {
+            logObject("the newly created user", responseFromRegisterUser.data);
+            user = responseFromRegisterUser.data;
+            cb(null, user);
+
+            return next();
+          }
+        }
+      } catch (error) {
+        logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+        logObject("error", error);
+        req.auth = {};
+        req.auth.success = false;
+        req.auth.message = "Server Error";
+        req.auth.error = e.message;
+        next();
+      }
     }
   );
 const useJWTStrategy = (tenant, req, res, next) =>
@@ -319,7 +358,17 @@ const setLocalStrategy = (tenant, req, res, next) => {
 };
 
 const setGoogleStrategy = (tenant, req, res, next) => {
-  passport.use("google", useGoogleStrategy(tenant, req, res, next));
+  passport.use(useGoogleStrategy(tenant, req, res, next));
+  passport.serializeUser((user, done) => {
+    done(null, user);
+  });
+  passport.deserializeUser(async (user, done) => {
+    await UserModel(tenant.toLowerCase())
+      .findById(id)
+      .then((user) => {
+        done(null, user);
+      });
+  });
 };
 
 const setJWTStrategy = (tenant, req, res, next) => {
@@ -332,10 +381,6 @@ const setAuthTokenStrategy = (tenant, req, res, next) => {
 
 function setLocalAuth(req, res, next) {
   try {
-    /**
-     * do input validations and then just call the set
-     * set local strategy afterwards -- the function is called from here
-     */
     const hasErrors = !validationResult(req).isEmpty();
     if (hasErrors) {
       let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -363,6 +408,8 @@ function setGoogleAuth(req, res, next) {
      * do input validations and then just call the set
      * set local strategy afterwards -- the function is called from here
      */
+
+    logText("we are setting the Google Auth");
     const hasErrors = !validationResult(req).isEmpty();
     if (hasErrors) {
       let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -379,6 +426,7 @@ function setGoogleAuth(req, res, next) {
     setGoogleStrategy(tenant, req, res, next);
     next();
   } catch (e) {
+    logObject("e", e);
     console.log("the error in setLocalAuth is: ", e.message);
     res.json({ success: false, message: e.message });
   }
@@ -422,10 +470,12 @@ const authLocal = passport.authenticate("user-local", {
   failureFlash: true,
 });
 
-const authGoogle = passport.authenticate("google", { scope: ["profile"] });
+const authGoogle = passport.authenticate("google", {
+  scope: ["profile", "email"],
+});
 
 const authGoogleCallback = passport.authenticate("google", {
-  failureRedirect: "/login",
+  failureRedirect: `${constants.GMAIL_VERIFICATION_FAILURE_REDIRECT}`,
 });
 
 const authGuest = (req, res, next) => {

@@ -70,11 +70,11 @@ def airqo_calibrate_measurements():
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(**kwargs)
 
         bigquery_api = BigQueryApi()
+        data["tenant"] = str(Tenant.AIRQO)
 
         data = DataValidationUtils.process_for_big_query(
             dataframe=data,
             table=bigquery_api.hourly_measurements_table,
-            tenant=Tenant.AIRQO,
         )
 
         bigquery_api.reload_data(
@@ -112,7 +112,7 @@ def airqo_historical_hourly_measurements():
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
 
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
-            days=7, **kwargs
+            historical=True, days=7, **kwargs
         )
         return AirQoDataUtils.extract_aggregated_raw_data(
             start_date_time=start_date_time,
@@ -124,7 +124,7 @@ def airqo_historical_hourly_measurements():
         from airqo_etl_utils.date import DateUtils
         from airqo_etl_utils.weather_data_utils import WeatherDataUtils
 
-        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(**kwargs)
+        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(historical=True,**kwargs)
 
         return WeatherDataUtils.extract_hourly_weather_data(
             start_date_time=start_date_time,
@@ -157,6 +157,22 @@ def airqo_historical_hourly_measurements():
             table=big_query_api.hourly_measurements_table,
         )
 
+    @task()
+    def send_hourly_measurements_to_api(airqo_data: pd.DataFrame, **kwargs):
+        send_to_api_param = kwargs.get("params", {}).get("send_to_api")
+        if send_to_api_param:
+            from airqo_etl_utils.airqo_api import AirQoApi
+            from airqo_etl_utils.airqo_utils import AirQoDataUtils
+
+            data = AirQoDataUtils.process_data_for_api(
+                airqo_data, frequency=Frequency.HOURLY
+            )
+
+            airqo_api = AirQoApi()
+            airqo_api.save_events(measurements=data)
+        else:
+            print("The send to API parameter has been set to false")
+
     extracted_device_measurements = extract_device_measurements()
     extracted_weather_data = extract_weather_data()
     merged_data = merge_data(
@@ -165,6 +181,7 @@ def airqo_historical_hourly_measurements():
     )
     calibrated_data = calibrate_data(merged_data)
     load(calibrated_data)
+    send_hourly_measurements_to_api(calibrated_data)
 
 
 @dag(
@@ -184,7 +201,7 @@ def airqo_historical_raw_measurements():
         from airqo_etl_utils.constants import DeviceCategory
 
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
-            days=2, **kwargs
+            historical=True,days=2, **kwargs
         )
         return AirQoDataUtils.extract_devices_data(
             start_date_time=start_date_time,
@@ -447,7 +464,6 @@ def airqo_realtime_measurements():
         data = AirQoDataUtils.process_raw_data_for_bigquery(data=airqo_data)
         big_query_api = BigQueryApi()
         big_query_api.load_data(data, table=big_query_api.raw_measurements_table)
-
 
     @task()
     def update_latest_data_topic(data: pd.DataFrame):
