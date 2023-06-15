@@ -1,4 +1,5 @@
 const { Schema } = require("mongoose");
+const mongoose = require("mongoose");
 const ObjectId = Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
 const { logElement, logObject, logText } = require("@utils/log");
@@ -11,16 +12,23 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-airqloud-model`
 );
 
-const polygonSchema = new Schema(
+const polygonSchema = new mongoose.Schema(
   {
     type: {
       type: String,
-      enum: ["Polygon"],
+      enum: ["Polygon", "MultiPolygon"],
       required: true,
     },
     coordinates: {
-      type: [[[Number]]],
-      required: true,
+      type: {
+        type: String,
+        enum: ["Polygon", "MultiPolygon"],
+        required: true,
+      },
+      coordinates: {
+        type: [[[Number]]],
+        required: true,
+      },
     },
   },
   { _id: false }
@@ -159,6 +167,14 @@ const airqloudSchema = new Schema(
     network: {
       type: String,
       trim: true,
+    },
+    logicalCriteria: {
+      type: String,
+      default: null,
+    },
+    geographicalCriteria: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
     },
     airqloud_tags: {
       type: Array,
