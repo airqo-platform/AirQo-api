@@ -20,6 +20,7 @@ class Config:
     BIGQUERY_MEASUREMENTS_PREDICTIONS = os.getenv("BIGQUERY_MEASUREMENTS_PREDICTIONS")
     AIRQO_BASE_URL = os.getenv("AIRQO_BASE_URL", "https://api.airqo.net")
     AIRQO_API_AUTH_TOKEN = os.getenv("AIRQO_API_AUTH_TOKEN", "")
+    CACHE_TIMEOUT = os.getenv("CACHE_TIMEOUT", 3600)
 
 
 class ProductionConfig(Config):
