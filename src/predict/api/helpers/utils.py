@@ -1,3 +1,4 @@
+import math
 import traceback
 from datetime import datetime
 
@@ -53,7 +54,7 @@ def convert_to_geojson(data):
     """
     features = []
     for record in data:
-        point = geojson.Point((record['values']['latitude'], record['values']['latitude']))
+        point = geojson.Point((record['values']['longitude'], record['values']['latitude']))
         feature = geojson.Feature(geometry=point, properties={
             "predicted_value": record['values']["predicted_value"],
             "variance": record['values']["variance"],
@@ -76,7 +77,7 @@ def get_gp_predictions(airqloud=None, page=1, limit=500):
                 "airqloud_id": "$airqloud_id",
                 "airqloud": "$airqloud"
             },
-            "doc": {"$first": "$$ROOT"}
+            "doc": {"$first": "$$ROOT"},
         }},
         {"$replaceRoot": {"newRoot": "$doc"}},
         {"$project": {
@@ -86,13 +87,30 @@ def get_gp_predictions(airqloud=None, page=1, limit=500):
             'created_at': 1,
             'values': 1
         }},
-        {"$unwind": "$values"}
+        {"$unwind": "$values"},
+        {"$setWindowFields": {
+            "partitionBy": {
+                "airqloud_id": "$airqloud_id",
+                "airqloud": "$airqloud"
+            },
+            "sortBy": {"created_at": 1},
+            "output": {
+                "total": {
+                    "$sum": 1,
+                    "window": {
+                        "documents": ["unbounded", "unbounded"]
+                    }
+                }
+            }
+        }},
+        {"$skip": (page - 1) * limit},
+        {"$limit": limit}
     ]
-    result = db.gp_predictions.aggregate(pipeline)
-    predictions = list(result)
-    total_count = len(predictions)
-    paginated_results = predictions[(page - 1) * limit:page * limit]
-    return paginated_results, total_count
+    predictions = db.gp_predictions.aggregate(pipeline)
+    predictions = list(predictions)
+    total_count = predictions[0]['total']
+    pages = math.ceil(total_count / limit)
+    return predictions, total_count, pages
 
 
 @cache.memoize(timeout=Config.CACHE_TIMEOUT)
