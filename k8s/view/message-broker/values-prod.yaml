@@ -6,7 +6,7 @@ app:
 replicaCount: 2
 image:
   repository: eu.gcr.io/airqo-250220/airqo-view-message-broker
-  tag: prod-a36ce1ba-1686814647
+  tag: prod-05283ddd-1686833455
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations:
