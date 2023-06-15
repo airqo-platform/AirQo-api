@@ -21,9 +21,9 @@ from api.models.data_export import (
 # Middlewares
 from api.utils.data_formatters import (
     format_to_aqcsv,
-    compute_airqloud_data_statistics,
+    compute_airqloud_summary,
 )
-from api.utils.dates import str_to_date
+from api.utils.dates import str_to_date, date_to_str
 from api.utils.http import create_response, Status
 from api.utils.request_validators import validate_request_json
 from main import rest_api_v1, rest_api_v2
@@ -379,8 +379,8 @@ class DataSummaryResource(Resource):
         try:
             json_data = request.get_json()
 
-            start_date_time = json_data["startDateTime"]
-            end_date_time = json_data["endDateTime"]
+            start_date_time = str_to_date(json_data["startDateTime"])
+            end_date_time = str_to_date(json_data["endDateTime"])
             airqloud = str(json_data.get("airqloud", ""))
 
             if airqloud.strip() == "":
@@ -391,14 +391,15 @@ class DataSummaryResource(Resource):
                     ),
                     Status.HTTP_400_BAD_REQUEST,
                 )
-
-            data = EventsModel.get_data_for_summary(
+            start_date_time = date_to_str(start_date_time, format="%Y-%m-%dT%H:00:00Z")
+            end_date_time = date_to_str(end_date_time, format="%Y-%m-%dT%H:00:00Z")
+            data = EventsModel.get_devices_summary(
                 airqloud=airqloud,
                 start_date_time=start_date_time,
                 end_date_time=end_date_time,
             )
 
-            summary = compute_airqloud_data_statistics(
+            summary = compute_airqloud_summary(
                 data=pd.DataFrame(data),
                 start_date_time=start_date_time,
                 end_date_time=end_date_time,
@@ -411,7 +412,7 @@ class DataSummaryResource(Resource):
                         data={},
                         success=False,
                     ),
-                    Status.HTTP_404_NOT_FOUND,
+                    Status.HTTP_200_OK,
                 )
 
             return (
