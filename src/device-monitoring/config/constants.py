@@ -59,6 +59,7 @@ class Config:
     COLLOCATION_CELERY_MINUTES_INTERVAL = int(
         os.getenv("COLLOCATION_CELERY_MINUTES_INTERVAL", 10)
     )
+    BIGQUERY_DEVICE_UPTIME_TABLE = os.getenv("BIGQUERY_DEVICE_UPTIME_TABLE")
 
 
 class ProductionConfig(Config):

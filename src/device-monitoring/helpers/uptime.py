@@ -8,6 +8,8 @@ from google.cloud import bigquery
 from config.constants import Config
 from helpers.convert_dates import date_to_str
 
+from app import cache
+
 
 class MetaData:
     def __init__(
@@ -60,6 +62,64 @@ class MetaData:
 
 
 class Uptime:
+    @staticmethod
+    @cache.memoize(timeout=1800)
+    def get_uptime(
+        devices: list[str],
+        start_date_time: datetime,
+        end_date_time: datetime,
+        site: str,
+        airqloud: str,
+    ) -> list:
+        data_table = f"`{Config.BIGQUERY_DEVICE_UPTIME_TABLE}`"
+
+        query = (
+            f" SELECT {data_table}.timestamp ,  "
+            f" {data_table}.hourly_threshold , "
+            f" {data_table}.data_points , "
+            f" {data_table}.uptime , "
+            f" {data_table}.downtime , "
+            f" {data_table}.average_battery , "
+            f" {data_table}.device , "
+            f" {data_table}.downtime , "
+        )
+
+        if len(devices) != 0:
+            query = (
+                f"{query} "
+                f"FROM {data_table} "
+                f"WHERE {data_table}.device IN UNNEST({devices})"
+            )
+        elif site.strip() != "":
+            query = (
+                f"{query}, {data_table}.site_id "
+                f"FROM {data_table} "
+                f"WHERE {data_table}.site_id = {site}"
+            )
+        elif airqloud.strip() != "":
+            query = (
+                f"{query} "
+                f"FROM {data_table} "
+                f"WHERE {data_table}.airqloud = {airqloud}"
+            )
+        query = (
+            f"{query} "
+            f"AND {data_table}.timestamp >= '{start_date_time}' "
+            f"AND {data_table}.timestamp <= '{end_date_time}' "
+        )
+
+        job_config = bigquery.QueryJobConfig()
+        job_config.use_query_cache = True
+
+        dataframe = (
+            bigquery.Client()
+            .query(f"select distinct * from ({query})", job_config)
+            .result()
+            .to_dataframe()
+        )
+
+        return dataframe.to_dict("records")
+
     def __init__(
         self,
         start_date_time: datetime,
