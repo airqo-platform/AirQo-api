@@ -48,6 +48,7 @@ app.use("/api/v1/devices/events", routes.v1.events);
 app.use("/api/v1/devices/locations", routes.v1.locations);
 app.use("/api/v1/devices/photos", routes.v1.photos);
 app.use("/api/v1/devices/tips", routes.v1.tips);
+app.use("/api/v1/devices/knowyourair", routes.v1.knowyourair);
 app.use("/api/v1/devices/sensors", routes.v1.sensors);
 app.use("/api/v1/devices", routes.v1.devices);
 
@@ -60,6 +61,7 @@ app.use("/api/v2/devices/measurements", routes.v2.measurements);
 app.use("/api/v2/devices/locations", routes.v2.locations);
 app.use("/api/v2/devices/photos", routes.v2.photos);
 app.use("/api/v2/devices/tips", routes.v2.tips);
+app.use("/api/v2/devices/knowyourair", routes.v2.knowyourair);
 app.use("/api/v2/devices/sensors", routes.v2.sensors);
 app.use("/api/v2/devices", routes.v2.devices);
 
