@@ -4,6 +4,7 @@ const groups = require("@routes/v1/groups");
 const inquiries = require("@routes/v1/inquiries");
 const networks = require("@routes/v1/networks");
 const permissions = require("@routes/v1/permissions");
+const favorites = require("@routes/v1/favorites");
 const requests = require("@routes/v1/requests");
 const roles = require("@routes/v1/roles");
 const users = require("@routes/v1/users");
@@ -24,4 +25,5 @@ module.exports = {
   tokens,
   scopes,
   clients,
+  favorites,
 };

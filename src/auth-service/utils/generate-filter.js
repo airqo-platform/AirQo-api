@@ -694,6 +694,31 @@ const filter = {
       };
     }
   },
+
+  favorites: (req) => {
+    try {
+      const { query, params } = req;
+      const { user_id } = query;
+      const { userId } = params;
+      let filter = {};
+      if (user_id) {
+        filter["user_id"] = ObjectId(user_id);
+      }
+
+      if (userId) {
+        filter["user_id"] = ObjectId(userId);
+      }
+      return filter;
+    } catch (e) {
+      logger.error(`internal server error, ${JSON.stringify(e)}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: e.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
 };
 
 module.exports = filter;
