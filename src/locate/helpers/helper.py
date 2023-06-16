@@ -128,8 +128,28 @@ def kmeans_algorithm_v2(data, sensor_number=None):
 
     data_copy["cluster"] = y_kmeans
 
-    kmeans_samples = data_copy.sample(frac=1).reset_index(drop=True)
-    kmeans_samples = kmeans_samples.drop_duplicates("cluster", keep="last")
+    kmeans_samples_ = data_copy.sample(frac=1).reset_index(drop=True)
+    kmeans_samples_ = kmeans_samples_.drop_duplicates("cluster", keep="last")
+    included_columns = [
+        "properties.name_1",
+        "properties.name_2",
+        "properties.name_3",
+        "properties.name_4",
+        "properties.admin_levels_metadata.admin_level_1",
+        "properties.admin_levels_metadata.admin_level_2",
+        "properties.admin_levels_metadata.admin_level_3",
+        "properties.admin_levels_metadata.admin_level_4",
+        "geometry.coordinates",
+    ]
+
+    # Create a new DataFrame with included columns
+    kmeans_samples = pd.DataFrame()
+
+    for column in included_columns:
+        if column in kmeans_samples_.columns:
+            kmeans_samples[column] = kmeans_samples_[column]
+
+    """
     kmeans_samples = kmeans_samples[
         [
             "properties.name_1",
@@ -143,6 +163,7 @@ def kmeans_algorithm_v2(data, sensor_number=None):
             "geometry.coordinates",
         ]
     ]
+    """
     return json.loads(kmeans_samples.to_json(orient="records"))
 
 
