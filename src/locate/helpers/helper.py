@@ -106,6 +106,7 @@ def kmeans_algorithm_v2(data, sensor_number=None):
     """
     Clustering data using K-Means Model
     """
+    print(data.columns)
     if sensor_number == None:
         sensor_number = silhouette(data)
 
@@ -135,6 +136,10 @@ def kmeans_algorithm_v2(data, sensor_number=None):
             "properties.name_2",
             "properties.name_3",
             "properties.name_4",
+            "properties.admin_levels_metadata.admin_level_1",
+            "properties.admin_levels_metadata.admin_level_2",
+            "properties.admin_levels_metadata.admin_level_3",
+            "properties.admin_levels_metadata.admin_level_4",
             "geometry.coordinates",
         ]
     ]

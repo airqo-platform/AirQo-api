@@ -232,10 +232,10 @@ def create_locate_map():
                 "This query param is required." "Please specify the organization name."
             )
         else:
-            org = f"{configuration.DB_NAME}_{tenant.lower()}"
+            org = f"{configuration.DB_NAME}"
             if org not in dbs:
                 errors["tenant"] = (
-                    "organization does not exist. "
+                    "Organisation database does not exist. "
                     "Refer to the API documentation for details."
                 )
         if userId is None or userId == "":
@@ -314,7 +314,7 @@ def get_locate_map():
                 "This query param is required. " "Please specify the organization name."
             )
         else:
-            org = f"{configuration.DB_NAME}_{tenant.lower()}"
+            org = f"{configuration.DB_NAME}"
             if org not in dbs:
                 errors["tenant"] = (
                     "Organization does not exist."

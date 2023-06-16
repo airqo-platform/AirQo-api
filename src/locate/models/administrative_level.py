@@ -29,6 +29,7 @@ class AdminLevel:
 
                 records = self.db.locate_data.find(query, projection)
                 records_list = list(records)
+                print(records_list[0])
                 return records_list
             except:
                 return "Invalid polygon"
