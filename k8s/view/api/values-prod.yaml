@@ -1,22 +1,39 @@
-app:
-  name: airqo-view-api
-  label: view-api
-  namespace: production
-  configmap: prod-view-api-config
-replicaCount: 2
-image:
-  repository: eu.gcr.io/airqo-250220/airqo-view-api
-  tag: prod-6050fa0d-1686855662
 nameOverride: ''
 fullnameOverride: ''
-podAnnotations: {}
-resources:
-  limits:
-    cpu: 100m
-    memory: 1500Mi
-  requests:
-    cpu: 10m
-    memory: 500Mi
+namespace: production
+api:
+  name: airqo-view-api
+  label: view-api
+  configmap: prod-view-api-config
+  replicaCount: 2
+  image:
+    repository: eu.gcr.io/airqo-250220/airqo-view-api
+    tag: prod-6050fa0d-1686855662
+  podAnnotations: {}
+  resources:
+    limits:
+      cpu: 100m
+      memory: 1500Mi
+    requests:
+      cpu: 10m
+      memory: 500Mi
+message-broker:
+  name: airqo-view-message-broker
+  label: view-msg-brokr
+  configmap: prod-view-message-broker-config
+  replicaCount: 2
+  image:
+    repository: eu.gcr.io/airqo-250220/airqo-view-message-broker
+    tag: prod-05283ddd-1686833455   
+  podAnnotations:
+    sidecar.istio.io/inject: 'false'
+  resources:
+    limits:
+      cpu: 100m
+      memory: 400Mi
+    requests:
+      cpu: 10m
+      memory: 200Mi     
 ingress:
   enabled: false
 service:
@@ -28,3 +45,4 @@ autoscaling:
   minReplicas: 1
   maxReplicas: 3
   targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80

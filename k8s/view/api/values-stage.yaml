@@ -1,22 +1,40 @@
-app:
-  name: airqo-stage-view-api
-  label: view-api
-  namespace: staging
-  configmap: stage-view-api-config
-replicaCount: 1
-image:
-  repository: eu.gcr.io/airqo-250220/airqo-stage-view-api
-  tag: stage-3b77b6fc-1686749518
 nameOverride: ''
 fullnameOverride: ''
-podAnnotations: {}
-resources:
-  limits:
-    cpu: 100m
-    memory: 1000Mi
-  requests:
-    cpu: 5m
-    memory: 420Mi
+namespace: staging
+api:
+  name: airqo-stage-view-api
+  label: view-api
+
+  configmap: stage-view-api-config
+  replicaCount: 1
+  image:
+    repository: eu.gcr.io/airqo-250220/airqo-stage-view-api
+    tag: stage-3b77b6fc-1686749518
+  podAnnotations: {}
+  resources:
+    limits:
+      cpu: 100m
+      memory: 1000Mi
+    requests:
+      cpu: 5m
+      memory: 420Mi
+message-broker:
+  name: airqo-stage-view-message-broker
+  label: view-msg-brokr
+  configmap: stage-view-message-broker-config
+  replicaCount: 2
+  image:
+    repository: eu.gcr.io/airqo-250220/airqo-stage-view-message-broker
+    tag: stage-3b77b6fc-1686749518
+  podAnnotations:
+    sidecar.istio.io/inject: 'false'
+  resources:
+    limits:
+      cpu: 50m
+      memory: 600Mi
+    requests:
+      cpu: 10m
+      memory: 400Mi      
 ingress:
   enabled: false
 service:
@@ -28,3 +46,4 @@ autoscaling:
   minReplicas: 1
   maxReplicas: 2
   targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
