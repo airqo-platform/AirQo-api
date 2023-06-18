@@ -1,0 +1,4 @@
+python-dotenv
+pandas
+kafka-python
+google-cloud-bigquery
