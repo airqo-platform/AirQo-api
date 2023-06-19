@@ -44,7 +44,7 @@ spec:
                       - general-purpose
       containers:
         - name: {{ .Values.message-broker.label }}
-          image: "{{ .Values.message-broker.image.repository }}:{{ .Values.message-broker.image.tag }}"
+          image: "{{ .Values.images.repositories.message-broker }}:{{ .Values.images.tag }}"
           imagePullPolicy: IfNotPresent
           envFrom:
             - configMapRef:

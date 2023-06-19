@@ -1,14 +1,16 @@
-nameOverride: ''
-fullnameOverride: ''
+nameOverride: ""
+fullnameOverride: ""
 namespace: production
+images:
+  repositories:
+    api: eu.gcr.io/airqo-250220/airqo-view-api
+    message-broker: eu.gcr.io/airqo-250220/airqo-view-message-broker
+  tag: prod-6050fa0d-1686855662
 api:
   name: airqo-view-api
   label: view-api
   configmap: prod-view-api-config
   replicaCount: 2
-  image:
-    repository: eu.gcr.io/airqo-250220/airqo-view-api
-    tag: prod-6050fa0d-1686855662
   podAnnotations: {}
   resources:
     limits:
@@ -22,18 +24,15 @@ message-broker:
   label: view-msg-brokr
   configmap: prod-view-message-broker-config
   replicaCount: 2
-  image:
-    repository: eu.gcr.io/airqo-250220/airqo-view-message-broker
-    tag: prod-05283ddd-1686833455   
   podAnnotations:
-    sidecar.istio.io/inject: 'false'
+    sidecar.istio.io/inject: "false"
   resources:
     limits:
       cpu: 100m
       memory: 400Mi
     requests:
       cpu: 10m
-      memory: 200Mi     
+      memory: 200Mi
 ingress:
   enabled: false
 service:
