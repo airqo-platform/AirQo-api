@@ -28,11 +28,11 @@ messageBroker:
     sidecar.istio.io/inject: "false"
   resources:
     limits:
-      cpu: 100m
-      memory: 400Mi
+      cpu: 500m
+      memory: 800Mi
     requests:
-      cpu: 10m
-      memory: 200Mi
+      cpu: 50m
+      memory: 400Mi
 ingress:
   enabled: false
 service:
