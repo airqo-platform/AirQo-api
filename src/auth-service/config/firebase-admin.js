@@ -14,7 +14,18 @@ const logger = log4js.getLogger(
 );
 
 initializeApp({
-  credential: admin.credential.cert(serviceAccount),
+  credential: admin.credential.cert({
+    type: "",
+    project_id: "",
+    private_key_id: "",
+    private_key: "",
+    client_email: "",
+    client_id: "",
+    auth_uri: "",
+    token_uri: "",
+    auth_provider_x509_cert_url: "",
+    universe_domain: "",
+  }),
   databaseURL: constants.FIREBASE_DATABASE_URL,
 });
 
@@ -116,4 +127,4 @@ const db = admin.firestore();
 //   }
 // });
 
-module.exports = {db}
+module.exports = { db };

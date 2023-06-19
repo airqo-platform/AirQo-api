@@ -21,8 +21,8 @@ const md5 = require("md5");
 const accessCodeGenerator = require("generate-password");
 const generateFilter = require("./generate-filter");
 const moment = require("moment-timezone");
-const admin = require('firebase-admin');
-const {db} = require("@config/firebase-admin");
+const admin = require("firebase-admin");
+const { db } = require("@config/firebase-admin");
 
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- create-user-util`);
@@ -89,7 +89,7 @@ const RoleModel = (tenant) => {
 
 async function deleteCollection(db, collectionPath, batchSize) {
   const collectionRef = db.collection(collectionPath);
-  const query = collectionRef.orderBy('__name__').limit(batchSize);
+  const query = collectionRef.orderBy("__name__").limit(batchSize);
 
   return new Promise((resolve, reject) => {
     deleteQueryBatch(db, query, batchSize, resolve, reject);
@@ -97,7 +97,8 @@ async function deleteCollection(db, collectionPath, batchSize) {
 }
 
 function deleteQueryBatch(db, query, batchSize, resolve, reject) {
-  query.get()
+  query
+    .get()
     .then((snapshot) => {
       // When there are no documents left, we are done
       if (snapshot.size === 0) {
@@ -113,7 +114,8 @@ function deleteQueryBatch(db, query, batchSize, resolve, reject) {
       return batch.commit().then(() => {
         return snapshot.size;
       });
-    }).then((numDeleted) => {
+    })
+    .then((numDeleted) => {
       if (numDeleted === 0) {
         resolve();
         return;
@@ -321,11 +323,14 @@ const join = {
         .then(async (getUsersResult) => {
           logObject("getUsersResult", getUsersResult);
           getUsersResult.users.forEach((userRecord) => {
+            logObject("userRecord", userRecord);
+            logObject("userRecord.email", userRecord.email);
             callback({
               success: true,
               message: "Successfully fetched user data",
               status: httpStatus.OK,
               data: [],
+              user: userRecord,
             });
           });
 
@@ -450,6 +455,227 @@ const join = {
       });
     }
   },
+
+  firebaseSignInAndCreateOrUpdateUserOnAnalytics: async (request, callback) => {
+    try {
+      const { body, query } = request;
+      const { tenant } = query;
+      /***
+       * Don't we need some sort of signin credentials at this point?
+       * More like password?
+       * Or shall we just be sending codes to the user?
+       */
+      await join.lookUpFirebaseUser(request, async (result) => {
+        if (result.success === false) {
+          callback({
+            success: false,
+            message: "Bad Request Error",
+            errors: result.errors
+              ? result.errors
+              : {
+                  message:
+                    "User does not exist, please first signup using the AirQo Mobile App",
+                },
+            status: httpStatus.BAD_REQUEST,
+          });
+        } else if (result.success === true) {
+          const userOnFirebase = result.user;
+          const filter = {
+            email: userOnFirebase.email ?? undefined,
+            phoneNumber: userOnFirebase.phoneNumber ?? undefined,
+          };
+
+          /***
+           * since there is a password involved, we shall want to use
+           * upsert:false
+           */
+          const password = accessCodeGenerator.generate(
+            constants.RANDOM_PASSWORD_CONFIGURATION(10)
+          );
+
+          let update = {
+            firstName: userOnFirebase.displayName ?? undefined,
+            lastName: userOnFirebase.displayName ?? undefined,
+            email: userOnFirebase.email ?? undefined,
+            userName: userOnFirebase.email ?? undefined,
+            phoneNumber: userOnFirebase.phoneNumber ?? undefined,
+            profilePicture: userOnFirebase.photoURL ?? undefined,
+          };
+          const options = { upsert: true, new: false };
+
+          return await UserModel(tenant)
+            .findOneAndUpdate(filter, update, options)
+            .then((updatedUser) => {
+              if (updatedUser) {
+                // Document was found and updated, or a new document was created
+                /**
+                 * this is where we might also send a code to the user
+                 * --for verification...
+                 */
+                console.log("User updated:", updatedUser);
+                callback({
+                  success: true,
+                  message: "successfully signe in the user",
+                  ...updatedUser.toAuthJSON(),
+                });
+              } else {
+                // This block will only execute if the upsert option is false
+                logText("User not found");
+                update.password = password;
+                const responseFromRegisterUser =
+                  UserModel(tenant).register(update);
+                callback(responseFromRegisterUser);
+              }
+            })
+            .catch((error) => {
+              logger.error(
+                `Internal Server Error --- ${JSON.stringify(error)}`
+              );
+              callback({
+                success: false,
+                message: "Internal Server Error",
+                status: httpStatus.INTERNAL_SERVER_ERROR,
+                errors: {
+                  message: error.message,
+                },
+              });
+            });
+        }
+      });
+    } catch (error) {
+      logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
+      callback({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      });
+    }
+  },
+
+  firebaseSignUpWithEmailOrPhoneNumber: async (request, callback) => {
+    try {
+      /***
+       * we shall also verify the token and  store it along side the user details
+       * In the list of users, only show users whose accounts have been verified
+       * accounts which have not been verified are automatically deleted after 48 hours from
+       * the date of creation --- this can also be communicated via email
+       */
+      const { body, query } = request;
+      const { phoneNumber, email, password } = body;
+      await join.lookUpFirebaseUser(request, async (result) => {
+        if (result.success === true) {
+          callback({
+            success: false,
+            message: "Bad Request Error",
+            errors: result.errors
+              ? result.errors
+              : {
+                  message:
+                    "User already exists, consider signin with your credentials",
+                },
+            status: httpStatus.BAD_REQUEST,
+          });
+        } else if (result.success === false) {
+          if (!isEmpty(email)) {
+            const newUserDetails = await admin.auth().createUser({
+              email,
+              password,
+            });
+            const user = newUserDetails.toJSON();
+
+            const password = accessCodeGenerator.generate(
+              constants.RANDOM_PASSWORD_CONFIGURATION(10)
+            );
+
+            const firstName = user.displayName ?? undefined;
+            const lastName = user.displayName ?? undefined;
+            const email = user.email ?? undefined;
+            const userName = user.email ?? undefined;
+            const phoneNumber = user.phoneNumber ?? undefined;
+            const profilePicture = user.photoURL ?? undefined;
+            let userDetails = {
+              firstName,
+              lastName,
+              email,
+              userName,
+              phoneNumber,
+              profilePicture,
+              password,
+            };
+
+            const responseFromCreateUserOnPlatform = await UserModel(
+              tenant
+            ).register(userDetails);
+            callback(responseFromCreateUserOnPlatform);
+          } else if (!isEmpty(phoneNumber)) {
+            const newUserDetails = await admin.auth().createUser({
+              email,
+              password,
+            });
+            const user = newUserDetails.toJSON();
+            const password = accessCodeGenerator.generate(
+              constants.RANDOM_PASSWORD_CONFIGURATION(10)
+            );
+
+            const firstName = user.displayName ?? undefined;
+            const lastName = user.displayName ?? undefined;
+            const email = user.email ?? undefined;
+            const userName = user.email ?? undefined;
+            const phoneNumber = user.phoneNumber ?? undefined;
+            const profilePicture = user.photoURL ?? undefined;
+            let userDetails = {
+              firstName,
+              lastName,
+              email,
+              userName,
+              phoneNumber,
+              profilePicture,
+              password,
+            };
+
+            const responseFromCreateUserOnPlatform = await UserModel(
+              tenant
+            ).register(userDetails);
+            callback(responseFromCreateUserOnPlatform);
+          }
+        }
+      });
+    } catch (error) {
+      logger.error(`Internal Server Error --- ${JSON.stringify(error)}`);
+      callback({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      });
+    }
+  },
+
+  firebaseVerifyToken: async (request, callback) => {
+    try {
+      /***
+       * just receive the token from the user
+       *  And then check for the tokens existence?
+       *
+       * if the token is accurate, then:
+       * 1. generate a signin link for the user
+       * 2. verify the user account on the Platform, perhaps even create the User at this step
+       * 3. Send back the signin link and all corresponding details to the Client who
+       * is calling this endpoint
+       *
+       * Handle all appropriate edge cases in the process of doing so.
+       */
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
   delete: async (request) => {
     try {
       const { query } = request;
@@ -1085,7 +1311,7 @@ const join = {
       let { userId } = body;
       let { creationTime } = body;
       const userRecord = await admin.auth().getUser(userId);
-      
+
       //get creation time and compare with creationTime
       let userCreationTime = userRecord.metadata.creationTime;
       userCreationTime = userCreationTime.replace(/\D/g, "");
@@ -1104,31 +1330,38 @@ const join = {
           constants.FIREBASE_COLLECTION_KYA,
           constants.FIREBASE_COLLECTION_ANALYTICS,
           constants.FIREBASE_COLLECTION_NOTIFICATIONS,
-          constants.FIREBASE_COLLECTION_FAVORITE_PLACES
+          constants.FIREBASE_COLLECTION_FAVORITE_PLACES,
         ];
-        let collectionRef = db.collection(`${constants.FIREBASE_COLLECTION_USERS}`);
+        let collectionRef = db.collection(
+          `${constants.FIREBASE_COLLECTION_USERS}`
+        );
         let docRef = collectionRef.doc(userId);
 
-        docRef.delete().then(async () => {
-          for (var collection of collectionList) {
-            await deleteCollection(db, `${collection}/${userId}/${userId}`, 100);
-            collectionRef = db.collection(`${collection}`);
-            docRef = collectionRef.doc(userId);
-            docRef.delete();
-          }
-          logText('Document successfully deleted!');
-        }).catch((error) => {
-          logError('Error deleting document:', error);
-          logger.error(`Internal Server Error -- ${error.message}`);
-          return {
-            success: false,
-            message: "Error deleting Firestore documents",
-            status: httpStatus.INTERNAL_SERVER_ERROR,
-            errors: { message: error.message }
-          };
-        });
-
-        
+        docRef
+          .delete()
+          .then(async () => {
+            for (var collection of collectionList) {
+              await deleteCollection(
+                db,
+                `${collection}/${userId}/${userId}`,
+                100
+              );
+              collectionRef = db.collection(`${collection}`);
+              docRef = collectionRef.doc(userId);
+              docRef.delete();
+            }
+            logText("Document successfully deleted!");
+          })
+          .catch((error) => {
+            logError("Error deleting document:", error);
+            logger.error(`Internal Server Error -- ${error.message}`);
+            return {
+              success: false,
+              message: "Error deleting Firestore documents",
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+              errors: { message: error.message },
+            };
+          });
 
         return {
           success: true,
@@ -1136,7 +1369,7 @@ const join = {
           status: httpStatus.OK,
         };
       } catch (error) {
-        logError('Error deleting user:', error);
+        logError("Error deleting user:", error);
         logger.error(`Internal Server Error -- ${error.message}`);
         return {
           success: false,
@@ -1145,11 +1378,10 @@ const join = {
           errors: { message: error.message },
         };
       }
-
     } catch (error) {
       return {
         success: false,
-        status:httpStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
         message: "Internal Server Error",
         errors: { message: error.message },
       };

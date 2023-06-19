@@ -26,6 +26,7 @@ const passwordReg = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{6,}$/;
 const UserSchema = new Schema(
   {
     due_date: { type: Date },
+    firebaseId: { type: String },
     status: { type: String },
     address: { type: String },
     country: { type: String },
@@ -40,7 +41,6 @@ const UserSchema = new Schema(
     email: {
       type: String,
       unique: true,
-      required: [true, "Email is required"],
       trim: true,
       validate: {
         validator(email) {
@@ -55,12 +55,10 @@ const UserSchema = new Schema(
     },
     firstName: {
       type: String,
-      required: [true, "FirstName is required!"],
       trim: true,
     },
     lastName: {
       type: String,
-      required: [true, "LastName is required"],
       trim: true,
     },
     userName: {
@@ -83,8 +81,6 @@ const UserSchema = new Schema(
     },
     privilege: {
       type: String,
-      required: [true, "the privilege is required!"],
-      default: "user",
     },
     isActive: { type: Boolean },
     duration: { type: Date, default: oneMonthFromNow },
@@ -117,15 +113,11 @@ const UserSchema = new Schema(
     ],
     organization: {
       type: String,
-      required: [true, "the organization is required!"],
-      default: "airqo",
     },
     long_organization: {
       type: String,
-      required: [true, "the long_organization is required!"],
-      default: "airqo",
     },
-    phoneNumber: { type: Number },
+    phoneNumber: { type: Number, unique: true },
     locationCount: { type: Number, default: 5 },
     resetPasswordToken: { type: String },
     resetPasswordExpires: { type: Date },
@@ -167,6 +159,7 @@ UserSchema.pre("update", function (next) {
 
 UserSchema.index({ email: 1 }, { unique: true });
 UserSchema.index({ userName: 1 }, { unique: true });
+UserSchema.index({ phoneNumber: 1 }, { unique: true });
 
 UserSchema.statics = {
   async register(args) {

@@ -13,6 +13,8 @@ const {
   authLocal,
   authGuest,
   authGoogle,
+  setFirebaseAuth,
+  authFirebase,
 } = require("@middleware/passport");
 
 const mongoose = require("mongoose");
@@ -53,6 +55,52 @@ router.post(
   setLocalAuth,
   authLocal,
   createUserController.login
+);
+
+router.post(
+  "/login",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      body("userName").exists().withMessage("the userName must be provided"),
+      body("password").exists().withMessage("the password must be provided"),
+    ],
+  ]),
+  setLocalAuth,
+  authLocal,
+  createUserController.login
+);
+
+router.get(
+  "/login/firebase",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  setFirebaseAuth,
+  authFirebase,
+  createUserController.loginFirebase
 );
 
 router.post(
@@ -205,57 +253,6 @@ router.get(
   createUserController.verifyEmail
 );
 
-/**
- * version two of verification
- */
-router.post(
-  "/verification/generate",
-  setJWTAuth,
-  authJWT,
-  createUserController.generateVerificationToken
-);
-
-router.post(
-  "/verification/verify",
-  setJWTAuth,
-  authJWT,
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant should not be empty if provided")
-        .trim()
-        .toLowerCase()
-        .bail()
-        .isIn(["kcca", "airqo"])
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-
-  oneOf([
-    [
-      body("email")
-        .exists()
-        .withMessage("the email must be provided")
-        .bail()
-        .notEmpty()
-        .withMessage("the email must not be empty if provided")
-        .bail()
-        .isEmail()
-        .withMessage("this is not a valid email address"),
-      body("token")
-        .exists()
-        .withMessage("the token is missing in the request")
-        .bail()
-        .trim()
-        .isInt()
-        .withMessage("token must be an integer"),
-    ],
-  ]),
-  createUserController.verifyVerificationToken
-);
-
 router.get(
   "/auth/google/callback",
   setGoogleAuth,
@@ -304,6 +301,30 @@ router.post(
     ],
   ]),
   oneOf([
+    body("email")
+      .exists()
+      .withMessage(
+        "the user identifier is missing in request, consider using the email"
+      )
+      .bail()
+      .notEmpty()
+      .withMessage("the email must not be empty if provided")
+      .bail()
+      .isEmail()
+      .withMessage("this is not a valid email address"),
+    body("phoneNumber")
+      .exists()
+      .withMessage(
+        "the user identifier is missing in request, consider using the phoneNumber"
+      )
+      .bail()
+      .notEmpty()
+      .withMessage("the phoneNumber must not be empty if provided")
+      .bail()
+      .isMobilePhone()
+      .withMessage("the phoneNumber must be valid"),
+  ]),
+  oneOf([
     [
       body("firstName")
         .exists()
@@ -315,21 +336,23 @@ router.post(
         .withMessage("lastName is missing in your request")
         .bail()
         .trim(),
-      body("email")
-        .exists()
-        .withMessage("email is missing in your request")
-        .bail()
-        .isEmail()
-        .withMessage("this is not a valid email address")
-        .trim(),
+      // body("email")
+      //   .exists()
+      //   .withMessage("email is missing in your request")
+      //   .bail()
+      //   .isEmail()
+      //   .withMessage("this is not a valid email address")
+      //   .trim(),
       body("organization")
-        .exists()
-        .withMessage("organization is missing in your request")
+        .optional()
+        .notEmpty()
+        .withMessage("organization should not be empty IF provided")
         .bail()
         .trim(),
       body("long_organization")
-        .exists()
-        .withMessage("long_organization is missing in your request")
+        .optional()
+        .notEmpty()
+        .withMessage("long_organization should not be empty IF provided")
         .bail()
         .trim(),
       body("privilege")
@@ -361,6 +384,30 @@ router.post(
     ],
   ]),
   oneOf([
+    body("email")
+      .exists()
+      .withMessage(
+        "the user identifier is missing in request, consider using the email"
+      )
+      .bail()
+      .notEmpty()
+      .withMessage("the email must not be empty if provided")
+      .bail()
+      .isEmail()
+      .withMessage("this is not a valid email address"),
+    body("phoneNumber")
+      .exists()
+      .withMessage(
+        "the user identifier is missing in request, consider using the phoneNumber"
+      )
+      .bail()
+      .notEmpty()
+      .withMessage("the phoneNumber must not be empty if provided")
+      .bail()
+      .isMobilePhone()
+      .withMessage("the phoneNumber must be valid"),
+  ]),
+  oneOf([
     [
       body("firstName")
         .exists()
@@ -372,13 +419,13 @@ router.post(
         .withMessage("lastName is missing in your request")
         .bail()
         .trim(),
-      body("email")
-        .exists()
-        .withMessage("email is missing in your request")
-        .bail()
-        .isEmail()
-        .withMessage("this is not a valid email address")
-        .trim(),
+      // body("email")
+      //   .exists()
+      //   .withMessage("email is missing in your request")
+      //   .bail()
+      //   .isEmail()
+      //   .withMessage("this is not a valid email address")
+      //   .trim(),
       body("organization")
         .optional()
         .notEmpty()
@@ -803,17 +850,17 @@ router.get(
 
 router.delete(
   "/deleteMobileUserData",
-   oneOf([
+  oneOf([
     query("userId")
       .exists()
       .withMessage("There's a missing required parameter in your request")
       .bail(),
     query("creationTime")
-    .exists()
-    .withMessage("There's a missing required parameter in your request")
-    .bail()
+      .exists()
+      .withMessage("There's a missing required parameter in your request")
+      .bail(),
   ]),
   createUserController.deleteMobileUserData
-); 
+);
 
 module.exports = router;

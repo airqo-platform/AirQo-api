@@ -14,6 +14,28 @@ const logger = log4js.getLogger(
 );
 
 const createUser = {
+  loginFirebase: async (req, res) => {
+    try {
+      if (req.auth.success === true) {
+        logObject("req.user", req.user);
+        logObject("req.user.toAuthJSON()", req.user.toAuthJSON());
+        return res.status(httpStatus.OK).json(req.user.toAuthJSON());
+      } else {
+        return res.status(httpStatus.BAD_REQUEST).json({
+          success: req.auth.success,
+          message: req.auth.message,
+          error: req.auth && req.auth.error ? req.auth.error : {},
+        });
+      }
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
   listStatistics: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -218,123 +240,6 @@ const createUser = {
       });
     }
   },
-  generateVerificationToken: async (req, res) => {
-    try {
-      const { query, body } = req;
-      let { tenant } = query;
-      logText("We are generating the verification code.....");
-      const hasErrors = !validationResult(req).isEmpty();
-
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
-        );
-      }
-      let request = Object.assign({}, req);
-      if (isEmpty(tenant)) {
-        request.query.tenant = "airqo";
-      }
-
-      const responseFromGenerateVerificationToken =
-        await controlAccessUtil.generateVerificationToken(request);
-
-      logObject(
-        "responseFromGenerateVerificationToken",
-        responseFromGenerateVerificationToken
-      );
-
-      if (responseFromGenerateVerificationToken.success === true) {
-        const status = responseFromGenerateVerificationToken.status
-          ? responseFromGenerateVerificationToken.status
-          : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: "Token generated and sent to user's email address",
-          token: responseFromGenerateVerificationToken.token,
-        });
-      } else if (responseFromGenerateVerificationToken.success === false) {
-        const status = responseFromGenerateVerificationToken.status
-          ? responseFromGenerateVerificationToken.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: responseFromGenerateVerificationToken.message,
-          errors: responseFromGenerateVerificationToken.errors
-            ? responseFromGenerateVerificationToken.errors
-            : { message: "internal server errors" },
-        });
-      }
-    } catch (error) {
-      logObject("error", error);
-      logger.error(`Internal Server Error ${error.message}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "internal server error",
-        errors: { message: error.message },
-      });
-    }
-  },
-  verifyVerificationToken: async (req, res) => {
-    try {
-      const { query, body } = req;
-      let { tenant } = query;
-      logText("we are verifying the email.....");
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
-        );
-      }
-      let request = Object.assign({}, req);
-      if (isEmpty(tenant)) {
-        request.query.tenant = "airqo";
-      }
-
-      const responseFromVerifyVerificationToken =
-        await controlAccessUtil.verifyVerificationToken(request);
-
-      logObject(
-        "responseFromVerifyVerificationToken",
-        responseFromVerifyVerificationToken
-      );
-
-      if (responseFromVerifyVerificationToken.success === true) {
-        const status = responseFromVerifyVerificationToken.status
-          ? responseFromVerifyVerificationToken.status
-          : httpStatus.OK;
-        res.status(status).json({
-          success: true,
-          message: "token verified sucessfully",
-          sign_in_link: responseFromVerifyVerificationToken.data,
-        });
-      } else if (responseFromVerifyVerificationToken.success === false) {
-        const status = responseFromVerifyVerificationToken.status
-          ? responseFromVerifyVerificationToken.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: responseFromVerifyVerificationToken.message,
-          errors: responseFromVerifyVerificationToken.errors
-            ? responseFromVerifyVerificationToken.errors
-            : { message: "internal server errors" },
-        });
-      }
-    } catch (error) {
-      logObject("error", error);
-      logger.error(`Internal Server Error ${error.message}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "internal server error",
-        errors: { message: error.message },
-      });
-    }
-  },
 
   verify: (req, res) => {
     return res.status(httpStatus.OK).json({
@@ -409,11 +314,10 @@ const createUser = {
       request["body"]["userId"] = userId;
       request["body"]["creationTime"] = creationTime;
       logObject("request:", request);
-     
-      const responseFromDeleteAppData = await createUserUtil.deleteMobileUserData(
-         request
-       );  
-      
+
+      const responseFromDeleteAppData =
+        await createUserUtil.deleteMobileUserData(request);
+
       logObject("responseFromDeleteAppData", responseFromDeleteAppData);
 
       if (responseFromDeleteAppData.success === true) {
@@ -436,7 +340,6 @@ const createUser = {
             : { message: "internal server errors" },
         });
       }
-
     } catch (error) {
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
@@ -448,7 +351,6 @@ const createUser = {
 
   lookUpFirebaseUser: async (req, res) => {
     try {
-      const { email, phoneNumber, uid, providerId, providerUid } = req.body;
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         logObject("hasErrors", hasErrors);
@@ -467,13 +369,7 @@ const createUser = {
         );
       }
 
-      let request = {};
-      request["body"] = {};
-      request["body"]["email"] = email;
-      request["body"]["phoneNumber"] = phoneNumber;
-      request["body"]["uid"] = uid;
-      request["body"]["providerId"] = providerId;
-      request["body"]["providerUid"] = providerUid;
+      let request = Object.assign({}, req);
 
       function cleanObject(obj) {
         for (key in obj) {
@@ -488,7 +384,7 @@ const createUser = {
         }
         return obj;
       }
-      cleanObject(request);
+      // cleanObject(request);
       await createUserUtil.lookUpFirebaseUser(request, (result) => {
         if (result.success === true) {
           const status = result.status ? result.status : httpStatus.OK;
@@ -797,11 +693,11 @@ const createUser = {
         logObject("tenant", tenant);
         return res.status(httpStatus.MOVED_PERMANENTLY).json({
           message:
-            "The account has been moved permanently to a new location, please reach out to: info@airqo.net",
+            "The account has been moved permanently to a new location, please reach out to: support@airqo.net",
           location: "https://platform.airqo.net/",
           errors: {
             message:
-              "The account has been moved permanently to a new location, please reach out to: info@airqo.net",
+              "The account has been moved permanently to a new location, please reach out to: support@airqo.net",
             location: "https://platform.airqo.net/",
           },
         });
