@@ -21,7 +21,7 @@ const headers = (req, res, next) => {
 router.use(headers);
 
 router.get(
-  "/:favorite_id/users/:user_id",
+  "/",
   oneOf([
     [
       query("tenant")
@@ -33,19 +33,26 @@ router.get(
         .bail()
         .isIn(["kcca", "airqo"])
         .withMessage("the tenant value is not among the expected ones"),
-      param("favorite_id")
-        .exists()
-        .withMessage(
-          "the favorite param is missing in request path, consider using favorite_id"
-        )
-        .bail()
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  createFavoriteController.list
+);
+
+router.get(
+  "/users/:user_id",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
         .trim()
-        .isMongoId()
-        .withMessage("favorite_id must be an object ID")
+        .toLowerCase()
         .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
       param("user_id")
         .exists()
         .withMessage(
@@ -65,7 +72,6 @@ router.get(
   authJWT,
   createFavoriteController.list
 );
-
 router.post(
   "/",
   oneOf([
@@ -114,7 +120,7 @@ router.post(
         .bail()
         .trim()
         .isMongoId()
-        .withMessage("user_id must be an object ID")
+        .withMessage("reference_site must be an object ID")
         .bail()
         .customSanitizer((value) => {
           return ObjectId(value);
@@ -247,10 +253,13 @@ router.put(
         .notEmpty()
         .withMessage("reference_site should not be empty IF provided")
         .bail()
-        .notEmpty()
-        .withMessage("the reference_site must not be empty")
+        .trim()
+        .isMongoId()
+        .withMessage("reference_site must be an object ID")
         .bail()
-        .trim(),
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
       body("user_id")
         .optional()
         .notEmpty()
@@ -364,6 +373,19 @@ router.get(
         .bail()
         .isIn(["kcca", "airqo"])
         .withMessage("the tenant value is not among the expected ones"),
+      param("favorite_id")
+        .exists()
+        .withMessage(
+          "the favorite param is missing in request path, consider using favorite_id"
+        )
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("favorite_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
     ],
   ]),
   setJWTAuth,

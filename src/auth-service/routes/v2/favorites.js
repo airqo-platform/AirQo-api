@@ -41,7 +41,7 @@ router.get(
 );
 
 router.get(
-  "/:favorite_id/users/:user_id",
+  "/users/:user_id",
   oneOf([
     [
       query("tenant")
@@ -53,19 +53,6 @@ router.get(
         .bail()
         .isIn(["kcca", "airqo"])
         .withMessage("the tenant value is not among the expected ones"),
-      param("favorite_id")
-        .exists()
-        .withMessage(
-          "the favorite param is missing in request path, consider using favorite_id"
-        )
-        .bail()
-        .trim()
-        .isMongoId()
-        .withMessage("favorite_id must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
       param("user_id")
         .exists()
         .withMessage(
@@ -85,7 +72,6 @@ router.get(
   authJWT,
   createFavoriteController.list
 );
-
 router.post(
   "/",
   oneOf([

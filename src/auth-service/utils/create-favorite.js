@@ -9,6 +9,7 @@ const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 
 const log4js = require("log4js");
+const { log } = require("firebase-functions/logger");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-favorite-util`
 );
@@ -56,11 +57,25 @@ const favorites = {
       if (filter.success === false) {
         return filter;
       }
-      const responseFromListFavorites = await FavoriteModel(
+
+      if (!isEmpty(filter.user_id)) {
+        const userExists = await UserModel(tenant).exists({
+          _id: filter.user_id,
+        });
+        if (!userExists) {
+          return {
+            success: false,
+            message: "User not found",
+            status: httpStatus.BAD_REQUEST,
+            errors: { message: `User ${filter.user_id} not found` },
+          };
+        }
+      }
+
+      const responseFromListFavoritesPromise = FavoriteModel(
         tenant.toLowerCase()
-      ).list({
-        filter,
-      });
+      ).list({ filter });
+      const responseFromListFavorites = await responseFromListFavoritesPromise;
       return responseFromListFavorites;
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
