@@ -4,7 +4,7 @@ namespace: staging
 images:
   repositories:
     api: eu.gcr.io/airqo-250220/airqo-stage-view-api
-    message-broker: eu.gcr.io/airqo-250220/airqo-stage-view-message-broker
+    messageBroker: eu.gcr.io/airqo-250220/airqo-stage-view-message-broker
   tag: stage-3b77b6fc-1686749518
 api:
   name: airqo-stage-view-api
@@ -19,7 +19,7 @@ api:
     requests:
       cpu: 5m
       memory: 420Mi
-message-broker:
+messageBroker:
   name: airqo-stage-view-message-broker
   label: view-msg-brokr
   configmap: stage-view-message-broker-config

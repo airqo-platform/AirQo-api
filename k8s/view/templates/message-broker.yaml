@@ -1,15 +1,15 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Values.message-broker.name }}
+  name: {{ .Values.messageBroker.name }}
   namespace: {{ .Values.namespace }}
   labels:
     {{- include "view.labels" . | nindent 4 }}
 spec:
   selector:
     matchLabels:
-        app: {{ .Values.message-broker.label }}
-  replicas: {{ .Values.message-broker.replicaCount }}
+        app: {{ .Values.messageBroker.label }}
+  replicas: {{ .Values.messageBroker.replicaCount }}
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -18,12 +18,12 @@ spec:
   minReadySeconds: 10
   template:
     metadata:
-      {{- with .Values.message-broker.podAnnotations }}
+      {{- with .Values.messageBroker.podAnnotations }}
       annotations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
-        app: {{ .Values.message-broker.label }}
+        app: {{ .Values.messageBroker.label }}
     spec:
       affinity:
         nodeAffinity:
@@ -43,14 +43,14 @@ spec:
                     values:
                       - general-purpose
       containers:
-        - name: {{ .Values.message-broker.label }}
-          image: "{{ .Values.images.repositories.message-broker }}:{{ .Values.images.tag }}"
+        - name: {{ .Values.messageBroker.label }}
+          image: "{{ .Values.images.repositories.messageBroker }}:{{ .Values.images.tag }}"
           imagePullPolicy: IfNotPresent
           envFrom:
             - configMapRef:
-                name: {{ .Values.message-broker.configmap }}
+                name: {{ .Values.messageBroker.configmap }}
           resources:
-            {{- toYaml .Values.message-broker.resources | nindent 12 }}
+            {{- toYaml .Values.messageBroker.resources | nindent 12 }}
           volumeMounts:
             - name: config-volume
               mountPath: /etc/config        
