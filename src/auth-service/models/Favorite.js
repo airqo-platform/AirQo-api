@@ -55,8 +55,6 @@ FavoriteSchema.pre("update", function (next) {
   return next();
 });
 
-FavoriteSchema.index({ place_id: 1 }, { unique: true });
-
 FavoriteSchema.statics = {
   async register(args) {
     try {
