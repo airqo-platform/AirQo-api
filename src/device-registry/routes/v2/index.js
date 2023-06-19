@@ -7,7 +7,7 @@ const measurements = require("@routes/v2/measurements");
 const locations = require("@routes/v2/locations");
 const photos = require("@routes/v2/photos");
 const tips = require("@routes/v2/tips");
-const knowyourair = require("@routes/v2/knowyourair");
+const kya = require("@routes/v2/kya");
 const sensors = require("@routes/v2/sensors");
 
 module.exports = {
@@ -16,7 +16,7 @@ module.exports = {
   devices,
   events,
   measurements,
-  knowyourair,
+  kya,
   locations,
   photos,
   tips,

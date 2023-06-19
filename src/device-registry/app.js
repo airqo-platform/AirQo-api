@@ -9,7 +9,9 @@ require("app-module-path").addPath(__dirname);
 const cookieParser = require("cookie-parser");
 const constants = require("@config/constants");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- app entry`);
-require("@config/database");
+// require("@config/database");
+const { mongodb } = require("@config/database");
+mongodb;
 const routes = require("@routes");
 
 // const moesif = require("moesif-nodejs");
@@ -48,7 +50,7 @@ app.use("/api/v1/devices/events", routes.v1.events);
 app.use("/api/v1/devices/locations", routes.v1.locations);
 app.use("/api/v1/devices/photos", routes.v1.photos);
 app.use("/api/v1/devices/tips", routes.v1.tips);
-app.use("/api/v1/devices/knowyourair", routes.v1.knowyourair);
+app.use("/api/v1/devices/kya", routes.v1.kya);
 app.use("/api/v1/devices/sensors", routes.v1.sensors);
 app.use("/api/v1/devices", routes.v1.devices);
 
@@ -61,7 +63,7 @@ app.use("/api/v2/devices/measurements", routes.v2.measurements);
 app.use("/api/v2/devices/locations", routes.v2.locations);
 app.use("/api/v2/devices/photos", routes.v2.photos);
 app.use("/api/v2/devices/tips", routes.v2.tips);
-app.use("/api/v2/devices/knowyourair", routes.v2.knowyourair);
+app.use("/api/v2/devices/kya", routes.v2.kya);
 app.use("/api/v2/devices/sensors", routes.v2.sensors);
 app.use("/api/v2/devices", routes.v2.devices);
 

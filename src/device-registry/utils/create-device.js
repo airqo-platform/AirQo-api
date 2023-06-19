@@ -1,6 +1,6 @@
 "use strict";
 const DeviceSchema = require("@models/Device");
-const { getModelByTenant } = require("./multitenancy");
+const { getModelByTenant } = require("@config/database");
 const axios = require("axios");
 const { logObject, logElement, logText } = require("./log");
 const { transform } = require("node-json-transform");

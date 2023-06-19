@@ -1,6 +1,6 @@
 const HTTPStatus = require("http-status");
 const PhotoSchema = require("@models/Photo");
-const { getModelByTenant } = require("./multitenancy");
+const { getModelByTenant } = require("@config/database");
 const isEmpty = require("is-empty");
 const axios = require("axios");
 const constants = require("@config/constants");
