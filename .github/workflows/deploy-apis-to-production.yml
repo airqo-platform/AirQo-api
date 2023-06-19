@@ -1367,18 +1367,6 @@ jobs:
           target: api
           context: src/view
 
-      - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@master # Retries action on fail
-        with:
-          action: fjogeleit/yaml-update-action@main # Action to retry
-          with: |
-            valueFile: "k8s/view/values-prod.yaml"
-            propertyPath: "image.tag"
-            value: ${{ needs.image-tag.outputs.build_id }}
-            branch: ${{ env.DEPLOY_BRANCH }}
-            token: ${{ secrets.YAML_UPDATER_TOKEN }}
-            message: "Update view api production image tag to ${{ needs.image-tag.outputs.build_id }}"
-
       - name: Build and push Message Broker
         uses: docker/build-push-action@v3
         with:
@@ -1393,11 +1381,11 @@ jobs:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
             valueFile: "k8s/view/values-prod.yaml"
-            propertyPath: "image.tag"
+            propertyPath: "images.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
             token: ${{ secrets.YAML_UPDATER_TOKEN }}
-            message: "Update view message broker production image tag to ${{ needs.image-tag.outputs.build_id }}"
+            message: "Update view production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
         uses: google-github-actions/auth@v0
