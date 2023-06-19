@@ -1,31 +1,29 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Values.api.name }}
+  name: {{ .Values.message-broker.name }}
   namespace: {{ .Values.namespace }}
   labels:
     {{- include "view.labels" . | nindent 4 }}
 spec:
   selector:
     matchLabels:
-        app: {{ .Values.api.label }}
-  progressDeadlineSeconds: 600
-  replicas: {{ .Values.api.replicaCount }}
-  revisionHistoryLimit: 2
+        app: {{ .Values.message-broker.label }}
+  replicas: {{ .Values.message-broker.replicaCount }}
   strategy:
     type: RollingUpdate
     rollingUpdate:
       maxSurge: 1
       maxUnavailable: 0
-  minReadySeconds: 90
+  minReadySeconds: 10
   template:
     metadata:
-      {{- with .Values.api.podAnnotations }}
+      {{- with .Values.message-broker.podAnnotations }}
       annotations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
-        app: {{ .Values.api.label }}
+        app: {{ .Values.message-broker.label }}
     spec:
       affinity:
         nodeAffinity:
@@ -45,21 +43,14 @@ spec:
                     values:
                       - general-purpose
       containers:
-        - name: {{ .Values.api.label }}
-          image: "{{ .Values.api.image.repository }}:{{ .Values.api.image.tag }}"
+        - name: {{ .Values.message-broker.label }}
+          image: "{{ .Values.message-broker.image.repository }}:{{ .Values.message-broker.image.tag }}"
           imagePullPolicy: IfNotPresent
-          ports:
-            - containerPort: {{ .Values.service.targetPort }}
-              name: {{ .Values.api.label }}
           envFrom:
             - configMapRef:
-                name: {{ .Values.api.configmap }}
+                name: {{ .Values.message-broker.configmap }}
           resources:
-            {{- toYaml .Values.resources | nindent 12 }}
-          lifecycle:
-            preStop:
-              exec:
-                command: ["sh", "-c", "sleep 10"]
+            {{- toYaml .Values.message-broker.resources | nindent 12 }}
           volumeMounts:
             - name: config-volume
               mountPath: /etc/config        
