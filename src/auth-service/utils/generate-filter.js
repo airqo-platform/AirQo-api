@@ -698,16 +698,19 @@ const filter = {
   favorites: (req) => {
     try {
       const { query, params } = req;
-      const { user_id } = query;
-      const { userId } = params;
+      const { id } = query;
+      const { user_id, favorite_id } = params;
       let filter = {};
       if (user_id) {
         filter["user_id"] = ObjectId(user_id);
       }
-
-      if (userId) {
-        filter["user_id"] = ObjectId(userId);
+      if (id) {
+        filter["_id"] = ObjectId(id);
       }
+      if (favorite_id) {
+        filter["_id"] = ObjectId(favorite_id);
+      }
+
       return filter;
     } catch (e) {
       logger.error(`internal server error, ${JSON.stringify(e)}`);

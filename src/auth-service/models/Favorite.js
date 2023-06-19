@@ -3,13 +3,17 @@ const { logObject } = require("../utils/log");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const ObjectId = mongoose.Schema.Types.ObjectId;
+const constants = require("@config/constants");
+const log4js = require("log4js");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- create-favorite-model`
+);
 
 const FavoriteSchema = new mongoose.Schema(
   {
     place_id: {
       type: String,
       required: [true, "place_id is required"],
-      unique: true,
     },
     name: {
       type: String,
@@ -76,6 +80,7 @@ FavoriteSchema.statics = {
       }
     } catch (err) {
       logObject("the error", err);
+      logger.error(`Internal Server Error -- ${JSON.stringify(err)}`);
       let response = {};
       if (err.keyValue) {
         Object.entries(err.keyValue).forEach(([key, value]) => {
@@ -94,7 +99,11 @@ FavoriteSchema.statics = {
 
   async list({ skip = 0, limit = 100, filter = {} } = {}) {
     try {
-      let favorites = await this.aggregate()
+      const inclusionProjection = constants.FAVORITES_INCLUSION_PROJECTION;
+      const exclusionProjection = constants.FAVORITES_EXCLUSION_PROJECTION(
+        filter.category ? filter.category : "none"
+      );
+      const favorites = await this.aggregate()
         .match(filter)
         .sort({ createdAt: -1 })
         .lookup({
@@ -103,21 +112,8 @@ FavoriteSchema.statics = {
           foreignField: "_id",
           as: "users",
         })
-        .project({
-          _id: 1,
-          name: 1,
-          location: 1,
-          latitude: 1,
-          longitude: 1,
-          reference_site: 1,
-          place_id: 1,
-          user: { $arrayElemAt: ["$users", 0] },
-        })
-        .project({
-          "network.__v": 0,
-          "network.createdAt": 0,
-          "network.updatedAt": 0,
-        })
+        .project(inclusionProjection)
+        .project(exclusionProjection)
         .skip(skip ? skip : 0)
         .limit(limit ? limit : 100)
         .allowDiskUse(true);
@@ -137,6 +133,7 @@ FavoriteSchema.statics = {
         };
       }
     } catch (error) {
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
       return {
         success: false,
         message: "internal server error",
@@ -172,6 +169,7 @@ FavoriteSchema.statics = {
         };
       }
     } catch (error) {
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -183,7 +181,14 @@ FavoriteSchema.statics = {
   async remove({ filter = {} } = {}) {
     try {
       const options = {
-        projection: { _id: 0, place_id: 1, name: 1, location: 1 },
+        projection: {
+          _id: 1,
+          place_id: 1,
+          name: 1,
+          location: 1,
+          latitude: 1,
+          longitude: 1,
+        },
       };
       const removedFavorite = await this.findOneAndRemove(
         filter,
@@ -206,6 +211,7 @@ FavoriteSchema.statics = {
         };
       }
     } catch (error) {
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
       return {
         success: false,
         message: "Internal Server Error",

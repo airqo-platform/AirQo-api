@@ -5,6 +5,10 @@ const { logText, logObject } = require("@utils/log");
 const constants = require("@config/constants");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
+const log4js = require("log4js");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- create-favorite-controller`
+);
 
 const createFavorite = {
   create: async (req, res) => {
@@ -23,7 +27,7 @@ const createFavorite = {
         );
       }
 
-      let request = req;
+      let request = Object.assign({}, req);
       if (isEmpty(tenant)) {
         request["query"]["tenant"] = constants.DEFAULT_TENANT;
       }
@@ -56,11 +60,12 @@ const createFavorite = {
             : "",
           errors: responseFromCreateFavorite.errors
             ? responseFromCreateFavorite.errors
-            : { message: "" },
+            : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
       logObject("error", error);
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -83,7 +88,7 @@ const createFavorite = {
           convertErrorArrayToObject(nestedErrors)
         );
       }
-      let request = req;
+      let request = Object.assign({}, req);
       if (isEmpty(tenant)) {
         request["query"]["tenant"] = constants.DEFAULT_TENANT;
       }
@@ -98,7 +103,7 @@ const createFavorite = {
           message: responseFromListFavorites.message
             ? responseFromListFavorites.message
             : "",
-          Favorites: responseFromListFavorites.data
+          favorites: responseFromListFavorites.data
             ? responseFromListFavorites.data
             : [],
         });
@@ -113,10 +118,11 @@ const createFavorite = {
             : "",
           errors: responseFromListFavorites.errors
             ? responseFromListFavorites.errors
-            : { message: "" },
+            : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -140,7 +146,7 @@ const createFavorite = {
         );
       }
 
-      let request = req;
+      let request = Object.assign({}, req);
       if (isEmpty(tenant)) {
         request["query"]["tenant"] = constants.DEFAULT_TENANT;
       }
@@ -172,10 +178,11 @@ const createFavorite = {
             : "",
           errors: responseFromDeleteFavorite.errors
             ? responseFromDeleteFavorite.errors
-            : { message: "" },
+            : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -199,7 +206,7 @@ const createFavorite = {
         );
       }
 
-      let request = req;
+      let request = Object.assign({}, req);
       if (isEmpty(tenant)) {
         request["query"]["tenant"] = constants.DEFAULT_TENANT;
       }
@@ -231,10 +238,11 @@ const createFavorite = {
             : "",
           errors: responseFromUpdateFavorite.errors
             ? responseFromUpdateFavorite.errors
-            : { message: "" },
+            : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
