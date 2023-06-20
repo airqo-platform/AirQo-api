@@ -919,7 +919,7 @@ eventSchema.statics = {
                           case: {
                             $and: [
                               { $gte: ["$pm2_5.value", 0] },
-                              { $lt: ["$pm2_5.value", 50] },
+                              { $lte: ["$pm2_5.value", 12] },
                             ],
                           },
                           then: "Green",
@@ -927,8 +927,8 @@ eventSchema.statics = {
                         {
                           case: {
                             $and: [
-                              { $gte: ["$pm2_5.value", 50] },
-                              { $lt: ["$pm2_5.value", 100] },
+                              { $gt: ["$pm2_5.value", 12] },
+                              { $lte: ["$pm2_5.value", 35.4] },
                             ],
                           },
                           then: "Yellow",
@@ -936,8 +936,8 @@ eventSchema.statics = {
                         {
                           case: {
                             $and: [
-                              { $gte: ["$pm2_5.value", 100] },
-                              { $lt: ["$pm2_5.value", 150] },
+                              { $gt: ["$pm2_5.value", 35.4] },
+                              { $lte: ["$pm2_5.value", 55.4] },
                             ],
                           },
                           then: "Orange",
@@ -945,8 +945,8 @@ eventSchema.statics = {
                         {
                           case: {
                             $and: [
-                              { $gte: ["$pm2_5.value", 150] },
-                              { $lt: ["$pm2_5.value", 200] },
+                              { $gt: ["$pm2_5.value", 55.4] },
+                              { $lte: ["$pm2_5.value", 150.4] },
                             ],
                           },
                           then: "Red",
@@ -954,14 +954,19 @@ eventSchema.statics = {
                         {
                           case: {
                             $and: [
-                              { $gte: ["$pm2_5.value", 200] },
-                              { $lt: ["$pm2_5.value", 300] },
+                              { $gt: ["$pm2_5.value", 150.4] },
+                              { $lte: ["$pm2_5.value", 250.4] },
                             ],
                           },
                           then: "Purple",
                         },
                         {
-                          case: { $gte: ["$pm2_5.value", 300] },
+                          case: {
+                            $and: [
+                              { $gt: ["$pm2_5.value", 250.4] },
+                              { $lte: ["$pm2_5.value", 500] },
+                            ],
+                          },
                           then: "Maroon",
                         },
                       ],
