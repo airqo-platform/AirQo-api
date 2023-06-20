@@ -22,3 +22,6 @@ class Config:
     DEVICE_REGISTRY_URL = os.getenv(
         "DEVICE_REGISTRY_URL", "https://api.airqo.net/api/v1/devices"
     )
+
+    POSTGRES_TABLE = os.getenv("POSTGRES_TABLE")
+    POSTGRES_CONNECTION_URL = os.getenv("POSTGRES_CONNECTION_URL")

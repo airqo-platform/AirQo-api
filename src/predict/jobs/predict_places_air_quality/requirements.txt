@@ -9,3 +9,5 @@ python-dotenv
 numpy
 scipy
 scikit-learn
+psycopg2
+GeoAlchemy2

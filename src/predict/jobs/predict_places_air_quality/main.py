@@ -3,13 +3,12 @@ from datetime import datetime, timedelta
 import geopandas as gpd
 from shapely.geometry import Point
 
-from configure import Config
 from utils import (
     get_airqlouds,
     get_data_from_bigquery,
     get_shapefiles_gdf,
     predict_air_quality,
-    save_predicted_air_quality,
+    save_predicted_air_quality_in_postgresql,
 )
 
 if __name__ == "__main__":
@@ -43,4 +42,4 @@ if __name__ == "__main__":
     )
 
     predicted_gdf = predict_air_quality(merged_gdf)
-    save_predicted_air_quality(predicted_gdf, Config.BIGQUERY_PLACES_PREDICTIONS)
+    save_predicted_air_quality_in_postgresql(predicted_gdf)

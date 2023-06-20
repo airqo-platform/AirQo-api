@@ -6,6 +6,8 @@ import requests
 import xgboost as xgb
 from google.cloud import bigquery
 from pymongo import MongoClient
+from shapely import Polygon, MultiPolygon
+from sqlalchemy import create_engine
 
 from configure import Config
 
@@ -117,15 +119,48 @@ def predict_air_quality(data: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     return data
 
 
+def format_geometry(formatted_data: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    for index, row in formatted_data.iterrows():
+        if row.geometry.geom_type == "Polygon":
+            corrected_polygon = Polygon(row.geometry.exterior, row.geometry.interiors)
+            formatted_data.at[index, "geometry"] = corrected_polygon
+        elif row.geometry.geom_type == "MultiPolygon":
+            polygons = []
+            for polygon in row.geometry.geoms:
+                polygons.append(Polygon(polygon.exterior, polygon.interiors))
+            corrected_multipolygon = MultiPolygon(polygons)
+            formatted_data.at[index, "geometry"] = corrected_multipolygon
+
+    return formatted_data
+
+
+def save_predicted_air_quality_in_postgresql(data: gpd.GeoDataFrame):
+    engine = create_engine(Config.POSTGRES_CONNECTION_URL)
+
+    data.to_postgis(name=Config.POSTGRES_TABLE, con=engine, if_exists="replace")
+
+    print(f"Successfully saved data on PostgresSQL")
+
+
 def save_predicted_air_quality(data: gpd.GeoDataFrame, table: str):
+    data = format_geometry(data)
+    data.dropna(inplace=True)
     client = bigquery.Client()
     job_config = bigquery.LoadJobConfig(
-        write_disposition="WRITE_TRUNCATE",
+        schema=[
+            bigquery.SchemaField("square_kilometres", "FLOAT"),
+            bigquery.SchemaField("pm2_5", "FLOAT"),
+            bigquery.SchemaField("population_density", "FLOAT"),
+            bigquery.SchemaField("parish", "STRING"),
+            bigquery.SchemaField("timestamp", "DATETIME"),
+            bigquery.SchemaField("geometry", "GEOGRAPHY"),
+        ],
+        create_disposition=bigquery.CreateDisposition.CREATE_IF_NEEDED,
+        write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
     )
 
-    job = client.load_table_from_dataframe(data.head(100), table, job_config=job_config)
+    job = client.load_table_from_dataframe(data, table, job_config=job_config)
     job.result()
 
     destination_table = client.get_table(table)
-    print(f"Loaded {len(data)} rows to {table}")
     print(f"Total rows after load :  {destination_table.num_rows}")
