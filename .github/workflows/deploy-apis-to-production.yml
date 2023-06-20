@@ -1030,7 +1030,9 @@ jobs:
           export CLUSTER_CONTROLLER_IP=${{ secrets.PROD_CLUSTER_CONTROLLER_IP}}
           sed -i 's/CLUSTER_CONTROLLER_IP/'"$CLUSTER_CONTROLLER_IP"'/g' k8s/kafka/clusters/kafka-cluster.yaml
           kubectl apply -n message-broker -f k8s/kafka/clusters/kafka-cluster.yaml
-
+          kubectl rollout restart deployment kafka-cluster-entity-operator -n message-broker
+          kubectl rollout restart deployment strimzi-cluster-operator -n message-broker
+          
   ### kafka topics ###
   kafka-topics:
     name: build-push-deploy-kafka-topics
