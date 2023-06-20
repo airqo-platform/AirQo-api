@@ -8,32 +8,24 @@ const httpStatus = require("http-status");
 
 const userLessonProgressSchema = new Schema(
   {
-    user: {
+    user_id: {
       type: ObjectId,
       ref: "user",
       required: true,
     },
-    lesson: {
+    lesson_id: {
       type: ObjectId,
       ref: "kyalesson",
       required: true,
     },
-    tasks: [
-      {
-        task: {
-          type: ObjectId,
-          ref: "kyatask",
-        },
-        completed: {
-          type: Boolean,
-          default: false,
-        },
-        progress: {
-          type: Number,
-          default: 0,
-        },
-      },
-    ],
+    completed: {
+      type: Boolean,
+      default: false,
+    },
+    progress: {
+      type: Number,
+      default: 0,
+    },
   },
   {
     timestamps: true,
@@ -51,9 +43,10 @@ userLessonProgressSchema.plugin(uniqueValidator, {
 userLessonProgressSchema.methods = {
   toJSON() {
     return {
-      user: this.user,
-      lesson: this.lesson,
-      tasks: this.tasks,
+      user_id: this.user_id,
+      lesson_id: this.lesson_id,
+      completed: this.completed,
+      progress: this.progress,
       _id: this._id,
     };
   },

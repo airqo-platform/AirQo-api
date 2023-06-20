@@ -11,7 +11,7 @@ const createKnowYourAirUtil = require("@utils/create-know-your-air");
 const { isEmpty } = require("is-empty");
 
 const createKnowYourAir = {
-  /** lessons ********************************/
+  /*********** lessons ********************************/
   listLessons: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -277,7 +277,282 @@ const createKnowYourAir = {
       });
     }
   },
-  /** tasks ********************************/
+
+  /************ tracking KYA user progress *****************************/
+  listUserLessonProgress: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      const { query } = req;
+      let { tenant } = query;
+
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_NETWORK;
+      }
+
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
+
+      const responseFromListUserLessonProgress = await createKnowYourAirUtil.listUserLessonProgress(
+        request
+      );
+      logObject(
+        "responseFromListUserLessonProgress in controller",
+        responseFromListUserLessonProgress
+      );
+
+      if (responseFromListUserLessonProgress.success === true) {
+        const status = responseFromListUserLessonProgress.status
+          ? responseFromListUserLessonProgress.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromListUserLessonProgress.message,
+          kya_user_progress: responseFromListUserLessonProgress.data,
+        });
+      } else if (responseFromListUserLessonProgress.success === false) {
+        const status = responseFromListUserLessonProgress.status
+          ? responseFromListUserLessonProgress.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromListUserLessonProgress.message,
+          errors: responseFromListUserLessonProgress.errors
+            ? responseFromListUserLessonProgress.errors
+            : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+  deleteUserLessonProgress: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      const { query } = req;
+      let { tenant } = query;
+
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_NETWORK;
+      }
+
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
+
+      const responseFromDeleteUserLessonProgress = await createKnowYourAirUtil.deleteUserLessonProgress(
+        request
+      );
+      logObject(
+        "responseFromDeleteUserLessonProgress in controller",
+        responseFromDeleteUserLessonProgress
+      );
+
+      if (responseFromDeleteUserLessonProgress.success === true) {
+        const status = responseFromDeleteUserLessonProgress.status
+          ? responseFromDeleteUserLessonProgress.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromDeleteUserLessonProgress.message,
+          kya_user_progress: responseFromDeleteUserLessonProgress.data,
+        });
+      } else if (responseFromDeleteUserLessonProgress.success === false) {
+        const status = responseFromDeleteUserLessonProgress.status
+          ? responseFromDeleteUserLessonProgress.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromDeleteUserLessonProgress.message,
+          errors: responseFromDeleteUserLessonProgress.errors
+            ? responseFromDeleteUserLessonProgress.errors
+            : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+  updateUserLessonProgress: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      const { query } = req;
+      let { tenant } = query;
+
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_NETWORK;
+      }
+
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
+
+      const responseFromUpdateUserLessonProgress = await createKnowYourAirUtil.updateUserLessonProgress(
+        request
+      );
+      logObject(
+        "responseFromUpdateUserLessonProgress in controller",
+        responseFromUpdateUserLessonProgress
+      );
+
+      if (responseFromUpdateUserLessonProgress.success === true) {
+        const status = responseFromUpdateUserLessonProgress.status
+          ? responseFromUpdateUserLessonProgress.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromUpdateUserLessonProgress.message,
+          kya_user_progress: responseFromUpdateUserLessonProgress.data,
+        });
+      } else if (responseFromUpdateUserLessonProgress.success === false) {
+        const status = responseFromUpdateUserLessonProgress.status
+          ? responseFromUpdateUserLessonProgress.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromUpdateUserLessonProgress.message,
+          errors: responseFromUpdateUserLessonProgress.errors
+            ? responseFromUpdateUserLessonProgress.errors
+            : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+  createUserLessonProgress: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      const { query } = req;
+      let { tenant } = query;
+
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_NETWORK;
+      }
+
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
+
+      const responseFromCreateUserLessonProgress = await createKnowYourAirUtil.createUserLessonProgress(
+        request
+      );
+      logObject(
+        "responseFromCreateUserLessonProgress in controller",
+        responseFromCreateUserLessonProgress
+      );
+
+      if (responseFromCreateUserLessonProgress.success === true) {
+        const status = responseFromCreateUserLessonProgress.status
+          ? responseFromCreateUserLessonProgress.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromCreateUserLessonProgress.message,
+          kya_user_progress: responseFromCreateUserLessonProgress.data,
+        });
+      } else if (responseFromCreateUserLessonProgress.success === false) {
+        const status = responseFromCreateUserLessonProgress.status
+          ? responseFromCreateUserLessonProgress.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromCreateUserLessonProgress.message,
+          errors: responseFromCreateUserLessonProgress.errors
+            ? responseFromCreateUserLessonProgress.errors
+            : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
+  /************** tasks ********************************/
   listTask: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -307,7 +582,9 @@ const createKnowYourAir = {
 
       let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
-      const responseFromListKYATask = await createKnowYourAirUtil.list(request);
+      const responseFromListKYATask = await createKnowYourAirUtil.listTask(
+        request
+      );
       logObject(
         "responseFromListKYATask in controller",
         responseFromListKYATask

@@ -1,6 +1,7 @@
 const httpStatus = require("http-status");
 const KnowYourAirLessonSchema = require("@models/KnowYourAirLesson");
 const KnowYourAirTaskSchema = require("@models/KnowYourAirTask");
+const KnowYourAirUserLessonProgressSchema = require("@models/KnowYourAirUserLessonProgress");
 const { getModelByTenant } = require("@config/database");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
@@ -36,6 +37,20 @@ const KnowYourAirTaskModel = (tenant) => {
   } catch (error) {
     let kyatasks = getModelByTenant(tenant, "kyatask", KnowYourAirTaskSchema);
     return kyatasks;
+  }
+};
+
+const KnowYourAirUserLessonProgressModel = (tenant) => {
+  try {
+    let kyaprogress = mongoose.model("kyaprogress");
+    return kyaprogress;
+  } catch (error) {
+    let kyaprogress = getModelByTenant(
+      tenant,
+      "kyaprogress",
+      KnowYourAirUserLessonProgressSchema
+    );
+    return kyaprogress;
   }
 };
 
@@ -301,6 +316,131 @@ const createKnowYourAir = {
         message: `retrieved all assigned tasks for lesson ${lesson_id}`,
         data: responseFromListAssignedTasks,
       };
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: "Internal Server Error" },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  /******************* tracking user progress ***************** */
+  listUserLessonProgress: async (request) => {
+    try {
+      const { query } = request;
+      const { tenant } = query;
+      const limit = parseInt(request.query.limit, 0);
+      const skip = parseInt(request.query.skip, 0);
+
+      const filter = generateFilter.kyaprogress(request);
+      if (filter.success && filter.success === false) {
+        return filter;
+      }
+
+      const responseFromListUserLessonProgress = await KnowYourAirUserLessonProgressModel(
+        tenant
+      ).list({
+        filter,
+        limit,
+        skip,
+      });
+      logObject(
+        "responseFromListUserLessonProgress",
+        responseFromListUserLessonProgress
+      );
+      return responseFromListUserLessonProgress;
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: "Internal Server Error" },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  deleteUserLessonProgress: async (request) => {
+    try {
+      const { query } = request;
+      const { tenant } = query;
+
+      const filter = generateFilter.kyaprogress(request);
+      if (filter.success && filter.success === false) {
+        return filter;
+      }
+
+      const responseFromDeleteUserLessonProgress = await KnowYourAirUserLessonProgressModel(
+        tenant
+      ).remove({
+        filter,
+      });
+      logObject(
+        "responseFromDeleteUserLessonProgress",
+        responseFromDeleteUserLessonProgress
+      );
+      return responseFromDeleteUserLessonProgress;
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: "Internal Server Error" },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  updateUserLessonProgress: async (request) => {
+    try {
+      const { query, body } = request;
+      const { tenant } = query;
+
+      const filter = generateFilter.kyaprogress(request);
+      if (filter.success && filter.success === false) {
+        return filter;
+      }
+      let update = Object.assign({}, body);
+      const responseFromUpdateUserLessonProgress = await KnowYourAirUserLessonProgressModel(
+        tenant
+      ).modify({
+        filter,
+        update,
+      });
+      logObject(
+        "responseFromUpdateUserLessonProgress",
+        responseFromUpdateUserLessonProgress
+      );
+      return responseFromUpdateUserLessonProgress;
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: "Internal Server Error" },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  createUserLessonProgress: async (request) => {
+    try {
+      const { query, body } = request;
+      const { tenant } = query;
+
+      const filter = generateFilter.kyaprogress(request);
+      if (filter.success && filter.success === false) {
+        return filter;
+      }
+      let requestBody = Object.assign({}, body);
+      const responseFromCreateUserLessonProgress = await KnowYourAirUserLessonProgressModel(
+        tenant
+      ).modify(requestBody);
+      logObject(
+        "responseFromCreateUserLessonProgress",
+        responseFromCreateUserLessonProgress
+      );
+      return responseFromCreateUserLessonProgress;
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
       return {

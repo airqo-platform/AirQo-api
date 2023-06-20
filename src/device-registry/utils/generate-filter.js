@@ -821,6 +821,34 @@ const generateFilter = {
       };
     }
   },
+
+  kyaprogress: (request) => {
+    try {
+      const { query, params } = request;
+      const { id } = query;
+      const { user_id, lesson_id } = params;
+      let filter = {};
+      if (id) {
+        filter["_id"] = ObjectId(id);
+      }
+      if (user_id) {
+        filter["user_id"] = ObjectId(user_id);
+      }
+      if (lesson_id) {
+        filter["lesson_id"] = ObjectId(lesson_id);
+      }
+      return filter;
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: {
+          message: error.message,
+        },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
 };
 
 module.exports = generateFilter;

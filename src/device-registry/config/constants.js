@@ -994,9 +994,10 @@ const defaultConfig = {
   },
 
   KYA_LESSONS_PROGRESS_INCLUSION_PROJECTION: {
-    user: 1,
-    lesson: 1,
-    tasks: 1,
+    user_id: 1,
+    lesson_id: 1,
+    progress: 1,
+    completed: 1,
     _id: 1,
   },
   KYA_LESSON_PROGRESS_EXCLUSION_PROJECTION: (category) => {
