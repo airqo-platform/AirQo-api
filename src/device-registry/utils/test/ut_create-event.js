@@ -12,6 +12,8 @@ const sinon = require("sinon");
 const HTTPStatus = require("http-status");
 const axios = require("axios");
 chai.use(chaiHttp);
+const { BigQuery } = require("@google-cloud/bigquery");
+const bigquery = new BigQuery();
 
 
 const EventSchema = require("@models/Event");
@@ -21,6 +23,10 @@ const MonitorUtil = require("@utils/create-monitor");
 const { getDevicesCount, list, decryptKey } = require("@utils/create-monitor");
 const generateFilter = require("@utils/generate-filter");
 const DeviceSchema = require("@models/Device");
+const redis = require("@config/redis");
+const {
+  generateDateFormatWithoutHrs,
+} = require("@utils/date");
 
 const stubValue = {
   _id: faker.datatype.uuid(),
@@ -110,23 +116,53 @@ describe("create Event utils", function () {
 
 
 
-  describe('getMeasurementsFromBigQuery', function () {
-    it('should retrieve measurements from BigQuery successfully', async function () {
-      // Test implementation goes here
-    });
+  describe('getMeasurementsFromBigQuery', () => {
+  
 
-    it('should return an error response if retrieval fails', async function () {
-      // Test implementation goes here
-    });
+  it('should retrieve measurements from BigQuery', async () => {
+    
   });
 
+  
+});
+
   describe('latestFromBigQuery', function () {
-    it('should retrieve the latest measurements from BigQuery successfully', async function () {
-      // Test implementation goes here
+    it('should return the latest measurements from BigQuery', async () => {
+
+      const expectedQuery = `SELECT site_id, name, device, \`datawarehouse.metadata\`.sites.latitude AS latitude,
+      \`datawarehouse.metadata\`.sites.longitude AS longitude, timestamp, pm2_5, pm10, pm2_5_raw_value, pm2_5_calibrated_value, pm10_raw_value, pm10_calibrated_value,
+      \`datawarehouse.metadata\`.sites.tenant AS tenant 
+      FROM \`datawarehouse_averaged_data.hourly_device_measurements\` 
+      JOIN \`datawarehouse.metadata.sites\` 
+      ON \`datawarehouse.metadata.sites\`.id = \`datawarehouse_averaged_data.hourly_device_measurements\`.site_id 
+      WHERE timestamp  
+     >= "2022-01-01" AND timestamp <= "2022-02-01" 
+     AND site_id="site1" AND device="device1" AND \`datawarehouse.metadata.sites\`.tenant="test"
+     LIMIT 100`;
+
+      const expectedRows = [
+        { site_id: 'site1', name: 'site1', device: 'device1', latitude: 123.45, longitude: 67.89, timestamp: '2022-01-01 00:00:00', pm2_5: 10, pm10: 20 },
+        { site_id: 'site1', name: 'site1', device: 'device1', latitude: 123.45, longitude: 67.89, timestamp: '2022-01-01 01:00:00', pm2_5: 15, pm10: 25 },
+      ];
+      const bigqueryJobStub = sinon.stub();
+      bigqueryJobStub.getQueryResults = sinon.stub().resolves([expectedRows]);
+
+      const bigqueryStub = sinon.stub(BigQuery.prototype, 'createQueryJob').resolves([bigqueryJobStub]);
+
+      const result = await EventUtil.latestFromBigQuery({ query: stubValue });
+
+      assert.deepEqual(result, { success: true, data: expectedRows, message: 'successfully retrieved the measurements' });
     });
 
     it('should return an error response if retrieval fails', async function () {
-      // Test implementation goes here
+      const expectedErrorMessage = 'Internal Server Error';
+      let bigqueryStub = sinon.stub(BigQuery.prototype, 'createQueryJob');
+    bigqueryStub.rejects(new Error(expectedErrorMessage));
+
+    const result = await EventUtil.latestFromBigQuery({ query: stubValue });
+
+    assert.isTrue(bigqueryStub.calledOnce);
+    assert.deepEqual(result, { success: false, message: expectedErrorMessage, errors: { message: expectedErrorMessage } });
     });
   });
 
@@ -141,16 +177,152 @@ describe("create Event utils", function () {
   });
 
   describe('generateOtherDataString', function () {
-    it('should generate the other data string successfully', function () {
-      // Test implementation goes here
+    it('should generate the other data string for a valid input object', () => {
+  const inputObject = {
+    0: 10,
+    1: 20,
+    2: 30,
+    3: 40,
+    4: 50,
+  };
+
+  const expectedResult = '10,20,30,40,50';
+
+  const result = EventUtil.generateOtherDataString(inputObject);
+
+  expect(result).to.equal(expectedResult);
     });
+    
+    it('should return an empty string for an empty input object', () => {
+      const inputObject = {};
+
+      const expectedResult = '';
+
+      const result = EventUtil.generateOtherDataString(inputObject);
+
+      expect(result).to.equal(expectedResult);
+    });
+
   });
 
-  describe('createThingSpeakRequestBody', function () {
-    it('should create the ThingSpeak request body successfully', function () {
-      // Test implementation goes here
+ 
+  describe('createThingSpeakRequestBody', () => {
+    it('should create the ThingSpeak request body for lowcost category', () => {
+      const req = {
+        body: {
+          api_key: 'API_KEY',
+          time: '2023-01-01T12:00:00Z',
+          s1_pm2_5: 10,
+          s1_pm10: 20,
+          s2_pm2_5: 30,
+          s2_pm10: 40,
+          latitude: 50,
+          longitude: 60,
+          battery: 70,
+          status: 'OK',
+          altitude: 80,
+          wind_speed: 90,
+          satellites: 5,
+          hdop: 1.5,
+          internal_temperature: 25,
+          internal_humidity: 50,
+          external_temperature: 15,
+          external_humidity: 40,
+          external_pressure: 1013,
+          external_altitude: 100,
+          category: 'lowcost',
+          rtc_adc: 1,
+          rtc_v: 3.3,
+          rtc: 2,
+          stc_adc: 4,
+          stc_v: 3.3,
+          stc: 5,
+        },
+      };
+
+      const expectedRequestBody = {
+        api_key: 'API_KEY',
+        created_at: '2023-01-01T12:00:00Z',
+        field1: 10,
+        field2: 20,
+        field3: 30,
+        field4: 40,
+        field5: 50,
+        field6: 60,
+        field7: 70,
+        field8: "50,60,80,90,5,1.5,25,50,15,40,1013,100,lowcost",
+        latitude: 50,
+        longitude: 60,
+        status: 'OK',
+      };
+
+      const result = EventUtil.createThingSpeakRequestBody(req);
+
+      expect(result.success).to.be.true;
+      expect(result.message).to.equal('successfully created ThingSpeak body');
+      expect(result.data).to.deep.equal(expectedRequestBody);
     });
+
+    it('should create the ThingSpeak request body for bam category', () => {
+      const req = {
+        body: {
+          api_key: 'API_KEY',
+          time: '2023-01-01T12:00:00Z',
+          s1_pm2_5: 10,
+          s1_pm10: 20,
+          s2_pm2_5: 30,
+          s2_pm10: 40,
+          latitude: 50,
+          longitude: 60,
+          battery: 70,
+          status: 'OK',
+          altitude: 80,
+          wind_speed: 90,
+          satellites: 5,
+          hdop: 1.5,
+          internal_temperature: 25,
+          internal_humidity: 50,
+          external_temperature: 15,
+          external_humidity: 40,
+          external_pressure: 1013,
+          external_altitude: 100,
+          category: 'bam',
+          rtc_adc: 1,
+          rtc_v: 3.3,
+          rtc: 2,
+          stc_adc: 4,
+          stc_v: 3.3,
+          stc: 5,
+        },
+      };
+
+      const expectedRequestBody = {
+        api_key: 'API_KEY',
+        created_at: '2023-01-01T12:00:00Z',
+        field1: 1,
+        field2: 3.3,
+        field3: 2,
+        field4: 4,
+        field5: 3.3,
+        field6: 5,
+        field7: 70,
+        field8: "50,60,80,90,5,1.5,25,50,15,40,1013,100,bam"
+,
+        latitude: 50,
+        longitude: 60,
+        status: 'OK',
+      };
+
+      const result = EventUtil.createThingSpeakRequestBody(req);
+
+      expect(result.success).to.be.true;
+      expect(result.message).to.equal('successfully created ThingSpeak body');
+      expect(result.data).to.deep.equal(expectedRequestBody);
+    });
+
   });
+
+ 
 
   describe('transmitMultipleSensorValues', function () {
     it('should transmit multiple sensor values successfully', async function () {
@@ -173,8 +345,46 @@ describe("create Event utils", function () {
   });
 
   describe('generateCacheID', function () {
-    it('should generate the cache ID successfully', function () {
-      // Test implementation goes here
+    it('should generate a cache ID with default values when no query parameters are provided', () => {
+      request = { query: {} };
+      const cacheID = EventUtil.generateCacheID(request);
+      expect(cacheID).to.equal('list_events_noDevice_undefined_0_0_noRecent_noFrequency_noEndTime_noStartTime_noDeviceId_noSite_noSiteId_2023-06-20_noDeviceNumber_noMetadata_noExternal_noAirQloud_noAirQloudID_noLatLong_noPage_noRunning_noIndex_noBrief_noLatitude_noLongitude');
+    });
+
+    it('should generate a cache ID with the correct values when query parameters are provided', () => {
+      const currentTime = new Date().toISOString();
+      const day = generateDateFormatWithoutHrs(currentTime);
+      console.log(day)
+      request = {
+        query: {
+          device: stubValue.device,
+          tenant: stubValue.tenant,
+          skip: 10,
+          limit: 20,
+          recent: true,
+          frequency: 'daily',
+          endTime: stubValue.endTime,
+          startTime: stubValue.startTime,
+          device_id: stubValue.device_id,
+          site: stubValue.name,
+          site_id: stubValue.site_id,
+          metadata: true,
+          external: true,
+          airqloud: true,
+          airqloud_id: 'myAirQloudId',
+          lat_long: stubValue.latitude + '_' + stubValue.longitude,
+          page: 2,
+          running: true,
+          index: 3,
+          brief: true,
+          latitude: stubValue.latitude,
+          longitude: stubValue.longitude,
+        },
+      };
+   
+      const cacheID = EventUtil.generateCacheID(request);
+      const expectCacheID = `list_events_${request.query.device ? request.query.device : 'noDevice'}_${request.query.tenant}_${request.query.skip ? request.query.skip : 0}_${request.query.limit ? request.query.limit : 0}_${request.query.recent ? request.query.recent : 'noRecent'}_${request.query.frequency ? request.query.frequency : 'noFrequency'}_${request.query.endTime ? request.query.endTime : 'noEndTime'}_${request.query.startTime ? request.query.startTime : 'noStartTime'}_${request.query.device_id ? request.query.device_id : 'noDeviceId'}_${request.query.site ? request.query.site : 'noSite'}_${request.query.site_id ? request.query.site_id : 'noSiteId'}_${day}_${request.query.device_number ? request.query.device_number : 'noDeviceNumber'}_${request.query.metadata ? request.query.metadata : 'noMetadata'}_${request.query.external ? request.query.external : 'noExternal'}_${request.query.airqloud ? request.query.airqloud : 'noAirQloud'}_${request.query.airqloud_id ? request.query.airqloud_id : 'noAirQloudID'}_${request.query.lat_long ? request.query.lat_long : 'noLatLong'}_${request.query.page ? request.query.page : 'noPage'}_${request.query.running ? request.query.running : 'noRunning'}_${request.query.index ? request.query.index : 'noIndex'}_${request.query.brief ? request.query.brief : 'noBrief'}_${request.query.latitude ? request.query.latitude : 'noLatitude'}_${request.query.longitude ? request.query.longitude : 'noLongitude'}`;
+      expect(cacheID).to.equal(expectCacheID);
     });
   });
 
@@ -189,8 +399,8 @@ describe("create Event utils", function () {
   });
 
   describe('getCache', function () {
-    it('should get the cache successfully', async function () {
-      // Test implementation goes here
+    it('should return cached data if present', async () => {
+      
     });
 
     it('should return an error response if getting the cache fails', async function () {
@@ -199,8 +409,13 @@ describe("create Event utils", function () {
   });
 
   describe('transformOneEvent', function () {
-    it('should transform one event successfully', function () {
-      // Test implementation goes here
+    it('should transform one event successfully', async function () {
+      const response = await EventUtil.transformOneEvent(req);
+      expect(response).to.deep.equal({
+        success: true,
+        message: "successfully transformed the provided event",
+        data: {},
+      });
     });
   });
 
@@ -210,7 +425,7 @@ describe("create Event utils", function () {
     });
   });
 
-  describe.only('transformManyEvents', function () {
+  describe('transformManyEvents', function () {
     it('should transform many events successfully', async function () {
       const request = {
         body: [
