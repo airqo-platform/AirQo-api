@@ -796,14 +796,14 @@ const generateFilter = {
 
   kyatasks: (request) => {
     try {
-      const { query, body, params } = request;
+      const { query, params } = request;
       const { id } = query;
       const { task_id, lesson_id } = params;
       let filter = {};
       if (id) {
         filter["_id"] = ObjectId(id);
       }
-      if (id) {
+      if (task_id) {
         filter["_id"] = ObjectId(task_id);
       }
       if (lesson_id) {

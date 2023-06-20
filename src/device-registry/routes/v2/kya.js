@@ -555,37 +555,41 @@ router.post(
   ]),
   oneOf([
     [
-      body("description")
+      body("content")
         .exists()
-        .withMessage("the description is missing in request")
+        .withMessage("the content is missing in request")
         .bail()
+        .notEmpty()
+        .withMessage("the content should not be empty")
         .trim(),
       body("title")
         .exists()
         .withMessage("the title is missing in request")
         .bail()
+        .notEmpty()
+        .withMessage("the title should not be empty")
         .trim(),
       body("image")
         .exists()
         .withMessage("the image is missing in request")
         .bail()
+        .isURL()
+        .withMessage("the image url is not a valid URL")
         .trim(),
-      body("aqi_category")
-        .exists()
-        .withMessage("the aqi_category is missing in request")
-        .bail()
-        .trim()
-        .toLowerCase()
-        .isIn(constants.AQI_CATEGORIES)
-        .withMessage(
-          "the aqi_category is not among the expected ones: good,moderate,u4sg,unhealthy,very_unhealthy,hazardous"
-        ),
     ],
   ]),
   knowYourAirController.createTask
 );
 router.put(
-  "/tasks",
+  "/tasks/:task_id",
+  oneOf([
+    body()
+      .notEmpty()
+      .custom((value) => {
+        return !isEmpty(value);
+      })
+      .withMessage("the request body should not be empty"),
+  ]),
   oneOf([
     [
       query("tenant")
@@ -600,65 +604,49 @@ router.put(
     ],
   ]),
   oneOf([
-    query("id")
-      .exists()
-      .withMessage(
-        "the tip unique identifier is missing in request, consider using the id"
-      )
-      .bail()
-      .trim()
-      .isMongoId()
-      .withMessage("id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
+    [
+      param("task_id")
+        .exists()
+        .withMessage("the task_id should exist")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("task_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+    ],
   ]),
-  oneOf([
-    body()
-      .notEmpty()
-      .custom((value) => {
-        return !isEmpty(value);
-      })
-      .withMessage("the request body should not be empty"),
-  ]),
+
   oneOf([
     [
-      body("description")
+      body("content")
         .optional()
         .notEmpty()
-        .withMessage("the description is missing in request")
+        .withMessage("the content should not be empty IF provided")
         .bail()
         .trim(),
       body("title")
         .optional()
         .notEmpty()
-        .withMessage("the title is missing in request")
+        .withMessage("the title should not be empty IF provided")
         .bail()
         .trim(),
       body("image")
         .optional()
         .notEmpty()
-        .withMessage("the image is missing in request")
+        .withMessage("the image should not be empty IF provided")
         .bail()
+        .isURL()
+        .withMessage("the image url is not a valid URL")
         .trim(),
-      body("aqi_category")
-        .optional()
-        .notEmpty()
-        .withMessage("the aqi_category is missing in request")
-        .bail()
-        .trim()
-        .toLowerCase()
-        .isIn(constants.AQI_CATEGORIES)
-        .withMessage(
-          "the aqi_category is not among the expected ones: good,moderate,u4sg,unhealthy,very_unhealthy,hazardous"
-        ),
     ],
   ]),
   knowYourAirController.updateTask
 );
 router.delete(
-  "/tasks",
+  "/tasks/:task_id",
   oneOf([
     [
       query("tenant")
@@ -673,21 +661,54 @@ router.delete(
     ],
   ]),
   oneOf([
-    query("id")
-      .exists()
-      .withMessage(
-        "the tip identifier is missing in request, consider using the id"
-      )
-      .bail()
-      .trim()
-      .isMongoId()
-      .withMessage("the id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
+    [
+      param("task_id")
+        .exists()
+        .withMessage("the task_id should exist")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("task_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+    ],
   ]),
   knowYourAirController.deleteTask
+);
+
+router.get(
+  "/tasks/:task_id",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("the tenant cannot be empty, if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(constants.NETWORKS)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      param("task_id")
+        .exists()
+        .withMessage("the task_id should exist")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("task_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+    ],
+  ]),
+  knowYourAirController.listTask
 );
 
 /******************* manage lessons *********************************************/

@@ -122,7 +122,7 @@ const createKnowYourAir = {
         return res.status(status).json({
           success: true,
           message: responseFromCreateKYALesson.message,
-          created_kya: responseFromCreateKYALesson.data
+          created_kya_lesson: responseFromCreateKYALesson.data
             ? responseFromCreateKYALesson.data
             : [],
         });
@@ -190,7 +190,7 @@ const createKnowYourAir = {
         return res.status(status).json({
           success: true,
           message: responseFromDeleteKYALesson.message,
-          deleted_kya: responseFromDeleteKYALesson.data,
+          deleted_kya_lesson: responseFromDeleteKYALesson.data,
         });
       } else if (responseFromDeleteKYALesson.success === false) {
         const status = responseFromDeleteKYALesson.status
@@ -256,7 +256,7 @@ const createKnowYourAir = {
         return res.status(status).json({
           success: true,
           message: responseFromUpdateKYALesson.message,
-          updated_kya: responseFromUpdateKYALesson.data,
+          updated_kya_lesson: responseFromUpdateKYALesson.data,
         });
       } else if (responseFromUpdateKYALesson.success === false) {
         const status = responseFromUpdateKYALesson.status
@@ -555,7 +555,7 @@ const createKnowYourAir = {
     }
   },
 
-  /************** tasks ********************************/
+  /****************** tasks ********************************/
   listTask: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -600,7 +600,7 @@ const createKnowYourAir = {
         return res.status(status).json({
           success: true,
           message: responseFromListKYATask.message,
-          kyas: responseFromListKYATask.data,
+          kya_tasks: responseFromListKYATask.data,
         });
       } else if (responseFromListKYATask.success === false) {
         const status = responseFromListKYATask.status
@@ -665,7 +665,7 @@ const createKnowYourAir = {
         return res.status(status).json({
           success: true,
           message: responseFromCreateKYATask.message,
-          created_kya: responseFromCreateKYATask.data
+          created_kya_task: responseFromCreateKYATask.data
             ? responseFromCreateKYATask.data
             : [],
         });
@@ -732,7 +732,7 @@ const createKnowYourAir = {
         return res.status(status).json({
           success: true,
           message: responseFromDeleteKYATask.message,
-          deleted_kya: responseFromDeleteKYATask.data,
+          deleted_kya_task: responseFromDeleteKYATask.data,
         });
       } else if (responseFromDeleteKYATask.success === false) {
         const status = responseFromDeleteKYATask.status
@@ -798,7 +798,7 @@ const createKnowYourAir = {
         return res.status(status).json({
           success: true,
           message: responseFromUpdateKYATask.message,
-          updated_kya: responseFromUpdateKYATask.data,
+          updated_kya_task: responseFromUpdateKYATask.data,
         });
       } else if (responseFromUpdateKYATask.success === false) {
         const status = responseFromUpdateKYATask.status
@@ -821,7 +821,8 @@ const createKnowYourAir = {
       });
     }
   },
-  /** manage ********************************/
+
+  /******************* manage ********************************/
   assignTaskToLesson: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();

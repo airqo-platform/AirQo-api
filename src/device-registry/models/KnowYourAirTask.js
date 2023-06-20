@@ -11,6 +11,7 @@ const knowYourAirTaskSchema = new Schema(
     title: {
       type: String,
       required: [true, "the title is required!"],
+      unique: true,
     },
     image: {
       required: [true, "the image is required!"],
@@ -105,7 +106,7 @@ knowYourAirTaskSchema.statics = {
       const exclusionProjection = constants.KYA_TASKS_EXCLUSION_PROJECTION(
         filter.category ? filter.category : "none"
       );
-      const response = await this.aggregate()
+      const pipeline = await this.aggregate()
         .match(filter)
         .sort({ createdAt: -1 })
         .lookup({
@@ -115,7 +116,6 @@ knowYourAirTaskSchema.statics = {
           as: "kyalessons",
         })
         .project(inclusionProjection)
-        .project(exclusionProjection)
         .skip(skip ? skip : 0)
         .limit(
           limit
@@ -123,6 +123,12 @@ knowYourAirTaskSchema.statics = {
             : parseInt(constants.DEFAULT_LIMIT_FOR_QUERYING_KYA_TASKS)
         )
         .allowDiskUse(true);
+
+      if (Object.keys(exclusionProjection).length > 0) {
+        pipeline.project(exclusionProjection);
+      }
+
+      const response = pipeline;
 
       if (!isEmpty(response)) {
         logObject("response", response);
