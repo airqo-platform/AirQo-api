@@ -98,22 +98,21 @@ knowYourAirLessonSchema.statics = {
   },
   async list({ skip = 0, limit = 1000, filter = {} } = {}) {
     try {
+      const inclusionProjection = constants.KYA_LESSONS_INCLUSION_PROJECTION;
+      const exclusionProjection = constants.KYA_LESSONS_EXCLUSION_PROJECTION(
+        filter.category ? filter.category : "none"
+      );
       const response = await this.aggregate()
         .match(filter)
         .sort({ createdAt: -1 })
         .lookup({
-          from: "knowyourairtasks",
+          from: "kyatasks",
           localField: "_id",
           foreignField: "kya_lesson",
           as: "tasks",
         })
-        .project({
-          _id: 1,
-          title: 1,
-          completion_lesson: 1,
-          image: 1,
-          tasks: 1,
-        })
+        .project(inclusionProjection)
+        .project(exclusionProjection)
         .skip(skip ? skip : 0)
         .limit(
           limit

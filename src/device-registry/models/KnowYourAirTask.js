@@ -25,7 +25,7 @@ const knowYourAirTaskSchema = new Schema(
     kya_lesson: {
       type: ObjectId,
       trim: true,
-      ref: "knowyourairlesson",
+      ref: "kyalesson",
     },
   },
   {
@@ -101,15 +101,21 @@ knowYourAirTaskSchema.statics = {
   },
   async list({ skip = 0, limit = 1000, filter = {} } = {}) {
     try {
-      let response = await this.aggregate()
+      const inclusionProjection = constants.KYA_TASKS_INCLUSION_PROJECTION;
+      const exclusionProjection = constants.KYA_TASKS_EXCLUSION_PROJECTION(
+        filter.category ? filter.category : "none"
+      );
+      const response = await this.aggregate()
         .match(filter)
         .sort({ createdAt: -1 })
-        .project({
-          _id: 1,
-          title: 1,
-          content: 1,
-          image: 1,
+        .lookup({
+          from: "kyalessons",
+          localField: "kya_lesson",
+          foreignField: "_id",
+          as: "kyalessons",
         })
+        .project(inclusionProjection)
+        .project(exclusionProjection)
         .skip(skip ? skip : 0)
         .limit(
           limit
