@@ -3,9 +3,8 @@ import logging
 from flask import Blueprint, request, jsonify
 
 import routes
-from helpers.convert_dates import str_to_date
 from helpers.request_validators import validate_request_json
-from helpers.uptime import Uptime, MetaData
+from helpers.uptime import Uptime
 
 _logger = logging.getLogger(__name__)
 
@@ -20,6 +19,7 @@ uptime_bp = Blueprint(
     "startDateTime|required:datetime",
     "endDateTime|required:datetime",
     "airqloud|optional:str",
+    "threshold|optional:int",
     "site|optional:str",
     "devices|optional:list",
 )
@@ -29,6 +29,7 @@ def get_uptime():
     end_date_time = json_data.get("endDateTime")
     devices = json_data.get("devices", [])
     site = json_data.get("site", "")
+    threshold = json_data.get("threshold", None)
     airqloud = json_data.get("airqloud", "")
 
     data = Uptime.get_uptime(
@@ -45,6 +46,7 @@ def get_uptime():
         devices=devices,
         site=site,
         airqloud=airqloud,
+        threshold=threshold,
     )
     response = dict(message="Successful", data=uptime)
     return jsonify(response), 200

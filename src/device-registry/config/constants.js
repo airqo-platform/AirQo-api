@@ -87,12 +87,12 @@ const defaultConfig = {
   UNIQUE_CONSUMER_GROUP: process.env.UNIQUE_CONSUMER_GROUP,
   UNIQUE_PRODUCER_GROUP: process.env.UNIQUE_PRODUCER_GROUP,
   AQI_INDEX: {
-    good: [0, 50],
-    moderate: [51, 100],
-    u4sg: [101, 150],
-    unhealthy: [151, 200],
-    very_unhealthy: [201, 300],
-    hazardous: [301],
+    good: [0, 12],
+    moderate: [12.1, 35.4],
+    u4sg: [35.5, 55.4],
+    unhealthy: [55.5, 150.4],
+    very_unhealthy: [150.5, 250.4],
+    hazardous: [250.5, 500],
   },
   GET_ROAD_METADATA_PATHS: {
     altitude: "altitude",
