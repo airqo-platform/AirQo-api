@@ -74,6 +74,7 @@ app.use(express.static(path.join(__dirname, "public")));
 /****** the V1 endpoints ****************/
 app.use("/api/v1/users/networks", routes.v1.networks);
 app.use("/api/v1/users/permissions", routes.v1.permissions);
+app.use("/api/v1/users/favorites", routes.v1.favorites);
 app.use("/api/v1/users/roles", routes.v1.roles);
 app.use("/api/v1/users/inquiries", routes.v1.inquiries);
 app.use("/api/v1/users/candidates", routes.v1.requests);
@@ -88,6 +89,7 @@ app.use("/api/v1/users", routes.v1.users);
 /****** the V2 endpoints ****************/
 app.use("/api/v2/users/networks", routes.v2.networks);
 app.use("/api/v2/users/permissions", routes.v2.permissions);
+app.use("/api/v2/users/favorites", routes.v2.favorites);
 app.use("/api/v2/users/roles", routes.v2.roles);
 app.use("/api/v2/users/inquiries", routes.v2.inquiries);
 app.use("/api/v2/users/candidates", routes.v2.requests);
