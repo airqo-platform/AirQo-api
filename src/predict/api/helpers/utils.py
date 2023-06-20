@@ -10,6 +10,7 @@ from google.cloud import bigquery
 from app import cache
 from config.constants import connect_mongo, Config
 from models.predict import get_forecasts
+from sqlalchemy import func
 
 load_dotenv()
 db = connect_mongo()
@@ -131,24 +132,20 @@ def geo_coordinates_cache_key_v2():
     return key
 
 
-@cache.cached(timeout=3600, key_prefix=geo_coordinates_cache_key_v2)
 def get_predictions_by_geo_coordinates_v2(latitude: float, longitude: float) -> dict:
-    client = bigquery.Client()
+    from app import postgres_db, Predictions
 
-    query = (
-        f"SELECT pm2_5, timestamp "
-        f"FROM `{Config.BIGQUERY_PLACES_PREDICTIONS}` "
-        f"WHERE ST_CONTAINS(geometry, ST_GEOGPOINT({longitude}, {latitude})) "
-        f"LIMIT 1"
+    point = func.ST_MakePoint(longitude, latitude)
+    query = postgres_db.session.query(Predictions).filter(
+        func.ST_Within(point, Predictions.geometry)
     )
-    dataframe = client.query(query=query).result().to_dataframe()
+    point = query.first()
 
-    if dataframe.empty:
-        return {}
-
-    dataframe["timestamp"] = dataframe["timestamp"].apply(pd.to_datetime)
-    dataframe["timestamp"] = dataframe["timestamp"].apply(date_to_str)
-    return dataframe.to_dict("records")[0]
+    return {
+        "parish": point.parish,
+        "pm2_5": point.pm2_5,
+        "timestamp": point.timestamp,
+    }
 
 
 def get_gp_predictions_id(aq_id):

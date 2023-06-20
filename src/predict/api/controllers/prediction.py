@@ -79,7 +79,8 @@ def search_predictions():
         distance_in_metres = int(request.args.get("distance", 100))
         if source == "parishes":
             data = get_predictions_by_geo_coordinates_v2(
-                latitude=latitude, longitude=longitude
+                latitude=latitude,
+                longitude=longitude,
             )
         else:
             data = get_predictions_by_geo_coordinates(

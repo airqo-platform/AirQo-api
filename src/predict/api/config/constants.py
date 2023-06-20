@@ -21,6 +21,7 @@ class Config:
     BIGQUERY_PLACES_PREDICTIONS = os.getenv("BIGQUERY_PLACES_PREDICTIONS")
     AIRQO_BASE_URL = os.getenv("AIRQO_BASE_URL", "https://api.airqo.net")
     AIRQO_API_AUTH_TOKEN = os.getenv("AIRQO_API_AUTH_TOKEN", "")
+    POSTGRES_CONNECTION_URL = os.getenv("POSTGRES_CONNECTION_URL")
 
 
 class ProductionConfig(Config):

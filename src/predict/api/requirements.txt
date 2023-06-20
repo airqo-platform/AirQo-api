@@ -9,3 +9,6 @@ gunicorn==20.1.0
 pandas
 google-cloud-bigquery
 google-cloud-bigquery[pandas]
+Flask-SQLAlchemy
+psycopg2
+GeoAlchemy2
