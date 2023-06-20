@@ -8,7 +8,7 @@ const logger = log4js.getLogger(
 );
 const { validationResult } = require("express-validator");
 const createKnowYourAirUtil = require("@utils/create-know-your-air");
-const { isEmpty } = require("is-empty");
+const isEmpty = require("is-empty");
 
 const createKnowYourAir = {
   /*********** lessons ********************************/
@@ -41,7 +41,7 @@ const createKnowYourAir = {
 
       let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
-      const responseFromListKYALesson = await createKnowYourAirUtil.list(
+      const responseFromListKYALesson = await createKnowYourAirUtil.listLesson(
         request
       );
       logObject(
@@ -71,6 +71,7 @@ const createKnowYourAir = {
         });
       }
     } catch (error) {
+      logObject("error", error);
       logger.error(`internal server error -- ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
@@ -110,7 +111,7 @@ const createKnowYourAir = {
       let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
 
-      const responseFromCreateKYALesson = await createKnowYourAirUtil.create(
+      const responseFromCreateKYALesson = await createKnowYourAirUtil.createLesson(
         request
       );
       logObject("responseFromCreateKYALesson", responseFromCreateKYALesson);
@@ -138,6 +139,7 @@ const createKnowYourAir = {
         });
       }
     } catch (error) {
+      logObject("error", error);
       logger.error(`internal server error -- ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
@@ -175,7 +177,7 @@ const createKnowYourAir = {
 
       let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
-      const responseFromDeleteKYALesson = await createKnowYourAirUtil.delete(
+      const responseFromDeleteKYALesson = await createKnowYourAirUtil.deleteLesson(
         request
       );
 
@@ -241,7 +243,7 @@ const createKnowYourAir = {
       let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
 
-      const responseFromUpdateKYALesson = await createKnowYourAirUtil.update(
+      const responseFromUpdateKYALesson = await createKnowYourAirUtil.updateLesson(
         request
       );
 
@@ -269,6 +271,7 @@ const createKnowYourAir = {
         });
       }
     } catch (error) {
+      logObject("error", error);
       logger.error(`internal server error -- ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
@@ -651,7 +654,7 @@ const createKnowYourAir = {
       let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
 
-      const responseFromCreateKYATask = await createKnowYourAirUtil.create(
+      const responseFromCreateKYATask = await createKnowYourAirUtil.createTask(
         request
       );
       logObject("responseFromCreateKYATask", responseFromCreateKYATask);
@@ -716,7 +719,7 @@ const createKnowYourAir = {
 
       let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
-      const responseFromDeleteKYATask = await createKnowYourAirUtil.delete(
+      const responseFromDeleteKYATask = await createKnowYourAirUtil.deleteTask(
         request
       );
 
@@ -782,7 +785,7 @@ const createKnowYourAir = {
       let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
 
-      const responseFromUpdateKYATask = await createKnowYourAirUtil.update(
+      const responseFromUpdateKYATask = await createKnowYourAirUtil.updateTask(
         request
       );
 

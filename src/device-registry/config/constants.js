@@ -980,7 +980,7 @@ const defaultConfig = {
   KYA_LESSONS_INCLUSION_PROJECTION: {
     _id: 1,
     title: 1,
-    completion_lesson: 1,
+    completion_message: 1,
     image: 1,
     tasks: 1,
   },

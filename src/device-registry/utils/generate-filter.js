@@ -778,7 +778,7 @@ const generateFilter = {
       if (id) {
         filter["_id"] = ObjectId(id);
       }
-      if (id) {
+      if (lesson_id) {
         filter["_id"] = ObjectId(lesson_id);
       }
       return filter;

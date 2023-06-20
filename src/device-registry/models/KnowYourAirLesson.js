@@ -11,6 +11,7 @@ const knowYourAirLessonSchema = new Schema(
     title: {
       type: String,
       required: [true, "the title is required!"],
+      unique: true,
     },
     image: {
       required: [true, "the image is required!"],
@@ -102,17 +103,16 @@ knowYourAirLessonSchema.statics = {
       const exclusionProjection = constants.KYA_LESSONS_EXCLUSION_PROJECTION(
         filter.category ? filter.category : "none"
       );
-      const response = await this.aggregate()
+      let pipeline = await this.aggregate()
         .match(filter)
         .sort({ createdAt: -1 })
         .lookup({
           from: "kyatasks",
           localField: "_id",
-          foreignField: "kya_lesson",
+          foreignField: "_id",
           as: "tasks",
         })
         .project(inclusionProjection)
-        .project(exclusionProjection)
         .skip(skip ? skip : 0)
         .limit(
           limit
@@ -120,6 +120,12 @@ knowYourAirLessonSchema.statics = {
             : parseInt(constants.DEFAULT_LIMIT_FOR_QUERYING_KYA_LESSONS)
         )
         .allowDiskUse(true);
+
+      if (Object.keys(exclusionProjection).length > 0) {
+        pipeline.project(exclusionProjection);
+      }
+
+      const response = pipeline;
 
       if (!isEmpty(response)) {
         logObject("response", response);

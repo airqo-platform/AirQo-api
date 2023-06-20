@@ -53,6 +53,7 @@ router.get(
   ]),
   knowYourAirController.listLessons
 );
+
 router.post(
   "/lessons",
   oneOf([
@@ -74,25 +75,29 @@ router.post(
         .exists()
         .withMessage("the completion_message is missing in request")
         .bail()
+        .notEmpty()
+        .withMessage("the completion_message should not be empty")
         .trim(),
       body("title")
         .exists()
         .withMessage("the title is missing in request")
         .bail()
+        .notEmpty()
+        .withMessage("the title should not be empty")
         .trim(),
       body("image")
         .exists()
         .withMessage("the image is missing in request")
         .bail()
         .isURL()
-        .withMessage("the image_url is not a valid URL")
+        .withMessage("the image url is not a valid URL")
         .trim(),
     ],
   ]),
   knowYourAirController.createLesson
 );
 router.put(
-  "/lessons",
+  "/lessons/:lesson_id",
   oneOf([
     [
       query("tenant")
@@ -107,19 +112,19 @@ router.put(
     ],
   ]),
   oneOf([
-    query("id")
-      .exists()
-      .withMessage(
-        "the tip unique identifier is missing in request, consider using the id"
-      )
-      .bail()
-      .trim()
-      .isMongoId()
-      .withMessage("id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
+    [
+      param("lesson_id")
+        .exists()
+        .withMessage("the lesson_id should exist")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("lesson_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+    ],
   ]),
   oneOf([
     body()
@@ -131,12 +136,6 @@ router.put(
   ]),
   oneOf([
     [
-      body("description")
-        .optional()
-        .notEmpty()
-        .withMessage("the description is missing in request")
-        .bail()
-        .trim(),
       body("title")
         .optional()
         .notEmpty()
@@ -148,24 +147,21 @@ router.put(
         .notEmpty()
         .withMessage("the image is missing in request")
         .bail()
+        .isURL()
+        .withMessage("the image url is not a valid URL")
         .trim(),
-      body("aqi_category")
+      body("completion_message")
         .optional()
         .notEmpty()
-        .withMessage("the aqi_category is missing in request")
+        .withMessage("the completion_message is missing in request")
         .bail()
-        .trim()
-        .toLowerCase()
-        .isIn(constants.AQI_CATEGORIES)
-        .withMessage(
-          "the aqi_category is not among the expected ones: good,moderate,u4sg,unhealthy,very_unhealthy,hazardous"
-        ),
+        .trim(),
     ],
   ]),
   knowYourAirController.updateLesson
 );
 router.delete(
-  "/lessons",
+  "/lessons/:lesson_id",
   oneOf([
     [
       query("tenant")
@@ -180,24 +176,24 @@ router.delete(
     ],
   ]),
   oneOf([
-    query("id")
-      .exists()
-      .withMessage(
-        "the tip identifier is missing in request, consider using the id"
-      )
-      .bail()
-      .trim()
-      .isMongoId()
-      .withMessage("the id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
+    [
+      param("lesson_id")
+        .exists()
+        .withMessage("the lesson_id should exist")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("lesson_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+    ],
   ]),
   knowYourAirController.deleteLesson
 );
 router.get(
-  "/lessons/{lesson_id}/assigned-tasks",
+  "/lessons/:lesson_id/assigned-tasks",
   oneOf([
     [
       query("tenant")
@@ -261,6 +257,38 @@ router.get(
     ],
   ]),
   knowYourAirController.listAvailableTasks
+);
+router.get(
+  "/lessons/:lesson_id",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("the tenant cannot be empty, if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(constants.NETWORKS)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      param("lesson_id")
+        .exists()
+        .withMessage("the lesson_id should exist")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("lesson_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+    ],
+  ]),
+  knowYourAirController.listLessons
 );
 
 /****** CRUD for tracking user progress ******************************/

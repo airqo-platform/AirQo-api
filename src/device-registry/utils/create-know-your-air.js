@@ -78,7 +78,7 @@ const createKnowYourAir = {
       if (filter.success && filter.success === false) {
         return filter;
       }
-
+      logObject("filter", filter);
       const responseFromListLessons = await KnowYourAirLessonModel(tenant).list(
         {
           filter,
@@ -89,6 +89,7 @@ const createKnowYourAir = {
       logObject("responseFromListLessons", responseFromListLessons);
       return responseFromListLessons;
     } catch (error) {
+      logObject("error", error);
       logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
@@ -134,12 +135,14 @@ const createKnowYourAir = {
         return filter;
       }
       const update = body;
-      const opts = { new: false };
+      const opts = { new: true };
       const responseFromModifyKyaLesson = await KnowYourAirLessonModel(
         tenant
       ).modify({ filter, update, opts });
+      logObject("responseFromModifyKyaLesson", responseFromModifyKyaLesson);
       return responseFromModifyKyaLesson;
     } catch (error) {
+      logObject("error", error);
       logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
