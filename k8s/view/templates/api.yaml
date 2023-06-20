@@ -46,7 +46,7 @@ spec:
                       - general-purpose
       containers:
         - name: {{ .Values.api.label }}
-          image: "{{ .Values.api.image.repository }}:{{ .Values.api.image.tag }}"
+          image: "{{ .Values.images.repositories.api }}:{{ .Values.images.tag }}"
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: {{ .Values.service.targetPort }}

@@ -34,7 +34,7 @@ Create chart name and version as used by the chart label.
 Common labels
 */}}
 {{- define "view.labels" -}}
-helm.sh/chart: {{ include "view-api.chart" . }}
+helm.sh/chart: {{ include "view.chart" . }}
 {{ include "view.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
@@ -46,6 +46,6 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 Selector labels
 */}}
 {{- define "view.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "view-api.name" . }}
+app.kubernetes.io/name: {{ include "view.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
