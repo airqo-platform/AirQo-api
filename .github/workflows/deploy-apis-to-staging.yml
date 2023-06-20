@@ -726,14 +726,8 @@ jobs:
 
       - name: Deploy to K8S
         run: |
-          export KAFKA_BROKER_0=${{ secrets.STAGE_KAFKA_BROKER_0 }}
-          export KAFKA_BROKER_1=${{ secrets.STAGE_KAFKA_BROKER_1 }}
-          export KAFKA_BROKER_2=${{ secrets.STAGE_KAFKA_BROKER_2 }}
-
-          sed -i 's/KAFKA_BROKER_0/'"$KAFKA_BROKER_0"'/g' k8s/kafka/clusters/kafka-cluster.yaml
-          sed -i 's/KAFKA_BROKER_1/'"$KAFKA_BROKER_1"'/g' k8s/kafka/clusters/kafka-cluster.yaml
-          sed -i 's/KAFKA_BROKER_2/'"$KAFKA_BROKER_2"'/g' k8s/kafka/clusters/kafka-cluster.yaml
-
+          export CLUSTER_CONTROLLER_IP=${{ secrets.STAGE_CLUSTER_CONTROLLER_IP}}
+          sed -i 's/CLUSTER_CONTROLLER_IP/'"$CLUSTER_CONTROLLER_IP"'/g' k8s/kafka/clusters/kafka-cluster.yaml
           kubectl apply -n message-broker -f k8s/kafka/clusters/kafka-cluster.yaml
 
   ### kafka topics ###
