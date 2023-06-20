@@ -4,76 +4,81 @@ const ObjectId = Schema.Types.ObjectId;
 const { logElement, logObject, logText } = require("@utils/log");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
-const HTTPStatus = require("http-status");
+const httpStatus = require("http-status");
 
-const knowYourAirLessonSchema = new Schema(
+const userLessonProgressSchema = new Schema(
   {
-    /**
-     * This slug identifier can be used to reference lessons
-     * across collections and track progress consistently
-     */
-    slug: {
-      type: String,
+    user: {
+      type: ObjectId,
+      ref: "User",
       required: true,
-      unique: true,
     },
-    title: {
-      type: String,
-      required: [true, "the title is required!"],
+    lesson: {
+      type: ObjectId,
+      ref: "KnowYourAirLesson",
+      required: true,
     },
-    image: {
-      required: [true, "the image is required!"],
-      type: String,
-      trim: true,
-    },
-    completion_lesson: {
-      required: [true, "the completion_lesson is required!"],
-      type: String,
-      trim: true,
-    },
+    tasks: [
+      {
+        task: {
+          type: ObjectId,
+          ref: "KnowYourAirTask",
+        },
+        completed: {
+          type: Boolean,
+          default: false,
+        },
+        progress: {
+          type: Number,
+          default: 0,
+        },
+      },
+    ],
   },
   {
     timestamps: true,
   }
 );
 
-knowYourAirLessonSchema.pre("save", function(next) {
+userLessonProgressSchema.pre("save", function(next) {
   next();
 });
 
-knowYourAirLessonSchema.plugin(uniqueValidator, {
+userLessonProgressSchema.plugin(uniqueValidator, {
   message: `{VALUE} already taken!`,
 });
 
-knowYourAirLessonSchema.methods = {
+userLessonProgressSchema.methods = {
   toJSON() {
     return {
-      title: this.title,
-      completion_lesson: this.completion_lesson,
-      image: this.image,
+      user: this.user,
+      lesson: this.lesson,
+      tasks: this.tasks,
       _id: this._id,
     };
   },
 };
 
-knowYourAirLessonSchema.statics = {
+userLessonProgressSchema.statics = {
   async register(args) {
     try {
       logText("registering a new lesson....");
       let modifiedArgs = Object.assign({}, args);
-      const createdKnowYourAirLesson = await this.create({ ...modifiedArgs });
-      if (!isEmpty(createdKnowYourAirLesson)) {
+      const createdKnowYourAirLessonProgress = await this.create({
+        ...modifiedArgs,
+      });
+      if (!isEmpty(createdKnowYourAirLessonProgress)) {
         return {
           success: true,
-          data: createdKnowYourAirLesson._doc,
+          data: createdKnowYourAirLessonProgress._doc,
           message: "lesson created",
-          status: HTTPStatus.CREATED,
+          status: httpStatus.CREATED,
         };
-      } else if (isEmpty(createdKnowYourAirLesson)) {
+      } else if (isEmpty(createdKnowYourAirLessonProgress)) {
         return {
           success: false,
           message: "lesson not created despite successful operation",
-          status: HTTPStatus.INTERNAL_SERVER_ERROR,
+          status: httpStatus.INTERNAL_SERVER_ERROR,
           errors: {
             message: "lesson not created despite successful operation",
           },
@@ -83,7 +88,7 @@ knowYourAirLessonSchema.statics = {
       logObject("the error", err);
       let response = {};
       let message = "validation errors for some of the provided fields";
-      let status = HTTPStatus.CONFLICT;
+      let status = httpStatus.CONFLICT;
       if (!isEmpty(err.keyPattern) && err.code === 11000) {
         Object.entries(err.keyPattern).forEach(([key, value]) => {
           response[key] = "duplicate value";
@@ -107,19 +112,14 @@ knowYourAirLessonSchema.statics = {
   },
   async list({ skip = 0, limit = 1000, filter = {} } = {}) {
     try {
-      const inclusionProjection = constants.KYA_LESSONS_INCLUSION_PROJECTION;
-      const exclusionProjection = constants.KYA_LESSONS_EXCLUSION_PROJECTION(
+      const inclusionProjection =
+        constants.KYA_LESSONS_PROGRESS_INCLUSION_PROJECTION;
+      const exclusionProjection = constants.KYA_LESSONS_PROGRESS_EXCLUSION_PROJECTION(
         filter.category ? filter.category : "none"
       );
       const response = await this.aggregate()
         .match(filter)
         .sort({ createdAt: -1 })
-        .lookup({
-          from: "kyatasks",
-          localField: "_id",
-          foreignField: "kya_lesson",
-          as: "tasks",
-        })
         .project(inclusionProjection)
         .project(exclusionProjection)
         .skip(skip ? skip : 0)
@@ -134,15 +134,15 @@ knowYourAirLessonSchema.statics = {
         logObject("response", response);
         return {
           success: true,
-          message: "successfully retrieved the lessons",
+          message: "successfully retrieved the progress",
           data: response,
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       } else if (isEmpty(response)) {
         return {
           success: true,
-          message: "No lessons found for this operation",
-          status: HTTPStatus.OK,
+          message: "No progress found for this operation",
+          status: httpStatus.OK,
           data: [],
         };
       }
@@ -150,7 +150,7 @@ knowYourAirLessonSchema.statics = {
       logObject("the error", err);
       let response = { message: err.message };
       let message = "validation errors for some of the provided fields";
-      let status = HTTPStatus.CONFLICT;
+      let status = httpStatus.CONFLICT;
       if (err.code === 11000) {
         if (!isEmpty(err.keyPattern)) {
           Object.entries(err.keyPattern).forEach(([key, value]) => {
@@ -190,32 +190,35 @@ knowYourAirLessonSchema.statics = {
 
       logObject("the new modifiedUpdateBody", modifiedUpdateBody);
 
-      const updatedKnowYourAirLesson = await this.findOneAndUpdate(
+      const updatedKnowYourAirLessonProgress = await this.findOneAndUpdate(
         filter,
         modifiedUpdateBody,
         options
       );
-      logObject("updatedKnowYourAirLesson", updatedKnowYourAirLesson);
-      if (!isEmpty(updatedKnowYourAirLesson)) {
+      logObject(
+        "updatedKnowYourAirLessonProgress",
+        updatedKnowYourAirLessonProgress
+      );
+      if (!isEmpty(updatedKnowYourAirLessonProgress)) {
         return {
           success: true,
           message: "successfully modified the lesson",
-          data: updatedKnowYourAirLesson._doc,
-          status: HTTPStatus.OK,
+          data: updatedKnowYourAirLessonProgress._doc,
+          status: httpStatus.OK,
         };
-      } else if (isEmpty(updatedKnowYourAirLesson)) {
+      } else if (isEmpty(updatedKnowYourAirLessonProgress)) {
         return {
           success: false,
-          message: "No lessons found for this operation",
-          status: HTTPStatus.BAD_REQUEST,
-          errors: { message: "No lessons found for this operation" },
+          message: "No progress found for this operation",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "No progress found for this operation" },
         };
       }
     } catch (err) {
       logObject("the error", err);
       let response = {};
       let message = "validation errors for some of the provided fields";
-      let status = HTTPStatus.CONFLICT;
+      let status = httpStatus.CONFLICT;
       if (!isEmpty(err.code) && err.code === 11000) {
         Object.entries(err.keyPattern).forEach(([key, value]) => {
           response[key] = "duplicate value";
@@ -247,30 +250,30 @@ knowYourAirLessonSchema.statics = {
           image: 1,
         },
       };
-      const removedKnowYourAirLesson = await this.findOneAndRemove(
+      const removedKnowYourAirLessonProgress = await this.findOneAndRemove(
         filter,
         options
       ).exec();
-      if (!isEmpty(removedKnowYourAirLesson)) {
+      if (!isEmpty(removedKnowYourAirLessonProgress)) {
         return {
           success: true,
           message: "successfully removed the lesson",
-          data: removedKnowYourAirLesson._doc,
-          status: HTTPStatus.OK,
+          data: removedKnowYourAirLessonProgress._doc,
+          status: httpStatus.OK,
         };
-      } else if (isEmpty(removedKnowYourAirLesson)) {
+      } else if (isEmpty(removedKnowYourAirLessonProgress)) {
         return {
           success: false,
-          message: "No lessons found for this operation",
-          status: HTTPStatus.BAD_REQUEST,
-          errors: { message: "No lessons found for this operation" },
+          message: "No progress found for this operation",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "No progress found for this operation" },
         };
       }
     } catch (err) {
       logObject("the error", err);
       let response = {};
       let message = "validation errors for some of the provided fields";
-      let status = HTTPStatus.CONFLICT;
+      let status = httpStatus.CONFLICT;
       if (!isEmpty(err.code) && err.code === 11000) {
         Object.entries(err.keyPattern).forEach(([key, value]) => {
           response[key] = "duplicate value";
@@ -294,4 +297,4 @@ knowYourAirLessonSchema.statics = {
   },
 };
 
-module.exports = knowYourAirLessonSchema;
+module.exports = userLessonProgressSchema;

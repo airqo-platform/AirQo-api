@@ -992,6 +992,21 @@ const defaultConfig = {
     }
     return projection;
   },
+
+  KYA_LESSONS_PROGRESS_INCLUSION_PROJECTION: {
+    user: 1,
+    lesson: 1,
+    tasks: 1,
+    _id: 1,
+  },
+  KYA_LESSON_PROGRESS_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = {};
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign({}, {});
+    }
+    return projection;
+  },
 };
 
 function generateDateFormatWithoutHrs(ISODate) {
