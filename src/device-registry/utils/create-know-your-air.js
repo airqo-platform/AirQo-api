@@ -186,26 +186,26 @@ const createKnowYourAir = {
   listAvailableTasks: async (request) => {
     try {
       const { tenant } = request.query;
-      const { net_id } = request.params;
+      const { lesson_id } = request.params;
 
-      const network = await NetworkModel(tenant).findById(net_id);
+      const lesson = await KnowYourAirLessonModel(tenant).findById(lesson_id);
 
-      if (!network) {
+      if (!lesson) {
         return {
           success: false,
           message: "Bad Request Error",
           errors: {
-            message: `Invalid network ID ${net_id}, please crosscheck`,
+            message: `Invalid lesson ID ${lesson_id}, please crosscheck`,
           },
           status: httpStatus.BAD_REQUEST,
         };
       }
 
-      const responseFromListAvailableUsers = await UserModel(tenant)
+      const responseFromListAvailableTasks = await KnowYourAirTaskModel(tenant)
         .aggregate([
           {
             $match: {
-              networks: { $nin: [net_id] },
+              lessons: { $nin: [lesson_id] },
             },
           },
           {
@@ -227,14 +227,14 @@ const createKnowYourAir = {
         .exec();
 
       logObject(
-        "responseFromListAvailableUsers",
-        responseFromListAvailableUsers
+        "responseFromListAvailableTasks",
+        responseFromListAvailableTasks
       );
 
       return {
         success: true,
-        message: `retrieved all available users for network ${net_id}`,
-        data: responseFromListAvailableUsers,
+        message: `retrieved all available tasks for lesson ${lesson_id}`,
+        data: responseFromListAvailableTasks,
       };
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
@@ -249,26 +249,26 @@ const createKnowYourAir = {
   listAssignedTasks: async (request) => {
     try {
       const { tenant } = request.query;
-      const { net_id } = request.params;
+      const { lesson_id } = request.params;
 
-      const network = await NetworkModel(tenant).findById(net_id);
+      const lesson = await KnowYourAirLessonModel(tenant).findById(lesson_id);
 
-      if (!network) {
+      if (!lesson) {
         return {
           success: false,
           message: "Bad Request Error",
           errors: {
-            message: `Invalid network ID ${net_id}, please crosscheck`,
+            message: `Invalid lesson ID ${lesson_id}, please crosscheck`,
           },
           status: httpStatus.BAD_REQUEST,
         };
       }
 
-      const responseFromListAssignedUsers = await UserModel(tenant)
+      const responseFromListAssignedTasks = await KnowYourAirTaskModel(tenant)
         .aggregate([
           {
             $match: {
-              networks: { $in: [net_id] },
+              lessons: { $in: [lesson_id] },
             },
           },
           {
@@ -294,12 +294,12 @@ const createKnowYourAir = {
         ])
         .exec();
 
-      logObject("responseFromListAssignedUsers", responseFromListAssignedUsers);
+      logObject("responseFromListAssignedTasks", responseFromListAssignedTasks);
 
       return {
         success: true,
-        message: `retrieved all assigned users for network ${net_id}`,
-        data: responseFromListAssignedUsers,
+        message: `retrieved all assigned tasks for lesson ${lesson_id}`,
+        data: responseFromListAssignedTasks,
       };
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
@@ -473,24 +473,24 @@ const createKnowYourAir = {
 
       logObject("task", task);
 
-      if (user.networks && user.networks.includes(net_id.toString())) {
+      if (user.lessons && user.lessons.includes(lesson_id.toString())) {
         return {
           success: false,
           message: "Bad Request Error",
-          errors: { message: "Network already assigned to User" },
+          errors: { message: "Lesson already assigned to User" },
           status: httpStatus.BAD_REQUEST,
         };
       }
 
-      const updatedUser = await UserModel(tenant).findByIdAndUpdate(
+      const updatedUser = await KnowYourAirTaskModel(tenant).findByIdAndUpdate(
         user_id,
-        { $addToSet: { networks: net_id } },
+        { $addToSet: { lessons: lesson_id } },
         { new: true }
       );
 
       return {
         success: true,
-        message: "User assigned to the Network",
+        message: "User assigned to the Lesson",
         data: updatedUser,
         status: httpStatus.OK,
       };
@@ -506,23 +506,23 @@ const createKnowYourAir = {
   },
   assignManyTasksToLesson: async (request) => {
     try {
-      const { net_id } = request.params;
-      const { user_ids } = request.body;
+      const { lesson_id } = request.params;
+      const { task_ids } = request.body;
       const { tenant } = request.query;
 
-      const network = await NetworkModel(tenant).findById(net_id);
+      const lesson = await KnowYourAirLessonModel(tenant).findById(lesson_id);
 
-      if (!network) {
+      if (!lesson) {
         return {
           success: false,
           message: "Bad Request Error",
-          errors: { message: `Invalid network ID ${net_id}` },
+          errors: { message: `Invalid lesson ID ${lesson_id}` },
           status: httpStatus.BAD_REQUEST,
         };
       }
 
-      for (const user_id of user_ids) {
-        const user = await UserModel(tenant)
+      for (const user_id of task_ids) {
+        const user = await KnowYourAirTaskModel(tenant)
           .findById(ObjectId(user_id))
           .lean();
 
@@ -537,25 +537,25 @@ const createKnowYourAir = {
           };
         }
 
-        if (user.networks && user.networks.includes(net_id.toString())) {
+        if (user.lessons && user.lessons.includes(lesson_id.toString())) {
           return {
             success: false,
             message: "Bad Request Error",
             errors: {
-              message: `Network ${net_id} is already assigned to the user ${user_id}`,
+              message: `Lesson ${lesson_id} is already assigned to the user ${user_id}`,
             },
             status: httpStatus.BAD_REQUEST,
           };
         }
       }
 
-      const totalUsers = user_ids.length;
-      const { nModified, n } = await UserModel(tenant).updateMany(
-        { _id: { $in: user_ids } },
-        { $addToSet: { networks: net_id } }
+      const totalTasks = task_ids.length;
+      const { nModified, n } = await KnowYourAirTaskModel(tenant).updateMany(
+        { _id: { $in: task_ids } },
+        { $addToSet: { lessons: lesson_id } }
       );
 
-      const notFoundCount = totalUsers - nModified;
+      const notFoundCount = totalTasks - nModified;
       if (nModified === 0) {
         return {
           success: false,
@@ -568,14 +568,14 @@ const createKnowYourAir = {
       if (notFoundCount > 0) {
         return {
           success: true,
-          message: `Operation partially successful some ${notFoundCount} of the provided users were not found in the system`,
+          message: `Operation partially successful some ${notFoundCount} of the provided tasks were not found in the system`,
           status: httpStatus.OK,
         };
       }
 
       return {
         success: true,
-        message: "successfully assigned all the provided users to the Network",
+        message: "successfully assigned all the provided tasks to the Lesson",
         status: httpStatus.OK,
         data: [],
       };
@@ -590,22 +590,22 @@ const createKnowYourAir = {
   },
   removeTaskFromLesson: async (request) => {
     try {
-      const { net_id, user_id } = request.params;
+      const { lesson_id, user_id } = request.params;
       const { tenant } = request.query;
 
-      // Check if the network exists
-      const network = await NetworkModel(tenant).findById(net_id);
-      if (!network) {
+      // Check if the lesson exists
+      const lesson = await KnowYourAirLessonModel(tenant).findById(lesson_id);
+      if (!lesson) {
         return {
           success: false,
           message: "Bad Request Error",
-          errors: { message: "Network not found" },
+          errors: { message: "Lesson not found" },
           status: httpStatus.BAD_REQUEST,
         };
       }
 
       // Check if the user exists
-      const user = await UserModel(tenant).findById(user_id);
+      const user = await KnowYourAirTaskModel(tenant).findById(user_id);
       if (!user) {
         return {
           success: false,
@@ -615,32 +615,32 @@ const createKnowYourAir = {
         };
       }
 
-      // Check if the network is part of the user's networks
-      const isNetworkInUser = user.networks.some(
-        (networkId) => networkId.toString() === net_id.toString()
+      // Check if the lesson is part of the user's lessons
+      const isLessonInUser = user.lessons.some(
+        (lessonId) => lessonId.toString() === lesson_id.toString()
       );
-      if (!isNetworkInUser) {
+      if (!isLessonInUser) {
         return {
           success: false,
           message: "Bad Request Error",
           status: httpStatus.BAD_REQUEST,
           errors: {
-            message: `Network ${net_id.toString()} is not part of the user's networks`,
+            message: `Lesson ${lesson_id.toString()} is not part of the user's lessons`,
           },
         };
       }
 
-      // Remove the network from the user
-      const updatedUser = await UserModel(tenant).findByIdAndUpdate(
+      // Remove the lesson from the user
+      const updatedUser = await KnowYourAirTaskModel(tenant).findByIdAndUpdate(
         user_id,
-        { $pull: { networks: net_id } },
+        { $pull: { lessons: lesson_id } },
         { new: true }
       );
 
       return {
         success: true,
-        message: "Successfully unassigned User from the Network",
-        data: { updatedNetwork, updatedUser },
+        message: "Successfully unassigned User from the Lesson",
+        data: { updatedLesson, updatedUser },
         status: httpStatus.OK,
       };
     } catch (error) {
@@ -655,71 +655,71 @@ const createKnowYourAir = {
   },
   removeManyTasksFromLesson: async (request) => {
     try {
-      const { user_ids } = request.body;
-      const { net_id } = request.params;
+      const { task_ids } = request.body;
+      const { lesson_id } = request.params;
       const { tenant } = request.query;
 
-      // Check if network exists
-      const network = await NetworkModel(tenant).findById(net_id);
-      if (!network) {
+      // Check if lesson exists
+      const lesson = await KnowYourAirLessonModel(tenant).findById(lesson_id);
+      if (!lesson) {
         return {
           success: false,
           message: "Bad Request Error",
-          errors: { message: "Network not found" },
+          errors: { message: "Lesson not found" },
           status: httpStatus.BAD_REQUEST,
         };
       }
 
-      //check of all these provided users actually do exist?
-      const existingUsers = await UserModel(tenant).find(
-        { _id: { $in: user_ids } },
+      //check of all these provided tasks actually do exist?
+      const existingTasks = await KnowYourAirTaskModel(tenant).find(
+        { _id: { $in: task_ids } },
         "_id"
       );
 
-      if (existingUsers.length !== user_ids.length) {
-        const nonExistentUsers = user_ids.filter(
-          (user_id) => !existingUsers.find((user) => user._id.equals(user_id))
+      if (existingTasks.length !== task_ids.length) {
+        const nonExistentTasks = task_ids.filter(
+          (user_id) => !existingTasks.find((user) => user._id.equals(user_id))
         );
 
         return {
           success: false,
           message: `Bad Request Error`,
           errors: {
-            message: `The following users do not exist: ${nonExistentUsers}`,
+            message: `The following tasks do not exist: ${nonExistentTasks}`,
           },
           status: httpStatus.BAD_REQUEST,
         };
       }
 
-      //check if all the provided user_ids have the network_id in their network's field?
+      //check if all the provided task_ids have the lesson_id in their lesson's field?
 
-      const users = await UserModel(tenant).find({
-        _id: { $in: user_ids },
-        networks: { $all: [net_id] },
+      const tasks = await KnowYourAirTaskModel(tenant).find({
+        _id: { $in: task_ids },
+        lessons: { $all: [lesson_id] },
       });
 
-      if (users.length !== user_ids.length) {
+      if (tasks.length !== task_ids.length) {
         return {
           success: false,
           message: "Bad Request Error",
           errors: {
-            message: `Some of the provided User IDs are not assigned to this network ${net_id}`,
+            message: `Some of the provided User IDs are not assigned to this lesson ${lesson_id}`,
           },
           status: httpStatus.BAD_REQUEST,
         };
       }
 
-      //remove the net_id from all the user's network field
+      //remove the lesson_id from all the user's lesson field
 
       try {
-        const totalUsers = user_ids.length;
-        const { nModified, n } = await UserModel(tenant).updateMany(
-          { _id: { $in: user_ids }, networks: { $in: [net_id] } },
-          { $pull: { networks: net_id } },
+        const totalTasks = task_ids.length;
+        const { nModified, n } = await KnowYourAirTaskModel(tenant).updateMany(
+          { _id: { $in: task_ids }, lessons: { $in: [lesson_id] } },
+          { $pull: { lessons: lesson_id } },
           { multi: true }
         );
 
-        const notFoundCount = totalUsers - nModified;
+        const notFoundCount = totalTasks - nModified;
         if (nModified === 0) {
           return {
             success: false,
@@ -732,7 +732,7 @@ const createKnowYourAir = {
         if (notFoundCount > 0) {
           return {
             success: true,
-            message: `Operation partially successful since ${notFoundCount} of the provided users were not found in the system`,
+            message: `Operation partially successful since ${notFoundCount} of the provided tasks were not found in the system`,
             status: httpStatus.OK,
           };
         }
@@ -748,7 +748,7 @@ const createKnowYourAir = {
 
       return {
         success: true,
-        message: `successfully unassigned all the provided  users from the network ${net_id}`,
+        message: `successfully unassigned all the provided  tasks from the lesson ${lesson_id}`,
         status: httpStatus.OK,
         data: [],
       };
