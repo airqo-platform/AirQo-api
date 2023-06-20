@@ -54,7 +54,7 @@ def convert_to_geojson(data):
     """
     features = []
     for record in data:
-        point = geojson.Point((record['values']['longitude'], record['values']['latitude']))
+        point = geojson.Point((record['values']['latitude'], record['values']['longitude']))
         feature = geojson.Feature(geometry=point, properties={
             "latitude": record['values']['latitude'],
             "longitude": record['values']['longitude'],
