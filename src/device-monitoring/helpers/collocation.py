@@ -36,7 +36,7 @@ from models import (
 )
 
 
-def doc_to_collocation_data(doc) -> CollocationBatch:
+def doc_to_collocation_batch(doc) -> CollocationBatch:
     return CollocationBatch(
         batch_id=str(doc["_id"]),
         batch_name=str(doc["batch_name"]),
@@ -134,11 +134,11 @@ def doc_to_collocation_data(doc) -> CollocationBatch:
     )
 
 
-def docs_to_collocation_data_list(docs: list) -> list[CollocationBatch]:
+def docs_to_collocation_batch_list(docs: list) -> list[CollocationBatch]:
     data: list[CollocationBatch] = []
     for doc in docs:
         try:
-            doc_data = doc_to_collocation_data(doc)
+            doc_data = doc_to_collocation_batch(doc)
             data.append(doc_data)
         except Exception as ex:
             print(ex)
@@ -407,7 +407,7 @@ class Collocation(BaseModel):
     ) -> list[CollocationBatch]:
         docs = self.collection.find({"status": {"$eq": status.value}})
 
-        return docs_to_collocation_data_list(docs)
+        return docs_to_collocation_batch_list(docs)
 
     def __query_by_devices_and_collocation_dates(
         self, devices: list[str], start_date: datetime, end_date: datetime
@@ -420,7 +420,7 @@ class Collocation(BaseModel):
             }
         )
 
-        return doc_to_collocation_data(doc)
+        return doc_to_collocation_batch(doc)
 
     def get_running_batches(self) -> list[CollocationBatch]:
         records = self.__query_by_status(CollocationBatchStatus.RUNNING)
@@ -532,11 +532,11 @@ class Collocation(BaseModel):
         result = self.collection.find_one(filter_set)
         if result is None:
             raise CollocationBatchNotFound(batch_id=batch_id)
-        return doc_to_collocation_data(result)
+        return doc_to_collocation_batch(result)
 
     def __query_all_batches(self) -> list[CollocationBatch]:
         docs = self.collection.find()
-        return docs_to_collocation_data_list(docs)
+        return docs_to_collocation_batch_list(docs)
 
     def summary(self) -> list[CollocationSummary]:
         batches: list[CollocationBatch] = self.__query_all_batches()
