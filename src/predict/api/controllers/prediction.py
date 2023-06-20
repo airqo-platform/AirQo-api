@@ -11,8 +11,6 @@ from helpers.utils import get_gp_predictions, get_forecasts_helper, \
 from routes import api
 from config.constants import Config
 
-import math
-
 load_dotenv()
 
 _logger = logging.getLogger(__name__)
@@ -53,7 +51,7 @@ def predictions_for_heatmap():
 
     airqloud = request.args.get('airqloud')
     page = int(request.args.get('page', 1))
-    limit = int(request.args.get('limit', 500))
+    limit = int(request.args.get('limit', 1000))
 
     if airqloud and not isinstance(airqloud, str):
         return {
@@ -62,7 +60,7 @@ def predictions_for_heatmap():
         }, 400
 
     try:
-        predictions, total_count, pages = get_gp_predictions(airqloud, page=page, limit=limit)
+        airqloud_id, created_at, predictions, total_count, pages = get_gp_predictions(airqloud, page=page, limit=limit)
         geojson_data = convert_to_geojson(predictions)
     except Exception as e:
         _logger.error(e)
@@ -79,12 +77,15 @@ def predictions_for_heatmap():
             }, 400
 
         return {
+            'data': geojson_data['features'],
+            'airqloud': airqloud,
+            'airqloud_id':airqloud_id,
+            'created_at': created_at,
             'success': True,
             'page': page,
             'limit': limit,
             'total': total_count,
             'pages': pages,
-            'data': geojson_data['features'],
         }, 200
 
     else:
