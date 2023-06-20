@@ -10,19 +10,19 @@ const userLessonProgressSchema = new Schema(
   {
     user: {
       type: ObjectId,
-      ref: "User",
+      ref: "user",
       required: true,
     },
     lesson: {
       type: ObjectId,
-      ref: "KnowYourAirLesson",
+      ref: "kyalesson",
       required: true,
     },
     tasks: [
       {
         task: {
           type: ObjectId,
-          ref: "KnowYourAirTask",
+          ref: "kyatask",
         },
         completed: {
           type: Boolean,

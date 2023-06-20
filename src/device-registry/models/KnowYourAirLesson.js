@@ -8,15 +8,6 @@ const HTTPStatus = require("http-status");
 
 const knowYourAirLessonSchema = new Schema(
   {
-    /**
-     * This slug identifier can be used to reference lessons
-     * across collections and track progress consistently
-     */
-    slug: {
-      type: String,
-      required: true,
-      unique: true,
-    },
     title: {
       type: String,
       required: [true, "the title is required!"],
@@ -26,8 +17,8 @@ const knowYourAirLessonSchema = new Schema(
       type: String,
       trim: true,
     },
-    completion_lesson: {
-      required: [true, "the completion_lesson is required!"],
+    completion_message: {
+      required: [true, "the completion_message is required!"],
       type: String,
       trim: true,
     },
@@ -49,7 +40,7 @@ knowYourAirLessonSchema.methods = {
   toJSON() {
     return {
       title: this.title,
-      completion_lesson: this.completion_lesson,
+      completion_message: this.completion_message,
       image: this.image,
       _id: this._id,
     };

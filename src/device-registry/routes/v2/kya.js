@@ -21,7 +21,7 @@ router.use(headers);
 
 /******************* lessons *********************************************/
 router.get(
-  "/",
+  "/lessons",
   oneOf([
     [
       query("tenant")
@@ -54,7 +54,7 @@ router.get(
   knowYourAirController.listLessons
 );
 router.post(
-  "/",
+  "/lessons",
   oneOf([
     [
       query("tenant")
@@ -70,9 +70,9 @@ router.post(
   ]),
   oneOf([
     [
-      body("description")
+      body("completion_message")
         .exists()
-        .withMessage("the description is missing in request")
+        .withMessage("the completion_message is missing in request")
         .bail()
         .trim(),
       body("title")
@@ -84,23 +84,15 @@ router.post(
         .exists()
         .withMessage("the image is missing in request")
         .bail()
+        .isURL()
+        .withMessage("the image_url is not a valid URL")
         .trim(),
-      body("aqi_category")
-        .exists()
-        .withMessage("the aqi_category is missing in request")
-        .bail()
-        .trim()
-        .toLowerCase()
-        .isIn(constants.AQI_CATEGORIES)
-        .withMessage(
-          "the aqi_category is not among the expected ones: good,moderate,u4sg,unhealthy,very_unhealthy,hazardous"
-        ),
     ],
   ]),
   knowYourAirController.createLesson
 );
 router.put(
-  "/",
+  "/lessons",
   oneOf([
     [
       query("tenant")
@@ -173,7 +165,7 @@ router.put(
   knowYourAirController.updateLesson
 );
 router.delete(
-  "/",
+  "/lessons",
   oneOf([
     [
       query("tenant")
@@ -273,7 +265,7 @@ router.get(
 
 /******************* tasks *********************************************/
 router.get(
-  "/",
+  "/tasks",
   oneOf([
     [
       query("tenant")
@@ -306,7 +298,7 @@ router.get(
   knowYourAirController.listTask
 );
 router.post(
-  "/",
+  "/tasks",
   oneOf([
     [
       query("tenant")
@@ -352,7 +344,7 @@ router.post(
   knowYourAirController.createTask
 );
 router.put(
-  "/",
+  "/tasks",
   oneOf([
     [
       query("tenant")
@@ -425,7 +417,7 @@ router.put(
   knowYourAirController.updateTask
 );
 router.delete(
-  "/",
+  "/tasks",
   oneOf([
     [
       query("tenant")

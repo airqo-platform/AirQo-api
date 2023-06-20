@@ -21,7 +21,7 @@ router.use(headers);
 
 /******************* lessons *********************************************/
 router.get(
-  "/",
+  "/lessons",
   oneOf([
     [
       query("tenant")
@@ -54,7 +54,7 @@ router.get(
   knowYourAirController.listLessons
 );
 router.post(
-  "/",
+  "/lessons",
   oneOf([
     [
       query("tenant")
@@ -100,7 +100,7 @@ router.post(
   knowYourAirController.createLesson
 );
 router.put(
-  "/",
+  "/lessons",
   oneOf([
     [
       query("tenant")
@@ -173,7 +173,7 @@ router.put(
   knowYourAirController.updateLesson
 );
 router.delete(
-  "/",
+  "/lessons",
   oneOf([
     [
       query("tenant")
@@ -273,7 +273,7 @@ router.get(
 
 /******************* tasks *********************************************/
 router.get(
-  "/",
+  "/tasks",
   oneOf([
     [
       query("tenant")
@@ -306,7 +306,7 @@ router.get(
   knowYourAirController.listTask
 );
 router.post(
-  "/",
+  "/tasks",
   oneOf([
     [
       query("tenant")
@@ -352,7 +352,7 @@ router.post(
   knowYourAirController.createTask
 );
 router.put(
-  "/",
+  "/tasks",
   oneOf([
     [
       query("tenant")
@@ -425,7 +425,7 @@ router.put(
   knowYourAirController.updateTask
 );
 router.delete(
-  "/",
+  "/tasks",
   oneOf([
     [
       query("tenant")
