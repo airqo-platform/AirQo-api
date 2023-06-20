@@ -12,6 +12,7 @@ const ObjectId = mongoose.Types.ObjectId;
 const { logElement, logObject, logText } = require("./log");
 const constants = require("@config/constants");
 const log4js = require("log4js");
+const httpStatus = require("http-status");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- generate-filter-util`
 );
@@ -766,6 +767,59 @@ const generateFilter = {
       ];
     }
     return filter;
+  },
+
+  kyalessons: (request) => {
+    try {
+      const { query, body, params } = request;
+      const { id } = query;
+      const { task_id, lesson_id } = params;
+      let filter = {};
+      if (id) {
+        filter["_id"] = ObjectId(id);
+      }
+      if (id) {
+        filter["_id"] = ObjectId(lesson_id);
+      }
+      return filter;
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: {
+          message: error.message,
+        },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  kyatasks: (request) => {
+    try {
+      const { query, body, params } = request;
+      const { id } = query;
+      const { task_id, lesson_id } = params;
+      let filter = {};
+      if (id) {
+        filter["_id"] = ObjectId(id);
+      }
+      if (id) {
+        filter["_id"] = ObjectId(task_id);
+      }
+      if (lesson_id) {
+        filter["kya_lesson"] = ObjectId(lesson_id);
+      }
+      return filter;
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: {
+          message: error.message,
+        },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
   },
 };
 
