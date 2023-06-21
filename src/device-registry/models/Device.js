@@ -359,7 +359,7 @@ deviceSchema.statics = {
         status: HTTPStatus.OK,
       };
     } catch (err) {
-      logObject("the error", err);
+      logObject("the error in the Device Model", err);
       let response = {};
       let message = "validation errors for some of the provided fields";
       let status = HTTPStatus.CONFLICT;
