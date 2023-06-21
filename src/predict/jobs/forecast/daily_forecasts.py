@@ -123,7 +123,8 @@ def get_next_1week_forecasts(target_column, model):
 
     next_1_week_forecasts['device_number'] = next_1_week_forecasts['device_number'].astype(int)
     next_1_week_forecasts['pm2_5'] = next_1_week_forecasts['pm2_5'].astype(float)
-    return next_1_week_forecasts[fixed_columns + ['created_at', 'pm2_5',
+    next_1_week_forecasts.rename(columns={'created_at': 'time'}, inplace=True)
+    return next_1_week_forecasts[fixed_columns + ['time', 'pm2_5',
                                                   'device_number']]
 
 
