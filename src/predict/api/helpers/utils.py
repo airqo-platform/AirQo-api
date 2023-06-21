@@ -54,11 +54,13 @@ def convert_to_geojson(data):
     """
     features = []
     for record in data:
-        point = geojson.Point((record['values']['longitude'], record['values']['latitude']))
+        point = geojson.Point((record['values']['latitude'], record['values']['longitude']))
         feature = geojson.Feature(geometry=point, properties={
+            "latitude": record['values']['latitude'],
+            "longitude": record['values']['longitude'],
             "predicted_value": record['values']["predicted_value"],
             "variance": record['values']["variance"],
-            "interval": record['values']["interval"]
+            "interval": record['values']["interval"],
         })
         features.append(feature)
 
@@ -108,9 +110,11 @@ def get_gp_predictions(airqloud=None, page=1, limit=500):
     ]
     predictions = db.gp_predictions.aggregate(pipeline)
     predictions = list(predictions)
+    created_at = predictions[0]['created_at']
     total_count = predictions[0]['total']
     pages = math.ceil(total_count / limit)
-    return predictions, total_count, pages
+    airqloud_id = predictions[0]['airqloud_id']
+    return airqloud_id, created_at, predictions, total_count, pages
 
 
 @cache.memoize(timeout=Config.CACHE_TIMEOUT)
