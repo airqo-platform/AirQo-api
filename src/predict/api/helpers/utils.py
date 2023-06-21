@@ -1,3 +1,4 @@
+import json
 import traceback
 from datetime import datetime, timedelta
 
@@ -6,11 +7,11 @@ import requests
 from dotenv import load_dotenv
 from flask import request, jsonify
 from google.cloud import bigquery
+from sqlalchemy import func
 
 from app import cache
 from config.constants import connect_mongo, Config
 from models.predict import get_forecasts
-from sqlalchemy import func
 
 load_dotenv()
 db = connect_mongo()
@@ -130,6 +131,29 @@ def geo_coordinates_cache_key_v2():
         + str(round(float(request.args.get("longitude")), 6))
     )
     return key
+
+
+def get_parish_predictions(parish: str) -> []:
+    from app import postgres_db, Predictions
+
+    query = postgres_db.session.query(
+        func.ST_AsGeoJSON(Predictions.geometry).label("geometry"),
+        Predictions.parish.label("parish"),
+        Predictions.timestamp.label("timestamp"),
+        Predictions.pm2_5.label("pm2_5"),
+    ).filter(Predictions.parish.ilike(f"%{parish}%"))
+    parishes = query.all()
+    data = []
+    for parish in parishes:
+        data.append(
+            {
+                "parish": parish.parish,
+                "pm2_5": parish.pm2_5,
+                "timestamp": parish.timestamp,
+                "geometry": json.loads(parish.geometry),
+            }
+        )
+    return data
 
 
 def get_predictions_by_geo_coordinates_v2(latitude: float, longitude: float) -> dict:

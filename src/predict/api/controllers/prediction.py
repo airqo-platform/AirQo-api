@@ -12,6 +12,7 @@ from helpers.utils import (
     get_predictions_by_geo_coordinates,
     get_health_tips,
     get_predictions_by_geo_coordinates_v2,
+    get_parish_predictions,
 )
 from routes import api
 
@@ -102,6 +103,18 @@ def search_predictions():
 
         return {"success": True, "data": data}, 200
 
+    except Exception as ex:
+        print(ex)
+        traceback.print_exc()
+        return {"message": "Please contact support", "success": False}, 500
+
+
+@ml_app.route(api.route["parish_predictions"], methods=["GET"])
+def parish_predictions():
+    try:
+        parish = request.args.get("parish", "")
+        data = get_parish_predictions(parish)
+        return {"success": True, "data": data}, 200
     except Exception as ex:
         print(ex)
         traceback.print_exc()
