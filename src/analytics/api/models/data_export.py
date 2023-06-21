@@ -5,6 +5,7 @@ from datetime import datetime
 from enum import Enum
 
 import pandas as pd
+import pymongo
 from bson import ObjectId
 from google.cloud import bigquery, storage
 
@@ -18,6 +19,7 @@ class DataExportStatus(Enum):
     PROCESSING = "processing"
     READY = "ready"
     FAILED = "failed"
+    NO_DATA = "no_data"
 
 
 class Frequency(Enum):
@@ -49,18 +51,24 @@ class DataExportRequest:
     devices: list[str]
     airqlouds: list[str]
     pollutants: list[str]
+    retries: int
+    meta_data: dict
 
-    def to_dict(self, format_datetime=False) -> dict:
+    def to_dict(self) -> dict:
         _dict = asdict(self)
         _dict["status"] = self.status.value
         _dict["frequency"] = self.frequency.value
         _dict["export_format"] = self.export_format.value
+        return _dict
 
-        if format_datetime:
-            _dict["request_date"] = date_to_str(self.request_date)
-            _dict["start_date"] = date_to_str(self.start_date)
-            _dict["end_date"] = date_to_str(self.end_date)
-
+    def to_api_format(self) -> dict:
+        _dict = asdict(self)
+        _dict["status"] = str(self.status.value).replace("_", " ").capitalize()
+        _dict["frequency"] = self.frequency.value
+        _dict["export_format"] = self.export_format.value
+        _dict["request_date"] = date_to_str(self.request_date)
+        _dict["start_date"] = date_to_str(self.start_date)
+        _dict["end_date"] = date_to_str(self.end_date)
         return _dict
 
     def destination_file(self) -> str:
@@ -107,6 +115,8 @@ class DataExportModel(BasePyMongoModel):
             frequency=Frequency[str(doc["frequency"]).upper()],
             export_format=DataExportFormat[str(doc["export_format"]).upper()],
             pollutants=doc["pollutants"],
+            retries=doc.get("retries", 3),
+            meta_data=doc.get("meta_data", {}),
         )
 
     def docs_to_data_export_requests(self, docs: list) -> list[DataExportRequest]:
@@ -126,18 +136,31 @@ class DataExportModel(BasePyMongoModel):
 
     def get_scheduled_and_failed_requests(self) -> list[DataExportRequest]:
         filter_set = {
-            "status": {
-                "$in": [DataExportStatus.SCHEDULED.value, DataExportStatus.FAILED.value]
-            }
+            "$or": [
+                {
+                    "status": {"$in": [DataExportStatus.SCHEDULED.value]},
+                },
+                {
+                    "$and": [
+                        {
+                            "status": {"$in": [DataExportStatus.FAILED.value]},
+                            "retires": {"$gt": 0},
+                        }
+                    ],
+                },
+            ]
         }
+
         docs = self.collection.find(filter_set)
         return self.docs_to_data_export_requests(docs)
 
-    def update_request_status(self, request: DataExportRequest) -> bool:
+    def update_request_status_and_retries(self, request: DataExportRequest) -> bool:
         try:
             data = request.to_dict()
             filter_set = {"_id": ObjectId(f"{request.request_id}")}
-            update_set = {"$set": {"status": data["status"]}}
+            update_set = {
+                "$set": {"status": data["status"], "retries": data["retries"]}
+            }
             result = self.collection.update_one(filter_set, update_set)
             return result.modified_count == 1
         except Exception as ex:
@@ -161,7 +184,9 @@ class DataExportModel(BasePyMongoModel):
         return False
 
     def get_user_requests(self, user_id: str) -> list[DataExportRequest]:
-        docs = self.collection.find({"user_id": user_id})
+        docs = self.collection.find({"user_id": user_id}).sort(
+            "request_date", pymongo.DESCENDING
+        )
         return self.docs_to_data_export_requests(docs)
 
     def get_request_by_id(self, request_id: str) -> DataExportRequest:
@@ -200,6 +225,17 @@ class DataExportModel(BasePyMongoModel):
             for blob in blobs
             if not blob.name.endswith("/")
         ]
+
+    def has_data(self, query) -> bool:
+        job_config = bigquery.QueryJobConfig()
+        job_config.use_query_cache = True
+        total_rows = (
+            bigquery.Client()
+            .query(f"select * from ({query}) limit 1", job_config)
+            .result()
+            .total_rows
+        )
+        return total_rows > 0
 
     def export_query_results_to_table(self, query, export_request: DataExportRequest):
         job_config = bigquery.QueryJobConfig(
