@@ -217,11 +217,9 @@ const createDevice = {
           // );
 
           if (responseFromDeleteDeviceFromThingspeak.success === true) {
-            let errors = responseFromCreateDeviceOnPlatform.errors
-              ? responseFromCreateDeviceOnPlatform.errors
-              : { message: "Internal Server Errors" };
-            logObject("errors after creating on Platform", errors);
-            let errorsString = errors ? JSON.stringify(errors) : "";
+            let errorsString = responseFromCreateDeviceOnPlatform.errors
+              ? JSON.stringify(responseFromCreateDeviceOnPlatform.errors)
+              : "";
             try {
               logger.error(
                 `creation operation failed -- successfully undid the successfull operations -- ${errorsString}`
@@ -233,20 +231,21 @@ const createDevice = {
               success: false,
               message:
                 "creation operation failed -- successfully undid the successfull operations",
-              errors,
+              errors: responseFromCreateDeviceOnPlatform.errors
+                ? responseFromCreateDeviceOnPlatform.errors
+                : { message: "Internal Server Error" },
               status: responseFromCreateDeviceOnPlatform.status
                 ? responseFromCreateDeviceOnPlatform.status
-                : "",
+                : httpStatus.INTERNAL_SERVER_ERROR,
             };
           } else if (responseFromDeleteDeviceFromThingspeak.success === false) {
-            let errors = responseFromDeleteDeviceFromThingspeak.errors
-              ? responseFromDeleteDeviceFromThingspeak.errors
-              : { message: "" };
-            let status = responseFromDeleteDeviceFromThingspeak.status
+            const status = responseFromDeleteDeviceFromThingspeak.status
               ? responseFromDeleteDeviceFromThingspeak.status
-              : "";
+              : httpStatus.INTERNAL_SERVER_ERROR;
             try {
-              let errorsString = errors ? JSON.stringify(errors) : "";
+              let errorsString = responseFromDeleteDeviceFromThingspeak.errors
+                ? JSON.stringify(responseFromDeleteDeviceFromThingspeak.errors)
+                : "";
               logger.error(
                 `creation operation failed -- also failed to undo the successfull operations --${errorsString}`
               );
@@ -257,7 +256,9 @@ const createDevice = {
               success: false,
               message:
                 "creation operation failed -- also failed to undo the successfull operations",
-              errors,
+              errors: responseFromDeleteDeviceFromThingspeak.errors
+                ? responseFromDeleteDeviceFromThingspeak.errors
+                : { message: "Internal Server Error" },
               status,
             };
           }
