@@ -51,13 +51,6 @@ const deviceSchema = new mongoose.Schema(
     access_code: {
       type: String,
     },
-    name_id: {
-      type: String,
-      unique: true,
-      trim: true,
-      match: noSpaces,
-      lowercase: true,
-    },
     alias: {
       type: String,
       trim: true,
@@ -338,6 +331,27 @@ deviceSchema.statics = {
         }
       }
 
+      if (isEmpty(modifiedArgs.long_name && !isEmpty(modifiedArgs.name))) {
+        try {
+          let nameWithoutWhiteSpaces = modifiedArgs.name.replace(
+            /[^a-zA-Z0-9]/g,
+            "_"
+          );
+          let shortenedName = nameWithoutWhiteSpaces.slice(0, 41);
+          modifiedArgs.long_name = shortenedName.trim().toLowerCase();
+        } catch (error) {
+          logger.error(
+            `internal server error -- sanitiseName-- ${error.message}`
+          );
+          return {
+            success: false,
+            errors: { message: error.message },
+            message: "Internal Server Error",
+            status: HTTPStatus.INTERNAL_SERVER_ERROR,
+          };
+        }
+      }
+
       logObject("modifiedArgs", modifiedArgs);
 
       let createdDevice = await this.create({
@@ -363,11 +377,13 @@ deviceSchema.statics = {
       let response = {};
       let message = "validation errors for some of the provided fields";
       let status = HTTPStatus.CONFLICT;
-      Object.entries(err.errors).forEach(([key, value]) => {
-        response.message = value.message;
-        response[key] = value.message;
-        return response;
-      });
+      if (err.errors) {
+        Object.entries(err.errors).forEach(([key, value]) => {
+          response.message = value.message;
+          response[key] = value.message;
+          return response;
+        });
+      }
 
       return {
         errors: response,
