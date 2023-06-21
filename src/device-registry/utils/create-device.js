@@ -15,8 +15,21 @@ const logger = log4js.getLogger(
 );
 const qs = require("qs");
 const QRCode = require("qrcode");
+const mongoose = require("mongoose").set("debug", true);
+const ObjectId = mongoose.Types.ObjectId;
+
 let devicesModel = (tenant) => {
   return getModelByTenant(tenant, "device", DeviceSchema);
+};
+
+const DeviceModel = (tenant) => {
+  try {
+    let devices = mongoose.model("devices");
+    return devices;
+  } catch (error) {
+    let devices = getModelByTenant(tenant, "device", DeviceSchema);
+    return devices;
+  }
 };
 
 const { Kafka } = require("kafkajs");
@@ -264,11 +277,10 @@ const createDevice = {
           }
         }
       } else if (isEmpty(enrichmentDataForDeviceCreation)) {
-        let errors = responseFromCreateOnThingspeak.errors
-          ? responseFromCreateOnThingspeak.errors
-          : { message: "" };
         try {
-          let errorsString = errors ? JSON.stringify(errors) : "";
+          let errorsString = responseFromCreateOnThingspeak.errors
+            ? JSON.stringify(responseFromCreateOnThingspeak.errors)
+            : "";
           logger.error(
             `unable to generate enrichment data for the device -- ${errorsString}`
           );
@@ -279,7 +291,9 @@ const createDevice = {
         return {
           success: false,
           message: "unable to generate enrichment data for the device",
-          errors,
+          errors: responseFromCreateOnThingspeak.errors
+            ? responseFromCreateOnThingspeak.errors
+            : { message: "Internal Server Error" },
           status: responseFromCreateOnThingspeak.status
             ? responseFromCreateOnThingspeak.status
             : "",
@@ -290,7 +304,7 @@ const createDevice = {
       logger.error(`create -- ${error.message}`);
       return {
         success: false,
-        message: "server error",
+        message: "internal server error",
         errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
@@ -580,11 +594,9 @@ const createDevice = {
       const { tenant } = request.query;
       const { body } = request;
 
-      const responseFromRegisterDevice = await getModelByTenant(
-        tenant,
-        "device",
-        DeviceSchema
-      ).register(body);
+      const responseFromRegisterDevice = await DeviceModel(tenant).register(
+        body
+      );
       // logger.info(
       //   `the responseFromRegisterDevice --${responseFromRegisterDevice} `
       // );
@@ -613,9 +625,7 @@ const createDevice = {
         }
 
         return responseFromRegisterDevice;
-      }
-
-      if (responseFromRegisterDevice.success === false) {
+      } else if (responseFromRegisterDevice.success === false) {
         return responseFromRegisterDevice;
       }
     } catch (error) {
