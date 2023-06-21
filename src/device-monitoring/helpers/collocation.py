@@ -18,6 +18,7 @@ from helpers.collocation_utils import (
     compute_differences,
     populate_missing_columns,
     map_data_to_api_format,
+    compute_hourly_intra_sensor_correlation,
 )
 from helpers.exceptions import CollocationBatchNotFound
 from models import (
@@ -692,6 +693,29 @@ class Collocation(BaseModel):
         ]
 
         return map_data_to_api_format(data)
+
+    def get_hourly_intra_sensor_correlation(
+        self, batch_id: str, devices: list
+    ) -> list[dict]:
+        batch: CollocationBatch = self.__query_by_batch_id(batch_id=batch_id)
+        if len(devices) != 0:
+            batch_devices = list(set(batch.devices).intersection(set(devices)))
+        else:
+            batch_devices = batch.devices
+
+        raw_data, _ = Collocation.get_data(
+            devices=batch_devices,
+            start_date_time=batch.start_date,
+            end_date_time=batch.end_date,
+        )
+        data = compute_hourly_intra_sensor_correlation(
+            raw_data=raw_data,
+            devices=batch_devices,
+            threshold=batch.intra_correlation_threshold,
+            parameter=batch.intra_correlation_parameter,
+            r2_threshold=batch.intra_correlation_r2_threshold,
+        )
+        return data
 
 
 if __name__ == "__main__":
