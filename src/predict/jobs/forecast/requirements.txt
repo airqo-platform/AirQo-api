@@ -1,11 +1,11 @@
-gcsfs==2023.5.0
+gcsfs==2023.6.0
 requests==2.31.0
 joblib~=1.2.0
 pandas==2.0.2
 python-dateutil~=2.8.2
-numpy~=1.24.2
+numpy==1.25.0
 python-dotenv~=1.0.0
 pymongo~=4.3.3
 lightgbm~=3.3.5
 pandas-gbq~=0.19.1
-google-cloud-bigquery==3.11.0
+google-cloud-bigquery==3.11.1
