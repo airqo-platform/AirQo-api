@@ -12,6 +12,7 @@ from models import (
     BaseResult,
     DataCompletenessResult,
     IntraSensorCorrelationResult,
+    IntraSensorData,
 )
 
 
@@ -383,6 +384,81 @@ def compute_intra_sensor_correlation(
         failed_devices=failed_devices,
         errors=errors,
     )
+
+
+def compute_hourly_intra_sensor_correlation(
+    raw_data: dict[str, pd.DataFrame],
+    devices: list[str],
+    threshold: float,
+    parameter: str,
+    r2_threshold: float,
+) -> list[dict]:
+    correlation_data: list[dict] = []
+    timestamps = []
+    for device, device_data in raw_data.items():
+        if device not in devices:
+            continue
+        device_data["timestamp"] = pd.to_datetime(device_data["timestamp"])
+        device_data["timestamp"] = pd.to_datetime(
+            device_data["timestamp"].dt.strftime("%Y-%m-%dT%H:00:00Z")
+        )
+        timestamps.extend(device_data["timestamp"].to_list())
+
+        for _, by_timestamp in device_data.groupby(pd.Grouper(key="timestamp")):
+            if len(by_timestamp.index) == 0:
+                continue
+            timestamp = by_timestamp.iloc[0]["timestamp"]
+            pm2_5_pearson = by_timestamp[["s1_pm2_5", "s2_pm2_5"]].corr().round(4)
+            pm2_5_pearson = pm2_5_pearson.iloc[0]["s2_pm2_5"]
+            pm10_pearson = by_timestamp[["s1_pm10", "s2_pm10"]].corr().round(4)
+            pm10_pearson = pm10_pearson.iloc[0]["s2_pm10"]
+            pm2_5_r2 = None
+            pm10_r2 = None
+
+            try:
+                pm2_5_r2 = math.sqrt(pm2_5_pearson)
+                pm10_r2 = math.sqrt(pm10_pearson)
+            except Exception:
+                pass
+
+            pm2_5_pearson = None if pm2_5_pearson is np.NAN else pm2_5_pearson
+            pm10_pearson = None if pm10_pearson is np.NAN else pm10_pearson
+
+            if parameter == "pm10":
+                passed = bool(pm10_pearson >= threshold) if pm10_pearson else False
+                if passed:
+                    passed = pm10_r2 >= r2_threshold if pm10_r2 else False
+            else:
+                passed = bool(pm2_5_pearson >= threshold) if pm2_5_pearson else False
+                if passed:
+                    passed = pm2_5_r2 >= r2_threshold if pm2_5_r2 else False
+
+            device_correlation = IntraSensorData(
+                device_name=device,
+                pm2_5_pearson=pm2_5_pearson,
+                pm10_pearson=pm10_pearson,
+                pm2_5_r2=pm2_5_r2,
+                pm10_r2=pm10_r2,
+                passed=passed,
+                timestamp=timestamp,
+            )
+            timestamp_data = list(
+                filter(lambda x: x["timestamp"] == str(timestamp), correlation_data)
+            )
+            if len(timestamp_data) == 0:
+                correlation_data.append(
+                    {
+                        "timestamp": str(timestamp),
+                        device: {**device_correlation.to_dict()},
+                    }
+                )
+            else:
+                timestamp_data = timestamp_data[0]
+                correlation_data.remove(timestamp_data)
+                timestamp_data[device] = device_correlation.to_dict()
+                correlation_data.append(timestamp_data)
+
+    return sorted(correlation_data, key=lambda x: x["timestamp"])
 
 
 def compute_statistics(data: dict[str, pd.DataFrame]) -> list[dict]:

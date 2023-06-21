@@ -274,7 +274,10 @@ def collocation_intra():
 
     devices = [] if devices.strip() == "" else str(devices).split(",")
     collocation = Collocation()
-    intra_sensor_correlation = collocation.get_intra_sensor_correlation(
+    # intra_sensor_correlation = collocation.get_intra_sensor_correlation(
+    #     batch_id=batch_id, devices=devices
+    # )
+    intra_sensor_correlation = collocation.get_hourly_intra_sensor_correlation(
         batch_id=batch_id, devices=devices
     )
     return jsonify({"data": intra_sensor_correlation}), 200

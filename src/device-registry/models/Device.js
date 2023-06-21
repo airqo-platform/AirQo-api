@@ -288,9 +288,38 @@ deviceSchema.statics = {
         modifiedArgs.name = `aq_g${modifiedArgs.generation_version}_${modifiedArgs.generation_count}`;
       }
 
+      if (!isEmpty(modifiedArgs.name) || !isEmpty(modifiedArgs.long_name)) {
+        try {
+          let alias = modifiedArgs.long_name
+            ? modifiedArgs.long_name
+            : modifiedArgs.name;
+          if (!isEmpty(alias)) {
+            modifiedArgs.alias = alias.trim().replace(/ /g, "_");
+          } else if (isEmpty(alias)) {
+            return {
+              success: false,
+              message: "Internal Server Error",
+              errors: {
+                message: "unable to generate the ALIAS for the device",
+              },
+              status: HTTPStatus.INTERNAL_SERVER_ERROR,
+            };
+          }
+        } catch (error) {
+          logger.error(
+            `internal server error -- sanitise ALIAS -- ${error.message}`
+          );
+          return {
+            success: false,
+            errors: { message: error.message },
+            message: "Internal Server Error",
+            status: HTTPStatus.INTERNAL_SERVER_ERROR,
+          };
+        }
+      }
+
       if (!isEmpty(modifiedArgs.name)) {
         try {
-          modifiedArgs.alias = modifiedArgs.name.trim().replace(/ /g, "_");
           let nameWithoutWhiteSpaces = modifiedArgs.name.replace(
             /[^a-zA-Z0-9]/g,
             "_"
@@ -299,7 +328,7 @@ deviceSchema.statics = {
           modifiedArgs.name = shortenedName.trim().toLowerCase();
         } catch (error) {
           logger.error(
-            `internal server error -- sanitiseName-- ${error.message}`
+            `internal server error -- sanitise NAME -- ${error.message}`
           );
           return {
             success: false,

@@ -308,6 +308,20 @@ class CollocationBatch:
 
 
 @dataclass
+class IntraSensorData:
+    device_name: str
+    pm2_5_pearson: float
+    pm10_pearson: float
+    pm2_5_r2: float
+    pm10_r2: float
+    passed: bool
+    timestamp: datetime
+
+    def to_dict(self):
+        return asdict(self)
+
+
+@dataclass
 class CollocationSummary:
     batch_id: str
     batch_name: str
