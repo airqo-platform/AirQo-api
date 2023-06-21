@@ -6,6 +6,7 @@ const events = require("@routes/v1/events");
 const locations = require("@routes/v1/locations");
 const photos = require("@routes/v1/photos");
 const tips = require("@routes/v1/tips");
+const kya = require("@routes/v1/kya");
 const sensors = require("@routes/v1/sensors");
 
 module.exports = {
@@ -15,6 +16,7 @@ module.exports = {
   events,
   locations,
   photos,
+  kya,
   tips,
   sensors,
   sites,

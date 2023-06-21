@@ -8,7 +8,7 @@ const ObjectId = Schema.Types.ObjectId;
 const constants = require("@config/constants");
 const { isElement, isEmpty } = require("underscore");
 const HTTPStatus = require("http-status");
-const { getModelByTenant } = require("@utils/multitenancy");
+const { getModelByTenant } = require("@config/database");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- event-model`);
 
