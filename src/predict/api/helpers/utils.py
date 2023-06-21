@@ -165,19 +165,16 @@ def get_forecasts_helper(db_name):
     """
     Helper function to get forecasts for a given site_id and db_name
     """
+
     if request.method == "GET":
-        site_id = request.args.get("site_id")
-        if site_id is None or not isinstance(site_id, str):
+        params = {name: request.args.get(name, default=None, type=str) for name in
+                  ['site_id', 'site_name', 'parish', 'county', 'city', 'district', 'region']}
+        if not any(params.values()):
             return (
-                jsonify({"message": "Please specify a site_id", "success": False}),
+                jsonify({"message": "Please specify at least one query parameter", "success": False}),
                 400,
             )
-        if len(site_id) != 24:
-            return (
-                jsonify({"message": "Please enter a valid site_id", "success": False}),
-                400,
-            )
-        result = get_forecasts(site_id, db_name)
+        result = get_forecasts(**params, db_name=db_name)
         if result:
             response = result
         else:
@@ -192,19 +189,23 @@ def get_forecasts_helper(db_name):
 
 
 @cache.memoize(timeout=Config.CACHE_TIMEOUT)
-def get_forecasts(site_id, db_name):
-    """Retrieves forecasts from the database for the specified site_id."""
+def get_forecasts(db_name, site_id=None, site_name=None, parish=None, county=None, city=None, district=None,
+                  region=None):
     db = connect_mongo()
+    query = {}
+    params = {'site_id': site_id, 'site_name': site_name, 'parish': parish,
+              'county': county, 'city': city, 'district': district, 'region': region}
+    for name, value in params.items():
+        if value is not None:
+            query[name] = value
     site_forecasts = list(db[db_name].find(
-        {'site_id': site_id}, {'_id': 0}).sort([('$natural', -1)]).limit(1))
+        query, {'_id': 0}).sort([('$natural', -1)]).limit(1))
 
     results = []
-    if len(site_forecasts) > 0:
-        for i in range(0, len(site_forecasts[0]['pm2_5'])):
-            time = site_forecasts[0]['time'][i]
-            pm2_5 = site_forecasts[0]['pm2_5'][i]
-            health_tips = site_forecasts[0]['health_tips'][i]
-            result = {'time': time, 'pm2_5': pm2_5, 'health_tips': health_tips}
+    if site_forecasts:
+        for time, pm2_5, health_tips in zip(site_forecasts[0]['time'], site_forecasts[0]['pm2_5'],
+                                            site_forecasts[0]['health_tips']):
+            result = {key: value for key, value in zip(['time', 'pm2_5', 'health_tips'], [time, pm2_5, health_tips])}
             results.append(result)
 
     formatted_results = {'forecasts': results}
