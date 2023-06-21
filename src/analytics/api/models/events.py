@@ -1,4 +1,3 @@
-import traceback
 from datetime import datetime
 
 import numpy as np
@@ -9,7 +8,6 @@ from google.cloud import bigquery
 from api.models.base.base_model import BasePyMongoModel
 from api.utils.dates import date_to_str
 from api.utils.pollutants.pm_25 import (
-    POLLUTANT_BIGQUERY_MAPPER,
     BIGQUERY_FREQUENCY_MAPPER,
 )
 from main import cache, CONFIGURATIONS
@@ -234,11 +232,11 @@ class EventsModel(BasePyMongoModel):
                 f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.site_id = {data_table}.site_id "
                 f" WHERE {data_table}.timestamp >= '{start_date}' "
                 f" AND {data_table}.timestamp <= '{end_date}' "
+                f" ORDER BY {data_table}.timestamp "
             )
 
         job_config = bigquery.QueryJobConfig()
         job_config.use_query_cache = True
-
         dataframe = (
             bigquery.Client()
             .query(
@@ -405,8 +403,6 @@ class EventsModel(BasePyMongoModel):
                 f" RIGHT JOIN ({query}) data ON data.device_name = {devices_table}.device_id "
             )
         else:
-            sorting_cols = ["airqloud_id", "site_id", "datetime", "device_name"]
-
             meta_data_query = (
                 f" SELECT {airqlouds_sites_table}.tenant , "
                 f" {airqlouds_sites_table}.airqloud_id , "
@@ -454,6 +450,7 @@ class EventsModel(BasePyMongoModel):
                 f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.site_id = {data_table}.site_id "
                 f" WHERE {data_table}.timestamp >= '{start_date}' "
                 f" AND {data_table}.timestamp <= '{end_date}' "
+                f" ORDER BY {data_table}.timestamp "
             )
 
         return f"select distinct * from ({query})"
@@ -514,23 +511,26 @@ class EventsModel(BasePyMongoModel):
 
     @classmethod
     @cache.memoize()
-    def get_data_for_summary(
+    def get_devices_summary(
         cls,
         airqloud,
         start_date_time,
         end_date_time,
     ) -> list:
-        data_table = cls.BIGQUERY_HOURLY_DATA
+        data_table = f"`{cls.DEVICES_SUMMARY_TABLE}`"
 
         # Data sources
         sites_table = cls.BIGQUERY_SITES
         airqlouds_sites_table = cls.BIGQUERY_AIRQLOUDS_SITES
         airqlouds_table = cls.BIGQUERY_AIRQLOUDS
-        devices_table = cls.BIGQUERY_DEVICES
 
         data_query = (
-            f" SELECT {data_table}.pm2_5_calibrated_value , {data_table}.pm2_5_raw_value , "
-            f" FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', {data_table}.timestamp) AS datetime "
+            f" SELECT {data_table}.device ,  "
+            f" SUM({data_table}.uncalibrated_records) as uncalibrated_records , "
+            f" SUM({data_table}.calibrated_records) as calibrated_records , "
+            f" SUM({data_table}.hourly_records) as hourly_records , "
+            f" (SUM({data_table}.calibrated_records) / SUM({data_table}.hourly_records)) * 100 as calibrated_percentage , "
+            f" (SUM({data_table}.uncalibrated_records) / SUM({data_table}.hourly_records)) * 100 as uncalibrated_percentage "
         )
 
         meta_data_query = (
@@ -552,22 +552,12 @@ class EventsModel(BasePyMongoModel):
         # Adding site information
         meta_data_query = (
             f" SELECT "
-            f" {sites_table}.name AS site , "
+            f" {sites_table}.name AS site_name , "
             f" meta_data.* "
             f" FROM {sites_table} "
             f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.site_id = {sites_table}.id "
         )
 
-        # Adding device information
-        meta_data_query = (
-            f" SELECT "
-            f" {devices_table}.device_id AS device , "
-            f" meta_data.* "
-            f" FROM {devices_table} "
-            f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.site_id = {devices_table}.site_id "
-        )
-
-        # Adding start and end times
         query = (
             f" {data_query} , "
             f" meta_data.* "
@@ -575,84 +565,21 @@ class EventsModel(BasePyMongoModel):
             f" RIGHT JOIN ({meta_data_query}) meta_data ON meta_data.site_id = {data_table}.site_id "
             f" WHERE {data_table}.timestamp >= '{start_date_time}' "
             f" AND {data_table}.timestamp <= '{end_date_time}' "
-            f" AND {data_table}.pm2_5_raw_value is not null "
+            f" GROUP BY {data_table}.device, "
+            f" meta_data.site_id, meta_data.airqloud_id, meta_data.site_name, meta_data.airqloud"
         )
 
         job_config = bigquery.QueryJobConfig()
         job_config.use_query_cache = True
 
-        dataframe = bigquery.Client().query(query, job_config).result().to_dataframe()
-
-        if len(dataframe.index) == 0:
-            return []
-
-        dataframe.drop_duplicates(
-            subset=["datetime", "device"], inplace=True, keep="first"
+        dataframe = (
+            bigquery.Client()
+            .query(f"select distinct * from ({query})", job_config)
+            .result()
+            .to_dataframe()
         )
 
-        return dataframe.to_dict(orient="records")
-
-    @classmethod
-    @cache.memoize()
-    def from_bigquery(
-        cls,
-        tenant,
-        sites,
-        start_date,
-        end_date,
-        frequency,
-        pollutants,
-        additional_columns=None,
-        output_format=None,
-    ):
-        if additional_columns is None:
-            additional_columns = []
-
-        decimal_places = 2
-
-        columns = [
-            f"{cls.BIGQUERY_EVENTS}.device_id AS device",
-            f"{cls.BIGQUERY_SITES}.name AS site",
-            "FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', timestamp) AS datetime",
-            f"{cls.BIGQUERY_SITES}.approximate_latitude AS latitude",
-            f"{cls.BIGQUERY_SITES}.approximate_longitude  AS longitude",
-        ]
-        columns.extend(additional_columns)
-
-        if output_format is not None and output_format == "aqcsv":
-            columns.extend(["site_id"])
-
-        for pollutant in pollutants:
-            pollutant_mapping = POLLUTANT_BIGQUERY_MAPPER.get(pollutant, [])
-            columns.extend(
-                [
-                    f"ROUND({mapping}, {decimal_places}) AS {mapping}"
-                    for mapping in pollutant_mapping
-                ]
-            )
-
-        QUERY = (
-            f"SELECT {', '.join(map(str, set(columns)))} "
-            f"FROM {cls.BIGQUERY_EVENTS} "
-            f"JOIN {cls.BIGQUERY_SITES} ON {cls.BIGQUERY_SITES}.id = {cls.BIGQUERY_EVENTS}.site_id "
-            f"WHERE {cls.BIGQUERY_EVENTS}.tenant = '{tenant}' "
-            f"AND {cls.BIGQUERY_EVENTS}.timestamp >= '{start_date}' "
-            f"AND {cls.BIGQUERY_EVENTS}.timestamp <= '{end_date}' "
-            f"AND site_id IN UNNEST({sites})"
-        )
-
-        job_config = bigquery.QueryJobConfig()
-        job_config.use_query_cache = True
-
-        dataframe = bigquery.Client().query(QUERY, job_config).result().to_dataframe()
-        dataframe.sort_values(
-            ["site", "datetime", "device"], ascending=True, inplace=True
-        )
-
-        dataframe.drop_duplicates(
-            subset=["datetime", "device"], inplace=True, keep="first"
-        )
-        return dataframe.to_dict(orient="records")
+        return dataframe.to_dict("records")
 
     @classmethod
     @cache.memoize()

@@ -6,12 +6,12 @@ app:
   namespace: production
   configMap: env-gp-model-production
 images:
-  tag: prod-bcbebfd8-1686643056
+  tag: prod-6050fa0d-1686855662
   repositories:
     cronJob: eu.gcr.io/airqo-250220/airqo-gp-model-job
     brokerConsumer: eu.gcr.io/airqo-250220/airqo-gp-model-broker-consumer
-nameOverride: ""
-fullnameOverride: ""
+nameOverride: ''
+fullnameOverride: ''
 podAnnotations: {}
 resources:
   limits:

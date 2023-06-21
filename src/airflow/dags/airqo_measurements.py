@@ -157,6 +157,22 @@ def airqo_historical_hourly_measurements():
             table=big_query_api.hourly_measurements_table,
         )
 
+    @task()
+    def send_hourly_measurements_to_api(airqo_data: pd.DataFrame, **kwargs):
+        send_to_api_param = kwargs.get("params", {}).get("send_to_api")
+        if send_to_api_param:
+            from airqo_etl_utils.airqo_api import AirQoApi
+            from airqo_etl_utils.airqo_utils import AirQoDataUtils
+
+            data = AirQoDataUtils.process_data_for_api(
+                airqo_data, frequency=Frequency.HOURLY
+            )
+
+            airqo_api = AirQoApi()
+            airqo_api.save_events(measurements=data)
+        else:
+            print("The send to API parameter has been set to false")
+
     extracted_device_measurements = extract_device_measurements()
     extracted_weather_data = extract_weather_data()
     merged_data = merge_data(
@@ -165,6 +181,7 @@ def airqo_historical_hourly_measurements():
     )
     calibrated_data = calibrate_data(merged_data)
     load(calibrated_data)
+    send_hourly_measurements_to_api(calibrated_data)
 
 
 @dag(

@@ -1,6 +1,6 @@
 const HTTPStatus = require("http-status");
 const HealthTipSchema = require("@models/HealthTips");
-const { getModelByTenant } = require("./multitenancy");
+const { getModelByTenant } = require("@config/database");
 const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const { logObject, logElement, logText } = require("./log");

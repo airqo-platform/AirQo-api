@@ -1,6 +1,6 @@
 const ActivitySchema = require("@models/SiteActivity");
 const { logObject, logElement, logText } = require("./log");
-const { getModelByTenant } = require("./multitenancy");
+const { getModelByTenant } = require("@config/database");
 const ActivityModel = (tenant) => {
   return getModelByTenant(tenant.toLowerCase(), "activity", ActivitySchema);
 };

@@ -1,5 +1,6 @@
+import math
 import traceback
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import pandas as pd
 import requests
@@ -9,7 +10,6 @@ from google.cloud import bigquery
 import geojson
 from app import cache
 from config.constants import connect_mongo, Config
-from models.predict import get_forecasts
 
 load_dotenv()
 db = connect_mongo()
@@ -19,54 +19,20 @@ def date_to_str(date: datetime):
     return date.isoformat()
 
 
-def convert_to_geojson(data):
-    """
-    converts a list of predictions to geojson format
-    """
-    features = []
-    for record in data:
-        if not record['longitude'] or not record['latitude']:
-            continue
-        point = geojson.Point((record['longitude'], record['latitude']))
-        feature = geojson.Feature(geometry=point, properties=record)
-        features.append(feature)
-
-    return geojson.FeatureCollection(features)
+def heatmap_cache_key():
+    args = request.args
+    airqloud = args.get('airqloud')
+    page = args.get('page')
+    limit = args.get('limit')
+    return f'{airqloud}_{page}_{limit}'
 
 
-def get_gp_predictions(airqloud=None, page=1, limit=500):
-    """Returns PM 2.5 predictions for a particular airqloud name or id."""
-
-    pipeline = [
-        {"$match": {"airqloud": airqloud.lower()} if airqloud else {}},
-        {"$sort": {"created_at": -1}},
-        {"$group": {
-            "_id": {
-                "latitude": "$latitude",
-                "longitude": "$longitude"
-            },
-            "doc": {"$first": "$$ROOT"}
-        }},
-        {"$replaceRoot": {"newRoot": "$doc"}},
-        {"$project": {
-            '_id': 0,
-            'latitude': 1,
-            'longitude': 1,
-            'predicted_value': 1,
-            'variance': 1,
-            'interval': 1,
-            'airqloud': 1,
-            'created_at': 1,
-            'airqloud_id': 1,
-            'values': 1
-        }}
-    ]
-    result = db.gp_predictions.aggregate(pipeline)
-    predictions = list(result)
-    total_count = len(predictions)
-    paginated_results = predictions[(page - 1) * limit:page * limit]
-
-    return paginated_results, total_count
+def weekly_forecasts_cache_key():
+    # create new var of current date and time as a string
+    current_date = datetime.now().strftime("%Y-%m-%d")
+    args = request.args
+    site_id = args.get('site_id')
+    return f'{current_date}_{site_id}'
 
 
 def geo_coordinates_cache_key():
@@ -81,7 +47,77 @@ def geo_coordinates_cache_key():
     return key
 
 
-@cache.memoize(timeout=3600)
+@cache.memoize(timeout=Config.CACHE_TIMEOUT)
+def convert_to_geojson(data):
+    """
+    converts a list of predictions to geojson format
+    """
+    features = []
+    for record in data:
+        point = geojson.Point((record['values']['latitude'], record['values']['longitude']))
+        feature = geojson.Feature(geometry=point, properties={
+            "latitude": record['values']['latitude'],
+            "longitude": record['values']['longitude'],
+            "predicted_value": record['values']["predicted_value"],
+            "variance": record['values']["variance"],
+            "interval": record['values']["interval"],
+        })
+        features.append(feature)
+
+    return geojson.FeatureCollection(features)
+
+
+@cache.memoize(timeout=Config.CACHE_TIMEOUT)
+def get_gp_predictions(airqloud=None, page=1, limit=500):
+    """Returns PM 2.5 predictions for a particular airqloud name or id."""
+
+    pipeline = [
+        {"$match": {"airqloud": airqloud.lower()} if airqloud else {}},
+        {"$sort": {"created_at": -1}},
+        {"$group": {
+            "_id": {
+                "airqloud_id": "$airqloud_id",
+                "airqloud": "$airqloud"
+            },
+            "doc": {"$first": "$$ROOT"},
+        }},
+        {"$replaceRoot": {"newRoot": "$doc"}},
+        {"$project": {
+            '_id': 0,
+            'airqloud_id': 1,
+            'airqloud': 1,
+            'created_at': 1,
+            'values': 1
+        }},
+        {"$unwind": "$values"},
+        {"$setWindowFields": {
+            "partitionBy": {
+                "airqloud_id": "$airqloud_id",
+                "airqloud": "$airqloud"
+            },
+            "sortBy": {"created_at": 1},
+            "output": {
+                "total": {
+                    "$sum": 1,
+                    "window": {
+                        "documents": ["unbounded", "unbounded"]
+                    }
+                }
+            }
+        }},
+        {"$skip": (page - 1) * limit},
+        {"$limit": limit}
+    ]
+    predictions = db.gp_predictions.aggregate(pipeline)
+    predictions = list(predictions)
+    created_at = predictions[0]['created_at']
+    total_count = predictions[0]['total']
+    pages = math.ceil(total_count / limit)
+    airqloud_id = predictions[0]['airqloud_id']
+    return airqloud_id, created_at, predictions, total_count, pages
+
+
+@cache.memoize(timeout=Config.CACHE_TIMEOUT)
 def get_health_tips() -> list[dict]:
     try:
         response = requests.get(
@@ -97,7 +133,7 @@ def get_health_tips() -> list[dict]:
         return []
 
 
-@cache.cached(timeout=3600, key_prefix=geo_coordinates_cache_key)
+@cache.memoize(timeout=Config.CACHE_TIMEOUT)
 def get_predictions_by_geo_coordinates(
         latitude: float, longitude: float, distance_in_metres: int
 ) -> dict:
@@ -124,23 +160,21 @@ def get_predictions_by_geo_coordinates(
     return data
 
 
+@cache.memoize(timeout=Config.CACHE_TIMEOUT)
 def get_forecasts_helper(db_name):
     """
     Helper function to get forecasts for a given site_id and db_name
     """
+
     if request.method == "GET":
-        site_id = request.args.get("site_id")
-        if site_id is None or not isinstance(site_id, str):
+        params = {name: request.args.get(name, default=None, type=str) for name in
+                  ['site_id', 'site_name', 'parish', 'county', 'city', 'district', 'region']}
+        if not any(params.values()):
             return (
-                jsonify({"message": "Please specify a site_id", "success": False}),
+                jsonify({"message": "Please specify at least one query parameter", "success": False}),
                 400,
             )
-        if len(site_id) != 24:
-            return (
-                jsonify({"message": "Please enter a valid site_id", "success": False}),
-                400,
-            )
-        result = get_forecasts(site_id, db_name)
+        result = get_forecasts(**params, db_name=db_name)
         if result:
             response = result
         else:
@@ -152,3 +186,27 @@ def get_forecasts_helper(db_name):
         return data, 200
     else:
         return jsonify({"message": "Invalid request method", "success": False}), 400
+
+
+@cache.memoize(timeout=Config.CACHE_TIMEOUT)
+def get_forecasts(db_name, site_id=None, site_name=None, parish=None, county=None, city=None, district=None,
+                  region=None):
+    db = connect_mongo()
+    query = {}
+    params = {'site_id': site_id, 'site_name': site_name, 'parish': parish,
+              'county': county, 'city': city, 'district': district, 'region': region}
+    for name, value in params.items():
+        if value is not None:
+            query[name] = value
+    site_forecasts = list(db[db_name].find(
+        query, {'_id': 0}).sort([('$natural', -1)]).limit(1))
+
+    results = []
+    if site_forecasts:
+        for time, pm2_5, health_tips in zip(site_forecasts[0]['time'], site_forecasts[0]['pm2_5'],
+                                            site_forecasts[0]['health_tips']):
+            result = {key: value for key, value in zip(['time', 'pm2_5', 'health_tips'], [time, pm2_5, health_tips])}
+            results.append(result)
+
+    formatted_results = {'forecasts': results}
+    return formatted_results

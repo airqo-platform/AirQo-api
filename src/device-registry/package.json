@@ -4,7 +4,7 @@
     "private": true,
     "main": "./bin/www",
     "scripts": {
-        "start": "node --max-old-space-size=1024 ./bin/www",
+        "start": "NODE_ENV=production node --max-old-space-size=1024 ./bin/www",
         "stage": "NODE_ENV=staging node --max-old-space-size=1024 ./bin/www",
         "dev-mac": "NODE_ENV=development nodemon --max-old-space-size=1024 ./bin/www",
         "prod-mac": "NODE_ENV=production nodemon --max-old-space-size=1024 ./bin/www",
