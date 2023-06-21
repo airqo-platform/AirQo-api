@@ -223,23 +223,11 @@ const createKnowYourAir = {
         .aggregate([
           {
             $match: {
-              lessons: { $nin: [lesson_id] },
+              kya_lesson: { $ne: lesson_id },
             },
           },
           {
-            $project: {
-              _id: 1,
-              email: 1,
-              firstName: 1,
-              lastName: 1,
-              createdAt: {
-                $dateToString: {
-                  format: "%Y-%m-%d %H:%M:%S",
-                  date: "$_id",
-                },
-              },
-              userName: 1,
-            },
+            $project: constants.KYA_TASKS_INCLUSION_PROJECTION,
           },
         ])
         .exec();
@@ -286,28 +274,11 @@ const createKnowYourAir = {
         .aggregate([
           {
             $match: {
-              lessons: { $in: [lesson_id] },
+              kya_lesson: lesson_id,
             },
           },
           {
-            $project: {
-              _id: 1,
-              email: 1,
-              firstName: 1,
-              lastName: 1,
-              createdAt: {
-                $dateToString: {
-                  format: "%Y-%m-%d %H:%M:%S",
-                  date: "$_id",
-                },
-              },
-              userName: 1,
-              jobTitle: 1,
-              website: 1,
-              category: 1,
-              country: 1,
-              description: 1,
-            },
+            $project: constants.KYA_TASKS_INCLUSION_PROJECTION,
           },
         ])
         .exec();
@@ -320,6 +291,7 @@ const createKnowYourAir = {
         data: responseFromListAssignedTasks,
       };
     } catch (error) {
+      logObject("error", error);
       logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
@@ -342,6 +314,7 @@ const createKnowYourAir = {
       if (filter.success && filter.success === false) {
         return filter;
       }
+      logObject("filter", filter);
 
       const responseFromListUserLessonProgress = await KnowYourAirUserLessonProgressModel(
         tenant
@@ -356,6 +329,7 @@ const createKnowYourAir = {
       );
       return responseFromListUserLessonProgress;
     } catch (error) {
+      logObject("error", error);
       logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
@@ -374,7 +348,7 @@ const createKnowYourAir = {
       if (filter.success && filter.success === false) {
         return filter;
       }
-
+      logObject("filter", filter);
       const responseFromDeleteUserLessonProgress = await KnowYourAirUserLessonProgressModel(
         tenant
       ).remove({
@@ -386,6 +360,7 @@ const createKnowYourAir = {
       );
       return responseFromDeleteUserLessonProgress;
     } catch (error) {
+      logObject("error", error);
       logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
@@ -405,6 +380,8 @@ const createKnowYourAir = {
         return filter;
       }
       let update = Object.assign({}, body);
+      logObject("update", update);
+      logObject("filter", filter);
       const responseFromUpdateUserLessonProgress = await KnowYourAirUserLessonProgressModel(
         tenant
       ).modify({
@@ -430,21 +407,17 @@ const createKnowYourAir = {
     try {
       const { query, body } = request;
       const { tenant } = query;
-
-      const filter = generateFilter.kyaprogress(request);
-      if (filter.success && filter.success === false) {
-        return filter;
-      }
       let requestBody = Object.assign({}, body);
       const responseFromCreateUserLessonProgress = await KnowYourAirUserLessonProgressModel(
         tenant
-      ).modify(requestBody);
+      ).register(requestBody);
       logObject(
         "responseFromCreateUserLessonProgress",
         responseFromCreateUserLessonProgress
       );
       return responseFromCreateUserLessonProgress;
     } catch (error) {
+      logger.error("error", error);
       logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
@@ -606,7 +579,9 @@ const createKnowYourAir = {
           success: false,
           message: "Task or Lesson not found",
           status: httpStatus.BAD_REQUEST,
-          errors: { message: "Task or Lesson not found" },
+          errors: {
+            message: `Task ${task_id} or Lesson ${lesson_id} are not found`,
+          },
         };
       }
 
@@ -616,25 +591,30 @@ const createKnowYourAir = {
 
       logObject("task", task);
 
-      if (user.lessons && user.lessons.includes(lesson_id.toString())) {
+      if (
+        task.kya_lesson &&
+        task.kya_lesson.toString() === lesson_id.toString()
+      ) {
         return {
           success: false,
           message: "Bad Request Error",
-          errors: { message: "Lesson already assigned to User" },
+          errors: {
+            message: `Task ${task_id} is already assigned to the Lesson ${lesson_id}`,
+          },
           status: httpStatus.BAD_REQUEST,
         };
       }
 
-      const updatedUser = await KnowYourAirTaskModel(tenant).findByIdAndUpdate(
-        user_id,
-        { $addToSet: { lessons: lesson_id } },
+      const updatedTask = await KnowYourAirTaskModel(tenant).findByIdAndUpdate(
+        task_id,
+        { kya_lesson: lesson_id },
         { new: true }
       );
 
       return {
         success: true,
-        message: "User assigned to the Lesson",
-        data: updatedUser,
+        message: "Task assigned to the Lesson",
+        data: updatedTask,
         status: httpStatus.OK,
       };
     } catch (error) {
@@ -664,28 +644,31 @@ const createKnowYourAir = {
         };
       }
 
-      for (const user_id of task_ids) {
-        const user = await KnowYourAirTaskModel(tenant)
-          .findById(ObjectId(user_id))
+      for (const task_id of task_ids) {
+        const task = await KnowYourAirTaskModel(tenant)
+          .findById(task_id)
           .lean();
 
-        if (!user) {
+        if (!task) {
           return {
             success: false,
             message: "Bad Request Error",
             errors: {
-              message: `Invalid User ID ${user_id}, please crosscheck`,
+              message: `Invalid Task ID ${task_id}, please crosscheck`,
             },
             status: httpStatus.BAD_REQUEST,
           };
         }
 
-        if (user.lessons && user.lessons.includes(lesson_id.toString())) {
+        if (
+          task.kya_lessson &&
+          task.kya_lessons.toString() === lesson_id.toString()
+        ) {
           return {
             success: false,
             message: "Bad Request Error",
             errors: {
-              message: `Lesson ${lesson_id} is already assigned to the user ${user_id}`,
+              message: `Task ${task_id} is already assigned to the Lesson ${lesson_id}`,
             },
             status: httpStatus.BAD_REQUEST,
           };
@@ -695,7 +678,7 @@ const createKnowYourAir = {
       const totalTasks = task_ids.length;
       const { nModified, n } = await KnowYourAirTaskModel(tenant).updateMany(
         { _id: { $in: task_ids } },
-        { $addToSet: { lessons: lesson_id } }
+        { kya_lesson: lesson_id }
       );
 
       const notFoundCount = totalTasks - nModified;
@@ -703,7 +686,7 @@ const createKnowYourAir = {
         return {
           success: false,
           message: "Bad Request Error",
-          errors: { message: "No matching User found in the system" },
+          errors: { message: "No matching Task found in the system" },
           status: httpStatus.BAD_REQUEST,
         };
       }
@@ -733,57 +716,53 @@ const createKnowYourAir = {
   },
   removeTaskFromLesson: async (request) => {
     try {
-      const { lesson_id, user_id } = request.params;
+      const { lesson_id, task_id } = request.params;
       const { tenant } = request.query;
 
-      // Check if the lesson exists
       const lesson = await KnowYourAirLessonModel(tenant).findById(lesson_id);
       if (!lesson) {
         return {
           success: false,
           message: "Bad Request Error",
-          errors: { message: "Lesson not found" },
+          errors: { message: `Lesson ${lesson_id} not found` },
           status: httpStatus.BAD_REQUEST,
         };
       }
 
-      // Check if the user exists
-      const user = await KnowYourAirTaskModel(tenant).findById(user_id);
-      if (!user) {
+      const task = await KnowYourAirTaskModel(tenant).findById(task_id);
+      if (!task) {
         return {
           success: false,
           status: httpStatus.BAD_REQUEST,
           message: "Bad Request Error",
-          errors: { message: "User not found" },
+          errors: { message: `Task  ${task_id} not found` },
         };
       }
 
-      // Check if the lesson is part of the user's lessons
-      const isLessonInUser = user.lessons.some(
-        (lessonId) => lessonId.toString() === lesson_id.toString()
-      );
-      if (!isLessonInUser) {
+      const isTaskAssignedToLesson =
+        task.kya_lesson && task.kya_lesson.toString() === lesson_id.toString();
+
+      if (!isTaskAssignedToLesson) {
         return {
           success: false,
           message: "Bad Request Error",
           status: httpStatus.BAD_REQUEST,
           errors: {
-            message: `Lesson ${lesson_id.toString()} is not part of the user's lessons`,
+            message: `Task ${task_id.toString()} is not assigned to Lesson ${lesson_id}`,
           },
         };
       }
 
-      // Remove the lesson from the user
-      const updatedUser = await KnowYourAirTaskModel(tenant).findByIdAndUpdate(
-        user_id,
-        { $pull: { lessons: lesson_id } },
+      const updatedTask = await KnowYourAirTaskModel(tenant).findByIdAndUpdate(
+        task_id,
+        { kya_lesson: null },
         { new: true }
       );
 
       return {
         success: true,
         message: "Successfully unassigned User from the Lesson",
-        data: { updatedLesson, updatedUser },
+        data: updatedTask,
         status: httpStatus.OK,
       };
     } catch (error) {
@@ -808,7 +787,7 @@ const createKnowYourAir = {
         return {
           success: false,
           message: "Bad Request Error",
-          errors: { message: "Lesson not found" },
+          errors: { message: `Lesson ${lesson_id} not found` },
           status: httpStatus.BAD_REQUEST,
         };
       }
@@ -834,31 +813,11 @@ const createKnowYourAir = {
         };
       }
 
-      //check if all the provided task_ids have the lesson_id in their lesson's field?
-
-      const tasks = await KnowYourAirTaskModel(tenant).find({
-        _id: { $in: task_ids },
-        lessons: { $all: [lesson_id] },
-      });
-
-      if (tasks.length !== task_ids.length) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: {
-            message: `Some of the provided User IDs are not assigned to this lesson ${lesson_id}`,
-          },
-          status: httpStatus.BAD_REQUEST,
-        };
-      }
-
-      //remove the lesson_id from all the user's lesson field
-
       try {
         const totalTasks = task_ids.length;
         const { nModified, n } = await KnowYourAirTaskModel(tenant).updateMany(
-          { _id: { $in: task_ids }, lessons: { $in: [lesson_id] } },
-          { $pull: { lessons: lesson_id } },
+          { _id: { $in: task_ids } },
+          { kya_lesson: null },
           { multi: true }
         );
 
@@ -867,7 +826,7 @@ const createKnowYourAir = {
           return {
             success: false,
             message: "Bad Request Error",
-            errors: { message: "No matching User found in the system" },
+            errors: { message: "No matching Task found in the system" },
             status: httpStatus.BAD_REQUEST,
           };
         }
@@ -880,6 +839,7 @@ const createKnowYourAir = {
           };
         }
       } catch (error) {
+        logObject("error", JSON.stringify(error));
         logger.error(`Internal Server Error ${error.message}`);
         return {
           success: false,

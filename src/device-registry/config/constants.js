@@ -1000,7 +1000,7 @@ const defaultConfig = {
     completed: 1,
     _id: 1,
   },
-  KYA_LESSON_PROGRESS_EXCLUSION_PROJECTION: (category) => {
+  KYA_LESSONS_PROGRESS_EXCLUSION_PROJECTION: (category) => {
     const initialProjection = {};
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {

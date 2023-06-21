@@ -209,14 +209,13 @@ router.get(
   ]),
   oneOf([
     [
-      query("id")
-        .optional()
-        .notEmpty()
-        .withMessage("this tip identifier cannot be empty")
+      param("lesson_id")
+        .exists()
+        .withMessage("the lesson_id should exist")
         .bail()
         .trim()
         .isMongoId()
-        .withMessage("id must be an object ID")
+        .withMessage("lesson_id must be an object ID")
         .bail()
         .customSanitizer((value) => {
           return ObjectId(value);
@@ -291,7 +290,7 @@ router.get(
   knowYourAirController.listLessons
 );
 
-/****** CRUD for tracking user progress ******************************/
+/************* tracking user progress ******************************/
 router.get(
   "/progress",
   oneOf([
@@ -368,24 +367,32 @@ router.delete(
     ],
   ]),
   oneOf([
-    query("id")
-      .exists()
-      .withMessage(
-        "the tip identifier is missing in request, consider using the id"
-      )
-      .bail()
-      .trim()
-      .isMongoId()
-      .withMessage("the id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
+    [
+      param("progress_id")
+        .exists()
+        .withMessage("the progress_id should exist")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("progress_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+    ],
   ]),
   knowYourAirController.deleteUserLessonProgress
 );
 router.put(
   "/progress/:progress_id",
+  oneOf([
+    body()
+      .notEmpty()
+      .custom((value) => {
+        return !isEmpty(value);
+      })
+      .withMessage("the request body should not be empty"),
+  ]),
   oneOf([
     [
       query("tenant")
@@ -400,59 +407,62 @@ router.put(
     ],
   ]),
   oneOf([
-    query("id")
-      .exists()
-      .withMessage(
-        "the tip unique identifier is missing in request, consider using the id"
-      )
-      .bail()
-      .trim()
-      .isMongoId()
-      .withMessage("id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
-  ]),
-  oneOf([
-    body()
-      .notEmpty()
-      .custom((value) => {
-        return !isEmpty(value);
-      })
-      .withMessage("the request body should not be empty"),
+    [
+      param("progress_id")
+        .exists()
+        .withMessage("the progress_id should exist")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("progress_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+    ],
   ]),
   oneOf([
     [
-      body("description")
+      body("user_id")
         .optional()
         .notEmpty()
-        .withMessage("the description is missing in request")
-        .bail()
-        .trim(),
-      body("title")
-        .optional()
-        .notEmpty()
-        .withMessage("the title is missing in request")
-        .bail()
-        .trim(),
-      body("image")
-        .optional()
-        .notEmpty()
-        .withMessage("the image is missing in request")
-        .bail()
-        .trim(),
-      body("aqi_category")
-        .optional()
-        .notEmpty()
-        .withMessage("the aqi_category is missing in request")
+        .withMessage("the user_id should not be empty IF provided")
         .bail()
         .trim()
-        .toLowerCase()
-        .isIn(constants.AQI_CATEGORIES)
-        .withMessage(
-          "the aqi_category is not among the expected ones: good,moderate,u4sg,unhealthy,very_unhealthy,hazardous"
-        ),
+        .isMongoId()
+        .withMessage("user_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("lesson_id")
+        .optional()
+        .notEmpty()
+        .withMessage("the lesson_id should not be empty IF provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("lesson_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("completed")
+        .optional()
+        .notEmpty()
+        .withMessage("completed should not be empty IF provided")
+        .bail()
+        .trim()
+        .isBoolean()
+        .withMessage("the completed should be boolean"),
+      body("progress")
+        .optional()
+        .notEmpty()
+        .withMessage("the progress should not be empty IF provided")
+        .bail()
+        .trim()
+        .isNumeric()
+        .withMessage("the progress should be a number"),
     ],
   ]),
   knowYourAirController.updateUserLessonProgress
@@ -474,31 +484,42 @@ router.post(
   ]),
   oneOf([
     [
-      body("description")
+      body("user_id")
         .exists()
-        .withMessage("the description is missing in request")
-        .bail()
-        .trim(),
-      body("title")
-        .exists()
-        .withMessage("the title is missing in request")
-        .bail()
-        .trim(),
-      body("image")
-        .exists()
-        .withMessage("the image is missing in request")
-        .bail()
-        .trim(),
-      body("aqi_category")
-        .exists()
-        .withMessage("the aqi_category is missing in request")
+        .withMessage("the user_id is missing in request")
         .bail()
         .trim()
-        .toLowerCase()
-        .isIn(constants.AQI_CATEGORIES)
-        .withMessage(
-          "the aqi_category is not among the expected ones: good,moderate,u4sg,unhealthy,very_unhealthy,hazardous"
-        ),
+        .isMongoId()
+        .withMessage("user_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("lesson_id")
+        .exists()
+        .withMessage("the lesson_id is missing in request")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("lesson_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("completed")
+        .exists()
+        .withMessage("the completed is missing in request")
+        .bail()
+        .trim()
+        .isBoolean()
+        .withMessage("the completed should be boolean"),
+      body("progress")
+        .exists()
+        .withMessage("the progress is missing in request")
+        .bail()
+        .trim()
+        .isNumeric()
+        .withMessage("the progress should be a number"),
     ],
   ]),
   knowYourAirController.createUserLessonProgress
@@ -677,7 +698,6 @@ router.delete(
   ]),
   knowYourAirController.deleteTask
 );
-
 router.get(
   "/tasks/:task_id",
   oneOf([
@@ -713,7 +733,7 @@ router.get(
 
 /******************* manage lessons *********************************************/
 router.post(
-  "/lessons/{lesson_id}/assign-tasks",
+  "/lessons/:lesson_id/assign-tasks",
   oneOf([
     [
       query("tenant")
@@ -729,37 +749,37 @@ router.post(
   ]),
   oneOf([
     [
-      body("description")
+      param("lesson_id")
         .exists()
-        .withMessage("the description is missing in request")
-        .bail()
-        .trim(),
-      body("title")
-        .exists()
-        .withMessage("the title is missing in request")
-        .bail()
-        .trim(),
-      body("image")
-        .exists()
-        .withMessage("the image is missing in request")
-        .bail()
-        .trim(),
-      body("aqi_category")
-        .exists()
-        .withMessage("the aqi_category is missing in request")
+        .withMessage("the lesson_id is missing in the request")
         .bail()
         .trim()
-        .toLowerCase()
-        .isIn(constants.AQI_CATEGORIES)
-        .withMessage(
-          "the aqi_category is not among the expected ones: good,moderate,u4sg,unhealthy,very_unhealthy,hazardous"
-        ),
+        .isMongoId()
+        .withMessage("the lesson_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("task_ids")
+        .exists()
+        .withMessage("the task_ids should be provided")
+        .bail()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the task_ids should be an array")
+        .bail()
+        .notEmpty()
+        .withMessage("the task_ids should not be empty"),
+      body("task_ids.*")
+        .isMongoId()
+        .withMessage("task_id provided must be an object ID"),
     ],
   ]),
   knowYourAirController.assignManyTasksToLesson
 );
 router.put(
-  "/lessons/{lesson_id}/assign-task/{task_id}",
+  "/lessons/:lesson_id/assign-task/:task_id",
   oneOf([
     [
       query("tenant")
@@ -774,65 +794,35 @@ router.put(
     ],
   ]),
   oneOf([
-    query("id")
-      .exists()
-      .withMessage(
-        "the tip unique identifier is missing in request, consider using the id"
-      )
-      .bail()
-      .trim()
-      .isMongoId()
-      .withMessage("id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
-  ]),
-  oneOf([
-    body()
-      .notEmpty()
-      .custom((value) => {
-        return !isEmpty(value);
-      })
-      .withMessage("the request body should not be empty"),
-  ]),
-  oneOf([
     [
-      body("description")
-        .optional()
-        .notEmpty()
-        .withMessage("the description is missing in request")
-        .bail()
-        .trim(),
-      body("title")
-        .optional()
-        .notEmpty()
-        .withMessage("the title is missing in request")
-        .bail()
-        .trim(),
-      body("image")
-        .optional()
-        .notEmpty()
-        .withMessage("the image is missing in request")
-        .bail()
-        .trim(),
-      body("aqi_category")
-        .optional()
-        .notEmpty()
-        .withMessage("the aqi_category is missing in request")
+      param("lesson_id")
+        .exists()
+        .withMessage("the lesson_id should exist")
         .bail()
         .trim()
-        .toLowerCase()
-        .isIn(constants.AQI_CATEGORIES)
-        .withMessage(
-          "the aqi_category is not among the expected ones: good,moderate,u4sg,unhealthy,very_unhealthy,hazardous"
-        ),
+        .isMongoId()
+        .withMessage("lesson_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      param("task_id")
+        .exists()
+        .withMessage("the task_id should exist")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("task_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
     ],
   ]),
   knowYourAirController.assignTaskToLesson
 );
 router.delete(
-  "/lessons/{lesson_id}/unassign-task/{task_id}",
+  "/lessons/:lesson_id/unassign-task/:task_id",
   oneOf([
     [
       query("tenant")
@@ -847,24 +837,35 @@ router.delete(
     ],
   ]),
   oneOf([
-    query("id")
-      .exists()
-      .withMessage(
-        "the tip identifier is missing in request, consider using the id"
-      )
-      .bail()
-      .trim()
-      .isMongoId()
-      .withMessage("the id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
+    [
+      param("lesson_id")
+        .exists()
+        .withMessage("the lesson_id should exist")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("lesson_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      param("task_id")
+        .exists()
+        .withMessage("the task_id should exist")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("task_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+    ],
   ]),
   knowYourAirController.removeTaskFromLesson
 );
 router.delete(
-  "/lessons/{lesson_id}/unassign-many-tasks",
+  "/lessons/:lesson_id/unassign-many-tasks",
   oneOf([
     [
       query("tenant")
@@ -879,20 +880,35 @@ router.delete(
     ],
   ]),
   oneOf([
-    query("id")
-      .exists()
-      .withMessage(
-        "the tip identifier is missing in request, consider using the id"
-      )
-      .bail()
-      .trim()
-      .isMongoId()
-      .withMessage("the id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
+    [
+      param("lesson_id")
+        .exists()
+        .withMessage("the lesson_id should exist")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("lesson_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("task_ids")
+        .exists()
+        .withMessage("the task_ids should be provided")
+        .bail()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the task_ids should be an array")
+        .bail()
+        .notEmpty()
+        .withMessage("the task_ids should not be empty"),
+      body("task_ids.*")
+        .isMongoId()
+        .withMessage("task_id provided must be an object ID"),
+    ],
   ]),
+
   knowYourAirController.removeManyTasksFromLesson
 );
 

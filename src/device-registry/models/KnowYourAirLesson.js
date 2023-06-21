@@ -109,7 +109,7 @@ knowYourAirLessonSchema.statics = {
         .lookup({
           from: "kyatasks",
           localField: "_id",
-          foreignField: "_id",
+          foreignField: "kya_lesson",
           as: "tasks",
         })
         .project(inclusionProjection)

@@ -826,10 +826,15 @@ const generateFilter = {
     try {
       const { query, params } = request;
       const { id } = query;
-      const { user_id, lesson_id } = params;
+      const { user_id, lesson_id, progress_id } = params;
+      logObject("user_id", user_id && user_id.toString());
+      logObject("lesson_id ", lesson_id && lesson_id.toString());
       let filter = {};
       if (id) {
         filter["_id"] = ObjectId(id);
+      }
+      if (progress_id) {
+        filter["_id"] = ObjectId(progress_id);
       }
       if (user_id) {
         filter["user_id"] = ObjectId(user_id);

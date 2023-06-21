@@ -32,6 +32,16 @@ const userLessonProgressSchema = new Schema(
   }
 );
 
+// userLessonProgressSchema.index(
+//   {
+//     user_id: 1,
+//     lesson_id: 1,
+//   },
+//   {
+//     unique: true,
+//   }
+// );
+
 userLessonProgressSchema.pre("save", function(next) {
   next();
 });
@@ -105,16 +115,16 @@ userLessonProgressSchema.statics = {
   },
   async list({ skip = 0, limit = 1000, filter = {} } = {}) {
     try {
+      logObject("the filter in the model", filter);
       const inclusionProjection =
         constants.KYA_LESSONS_PROGRESS_INCLUSION_PROJECTION;
       const exclusionProjection = constants.KYA_LESSONS_PROGRESS_EXCLUSION_PROJECTION(
         filter.category ? filter.category : "none"
       );
-      const response = await this.aggregate()
+      let pipeline = await this.aggregate()
         .match(filter)
         .sort({ createdAt: -1 })
         .project(inclusionProjection)
-        .project(exclusionProjection)
         .skip(skip ? skip : 0)
         .limit(
           limit
@@ -122,6 +132,12 @@ userLessonProgressSchema.statics = {
             : parseInt(constants.DEFAULT_LIMIT_FOR_QUERYING_KYA_LESSONS)
         )
         .allowDiskUse(true);
+
+      if (Object.keys(exclusionProjection).length > 0) {
+        pipeline.project(exclusionProjection);
+      }
+
+      const response = pipeline;
 
       if (!isEmpty(response)) {
         logObject("response", response);

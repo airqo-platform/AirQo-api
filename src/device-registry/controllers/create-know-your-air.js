@@ -342,6 +342,7 @@ const createKnowYourAir = {
         });
       }
     } catch (error) {
+      logObject("error", error);
       logger.error(`internal server error -- ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
@@ -395,7 +396,7 @@ const createKnowYourAir = {
         return res.status(status).json({
           success: true,
           message: responseFromDeleteUserLessonProgress.message,
-          kya_user_progress: responseFromDeleteUserLessonProgress.data,
+          deleted_kya_user_progress: responseFromDeleteUserLessonProgress.data,
         });
       } else if (responseFromDeleteUserLessonProgress.success === false) {
         const status = responseFromDeleteUserLessonProgress.status
@@ -478,6 +479,7 @@ const createKnowYourAir = {
         });
       }
     } catch (error) {
+      logObject("error", error);
       logger.error(`internal server error -- ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
@@ -546,6 +548,7 @@ const createKnowYourAir = {
         });
       }
     } catch (error) {
+      logObject("error", error);
       logger.error(`internal server error -- ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
@@ -1007,7 +1010,7 @@ const createKnowYourAir = {
         return res.status(status).json({
           success: true,
           message: responseFromRemoveTaskFromLesson.message,
-          updated_kya: responseFromRemoveTaskFromLesson.data,
+          updated_kya_task: responseFromRemoveTaskFromLesson.data,
         });
       } else if (responseFromRemoveTaskFromLesson.success === false) {
         const status = responseFromRemoveTaskFromLesson.status
