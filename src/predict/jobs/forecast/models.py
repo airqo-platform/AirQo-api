@@ -17,8 +17,9 @@ class Events:
         """gets data from the bigquery table"""
 
         credentials = service_account.Credentials.from_service_account_file(configuration.CREDENTIALS)
+        tenants = str(configuration.TENANTS).split(',')
         query = f"""
-        SELECT DISTINCT timestamp, site_name, parish, sub_county, county, city, district, region,  site_id, device_number,pm2_5_calibrated_value FROM `{configuration.GOOGLE_CLOUD_PROJECT_ID}.consolidated_data.hourly_device_measurements` where DATE(timestamp) >= DATE_SUB(CURRENT_DATE(), INTERVAL {configuration.NUMBER_OF_MONTHS} MONTH) and tenant in {configuration.TENANTS} ORDER BY timestamp 
+        SELECT DISTINCT timestamp, site_name, parish, sub_county, county, city, district, region,  site_id, device_number,pm2_5_calibrated_value FROM `{configuration.GOOGLE_CLOUD_PROJECT_ID}.consolidated_data.hourly_device_measurements` where DATE(timestamp) >= DATE_SUB(CURRENT_DATE(), INTERVAL {configuration.NUMBER_OF_MONTHS} MONTH) and tenant IN UNNEST({tenants}) ORDER BY timestamp 
 
         """
         df = pd.read_gbq(query, project_id=configuration.GOOGLE_CLOUD_PROJECT_ID, credentials=credentials)
