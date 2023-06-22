@@ -442,6 +442,7 @@ router.post(
         "device identification details are missing in the request, consider using the name"
       )
       .bail()
+      .trim()
       .notEmpty()
       .withMessage("the name should not be empty if provided"),
     body("long_name")
@@ -450,6 +451,7 @@ router.post(
         "device identification details are missing in the request, consider using the long_name"
       )
       .bail()
+      .trim()
       .notEmpty()
       .withMessage("the long_name should not be empty if provided"),
   ]),
@@ -1154,6 +1156,7 @@ router.post(
         "device identification details are missing in the request, consider using the name"
       )
       .bail()
+      .trim()
       .notEmpty()
       .withMessage("the name should not be empty if provided"),
     body("long_name")
@@ -1162,6 +1165,7 @@ router.post(
         "device identification details are missing in the request, consider using the long_name"
       )
       .bail()
+      .trim()
       .notEmpty()
       .withMessage("the long_name should not be empty if provided"),
   ]),
