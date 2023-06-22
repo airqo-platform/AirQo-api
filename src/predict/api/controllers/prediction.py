@@ -5,9 +5,9 @@ from app import cache
 from dotenv import load_dotenv
 from flask import Blueprint, request, jsonify
 
-from helpers.utils import get_gp_predictions, get_forecasts_helper, \
-    get_predictions_by_geo_coordinates, get_health_tips, convert_to_geojson, weekly_forecasts_cache_key, \
-    heatmap_cache_key, geo_coordinates_cache_key, get_forecasts, hourly_forecasts_cache_key
+from helpers.utils import get_gp_predictions, \
+    get_predictions_by_geo_coordinates, get_health_tips, convert_to_geojson, \
+    heatmap_cache_key, geo_coordinates_cache_key, get_forecasts, hourly_forecasts_cache_key, daily_forecasts_cache_key
 from routes import api
 from config.constants import Config
 
@@ -52,7 +52,7 @@ def get_next_24hr_forecasts():
 
 
 @ml_app.route(api.route['next_1_week_forecasts'], methods=['GET'])
-@cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=weekly_forecasts_cache_key)
+@cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=daily_forecasts_cache_key)
 def get_next_1_week_forecasts():
     """
     Get forecasts for the next 1 week from specified start day.
