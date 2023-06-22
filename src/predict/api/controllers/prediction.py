@@ -3,7 +3,7 @@ import traceback
 from app import cache
 
 from dotenv import load_dotenv
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, escape
 
 from helpers.utils import get_gp_predictions, \
     get_predictions_by_geo_coordinates, get_health_tips, convert_to_geojson, \
@@ -30,7 +30,7 @@ def get_next_24hr_forecasts():
     """
     if request.method == "GET":
 
-        params = {name: request.args.get(name, default=None, type=str) for name in
+        params = {name: escape(request.args.get(name, default=None, type=str)) for name in
                   ['site_id', 'site_name', 'parish', 'county', 'city', 'district', 'region']}
         if not any(params.values()):
             return (
@@ -66,7 +66,7 @@ def get_next_1_week_forecasts():
                 jsonify({"message": "Please specify at least one query parameter", "success": False}),
                 400,
             )
-        result = get_forecasts(**params, db_name='daily_forecasts')
+        result = get_forecasts(escape(**params), db_name='daily_forecasts')
         if result:
             response = result
         else:
@@ -105,7 +105,9 @@ def predictions_for_heatmap():
         }, 400
 
     try:
-        airqloud_id, created_at, predictions, total_count, pages = get_gp_predictions(airqloud, page=page, limit=limit)
+        airqloud_id, created_at, predictions, total_count, pages = get_gp_predictions(escape(airqloud),
+                                                                                      page=escape(page),
+                                                                                      limit=escape(limit))
         geojson_data = convert_to_geojson(predictions)
     except Exception as e:
         _logger.error(e)
@@ -127,8 +129,8 @@ def predictions_for_heatmap():
             'airqloud_id': airqloud_id,
             'created_at': created_at,
             'success': True,
-            'page': page,
-            'limit': limit,
+            'page': escape(page),
+            'limit': escape(limit),
             'total': total_count,
             'pages': pages,
         }, 200
@@ -144,9 +146,9 @@ def search_predictions():
         latitude = float(request.args.get('latitude'))
         longitude = float(request.args.get('longitude'))
         distance_in_metres = int(request.args.get('distance', 100))
-        data = get_predictions_by_geo_coordinates(latitude=latitude,
-                                                  longitude=longitude,
-                                                  distance_in_metres=distance_in_metres
+        data = get_predictions_by_geo_coordinates(latitude=escape(latitude),
+                                                  longitude=escape(longitude),
+                                                  distance_in_metres=escape(distance_in_metres)
                                                   )
         if data:
             health_tips = get_health_tips()
