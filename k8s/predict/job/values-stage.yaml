@@ -5,7 +5,7 @@ app:
 schedule: 0 0 * * *
 image:
   repository: eu.gcr.io/airqo-250220/stage-airqo-predict-job
-  tag: stage-a224cb61-1687434981
+  tag: stage-a8b47e59-1687445651
 nameOverride: ''
 fullnameOverride: ''
 resources:
