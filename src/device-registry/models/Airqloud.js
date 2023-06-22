@@ -12,6 +12,11 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-airqloud-model`
 );
 
+/**
+ * AirQlouds only make sense for Stationery/Static Devices a.k.a Sites
+ * Concept does not make sense for Mobile Devices
+ */
+
 const polygonSchema = new mongoose.Schema(
   {
     type: {
@@ -140,6 +145,9 @@ const airqloudSchema = new Schema(
         trim: true,
       },
     ],
+    /**
+     * we might just have to assign AirQlouds to Sites and do away with this Array?
+     */
     sites: [
       {
         type: ObjectId,
