@@ -6,7 +6,7 @@ schedule: 0 1 1 * *
 suspend: true
 image:
   repository: eu.gcr.io/airqo-250220/stage-airqo-train-job
-  tag: stage-2253adc0-1687366897
+  tag: stage-40317074-1687418965
 nameOverride: ''
 fullnameOverride: ''
 resources:

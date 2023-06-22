@@ -88,10 +88,8 @@ def data_export_task():
             has_data = data_export_model.has_data(query)
 
             if not has_data:
-                print("No data")
                 request.status = DataExportStatus.NO_DATA
                 data_export_model.update_request_status_and_retries(request)
-                print("Done saving no data")
                 continue
 
             data_export_model.export_query_results_to_table(
@@ -108,7 +106,6 @@ def data_export_task():
             if not success:
                 raise Exception("Update failed")
 
-            raise Exception("just fail")
         except Exception as ex:
             print(ex)
             traceback.print_exc()
