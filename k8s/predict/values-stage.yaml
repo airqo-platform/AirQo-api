@@ -1,10 +1,10 @@
-nameOverride: ''
-fullnameOverride: ''
+nameOverride: ""
+fullnameOverride: ""
 namespace: staging
 images:
-  repositories: 
+  repositories:
     api: eu.gcr.io/airqo-250220/airqo-stage-prediction-api
-    predictJob:  eu.gcr.io/airqo-250220/stage-airqo-predict-job
+    predictJob: eu.gcr.io/airqo-250220/stage-airqo-predict-job
     trainJob: eu.gcr.io/airqo-250220/stage-airqo-train-job
   tag: stage-e0e70e07-1686855567
 api:
@@ -19,7 +19,7 @@ api:
       memory: 200Mi
     requests:
       cpu: 5m
-    memory: 130Mi
+      memory: 130Mi
 jobs:
   predict:
     name: stage-airqo-predict-job
@@ -28,7 +28,7 @@ jobs:
     resources:
       limits:
         cpu: 1000m
-        memory: 4000Mi 
+        memory: 4000Mi
   train:
     name: stage-airqo-train-job
     configmap: env-train-job-staging
@@ -37,7 +37,7 @@ jobs:
     resources:
       limits:
         cpu: 2500m
-        memory: 4000Mi         
+        memory: 4000Mi
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config
