@@ -1,17 +1,17 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: {{ .Values.jobs.predict-Job.name }}
+  name: {{ .Values.jobs.train.name }}
   namespace: {{ .Values.namespace }}
 spec:
   concurrencyPolicy: Allow
   successfulJobsHistoryLimit: 1
-  failedJobsHistoryLimit: 1
-  schedule: '{{ .Values.jobs.predict-Job.schedule }}'
-  suspend: false
+  failedJobsHistoryLimit: 0
+  schedule: '{{ .Values.jobs.train.schedule }}'
+  suspend: {{ .Values.jobs.train.suspend }}
   jobTemplate:
     metadata:
-      name: {{ .Values.jobs.predict-Job.name }}
+      name: {{ .Values.jobs.train.name }}
     spec:
       template:
         spec:
@@ -29,18 +29,18 @@ spec:
                     values:
                       - compute
           containers:
-            - name: {{ .Values.jobs.predict-Job.name }}
-              image: "{{ .Values.images.repositories.predict-Job}}:{{ .Values.images.tag }}"
+            - name: {{ .Values.jobs.train.name }}
+              image: "{{ .Values.images.repositories.trainJob }}:{{ .Values.images.tag }}"
               imagePullPolicy: IfNotPresent
               envFrom:
                 - configMapRef:
-                    name: {{ .Values.jobs.predict-Job.configmap }} 
+                    name: {{ .Values.jobs.train.configmap }} 
               {{- with .Values.volumeMounts }}
               volumeMounts:
                 {{- toYaml . | nindent 16 }}
               {{- end }}
               resources:
-                {{- toYaml .Values.jobs.predict-Job.resources | nindent 16 }}
+                {{- toYaml .Values.jobs.train.resources | nindent 16 }}
           {{- with .Values.volumes }}
           volumes:
             {{- toYaml . | nindent 12 }}

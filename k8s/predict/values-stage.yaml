@@ -4,8 +4,8 @@ namespace: staging
 images:
   repositories: 
     api: eu.gcr.io/airqo-250220/airqo-stage-prediction-api
-    predict-Job:  eu.gcr.io/airqo-250220/stage-airqo-predict-job
-    train-Job: eu.gcr.io/airqo-250220/stage-airqo-train-job
+    predictJob:  eu.gcr.io/airqo-250220/stage-airqo-predict-job
+    trainJob: eu.gcr.io/airqo-250220/stage-airqo-train-job
   tag: stage-e0e70e07-1686855567
 api:
   name: airqo-stage-prediction-api
@@ -21,7 +21,7 @@ api:
       cpu: 5m
     memory: 130Mi
 jobs:
-  predict-Job:
+  predict:
     name: stage-airqo-predict-job
     configmap: env-predict-job-staging
     schedule: 0 0 * * *
@@ -29,7 +29,7 @@ jobs:
       limits:
         cpu: 1000m
         memory: 4000Mi 
-  train-Job:
+  train:
     name: stage-airqo-train-job
     configmap: env-train-job-staging
     schedule: 0 1 1 * *
