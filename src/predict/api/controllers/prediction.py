@@ -3,11 +3,11 @@ import traceback
 from app import cache
 
 from dotenv import load_dotenv
-from flask import Blueprint, request
+from flask import Blueprint, request, jsonify
 
 from helpers.utils import get_gp_predictions, get_forecasts_helper, \
     get_predictions_by_geo_coordinates, get_health_tips, convert_to_geojson, weekly_forecasts_cache_key, \
-    heatmap_cache_key, geo_coordinates_cache_key
+    heatmap_cache_key, geo_coordinates_cache_key, get_forecasts, hourly_forecasts_cache_key
 from routes import api
 from config.constants import Config
 
@@ -19,11 +19,36 @@ ml_app = Blueprint('ml_app', __name__)
 
 
 @ml_app.route(api.route['next_24hr_forecasts'], methods=['GET'])
+@cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=hourly_forecasts_cache_key)
 def get_next_24hr_forecasts():
     """
     Get forecasts for the next 24 hours from specified start time.
     """
-    return get_forecasts_helper(db_name='hourly_forecasts')
+
+    """
+    Get forecasts for the next 1 week from specified start day.
+    """
+    if request.method == "GET":
+
+        params = {name: request.args.get(name, default=None, type=str) for name in
+                  ['site_id', 'site_name', 'parish', 'county', 'city', 'district', 'region']}
+        if not any(params.values()):
+            return (
+                jsonify({"message": "Please specify at least one query parameter", "success": False}),
+                400,
+            )
+        result = get_forecasts(**params, db_name='hourly_forecasts')
+        if result:
+            response = result
+        else:
+            response = {
+                "message": "forecasts for this site are not available",
+                "success": False,
+            }
+        data = jsonify(response)
+        return data, 200
+    else:
+        return jsonify({"message": "Invalid request method", "success": False}), 400
 
 
 @ml_app.route(api.route['next_1_week_forecasts'], methods=['GET'])
@@ -32,7 +57,27 @@ def get_next_1_week_forecasts():
     """
     Get forecasts for the next 1 week from specified start day.
     """
-    return get_forecasts_helper(db_name='daily_forecasts')
+    if request.method == "GET":
+
+        params = {name: request.args.get(name, default=None, type=str) for name in
+                  ['site_id', 'site_name', 'parish', 'county', 'city', 'district', 'region']}
+        if not any(params.values()):
+            return (
+                jsonify({"message": "Please specify at least one query parameter", "success": False}),
+                400,
+            )
+        result = get_forecasts(**params, db_name='daily_forecasts')
+        if result:
+            response = result
+        else:
+            response = {
+                "message": "forecasts for this site are not available",
+                "success": False,
+            }
+        data = jsonify(response)
+        return data, 200
+    else:
+        return jsonify({"message": "Invalid request method", "success": False}), 400
 
 
 @ml_app.route(api.route['predict_for_heatmap'], methods=['GET'])
@@ -79,7 +124,7 @@ def predictions_for_heatmap():
         return {
             'data': geojson_data['features'],
             'airqloud': airqloud,
-            'airqloud_id':airqloud_id,
+            'airqloud_id': airqloud_id,
             'created_at': created_at,
             'success': True,
             'page': page,
