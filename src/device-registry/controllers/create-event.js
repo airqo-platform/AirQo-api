@@ -373,12 +373,15 @@ const createEvent = {
         logObject("the result for listing events", result);
         if (result.success === true) {
           const status = result.status ? result.status : HTTPStatus.OK;
+          const measurementsForDeployedDevices = result.data[0].data.filter(
+            (obj) => obj.siteDetails !== null
+          );
           res.status(status).json({
             success: true,
             isCache: result.isCache,
             message: result.message,
             meta: result.data[0].meta,
-            measurements: result.data[0].data,
+            measurements: measurementsForDeployedDevices,
           });
         } else if (result.success === false) {
           const status = result.status
