@@ -1,15 +1,15 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Values.app.name }}
-  namespace: {{ .Values.app.namespace }}
+  name: {{ .Values.api.name }}
+  namespace: {{ .Values.namespace }}
   labels:
-    {{- include "airqo-prediction-api.labels" . | nindent 4 }}
+    {{- include "airqo-prediction.labels" . | nindent 4 }}
 spec:
   selector:
     matchLabels:
-        app: {{ .Values.app.label }}
-  replicas: {{ .Values.replicaCount }}
+        app: {{ .Values.api.label }}
+  replicas: {{ .Values.api.replicaCount }}
   revisionHistoryLimit: 2
   strategy:
     type: RollingUpdate
@@ -19,12 +19,12 @@ spec:
   minReadySeconds: 5
   template:
     metadata:
-      {{- with .Values.podAnnotations }}
+      {{- with .Values.api.podAnnotations }}
       annotations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
-        app: {{ .Values.app.label }}
+        app: {{ .Values.api.label }}
     spec:
       affinity:
         nodeAffinity:
@@ -37,21 +37,21 @@ spec:
                     values:
                       - general-purpose
       containers:
-        - name: {{ .Values.app.label }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        - name: {{ .Values.api.label }}
+          image: "{{ .Values.images.repositories }}:{{ .Values.images.tag }}"
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: {{ .Values.service.targetPort }}
-              name: {{ .Values.app.label }}
+              name: {{ .Values.api.label }}
           envFrom:
             - configMapRef:
-                name: {{ .Values.app.configmap }} 
+                name: {{ .Values.api.configmap }} 
           {{- with .Values.volumeMounts }}
           volumeMounts:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           resources:
-            {{- toYaml .Values.resources | nindent 12 }}
+            {{- toYaml .Values.api.resources | nindent 12 }}
       {{- with .Values.volumes }}
       volumes:
         {{- toYaml . | nindent 8 }}
