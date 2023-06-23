@@ -21,8 +21,8 @@ const md5 = require("md5");
 const accessCodeGenerator = require("generate-password");
 const generateFilter = require("./generate-filter");
 const moment = require("moment-timezone");
-const admin = require('firebase-admin');
-const {db} = require("@config/firebase-admin");
+const admin = require("firebase-admin");
+const { db } = require("@config/firebase-admin");
 
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- create-user-util`);
@@ -89,7 +89,7 @@ const RoleModel = (tenant) => {
 
 async function deleteCollection(db, collectionPath, batchSize) {
   const collectionRef = db.collection(collectionPath);
-  const query = collectionRef.orderBy('__name__').limit(batchSize);
+  const query = collectionRef.orderBy("__name__").limit(batchSize);
 
   return new Promise((resolve, reject) => {
     deleteQueryBatch(db, query, batchSize, resolve, reject);
@@ -97,7 +97,8 @@ async function deleteCollection(db, collectionPath, batchSize) {
 }
 
 function deleteQueryBatch(db, query, batchSize, resolve, reject) {
-  query.get()
+  query
+    .get()
     .then((snapshot) => {
       // When there are no documents left, we are done
       if (snapshot.size === 0) {
@@ -113,7 +114,8 @@ function deleteQueryBatch(db, query, batchSize, resolve, reject) {
       return batch.commit().then(() => {
         return snapshot.size;
       });
-    }).then((numDeleted) => {
+    })
+    .then((numDeleted) => {
       if (numDeleted === 0) {
         resolve();
         return;
@@ -139,6 +141,7 @@ const join = {
       } else {
         filter = responseFromFilter;
       }
+      logObject("filter", filter);
       const responseFromListLogs = await LogModel(tenant).list({
         filter,
         limit,
@@ -1085,7 +1088,7 @@ const join = {
       let { userId } = body;
       let { creationTime } = body;
       const userRecord = await admin.auth().getUser(userId);
-      
+
       //get creation time and compare with creationTime
       let userCreationTime = userRecord.metadata.creationTime;
       userCreationTime = userCreationTime.replace(/\D/g, "");
@@ -1104,31 +1107,38 @@ const join = {
           constants.FIREBASE_COLLECTION_KYA,
           constants.FIREBASE_COLLECTION_ANALYTICS,
           constants.FIREBASE_COLLECTION_NOTIFICATIONS,
-          constants.FIREBASE_COLLECTION_FAVORITE_PLACES
+          constants.FIREBASE_COLLECTION_FAVORITE_PLACES,
         ];
-        let collectionRef = db.collection(`${constants.FIREBASE_COLLECTION_USERS}`);
+        let collectionRef = db.collection(
+          `${constants.FIREBASE_COLLECTION_USERS}`
+        );
         let docRef = collectionRef.doc(userId);
 
-        docRef.delete().then(async () => {
-          for (var collection of collectionList) {
-            await deleteCollection(db, `${collection}/${userId}/${userId}`, 100);
-            collectionRef = db.collection(`${collection}`);
-            docRef = collectionRef.doc(userId);
-            docRef.delete();
-          }
-          logText('Document successfully deleted!');
-        }).catch((error) => {
-          logError('Error deleting document:', error);
-          logger.error(`Internal Server Error -- ${error.message}`);
-          return {
-            success: false,
-            message: "Error deleting Firestore documents",
-            status: httpStatus.INTERNAL_SERVER_ERROR,
-            errors: { message: error.message }
-          };
-        });
-
-        
+        docRef
+          .delete()
+          .then(async () => {
+            for (var collection of collectionList) {
+              await deleteCollection(
+                db,
+                `${collection}/${userId}/${userId}`,
+                100
+              );
+              collectionRef = db.collection(`${collection}`);
+              docRef = collectionRef.doc(userId);
+              docRef.delete();
+            }
+            logText("Document successfully deleted!");
+          })
+          .catch((error) => {
+            logError("Error deleting document:", error);
+            logger.error(`Internal Server Error -- ${error.message}`);
+            return {
+              success: false,
+              message: "Error deleting Firestore documents",
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+              errors: { message: error.message },
+            };
+          });
 
         return {
           success: true,
@@ -1136,7 +1146,7 @@ const join = {
           status: httpStatus.OK,
         };
       } catch (error) {
-        logError('Error deleting user:', error);
+        logError("Error deleting user:", error);
         logger.error(`Internal Server Error -- ${error.message}`);
         return {
           success: false,
@@ -1145,11 +1155,10 @@ const join = {
           errors: { message: error.message },
         };
       }
-
     } catch (error) {
       return {
         success: false,
-        status:httpStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
         message: "Internal Server Error",
         errors: { message: error.message },
       };

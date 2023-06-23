@@ -133,7 +133,7 @@ if __name__ == '__main__':
     model = get_trained_model_from_gcs(configuration.GOOGLE_CLOUD_PROJECT_ID, configuration.AIRQO_PREDICT_BUCKET,
                                        'daily_forecast_model.pkl')
     forecasts = get_next_1week_forecasts(TARGET_COL, model)
-    forecasts['created_at'] = forecasts['created_at'].apply(lambda x: x.isoformat())
+    forecasts['time'] = forecasts['time'].apply(lambda x: x.isoformat())
     print("Adding health tips")
     health_tips = Events.fetch_health_tips()
     attempts = 1

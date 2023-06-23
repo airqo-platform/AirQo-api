@@ -442,6 +442,7 @@ router.post(
         "device identification details are missing in the request, consider using the name"
       )
       .bail()
+      .trim()
       .notEmpty()
       .withMessage("the name should not be empty if provided"),
     body("long_name")
@@ -450,6 +451,7 @@ router.post(
         "device identification details are missing in the request, consider using the long_name"
       )
       .bail()
+      .trim()
       .notEmpty()
       .withMessage("the long_name should not be empty if provided"),
   ]),
@@ -826,9 +828,6 @@ router.put(
         .optional()
         .notEmpty()
         .withMessage("long_name should not be empty IF provided")
-        .bail()
-        .matches(/^[a-zA-Z0-9_-]+$/)
-        .withMessage("long_name should only contain alphanumeric characters.")
         .trim(),
       body("mountType")
         .optional()
@@ -1157,6 +1156,7 @@ router.post(
         "device identification details are missing in the request, consider using the name"
       )
       .bail()
+      .trim()
       .notEmpty()
       .withMessage("the name should not be empty if provided"),
     body("long_name")
@@ -1165,6 +1165,7 @@ router.post(
         "device identification details are missing in the request, consider using the long_name"
       )
       .bail()
+      .trim()
       .notEmpty()
       .withMessage("the long_name should not be empty if provided"),
   ]),
@@ -1365,9 +1366,6 @@ router.put(
         .optional()
         .notEmpty()
         .withMessage("long_name should not be empty IF provided")
-        .bail()
-        .matches(/^[a-zA-Z0-9]+$/)
-        .withMessage("long_name should only contain alphanumeric characters.")
         .trim(),
       body("mountType")
         .optional()
