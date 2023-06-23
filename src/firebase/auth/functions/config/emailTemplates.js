@@ -295,11 +295,7 @@ module.exports = {
                                         Clean</span>
                                 </td>
                             </tr>
-                            <tr>
-                                <td>
-                                    <img style="width: 100%; height: auto; padding-top: 24px;" src="cid:AirQoEmailWelcomeImage" />
-                                </td>
-                            </tr>
+                            
                         </table>
 
                         <!-- Email content section -->
