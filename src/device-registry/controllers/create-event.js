@@ -385,7 +385,15 @@ const createEvent = {
                 (pm2_5.value === null || pm2_5.calibratedValue === null)
               ) {
                 logger.error(
-                  `A deployed Device is returning null values for pm2_5 -- the device_name is ${obj.device} -- the timestamp is ${obj.time} -- the frequency is ${obj.frequency} -- the site_name is ${obj.siteDetails?.name}`
+                  `A deployed Device is returning null values for pm2_5 -- the device_name is ${
+                    obj.device ? obj.device : ""
+                  } -- the timestamp is ${
+                    obj.time ? obj.time : ""
+                  } -- the frequency is ${
+                    obj.frequency ? obj.frequency : ""
+                  } -- the site_name is ${
+                    obj.siteDetails ? obj.siteDetails.name : ""
+                  }`
                 );
                 return false; // Exclude if either value is null
               }
