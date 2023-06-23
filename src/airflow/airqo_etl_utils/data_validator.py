@@ -133,12 +133,8 @@ class DataValidationUtils:
         return data
 
     @staticmethod
-    def process_for_big_query(
-        dataframe: pd.DataFrame, table: str, tenant: Tenant
-    ) -> pd.DataFrame:
+    def process_for_big_query(dataframe: pd.DataFrame, table: str) -> pd.DataFrame:
         columns = BigQueryApi().get_columns(table)
-        if tenant != Tenant.ALL:
-            dataframe.loc[:, "tenant"] = str(tenant)
         dataframe = DataValidationUtils.fill_missing_columns(
             data=dataframe, cols=columns
         )

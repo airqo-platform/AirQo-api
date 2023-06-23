@@ -298,6 +298,20 @@ const siteSchema = new Schema(
   }
 );
 
+siteSchema.post("save", async function(doc) {
+  doc.site_codes = [doc._id, doc.name, doc.generated_name, doc.lat_long];
+  if (doc.search_name) {
+    doc.site_codes.push(doc.search_name);
+  }
+  if (doc.location_name) {
+    doc.site_codes.push(doc.location_name);
+  }
+  if (doc.formatted_name) {
+    doc.site_codes.push(doc.formatted_name);
+  }
+  logObject("site_codes populated successfully:", doc);
+});
+
 siteSchema.pre("save", function(next) {
   if (this.isModified("latitude")) {
     delete this.latitude;
@@ -461,7 +475,13 @@ siteSchema.statics = {
     filter = {},
   } = {}) {
     try {
-      let response = await this.aggregate()
+      let category = "none";
+      if (!isEmpty(filter.category)) {
+        category = filter.category;
+        delete filter.category;
+      }
+
+      const response = await this.aggregate()
         .match(filter)
         .lookup({
           from: "devices",
@@ -476,91 +496,8 @@ siteSchema.statics = {
           as: "airqlouds",
         })
         .sort({ createdAt: -1 })
-        .project({
-          _id: 1,
-          name: 1,
-          latitude: 1,
-          longitude: 1,
-          approximate_latitude: 1,
-          approximate_longitude: 1,
-          approximate_distance_in_km: 1,
-          bearing_in_radians: 1,
-          description: 1,
-          site_tags: 1,
-          site_codes: 1,
-          search_name: 1,
-          location_name: 1,
-          lat_long: 1,
-          country: 1,
-          network: 1,
-          district: 1,
-          sub_county: 1,
-          parish: 1,
-          region: 1,
-          village: 1,
-          city: 1,
-          street: 1,
-          generated_name: 1,
-          county: 1,
-          altitude: 1,
-          greenness: 1,
-          landform_270: 1,
-          landform_90: 1,
-          aspect: 1,
-          status: 1,
-          images: 1,
-          share_links: 1,
-          distance_to_nearest_road: 1,
-          distance_to_nearest_primary_road: 1,
-          distance_to_nearest_secondary_road: 1,
-          distance_to_nearest_tertiary_road: 1,
-          distance_to_nearest_unclassified_road: 1,
-          distance_to_nearest_residential_road: 1,
-          bearing_to_kampala_center: 1,
-          distance_to_kampala_center: 1,
-          createdAt: 1,
-          nearest_tahmo_station: 1,
-          devices: "$devices",
-          airqlouds: "$airqlouds",
-          weather_stations: 1,
-        })
-        .project({
-          "airqlouds.location": 0,
-          "airqlouds.airqloud_tags": 0,
-          "airqlouds.long_name": 0,
-          "airqlouds.updatedAt": 0,
-          "airqlouds.sites": 0,
-          "airqlouds.__v": 0,
-        })
-        .project({
-          "devices.height": 0,
-          "devices.__v": 0,
-          "devices.phoneNumber": 0,
-          "devices.mountType": 0,
-          "devices.powerType": 0,
-          "devices.generation_version": 0,
-          "devices.generation_count": 0,
-          "devices.pictures": 0,
-          "devices.tags": 0,
-          "devices.description": 0,
-          "devices.isUsedForCollocation": 0,
-          "devices.updatedAt": 0,
-          "devices.locationName": 0,
-          "devices.siteName": 0,
-          "devices.site_id": 0,
-          "devices.isRetired": 0,
-          "devices.long_name": 0,
-          "devices.nextMaintenance": 0,
-          "devices.readKey": 0,
-          "devices.writeKey": 0,
-          "devices.deployment_date": 0,
-          "devices.recall_date": 0,
-          "devices.maintenance_date": 0,
-          "devices.product_name": 0,
-          "devices.owner": 0,
-          "devices.device_manufacturer": 0,
-          "devices.channelID": 0,
-        })
+        .project(constants.SITES_INCLUSION_PROJECTION)
+        .project(constants.SITES_EXCLUSION_PROJECTION(category))
         .skip(skip ? skip : 0)
         .limit(
           limit ? limit : parseInt(constants.DEFAULT_LIMIT_FOR_QUERYING_SITES)
@@ -568,11 +505,10 @@ siteSchema.statics = {
         .allowDiskUse(true);
 
       if (!isEmpty(response)) {
-        let data = response;
         return {
           success: true,
           message: "successfully retrieved the site details",
-          data,
+          data: response,
           status: HTTPStatus.OK,
         };
       } else if (isEmpty(response)) {

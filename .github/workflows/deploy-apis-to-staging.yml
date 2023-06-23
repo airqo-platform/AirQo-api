@@ -10,7 +10,7 @@ on:
 env:
   REGISTRY_URL: eu.gcr.io
   PROJECT_ID: airqo-250220
-  DEPLOY_BRANCH: deployment/argocd
+  DEPLOY_BRANCH: staging
 
 jobs:
   image-tag:
@@ -349,7 +349,7 @@ jobs:
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-auth-api:latest
 
       - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@master # Retries action on fail
+        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
@@ -357,6 +357,7 @@ jobs:
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update auth service staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
@@ -466,12 +467,13 @@ jobs:
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-fault-detection-api:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-fault-detection-api:latest
 
       - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@master # Retries action on fail
+        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
             valueFile: "k8s/fault-detection/values-stage.yaml"
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update fault detection staging tags to ${{ needs.image-tag.outputs.build_id }}"
             changes: |
               {
@@ -540,7 +542,7 @@ jobs:
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-apache-airflow-xcom:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-apache-airflow-xcom:latest
 
       - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@master # Retries action on fail
+        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
@@ -548,6 +550,7 @@ jobs:
             propertyPath: "images.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update airflow staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
@@ -608,7 +611,7 @@ jobs:
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-prediction-api:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-prediction-api:latest
 
       - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@master # Retries action on fail
+        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
@@ -616,6 +619,7 @@ jobs:
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update predict API staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Build and push predict Job Docker Image
@@ -627,7 +631,7 @@ jobs:
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-airqo-predict-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-airqo-predict-job:latest
 
       - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@master # Retries action on fail
+        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
@@ -635,6 +639,7 @@ jobs:
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update predict job staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Build and push train Job Docker Image
@@ -646,7 +651,7 @@ jobs:
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-airqo-train-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-airqo-train-job:latest
 
       - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@master # Retries action on fail
+        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
@@ -654,6 +659,7 @@ jobs:
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update predict train job staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
@@ -720,15 +726,11 @@ jobs:
 
       - name: Deploy to K8S
         run: |
-          export KAFKA_BROKER_0=${{ secrets.STAGE_KAFKA_BROKER_0 }}
-          export KAFKA_BROKER_1=${{ secrets.STAGE_KAFKA_BROKER_1 }}
-          export KAFKA_BROKER_2=${{ secrets.STAGE_KAFKA_BROKER_2 }}
-
-          sed -i 's/KAFKA_BROKER_0/'"$KAFKA_BROKER_0"'/g' k8s/kafka/clusters/kafka-cluster.yaml
-          sed -i 's/KAFKA_BROKER_1/'"$KAFKA_BROKER_1"'/g' k8s/kafka/clusters/kafka-cluster.yaml
-          sed -i 's/KAFKA_BROKER_2/'"$KAFKA_BROKER_2"'/g' k8s/kafka/clusters/kafka-cluster.yaml
-
+          export CLUSTER_CONTROLLER_IP=${{ secrets.STAGE_CLUSTER_CONTROLLER_IP}}
+          sed -i 's/CLUSTER_CONTROLLER_IP/'"$CLUSTER_CONTROLLER_IP"'/g' k8s/kafka/clusters/kafka-cluster.yaml
           kubectl apply -n message-broker -f k8s/kafka/clusters/kafka-cluster.yaml
+          kubectl rollout restart deployment kafka-cluster-entity-operator -n message-broker
+          kubectl rollout restart deployment strimzi-cluster-operator -n message-broker
 
   ### kafka topics ###
   kafka-topics:
@@ -782,7 +784,7 @@ jobs:
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-registry-api:latest
 
       - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@master # Retries action on fail
+        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
@@ -790,6 +792,7 @@ jobs:
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update device registry staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
@@ -858,7 +861,7 @@ jobs:
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-monitor-celery-worker:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-monitor-celery-worker:latest
 
       - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@master # Retries action on fail
+        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
@@ -866,6 +869,7 @@ jobs:
             propertyPath: "images.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update device monitor staging images' tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
@@ -916,7 +920,7 @@ jobs:
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-data-mgt-api:latest
 
       - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@master # Retries action on fail
+        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
@@ -924,6 +928,7 @@ jobs:
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update data mgt staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
@@ -965,24 +970,57 @@ jobs:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
 
-      - name: Build and Push API Docker Image
-        run: |
-          cd src/analytics/
-          docker build --target=staging --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-api:${{ needs.image-tag.outputs.build_id }} .
-          docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-api:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-api:latest
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-api:${{ needs.image-tag.outputs.build_id }}
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-api:latest
+      - name: Build and push API Docker Image
+        uses: docker/build-push-action@v3
+        with:
+          push: true
+          context: src/analytics/
+          target: staging
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-api:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-api:latest
+
+      - name: Build and push Celery beat Docker Image
+        uses: docker/build-push-action@v3
+        with:
+          push: true
+          context: src/analytics/
+          target: celery-beat
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-celery-beat:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-celery-beat:latest
+
+      - name: Build and push Celery worker Docker Image
+        uses: docker/build-push-action@v3
+        with:
+          push: true
+          context: src/analytics/
+          target: celery-worker
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-celery-worker:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-celery-worker:latest
+
+      - name: Build and push device summary job Docker Image
+        uses: docker/build-push-action@v3
+        with:
+          push: true
+          context: src/analytics/
+          target: devices-summary-job
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-devices-summary-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-devices-summary-job:latest
+
+      - name: Build and push reports job Docker Image
+        uses: docker/build-push-action@v3
+        with:
+          push: true
+          context: src/analytics/jobs/reports
+          target: staging
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-report-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-report-job:latest
 
       - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@master # Retries action on fail
+        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
-            valueFile: "k8s/analytics/api/values-stage.yaml"
-            propertyPath: "image.tag"
+            valueFile: "k8s/analytics/values-stage.yaml"
+            propertyPath: "images.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
-            message: "Update analytics staging image tag to ${{ needs.image-tag.outputs.build_id }}"
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
+            message: "Update analytics staging images tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
         uses: google-github-actions/auth@v0
@@ -995,37 +1033,12 @@ jobs:
       - name: Update the corresponding k8s configmap(s)
         run: |
           cd src/analytics/
-          gcloud secrets versions access latest --secret="sta-env-analytics" > .env
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-analytics-staging | kubectl replace -f - -n staging
+          gcloud secrets versions access latest --secret="sta-env-analytics" > api.env
+          gcloud secrets versions access latest --secret="sta-env-analytics-report-job" > reports.env
           gcloud secrets versions access latest --secret="sta-key-analytics-service-account" > google_application_credentials.json
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=api.env env-analytics-staging | kubectl replace -f - -n staging
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=reports.env env-analytics-report-staging | kubectl replace -f - -n staging
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json stage-analytics-config-files | kubectl replace -f - -n staging
-
-      ######################### Analytics report job CI ##################################
-      - name: Build and Push Job's Docker Image
-        run: |
-          cd src/analytics/jobs/reports
-          docker build --target=staging --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-report-job:${{ needs.image-tag.outputs.build_id }} .
-          docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-report-job:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-report-job:latest
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-report-job:${{ needs.image-tag.outputs.build_id }}
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-report-job:latest
-
-      - name: Update corresponding helm values file
-        uses: fjogeleit/yaml-update-action@main
-        with:
-          valueFile: "k8s/analytics/job/values-stage.yaml"
-          propertyPath: "image.tag"
-          value: ${{ needs.image-tag.outputs.build_id }}
-          updateFile: true
-          branch: deployment/argocd
-          message: "Update analytics report job staging image tag to ${{ needs.image-tag.outputs.build_id }}"
-
-      - name: Update the corresponding k8s configmap(s)
-        run: |
-          cd src/analytics/jobs/reports
-          gcloud secrets versions access latest --secret="sta-env-analytics-report-job" > .env
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-analytics-report-staging | kubectl replace -f - -n staging
-          gcloud secrets versions access latest --secret="sta-key-analytics-report-job-service-account" > google_application_credentials.json
-          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json env-analytics-report-staging-files | kubectl replace -f - -n staging
 
   ### device uptime ###
   device-uptime:
@@ -1052,16 +1065,24 @@ jobs:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
 
-      - name: Build and Push Docker Image
-        run: |
-          cd src/device-uptime/
-          docker build --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-uptime-job:${{ needs.image-tag.outputs.build_id }} -f Dockerfile.stage .
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-uptime-job:${{ needs.image-tag.outputs.build_id }}
-          docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-uptime-job:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-uptime-job:latest
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-uptime-job:latest
+      - name: Build and push device uptime v1 docker image
+        uses: docker/build-push-action@v4.0.0
+        with:
+          push: true
+          context: src/device-uptime/
+          target: staging
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-uptime-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-uptime-job:latest
+
+      - name: Build and push device uptime v2 docker image
+        uses: docker/build-push-action@v4.0.0
+        with:
+          push: true
+          context: src/device-uptime/
+          target: uptime
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-uptime-job-v2:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-uptime-job-v2:latest
 
       - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@master # Retries action on fail
+        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
@@ -1069,6 +1090,7 @@ jobs:
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update device uptime staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
@@ -1084,6 +1106,8 @@ jobs:
           cd src/device-uptime/
           gcloud secrets versions access latest --secret="sta-env-device-uptime" > .env
           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-device-uptime-staging | kubectl replace -f - -n staging
+          gcloud secrets versions access latest --secret="sta-key-device-uptime-v2-service-account" > google_application_credentials.json
+          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json device-uptime-v2-files | kubectl replace -f - -n staging
 
   ### device status ###
   device-status:
@@ -1119,7 +1143,7 @@ jobs:
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-status-job:latest
 
       - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@master # Retries action on fail
+        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
@@ -1127,6 +1151,7 @@ jobs:
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update device uptime staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
@@ -1177,7 +1202,7 @@ jobs:
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-locate-api:latest
 
       - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@master # Retries action on fail
+        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
@@ -1185,6 +1210,7 @@ jobs:
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update locate staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
@@ -1209,40 +1235,47 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
-
-      ### run unit tests ###
+        uses: actions/checkout@v3.5.2
 
       - name: Login to GCR
-        uses: docker/login-action@v2
+        uses: docker/login-action@v2.1.0
         with:
           registry: ${{ env.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCR_CONFIG }}
 
       - name: Login to K8S
-        uses: azure/k8s-set-context@v2
+        uses: azure/k8s-set-context@v3.0
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
 
-      - name: Build and Push Docker Image
-        run: |
-          cd src/gp-model/
-          docker build --target=staging --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-gp-model-job:${{ needs.image-tag.outputs.build_id }} .
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-gp-model-job:${{ needs.image-tag.outputs.build_id }}
-          docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-gp-model-job:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-gp-model-job:latest
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-gp-model-job:latest
+      - name: Build and push cron job
+        uses: docker/build-push-action@v4.0.0
+        with:
+          push: true
+          context: src/gp-model
+          target: staging
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-gp-model-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-gp-model-job:latest
+
+      - name: Build and push broker consumer
+        uses: docker/build-push-action@v4.0.0
+        with:
+          push: true
+          context: src/gp-model
+          target: message-broker-consumers
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-gp-model-broker-consumer:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-gp-model-broker-consumer:latest
 
       - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@master # Retries action on fail
+        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
             valueFile: "k8s/gp-model/values-stage.yaml"
-            propertyPath: "image.tag"
+            propertyPath: "images.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update gp-model staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
@@ -1258,6 +1291,8 @@ jobs:
           cd src/gp-model/
           gcloud secrets versions access latest --secret="sta-env-gp-model" > .env
           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-gp-model-staging | kubectl replace -f - -n staging
+          gcloud secrets versions access latest --secret="sta-key-gp-model-service-account" > google_application_credentials.json
+          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json gp-model-job-config-files | kubectl replace -f - -n staging
 
   ### exceddences ###
   exceedance:
@@ -1293,7 +1328,7 @@ jobs:
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-airqo-exceedance-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-airqo-exceedance-job:latest
 
       - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@master # Retries action on fail
+        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
@@ -1301,6 +1336,7 @@ jobs:
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update AirQo exceedance staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Build and push KCCA Docker image
@@ -1312,7 +1348,7 @@ jobs:
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-kcca-exceedance-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-kcca-exceedance-job:latest
 
       - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@master # Retries action on fail
+        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
@@ -1320,6 +1356,7 @@ jobs:
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update KCCA exceedance staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
@@ -1382,7 +1419,7 @@ jobs:
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-meta-data-sites-consumer:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-meta-data-sites-consumer:latest
 
       - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@master # Retries action on fail
+        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
@@ -1390,6 +1427,7 @@ jobs:
             propertyPath: "images.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update meta-data staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
@@ -1446,7 +1484,7 @@ jobs:
           context: src/view
 
       - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@master # Retries action on fail
+        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
@@ -1454,6 +1492,7 @@ jobs:
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update view api staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Build and push Message Broker
@@ -1465,7 +1504,7 @@ jobs:
           context: src/view
 
       - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@master # Retries action on fail
+        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
@@ -1473,6 +1512,7 @@ jobs:
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update view message broker staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
@@ -1533,12 +1573,13 @@ jobs:
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-calibrate-pickle-file:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-calibrate-pickle-file:latest
 
       - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@master # Retries action on fail
+        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
             valueFile: "k8s/calibrate/values-stage.yaml"
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update calibrate staging tags to ${{ needs.image-tag.outputs.build_id }}"
             changes: |
               {
@@ -1704,7 +1745,7 @@ jobs:
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-network-uptime-api:latest
 
       - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@master # Retries action on fail
+        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
@@ -1712,6 +1753,7 @@ jobs:
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update network-uptime staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
@@ -1760,7 +1802,7 @@ jobs:
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-update-channel-data-job:latest
 
       - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@master # Retries action on fail
+        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
@@ -1768,6 +1810,7 @@ jobs:
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update channel-data staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
@@ -1786,9 +1829,9 @@ jobs:
           gcloud secrets versions access latest --secret="sta-key-channel-data-service-account" > google_application_credentials.json
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json env-update-channel-data-staging-files | kubectl replace -f - -n staging
 
-  ### apply nginx ingress ###
-  nginx-ingress:
-    name: apply-nginx-ingress
+  ### apply nginx ###
+  nginx:
+    name: apply-nginx
     needs: [check]
     if: needs.check.outputs.run_nginx == 'true'
     runs-on: ubuntu-latest
@@ -1802,8 +1845,5 @@ jobs:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
 
-      - name: Apply ingress changes
-        run: |
-          kubectl apply -f k8s/nginx/staging/ingress.yaml
-          kubectl apply -f k8s/nginx/staging/virtual-server.yaml
-          kubectl apply -f k8s/nginx/staging/global-config.yaml
+      - name: Apply nginx changes
+        run: kubectl apply -f k8s/nginx/staging/

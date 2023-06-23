@@ -15,6 +15,10 @@ def date_to_str(date, str_format='%Y-%m-%dT%H:%M:%S.%fZ'):
     return datetime.strftime(date, str_format)
 
 
+def format_date(date: datetime, str_format='%Y-%m-%dT%H:%M:%S.%fZ'):
+    st = date.strftime(str_format)
+    return datetime.strptime(st, str_format)
+
 def convert_GMT_time_to_EAT_local_time(gmt_datetime):
     """
      converts a datetime object in GMT to East African Local Time and formats it to a string value.

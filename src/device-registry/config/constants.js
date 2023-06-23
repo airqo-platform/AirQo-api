@@ -5,7 +5,7 @@ const { isEmpty } = require("underscore");
 const logger = log4js.getLogger(`${this.ENVIRONMENT} -- constants-config`);
 
 const devConfig = {
-  MONGO_URI: `mongodb://localhost/`,
+  MONGO_URI: process.env.MONGO_URI_DEV,
   DB_NAME: process.env.MONGO_DEV,
   REDIS_SERVER: process.env.REDIS_SERVER_DEV,
   REDIS_PORT: process.env.REDIS_PORT,
@@ -20,7 +20,7 @@ const devConfig = {
   DATAWAREHOUSE_AVERAGED_DATA: process.env.DATAWAREHOUSE_AVERAGED_DATA_DEV,
 };
 const prodConfig = {
-  MONGO_URI: process.env.MONGO_GCE_URI,
+  MONGO_URI: process.env.MONGO_URI_PROD,
   DB_NAME: process.env.MONGO_PROD,
   REDIS_SERVER: process.env.REDIS_SERVER,
   REDIS_PORT: process.env.REDIS_PORT,
@@ -36,7 +36,7 @@ const prodConfig = {
 };
 
 const stageConfig = {
-  MONGO_URI: process.env.MONGO_GCE_URI,
+  MONGO_URI: process.env.MONGO_URI_STAGE,
   DB_NAME: process.env.MONGO_STAGE,
   REDIS_SERVER: process.env.REDIS_SERVER,
   REDIS_PORT: process.env.REDIS_PORT,
@@ -60,6 +60,7 @@ const defaultConfig = {
   ),
   MAINTENANCE_TYPES: process.env.MAINTENANCE_TYPES.split(","),
   DEFAULT_NETWORK: process.env.DEFAULT_NETWORK,
+  DEFAULT_TENANT: process.env.DEFAULT_TENANT,
   DEFAULT_NEAREST_SITE_RADIUS: process.env.DEFAULT_NEAREST_SITE_RADIUS,
   SLACK_TOKEN: process.env.SLACK_TOKEN,
   KAFKA_CLIENT_ID: process.env.KAFKA_CLIENT_ID,
@@ -78,6 +79,8 @@ const defaultConfig = {
   ACTIVITIES_TOPIC: process.env.ACTIVITIES_TOPIC,
   PHOTOS_TOPIC: process.env.PHOTOS_TOPIC,
   TIPS_TOPIC: process.env.TIPS_TOPIC,
+  KYA_TOPIC: process.env.KYA_TOPIC,
+  KYA_LESSON: process.env.KYA_LESSON,
   HOURLY_MEASUREMENTS_TOPIC: process.env.HOURLY_MEASUREMENTS_TOPIC,
   PORT: process.env.PORT || 3000,
   TAHMO_API_GET_STATIONS_URL: process.env.TAHMO_API_GET_STATIONS_URL,
@@ -86,12 +89,12 @@ const defaultConfig = {
   UNIQUE_CONSUMER_GROUP: process.env.UNIQUE_CONSUMER_GROUP,
   UNIQUE_PRODUCER_GROUP: process.env.UNIQUE_PRODUCER_GROUP,
   AQI_INDEX: {
-    good: [0, 50],
-    moderate: [51, 100],
-    u4sg: [101, 150],
-    unhealthy: [151, 200],
-    very_unhealthy: [201, 300],
-    hazardous: [301],
+    good: [0, 12],
+    moderate: [12.1, 35.4],
+    u4sg: [35.5, 55.4],
+    unhealthy: [55.5, 150.4],
+    very_unhealthy: [150.5, 250.4],
+    hazardous: [250.5, 500],
   },
   GET_ROAD_METADATA_PATHS: {
     altitude: "altitude",
@@ -186,6 +189,10 @@ const defaultConfig = {
   DEFAULT_LIMIT_FOR_QUERYING_PHOTOS:
     process.env.DEFAULT_LIMIT_FOR_QUERYING_PHOTOS,
   DEFAULT_LIMIT_FOR_QUERYING_TIPS: process.env.DEFAULT_LIMIT_FOR_QUERYING_TIPS,
+  DEFAULT_LIMIT_FOR_QUERYING_KYA_TASKS:
+    process.env.DEFAULT_LIMIT_FOR_QUERYING_KYA_TASKS,
+  DEFAULT_LIMIT_FOR_QUERYING_KYA_LESSONS:
+    process.env.DEFAULT_LIMIT_FOR_QUERYING_KYA_LESSONS,
   DEFAULT_LIMIT_FOR_QUERYING_AIRQLOUDS:
     process.env.DEFAULT_LIMIT_FOR_QUERYING_AIRQLOUDS,
   DEFAULT_EVENTS_LIMIT: process.env.DEFAULT_EVENTS_LIMIT,
@@ -651,10 +658,8 @@ const defaultConfig = {
       projection[as]["land_use"] = 0;
       projection[as]["site_codes"] = 0;
       projection[as]["images"] = 0;
-      projection[as]["name"] = 0;
       projection[as]["_id"] = 0;
       projection[as]["airqlouds"] = 0;
-      projection[as]["description"] = 0;
       projection[as]["generated_name"] = 0;
       projection[as]["createdAt"] = 0;
       projection[as]["updatedAt"] = 0;
@@ -667,6 +672,341 @@ const defaultConfig = {
     } else {
       return {};
     }
+  },
+  SITES_INCLUSION_PROJECTION: {
+    _id: 1,
+    name: 1,
+    latitude: 1,
+    longitude: 1,
+    approximate_latitude: 1,
+    approximate_longitude: 1,
+    approximate_distance_in_km: 1,
+    bearing_in_radians: 1,
+    description: 1,
+    site_tags: 1,
+    site_codes: 1,
+    search_name: 1,
+    location_name: 1,
+    lat_long: 1,
+    country: 1,
+    network: 1,
+    district: 1,
+    sub_county: 1,
+    parish: 1,
+    region: 1,
+    village: 1,
+    city: 1,
+    street: 1,
+    generated_name: 1,
+    county: 1,
+    altitude: 1,
+    greenness: 1,
+    landform_270: 1,
+    landform_90: 1,
+    aspect: 1,
+    status: 1,
+    images: 1,
+    share_links: 1,
+    distance_to_nearest_road: 1,
+    distance_to_nearest_primary_road: 1,
+    distance_to_nearest_secondary_road: 1,
+    distance_to_nearest_tertiary_road: 1,
+    distance_to_nearest_unclassified_road: 1,
+    distance_to_nearest_residential_road: 1,
+    bearing_to_kampala_center: 1,
+    distance_to_kampala_center: 1,
+    createdAt: 1,
+    nearest_tahmo_station: 1,
+    devices: "$devices",
+    airqlouds: "$airqlouds",
+    weather_stations: 1,
+  },
+  SITES_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = {
+      "airqlouds.location": 0,
+      "airqlouds.airqloud_tags": 0,
+      "airqlouds.long_name": 0,
+      "airqlouds.updatedAt": 0,
+      "airqlouds.sites": 0,
+      "airqlouds.__v": 0,
+      "devices.height": 0,
+      "devices.__v": 0,
+      "devices.phoneNumber": 0,
+      "devices.mountType": 0,
+      "devices.powerType": 0,
+      "devices.generation_version": 0,
+      "devices.generation_count": 0,
+      "devices.pictures": 0,
+      "devices.tags": 0,
+      "devices.description": 0,
+      "devices.isUsedForCollocation": 0,
+      "devices.updatedAt": 0,
+      "devices.locationName": 0,
+      "devices.siteName": 0,
+      "devices.site_id": 0,
+      "devices.isRetired": 0,
+      "devices.long_name": 0,
+      "devices.nextMaintenance": 0,
+      "devices.readKey": 0,
+      "devices.writeKey": 0,
+      "devices.deployment_date": 0,
+      "devices.recall_date": 0,
+      "devices.maintenance_date": 0,
+      "devices.product_name": 0,
+      "devices.owner": 0,
+      "devices.device_manufacturer": 0,
+      "devices.channelID": 0,
+    };
+
+    let projection = Object.assign({}, initialProjection);
+
+    if (category === "summary") {
+      projection = Object.assign(projection, {
+        nearest_tahmo_station: 0,
+        images: 0,
+        site_codes: 0,
+        site_tags: 0,
+        city: 0,
+        county: 0,
+        latitude: 0,
+        longitude: 0,
+        network: 0,
+        approximate_latitude: 0,
+        parish: 0,
+        village: 0,
+        sub_county: 0,
+        street: 0,
+        approximate_longitude: 0,
+        bearing_in_radians: 0,
+        approximate_distance_in_km: 0,
+        lat_long: 0,
+        altitude: 0,
+        distance_to_kampala_center: 0,
+        distance_to_nearest_primary_road: 0,
+        distance_to_nearest_residential_road: 0,
+        distance_to_nearest_road: 0,
+        distance_to_nearest_secondary_road: 0,
+        distance_to_nearest_tertiary_road: 0,
+        distance_to_nearest_unclassified_road: 0,
+        aspect: 0,
+        bearing_to_kampala_center: 0,
+        landform_270: 0,
+        landform_90: 0,
+        location_name: 0,
+        search_name: 0,
+        weather_stations: 0,
+        greenness: 0,
+        createdAt: 0,
+        "devices.visibility": 0,
+        "devices.mobility": 0,
+        "devices.device_codes": 0,
+        "devices.status": 0,
+        "devices.isPrimaryInLocation": 0,
+        "devices.category": 0,
+        "devices.isActive": 0,
+        "devices.device_number": 0,
+        "devices.network": 0,
+        "devices.createdAt": 0,
+        "devices.approximate_distance_in_km": 0,
+        "devices.bearing_in_radians": 0,
+        "devices.latitude": 0,
+        "devices.longitude": 0,
+        "devices.previous_sites": 0,
+        "airqlouds.nearest_tahmo_station": 0,
+        "airqlouds.images": 0,
+        "airqlouds.site_codes": 0,
+        "airqlouds.site_tags": 0,
+        "airqlouds.city": 0,
+        "airqlouds.district": 0,
+        "airqlouds.county": 0,
+        "airqlouds.region": 0,
+        "airqlouds.country": 0,
+        "airqlouds.latitude": 0,
+        "airqlouds.longitude": 0,
+        "airqlouds.network": 0,
+        "airqlouds.approximate_latitude": 0,
+        "airqlouds.approximate_longitude": 0,
+        "airqlouds.bearing_in_radians": 0,
+        "airqlouds.approximate_distance_in_km": 0,
+        "airqlouds.lat_long": 0,
+        "airqlouds.generated_name": 0,
+        "airqlouds.altitude": 0,
+        "airqlouds.description": 0,
+        "airqlouds.weather_stations": 0,
+        "airqlouds.createdAt": 0,
+        "airqlouds.devices": 0,
+      });
+    }
+    return projection;
+  },
+
+  DEVICES_INCLUSION_PROJECTION: {
+    _id: 1,
+    name: 1,
+    alias: 1,
+    long_name: 1,
+    latitude: 1,
+    longitude: 1,
+    approximate_distance_in_km: 1,
+    bearing_in_radians: 1,
+    createdAt: 1,
+    ISP: 1,
+    phoneNumber: 1,
+    visibility: 1,
+    description: 1,
+    isPrimaryInLocation: 1,
+    nextMaintenance: 1,
+    deployment_date: 1,
+    name_id: 1,
+    recall_date: 1,
+    maintenance_date: 1,
+    device_number: 1,
+    powerType: 1,
+    mountType: 1,
+    isActive: 1,
+    writeKey: 1,
+    readKey: 1,
+    access_code: 1,
+    device_codes: 1,
+    height: 1,
+    mobility: 1,
+    status: 1,
+    network: 1,
+    category: 1,
+    previous_sites: 1,
+    site: { $arrayElemAt: ["$site", 0] },
+  },
+  DEVICES_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = {
+      "site.lat_long": 0,
+      "site.country": 0,
+      "site.district": 0,
+      "site.sub_county": 0,
+      "site.parish": 0,
+      "site.county": 0,
+      "site.altitude": 0,
+      "site.altitude": 0,
+      "site.greenness": 0,
+      "site.landform_90": 0,
+      "site.landform_270": 0,
+      "site.aspect": 0,
+      "site.distance_to_nearest_road": 0,
+      "site.distance_to_nearest_primary_road": 0,
+      "site.distance_to_nearest_secondary_road": 0,
+      "site.distance_to_nearest_tertiary_road": 0,
+      "site.distance_to_nearest_unclassified_road": 0,
+      "site.distance_to_nearest_residential_road": 0,
+      "site.bearing_to_kampala_center": 0,
+      "site.distance_to_kampala_center": 0,
+      "site.generated_name": 0,
+      "site.updatedAt": 0,
+      "site.updatedAt": 0,
+      "site.city": 0,
+      "site.formatted_name": 0,
+      "site.geometry": 0,
+      "site.google_place_id": 0,
+      "site.region": 0,
+      "site.site_tags": 0,
+      "site.street": 0,
+      "site.town": 0,
+      "site.nearest_tahmo_station": 0,
+      "site.__v": 0,
+      "previous_sites.lat_long": 0,
+      "previous_sites.country": 0,
+      "previous_sites.district": 0,
+      "previous_sites.sub_county": 0,
+      "previous_sites.parish": 0,
+      "previous_sites.county": 0,
+      "previous_sites.altitude": 0,
+      "previous_sites.altitude": 0,
+      "previous_sites.greenness": 0,
+      "previous_sites.landform_90": 0,
+      "previous_sites.landform_270": 0,
+      "previous_sites.aspect": 0,
+      "previous_sites.distance_to_nearest_road": 0,
+      "previous_sites.distance_to_nearest_primary_road": 0,
+      "previous_sites.distance_to_nearest_secondary_road": 0,
+      "previous_sites.distance_to_nearest_tertiary_road": 0,
+      "previous_sites.distance_to_nearest_unclassified_road": 0,
+      "previous_sites.distance_to_nearest_residential_road": 0,
+      "previous_sites.bearing_to_kampala_center": 0,
+      "previous_sites.distance_to_kampala_center": 0,
+      "previous_sites.generated_name": 0,
+      "previous_sites.updatedAt": 0,
+      "previous_sites.updatedAt": 0,
+      "previous_sites.city": 0,
+      "previous_sites.formatted_name": 0,
+      "previous_sites.geometry": 0,
+      "previous_sites.google_place_id": 0,
+      "previous_sites.region": 0,
+      "previous_sites.previous_sites_tags": 0,
+      "previous_sites.street": 0,
+      "previous_sites.town": 0,
+      "previous_sites.nearest_tahmo_station": 0,
+      "previous_sites.__v": 0,
+      "previous_sites.weather_stations": 0,
+      "previous_sites.latitude": 0,
+      "previous_sites.longitude": 0,
+      "previous_sites.images": 0,
+      "previous_sites.airqlouds": 0,
+      "previous_sites.site_codes": 0,
+      "previous_sites.site_tags": 0,
+      "previous_sites.land_use": 0,
+    };
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign({}, {});
+    }
+    return projection;
+  },
+
+  KYA_TASKS_INCLUSION_PROJECTION: {
+    _id: 1,
+    title: 1,
+    content: 1,
+    image: 1,
+    kya_lesson: {
+      $arrayElemAt: ["$kyalessons", 0],
+    },
+  },
+  KYA_TASKS_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = {};
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign({}, {});
+    }
+    return projection;
+  },
+  KYA_LESSONS_INCLUSION_PROJECTION: {
+    _id: 1,
+    title: 1,
+    completion_message: 1,
+    image: 1,
+    tasks: 1,
+  },
+  KYA_LESSONS_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = {};
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign({}, {});
+    }
+    return projection;
+  },
+
+  KYA_LESSONS_PROGRESS_INCLUSION_PROJECTION: {
+    user_id: 1,
+    lesson_id: 1,
+    progress: 1,
+    completed: 1,
+    _id: 1,
+  },
+  KYA_LESSONS_PROGRESS_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = {};
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign({}, {});
+    }
+    return projection;
   },
 };
 

@@ -373,12 +373,15 @@ const createEvent = {
         logObject("the result for listing events", result);
         if (result.success === true) {
           const status = result.status ? result.status : HTTPStatus.OK;
+          const measurementsForDeployedDevices = result.data[0].data.filter(
+            (obj) => obj.siteDetails !== null
+          );
           res.status(status).json({
             success: true,
             isCache: result.isCache,
             message: result.message,
             meta: result.data[0].meta,
-            measurements: result.data[0].data,
+            measurements: measurementsForDeployedDevices,
           });
         } else if (result.success === false) {
           const status = result.status
@@ -461,6 +464,7 @@ const createEvent = {
         }
       });
     } catch (error) {
+      logObject("error", error);
       logger.error(`internal server error -- ${error.message}`);
       res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
@@ -497,7 +501,6 @@ const createEvent = {
       let request = Object.assign({}, req);
       request["query"]["index"] = "good";
       request["query"]["tenant"] = tenant;
-      request["query"]["external"] = "no";
       request["query"]["metadata"] = "site_id";
       request["query"]["brief"] = "yes";
       request["query"]["skip"] = parseInt(skip);
@@ -564,7 +567,6 @@ const createEvent = {
       let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
       request["query"]["index"] = "moderate";
-      request["query"]["external"] = "no";
       request["query"]["metadata"] = "site_id";
       request["query"]["brief"] = "yes";
       request["query"]["skip"] = parseInt(skip);
@@ -634,7 +636,6 @@ const createEvent = {
       let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
       request["query"]["index"] = "u4sg";
-      request["query"]["external"] = "no";
       request["query"]["metadata"] = "site_id";
       request["query"]["brief"] = "yes";
       request["query"]["skip"] = parseInt(skip);
@@ -702,7 +703,6 @@ const createEvent = {
       let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
       request["query"]["index"] = "unhealthy";
-      request["query"]["external"] = "no";
       request["query"]["metadata"] = "site_id";
       request["query"]["brief"] = "yes";
       request["query"]["skip"] = parseInt(skip);
@@ -771,7 +771,6 @@ const createEvent = {
       let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
       request["query"]["index"] = "very_unhealthy";
-      request["query"]["external"] = "no";
       request["query"]["metadata"] = "site_id";
       request["query"]["brief"] = "yes";
       request["query"]["skip"] = parseInt(skip);
@@ -841,7 +840,6 @@ const createEvent = {
       let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
       request["query"]["index"] = "hazardous";
-      request["query"]["external"] = "no";
       request["query"]["metadata"] = "site_id";
       request["query"]["brief"] = "yes";
       request["query"]["skip"] = parseInt(skip);

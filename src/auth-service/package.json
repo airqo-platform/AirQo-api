@@ -4,7 +4,7 @@
     "private": true,
     "main": "./bin/www",
     "scripts": {
-        "start": "./bin/www",
+        "start": "NODE_ENV=production node ./bin/www",
         "stage": "NODE_ENV=staging node ./bin/www",
         "dev-mac": "NODE_ENV=development nodemon --trace-warnings ./bin/www",
         "stage-mac": "NODE_ENV=staging nodemon ./bin/www",
@@ -31,6 +31,7 @@
         "@log4js-node/slack": "^1.0.0",
         "@mailchimp/mailchimp_marketing": "^3.0.75",
         "app-module-path": "^2.2.0",
+        "axios": "^1.4.0",
         "bcrypt": "^5.0.0",
         "body-parser": "^1.20.2",
         "clean-deep": "^3.4.0",

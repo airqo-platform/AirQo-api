@@ -12,6 +12,7 @@ const ObjectId = mongoose.Types.ObjectId;
 const { logElement, logObject, logText } = require("./log");
 const constants = require("@config/constants");
 const log4js = require("log4js");
+const httpStatus = require("http-status");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- generate-filter-util`
 );
@@ -708,6 +709,8 @@ const generateFilter = {
     let {
       id,
       device_id,
+      airqloud_id,
+      site_id,
       device_number,
       device_name,
       network,
@@ -720,6 +723,14 @@ const generateFilter = {
 
     if (device_id) {
       filter["device_id"] = ObjectId(device_id);
+    }
+
+    if (airqloud_id) {
+      filter["airqloud_id"] = ObjectId(airqloud_id);
+    }
+
+    if (site_id) {
+      filter["site_id"] = ObjectId(site_id);
     }
 
     if (tags) {
@@ -756,6 +767,92 @@ const generateFilter = {
       ];
     }
     return filter;
+  },
+
+  kyalessons: (request) => {
+    try {
+      const { query, body, params } = request;
+      const { id } = query;
+      const { task_id, lesson_id } = params;
+      let filter = {};
+      if (id) {
+        filter["_id"] = ObjectId(id);
+      }
+      if (lesson_id) {
+        filter["_id"] = ObjectId(lesson_id);
+      }
+      return filter;
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: {
+          message: error.message,
+        },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  kyatasks: (request) => {
+    try {
+      const { query, params } = request;
+      const { id } = query;
+      const { task_id, lesson_id } = params;
+      let filter = {};
+      if (id) {
+        filter["_id"] = ObjectId(id);
+      }
+      if (task_id) {
+        filter["_id"] = ObjectId(task_id);
+      }
+      if (lesson_id) {
+        filter["kya_lesson"] = ObjectId(lesson_id);
+      }
+      return filter;
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: {
+          message: error.message,
+        },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  kyaprogress: (request) => {
+    try {
+      const { query, params } = request;
+      const { id } = query;
+      const { user_id, lesson_id, progress_id } = params;
+      logObject("user_id", user_id && user_id.toString());
+      logObject("lesson_id ", lesson_id && lesson_id.toString());
+      let filter = {};
+      if (id) {
+        filter["_id"] = ObjectId(id);
+      }
+      if (progress_id) {
+        filter["_id"] = ObjectId(progress_id);
+      }
+      if (user_id) {
+        filter["user_id"] = ObjectId(user_id);
+      }
+      if (lesson_id) {
+        filter["lesson_id"] = ObjectId(lesson_id);
+      }
+      return filter;
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: {
+          message: error.message,
+        },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
   },
 };
 

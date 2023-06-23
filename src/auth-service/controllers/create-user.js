@@ -32,7 +32,7 @@ const createUser = {
       }
       logText(".....................................");
       logText("list all users by query params provided");
-      let { tenant, id } = req.query;
+      let { tenant } = req.query;
       if (isEmpty(tenant)) {
         tenant = constants.DEFAULT_TENANT;
       }
@@ -42,7 +42,7 @@ const createUser = {
       );
 
       if (responseFromListStatistics.success === true) {
-        res.status(httpStatus.OK).json({
+        return res.status(httpStatus.OK).json({
           success: true,
           message: responseFromListStatistics.message,
           users_stats: responseFromListStatistics.data,
@@ -63,6 +63,7 @@ const createUser = {
         });
       }
     } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -95,10 +96,12 @@ const createUser = {
         tenant = constants.DEFAULT_TENANT;
       }
 
-      const responseFromListStatistics = await createUserUtil.listLogs(tenant);
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
+      const responseFromListStatistics = await createUserUtil.listLogs(request);
 
       if (responseFromListStatistics.success === true) {
-        res.status(httpStatus.OK).json({
+        return res.status(httpStatus.OK).json({
           success: true,
           message: responseFromListStatistics.message,
           users_stats: responseFromListStatistics.data,
@@ -111,14 +114,13 @@ const createUser = {
         return res.status(status).json({
           success: false,
           message: responseFromListStatistics.message,
-          errors: {
-            message: responseFromListStatistics.errors
-              ? responseFromListStatistics.errors
-              : "",
-          },
+          errors: responseFromListStatistics.errors
+            ? responseFromListStatistics.errors
+            : { message: "Internal Server Errors" },
         });
       }
     } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -146,40 +148,20 @@ const createUser = {
       }
       logText(".....................................");
       logText("list all users by query params provided");
-      let { tenant, id } = req.query;
+      let { tenant } = req.query;
       if (isEmpty(tenant)) {
         tenant = constants.DEFAULT_TENANT;
       }
-      const limit = parseInt(req.query.limit, 0);
-      const skip = parseInt(req.query.skip, 0);
-      let filter = {};
-      const responseFromFilter = generateFilter.users(req);
-      logObject("responseFromFilter", responseFromFilter);
-      if (responseFromFilter.success === true) {
-        filter = responseFromFilter.data;
-        logObject("Zi filter", filter);
-      } else if (responseFromFilter.success === false) {
-        return res.status(httpStatus.BAD_GATEWAY).json({
-          success: false,
-          message: responseFromFilter.message,
-          error: responseFromFilter.error
-            ? responseFromFilter.error
-            : { message: "" },
-        });
-      }
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
 
-      const responseFromListUsers = await createUserUtil.list(
-        tenant,
-        filter,
-        limit,
-        skip
-      );
+      const responseFromListUsers = await createUserUtil.list(request);
 
       if (responseFromListUsers.success === true) {
         const status = responseFromListUsers.status
           ? responseFromListUsers.status
           : httpStatus.OK;
-        res.status(status).json({
+        return res.status(status).json({
           success: true,
           message: responseFromListUsers.message,
           users: responseFromListUsers.data,
@@ -194,10 +176,11 @@ const createUser = {
           message: responseFromListUsers.message,
           errors: responseFromListUsers.errors
             ? responseFromListUsers.errors
-            : { message: "" },
+            : { message: "Internal Server Errors" },
         });
       }
     } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -209,8 +192,25 @@ const createUser = {
   },
   googleCallback: async (req, res) => {
     try {
-      res.redirect("/");
+      logObject("req.user.toAuthJSON()", req.user.toAuthJSON());
+      const token = req.user.toAuthJSON().token;
+      // Set the token as an HTTP-only cookie
+      res.cookie("access_token", token, {
+        httpOnly: true,
+        secure: true, // Enable if using HTTPS
+      });
+
+      res.redirect(`${constants.GMAIL_VERIFICATION_SUCCESS_REDIRECT}`);
+
+      /***
+       * in the FRONTEND, access the cookie:
+       * ==================================
+       * npm install js-cookie
+       * import Cookies from "js-cookie";
+       * const token = Cookies.get("access_token");
+       */
     } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
       res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -218,6 +218,124 @@ const createUser = {
       });
     }
   },
+  generateVerificationToken: async (req, res) => {
+    try {
+      const { query, body } = req;
+      let { tenant } = query;
+      logText("We are generating the verification code.....");
+      const hasErrors = !validationResult(req).isEmpty();
+
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      let request = Object.assign({}, req);
+      if (isEmpty(tenant)) {
+        request.query.tenant = "airqo";
+      }
+
+      const responseFromGenerateVerificationToken =
+        await controlAccessUtil.generateVerificationToken(request);
+
+      logObject(
+        "responseFromGenerateVerificationToken",
+        responseFromGenerateVerificationToken
+      );
+
+      if (responseFromGenerateVerificationToken.success === true) {
+        const status = responseFromGenerateVerificationToken.status
+          ? responseFromGenerateVerificationToken.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: "Token generated and sent to user's email address",
+          token: responseFromGenerateVerificationToken.token,
+        });
+      } else if (responseFromGenerateVerificationToken.success === false) {
+        const status = responseFromGenerateVerificationToken.status
+          ? responseFromGenerateVerificationToken.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromGenerateVerificationToken.message,
+          errors: responseFromGenerateVerificationToken.errors
+            ? responseFromGenerateVerificationToken.errors
+            : { message: "internal server errors" },
+        });
+      }
+    } catch (error) {
+      logObject("error", error);
+      logger.error(`Internal Server Error ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "internal server error",
+        errors: { message: error.message },
+      });
+    }
+  },
+  verifyVerificationToken: async (req, res) => {
+    try {
+      const { query, body } = req;
+      let { tenant } = query;
+      logText("we are verifying the email.....");
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      let request = Object.assign({}, req);
+      if (isEmpty(tenant)) {
+        request.query.tenant = "airqo";
+      }
+
+      const responseFromVerifyVerificationToken =
+        await controlAccessUtil.verifyVerificationToken(request);
+
+      logObject(
+        "responseFromVerifyVerificationToken",
+        responseFromVerifyVerificationToken
+      );
+
+      if (responseFromVerifyVerificationToken.success === true) {
+        const status = responseFromVerifyVerificationToken.status
+          ? responseFromVerifyVerificationToken.status
+          : httpStatus.OK;
+        res.status(status).json({
+          success: true,
+          message: "token verified sucessfully",
+          sign_in_link: responseFromVerifyVerificationToken.data,
+        });
+      } else if (responseFromVerifyVerificationToken.success === false) {
+        const status = responseFromVerifyVerificationToken.status
+          ? responseFromVerifyVerificationToken.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromVerifyVerificationToken.message,
+          errors: responseFromVerifyVerificationToken.errors
+            ? responseFromVerifyVerificationToken.errors
+            : { message: "internal server errors" },
+        });
+      }
+    } catch (error) {
+      logObject("error", error);
+      logger.error(`Internal Server Error ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "internal server error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
   verify: (req, res) => {
     return res.status(httpStatus.OK).json({
       success: true,
@@ -254,7 +372,7 @@ const createUser = {
         const status = responseFromVerifyEmail.status
           ? responseFromVerifyEmail.status
           : httpStatus.OK;
-        res.status(status).json({
+        return res.status(status).json({
           success: true,
           message: "email verified sucessfully",
         });
@@ -272,6 +390,7 @@ const createUser = {
       }
     } catch (error) {
       logObject("error", error);
+      logger.error(`Internal Server Error ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "internal server error",
@@ -279,6 +398,54 @@ const createUser = {
       });
     }
   },
+  deleteMobileUserData: async (req, res) => {
+    try {
+      logText("We are deleting the app data.....");
+      const { userId } = req.query;
+      const { creationTime } = req.query;
+
+      let request = {};
+      request["body"] = {};
+      request["body"]["userId"] = userId;
+      request["body"]["creationTime"] = creationTime;
+      logObject("request:", request);
+     
+      const responseFromDeleteAppData = await createUserUtil.deleteMobileUserData(
+         request
+       );  
+      
+      logObject("responseFromDeleteAppData", responseFromDeleteAppData);
+
+      if (responseFromDeleteAppData.success === true) {
+        const status = responseFromDeleteAppData.status
+          ? responseFromDeleteAppData.status
+          : httpStatus.OK;
+        res.status(status).json({
+          success: true,
+          message: "Data deleted sucessfully",
+        });
+      } else if (responseFromDeleteAppData.success === false) {
+        const status = responseFromDeleteAppData.status
+          ? responseFromDeleteAppData.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromDeleteAppData.message,
+          errors: responseFromDeleteAppData.errors
+            ? responseFromDeleteAppData.errors
+            : { message: "internal server errors" },
+        });
+      }
+
+    } catch (error) {
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal server error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
   lookUpFirebaseUser: async (req, res) => {
     try {
       const { email, phoneNumber, uid, providerId, providerUid } = req.body;
@@ -325,7 +492,7 @@ const createUser = {
       await createUserUtil.lookUpFirebaseUser(request, (result) => {
         if (result.success === true) {
           const status = result.status ? result.status : httpStatus.OK;
-          res.status(status).json({
+          return res.status(status).json({
             success: true,
             message: result.message,
             user: result.data,
@@ -340,7 +507,7 @@ const createUser = {
             ? result.errors
             : { message: "Internal Server Error" };
 
-          res.status(status).json({
+          return res.status(status).json({
             success: false,
             message: "User does not exist",
             exists: false,
@@ -349,17 +516,18 @@ const createUser = {
         }
       });
     } catch (error) {
-      return {
+      logger.error(`Internal Server Error ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+        errors: { message: error.message },
+        error: error.message,
+      });
     }
   },
 
   sendFeedback: async (req, res) => {
     try {
-      const { email, message, subject } = req.body;
       const hasErrors = !validationResult(req).isEmpty();
 
       if (hasErrors) {
@@ -376,17 +544,15 @@ const createUser = {
         );
       }
 
-      const responseFromSendEmail = await createUserUtil.sendFeedback({
-        email,
-        message,
-        subject,
-      });
+      const request = Object.assign({}, req);
+
+      const responseFromSendEmail = await createUserUtil.sendFeedback(request);
 
       if (responseFromSendEmail.success === true) {
         const status = responseFromSendEmail.status
           ? responseFromSendEmail.status
           : httpStatus.OK;
-        res.status(status).json({
+        return res.status(status).json({
           success: true,
           message: "successfully responded to email",
           status,
@@ -397,9 +563,9 @@ const createUser = {
           : httpStatus.INTERNAL_SERVER_ERROR;
         const errors = responseFromSendEmail.errors
           ? responseFromSendEmail.errors
-          : httpStatus.INTERNAL_SERVER_ERROR;
+          : { message: "Internal Server Error" };
 
-        res.status(status).json({
+        return res.status(status).json({
           success: true,
           message: responseFromSendEmail.message,
           status,
@@ -407,11 +573,13 @@ const createUser = {
         });
       }
     } catch (error) {
-      return {
+      logger.error(`Internal Server Error ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
+        errors: { message: error.message },
+        error: error.message,
+      });
     }
   },
 
@@ -433,60 +601,49 @@ const createUser = {
           convertErrorArrayToObject(nestedErrors)
         );
       }
-      let { email } = req.body;
       let { tenant } = req.query;
       if (isEmpty(tenant)) {
         tenant = constants.DEFAULT_TENANT;
       }
 
-      let responseFromFilter = generateFilter.users(req);
-      logObject("responseFromFilter", responseFromFilter);
-      if (responseFromFilter.success === true) {
-        let filter = responseFromFilter.data;
-        let update = { email };
-        let responseFromForgotPassword = await createUserUtil.forgotPassword(
-          tenant,
-          filter,
-          update
-        );
-        logObject("responseFromForgotPassword", responseFromForgotPassword);
-        if (responseFromForgotPassword.success === true) {
-          return res.status(httpStatus.OK).json({
-            success: true,
-            message: responseFromForgotPassword.message,
-            response: responseFromForgotPassword.data,
-          });
-        } else if (responseFromForgotPassword.success === false) {
-          if (responseFromForgotPassword.error) {
-            return res.status(httpStatus.BAD_GATEWAY).json({
-              success: false,
-              message: responseFromForgotPassword.message,
-              error: responseFromForgotPassword.error,
-            });
-          } else {
-            return res.status(httpStatus.BAD_GATEWAY).json({
-              success: false,
-              message: responseFromForgotPassword.message,
-            });
-          }
-        }
-      } else if (responseFromFilter.success === false) {
-        if (responseFromFilter.error) {
-          return res.status(httpStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromFilter.message,
-            error: responseFromFilter.error,
-          });
-        } else {
-          return res.status(httpStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromFilter.message,
-            error: responseFromFilter.error,
-          });
-        }
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
+      const responseFromForgotPassword = await createUserUtil.forgotPassword(
+        request
+      );
+      logObject("responseFromForgotPassword", responseFromForgotPassword);
+      if (responseFromForgotPassword.success === true) {
+        const status = responseFromForgotPassword.status
+          ? responseFromForgotPassword.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromForgotPassword.message,
+          response: responseFromForgotPassword.data,
+        });
+      } else if (responseFromForgotPassword.success === false) {
+        const status = responseFromForgotPassword.status
+          ? responseFromForgotPassword.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromForgotPassword.message,
+          error: responseFromForgotPassword.error
+            ? responseFromForgotPassword.error
+            : "",
+          errors: responseFromForgotPassword.errors
+            ? responseFromForgotPassword.errors
+            : { message: "Internal Server Error" },
+        });
       }
     } catch (error) {
-      tryCatchErrors(res, error, "createUser controller");
+      logger.error(`Internal Server Error ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        error: error.message,
+      });
     }
   },
 
@@ -511,82 +668,13 @@ const createUser = {
 
       let { tenant } = req.query;
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
+        tenant = constants.DEFAULT_TENANT || "airqo";
       }
-      const {
-        firstName,
-        lastName,
-        email,
-        organization,
-        long_organization,
-        privilege,
-        network_id,
-      } = req.body;
 
-      let request = {};
-      request["tenant"] = tenant.toLowerCase();
-      request["firstName"] = firstName;
-      request["lastName"] = lastName;
-      request["email"] = email;
-      request["organization"] = organization;
-      request["long_organization"] = long_organization;
-      request["privilege"] = privilege;
-      request["network_id"] = network_id;
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant.toLowerCase();
 
       let responseFromCreateUser = await createUserUtil.register(request);
-      logObject("responseFromCreateUser in controller", responseFromCreateUser);
-      if (responseFromCreateUser.success === true) {
-        const status = responseFromCreateUser.status
-          ? responseFromCreateUser.status
-          : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: responseFromCreateUser.message,
-          user: responseFromCreateUser.data,
-        });
-      } else if (responseFromCreateUser.success === false) {
-        const status = responseFromCreateUser.status
-          ? responseFromCreateUser.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-
-        const error = responseFromCreateUser.error
-          ? responseFromCreateUser.error
-          : "";
-
-        return res.status(status).json({
-          success: false,
-          message: responseFromCreateUser.message,
-          errors: error,
-        });
-      }
-    } catch (error) {
-      tryCatchErrors(res, error, "createUser controller");
-    }
-  },
-
-  create: async (req, res) => {
-    logText("..................................................");
-    logText("create user.............");
-    try {
-      const { query, body, params } = req;
-      let { tenant } = query;
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
-        );
-      }
-      if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
-      }
-
-      let request = req.body;
-      request["tenant"] = tenant.toLowerCase();
-
-      let responseFromCreateUser = await createUserUtil.create(request);
       logObject("responseFromCreateUser in controller", responseFromCreateUser);
       if (responseFromCreateUser.success === true) {
         const status = responseFromCreateUser.status
@@ -607,88 +695,77 @@ const createUser = {
           message: responseFromCreateUser.message,
           errors: responseFromCreateUser.errors
             ? responseFromCreateUser.errors
-            : "",
+            : { message: "Internal Server Errors" },
+          error: responseFromCreateUser.error
+            ? responseFromCreateUser.error
+            : "Internal Server Errors",
         });
       }
     } catch (error) {
-      return {
+      logger.error(`Internal Server Error ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
-        message: "internal server errors",
+        message: "Internal Server Error",
         errors: { message: error.message },
-      };
+        error: error.message,
+      });
     }
   },
 
-  confirmEmail: async (req, res) => {
-    logText(".......................................................");
-    logText("confirming email...............");
+  create: async (req, res) => {
+    logText("..................................................");
+    logText("create user.............");
     try {
+      const { query } = req;
+      let { tenant } = query;
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        logger.error(
-          `input validation errors ${JSON.stringify(
-            convertErrorArrayToObject(nestedErrors)
-          )}`
-        );
         return badRequest(
           res,
           "bad request errors",
           convertErrorArrayToObject(nestedErrors)
         );
       }
-      let { tenant, id } = req.query;
       if (isEmpty(tenant)) {
         tenant = constants.DEFAULT_TENANT;
       }
-      let responseFromFilter = generateFilter.users(req);
-      logElement("responseFromFilter", responseFromFilter);
-      if (responseFromFilter.success === true) {
-        let filter = responseFromFilter.data;
-        filter["emailConfirmed"] = false;
-        update = { confirmed: true };
-        let responseFromConfirmEmail = createUserUtil.confirmEmail(
-          tenant,
-          filter,
-          update
-        );
-        if (responseFromConfirmEmail.success === true) {
-          return res.status(httpStatus.OK).json({
-            success: true,
-            message: responseFromConfirmEmail.message,
-          });
-        } else if (responseFromConfirmEmail.success === false) {
-          if (responseFromConfirmEmail.error) {
-            return res.status(httpStatus.BAD_GATEWAY).json({
-              success: false,
-              message: responseFromConfirmEmail.message,
-              error: responseFromConfirmEmail.error,
-            });
-          } else {
-            return res.status(httpStatus.BAD_GATEWAY).json({
-              success: false,
-              message: responseFromConfirmEmail.message,
-            });
-          }
-        }
-      } else if (responseFromFilter.success === false) {
-        if (responseFromFilter.error) {
-          return res.status(httpStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromFilter.message,
-            error: responseFromFilter.error,
-          });
-        } else {
-          return res.status(httpStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromFilter.message,
-            error: responseFromFilter.error,
-          });
-        }
+
+      let request = req.body;
+      request.tenant = tenant.toLowerCase();
+
+      const responseFromCreateUser = await createUserUtil.create(request);
+      logObject("responseFromCreateUser in controller", responseFromCreateUser);
+      if (responseFromCreateUser.success === true) {
+        const status = responseFromCreateUser.status
+          ? responseFromCreateUser.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromCreateUser.message,
+          user: responseFromCreateUser.data,
+        });
+      } else if (responseFromCreateUser.success === false) {
+        const status = responseFromCreateUser.status
+          ? responseFromCreateUser.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+
+        return res.status(status).json({
+          success: false,
+          message: responseFromCreateUser.message,
+          errors: responseFromCreateUser.errors
+            ? responseFromCreateUser.errors
+            : { message: "Internal Server Errors" },
+        });
       }
     } catch (error) {
-      logElement("controller server error", error.message);
-      tryCatchErrors(res, error, "createUser controller");
+      logger.error(`Internal Server Error ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        error: error.message,
+      });
     }
   },
 
@@ -718,7 +795,7 @@ const createUser = {
 
       if (!isEmpty(tenant) && tenant !== "airqo") {
         logObject("tenant", tenant);
-        res.status(httpStatus.MOVED_PERMANENTLY).json({
+        return res.status(httpStatus.MOVED_PERMANENTLY).json({
           message:
             "The account has been moved permanently to a new location, please reach out to: info@airqo.net",
           location: "https://platform.airqo.net/",
@@ -731,24 +808,28 @@ const createUser = {
       }
 
       if (req.auth.success === true) {
-        res.status(httpStatus.OK).json(req.user.toAuthJSON());
+        // logObject("req.user", req.user);
+        logObject("req.user.toAuthJSON()", req.user.toAuthJSON());
+        return res.status(httpStatus.OK).json(req.user.toAuthJSON());
       } else {
         if (req.auth.error) {
-          res.status(httpStatus.BAD_REQUEST).json({
+          return res.status(httpStatus.BAD_REQUEST).json({
             success: req.auth.success,
             error: req.auth.error,
             message: req.auth.message,
           });
         }
-        res.status(httpStatus.BAD_REQUEST).json({
+        return res.status(httpStatus.BAD_REQUEST).json({
           success: req.auth.success,
           message: req.auth.message,
         });
       }
     } catch (error) {
-      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+      logger.error(`Internal Server Error ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         message: "Internal Server Error",
         errors: { message: error.message },
+        success: false,
       });
     }
   },
@@ -785,11 +866,12 @@ const createUser = {
       });
     } catch (error) {
       logObject("error", error);
+      logger.error(`Internal Server Error ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "internal server errors",
         errors: { message: error.message },
-        error: "",
+        error: "internal server errors",
       });
     }
   },
@@ -798,9 +880,9 @@ const createUser = {
     try {
       logText(".................................................");
       logText("inside delete user............");
-      let { tenant, id } = req.query;
+      let { tenant } = req.query;
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
+        tenant = constants.DEFAULT_TENANT || "airqo";
       }
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
@@ -812,53 +894,46 @@ const createUser = {
         );
       }
 
-      let responseFromFilter = generateFilter.users(req);
-      logObject("responseFromFilter", responseFromFilter);
-      if (responseFromFilter.success === true) {
-        let filter = responseFromFilter.data;
-        let responseFromRemoveUser = await createUserUtil.delete(
-          tenant,
-          filter
-        );
-        if (responseFromRemoveUser.success === true) {
-          const status = responseFromRemoveUser.status
-            ? responseFromRemoveUser.status
-            : httpStatus.OK;
-          return res.status(status).json({
-            success: true,
-            message: responseFromRemoveUser.message
-              ? responseFromRemoveUser.message
-              : "",
-            user: responseFromRemoveUser.data,
-          });
-        } else if (responseFromRemoveUser.success === false) {
-          const status = responseFromRemoveUser.status
-            ? responseFromRemoveUser.status
-            : httpStatus.INTERNAL_SERVER_ERROR;
-          return res.status(status).json({
-            success: false,
-            message: responseFromRemoveUser.message
-              ? responseFromRemoveUser.message
-              : "",
-            error: responseFromRemoveUser.error
-              ? responseFromRemoveUser.error
-              : "",
-          });
-        }
-      } else if (responseFromFilter.success === false) {
-        const status = responseFromFilter.status
-          ? responseFromFilter.status
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
+
+      const responseFromRemoveUser = await createUserUtil.delete(request);
+
+      if (responseFromRemoveUser.success === true) {
+        const status = responseFromRemoveUser.status
+          ? responseFromRemoveUser.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromRemoveUser.message
+            ? responseFromRemoveUser.message
+            : "",
+          user: responseFromRemoveUser.data,
+        });
+      } else if (responseFromRemoveUser.success === false) {
+        const status = responseFromRemoveUser.status
+          ? responseFromRemoveUser.status
           : httpStatus.INTERNAL_SERVER_ERROR;
-        res.status(status).json({
+        return res.status(status).json({
           success: false,
-          message: responseFromFilter.message ? responseFromFilter.message : "",
-          error: responseFromFilter.error ? responseFromFilter.error : "",
+          message: responseFromRemoveUser.message
+            ? responseFromRemoveUser.message
+            : "",
+          error: responseFromRemoveUser.error
+            ? responseFromRemoveUser.error
+            : "Internal Server Error",
+          errors: responseFromRemoveUser.errors
+            ? responseFromRemoveUser.errors
+            : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
-      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+      logger.error(`Internal Server Error ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         message: "Internal Server Error",
         error: error.message,
+        errors: { message: error.message },
+        success: false,
       });
     }
   },
@@ -911,6 +986,7 @@ const createUser = {
         });
       }
     } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -957,7 +1033,9 @@ const createUser = {
           const status = value.status
             ? value.status
             : httpStatus.INTERNAL_SERVER_ERROR;
-          const errors = value.errors ? value.errors : "";
+          const errors = value.errors
+            ? value.errors
+            : { message: "Internal Server Error" };
           return res.status(status).json({
             success: false,
             message: value.message,
@@ -966,6 +1044,7 @@ const createUser = {
         }
       });
     } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -1014,7 +1093,9 @@ const createUser = {
           const status = value.status
             ? value.status
             : httpStatus.INTERNAL_SERVER_ERROR;
-          const errors = value.errors ? value.errors : "";
+          const errors = value.errors
+            ? value.errors
+            : { message: "Internal Server Error" };
           return res.status(status).json({
             success: false,
             message: value.message,
@@ -1023,6 +1104,7 @@ const createUser = {
         }
       });
     } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -1050,15 +1132,12 @@ const createUser = {
         );
       }
       let { tenant } = req.query;
-      const { body } = req;
-
       if (isEmpty(tenant)) {
         tenant = constants.DEFAULT_TENANT;
       }
 
-      let request = {};
-      request["body"] = body;
-      request["tenant"] = tenant;
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
       const responseFromUpdateForgottenPassword =
         await createUserUtil.updateForgottenPassword(request);
 
@@ -1076,7 +1155,7 @@ const createUser = {
           ? responseFromUpdateForgottenPassword.status
           : httpStatus.INTERNAL_SERVER_ERROR;
 
-        res.status(status).json({
+        return res.status(status).json({
           success: false,
           message: responseFromUpdateForgottenPassword.message,
           errors: responseFromUpdateForgottenPassword.errors
@@ -1085,7 +1164,8 @@ const createUser = {
         });
       }
     } catch (error) {
-      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+      logger.error(`Internal Server Error ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -1115,55 +1195,42 @@ const createUser = {
       if (isEmpty(tenant)) {
         tenant = constants.DEFAULT_TENANT;
       }
-      const { password, old_password } = req.body;
 
-      let responseFromFilter = generateFilter.users(req);
-      logObject("responseFromFilter", responseFromFilter);
-      if (responseFromFilter.success === true) {
-        let filter = responseFromFilter.data;
-        let responseFromUpdatePassword =
-          await createUserUtil.updateKnownPassword(
-            tenant,
-            password,
-            old_password,
-            filter
-          );
-        if (responseFromUpdatePassword.success === true) {
-          return res.status(httpStatus.OK).json({
-            success: true,
-            message: responseFromUpdatePassword.message,
-            user: responseFromUpdatePassword.data,
-          });
-        } else if (responseFromUpdatePassword.success === false) {
-          if (responseFromUpdatePassword.error) {
-            return res.status(httpStatus.BAD_GATEWAY).json({
-              success: false,
-              message: responseFromUpdatePassword.message,
-              error: responseFromUpdatePassword.error,
-            });
-          } else {
-            return res.status(httpStatus.BAD_GATEWAY).json({
-              success: false,
-              message: responseFromUpdatePassword.message,
-            });
-          }
-        }
-      } else if (responseFromFilter.success === false) {
-        if (responseFromFilter.error) {
-          res.status(httpStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromFilter.message,
-            error: responseFromFilter.error,
-          });
-        } else {
-          res.status(httpStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromFilter.message,
-          });
-        }
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
+
+      const responseFromUpdatePassword =
+        await createUserUtil.updateKnownPassword(request);
+
+      if (responseFromUpdatePassword.success === true) {
+        const status = responseFromUpdatePassword.status
+          ? responseFromUpdatePassword.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromUpdatePassword.message,
+          user: responseFromUpdatePassword.data,
+        });
+      } else if (responseFromUpdatePassword.success === false) {
+        const status = responseFromUpdatePassword.status
+          ? responseFromUpdatePassword.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+
+        return res.status(status).json({
+          success: false,
+          message: responseFromUpdatePassword.message,
+          errors: responseFromUpdatePassword.errors
+            ? responseFromUpdatePassword.errors
+            : { message: "Internal Server Error" },
+        });
       }
     } catch (error) {
-      tryCatchErrors(res, error, "createUser controller");
+      logger.error(`Internal Server Error ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
     }
   },
   subscribeToNewsLetter: async (req, res) => {
@@ -1205,7 +1272,7 @@ const createUser = {
 
         const errors = responseFromSubscribeToNewsLetter.errors
           ? responseFromSubscribeToNewsLetter.errors
-          : { message: "" };
+          : { message: "Internal Server Errors" };
 
         return res.status(status).json({
           success: false,
@@ -1214,7 +1281,9 @@ const createUser = {
         });
       }
     } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
       });

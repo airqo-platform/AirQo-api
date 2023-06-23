@@ -146,7 +146,7 @@ const mailer = {
       }
 
       let mailOptions = {};
-      if (tenant.toLowerCase() == "kcca") {
+      if (tenant.toLowerCase() === "kcca") {
         mailOptions = {
           from: {
             name: constants.EMAIL_NAME,
@@ -215,6 +215,38 @@ const mailer = {
         subject: "Verify your AirQo Platform account",
         html: msgTemplates.v2_emailVerification(firstName, user_id, token),
         bcc,
+        attachments: [
+          {
+            filename: "airqoLogo.png",
+            path: "../config/images/airqoLogo.png",
+            cid: "AirQoEmailLogo",
+            contentDisposition: "inline",
+          },
+          {
+            filename: "faceBookLogo.png",
+            path: "../config/images/facebookLogo.png",
+            cid: "FacebookLogo",
+            contentDisposition: "inline",
+          },
+          {
+            filename: "youtubeLogo.png",
+            path: "../config/images/youtubeLogo.png",
+            cid: "YoutubeLogo",
+            contentDisposition: "inline",
+          },
+          {
+            filename: "twitterLogo.png",
+            path: "../config/images/Twitter.png",
+            cid: "Twitter",
+            contentDisposition: "inline",
+          },
+          {
+            filename: "linkedInLogo.png",
+            path: "../config/images/linkedInLogo.png",
+            cid: "LinkedInLogo",
+            contentDisposition: "inline",
+          },
+        ],
       };
 
       let response = transporter.sendMail(mailOptions);
@@ -512,9 +544,18 @@ const mailer = {
         bcc,
       };
 
-      let response = await transporter.sendMail(mailOptions);
+      if (email === "automated-tests@airqo.net") {
+        return {
+          success: true,
+          message: "email successfully sent",
+          data: [],
+          status: httpStatus.OK,
+        };
+      }
 
-      let data = response;
+      const response = await transporter.sendMail(mailOptions);
+
+      const data = response;
       if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
         return {
           success: true,

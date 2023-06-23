@@ -21,7 +21,7 @@ class BasePyMongoModel(ModelOperations):
 
     def _connect(self):
         client = MongoClient(APP_CONFIG.MONGO_URI)
-        db = client[f'{APP_CONFIG.DB_NAME}_{self.tenant}']
+        db = client[f"{APP_CONFIG.DB_NAME}_{self.tenant}"]
 
         # lets hard code the db here for dev purposes
         # db = client['airqo_analytics']

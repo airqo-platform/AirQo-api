@@ -1,7 +1,7 @@
 const AirQloudSchema = require("@models/Airqloud");
 const SiteSchema = require("@models/Site");
 const { logObject, logElement, logText } = require("./log");
-const { getModelByTenant } = require("./multitenancy");
+const { getModelByTenant } = require("@config/database");
 const isEmpty = require("is-empty");
 const axios = require("axios");
 const HTTPStatus = require("http-status");

@@ -5,9 +5,9 @@ app:
 schedule: 0 0 * * *
 image:
   repository: eu.gcr.io/airqo-250220/airqo-predict-job
-  tag: prod-bbc70236-1680071543
-nameOverride: ""
-fullnameOverride: ""
+  tag: prod-8731f295-1687461280
+nameOverride: ''
+fullnameOverride: ''
 resources:
   limits:
     cpu: 1000m

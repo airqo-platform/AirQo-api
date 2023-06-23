@@ -22,7 +22,7 @@ spec:
           containers:
           - name: {{ $job.name }}
             image: "{{ $job.image.repository }}:{{ $job.image.tag }}"
-            imagePullPolicy: {{ $job.image.pullPolicy }}
+            imagePullPolicy: IfNotPresent
             envFrom:
               - configMapRef:
                   name: {{ $job.configMap }} 

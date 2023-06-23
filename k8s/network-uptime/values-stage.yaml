@@ -6,7 +6,7 @@ app:
 replicaCount: 0
 image:
   repository: eu.gcr.io/airqo-250220/airqo-stage-network-uptime-api
-  tag: stage-24564183-1678882968
+  tag: stage-4e8bcf78-1685368175
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}

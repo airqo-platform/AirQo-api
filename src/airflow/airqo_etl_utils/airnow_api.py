@@ -4,11 +4,15 @@ import requests
 
 from .config import configuration
 
+from typing import List
+
+from .constants import Tenant, DataSource
+
 
 class AirNowApi:
     def __init__(self):
         self.AIRNOW_BASE_URL = configuration.AIRNOW_BASE_URL
-        self.AIRNOW_API_KEY = configuration.AIRNOW_API_KEY
+        self.US_EMBASSY_API_KEY = configuration.US_EMBASSY_API_KEY
         self.AIRNOW_COUNTRIES_METADATA = (
             configuration.AIRNOW_COUNTRIES_METADATA_JSON_FILE
         )
@@ -24,6 +28,7 @@ class AirNowApi:
         start_date_time,
         end_date_time,
         boundary_box,
+        api_key,
         parameters="pm25,pm10,ozone,co,no2,so2",
     ) -> list:
         params = {
@@ -38,10 +43,10 @@ class AirNowApi:
             "dataType": "B",
         }
 
-        return self.__request(endpoint="/aq/data", params=params)
+        return self.__request(endpoint="/aq/data", params=params, api_key=api_key)
 
-    def __request(self, endpoint, params):
-        params["API_KEY"] = self.AIRNOW_API_KEY
+    def __request(self, endpoint, params, api_key):
+        params["API_KEY"] = api_key
 
         api_request = requests.get(
             "%s%s" % (self.AIRNOW_BASE_URL, endpoint),
@@ -56,6 +61,16 @@ class AirNowApi:
         else:
             handle_api_error(api_request)
             return None
+
+    def get_tenants(self) -> List[dict]:
+        # TODO: Create endpoint to return networks
+        return [
+            {
+                "network": str(Tenant.US_EMBASSY),
+                "data_source": str(DataSource.AIRNOW),
+                "api_key": self.US_EMBASSY_API_KEY,
+            }
+        ]
 
 
 def handle_api_error(api_request):

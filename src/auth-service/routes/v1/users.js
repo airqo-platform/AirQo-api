@@ -7,6 +7,7 @@ const {
   setJWTAuth,
   authJWT,
   setLocalAuth,
+  authGoogleCallback,
   setGoogleAuth,
   setGuestToken,
   authLocal,
@@ -15,7 +16,6 @@ const {
 } = require("@middleware/passport");
 
 const mongoose = require("mongoose");
-const { login } = require("@controllers/create-user");
 const ObjectId = mongoose.Types.ObjectId;
 
 const headers = (req, res, next) => {
@@ -164,6 +164,9 @@ router.post(
   createUserController.lookUpFirebaseUser
 );
 
+/**
+ * version one of verification
+ */
 router.post("/verify", setJWTAuth, authJWT, createUserController.verify);
 
 router.get(
@@ -205,9 +208,75 @@ router.get(
   createUserController.verifyEmail
 );
 
+/**
+ * version two of verification
+ */
+router.post(
+  "/verification/generate",
+  setJWTAuth,
+  authJWT,
+  createUserController.generateVerificationToken
+);
+
+router.post(
+  "/verification/verify",
+  setJWTAuth,
+  authJWT,
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+
+  oneOf([
+    [
+      body("email")
+        .exists()
+        .withMessage("the email must be provided")
+        .bail()
+        .notEmpty()
+        .withMessage("the email must not be empty if provided")
+        .bail()
+        .isEmail()
+        .withMessage("this is not a valid email address"),
+      body("token")
+        .exists()
+        .withMessage("the token is missing in the request")
+        .bail()
+        .trim()
+        .isInt()
+        .withMessage("token must be an integer"),
+    ],
+  ]),
+  createUserController.verifyVerificationToken
+);
+router.delete(
+  "/deleteMobileUserData",
+  oneOf([
+    query("userId")
+      .exists()
+      .withMessage("There's a missing required parameter in your request")
+      .bail(),
+    query("creationTime")
+      .exists()
+      .withMessage("There's a missing required parameter in your request")
+      .bail(),
+  ]),
+  createUserController.deleteMobileUserData
+);
+
 router.get(
   "/auth/google/callback",
-  authGoogle,
+  setGoogleAuth,
+  authGoogleCallback,
   createUserController.googleCallback
 );
 
@@ -281,8 +350,9 @@ router.post(
         .bail()
         .trim(),
       body("privilege")
-        .exists()
-        .withMessage("privilege is missing in your request")
+        .optional()
+        .notEmpty()
+        .withMessage("privilege should not be empty if provided")
         .bail()
         .isIn(["admin", "netmanager", "user", "super"])
         .withMessage("the privilege value is not among the expected ones")
@@ -327,45 +397,42 @@ router.post(
         .withMessage("this is not a valid email address")
         .trim(),
       body("organization")
-        .exists()
-        .withMessage("organization is missing in your request")
+        .optional()
+        .notEmpty()
+        .withMessage("organization should not be empty if provided")
         .bail()
         .trim(),
       body("long_organization")
-        .exists()
-        .withMessage("long_organization is missing in your request")
+        .optional()
+        .notEmpty()
+        .withMessage("long_organization should not be empty if provided")
         .bail()
         .trim(),
       body("privilege")
-        .exists()
-        .withMessage("privilege is missing in your request")
+        .optional()
+        .notEmpty()
+        .withMessage("privilege should not be empty if provided")
         .bail()
         .isIn(["admin", "netmanager", "user", "super"])
         .withMessage("the privilege value is not among the expected ones")
         .trim(),
+      body("password")
+        .exists()
+        .withMessage("password is missing in your request")
+        .bail()
+        .trim()
+        .isLength({ min: 6, max: 30 })
+        .withMessage("Password must be between 6 and 30 characters long")
+        .bail()
+        .matches(/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{6,}$/)
+        .withMessage(
+          "Password must contain at least one letter and one number"
+        ),
     ],
   ]),
   createUserController.create
 );
-router.get(
-  "/email/confirm/",
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant should not be empty if provided")
-        .trim()
-        .toLowerCase()
-        .bail()
-        .isIn(["kcca", "airqo"])
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-  setJWTAuth,
-  authJWT,
-  createUserController.confirmEmail
-);
+
 router.put(
   "/updatePasswordViaEmail",
   oneOf([

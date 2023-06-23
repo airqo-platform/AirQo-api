@@ -701,7 +701,7 @@ jobs:
       - name: Build and Push Container
         run: |
           cd src/meta-data/
-          docker build --target=deployment --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/meta-data-pr-previews:${{ github.sha }} .
+          docker build --target=api --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/meta-data-pr-previews:${{ github.sha }} .
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/meta-data-pr-previews:${{ github.sha }}
 
       - name: Deploy to Cloud Run

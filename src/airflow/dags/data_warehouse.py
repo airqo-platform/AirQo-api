@@ -5,7 +5,7 @@ from airqo_etl_utils.airflow_custom_utils import AirflowUtils
 
 @dag(
     "Consolidated-Data-ETL",
-    schedule="0 1 * * 1",
+    schedule= "@weekly",
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
     tags=["hourly", "consolidated data"],
@@ -73,14 +73,12 @@ def data_warehouse_consolidated_data():
     def load(data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
         from airqo_etl_utils.data_validator import DataValidationUtils
-        from airqo_etl_utils.constants import Tenant
 
         big_query_api = BigQueryApi()
         table = big_query_api.consolidated_data_table
         data = DataValidationUtils.process_for_big_query(
             dataframe=data,
             table=table,
-            tenant=Tenant.ALL,
         )
 
         big_query_api.load_data(
