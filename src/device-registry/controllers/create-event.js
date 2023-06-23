@@ -374,8 +374,26 @@ const createEvent = {
         if (result.success === true) {
           const status = result.status ? result.status : HTTPStatus.OK;
           const measurementsForDeployedDevices = result.data[0].data.filter(
-            (obj) => obj.siteDetails !== null
+            (obj) => {
+              if (obj.siteDetails === null) {
+                return false; // Exclude if siteDetails is null
+              }
+
+              const { pm2_5 } = obj;
+              if (
+                pm2_5 &&
+                (pm2_5.value === null || pm2_5.calibratedValue === null)
+              ) {
+                logger.error(
+                  `A deployed Device is returning null values for pm2_5 -- the device_name is ${obj.device} -- the timestamp is ${obj.time} -- the frequency is ${obj.frequency} -- the site_name is ${obj.siteDetails?.name}`
+                );
+                return false; // Exclude if either value is null
+              }
+
+              return true; // Include for other cases
+            }
           );
+
           res.status(status).json({
             success: true,
             isCache: result.isCache,
