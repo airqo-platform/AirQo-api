@@ -10,7 +10,7 @@ const sinon = require("sinon");
 const request = require("request");
 chai.use(chaiHttp);
 const SiteSchema = require("../Site");
-const { getModelByTenant } = require("../../utils/multitenancy");
+const { getModelByTenant } = require("@config/database");
 
 const stubValue = {
   _id: faker.datatype.uuid(),

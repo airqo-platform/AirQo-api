@@ -183,6 +183,7 @@ class DataExportV2Resource(Resource):
         "sites|optional:list",
         "devices|optional:list",
         "airqlouds|optional:list",
+        "meta_data|optional:dict",
     )
     def post(self):
         valid_pollutants = ["pm2_5", "pm10", "no2"]
@@ -194,6 +195,7 @@ class DataExportV2Resource(Resource):
 
         start_date = json_data["startDateTime"]
         end_date = json_data["endDateTime"]
+        meta_data = json_data.get("meta_data", [])
         sites = json_data.get("sites", [])
         devices = json_data.get("devices", [])
         airqlouds = json_data.get("airqlouds", [])
@@ -278,6 +280,8 @@ class DataExportV2Resource(Resource):
                 devices=devices,
                 request_id="",
                 pollutants=pollutants,
+                retries=3,
+                meta_data=meta_data,
             )
 
             data_export_request.status = DataExportStatus.SCHEDULED
@@ -286,7 +290,7 @@ class DataExportV2Resource(Resource):
             return (
                 create_response(
                     "request successfully received",
-                    data=data_export_request.to_dict(format_datetime=True),
+                    data=data_export_request.to_api_format(),
                 ),
                 Status.HTTP_200_OK,
             )
@@ -309,7 +313,7 @@ class DataExportV2Resource(Resource):
             data_export_model = DataExportModel()
             requests = data_export_model.get_user_requests(user_id)
 
-            data = [x.to_dict(format_datetime=True) for x in requests]
+            data = [x.to_api_format() for x in requests]
 
             return (
                 create_response(
@@ -337,12 +341,15 @@ class DataExportV2Resource(Resource):
             data_export_model = DataExportModel()
             export_request = data_export_model.get_request_by_id(request_id)
             export_request.status = DataExportStatus.SCHEDULED
-            success = data_export_model.update_request_status(export_request)
+            export_request.retries = 3
+            success = data_export_model.update_request_status_and_retries(
+                export_request
+            )
             if success:
                 return (
                     create_response(
                         "request successfully updated",
-                        data=export_request.to_dict(format_datetime=True),
+                        data=export_request.to_api_format(),
                     ),
                     Status.HTTP_200_OK,
                 )

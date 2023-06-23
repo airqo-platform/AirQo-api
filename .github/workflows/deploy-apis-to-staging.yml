@@ -349,7 +349,7 @@ jobs:
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-auth-api:latest
 
       - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@master # Retries action on fail
+        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
@@ -467,7 +467,7 @@ jobs:
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-fault-detection-api:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-fault-detection-api:latest
 
       - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@master # Retries action on fail
+        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
@@ -542,7 +542,7 @@ jobs:
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-apache-airflow-xcom:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-apache-airflow-xcom:latest
 
       - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@master # Retries action on fail
+        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
@@ -611,7 +611,7 @@ jobs:
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-prediction-api:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-prediction-api:latest
 
       - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@master # Retries action on fail
+        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
@@ -631,7 +631,7 @@ jobs:
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-airqo-predict-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-airqo-predict-job:latest
 
       - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@master # Retries action on fail
+        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
@@ -651,7 +651,7 @@ jobs:
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-airqo-train-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-airqo-train-job:latest
 
       - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@master # Retries action on fail
+        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
@@ -726,15 +726,11 @@ jobs:
 
       - name: Deploy to K8S
         run: |
-          export KAFKA_BROKER_0=${{ secrets.STAGE_KAFKA_BROKER_0 }}
-          export KAFKA_BROKER_1=${{ secrets.STAGE_KAFKA_BROKER_1 }}
-          export KAFKA_BROKER_2=${{ secrets.STAGE_KAFKA_BROKER_2 }}
-
-          sed -i 's/KAFKA_BROKER_0/'"$KAFKA_BROKER_0"'/g' k8s/kafka/clusters/kafka-cluster.yaml
-          sed -i 's/KAFKA_BROKER_1/'"$KAFKA_BROKER_1"'/g' k8s/kafka/clusters/kafka-cluster.yaml
-          sed -i 's/KAFKA_BROKER_2/'"$KAFKA_BROKER_2"'/g' k8s/kafka/clusters/kafka-cluster.yaml
-
+          export CLUSTER_CONTROLLER_IP=${{ secrets.STAGE_CLUSTER_CONTROLLER_IP}}
+          sed -i 's/CLUSTER_CONTROLLER_IP/'"$CLUSTER_CONTROLLER_IP"'/g' k8s/kafka/clusters/kafka-cluster.yaml
           kubectl apply -n message-broker -f k8s/kafka/clusters/kafka-cluster.yaml
+          kubectl rollout restart deployment kafka-cluster-entity-operator -n message-broker
+          kubectl rollout restart deployment strimzi-cluster-operator -n message-broker
 
   ### kafka topics ###
   kafka-topics:
@@ -788,7 +784,7 @@ jobs:
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-registry-api:latest
 
       - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@master # Retries action on fail
+        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
@@ -865,7 +861,7 @@ jobs:
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-monitor-celery-worker:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-monitor-celery-worker:latest
 
       - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@master # Retries action on fail
+        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
@@ -924,7 +920,7 @@ jobs:
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-data-mgt-api:latest
 
       - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@master # Retries action on fail
+        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
@@ -1015,7 +1011,7 @@ jobs:
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-report-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-analytics-report-job:latest
 
       - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@master # Retries action on fail
+        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
@@ -1086,7 +1082,7 @@ jobs:
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-uptime-job-v2:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-uptime-job-v2:latest
 
       - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@master # Retries action on fail
+        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
@@ -1147,7 +1143,7 @@ jobs:
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-device-status-job:latest
 
       - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@master # Retries action on fail
+        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
@@ -1206,7 +1202,7 @@ jobs:
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-locate-api:latest
 
       - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@master # Retries action on fail
+        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
@@ -1271,7 +1267,7 @@ jobs:
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-gp-model-broker-consumer:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-gp-model-broker-consumer:latest
 
       - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@master # Retries action on fail
+        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
@@ -1332,7 +1328,7 @@ jobs:
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-airqo-exceedance-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-airqo-exceedance-job:latest
 
       - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@master # Retries action on fail
+        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
@@ -1352,7 +1348,7 @@ jobs:
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-kcca-exceedance-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-kcca-exceedance-job:latest
 
       - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@master # Retries action on fail
+        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
@@ -1423,7 +1419,7 @@ jobs:
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-meta-data-sites-consumer:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-meta-data-sites-consumer:latest
 
       - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@master # Retries action on fail
+        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
@@ -1488,7 +1484,7 @@ jobs:
           context: src/view
 
       - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@master # Retries action on fail
+        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
@@ -1508,7 +1504,7 @@ jobs:
           context: src/view
 
       - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@master # Retries action on fail
+        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
@@ -1577,7 +1573,7 @@ jobs:
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-calibrate-pickle-file:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-calibrate-pickle-file:latest
 
       - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@master # Retries action on fail
+        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
@@ -1749,7 +1745,7 @@ jobs:
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-network-uptime-api:latest
 
       - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@master # Retries action on fail
+        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
@@ -1806,7 +1802,7 @@ jobs:
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-update-channel-data-job:latest
 
       - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@master # Retries action on fail
+        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |

@@ -79,6 +79,8 @@ const defaultConfig = {
   ACTIVITIES_TOPIC: process.env.ACTIVITIES_TOPIC,
   PHOTOS_TOPIC: process.env.PHOTOS_TOPIC,
   TIPS_TOPIC: process.env.TIPS_TOPIC,
+  KYA_TOPIC: process.env.KYA_TOPIC,
+  KYA_LESSON: process.env.KYA_LESSON,
   HOURLY_MEASUREMENTS_TOPIC: process.env.HOURLY_MEASUREMENTS_TOPIC,
   PORT: process.env.PORT || 3000,
   TAHMO_API_GET_STATIONS_URL: process.env.TAHMO_API_GET_STATIONS_URL,
@@ -87,12 +89,12 @@ const defaultConfig = {
   UNIQUE_CONSUMER_GROUP: process.env.UNIQUE_CONSUMER_GROUP,
   UNIQUE_PRODUCER_GROUP: process.env.UNIQUE_PRODUCER_GROUP,
   AQI_INDEX: {
-    good: [0, 50],
-    moderate: [51, 100],
-    u4sg: [101, 150],
-    unhealthy: [151, 200],
-    very_unhealthy: [201, 300],
-    hazardous: [301],
+    good: [0, 12],
+    moderate: [12.1, 35.4],
+    u4sg: [35.5, 55.4],
+    unhealthy: [55.5, 150.4],
+    very_unhealthy: [150.5, 250.4],
+    hazardous: [250.5, 500],
   },
   GET_ROAD_METADATA_PATHS: {
     altitude: "altitude",
@@ -187,6 +189,10 @@ const defaultConfig = {
   DEFAULT_LIMIT_FOR_QUERYING_PHOTOS:
     process.env.DEFAULT_LIMIT_FOR_QUERYING_PHOTOS,
   DEFAULT_LIMIT_FOR_QUERYING_TIPS: process.env.DEFAULT_LIMIT_FOR_QUERYING_TIPS,
+  DEFAULT_LIMIT_FOR_QUERYING_KYA_TASKS:
+    process.env.DEFAULT_LIMIT_FOR_QUERYING_KYA_TASKS,
+  DEFAULT_LIMIT_FOR_QUERYING_KYA_LESSONS:
+    process.env.DEFAULT_LIMIT_FOR_QUERYING_KYA_LESSONS,
   DEFAULT_LIMIT_FOR_QUERYING_AIRQLOUDS:
     process.env.DEFAULT_LIMIT_FOR_QUERYING_AIRQLOUDS,
   DEFAULT_EVENTS_LIMIT: process.env.DEFAULT_EVENTS_LIMIT,
@@ -667,6 +673,54 @@ const defaultConfig = {
       return {};
     }
   },
+  SITES_INCLUSION_PROJECTION: {
+    _id: 1,
+    name: 1,
+    latitude: 1,
+    longitude: 1,
+    approximate_latitude: 1,
+    approximate_longitude: 1,
+    approximate_distance_in_km: 1,
+    bearing_in_radians: 1,
+    description: 1,
+    site_tags: 1,
+    site_codes: 1,
+    search_name: 1,
+    location_name: 1,
+    lat_long: 1,
+    country: 1,
+    network: 1,
+    district: 1,
+    sub_county: 1,
+    parish: 1,
+    region: 1,
+    village: 1,
+    city: 1,
+    street: 1,
+    generated_name: 1,
+    county: 1,
+    altitude: 1,
+    greenness: 1,
+    landform_270: 1,
+    landform_90: 1,
+    aspect: 1,
+    status: 1,
+    images: 1,
+    share_links: 1,
+    distance_to_nearest_road: 1,
+    distance_to_nearest_primary_road: 1,
+    distance_to_nearest_secondary_road: 1,
+    distance_to_nearest_tertiary_road: 1,
+    distance_to_nearest_unclassified_road: 1,
+    distance_to_nearest_residential_road: 1,
+    bearing_to_kampala_center: 1,
+    distance_to_kampala_center: 1,
+    createdAt: 1,
+    nearest_tahmo_station: 1,
+    devices: "$devices",
+    airqlouds: "$airqlouds",
+    weather_stations: 1,
+  },
   SITES_EXCLUSION_PROJECTION: (category) => {
     const initialProjection = {
       "airqlouds.location": 0,
@@ -785,55 +839,43 @@ const defaultConfig = {
     }
     return projection;
   },
-  SITES_INCLUSION_PROJECTION: {
+
+  DEVICES_INCLUSION_PROJECTION: {
     _id: 1,
     name: 1,
+    alias: 1,
+    long_name: 1,
     latitude: 1,
     longitude: 1,
-    approximate_latitude: 1,
-    approximate_longitude: 1,
     approximate_distance_in_km: 1,
     bearing_in_radians: 1,
-    description: 1,
-    site_tags: 1,
-    site_codes: 1,
-    search_name: 1,
-    location_name: 1,
-    lat_long: 1,
-    country: 1,
-    network: 1,
-    district: 1,
-    sub_county: 1,
-    parish: 1,
-    region: 1,
-    village: 1,
-    city: 1,
-    street: 1,
-    generated_name: 1,
-    county: 1,
-    altitude: 1,
-    greenness: 1,
-    landform_270: 1,
-    landform_90: 1,
-    aspect: 1,
-    status: 1,
-    images: 1,
-    share_links: 1,
-    distance_to_nearest_road: 1,
-    distance_to_nearest_primary_road: 1,
-    distance_to_nearest_secondary_road: 1,
-    distance_to_nearest_tertiary_road: 1,
-    distance_to_nearest_unclassified_road: 1,
-    distance_to_nearest_residential_road: 1,
-    bearing_to_kampala_center: 1,
-    distance_to_kampala_center: 1,
     createdAt: 1,
-    nearest_tahmo_station: 1,
-    devices: "$devices",
-    airqlouds: "$airqlouds",
-    weather_stations: 1,
+    ISP: 1,
+    phoneNumber: 1,
+    visibility: 1,
+    description: 1,
+    isPrimaryInLocation: 1,
+    nextMaintenance: 1,
+    deployment_date: 1,
+    name_id: 1,
+    recall_date: 1,
+    maintenance_date: 1,
+    device_number: 1,
+    powerType: 1,
+    mountType: 1,
+    isActive: 1,
+    writeKey: 1,
+    readKey: 1,
+    access_code: 1,
+    device_codes: 1,
+    height: 1,
+    mobility: 1,
+    status: 1,
+    network: 1,
+    category: 1,
+    previous_sites: 1,
+    site: { $arrayElemAt: ["$site", 0] },
   },
-
   DEVICES_EXCLUSION_PROJECTION: (category) => {
     const initialProjection = {
       "site.lat_long": 0,
@@ -917,41 +959,54 @@ const defaultConfig = {
     }
     return projection;
   },
-  DEVICES_INCLUSION_PROJECTION: {
+
+  KYA_TASKS_INCLUSION_PROJECTION: {
     _id: 1,
-    name: 1,
-    alias: 1,
-    long_name: 1,
-    latitude: 1,
-    longitude: 1,
-    approximate_distance_in_km: 1,
-    bearing_in_radians: 1,
-    createdAt: 1,
-    ISP: 1,
-    phoneNumber: 1,
-    visibility: 1,
-    description: 1,
-    isPrimaryInLocation: 1,
-    nextMaintenance: 1,
-    deployment_date: 1,
-    name_id: 1,
-    recall_date: 1,
-    maintenance_date: 1,
-    device_number: 1,
-    powerType: 1,
-    mountType: 1,
-    isActive: 1,
-    writeKey: 1,
-    readKey: 1,
-    access_code: 1,
-    device_codes: 1,
-    height: 1,
-    mobility: 1,
-    status: 1,
-    network: 1,
-    category: 1,
-    previous_sites: 1,
-    site: { $arrayElemAt: ["$site", 0] },
+    title: 1,
+    content: 1,
+    image: 1,
+    kya_lesson: {
+      $arrayElemAt: ["$kyalessons", 0],
+    },
+  },
+  KYA_TASKS_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = {};
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign({}, {});
+    }
+    return projection;
+  },
+  KYA_LESSONS_INCLUSION_PROJECTION: {
+    _id: 1,
+    title: 1,
+    completion_message: 1,
+    image: 1,
+    tasks: 1,
+  },
+  KYA_LESSONS_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = {};
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign({}, {});
+    }
+    return projection;
+  },
+
+  KYA_LESSONS_PROGRESS_INCLUSION_PROJECTION: {
+    user_id: 1,
+    lesson_id: 1,
+    progress: 1,
+    completed: 1,
+    _id: 1,
+  },
+  KYA_LESSONS_PROGRESS_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = {};
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign({}, {});
+    }
+    return projection;
   },
 };
 

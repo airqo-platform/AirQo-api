@@ -521,6 +521,43 @@ const defaultConfig = {
     return projection;
   },
 
+  FAVORITES_INCLUSION_PROJECTION: {
+    _id: 1,
+    name: 1,
+    location: 1,
+    latitude: 1,
+    longitude: 1,
+    reference_site: 1,
+    place_id: 1,
+    user: { $arrayElemAt: ["$users", 0] },
+  },
+
+  FAVORITES_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = {
+      "user.notifications": 0,
+      "user.emailConfirmed": 0,
+      "user.locationCount": 0,
+      "user.firstName": 0,
+      "user.lastName": 0,
+      "user.email": 0,
+      "user.organization": 0,
+      "user.long_organization": 0,
+      "user.privilege": 0,
+      "user.userName": 0,
+      "user.password": 0,
+      "user.duration": 0,
+      "user.__v": 0,
+      "user.role": 0,
+      "user.updatedAt": 0,
+    };
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign({}, {});
+    }
+
+    return projection;
+  },
+
   TOKENS_INCLUSION_PROJECTION: {
     _id: 1,
     user_id: 1,

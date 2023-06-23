@@ -18,6 +18,7 @@ from helpers.collocation_utils import (
     compute_differences,
     populate_missing_columns,
     map_data_to_api_format,
+    compute_hourly_intra_sensor_correlation,
 )
 from helpers.exceptions import CollocationBatchNotFound
 from models import (
@@ -36,7 +37,7 @@ from models import (
 )
 
 
-def doc_to_collocation_data(doc) -> CollocationBatch:
+def doc_to_collocation_batch(doc) -> CollocationBatch:
     return CollocationBatch(
         batch_id=str(doc["_id"]),
         batch_name=str(doc["batch_name"]),
@@ -134,11 +135,11 @@ def doc_to_collocation_data(doc) -> CollocationBatch:
     )
 
 
-def docs_to_collocation_data_list(docs: list) -> list[CollocationBatch]:
+def docs_to_collocation_batch_list(docs: list) -> list[CollocationBatch]:
     data: list[CollocationBatch] = []
     for doc in docs:
         try:
-            doc_data = doc_to_collocation_data(doc)
+            doc_data = doc_to_collocation_batch(doc)
             data.append(doc_data)
         except Exception as ex:
             print(ex)
@@ -407,7 +408,7 @@ class Collocation(BaseModel):
     ) -> list[CollocationBatch]:
         docs = self.collection.find({"status": {"$eq": status.value}})
 
-        return docs_to_collocation_data_list(docs)
+        return docs_to_collocation_batch_list(docs)
 
     def __query_by_devices_and_collocation_dates(
         self, devices: list[str], start_date: datetime, end_date: datetime
@@ -420,7 +421,7 @@ class Collocation(BaseModel):
             }
         )
 
-        return doc_to_collocation_data(doc)
+        return doc_to_collocation_batch(doc)
 
     def get_running_batches(self) -> list[CollocationBatch]:
         records = self.__query_by_status(CollocationBatchStatus.RUNNING)
@@ -532,11 +533,11 @@ class Collocation(BaseModel):
         result = self.collection.find_one(filter_set)
         if result is None:
             raise CollocationBatchNotFound(batch_id=batch_id)
-        return doc_to_collocation_data(result)
+        return doc_to_collocation_batch(result)
 
     def __query_all_batches(self) -> list[CollocationBatch]:
         docs = self.collection.find()
-        return docs_to_collocation_data_list(docs)
+        return docs_to_collocation_batch_list(docs)
 
     def summary(self) -> list[CollocationSummary]:
         batches: list[CollocationBatch] = self.__query_all_batches()
@@ -692,6 +693,29 @@ class Collocation(BaseModel):
         ]
 
         return map_data_to_api_format(data)
+
+    def get_hourly_intra_sensor_correlation(
+        self, batch_id: str, devices: list
+    ) -> list[dict]:
+        batch: CollocationBatch = self.__query_by_batch_id(batch_id=batch_id)
+        if len(devices) != 0:
+            batch_devices = list(set(batch.devices).intersection(set(devices)))
+        else:
+            batch_devices = batch.devices
+
+        raw_data, _ = Collocation.get_data(
+            devices=batch_devices,
+            start_date_time=batch.start_date,
+            end_date_time=batch.end_date,
+        )
+        data = compute_hourly_intra_sensor_correlation(
+            raw_data=raw_data,
+            devices=batch_devices,
+            threshold=batch.intra_correlation_threshold,
+            parameter=batch.intra_correlation_parameter,
+            r2_threshold=batch.intra_correlation_r2_threshold,
+        )
+        return data
 
 
 if __name__ == "__main__":

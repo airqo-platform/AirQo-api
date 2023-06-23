@@ -141,6 +141,7 @@ const join = {
       } else {
         filter = responseFromFilter;
       }
+      logObject("filter", filter);
       const responseFromListLogs = await LogModel(tenant).list({
         filter,
         limit,

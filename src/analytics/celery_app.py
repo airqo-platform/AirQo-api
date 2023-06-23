@@ -69,7 +69,7 @@ def data_export_task():
 
     for request in scheduled_requests:
         request.status = DataExportStatus.PROCESSING
-        success = data_export_model.update_request_status(request)
+        success = data_export_model.update_request_status_and_retries(request)
         if success:
             requests_for_processing.append(request)
 
@@ -85,6 +85,13 @@ def data_export_task():
                 pollutants=request.pollutants,
             )
 
+            has_data = data_export_model.has_data(query)
+
+            if not has_data:
+                request.status = DataExportStatus.NO_DATA
+                data_export_model.update_request_status_and_retries(request)
+                continue
+
             data_export_model.export_query_results_to_table(
                 query=query, export_request=request
             )
@@ -98,11 +105,13 @@ def data_export_task():
 
             if not success:
                 raise Exception("Update failed")
+
         except Exception as ex:
             print(ex)
             traceback.print_exc()
             request.status = DataExportStatus.FAILED
-            data_export_model.update_request_status(request)
+            request.retries = request.retries - 1
+            data_export_model.update_request_status_and_retries(request)
 
         celery_logger.info(
             f"Finished processing {len(requests_for_processing)} request(s)"

@@ -51,13 +51,6 @@ const deviceSchema = new mongoose.Schema(
     access_code: {
       type: String,
     },
-    name_id: {
-      type: String,
-      unique: true,
-      trim: true,
-      match: noSpaces,
-      lowercase: true,
-    },
     alias: {
       type: String,
       trim: true,
@@ -295,9 +288,38 @@ deviceSchema.statics = {
         modifiedArgs.name = `aq_g${modifiedArgs.generation_version}_${modifiedArgs.generation_count}`;
       }
 
+      if (!isEmpty(modifiedArgs.name) || !isEmpty(modifiedArgs.long_name)) {
+        try {
+          let alias = modifiedArgs.long_name
+            ? modifiedArgs.long_name
+            : modifiedArgs.name;
+          if (!isEmpty(alias)) {
+            modifiedArgs.alias = alias.trim().replace(/ /g, "_");
+          } else if (isEmpty(alias)) {
+            return {
+              success: false,
+              message: "Internal Server Error",
+              errors: {
+                message: "unable to generate the ALIAS for the device",
+              },
+              status: HTTPStatus.INTERNAL_SERVER_ERROR,
+            };
+          }
+        } catch (error) {
+          logger.error(
+            `internal server error -- sanitise ALIAS -- ${error.message}`
+          );
+          return {
+            success: false,
+            errors: { message: error.message },
+            message: "Internal Server Error",
+            status: HTTPStatus.INTERNAL_SERVER_ERROR,
+          };
+        }
+      }
+
       if (!isEmpty(modifiedArgs.name)) {
         try {
-          modifiedArgs.alias = modifiedArgs.name.trim().replace(/ /g, "_");
           let nameWithoutWhiteSpaces = modifiedArgs.name.replace(
             /[^a-zA-Z0-9]/g,
             "_"
@@ -306,7 +328,7 @@ deviceSchema.statics = {
           modifiedArgs.name = shortenedName.trim().toLowerCase();
         } catch (error) {
           logger.error(
-            `internal server error -- sanitiseName-- ${error.message}`
+            `internal server error -- sanitise NAME -- ${error.message}`
           );
           return {
             success: false,
@@ -325,6 +347,27 @@ deviceSchema.statics = {
           );
           let shortenedName = nameWithoutWhiteSpaces.slice(0, 41);
           modifiedArgs.name = shortenedName.trim().toLowerCase();
+        } catch (error) {
+          logger.error(
+            `internal server error -- sanitiseName-- ${error.message}`
+          );
+          return {
+            success: false,
+            errors: { message: error.message },
+            message: "Internal Server Error",
+            status: HTTPStatus.INTERNAL_SERVER_ERROR,
+          };
+        }
+      }
+
+      if (isEmpty(modifiedArgs.long_name && !isEmpty(modifiedArgs.name))) {
+        try {
+          let nameWithoutWhiteSpaces = modifiedArgs.name.replace(
+            /[^a-zA-Z0-9]/g,
+            "_"
+          );
+          let shortenedName = nameWithoutWhiteSpaces.slice(0, 41);
+          modifiedArgs.long_name = shortenedName.trim().toLowerCase();
         } catch (error) {
           logger.error(
             `internal server error -- sanitiseName-- ${error.message}`
@@ -359,15 +402,17 @@ deviceSchema.statics = {
         status: HTTPStatus.OK,
       };
     } catch (err) {
-      logObject("the error", err);
+      logObject("the error in the Device Model", err);
       let response = {};
       let message = "validation errors for some of the provided fields";
       let status = HTTPStatus.CONFLICT;
-      Object.entries(err.errors).forEach(([key, value]) => {
-        response.message = value.message;
-        response[key] = value.message;
-        return response;
-      });
+      if (err.errors) {
+        Object.entries(err.errors).forEach(([key, value]) => {
+          response.message = value.message;
+          response[key] = value.message;
+          return response;
+        });
+      }
 
       return {
         errors: response,

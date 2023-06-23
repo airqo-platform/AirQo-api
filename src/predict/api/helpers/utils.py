@@ -27,12 +27,36 @@ def heatmap_cache_key():
     return f'{airqloud}_{page}_{limit}'
 
 
-def weekly_forecasts_cache_key():
+def daily_forecasts_cache_key():
     # create new var of current date and time as a string
     current_date = datetime.now().strftime("%Y-%m-%d")
     args = request.args
+    site_name = args.get('site_name')
+    region = args.get('region')
+    sub_county = args.get('sub_county')
+    county = args.get('county')
+    district = args.get('district')
+    parish = args.get('parish')
+    city = args.get('city')
     site_id = args.get('site_id')
-    return f'{current_date}_{site_id}'
+
+    return f'daily_{current_date}_{site_name}_{region}_{sub_county}_{county}_{district}_{parish}_{city}_{site_id}'
+
+
+def hourly_forecasts_cache_key():
+    # create new var of current date and time as a string
+    current_date = datetime.now().strftime("%Y-%m-%d")
+    args = request.args
+    site_name = args.get('site_name')
+    region = args.get('region')
+    sub_county = args.get('sub_county')
+    county = args.get('county')
+    district = args.get('district')
+    parish = args.get('parish')
+    city = args.get('city')
+    site_id = args.get('site_id')
+
+    return f'hourly_{current_date}_{site_name}_{region}_{sub_county}_{county}_{district}_{parish}_{city}_{site_id}'
 
 
 def geo_coordinates_cache_key():
@@ -54,11 +78,13 @@ def convert_to_geojson(data):
     """
     features = []
     for record in data:
-        point = geojson.Point((record['values']['longitude'], record['values']['latitude']))
+        point = geojson.Point((record['values']['latitude'], record['values']['longitude']))
         feature = geojson.Feature(geometry=point, properties={
+            "latitude": record['values']['latitude'],
+            "longitude": record['values']['longitude'],
             "predicted_value": record['values']["predicted_value"],
             "variance": record['values']["variance"],
-            "interval": record['values']["interval"]
+            "interval": record['values']["interval"],
         })
         features.append(feature)
 
@@ -108,9 +134,11 @@ def get_gp_predictions(airqloud=None, page=1, limit=500):
     ]
     predictions = db.gp_predictions.aggregate(pipeline)
     predictions = list(predictions)
+    created_at = predictions[0]['created_at']
     total_count = predictions[0]['total']
     pages = math.ceil(total_count / limit)
-    return predictions, total_count, pages
+    airqloud_id = predictions[0]['airqloud_id']
+    return airqloud_id, created_at, predictions, total_count, pages
 
 
 @cache.memoize(timeout=Config.CACHE_TIMEOUT)
@@ -157,51 +185,23 @@ def get_predictions_by_geo_coordinates(
 
 
 @cache.memoize(timeout=Config.CACHE_TIMEOUT)
-def get_forecasts_helper(db_name):
-    """
-    Helper function to get forecasts for a given site_id and db_name
-    """
-    if request.method == "GET":
-        site_id = request.args.get("site_id")
-        if site_id is None or not isinstance(site_id, str):
-            return (
-                jsonify({"message": "Please specify a site_id", "success": False}),
-                400,
-            )
-        if len(site_id) != 24:
-            return (
-                jsonify({"message": "Please enter a valid site_id", "success": False}),
-                400,
-            )
-        result = get_forecasts(site_id, db_name)
-        if result:
-            response = result
-        else:
-            response = {
-                "message": "forecasts for this site are not available",
-                "success": False,
-            }
-        data = jsonify(response)
-        return data, 200
-    else:
-        return jsonify({"message": "Invalid request method", "success": False}), 400
-
-
-@cache.memoize(timeout=Config.CACHE_TIMEOUT)
-def get_forecasts(site_id, db_name):
-    """Retrieves forecasts from the database for the specified site_id."""
+def get_forecasts(db_name, site_id=None, site_name=None, parish=None, county=None, city=None, district=None,
+                  region=None):
     db = connect_mongo()
+    query = {}
+    params = {'site_id': site_id, 'site_name': site_name, 'parish': parish,
+              'county': county, 'city': city, 'district': district, 'region': region}
+    for name, value in params.items():
+        if value is not None:
+            query[name] = value
     site_forecasts = list(db[db_name].find(
-        {'site_id': site_id}, {'_id': 0}).sort([('$natural', -1)]).limit(1))
+        query, {'_id': 0}).sort([('$natural', -1)]).limit(1))
 
     results = []
-    if len(site_forecasts) > 0:
-        for i in range(0, len(site_forecasts[0]['pm2_5'])):
-            time = site_forecasts[0]['time'][i]
-            pm2_5 = site_forecasts[0]['pm2_5'][i]
-            health_tips = site_forecasts[0]['health_tips'][i]
-            result = {'time': time, 'pm2_5': pm2_5, 'health_tips': health_tips}
+    if site_forecasts:
+        for time, pm2_5, health_tips in zip(site_forecasts[0]['time'], site_forecasts[0]['pm2_5'],
+                                            site_forecasts[0]['health_tips']):
+            result = {key: value for key, value in zip(['time', 'pm2_5', 'health_tips'], [time, pm2_5, health_tips])}
             results.append(result)
-
     formatted_results = {'forecasts': results}
     return formatted_results
