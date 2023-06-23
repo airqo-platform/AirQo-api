@@ -13,18 +13,22 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- firebase-admin-config`
 );
 
+// FIREBASE_API_KEY: constants.FIREBASE_API_KEY,
+// FIREBASE_AUTH_DOMAIN: constants.FIREBASE_AUTH_DOMAIN,
+// FIREBASE_AUTHORIZATION_URL: constants.FIREBASE_AUTHORIZATION_URL,
+
 initializeApp({
   credential: admin.credential.cert({
-    type: "",
-    project_id: "",
-    private_key_id: "",
-    private_key: "",
-    client_email: "",
-    client_id: "",
-    auth_uri: "",
-    token_uri: "",
-    auth_provider_x509_cert_url: "",
-    universe_domain: "",
+    type: constants.FIREBASE_TYPE,
+    project_id: constants.FIREBASE_PROJECT_ID,
+    private_key_id: constants.FIREBASE_PRIVATE_KEY_ID,
+    private_key: constants.FIREBASE_PRIVATE_KEY,
+    client_email: constants.FIREBASE_CLIENT_EMAIL,
+    client_id: constants.FIREBASE_CLIENT_ID,
+    auth_uri: constants.FIREBASE_AUTH_URI,
+    token_uri: constants.FIREBASE_TOKEN_URI,
+    auth_provider_x509_cert_url: constants.FIREBASE_AUTH_PROVIDER_X509_CERT_URL,
+    universe_domain: constants.FIREBASE_UNIVERSE_DOMAIN,
   }),
   databaseURL: constants.FIREBASE_DATABASE_URL,
 });
