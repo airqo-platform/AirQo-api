@@ -193,7 +193,7 @@ async function sendDeleteConfirmationEmail(email, userId, creationTime) {
       address: process.env.MAIL_USER,
     },
     to: email,
-    subject: "Welcome to AirQo!",
+    subject: "Confirm Account Deletion - AirQo!",
     html: emailTemplate.deleteConfirmationEmail(email, userId, creationTime),
     attachments: [
       {
