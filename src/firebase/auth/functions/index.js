@@ -26,11 +26,57 @@ initializeApp();
 const firestoreDb = getFirestore();
 
 /**
- * @param {auth.UserRecord} _user The new user
+ * @param {auth.UserRecord} email The user's email
+ * @param {auth.UserRecord} firstName The user's name
  */
-async function sendGoodByeMessage(_user) {
-  // TODO send user a goodbye message and request for feedback as well
-  return null;
+async function sendGoodByeMessage(email, firstName) {
+  const mailOptions = {
+    from: {
+      name: "AirQo Data Team",
+      address: process.env.MAIL_USER,
+    },
+    to: email,
+    subject: "We're Sad to See You Go - Account Deletion Confirmation!",
+    html: emailTemplate.mobileAppGoodbye(email, firstName),
+    attachments: [
+      {
+        filename: "airqoLogo.png",
+        path: "./config/images/airqoLogo.png",
+        cid: "AirQoEmailLogo",
+        contentDisposition: "inline",
+      },
+      {
+        filename: "faceBookLogo.png",
+        path: "./config/images/facebookLogo.png",
+        cid: "FacebookLogo",
+        contentDisposition: "inline",
+      },
+      {
+        filename: "youtubeLogo.png",
+        path: "./config/images/youtubeLogo.png",
+        cid: "YoutubeLogo",
+        contentDisposition: "inline",
+      },
+      {
+        filename: "twitterLogo.png",
+        path: "./config/images/Twitter.png",
+        cid: "Twitter",
+        contentDisposition: "inline",
+      },
+      {
+        filename: "linkedInLogo.png",
+        path: "./config/images/linkedInLogo.png",
+        cid: "LinkedInLogo",
+        contentDisposition: "inline",
+      }],
+  };
+  try {
+    await transporter.sendMail(mailOptions);
+    functions.logger.log("New Goodbye email sent to:", email);
+    return null;
+  } catch (error) {
+    functions.logger.log("Transporter failed to send email", error);
+  }
 }
 
 /**
@@ -350,6 +396,20 @@ exports.sendWelcomeMessages = functions.https.onCall(async (data, _) => {
 });
 
 exports.deleteUserAccount = functions.auth.user().onDelete(async (user) => {
-  await sendGoodByeMessage(user);
-  return null;
+  if (user.email !== null) {
+    const email = user.email;
+    try {
+      const userRef = firestoreDb.collection(process.env.USERS_COLLECTION)
+          .doc(user.uid);
+      const userDoc = await userRef.get();
+
+      let firstName = userDoc.data().firstName;
+      if (firstName == null) {
+        firstName = "";
+      }
+      await sendGoodByeMessage(email, firstName);
+    } catch (error) {
+      functions.logger.log("Error fetching user data:", error);
+    }
+  }
 });
