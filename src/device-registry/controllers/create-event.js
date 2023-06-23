@@ -380,10 +380,7 @@ const createEvent = {
               }
 
               const { pm2_5 } = obj;
-              if (
-                pm2_5 &&
-                (pm2_5.value === null || pm2_5.calibratedValue === null)
-              ) {
+              if (pm2_5 && pm2_5.value === null) {
                 logger.error(
                   `A deployed Device is returning null values for pm2_5 -- the device_name is ${
                     obj.device ? obj.device : ""
