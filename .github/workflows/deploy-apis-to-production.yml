@@ -369,8 +369,8 @@ jobs:
 
       - name: Set up GCP credentials
         run : |
-        echo "${{ secrets.prod-env-kafka-bigquery-connectors }}" > google_application_credentials.json
-        echo "${{ secrets.prod-key-kafka-bigquery-connectors }}" > bigquery_credentials.json
+          echo "${{ secrets.prod-env-kafka-bigquery-connectors }}" > google_application_credentials.json
+          echo "${{ secrets.prod-key-kafka-bigquery-connectors }}" > bigquery_credentials.json
 
       - name: Set up Kubernetes configmaps
         run: |
