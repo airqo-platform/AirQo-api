@@ -426,6 +426,16 @@ jobs:
           cat k8s/kafka/connectors/measurements-connect.yaml | sed "s/{{MEASUREMENTS_CONNECT_IMAGE}}/$MEASUREMENTS_CONNECT_IMAGE/g" | sed "s/{{KAFKA_CLUSTER}}/$STAGE_KAFKA_CLUSTER/g" | kubectl apply -n message-broker -f-
           kubectl apply -f k8s/kafka/connectors/purple-air-connector.yaml -n message-broker
 
+      - name: Set up GCP credentials
+        run : |
+        echo "${{ secrets.sta-env-kafka-bigquery-connectors }}" > google_application_credentials.json
+        echo "${{ secrets.sta-key-kafka-bigquery-connectors }}" > bigquery_credentials.json
+
+      - name: Set up Kubernetes configmaps
+        run: |
+          kubectl create configmap --dry-run=client -o yaml --from-file=bigquery_credentials.json bigquery-connectors | kubectl replace -f - -n staging
+          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json bigquery-connectors-files | kubectl replace -f - -n staging
+
   #### Fault Detection ######
   fault-detection:
     name: build-push-deploy-fault-detection
