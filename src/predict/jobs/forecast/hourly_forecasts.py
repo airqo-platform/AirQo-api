@@ -146,7 +146,7 @@ def get_next_24hrs_forecasts():
     print(configuration.TEST_DATE_HOUR_END)
 
     clf = get_trained_model_from_gcs(configuration.GOOGLE_CLOUD_PROJECT_ID, configuration.AIRQO_PREDICT_BUCKET,
-                                     'model.pkl')
+                                     'hourly_forecast_ model.pkl')
     all_channels = get_trained_model_from_gcs(configuration.GOOGLE_CLOUD_PROJECT_ID, configuration.AIRQO_PREDICT_BUCKET,
                                               'all_channels.pkl')
 

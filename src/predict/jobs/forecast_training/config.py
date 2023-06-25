@@ -17,11 +17,7 @@ class Config:
     CSRF_ENABLED = True
     CREDENTIALS = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
     GOOGLE_CLOUD_PROJECT_ID = os.getenv('GOOGLE_CLOUD_PROJECT_ID')
-    TRAIN_DATE_HOUR_START = pd.to_datetime(os.getenv('TRAIN_START_DATE'))
-    TRAIN_DATE_HOUR_END = pd.to_datetime(
-        os.environ.get('TRAIN_END_DATE', datetime.strftime(datetime.now(), '%Y-%m-%d %H:00:00'))
-    )
-    TENANT = os.getenv('TENANT', 'airqo')
+    TENANTS = os.getenv('TENANTS')
     MONTHS_OF_DATA = os.getenv('MONTHS_OF_DATA', 2)
 
 
@@ -53,7 +49,6 @@ class TestingConfig(Config):
     MONTHS_OF_DATA = os.getenv('MONTHS_OF_DATA', 12)
 
 
-
 class DevelopmentConfig(Config):
     DEVELOPMENT = True
     DEBUG = True
@@ -65,7 +60,6 @@ class DevelopmentConfig(Config):
     GOOGLE_CLOUD_PROJECT_ID = os.getenv('GOOGLE_CLOUD_PROJECT_ID')
     CREDENTIALS = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
     MONTHS_OF_DATA = os.getenv('MONTHS_OF_DATA', 12)
-
 
 
 app_config = {
