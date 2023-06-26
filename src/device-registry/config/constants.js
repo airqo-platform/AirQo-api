@@ -758,6 +758,14 @@ const defaultConfig = {
       "devices.owner": 0,
       "devices.device_manufacturer": 0,
       "devices.channelID": 0,
+      "grids.network_id": 0,
+      "grids.geoHash": 0,
+      "grids.center_point": 0,
+      "grids.long_name": 0,
+      "grids.description": 0,
+      "grids.grid_tags": 0,
+      "grids.grid_codes": 0,
+      "grids.shape": 0,
     };
 
     let projection = Object.assign({}, initialProjection);
@@ -954,6 +962,10 @@ const defaultConfig = {
       "previous_sites.site_codes": 0,
       "previous_sites.site_tags": 0,
       "previous_sites.land_use": 0,
+      "cohorts.network_id": 0,
+      "cohorts.description": 0,
+      "cohorts.cohort_tags": 0,
+      "cohorts.cohort_codes": 0,
     };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {
@@ -1049,21 +1061,6 @@ const defaultConfig = {
     }
     return projection;
   },
-
-  /**
-   *   _id: 1,
-        name: 1,
-        long_name: 1,
-        admin_level: 1,
-        airqloud_codes: 1,
-        numberOfSites: {
-          $cond: {
-            if: { $isArray: "$sites" },
-            then: { $size: "$sites" },
-            else: "NA",
-          },
-        },
-   */
 
   AIRQLOUDS_INCLUSION_PROJECTION: {
     _id: 1,

@@ -6,6 +6,9 @@ const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const HTTPStatus = require("http-status");
 
+const log4js = require("log4js");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- site-model`);
+
 const siteSchema = new Schema(
   {
     name: {
@@ -14,7 +17,15 @@ const siteSchema = new Schema(
       unique: true,
       required: [true, "name is required!"],
     },
-    grid_id: { type: ObjectId, trim: true },
+    grids: {
+      type: [
+        {
+          type: ObjectId,
+          ref: "cohort",
+          unique: true,
+        },
+      ],
+    },
     share_links: {
       preview: { type: String, trim: true },
       short_link: { type: String, trim: true },
@@ -356,6 +367,7 @@ siteSchema.methods = {
   toJSON() {
     return {
       _id: this._id,
+      grids: this.grids,
       name: this.name,
       generated_name: this.generated_name,
       search_name: this.search_name,
@@ -453,6 +465,8 @@ siteSchema.statics = {
       }
     } catch (err) {
       logObject("the error", err);
+      const stingifiedMessage = JSON.stringify(err ? err : "");
+      logger.error(`Internal Server Error -- ${stingifiedMessage}`);
       let response = {};
       let message = "validation errors for some of the provided fields";
       let status = HTTPStatus.CONFLICT;
@@ -476,13 +490,16 @@ siteSchema.statics = {
     filter = {},
   } = {}) {
     try {
-      let category = "none";
+      const inclusionProjection = constants.SITES_INCLUSION_PROJECTION;
+      const exclusionProjection = constants.SITES_EXCLUSION_PROJECTION(
+        filter.category ? filter.category : "none"
+      );
+
       if (!isEmpty(filter.category)) {
-        category = filter.category;
         delete filter.category;
       }
 
-      const response = await this.aggregate()
+      const pipeline = await this.aggregate()
         .match(filter)
         .lookup({
           from: "devices",
@@ -491,19 +508,30 @@ siteSchema.statics = {
           as: "devices",
         })
         .lookup({
+          from: "grids",
+          localField: "grids",
+          foreignField: "_id",
+          as: "grids",
+        })
+        .lookup({
           from: "airqlouds",
           localField: "airqlouds",
           foreignField: "_id",
           as: "airqlouds",
         })
         .sort({ createdAt: -1 })
-        .project(constants.SITES_INCLUSION_PROJECTION)
-        .project(constants.SITES_EXCLUSION_PROJECTION(category))
+        .project(inclusionProjection)
         .skip(skip ? skip : 0)
         .limit(
           limit ? limit : parseInt(constants.DEFAULT_LIMIT_FOR_QUERYING_SITES)
         )
         .allowDiskUse(true);
+
+      if (Object.keys(exclusionProjection).length > 0) {
+        pipeline.project(exclusionProjection);
+      }
+
+      const response = await pipeline;
 
       if (!isEmpty(response)) {
         return {
@@ -521,6 +549,8 @@ siteSchema.statics = {
         };
       }
     } catch (error) {
+      const stingifiedMessage = JSON.stringify(error ? error : "");
+      logger.error(`Internal Server Error -- ${stingifiedMessage}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -608,6 +638,8 @@ siteSchema.statics = {
         };
       }
     } catch (error) {
+      const stingifiedMessage = JSON.stringify(error ? error : "");
+      logger.error(`Internal Server Error -- ${stingifiedMessage}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -645,6 +677,8 @@ siteSchema.statics = {
         };
       }
     } catch (error) {
+      const stingifiedMessage = JSON.stringify(error ? error : "");
+      logger.error(`Internal Server Error -- ${stingifiedMessage}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -654,7 +688,5 @@ siteSchema.statics = {
     }
   },
 };
-
-siteSchema.methods = {};
 
 module.exports = siteSchema;

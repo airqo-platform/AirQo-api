@@ -25,6 +25,15 @@ const accessCodeGenerator = require("generate-password");
 
 const deviceSchema = new mongoose.Schema(
   {
+    cohorts: {
+      type: [
+        {
+          type: ObjectId,
+          ref: "cohort",
+          unique: true,
+        },
+      ],
+    },
     latitude: {
       type: Number,
     },
@@ -268,6 +277,7 @@ deviceSchema.methods = {
       device_codes: this.device_codes,
       category: this.category,
       access_code: this.access_code,
+      cohorts: this.cohorts,
     };
   },
 };
@@ -423,7 +433,10 @@ deviceSchema.statics = {
       const exclusionProjection = constants.DEVICES_EXCLUSION_PROJECTION(
         filter.category ? filter.category : "none"
       );
-      const response = await this.aggregate()
+      if (!isEmpty(filter.category)) {
+        delete filter.category;
+      }
+      const pipeline = await this.aggregate()
         .match(filter)
         .lookup({
           from: "sites",
@@ -437,12 +450,23 @@ deviceSchema.statics = {
           foreignField: "_id",
           as: "previous_sites",
         })
+        .lookup({
+          from: "cohorts",
+          localField: "cohorts",
+          foreignField: "_id",
+          as: "cohorts",
+        })
         .sort({ createdAt: -1 })
         .project(inclusionProjection)
-        .project(exclusionProjection)
         .skip(_skip)
         .limit(_limit)
         .allowDiskUse(true);
+
+      if (Object.keys(exclusionProjection).length > 0) {
+        pipeline.project(exclusionProjection);
+      }
+
+      const response = await pipeline;
 
       // logger.info(`the data produced in the model -- ${response}`);
       if (!isEmpty(response)) {
