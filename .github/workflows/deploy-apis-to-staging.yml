@@ -406,6 +406,13 @@ jobs:
           context: src/kafka-connectors/measurements-source-connector
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-measurements-connect:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-measurements-connect:latest
 
+      - name: Build and push biq query connector
+        uses: docker/build-push-action@v3
+        with:
+          push: true
+          context: src/kafka-connectors/bigquery-connector
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-bigquery-connector:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-bigquery-connector:latest
+
       - name: Login to k8s cluster
         uses: azure/k8s-set-context@v2
         with:
