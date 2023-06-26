@@ -43,6 +43,9 @@ spec:
     - name: platform-ui
       service: airqo-stage-platform-frontend-svc
       port: 80
+    - name: apache-spark
+      service: apache-spark-master-svc
+      port: 7077
     - name: auth-service
       service: airqo-stage-auth-api-svc
       port: 3000
@@ -93,6 +96,8 @@ spec:
       route: pipeline/airflow
     - path: /grafana
       route: monitoring/grafana
+    - path: /spark
+      route: apache-spark
     - path: ~ /api\/v[1-2]\/users
       action:
         proxy:
