@@ -15,7 +15,7 @@ jobs:
       lowercase: ${{ steps.string.outputs.lowercase }} # lowercase version
     steps:
       - id: string
-        uses: ASzc/change-string-case-action@v2
+        uses: ASzc/change-string-case-action@v3
         with:
           string: ${{ github.head_ref || github.ref_name }}
 
