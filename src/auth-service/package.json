@@ -4,7 +4,7 @@
     "private": true,
     "main": "./bin/www",
     "scripts": {
-        "start": "./bin/www",
+        "start": "NODE_ENV=production node ./bin/www",
         "stage": "NODE_ENV=staging node ./bin/www",
         "dev-mac": "NODE_ENV=development nodemon --trace-warnings ./bin/www",
         "stage-mac": "NODE_ENV=staging nodemon ./bin/www",

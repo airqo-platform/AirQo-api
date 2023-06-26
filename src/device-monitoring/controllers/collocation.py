@@ -30,7 +30,9 @@ collocation_bp = Blueprint(
 @collocation_bp.before_request
 def check_batch_id():
     if request.method == "GET" or request.method == "DELETE":
-        if re.match("/api/v2/monitor/collocation/summary", request.path):
+        if re.match("/api/v2/monitor/collocation/summary", request.path) or re.match(
+            "/api/v2/monitor/collocation/log-data", request.path
+        ):
             return None
         batch_id = request.args.get("batchId")
         if not batch_id:
@@ -43,6 +45,16 @@ def check_batch_id():
 @collocation_bp.errorhandler(CollocationBatchNotFound)
 def batch_not_found_exception(error):
     return jsonify({"message": error.message}), 404
+
+
+@collocation_bp.route("log-data", methods=["GET"])
+def log_collocation_data():
+    collocation = Collocation()
+    collocation.log_collection()
+    return (
+        jsonify({}),
+        200,
+    )
 
 
 @collocation_bp.route("", methods=["POST"])
@@ -158,6 +170,7 @@ def save_collocation_batch():
         status=CollocationBatchStatus.SCHEDULED,
         results=CollocationBatchResult.empty_results(),
         summary=[],
+        errors=[],
     )
 
     batch.update_status()
@@ -261,7 +274,10 @@ def collocation_intra():
 
     devices = [] if devices.strip() == "" else str(devices).split(",")
     collocation = Collocation()
-    intra_sensor_correlation = collocation.get_intra_sensor_correlation(
+    # intra_sensor_correlation = collocation.get_intra_sensor_correlation(
+    #     batch_id=batch_id, devices=devices
+    # )
+    intra_sensor_correlation = collocation.get_hourly_intra_sensor_correlation(
         batch_id=batch_id, devices=devices
     )
     return jsonify({"data": intra_sensor_correlation}), 200

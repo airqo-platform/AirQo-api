@@ -54,9 +54,22 @@ def airnow_bam_historical_data():
         )
         big_query_api.load_data(dataframe=processed_data, table=table)
 
+    @task()
+    def send_to_api(data: pd.DataFrame, **kwargs):
+        send_to_api_param = kwargs.get("params", {}).get("send_to_api")
+        if send_to_api_param:
+            from airqo_etl_utils.data_validator import DataValidationUtils
+            from airqo_etl_utils.airqo_api import AirQoApi
+            data = DataValidationUtils.process_data_for_api(data)
+            airqo_api = AirQoApi()
+            airqo_api.save_events(measurements=data)
+        else:
+            print("The send to API parameter has been set to false")
+
     extracted_bam_data = extract_bam_data()
     processed_bam_data = process_data(extracted_bam_data)
     send_to_bigquery(processed_bam_data)
+    send_to_api(processed_bam_data)
 
 
 @dag(

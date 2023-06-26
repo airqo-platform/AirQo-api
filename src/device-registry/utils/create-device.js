@@ -1,6 +1,6 @@
 "use strict";
 const DeviceSchema = require("@models/Device");
-const { getModelByTenant } = require("./multitenancy");
+const { getModelByTenant } = require("@config/database");
 const axios = require("axios");
 const { logObject, logElement, logText } = require("./log");
 const { transform } = require("node-json-transform");
@@ -15,8 +15,21 @@ const logger = log4js.getLogger(
 );
 const qs = require("qs");
 const QRCode = require("qrcode");
+const mongoose = require("mongoose").set("debug", true);
+const ObjectId = mongoose.Types.ObjectId;
+
 let devicesModel = (tenant) => {
   return getModelByTenant(tenant, "device", DeviceSchema);
+};
+
+const DeviceModel = (tenant) => {
+  try {
+    let devices = mongoose.model("devices");
+    return devices;
+  } catch (error) {
+    let devices = getModelByTenant(tenant, "device", DeviceSchema);
+    return devices;
+  }
 };
 
 const { Kafka } = require("kafkajs");
@@ -116,7 +129,9 @@ const createDevice = {
           delete deviceBody[0].site;
         }
 
-        const stringifiedJSON = JSON.stringify(deviceBody[0]);
+        const stringifiedJSON = deviceBody[0]
+          ? JSON.stringify(deviceBody[0])
+          : "";
         return QRCode.toDataURL(stringifiedJSON, (err, url) => {
           if (err) {
             logger.error(`Internal Server Error -- ${err}`);
@@ -194,7 +209,10 @@ const createDevice = {
         let responseFromCreateDeviceOnPlatform = await createDevice.createOnPlatform(
           modifiedRequest
         );
-
+        logObject(
+          "responseFromCreateDeviceOnPlatform",
+          responseFromCreateDeviceOnPlatform
+        );
         if (responseFromCreateDeviceOnPlatform.success === true) {
           return responseFromCreateDeviceOnPlatform;
         } else if (responseFromCreateDeviceOnPlatform.success === false) {
@@ -212,14 +230,12 @@ const createDevice = {
           // );
 
           if (responseFromDeleteDeviceFromThingspeak.success === true) {
-            let errors = responseFromCreateDeviceOnPlatform.errors
-              ? responseFromCreateDeviceOnPlatform.errors
-              : { message: "" };
+            let errorsString = responseFromCreateDeviceOnPlatform.errors
+              ? JSON.stringify(responseFromCreateDeviceOnPlatform.errors)
+              : "";
             try {
               logger.error(
-                `creation operation failed -- successfully undid the successfull operations -- ${JSON.stringify(
-                  errors
-                )}`
+                `creation operation failed -- successfully undid the successfull operations -- ${errorsString}`
               );
             } catch (error) {
               logger.error(`internal server error ${error.message}`);
@@ -228,23 +244,23 @@ const createDevice = {
               success: false,
               message:
                 "creation operation failed -- successfully undid the successfull operations",
-              errors,
+              errors: responseFromCreateDeviceOnPlatform.errors
+                ? responseFromCreateDeviceOnPlatform.errors
+                : { message: "Internal Server Error" },
               status: responseFromCreateDeviceOnPlatform.status
                 ? responseFromCreateDeviceOnPlatform.status
-                : "",
+                : httpStatus.INTERNAL_SERVER_ERROR,
             };
           } else if (responseFromDeleteDeviceFromThingspeak.success === false) {
-            let errors = responseFromDeleteDeviceFromThingspeak.errors
-              ? responseFromDeleteDeviceFromThingspeak.errors
-              : { message: "" };
-            let status = responseFromDeleteDeviceFromThingspeak.status
+            const status = responseFromDeleteDeviceFromThingspeak.status
               ? responseFromDeleteDeviceFromThingspeak.status
-              : "";
+              : httpStatus.INTERNAL_SERVER_ERROR;
             try {
+              let errorsString = responseFromDeleteDeviceFromThingspeak.errors
+                ? JSON.stringify(responseFromDeleteDeviceFromThingspeak.errors)
+                : "";
               logger.error(
-                `creation operation failed -- also failed to undo the successfull operations --${JSON.stringify(
-                  errors
-                )}`
+                `creation operation failed -- also failed to undo the successfull operations --${errorsString}`
               );
             } catch (error) {
               logger.error(`internal server error ${error.message}`);
@@ -253,20 +269,20 @@ const createDevice = {
               success: false,
               message:
                 "creation operation failed -- also failed to undo the successfull operations",
-              errors,
+              errors: responseFromDeleteDeviceFromThingspeak.errors
+                ? responseFromDeleteDeviceFromThingspeak.errors
+                : { message: "Internal Server Error" },
               status,
             };
           }
         }
       } else if (isEmpty(enrichmentDataForDeviceCreation)) {
-        let errors = responseFromCreateOnThingspeak.errors
-          ? responseFromCreateOnThingspeak.errors
-          : { message: "" };
         try {
+          let errorsString = responseFromCreateOnThingspeak.errors
+            ? JSON.stringify(responseFromCreateOnThingspeak.errors)
+            : "";
           logger.error(
-            `unable to generate enrichment data for the device -- ${JSON.stringify(
-              errors
-            )}`
+            `unable to generate enrichment data for the device -- ${errorsString}`
           );
         } catch (error) {
           logger.error(`internal server error -- ${error.message}`);
@@ -275,17 +291,20 @@ const createDevice = {
         return {
           success: false,
           message: "unable to generate enrichment data for the device",
-          errors,
+          errors: responseFromCreateOnThingspeak.errors
+            ? responseFromCreateOnThingspeak.errors
+            : { message: "Internal Server Error" },
           status: responseFromCreateOnThingspeak.status
             ? responseFromCreateOnThingspeak.status
             : "",
         };
       }
     } catch (error) {
+      logObject("error", error);
       logger.error(`create -- ${error.message}`);
       return {
         success: false,
-        message: "server error",
+        message: "internal server error",
         errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
@@ -294,6 +313,17 @@ const createDevice = {
   update: async (request) => {
     try {
       // logger.info(`in the update util....`);
+      if (process.env.NODE_ENV !== "production") {
+        return {
+          success: false,
+          message: "Bad Request",
+          errors: {
+            message:
+              "please utilise SOFT update when operating in testing environments",
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
       let { device_number } = request.query;
       let modifiedRequest = Object.assign({}, request);
       if (isEmpty(device_number)) {
@@ -361,10 +391,11 @@ const createDevice = {
 
       if (responseFromFilter.success === false) {
         try {
+          let errorsString = responseFromFilter.errors
+            ? JSON.stringify(responseFromFilter.errors)
+            : "";
           logger.error(
-            `responseFromFilter.error in create-device util--${JSON.stringify(
-              responseFromFilter.errors
-            )}`
+            `responseFromFilter.error in create-device util--${errorsString}`
           );
         } catch (error) {
           logger.error(`internal server error -- ${error.message}`);
@@ -483,9 +514,8 @@ const createDevice = {
           ? responseFromFilter.errors
           : { message: "" };
         try {
-          logger.error(
-            `the error from filter in list -- ${JSON.stringify(errors)}`
-          );
+          let errorsString = errors ? JSON.stringify(errors) : "";
+          logger.error(`the error from filter in list -- ${errorsString}`);
         } catch (error) {
           logger.error(`internal server error -- ${error.message}`);
         }
@@ -516,10 +546,9 @@ const createDevice = {
           ? responseFromListDevice.errors
           : { message: "" };
         try {
+          let errorsString = errors ? JSON.stringify(errors) : "";
           logger.error(
-            `responseFromListDevice was not a success -- ${
-              responseFromListDevice.message
-            } -- ${JSON.stringify(errors)}`
+            `responseFromListDevice was not a success -- ${responseFromListDevice.message} -- ${errorsString}`
           );
         } catch (error) {
           logger.error(`internal server error -- ${error.message}`);
@@ -565,11 +594,9 @@ const createDevice = {
       const { tenant } = request.query;
       const { body } = request;
 
-      const responseFromRegisterDevice = await getModelByTenant(
-        tenant,
-        "device",
-        DeviceSchema
-      ).register(body);
+      const responseFromRegisterDevice = await DeviceModel(tenant).register(
+        body
+      );
       // logger.info(
       //   `the responseFromRegisterDevice --${responseFromRegisterDevice} `
       // );
@@ -580,12 +607,15 @@ const createDevice = {
             groupId: constants.UNIQUE_PRODUCER_GROUP,
           });
           await kafkaProducer.connect();
+          let deviceDataString = responseFromRegisterDevice.data
+            ? JSON.stringify(responseFromRegisterDevice.data)
+            : "";
           await kafkaProducer.send({
             topic: constants.DEVICES_TOPIC,
             messages: [
               {
                 action: "create",
-                value: JSON.stringify(responseFromRegisterDevice.data),
+                value: deviceDataString,
               },
             ],
           });
@@ -595,12 +625,11 @@ const createDevice = {
         }
 
         return responseFromRegisterDevice;
-      }
-
-      if (responseFromRegisterDevice.success === false) {
+      } else if (responseFromRegisterDevice.success === false) {
         return responseFromRegisterDevice;
       }
     } catch (error) {
+      logObject("errors in the create on platform", error);
       logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
@@ -782,10 +811,11 @@ const createDevice = {
           ? responseFromFilter.errors
           : { message: "" };
         try {
+          let filterString = responseFromFilter.errors
+            ? JSON.stringify(responseFromFilter.errors)
+            : "";
           logger.error(
-            `responseFromFilter.error in create-device util--${JSON.stringify(
-              responseFromFilter.errors
-            )}`
+            `responseFromFilter.error in create-device util--${filterString}`
           );
         } catch (error) {
           logger.error(`internal server error -- ${error.message}`);
@@ -886,10 +916,11 @@ const createDevice = {
           ? responseFromFilter.errors
           : { message: "" };
         try {
+          let filterString = responseFromFilter.errors
+            ? JSON.stringify(responseFromFilter.errors)
+            : "";
           logger.error(
-            `responseFromFilter.error in create-device util--${JSON.stringify(
-              responseFromFilter.errors
-            )}`
+            `responseFromFilter.error in create-device util--${filterString}`
           );
         } catch (error) {
           logger.error(`internal server error -- ${error.message}`);

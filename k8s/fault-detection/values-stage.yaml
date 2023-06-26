@@ -7,17 +7,15 @@ initContainers:
   container1:
     image:
       repository: eu.gcr.io/airqo-250220/stage-train-catboost-model
-      pullPolicy: Always
-      tag: stage-4db24bee-1680247320
+      tag: stage-3b77b6fc-1686749518
   container2:
     image:
       repository: eu.gcr.io/airqo-250220/stage-train-lstm-model
-      pullPolicy: Always
-      tag: stage-4db24bee-1680247320
+      tag: stage-3b77b6fc-1686749518
 replicaCount: 2
 image:
   repository: eu.gcr.io/airqo-250220/stage-fault-detection-api
-  tag: stage-4db24bee-1680247320
+  tag: stage-3b77b6fc-1686749518
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}

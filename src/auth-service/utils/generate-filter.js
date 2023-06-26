@@ -73,8 +73,9 @@ const filter = {
       logger.error(`internal server error, ${JSON.stringify(e)}`);
       return {
         success: false,
-        message: "filter util server error",
+        message: "Internal Server Error",
         error: e.message,
+        errors: { message: e.message },
       };
     }
   },
@@ -134,8 +135,9 @@ const filter = {
       logger.error(`internal server error, ${JSON.stringify(err)}`);
       return {
         success: false,
-        message: "filter util server error",
+        message: "Internal Server Error",
         errors: { message: err.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -160,13 +162,16 @@ const filter = {
         success: true,
         message: "successfully created the filter",
         data: filter,
+        status: httpStatus.OK,
       };
     } catch (e) {
-      logger.error(`internal server error, ${JSON.stringify(e)}`);
+      logger.error(`Internal Server Error, ${JSON.stringify(e)}`);
       return {
         success: false,
-        message: "filter util server error",
+        message: "Internal Server Error",
         error: e.message,
+        errors: { message: e.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -193,13 +198,16 @@ const filter = {
         success: true,
         message: "successfully created the filter",
         data: filter,
+        status: httpStatus.OK,
       };
     } catch (e) {
       logger.error(`internal server error, ${JSON.stringify(e)}`);
       return {
         success: false,
-        message: "filter util server error",
+        message: "Internal Server Error",
         error: e.message,
+        errors: { message: e.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -222,13 +230,16 @@ const filter = {
         success: true,
         message: "successfully created the filter",
         data: filter,
+        status: httpStatus.OK,
       };
     } catch (e) {
       logger.error(`internal server error, ${JSON.stringify(e)}`);
       return {
         success: false,
-        message: "filter util server error",
+        message: "Internal Server Error",
         error: e.message,
+        errors: { message: e.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -305,13 +316,16 @@ const filter = {
         success: true,
         message: "successfully created the filter",
         data: filter,
+        status: httpStatus.OK,
       };
     } catch (e) {
       logger.error(`internal server error, ${JSON.stringify(e)}`);
       return {
         success: false,
-        message: "filter util server error",
+        message: "Internal Server Error",
         error: e.message,
+        errors: { message: e.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -354,6 +368,7 @@ const filter = {
         success: false,
         message: "Internal Server Error",
         errors: { message: e.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -392,6 +407,7 @@ const filter = {
         success: false,
         message: "Internal Server Error",
         errors: { message: e.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -626,12 +642,14 @@ const filter = {
       };
 
       if (service) {
+        logText("service present ");
         filter["meta.service"] = service;
       }
 
       if (startTime && isEmpty(endTime)) {
+        logText("startTime present and endTime is missing");
         if (isTimeEmpty(startTime) === false) {
-          filter["timestamp"]["$lte"] = addMonthsToProvideDateTime(
+          filter["timestamp"]["$gte"] = addMonthsToProvideDateTime(
             startTime,
             1
           );
@@ -641,19 +659,21 @@ const filter = {
       }
 
       if (endTime && isEmpty(startTime)) {
+        logText("startTime absent and endTime is present");
         if (isTimeEmpty(endTime) === false) {
-          filter["timestamp"]["$gte"] = addMonthsToProvideDateTime(endTime, -1);
+          filter["timestamp"]["$lte"] = addMonthsToProvideDateTime(endTime, -1);
         } else {
           delete filter["timestamp"];
         }
       }
 
       if (endTime && startTime) {
+        logText("startTime present and endTime is also present");
         let months = getDifferenceInMonths(startTime, endTime);
         logElement("the number of months", months);
         if (months > 1) {
           if (isTimeEmpty(endTime) === false) {
-            filter["timestamp"]["$gte"] = addMonthsToProvideDateTime(
+            filter["timestamp"]["$lte"] = addMonthsToProvideDateTime(
               endTime,
               -1
             );
@@ -664,16 +684,46 @@ const filter = {
       }
 
       if (email) {
+        logText("email present ");
         filter["meta.email"] = email;
       }
 
       return filter;
     } catch (error) {
+      logObject("error", error);
       logger.error(`Internal Server Error`, error.message);
       return {
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  favorites: (req) => {
+    try {
+      const { query, params } = req;
+      const { id } = query;
+      const { user_id, favorite_id } = params;
+      let filter = {};
+      if (user_id) {
+        filter["user_id"] = ObjectId(user_id);
+      }
+      if (id) {
+        filter["_id"] = ObjectId(id);
+      }
+      if (favorite_id) {
+        filter["_id"] = ObjectId(favorite_id);
+      }
+
+      return filter;
+    } catch (e) {
+      logger.error(`internal server error, ${JSON.stringify(e)}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: e.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }

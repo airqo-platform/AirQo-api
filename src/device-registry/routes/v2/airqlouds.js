@@ -258,6 +258,118 @@ router.get(
 );
 
 router.get(
+  "/summary",
+  oneOf([
+    query("tenant")
+      .exists()
+      .withMessage("tenant should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(constants.NETWORKS)
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    [
+      query("id")
+        .optional()
+        .notEmpty()
+        .trim()
+        .isMongoId()
+        .withMessage("id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      query("name")
+        .optional()
+        .notEmpty()
+        .withMessage("name cannot be empty")
+        .trim(),
+      query("admin_level")
+        .optional()
+        .notEmpty()
+        .withMessage(
+          "admin_level is empty, should not be if provided in request"
+        )
+        .bail()
+        .toLowerCase()
+        .isIn([
+          "village",
+          "district",
+          "parish",
+          "division",
+          "county",
+          "subcounty",
+          "country",
+          "state",
+          "province",
+        ])
+        .withMessage(
+          "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district"
+        ),
+    ],
+  ]),
+  airqloudController.listSummary
+);
+
+router.get(
+  "/dashboard",
+  oneOf([
+    query("tenant")
+      .exists()
+      .withMessage("tenant should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(constants.NETWORKS)
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    [
+      query("id")
+        .optional()
+        .notEmpty()
+        .trim()
+        .isMongoId()
+        .withMessage("id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      query("name")
+        .optional()
+        .notEmpty()
+        .withMessage("name cannot be empty")
+        .trim(),
+      query("admin_level")
+        .optional()
+        .notEmpty()
+        .withMessage(
+          "admin_level is empty, should not be if provided in request"
+        )
+        .bail()
+        .toLowerCase()
+        .isIn([
+          "village",
+          "district",
+          "parish",
+          "division",
+          "county",
+          "subcounty",
+          "country",
+          "state",
+          "province",
+        ])
+        .withMessage(
+          "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district"
+        ),
+    ],
+  ]),
+  airqloudController.listDashboard
+);
+
+router.get(
   "/sites",
   oneOf([
     query("tenant")

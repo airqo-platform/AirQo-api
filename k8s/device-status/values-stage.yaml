@@ -4,7 +4,7 @@ app:
   configmap: env-device-status-staging
 image:
   repository: eu.gcr.io/airqo-250220/airqo-stage-device-status-job
-  tag: stage-4db24bee-1680247320
+  tag: stage-3b77b6fc-1686749518
 nameOverride: ''
 fullnameOverride: ''
 resources:

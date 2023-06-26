@@ -1082,6 +1082,11 @@ const createNetwork = {
                 },
               },
               userName: 1,
+              jobTitle: 1,
+              website: 1,
+              category: 1,
+              country: 1,
+              description: 1,
             },
           },
         ])

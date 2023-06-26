@@ -181,6 +181,104 @@ async function checkIfUserExists(data) {
   }
 }
 
+/**
+ * @param {any} email The user's email
+ * @param {any} userId The user's userId
+ * @param {any} creationTime The user's creation time
+ */
+async function sendDeleteConfirmationEmail(email, userId, creationTime) {
+  const mailOptions = {
+    from: {
+      name: "AirQo Data Team",
+      address: process.env.MAIL_USER,
+    },
+    to: email,
+    subject: "Welcome to AirQo!",
+    html: emailTemplate.deleteConfirmationEmail(email, userId, creationTime),
+    attachments: [
+      {
+        filename: "airqoLogo.png",
+        path: "./config/images/airqoLogo.png",
+        cid: "AirQoEmailLogo",
+        contentDisposition: "inline",
+      },
+      {
+        filename: "faceBookLogo.png",
+        path: "./config/images/facebookLogo.png",
+        cid: "FacebookLogo",
+        contentDisposition: "inline",
+      },
+      {
+        filename: "youtubeLogo.png",
+        path: "./config/images/youtubeLogo.png",
+        cid: "YoutubeLogo",
+        contentDisposition: "inline",
+      },
+      {
+        filename: "twitterLogo.png",
+        path: "./config/images/Twitter.png",
+        cid: "Twitter",
+        contentDisposition: "inline",
+      },
+      {
+        filename: "linkedInLogo.png",
+        path: "./config/images/linkedInLogo.png",
+        cid: "LinkedInLogo",
+        contentDisposition: "inline",
+      }],
+  };
+  try {
+    await transporter.sendMail(mailOptions);
+    functions.logger.log("Delete Confirmation email sent to:", email);
+    return null;
+  } catch (error) {
+    functions.logger.log("Transporter failed to send email", error);
+  }
+}
+
+exports.confirmAccountDeletionMobile =
+  functions.https.onRequest(async (request, response) => {
+    const {email} = request.body;
+    if (!email) {
+      response.status(400).json({
+        success: false,
+        message: "Email is required",
+      });
+    }
+    let user;
+    try {
+      try {
+        user = await getAuth().getUserByEmail(email);
+      } catch (error) {
+        response.status(500).json({
+          success: false,
+          message: "User does not exist.",
+          errors: {message: error.message},
+        });
+      }
+
+      const userId = user.uid;
+      let creationTime = user.metadata.creationTime;
+      creationTime=creationTime.replace(/\D/g, "");
+
+      sendDeleteConfirmationEmail(email, userId, creationTime);
+      response.status(200).json({
+        success: true,
+        message: "Account deletion email sent",
+      });
+    } catch (error) {
+      functions.logger.log(
+          "Error sending Account deletion confirmation Email:",
+          error,
+      );
+      response.status(500).json({
+        success: false,
+        message: "Error sending Account deletion confirmation Email",
+        errors: error,
+      });
+    }
+  });
+
 exports.sendWelcomeEmail = functions.auth.user().onCreate((user) => {
   if (user.email !== null) {
     const email = user.email;

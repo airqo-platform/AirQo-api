@@ -175,7 +175,8 @@ class BaseResult:
     results: list[dict]
     passed_devices: list[str]
     failed_devices: list[str]
-    neutral_devices: list[str]
+    error_devices: list[str]
+    errors: list[str]
 
 
 @dataclass
@@ -183,7 +184,8 @@ class DataCompletenessResult:
     results: list[DataCompleteness]
     passed_devices: list[str]
     failed_devices: list[str]
-    neutral_devices: list[str]
+    error_devices: list[str]
+    errors: list[str]
 
 
 @dataclass
@@ -191,7 +193,8 @@ class IntraSensorCorrelationResult:
     results: list[IntraSensorCorrelation]
     passed_devices: list[str]
     failed_devices: list[str]
-    neutral_devices: list[str]
+    error_devices: list[str]
+    errors: list[str]
 
 
 @dataclass
@@ -213,6 +216,7 @@ class CollocationBatchResult:
     intra_sensor_correlation: IntraSensorCorrelationResult
     inter_sensor_correlation: BaseResult
     data_source: str
+    errors: list[str]
 
     def to_dict(self):
         return asdict(self)
@@ -221,19 +225,36 @@ class CollocationBatchResult:
     def empty_results():
         return CollocationBatchResult(
             data_completeness=DataCompletenessResult(
-                failed_devices=[], passed_devices=[], neutral_devices=[], results=[]
+                failed_devices=[],
+                passed_devices=[],
+                errors=[],
+                results=[],
+                error_devices=[],
             ),
             statistics=[],
             differences=BaseResult(
-                failed_devices=[], passed_devices=[], neutral_devices=[], results=[]
+                failed_devices=[],
+                passed_devices=[],
+                errors=[],
+                results=[],
+                error_devices=[],
             ),
             intra_sensor_correlation=IntraSensorCorrelationResult(
-                failed_devices=[], passed_devices=[], neutral_devices=[], results=[]
+                failed_devices=[],
+                passed_devices=[],
+                errors=[],
+                results=[],
+                error_devices=[],
             ),
             inter_sensor_correlation=BaseResult(
-                failed_devices=[], passed_devices=[], neutral_devices=[], results=[]
+                failed_devices=[],
+                passed_devices=[],
+                errors=[],
+                results=[],
+                error_devices=[],
             ),
             data_source="",
+            errors=[],
         )
 
 
@@ -268,6 +289,7 @@ class CollocationBatch:
     status: CollocationBatchStatus
     results: CollocationBatchResult
     summary: list[CollocationBatchResultSummary]
+    errors: list[str]
 
     def to_dict(self, retain_batch_id=False):
         data = asdict(self)
@@ -305,6 +327,20 @@ class CollocationBatch:
 
 
 @dataclass
+class IntraSensorData:
+    device_name: str
+    pm2_5_pearson: float
+    pm10_pearson: float
+    pm2_5_r2: float
+    pm10_r2: float
+    passed: bool
+    timestamp: datetime
+
+    def to_dict(self):
+        return asdict(self)
+
+
+@dataclass
 class CollocationSummary:
     batch_id: str
     batch_name: str
@@ -314,6 +350,7 @@ class CollocationSummary:
     end_date: datetime
     status: str
     date_added: datetime
+    errors: list[str]
 
     def to_dict(self):
         return asdict(self)

@@ -7,15 +7,54 @@ const dotenv = require("dotenv");
 dotenv.config();
 const cookieParser = require("cookie-parser");
 const bodyParser = require("body-parser");
+const session = require("express-session");
+const MongoStore = require("connect-mongo")(session);
+const mongoose = require("mongoose");
 const routes = require("@routes/index");
 const constants = require("@config/constants");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- app entry`);
 const { mongodb } = require("@config/dbConnection");
 mongodb;
-
 const { logText, logObject } = require("@utils/log");
 
+const morgan = require("morgan");
+const compression = require("compression");
+const helmet = require("helmet");
+const passport = require("passport");
+
+const isDev = process.env.NODE_ENV === "development";
+const isProd = process.env.NODE_ENV === "production";
+
 const app = express();
+
+const options = { mongooseConnection: mongoose.connection };
+
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET,
+    store: new MongoStore(options),
+    resave: false,
+    saveUninitialized: false,
+  })
+);
+
+if (isProd) {
+  app.use(compression());
+  app.use(helmet());
+}
+
+if (isDev) {
+  app.use(morgan("dev"));
+}
+
+app.use(passport.initialize());
+app.use(passport.session());
+app.use(bodyParser.json());
+app.use(
+  bodyParser.urlencoded({
+    extended: true,
+  })
+);
 
 app.use(log4js.connectLogger(log4js.getLogger("http"), { level: "auto" }));
 app.use(bodyParser.json({ limit: "50mb" }));
@@ -35,6 +74,7 @@ app.use(express.static(path.join(__dirname, "public")));
 /****** the V1 endpoints ****************/
 app.use("/api/v1/users/networks", routes.v1.networks);
 app.use("/api/v1/users/permissions", routes.v1.permissions);
+app.use("/api/v1/users/favorites", routes.v1.favorites);
 app.use("/api/v1/users/roles", routes.v1.roles);
 app.use("/api/v1/users/inquiries", routes.v1.inquiries);
 app.use("/api/v1/users/candidates", routes.v1.requests);
@@ -49,6 +89,7 @@ app.use("/api/v1/users", routes.v1.users);
 /****** the V2 endpoints ****************/
 app.use("/api/v2/users/networks", routes.v2.networks);
 app.use("/api/v2/users/permissions", routes.v2.permissions);
+app.use("/api/v2/users/favorites", routes.v2.favorites);
 app.use("/api/v2/users/roles", routes.v2.roles);
 app.use("/api/v2/users/inquiries", routes.v2.inquiries);
 app.use("/api/v2/users/candidates", routes.v2.requests);
