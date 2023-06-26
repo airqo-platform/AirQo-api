@@ -1032,7 +1032,7 @@ jobs:
           kubectl apply -n message-broker -f k8s/kafka/clusters/kafka-cluster.yaml
           kubectl rollout restart deployment kafka-cluster-entity-operator -n message-broker
           kubectl rollout restart deployment strimzi-cluster-operator -n message-broker
-          
+
   ### kafka topics ###
   kafka-topics:
     name: build-push-deploy-kafka-topics
@@ -1364,18 +1364,6 @@ jobs:
           target: api
           context: src/view
 
-      - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
-        with:
-          action: fjogeleit/yaml-update-action@main # Action to retry
-          with: |
-            valueFile: "k8s/view/api/values-prod.yaml"
-            propertyPath: "image.tag"
-            value: ${{ needs.image-tag.outputs.build_id }}
-            branch: ${{ env.DEPLOY_BRANCH }}
-            token: ${{ secrets.YAML_UPDATER_TOKEN }}
-            message: "Update view api production image tag to ${{ needs.image-tag.outputs.build_id }}"
-
       - name: Build and push Message Broker
         uses: docker/build-push-action@v3
         with:
@@ -1389,12 +1377,12 @@ jobs:
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
-            valueFile: "k8s/view/message-broker/values-prod.yaml"
-            propertyPath: "image.tag"
+            valueFile: "k8s/view/values-prod.yaml"
+            propertyPath: "images.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
             token: ${{ secrets.YAML_UPDATER_TOKEN }}
-            message: "Update view message broker production image tag to ${{ needs.image-tag.outputs.build_id }}"
+            message: "Update view production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
         uses: google-github-actions/auth@v0

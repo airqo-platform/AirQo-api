@@ -27,12 +27,36 @@ def heatmap_cache_key():
     return f'{airqloud}_{page}_{limit}'
 
 
-def weekly_forecasts_cache_key():
+def daily_forecasts_cache_key():
     # create new var of current date and time as a string
     current_date = datetime.now().strftime("%Y-%m-%d")
     args = request.args
+    site_name = args.get('site_name')
+    region = args.get('region')
+    sub_county = args.get('sub_county')
+    county = args.get('county')
+    district = args.get('district')
+    parish = args.get('parish')
+    city = args.get('city')
     site_id = args.get('site_id')
-    return f'{current_date}_{site_id}'
+
+    return f'daily_{current_date}_{site_name}_{region}_{sub_county}_{county}_{district}_{parish}_{city}_{site_id}'
+
+
+def hourly_forecasts_cache_key():
+    # create new var of current date and time as a string
+    current_date = datetime.now().strftime("%Y-%m-%d")
+    args = request.args
+    site_name = args.get('site_name')
+    region = args.get('region')
+    sub_county = args.get('sub_county')
+    county = args.get('county')
+    district = args.get('district')
+    parish = args.get('parish')
+    city = args.get('city')
+    site_id = args.get('site_id')
+
+    return f'hourly_{current_date}_{site_name}_{region}_{sub_county}_{county}_{district}_{parish}_{city}_{site_id}'
 
 
 def geo_coordinates_cache_key():
@@ -161,34 +185,6 @@ def get_predictions_by_geo_coordinates(
 
 
 @cache.memoize(timeout=Config.CACHE_TIMEOUT)
-def get_forecasts_helper(db_name):
-    """
-    Helper function to get forecasts for a given site_id and db_name
-    """
-
-    if request.method == "GET":
-        params = {name: request.args.get(name, default=None, type=str) for name in
-                  ['site_id', 'site_name', 'parish', 'county', 'city', 'district', 'region']}
-        if not any(params.values()):
-            return (
-                jsonify({"message": "Please specify at least one query parameter", "success": False}),
-                400,
-            )
-        result = get_forecasts(**params, db_name=db_name)
-        if result:
-            response = result
-        else:
-            response = {
-                "message": "forecasts for this site are not available",
-                "success": False,
-            }
-        data = jsonify(response)
-        return data, 200
-    else:
-        return jsonify({"message": "Invalid request method", "success": False}), 400
-
-
-@cache.memoize(timeout=Config.CACHE_TIMEOUT)
 def get_forecasts(db_name, site_id=None, site_name=None, parish=None, county=None, city=None, district=None,
                   region=None):
     db = connect_mongo()
@@ -207,6 +203,5 @@ def get_forecasts(db_name, site_id=None, site_name=None, parish=None, county=Non
                                             site_forecasts[0]['health_tips']):
             result = {key: value for key, value in zip(['time', 'pm2_5', 'health_tips'], [time, pm2_5, health_tips])}
             results.append(result)
-
     formatted_results = {'forecasts': results}
     return formatted_results

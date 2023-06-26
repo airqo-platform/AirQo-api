@@ -1,15 +1,15 @@
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: '{{ .Values.app.name }}-hpa'
-  namespace: {{ .Values.app.namespace }}
+  name: '{{ .Values.messageBroker.name }}-hpa'
+  namespace: {{ .Values.namespace }}
   labels:
-    {{- include "view-api-message-broker.labels" . | nindent 4 }}
+    {{- include "view.labels" . | nindent 4 }}
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: {{ .Values.app.name }}
+    name: {{ .Values.messageBroker.name }}
   minReplicas: {{ .Values.autoscaling.minReplicas }}
   maxReplicas: {{ .Values.autoscaling.maxReplicas }}
   metrics:
