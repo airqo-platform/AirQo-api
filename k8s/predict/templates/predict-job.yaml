@@ -30,7 +30,7 @@ spec:
                       - compute
           containers:
             - name: {{ .Values.jobs.predict.name }}
-              image: "{{ .Values.images.repositories.predictJob}}:{{ .Values.images.tag }}"
+              image: "{{ .Values.images.repositories.predictJob }}:{{ .Values.images.tag }}"
               imagePullPolicy: IfNotPresent
               envFrom:
                 - configMapRef:
