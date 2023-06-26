@@ -1,12 +1,12 @@
-nameOverride: ""
-fullnameOverride: ""
+nameOverride: ''
+fullnameOverride: ''
 namespace: staging
 images:
   repositories:
     api: eu.gcr.io/airqo-250220/airqo-stage-prediction-api
     predictJob: eu.gcr.io/airqo-250220/stage-airqo-predict-job
     trainJob: eu.gcr.io/airqo-250220/stage-airqo-train-job
-  tag: stage-e0e70e07-1686855567
+  tag: stage-c2e3b31c-1687782862
 api:
   name: airqo-stage-prediction-api
   label: prediction-api
