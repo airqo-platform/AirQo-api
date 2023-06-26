@@ -43,6 +43,8 @@ app.use(cookieParser());
 app.use(express.static(path.join(__dirname, "public")));
 
 /****** the V1 endpoints ****************/
+app.use("/api/v1/devices/cohorts", routes.v1.cohorts);
+app.use("/api/v1/devices/grids", routes.v1.grids);
 app.use("/api/v1/devices/activities", routes.v1.activities);
 app.use("/api/v1/devices/airqlouds", routes.v1.airqlouds);
 app.use("/api/v1/devices/sites", routes.v1.sites);
@@ -55,6 +57,8 @@ app.use("/api/v1/devices/sensors", routes.v1.sensors);
 app.use("/api/v1/devices", routes.v1.devices);
 
 /****** the V2 endpoints ****************/
+app.use("/api/v2/devices/cohorts", routes.v2.cohorts);
+app.use("/api/v2/devices/grids", routes.v2.grids);
 app.use("/api/v2/devices/activities", routes.v2.activities);
 app.use("/api/v2/devices/airqlouds", routes.v2.airqlouds);
 app.use("/api/v2/devices/sites", routes.v2.sites);

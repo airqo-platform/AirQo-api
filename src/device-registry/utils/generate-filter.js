@@ -625,6 +625,126 @@ const generateFilter = {
     return filter;
   },
 
+  grids: (req) => {
+    try {
+      const { id, name, admin_level, grid_codes } = req.query;
+      let filter = {};
+      if (name) {
+        filter["name"] = name;
+      }
+
+      if (grid_codes) {
+        let geoCodesArray = grid_codes.split(",");
+        filter["grid_codes"] = {};
+        filter["grid_codes"]["$in"] = geoCodesArray;
+      }
+
+      if (id) {
+        filter["_id"] = ObjectId(id);
+      }
+
+      if (admin_level) {
+        filter["admin_level"] = admin_level;
+      }
+
+      return filter;
+    } catch (error) {
+      return {
+        success: false,
+        errors: { message: error.message },
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  cohorts: (req) => {
+    try {
+      const { id, name, cohort_codes } = req.query;
+      let filter = {};
+      if (name) {
+        filter["name"] = name;
+      }
+
+      if (cohort_codes) {
+        let cohortCodesArray = cohort_codes.split(",");
+        filter["cohort_codes"] = {};
+        filter["cohort_codes"]["$in"] = cohortCodesArray;
+      }
+
+      if (id) {
+        filter["_id"] = ObjectId(id);
+      }
+
+      return filter;
+    } catch (error) {
+      return {
+        success: false,
+        errors: { message: error.message },
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  networks: (req) => {
+    try {
+      const { id, name, network_codes } = req.query;
+      let filter = {};
+      if (name) {
+        filter["name"] = name;
+      }
+
+      if (network_codes) {
+        let networkCodesArray = network_codes.split(",");
+        filter["network_codes"] = {};
+        filter["network_codes"]["$in"] = networkCodesArray;
+      }
+
+      if (id) {
+        filter["_id"] = ObjectId(id);
+      }
+
+      return filter;
+    } catch (error) {
+      return {
+        success: false,
+        errors: { message: error.message },
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  admin_levels: (req) => {
+    try {
+      const { id, name, admin_level_codes } = req.query;
+      let filter = {};
+      if (name) {
+        filter["name"] = name;
+      }
+
+      if (admin_level_codes) {
+        let adminLevelCodesArray = admin_level_codes.split(",");
+        filter["admin_level_codes"] = {};
+        filter["admin_level_codes"]["$in"] = adminLevelCodesArray;
+      }
+
+      if (id) {
+        filter["_id"] = ObjectId(id);
+      }
+
+      return filter;
+    } catch (error) {
+      return {
+        success: false,
+        errors: { message: error.message },
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
   locations: (req) => {
     let { id, name, admin_level, summary, network } = req.query;
     let filter = {};

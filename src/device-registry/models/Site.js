@@ -14,6 +14,7 @@ const siteSchema = new Schema(
       unique: true,
       required: [true, "name is required!"],
     },
+    grid_id: { type: ObjectId, trim: true },
     share_links: {
       preview: { type: String, trim: true },
       short_link: { type: String, trim: true },
