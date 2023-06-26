@@ -1,11 +1,11 @@
-nameOverride: ""
-fullnameOverride: ""
+nameOverride: ''
+fullnameOverride: ''
 namespace: staging
 images:
   repositories:
     api: eu.gcr.io/airqo-250220/airqo-stage-view-api
     messageBroker: eu.gcr.io/airqo-250220/airqo-stage-view-message-broker
-  tag: stage-3b77b6fc-1686749518
+  tag: stage-f70219c4-1687764226
 api:
   name: airqo-stage-view-api
   label: view-api
@@ -25,7 +25,7 @@ messageBroker:
   configmap: stage-view-message-broker-config
   replicaCount: 2
   podAnnotations:
-    sidecar.istio.io/inject: "false"
+    sidecar.istio.io/inject: 'false'
   resources:
     limits:
       cpu: 50m
