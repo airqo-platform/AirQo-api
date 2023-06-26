@@ -762,7 +762,7 @@ const createCohort = {
       return {
         success: true,
         message: "Successfully unassigned Device from the Cohort",
-        data: { updatedCohort, updatedDevice },
+        data: updatedDevice,
         status: httpStatus.OK,
       };
     } catch (error) {

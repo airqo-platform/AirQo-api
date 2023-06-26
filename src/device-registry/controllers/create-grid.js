@@ -8,9 +8,7 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-grid-controller`
 );
-/**
- * Grids are for grouping Sites
- */
+const isEmpty = require("is-empty");
 
 const createGrid = {
   /***************** admin levels associated with Grids ****************/
@@ -36,15 +34,43 @@ const createGrid = {
       }
       const { query } = req;
       let { tenant } = query;
-
       if (isEmpty(tenant)) {
         tenant = constants.DEFAULT_NETWORK;
       }
-
       let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
+
+      let responseFromListAdminLevels = await createGridUtil.listAdminLevels(
+        request
+      );
+      logObject(
+        "responseFromListAdminLevels in controller",
+        responseFromListAdminLevels
+      );
+      if (responseFromListAdminLevels.success === true) {
+        const status = responseFromListAdminLevels.status
+          ? responseFromListAdminLevels.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromListAdminLevels.message,
+          admin_levels: responseFromListAdminLevels.data,
+        });
+      } else if (responseFromListAdminLevels.success === false) {
+        const status = responseFromListAdminLevels.status
+          ? responseFromListAdminLevels.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+
+        return res.status(status).json({
+          success: false,
+          message: responseFromListAdminLevels.message,
+          errors: responseFromListAdminLevels.errors
+            ? responseFromListAdminLevels.errors
+            : { message: "Internal Server Error" },
+        });
+      }
     } catch (error) {
-      logger.error(`internal server error -- ${errors.message}`);
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -81,8 +107,38 @@ const createGrid = {
 
       let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
+
+      const responseFromUpdateAdminLevel = await createGridUtil.updateAdminLevel(
+        request
+      );
+      logObject(
+        "responseFromUpdateAdminLevel in controller",
+        responseFromUpdateAdminLevel
+      );
+      if (responseFromUpdateAdminLevel.success === true) {
+        const status = responseFromUpdateAdminLevel.status
+          ? responseFromUpdateAdminLevel.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromUpdateAdminLevel.message,
+          admin_levels: responseFromUpdateAdminLevel.data,
+        });
+      } else if (responseFromUpdateAdminLevel.success === false) {
+        const status = responseFromUpdateAdminLevel.status
+          ? responseFromUpdateAdminLevel.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+
+        return res.status(status).json({
+          success: false,
+          message: responseFromUpdateAdminLevel.message,
+          errors: responseFromUpdateAdminLevel.errors
+            ? responseFromUpdateAdminLevel.errors
+            : { message: "Internal Server Error" },
+        });
+      }
     } catch (error) {
-      logger.error(`internal server error -- ${errors.message}`);
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -119,8 +175,38 @@ const createGrid = {
 
       let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
+
+      const responseFromDeleteAdminLevel = await createGridUtil.deleteAdminLevel(
+        request
+      );
+      logObject(
+        "responseFromDeleteAdminLevel in controller",
+        responseFromDeleteAdminLevel
+      );
+      if (responseFromDeleteAdminLevel.success === true) {
+        const status = responseFromDeleteAdminLevel.status
+          ? responseFromDeleteAdminLevel.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromDeleteAdminLevel.message,
+          admin_levels: responseFromDeleteAdminLevel.data,
+        });
+      } else if (responseFromDeleteAdminLevel.success === false) {
+        const status = responseFromDeleteAdminLevel.status
+          ? responseFromDeleteAdminLevel.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+
+        return res.status(status).json({
+          success: false,
+          message: responseFromDeleteAdminLevel.message,
+          errors: responseFromDeleteAdminLevel.errors
+            ? responseFromDeleteAdminLevel.errors
+            : { message: "Internal Server Error" },
+        });
+      }
     } catch (error) {
-      logger.error(`internal server error -- ${errors.message}`);
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -157,8 +243,38 @@ const createGrid = {
 
       let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
+
+      const responseFromCreateAdminLevel = await createGridUtil.createAdminLevel(
+        request
+      );
+      logObject(
+        "responseFromCreateAdminLevel in controller",
+        responseFromCreateAdminLevel
+      );
+      if (responseFromCreateAdminLevel.success === true) {
+        const status = responseFromCreateAdminLevel.status
+          ? responseFromCreateAdminLevel.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromCreateAdminLevel.message,
+          admin_levels: responseFromCreateAdminLevel.data,
+        });
+      } else if (responseFromCreateAdminLevel.success === false) {
+        const status = responseFromCreateAdminLevel.status
+          ? responseFromCreateAdminLevel.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+
+        return res.status(status).json({
+          success: false,
+          message: responseFromCreateAdminLevel.message,
+          errors: responseFromCreateAdminLevel.errors
+            ? responseFromCreateAdminLevel.errors
+            : { message: "Internal Server Error" },
+        });
+      }
     } catch (error) {
-      logger.error(`internal server error -- ${errors.message}`);
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -166,12 +282,9 @@ const createGrid = {
       });
     }
   },
-  /******************* Grids ****************/
-  register: async (req, res) => {
-    let request = {};
-    let { body } = req;
-    let { query } = req;
-    logText("registering airqloud.............");
+  /******************* Grids ************************************************/
+  create: async (req, res) => {
+    logText("registering grid.............");
     try {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
@@ -191,35 +304,39 @@ const createGrid = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { tenant } = req.query;
-      request["body"] = body;
-      request["query"] = query;
 
-      let responseFromCreateAirQloud = await createGridUtil.create(request);
-      logObject(
-        "responseFromCreateAirQloud in controller",
-        responseFromCreateAirQloud
-      );
-      if (responseFromCreateAirQloud.success === true) {
-        const status = responseFromCreateAirQloud.status
-          ? responseFromCreateAirQloud.status
+      const { query } = req;
+      let { tenant } = query;
+
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_NETWORK;
+      }
+
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
+
+      let responseFromCreateGrid = await createGridUtil.create(request);
+      logObject("responseFromCreateGrid in controller", responseFromCreateGrid);
+      if (responseFromCreateGrid.success === true) {
+        const status = responseFromCreateGrid.status
+          ? responseFromCreateGrid.status
           : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromCreateAirQloud.message,
-          airqloud: responseFromCreateAirQloud.data,
+          message: responseFromCreateGrid.message,
+          grid: responseFromCreateGrid.data,
         });
-      } else if (responseFromCreateAirQloud.success === false) {
-        const status = responseFromCreateAirQloud.status
-          ? responseFromCreateAirQloud.status
+      } else if (responseFromCreateGrid.success === false) {
+        const status = responseFromCreateGrid.status
+          ? responseFromCreateGrid.status
           : httpStatus.INTERNAL_SERVER_ERROR;
 
         return res.status(status).json({
           success: false,
-          message: responseFromCreateAirQloud.message,
-          errors: responseFromCreateAirQloud.errors
-            ? responseFromCreateAirQloud.errors
-            : { message: "" },
+          message: responseFromCreateGrid.message,
+          errors: responseFromCreateGrid.errors
+            ? responseFromCreateGrid.errors
+            : { message: "Internal Server Error" },
         });
       }
     } catch (errors) {
@@ -233,10 +350,6 @@ const createGrid = {
   },
   calculateGeographicalCenter: async (req, res) => {
     try {
-      const { body, query } = req;
-      const { coordinates } = body;
-      const { id, tenant } = query;
-
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -256,11 +369,14 @@ const createGrid = {
         );
       }
 
-      let request = {};
-      request["body"] = {};
-      request["query"] = {};
-      request["body"]["coordinates"] = coordinates;
-      request["query"]["id"] = id;
+      const { query } = req;
+      let { tenant } = query;
+
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_NETWORK;
+      }
+
+      let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
 
       const responseFromCalculateGeographicalCenter = await createGridUtil.calculateGeographicalCenter(
@@ -287,7 +403,7 @@ const createGrid = {
 
         const errors = responseFromCalculateGeographicalCenter.errors
           ? responseFromCalculateGeographicalCenter.errors
-          : { message: "" };
+          : { message: "Internal Server Error" };
 
         return res.status(status).json({
           success: false,
@@ -306,12 +422,8 @@ const createGrid = {
   },
   delete: async (req, res) => {
     try {
-      const { query } = req;
-      let request = {};
-
       logText(".................................................");
-      logText("inside delete airqloud............");
-      const { tenant } = req.query;
+      logText("inside delete grid............");
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -330,28 +442,36 @@ const createGrid = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      request["query"] = query;
-      const responseFromRemoveAirQloud = await createGridUtil.delete(request);
 
-      if (responseFromRemoveAirQloud.success === true) {
-        const status = responseFromRemoveAirQloud.status
-          ? responseFromRemoveAirQloud.status
+      const { query } = req;
+      let { tenant } = query;
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_NETWORK;
+      }
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
+
+      const responseFromRemoveGrid = await createGridUtil.delete(request);
+
+      if (responseFromRemoveGrid.success === true) {
+        const status = responseFromRemoveGrid.status
+          ? responseFromRemoveGrid.status
           : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromRemoveAirQloud.message,
-          airqloud: responseFromRemoveAirQloud.data,
+          message: responseFromRemoveGrid.message,
+          grid: responseFromRemoveGrid.data,
         });
-      } else if (responseFromRemoveAirQloud.success === false) {
-        const status = responseFromRemoveAirQloud.status
-          ? responseFromRemoveAirQloud.status
+      } else if (responseFromRemoveGrid.success === false) {
+        const status = responseFromRemoveGrid.status
+          ? responseFromRemoveGrid.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromRemoveAirQloud.message,
-          errors: responseFromRemoveAirQloud.errors
-            ? responseFromRemoveAirQloud.errors
-            : { message: "" },
+          message: responseFromRemoveGrid.message,
+          errors: responseFromRemoveGrid.errors
+            ? responseFromRemoveGrid.errors
+            : { message: "Internal Server Error" },
         });
       }
     } catch (errors) {
@@ -365,9 +485,6 @@ const createGrid = {
   },
   refresh: async (req, res) => {
     try {
-      const { query, body } = req;
-      const { id, admin_level, name, tenant } = query;
-
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -387,37 +504,39 @@ const createGrid = {
         );
       }
 
-      let request = {};
-      request["query"] = {};
-      request["query"]["id"] = id;
-      request["query"]["admin_level"] = admin_level;
-      request["query"]["name"] = name;
+      const { query } = req;
+      let { tenant } = query;
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_NETWORK;
+      }
+      let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
-      const responseFromRefreshAirQloud = await createGridUtil.refresh(request);
-      if (responseFromRefreshAirQloud.success === true) {
-        const status = responseFromRefreshAirQloud.status
-          ? responseFromRefreshAirQloud.status
+
+      const responseFromRefreshGrid = await createGridUtil.refresh(request);
+      if (responseFromRefreshGrid.success === true) {
+        const status = responseFromRefreshGrid.status
+          ? responseFromRefreshGrid.status
           : httpStatus.OK;
-        res.status(status).json({
+        return res.status(status).json({
           success: true,
-          message: responseFromRefreshAirQloud.message,
-          refreshed_airqloud: responseFromRefreshAirQloud.data,
+          message: responseFromRefreshGrid.message,
+          refreshed_grid: responseFromRefreshGrid.data,
         });
-      } else if (responseFromRefreshAirQloud.success === false) {
-        const status = responseFromRefreshAirQloud.status
-          ? responseFromRefreshAirQloud.status
+      } else if (responseFromRefreshGrid.success === false) {
+        const status = responseFromRefreshGrid.status
+          ? responseFromRefreshGrid.status
           : httpStatus.INTERNAL_SERVER_ERROR;
-        const errors = responseFromRefreshAirQloud.errors
-          ? responseFromRefreshAirQloud.errors
-          : { message: "" };
-        res.status(status).json({
-          message: responseFromRefreshAirQloud.message,
+        const errors = responseFromRefreshGrid.errors
+          ? responseFromRefreshGrid.errors
+          : { message: "Internal Server Error" };
+        return res.status(status).json({
+          message: responseFromRefreshGrid.message,
           errors,
         });
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -444,22 +563,20 @@ const createGrid = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { query, body } = req;
-      const { id, name, admin_level, tenant } = query;
-      let request = {};
-      request["query"] = {};
-      request["query"]["id"] = id;
-      request["query"]["name"] = name;
-      request["query"]["admin_level"] = admin_level;
+      const { query } = req;
+      let { tenant } = query;
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_NETWORK;
+      }
+      let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
-      logObject("request", request);
       let responseFromFindSites = await createGridUtil.findSites(request);
       logObject("responseFromFindSites", responseFromFindSites);
       if (responseFromFindSites.success === true) {
         const status = responseFromFindSites.status
           ? responseFromFindSites.status
           : httpStatus.OK;
-        res.status(status).json({
+        return res.status(status).json({
           success: true,
           sites: responseFromFindSites.data,
           message: responseFromFindSites.message,
@@ -468,31 +585,26 @@ const createGrid = {
         const status = responseFromFindSites.status
           ? responseFromFindSites.status
           : httpStatus.INTERNAL_SERVER_ERROR;
-        res.status(status).json({
+        return res.status(status).json({
           success: false,
           message: responseFromFindSites.message,
           errors: responseFromFindSites.errors
             ? responseFromFindSites.errors
-            : { message: "" },
+            : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
-        errors: {
-          message: error.message,
-        },
+        errors: { message: error.message },
       });
     }
   },
   update: async (req, res) => {
     try {
-      let request = {};
-      let { body } = req;
-      let { query } = req;
-      logText("updating airqloud................");
+      logText("updating grid................");
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -511,30 +623,35 @@ const createGrid = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      request["body"] = body;
-      request["query"] = query;
-      let responseFromUpdateAirQloud = await createGridUtil.update(request);
-      logObject("responseFromUpdateAirQloud", responseFromUpdateAirQloud);
-      if (responseFromUpdateAirQloud.success === true) {
-        const status = responseFromUpdateAirQloud.status
-          ? responseFromUpdateAirQloud.status
+      const { query } = req;
+      let { tenant } = query;
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_NETWORK;
+      }
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
+      let responseFromUpdateGrid = await createGridUtil.update(request);
+      logObject("responseFromUpdateGrid", responseFromUpdateGrid);
+      if (responseFromUpdateGrid.success === true) {
+        const status = responseFromUpdateGrid.status
+          ? responseFromUpdateGrid.status
           : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromUpdateAirQloud.message,
-          airqloud: responseFromUpdateAirQloud.data,
+          message: responseFromUpdateGrid.message,
+          grid: responseFromUpdateGrid.data,
         });
-      } else if (responseFromUpdateAirQloud.success === false) {
-        const status = responseFromUpdateAirQloud.status
-          ? responseFromUpdateAirQloud.status
+      } else if (responseFromUpdateGrid.success === false) {
+        const status = responseFromUpdateGrid.status
+          ? responseFromUpdateGrid.status
           : httpStatus.INTERNAL_SERVER_ERROR;
 
         return res.status(status).json({
           success: false,
-          message: responseFromUpdateAirQloud.message,
-          errors: responseFromUpdateAirQloud.errors
-            ? responseFromUpdateAirQloud.errors
-            : { message: "" },
+          message: responseFromUpdateGrid.message,
+          errors: responseFromUpdateGrid.errors
+            ? responseFromUpdateGrid.errors
+            : { message: "Internal Server Error" },
         });
       }
     } catch (errors) {
@@ -548,10 +665,8 @@ const createGrid = {
   },
   list: async (req, res) => {
     try {
-      const { query } = req;
-      let request = {};
       logText(".....................................");
-      logText("list all airqlouds by query params provided");
+      logText("list all grids by query params provided");
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -570,36 +685,43 @@ const createGrid = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      request["query"] = query;
-      let responseFromListAirQlouds = await createGridUtil.list(request);
+      const { query } = req;
+      let { tenant } = query;
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_NETWORK;
+      }
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
+
+      const responseFromListGrids = await createGridUtil.list(request);
       logElement(
-        "has the response for listing airqlouds been successful?",
-        responseFromListAirQlouds.success
+        "has the response for listing grids been successful?",
+        responseFromListGrids.success
       );
-      if (responseFromListAirQlouds.success === true) {
-        const status = responseFromListAirQlouds.status
-          ? responseFromListAirQlouds.status
+      if (responseFromListGrids.success === true) {
+        const status = responseFromListGrids.status
+          ? responseFromListGrids.status
           : httpStatus.OK;
-        res.status(status).json({
+        return res.status(status).json({
           success: true,
-          message: responseFromListAirQlouds.message,
-          airqlouds: responseFromListAirQlouds.data,
+          message: responseFromListGrids.message,
+          grids: responseFromListGrids.data,
         });
-      } else if (responseFromListAirQlouds.success === false) {
-        const status = responseFromListAirQlouds.status
-          ? responseFromListAirQlouds.status
+      } else if (responseFromListGrids.success === false) {
+        const status = responseFromListGrids.status
+          ? responseFromListGrids.status
           : httpStatus.INTERNAL_SERVER_ERROR;
-        res.status(status).json({
+        return res.status(status).json({
           success: false,
-          message: responseFromListAirQlouds.message,
-          errors: responseFromListAirQlouds.errors
-            ? responseFromListAirQlouds.errors
-            : { message: "" },
+          message: responseFromListGrids.message,
+          errors: responseFromListGrids.errors
+            ? responseFromListGrids.errors
+            : { message: "Internal Server Error" },
         });
       }
     } catch (errors) {
       logger.error(`internal server error -- ${errors.message}`);
-      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: errors.message },
@@ -608,10 +730,8 @@ const createGrid = {
   },
   listSummary: async (req, res) => {
     try {
-      const { query } = req;
-      let request = {};
       logText(".....................................");
-      logText("list all airqlouds by query params provided");
+      logText("list all grids by query params provided");
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -630,37 +750,44 @@ const createGrid = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      request["query"] = query;
+
+      const { query } = req;
+      let { tenant } = query;
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_NETWORK;
+      }
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
       request["query"]["summary"] = "yes";
-      let responseFromListAirQlouds = await createGridUtil.list(request);
+      let responseFromListGrids = await createGridUtil.list(request);
       logElement(
-        "has the response for listing airqlouds been successful?",
-        responseFromListAirQlouds.success
+        "has the response for listing grids been successful?",
+        responseFromListGrids.success
       );
-      if (responseFromListAirQlouds.success === true) {
-        const status = responseFromListAirQlouds.status
-          ? responseFromListAirQlouds.status
+      if (responseFromListGrids.success === true) {
+        const status = responseFromListGrids.status
+          ? responseFromListGrids.status
           : httpStatus.OK;
-        res.status(status).json({
+        return res.status(status).json({
           success: true,
-          message: responseFromListAirQlouds.message,
-          airqlouds: responseFromListAirQlouds.data,
+          message: responseFromListGrids.message,
+          grids: responseFromListGrids.data,
         });
-      } else if (responseFromListAirQlouds.success === false) {
-        const status = responseFromListAirQlouds.status
-          ? responseFromListAirQlouds.status
+      } else if (responseFromListGrids.success === false) {
+        const status = responseFromListGrids.status
+          ? responseFromListGrids.status
           : httpStatus.INTERNAL_SERVER_ERROR;
-        res.status(status).json({
+        return res.status(status).json({
           success: false,
-          message: responseFromListAirQlouds.message,
-          errors: responseFromListAirQlouds.errors
-            ? responseFromListAirQlouds.errors
-            : { message: "" },
+          message: responseFromListGrids.message,
+          errors: responseFromListGrids.errors
+            ? responseFromListGrids.errors
+            : { message: "Internal Server Error" },
         });
       }
     } catch (errors) {
       logger.error(`internal server error -- ${errors.message}`);
-      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: errors.message },
@@ -669,10 +796,8 @@ const createGrid = {
   },
   listDashboard: async (req, res) => {
     try {
-      const { query } = req;
-      let request = {};
       logText(".....................................");
-      logText("list all airqlouds by query params provided");
+      logText("list all grids by query params provided");
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -691,37 +816,45 @@ const createGrid = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      request["query"] = query;
+
+      const { query } = req;
+      let { tenant } = query;
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_NETWORK;
+      }
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
       request["query"]["dashboard"] = "yes";
-      let responseFromListAirQlouds = await createGridUtil.list(request);
+
+      const responseFromListGrids = await createGridUtil.list(request);
       logElement(
-        "has the response for listing airqlouds been successful?",
-        responseFromListAirQlouds.success
+        "has the response for listing grids been successful?",
+        responseFromListGrids.success
       );
-      if (responseFromListAirQlouds.success === true) {
-        const status = responseFromListAirQlouds.status
-          ? responseFromListAirQlouds.status
+      if (responseFromListGrids.success === true) {
+        const status = responseFromListGrids.status
+          ? responseFromListGrids.status
           : httpStatus.OK;
-        res.status(status).json({
+        return res.status(status).json({
           success: true,
-          message: responseFromListAirQlouds.message,
-          airqlouds: responseFromListAirQlouds.data,
+          message: responseFromListGrids.message,
+          grids: responseFromListGrids.data,
         });
-      } else if (responseFromListAirQlouds.success === false) {
-        const status = responseFromListAirQlouds.status
-          ? responseFromListAirQlouds.status
+      } else if (responseFromListGrids.success === false) {
+        const status = responseFromListGrids.status
+          ? responseFromListGrids.status
           : httpStatus.INTERNAL_SERVER_ERROR;
-        res.status(status).json({
+        return res.status(status).json({
           success: false,
-          message: responseFromListAirQlouds.message,
-          errors: responseFromListAirQlouds.errors
-            ? responseFromListAirQlouds.errors
-            : { message: "" },
+          message: responseFromListGrids.message,
+          errors: responseFromListGrids.errors
+            ? responseFromListGrids.errors
+            : { message: "Internal Server Error" },
         });
       }
     } catch (errors) {
       logger.error(`internal server error -- ${errors.message}`);
-      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: errors.message },
@@ -729,10 +862,16 @@ const createGrid = {
     }
   },
 
-  /********************* managing Grids *******************/
+  /********************* managing Grids ***********************************/
   findGridUsingGPSCoordinates: async (req, res) => {
     try {
-      const request = Object.assign({}, req);
+      const { query } = req;
+      let { tenant } = query;
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_NETWORK;
+      }
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
       const responseFromFindGridUsingGPSCoordinates = await createGridUtil.findGridUsingGPSCoordinates(
         request
       );
@@ -756,6 +895,7 @@ const createGrid = {
         });
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -765,7 +905,13 @@ const createGrid = {
   },
   createGridFromShapefile: async (req, res) => {
     try {
-      const request = Object.assign({}, req);
+      const { query } = req;
+      let { tenant } = query;
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_NETWORK;
+      }
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
       const responseFromCreateGridFromShapefile = await createGridUtil.createGridFromShapefile(
         request
       );
@@ -776,6 +922,7 @@ const createGrid = {
         return res.status(status).json(responseFromCreateGridFromShapefile);
       }
     } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         errors: { message: error.message },
@@ -789,11 +936,11 @@ const createGrid = {
      * this one returned those valid ones which are not yet assigned to the provided Grid
      */
     try {
-      logText("listing available users....");
+      logText("listing available grids....");
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
           convertErrorArrayToObject(nestedErrors)
@@ -807,39 +954,40 @@ const createGrid = {
       let request = Object.assign({}, req);
       request.query.tenant = tenant;
 
-      const responseFromListAvailableUsers = await createNetworkUtil.listAvailableUsers(
+      const responseFromListAvailableSites = await createGridUtil.listAvailableSites(
         request
       );
 
       logObject(
-        "responseFromListAvailableUsers in controller",
-        responseFromListAvailableUsers
+        "responseFromListAvailableSites in controller",
+        responseFromListAvailableSites
       );
 
-      if (responseFromListAvailableUsers.success === true) {
-        const status = responseFromListAvailableUsers.status
-          ? responseFromListAvailableUsers.status
+      if (responseFromListAvailableSites.success === true) {
+        const status = responseFromListAvailableSites.status
+          ? responseFromListAvailableSites.status
           : httpStatus.OK;
 
         return res.status(status).json({
           success: true,
-          message: responseFromListAvailableUsers.message,
-          available_users: responseFromListAvailableUsers.data,
+          message: responseFromListAvailableSites.message,
+          available_grids: responseFromListAvailableSites.data,
         });
-      } else if (responseFromListAvailableUsers.success === false) {
-        const status = responseFromListAvailableUsers.status
-          ? responseFromListAvailableUsers.status
+      } else if (responseFromListAvailableSites.success === false) {
+        const status = responseFromListAvailableSites.status
+          ? responseFromListAvailableSites.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromListAvailableUsers.message,
-          errors: responseFromListAvailableUsers.errors
-            ? responseFromListAvailableUsers.errors
-            : { message: "" },
+          message: responseFromListAvailableSites.message,
+          errors: responseFromListAvailableSites.errors
+            ? responseFromListAvailableSites.errors
+            : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
       logElement("internal server error", error.message);
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -852,11 +1000,11 @@ const createGrid = {
      * just retrieve all Sites which have been assigned to the proviced Grid
      */
     try {
-      logText("listing assigned users....");
+      logText("listing assigned grids....");
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
           convertErrorArrayToObject(nestedErrors)
@@ -869,49 +1017,49 @@ const createGrid = {
       }
 
       let request = Object.assign({}, req);
-
       request.query.tenant = tenant;
 
-      const responseFromListAssignedUsers = await createNetworkUtil.listAssignedUsers(
+      const responseFromListAssignedSites = await createGridUtil.listAssignedSites(
         request
       );
 
       logObject(
-        "responseFromListAssignedUsers in controller",
-        responseFromListAssignedUsers
+        "responseFromListAssignedSites in controller",
+        responseFromListAssignedSites
       );
 
-      if (responseFromListAssignedUsers.success === true) {
-        const status = responseFromListAssignedUsers.status
-          ? responseFromListAssignedUsers.status
+      if (responseFromListAssignedSites.success === true) {
+        const status = responseFromListAssignedSites.status
+          ? responseFromListAssignedSites.status
           : httpStatus.OK;
-        if (responseFromListAssignedUsers.data.length === 0) {
+        if (responseFromListAssignedSites.data.length === 0) {
           return res.status(status).json({
             success: true,
-            message: "no assigned users to this network",
-            assigned_users: [],
+            message: "no assigned grids to this grid",
+            assigned_grids: [],
           });
         }
         return res.status(status).json({
           success: true,
-          message: "successfully retrieved the assigned users for this network",
-          assigned_users: responseFromListAssignedUsers.data,
+          message: "successfully retrieved the assigned grids for this grid",
+          assigned_grids: responseFromListAssignedSites.data,
         });
-      } else if (responseFromListAssignedUsers.success === false) {
-        const status = responseFromListAssignedUsers.status
-          ? responseFromListAssignedUsers.status
+      } else if (responseFromListAssignedSites.success === false) {
+        const status = responseFromListAssignedSites.status
+          ? responseFromListAssignedSites.status
           : httpStatus.INTERNAL_SERVER_ERROR;
 
         return res.status(status).json({
           success: false,
-          message: responseFromListAssignedUsers.message,
-          errors: responseFromListAssignedUsers.errors
-            ? responseFromListAssignedUsers.errors
-            : { message: "" },
+          message: responseFromListAssignedSites.message,
+          errors: responseFromListAssignedSites.errors
+            ? responseFromListAssignedSites.errors
+            : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
       logElement("internal server error", error.message);
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -927,11 +1075,11 @@ const createGrid = {
      * this is where we are also able to ensure that only Sites with Devices are added
      */
     try {
-      logText("assign many users....");
+      logText("assign many grids....");
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
           convertErrorArrayToObject(nestedErrors)
@@ -946,30 +1094,30 @@ const createGrid = {
       let request = Object.assign({}, req);
       request.query.tenant = tenant;
 
-      const responseFromAssignUsers = await createNetworkUtil.assignUsers(
+      const responseFromAssignSites = await createGridUtil.assignManySitesToGrid(
         request
       );
 
-      if (responseFromAssignUsers.success === true) {
-        const status = responseFromAssignUsers.status
-          ? responseFromAssignUsers.status
+      if (responseFromAssignSites.success === true) {
+        const status = responseFromAssignSites.status
+          ? responseFromAssignSites.status
           : httpStatus.OK;
 
         return res.status(status).json({
-          message: responseFromAssignUsers.message,
-          updated_network: responseFromAssignUsers.data,
+          message: responseFromAssignSites.message,
+          updated_grid: responseFromAssignSites.data,
           success: true,
         });
-      } else if (responseFromAssignUsers.success === false) {
-        const status = responseFromAssignUsers.status
-          ? responseFromAssignUsers.status
+      } else if (responseFromAssignSites.success === false) {
+        const status = responseFromAssignSites.status
+          ? responseFromAssignSites.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromAssignUsers.message,
-          errors: responseFromAssignUsers.errors
-            ? responseFromAssignUsers.errors
-            : { message: "" },
+          message: responseFromAssignSites.message,
+          errors: responseFromAssignSites.errors
+            ? responseFromAssignSites.errors
+            : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
@@ -984,11 +1132,11 @@ const createGrid = {
   },
   unAssignManySitesFromGrid: async (req, res) => {
     try {
-      logText("unAssign user....");
+      logText("unAssign grid....");
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
           convertErrorArrayToObject(nestedErrors)
@@ -1002,36 +1150,37 @@ const createGrid = {
       let request = Object.assign({}, req);
       request.query.tenant = tenant;
 
-      const responseFromUnassignManyUsers = await createNetworkUtil.unAssignManyUsers(
+      const responseFromUnassignManySites = await createGridUtil.unAssignManySitesFromGrid(
         request
       );
 
-      logObject("responseFromUnassignManyUsers", responseFromUnassignManyUsers);
+      logObject("responseFromUnassignManySites", responseFromUnassignManySites);
 
-      if (responseFromUnassignManyUsers.success === true) {
-        const status = responseFromUnassignManyUsers.status
-          ? responseFromUnassignManyUsers.status
+      if (responseFromUnassignManySites.success === true) {
+        const status = responseFromUnassignManySites.status
+          ? responseFromUnassignManySites.status
           : httpStatus.OK;
 
         return res.status(status).json({
-          message: "users successully unassigned",
-          updated_records: responseFromUnassignManyUsers.data,
+          message: "grids successully unassigned",
+          updated_records: responseFromUnassignManySites.data,
           success: true,
         });
-      } else if (responseFromUnassignManyUsers.success === false) {
-        const status = responseFromUnassignManyUsers.status
-          ? responseFromUnassignManyUsers.status
+      } else if (responseFromUnassignManySites.success === false) {
+        const status = responseFromUnassignManySites.status
+          ? responseFromUnassignManySites.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromUnassignManyUsers.message,
-          errors: responseFromUnassignManyUsers.errors
-            ? responseFromUnassignManyUsers.errors
+          message: responseFromUnassignManySites.message,
+          errors: responseFromUnassignManySites.errors
+            ? responseFromUnassignManySites.errors
             : { message: "Internal Server Errors" },
         });
       }
     } catch (error) {
       logObject("error", error);
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -1040,15 +1189,12 @@ const createGrid = {
     }
   },
   assignOneSiteToGrid: async (req, res) => {
-    /***
-     *do appropriate input validations in the util
-     */
     try {
-      logText("assign one user....");
+      logText("assign one grid....");
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
           convertErrorArrayToObject(nestedErrors)
@@ -1063,7 +1209,7 @@ const createGrid = {
       let request = Object.assign({}, req);
       request.query.tenant = tenant;
 
-      const responseFromUpdateNetwork = await createNetworkUtil.assignOneUser(
+      const responseFromUpdateNetwork = await createGridUtil.assignOneSiteToGrid(
         request
       );
 
@@ -1086,11 +1232,12 @@ const createGrid = {
           message: responseFromUpdateNetwork.message,
           errors: responseFromUpdateNetwork.errors
             ? responseFromUpdateNetwork.errors
-            : { message: "" },
+            : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
       logObject("error", error);
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -1100,11 +1247,11 @@ const createGrid = {
   },
   unAssignOneSiteFromGrid: async (req, res) => {
     try {
-      logText("unAssign user....");
+      logText("unAssign grid....");
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
           convertErrorArrayToObject(nestedErrors)
@@ -1118,36 +1265,37 @@ const createGrid = {
       let request = Object.assign({}, req);
       request.query.tenant = tenant;
 
-      const responseFromUnassignUser = await createNetworkUtil.unAssignUser(
+      const responseFromUnassignSite = await createGridUtil.unAssignOneSiteFromGrid(
         request
       );
 
-      logObject("responseFromUnassignUser", responseFromUnassignUser);
+      logObject("responseFromUnassignSite", responseFromUnassignSite);
 
-      if (responseFromUnassignUser.success === true) {
-        const status = responseFromUnassignUser.status
-          ? responseFromUnassignUser.status
+      if (responseFromUnassignSite.success === true) {
+        const status = responseFromUnassignSite.status
+          ? responseFromUnassignSite.status
           : httpStatus.OK;
 
         return res.status(status).json({
-          message: "user successully unassigned",
-          updated_records: responseFromUnassignUser.data,
+          message: "grid successully unassigned",
+          updated_records: responseFromUnassignSite.data,
           success: true,
         });
-      } else if (responseFromUnassignUser.success === false) {
-        const status = responseFromUnassignUser.status
-          ? responseFromUnassignUser.status
+      } else if (responseFromUnassignSite.success === false) {
+        const status = responseFromUnassignSite.status
+          ? responseFromUnassignSite.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromUnassignUser.message,
-          errors: responseFromUnassignUser.errors
-            ? responseFromUnassignUser.errors
-            : { message: "" },
+          message: responseFromUnassignSite.message,
+          errors: responseFromUnassignSite.errors
+            ? responseFromUnassignSite.errors
+            : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
       logObject("error", error);
+      logger.error(`internal server error -- ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",

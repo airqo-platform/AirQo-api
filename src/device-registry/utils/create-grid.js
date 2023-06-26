@@ -557,25 +557,97 @@ const createGrid = {
     }
   },
 
-  /************* admin levels ************* */
-  listAdminLevels: async (req, res) => {
+  /************* admin levels **************************************/
+  listAdminLevels: async (request) => {
     try {
-    } catch (error) {}
+      const { tenant, limit, skip } = request.query;
+      const filter = generateFilter.admin_levels(request);
+      if (filter.success && filter.success === "false") {
+        return filter;
+      }
+      const responseFromListAdminLevels = await AdminLevelModel(tenant).list({
+        filter,
+        limit,
+        skip,
+      });
+      return responseFromListAdminLevels;
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
   },
-  updateAdminLevel: async (req, res) => {
+  updateAdminLevel: async (request) => {
     try {
-    } catch (error) {}
+      const { tenant } = request.query;
+      const filter = generateFilter.admin_levels(request);
+      if (filter.success && filter.success === "false") {
+        return filter;
+      }
+      const update = request.body;
+      const responseFromUpdateAdminLevel = await AdminLevelModel(tenant).modify(
+        {
+          filter,
+          update,
+        }
+      );
+      return responseFromUpdateAdminLevel;
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
   },
-  deleteAdminLevel: async (req, res) => {
+  deleteAdminLevel: async (request) => {
     try {
-    } catch (error) {}
+      const { tenant } = request.query;
+      const filter = generateFilter.admin_levels(request);
+      if (filter.success && filter.success === "false") {
+        return filter;
+      }
+      const responseFromDeleteAdminLevel = await AdminLevelModel(tenant).remove(
+        {
+          filter,
+        }
+      );
+      return responseFromDeleteAdminLevel;
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
   },
-  createAdminLevel: async (req, res) => {
+  createAdminLevel: async (request) => {
     try {
-    } catch (error) {}
+      const { tenant } = request.query;
+      const responseFromCreateAdminLevel = await AdminLevelModel(
+        tenant
+      ).register(request.body);
+      return responseFromCreateAdminLevel;
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
   },
 
-  /********************* manage grids ********************** */
+  /********************* manage grids **********************************  */
 
   findGridUsingGPSCoordinates: async (request) => {
     try {
@@ -640,6 +712,7 @@ const createGrid = {
         message: "successfully retrieved the Grid format",
       };
     } catch (error) {
+      logger.error(`Internal Server Error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -651,27 +724,452 @@ const createGrid = {
 
   listAvailableSites: async (request) => {
     try {
-    } catch (error) {}
+      const { tenant } = request.query;
+      const { grid_id } = request.params;
+
+      const grid = await GridModel(tenant).findById(grid_id);
+
+      if (!grid) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: {
+            message: `Invalid grid ID ${grid_id}, please crosscheck`,
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const responseFromListAvailableSites = await SiteModel(tenant)
+        .aggregate([
+          {
+            $match: {
+              grids: { $nin: [grid_id] },
+            },
+          },
+          {
+            $project: {
+              _id: 1,
+              long_name: 1,
+              name: 1,
+              description: 1,
+              generated_name: 1,
+              country: 1,
+              district: 1,
+              region: 1,
+              createdAt: {
+                $dateToString: {
+                  format: "%Y-%m-%d %H:%M:%S",
+                  date: "$_id",
+                },
+              },
+            },
+          },
+        ])
+        .exec();
+
+      logObject(
+        "responseFromListAvailableSites",
+        responseFromListAvailableSites
+      );
+
+      return {
+        success: true,
+        message: `retrieved all available devices for grid ${grid_id}`,
+        data: responseFromListAvailableSites,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logElement("internal server error", error.message);
+      logger.error(`Internal Server Error ${error.message}`);
+      return {
+        success: false,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      };
+    }
   },
   listAssignedSites: async (request) => {
     try {
-    } catch (error) {}
+      const { tenant } = request.query;
+      const { grid_id } = request.params;
+
+      const grid = await GridModel(tenant).findById(grid_id);
+
+      if (!grid) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: {
+            message: `Invalid grid ID ${grid_id}, please crosscheck`,
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const responseFromListAssignedSites = await SiteModel(tenant)
+        .aggregate([
+          {
+            $match: {
+              grids: { $in: [grid_id] },
+            },
+          },
+          {
+            $project: {
+              _id: 1,
+              name: 1,
+              long_name: 1,
+              description: 1,
+              generated_name: 1,
+              country: 1,
+              district: 1,
+              region: 1,
+              createdAt: {
+                $dateToString: {
+                  format: "%Y-%m-%d %H:%M:%S",
+                  date: "$_id",
+                },
+              },
+            },
+          },
+        ])
+        .exec();
+
+      logObject("responseFromListAssignedSites", responseFromListAssignedSites);
+
+      return {
+        success: true,
+        message: `retrieved all assigned sites for grid ${grid_id}`,
+        data: responseFromListAssignedSites,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logElement("internal server error", error.message);
+      logger.error(`Internal Server Error ${error.message}`);
+      return {
+        success: false,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      };
+    }
   },
   assignManySitesToGrid: async (request) => {
     try {
-    } catch (error) {}
+      const { grid_id } = request.params;
+      const { site_ids } = request.body;
+      const { tenant } = request.query;
+
+      const grid = await GridModel(tenant).findById(grid_id);
+
+      if (!grid) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: `Invalid grid ID ${grid_id}` },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      for (const site_id of site_ids) {
+        const site = await SiteModel(tenant)
+          .findById(ObjectId(site_id))
+          .lean();
+
+        if (!site) {
+          return {
+            success: false,
+            message: "Bad Request Error",
+            errors: {
+              message: `Invalid Site ID ${site_id}, please crosscheck`,
+            },
+            status: httpStatus.BAD_REQUEST,
+          };
+        }
+
+        if (site.grids && site.grids.includes(grid_id.toString())) {
+          return {
+            success: false,
+            message: "Bad Request Error",
+            errors: {
+              message: `Grid ${grid_id} is already assigned to the site ${site_id}`,
+            },
+            status: httpStatus.BAD_REQUEST,
+          };
+        }
+      }
+
+      const totalSites = site_ids.length;
+      const { nModified, n } = await SiteModel(tenant).updateMany(
+        { _id: { $in: site_ids } },
+        { $addToSet: { grids: grid_id } }
+      );
+
+      const notFoundCount = totalSites - nModified;
+      if (nModified === 0) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: "No matching Site found in the system" },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      if (notFoundCount > 0) {
+        return {
+          success: true,
+          message: `Operation partially successful some ${notFoundCount} of the provided sites were not found in the system`,
+          status: httpStatus.OK,
+        };
+      }
+
+      return {
+        success: true,
+        message: "successfully assigned all the provided sites to the Grid",
+        status: httpStatus.OK,
+        data: [],
+      };
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
   },
   unAssignManySitesFromGrid: async (request) => {
     try {
-    } catch (error) {}
+      const { site_ids } = request.body;
+      const { grid_id } = request.params;
+      const { tenant } = request.query;
+
+      // Check if grid exists
+      const grid = await GridModel(tenant).findById(grid_id);
+      if (!grid) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: "Grid not found" },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      //check of all these provided sites actually do exist?
+      const existingSites = await SiteModel(tenant).find(
+        { _id: { $in: site_ids } },
+        "_id"
+      );
+
+      if (existingSites.length !== site_ids.length) {
+        const nonExistentSites = site_ids.filter(
+          (site_id) => !existingSites.find((site) => site._id.equals(site_id))
+        );
+
+        return {
+          success: false,
+          message: `Bad Request Error`,
+          errors: {
+            message: `The following sites do not exist: ${nonExistentSites}`,
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      //check if all the provided site_ids have the grid_id in their grid's field?
+
+      const sites = await SiteModel(tenant).find({
+        _id: { $in: site_ids },
+        grids: { $all: [grid_id] },
+      });
+
+      if (sites.length !== site_ids.length) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: {
+            message: `Some of the provided Site IDs are not assigned to this grid ${grid_id}`,
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      //remove the grid_id from all the site's grid field
+
+      try {
+        const totalSites = site_ids.length;
+        const { nModified, n } = await SiteModel(tenant).updateMany(
+          { _id: { $in: site_ids }, grids: { $in: [grid_id] } },
+          { $pull: { grids: grid_id } },
+          { multi: true }
+        );
+
+        const notFoundCount = totalSites - nModified;
+        if (nModified === 0) {
+          return {
+            success: false,
+            message: "Bad Request Error",
+            errors: { message: "No matching Site found in the system" },
+            status: httpStatus.BAD_REQUEST,
+          };
+        }
+
+        if (notFoundCount > 0) {
+          return {
+            success: true,
+            message: `Operation partially successful since ${notFoundCount} of the provided sites were not found in the system`,
+            status: httpStatus.OK,
+          };
+        }
+      } catch (error) {
+        logger.error(`Internal Server Error ${error.message}`);
+        return {
+          success: false,
+          message: "Internal Server Error",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: { message: error.message },
+        };
+      }
+
+      return {
+        success: true,
+        message: `successfully unassigned all the provided  sites from the grid ${grid_id}`,
+        status: httpStatus.OK,
+        data: [],
+      };
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
   },
   assignOneSiteToGrid: async (request) => {
     try {
-    } catch (error) {}
+      const { grid_id, site_id } = request.params;
+      const { tenant } = request.query;
+
+      const siteExists = await SiteModel(tenant).exists({ _id: site_id });
+      const gridExists = await GridModel(tenant).exists({
+        _id: grid_id,
+      });
+
+      if (!siteExists || !gridExists) {
+        return {
+          success: false,
+          message: "Site or Grid not found",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "Site or Grid not found" },
+        };
+      }
+
+      const site = await SiteModel(tenant)
+        .findById(site_id)
+        .lean();
+
+      logObject("site", site);
+
+      if (site.grids && site.grids.includes(grid_id.toString())) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: "Grid already assigned to Site" },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const updatedSite = await SiteModel(tenant).findByIdAndUpdate(
+        site_id,
+        { $addToSet: { grids: grid_id } },
+        { new: true }
+      );
+
+      return {
+        success: true,
+        message: "Site assigned to the Grid",
+        data: updatedSite,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
   },
   unAssignOneSiteFromGrid: async (request) => {
     try {
-    } catch (error) {}
+      const { grid_id, site_id } = request.params;
+      const { tenant } = request.query;
+
+      // Check if the grid exists
+      const grid = await GridModel(tenant).findById(grid_id);
+      if (!grid) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: "Grid not found" },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      // Check if the site exists
+      const site = await SiteModel(tenant).findById(site_id);
+      if (!site) {
+        return {
+          success: false,
+          status: httpStatus.BAD_REQUEST,
+          message: "Bad Request Error",
+          errors: { message: "Site not found" },
+        };
+      }
+
+      // Check if the grid is part of the site's grids
+      const isGridInSite = site.grids.some(
+        (gridId) => gridId.toString() === grid_id.toString()
+      );
+      if (!isGridInSite) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            message: `Grid ${grid_id.toString()} is not part of the site's grids`,
+          },
+        };
+      }
+
+      // Remove the grid from the site
+      const updatedSite = await SiteModel(tenant).findByIdAndUpdate(
+        site_id,
+        { $pull: { grids: grid_id } },
+        { new: true }
+      );
+
+      return {
+        success: true,
+        message: "Successfully unassigned Site from the Grid",
+        data: updatedSite,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logObject("error", error);
+      logger.error(`Internal Server Error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
   },
 };
 

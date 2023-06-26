@@ -1,23 +1,12 @@
 const express = require("express");
 const router = express.Router();
 const createGridController = require("@controllers/create-grid");
-const {
-  check,
-  oneOf,
-  query,
-  body,
-  param,
-  validationResult,
-} = require("express-validator");
+const { check, oneOf, query, body, param } = require("express-validator");
 const constants = require("@config/constants");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
-const { logElement, logText, logObject } = require("@utils/log");
-const isEmpty = require("is-empty");
 const log4js = require("log4js");
-const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- geogroups-route-v1`
-);
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- grids-route-v2`);
 const multer = require("multer");
 const upload = multer({ dest: "uploads/" });
 const { getModelByTenant } = require("@config/database");
@@ -56,33 +45,43 @@ const validNetworks = async () => {
   await NetworkModel("airqo").distinct("name");
 };
 
-const initialIsCapital = function(word) {
-  try {
-    return word[0] !== word[0].toLowerCase();
-  } catch (error) {
-    logger.error(
-      `internal server error -- hasNoWhiteSpace -- ${error.message}`
-    );
+const validatePolygonCoordinates = (value) => {
+  if (!Array.isArray(value)) {
+    throw new Error("Coordinates must be provided as an array");
   }
+  if (value.length === 0) {
+    throw new Error("At least one polygon must be provided");
+  }
+  for (const polygon of value) {
+    if (!Array.isArray(polygon)) {
+      throw new Error(
+        "Each polygon must be provided as an array of coordinates"
+      );
+    }
+    if (polygon.length < 4) {
+      throw new Error("Each polygon must have at least four coordinates");
+    }
+  }
+  return true;
 };
-const hasNoWhiteSpace = function(word) {
-  try {
-    const hasWhiteSpace = word.indexOf(" ") >= 0;
-    return !hasWhiteSpace;
-  } catch (e) {
-    logger.error(`internal server error -- hasNoWhiteSpace -- ${e.message}`);
+
+const validateMultiPolygonCoordinates = (value) => {
+  if (!Array.isArray(value)) {
+    throw new Error("Coordinates must be provided as an array");
   }
+  if (value.length === 0) {
+    throw new Error("At least one multipolygon must be provided");
+  }
+  for (const multipolygon of value) {
+    validatePolygonCoordinates(multipolygon);
+  }
+  return true;
 };
 
 const validatePagination = (req, res, next) => {
-  // Retrieve the limit and skip values from the query parameters
   const limit = parseInt(req.query.limit, 10);
   const skip = parseInt(req.query.skip, 10);
-
-  // Validate and sanitize the limit value
   req.query.limit = isNaN(limit) || limit < 1 ? 1000 : limit;
-
-  // Validate and sanitize the skip value
   req.query.skip = isNaN(skip) || skip < 0 ? 0 : skip;
 
   next();
@@ -101,14 +100,15 @@ const headers = (req, res, next) => {
 router.use(headers);
 router.use(validatePagination);
 
-/************************ grids ********************/
+/************************ grids ********************************/
 router.post(
   "/",
   oneOf([
     [
       query("tenant")
-        .exists()
-        .withMessage("tenant should be provided")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty IF provided")
         .bail()
         .trim()
         .toLowerCase()
@@ -117,171 +117,80 @@ router.post(
     ],
   ]),
   oneOf([
-    body("location_id")
+    body("name")
       .exists()
-      .withMessage(
-        "location details are missing in your request, consider using location_id"
-      )
+      .withMessage("name should be provided")
       .bail()
       .trim()
-      .isMongoId()
-      .withMessage("location_id must be an object ID")
+      .notEmpty()
+      .withMessage("Name is required"),
+    body("shape.type")
+      .exists()
+      .withMessage("Shape Type should be provided")
       .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
-    [
-      body("location")
-        .exists()
-        .withMessage(
-          "location details are missing in your request, consider using location"
-        )
-        .bail()
-        .custom((value) => {
-          return typeof value === "object";
-        })
-        .withMessage("the location should be an object")
-        .custom((value) => {
-          return !isEmpty(value);
-        })
-        .withMessage("the location should not be empty when provided"),
-      body("location.coordinates")
-        .exists()
-        .withMessage("location.coordinates is missing in your request")
-        .bail()
-        .custom((value) => {
-          return Array.isArray(value);
-        })
-        .withMessage("the location.coordinates should be an array"),
-      body("location.type")
-        .exists()
-        .withMessage("location.type is is missing in your request")
-        .bail()
-        .isIn(["Polygon", "Point"])
-        .withMessage(
-          "the location.type value is not among the expected ones which include: Polygon and Point"
-        ),
-    ],
+      .trim()
+      .notEmpty()
+      .withMessage("Shape type should not be empty")
+      .bail()
+      .isIn(["Polygon", "MultiPolygon"])
+      .withMessage("the shape type must either be Polygon or MultiPolygon"),
+    body("shape.coordinates")
+      .exists()
+      .withMessage("Shape Coordinates should be provided")
+      .bail()
+      .custom((value) => {
+        const shapeType = req.body.shape.type;
+        if (shapeType === "Polygon") {
+          return validatePolygonCoordinates(value);
+        } else if (shapeType === "MultiPolygon") {
+          return validateMultiPolygonCoordinates(value);
+        }
+        return true;
+      })
+      .withMessage("Invalid coordinates provided"),
+    body("admin_level")
+      .exists()
+      .withMessage("Admin Level should be provided")
+      .bail()
+      .trim()
+      .notEmpty()
+      .withMessage("Admin Level should not be empty")
+      .isIn(validAdminLevels())
+      // .isIn([
+      //   "village",
+      //   "district",
+      //   "parish",
+      //   "division",
+      //   "county",
+      //   "subcounty",
+      //   "country",
+      //   "state",
+      //   "province",
+      //   "region",
+      //   "municipality",
+      //   "city",
+      //   "town",
+      //   "ward",
+      //   "neighborhood",
+      //   "community",
+      //   "census tract",
+      //   "block",
+      //   "postal code",
+      //   "zip code",
+      // ])
+      .withMessage(
+        "admin_level values include but not limited to: province, state, village, county, subcounty, village, parish, country, division and district"
+      ),
   ]),
-  oneOf([
-    [
-      body("long_name")
-        .exists()
-        .withMessage("the long_name is is missing in your request")
-        .bail()
-        .notEmpty()
-        .withMessage("the long_name should not be empty")
-        .trim(),
-      body("metadata")
-        .optional()
-        .custom((value) => {
-          return typeof value === "object";
-        })
-        .withMessage("the metadata should be an object")
-        .bail()
-        .custom((value) => {
-          return !isEmpty(value);
-        })
-        .withMessage("the metadata should not be empty if provided"),
-      body("isCustom")
-        .optional()
-        .notEmpty()
-        .withMessage("isCustom cannot be empty")
-        .isBoolean()
-        .withMessage("isCustom must be Boolean")
-        .trim(),
-      body("description")
-        .optional()
-        .notEmpty()
-        .trim(),
-      body("admin_level")
-        .exists()
-        .withMessage("admin_level is missing in your request")
-        .bail()
-        .toLowerCase()
-        .isIn(validAdminLevels())
-        // .isIn([
-        //   "village",
-        //   "district",
-        //   "parish",
-        //   "division",
-        //   "county",
-        //   "subcounty",
-        //   "country",
-        //   "state",
-        //   "province",
-        //   "region",
-        //   "municipality",
-        //   "city",
-        //   "town",
-        //   "ward",
-        //   "neighborhood",
-        //   "community",
-        //   "census tract",
-        //   "block",
-        //   "postal code",
-        //   "zip code",
-        // ])
-        .withMessage(
-          "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district"
-        ),
-      body("airqloud_tags")
-        .optional()
-        .custom((value) => {
-          return Array.isArray(value);
-        })
-        .withMessage("the tags should be an array")
-        .bail()
-        .notEmpty()
-        .withMessage("the tags should not be empty"),
-      body("sites")
-        .optional()
-        .custom((value) => {
-          return Array.isArray(value);
-        })
-        .withMessage("the sites should be an array")
-        .bail()
-        .notEmpty()
-        .withMessage("the sites should not be empty"),
-      body("sites.*")
-        .optional()
-        .isMongoId()
-        .withMessage("each site should be a mongo ID"),
-    ],
-  ]),
-  createGridController.register
-);
-router.post(
-  "/upload-shapefile",
-  upload.single("shapefile"),
-  createGridController.createGridFromShapefile
-);
-router.post(
-  "/nearby",
-  oneOf([
-    [
-      body("latitude")
-        .trim()
-        .exists()
-        .withMessage("the latitude is missing")
-        .notEmpty()
-        .withMessage("the latitude should not be empty"),
-      body("longitude")
-        .trim()
-        .exists()
-        .withMessage("the longitude is missing")
-        .notEmpty()
-        .withMessage("the longitude should not be empty"),
-    ],
-  ]),
-  createGridController.findGridUsingGPSCoordinates
+  createGridController.create
 );
 router.get(
   "/",
   oneOf([
     query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty IF provided")
       .bail()
       .trim()
       .toLowerCase()
@@ -314,6 +223,28 @@ router.get(
         .bail()
         .toLowerCase()
         .isIn(validAdminLevels())
+        // .isIn([
+        //   "village",
+        //   "district",
+        //   "parish",
+        //   "division",
+        //   "county",
+        //   "subcounty",
+        //   "country",
+        //   "state",
+        //   "province",
+        //   "region",
+        //   "municipality",
+        //   "city",
+        //   "town",
+        //   "ward",
+        //   "neighborhood",
+        //   "community",
+        //   "census tract",
+        //   "block",
+        //   "postal code",
+        //   "zip code",
+        // ])
         .withMessage(
           "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district"
         ),
@@ -321,168 +252,6 @@ router.get(
   ]),
   createGridController.list
 );
-router.put(
-  "/",
-  oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(validNetworks())
-      .withMessage("the tenant value is not among the expected ones"),
-  ]),
-  oneOf([
-    query("id")
-      .exists()
-      .withMessage(
-        "the airqloud identifier is missing in request, consider using id"
-      )
-      .bail()
-      .trim()
-      .isMongoId()
-      .withMessage("id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
-  ]),
-  oneOf([
-    [
-      body("name")
-        .optional()
-        .notEmpty()
-        .withMessage("the name should not be empty")
-        .bail()
-        .custom((value) => {
-          return initialIsCapital(value);
-        })
-        .withMessage("the name should start with a capital letter")
-        .bail()
-        .custom((value) => {
-          return hasNoWhiteSpace(value);
-        })
-        .withMessage("the name should not have whitespace in it")
-        .trim(),
-      body("admin_level")
-        .optional()
-        .notEmpty()
-        .withMessage(
-          "admin_level is empty, should not be if provided in request"
-        )
-        .bail()
-        .toLowerCase()
-        .isIn(validAdminLevels())
-        .withMessage(
-          "admin_level values include:province, state, village, county, subcounty, village, parish, country, division and district"
-        ),
-      body("description")
-        .optional()
-        .trim(),
-      body("sites")
-        .optional()
-        .custom((value) => {
-          return Array.isArray(value);
-        })
-        .withMessage("the sites should be an array")
-        .bail()
-        .notEmpty()
-        .withMessage("the sites should not be empty"),
-      body("sites.*")
-        .optional()
-        .isMongoId()
-        .withMessage("each site should be a mongo ID"),
-      body("metadata")
-        .optional()
-        .custom((value) => {
-          return typeof value === "object";
-        })
-        .withMessage("the metadata should be an object")
-        .bail()
-        .custom((value) => {
-          return !isEmpty(value);
-        })
-        .withMessage("the metadata should not be empty if provided"),
-      body("long_name")
-        .optional()
-        .notEmpty()
-        .withMessage("the long_name should not be empty")
-        .trim(),
-      body("isCustom")
-        .optional()
-        .isBoolean()
-        .withMessage("isCustom must be a boolean value")
-        .trim(),
-      body("location")
-        .optional()
-        .custom((value) => {
-          return typeof value === "object";
-        })
-        .withMessage("the location should be an object")
-        .bail()
-        .custom((value) => {
-          return !isEmpty(value);
-        })
-        .withMessage("the location should not be empty when provided"),
-      body("location.coordinates")
-        .optional()
-        .notEmpty()
-        .withMessage("the location.coordinates should not be empty")
-        .bail()
-        .custom((value) => {
-          return Array.isArray(value);
-        })
-        .withMessage("the location.coordinates should be an array"),
-      body("location.type")
-        .optional()
-        .notEmpty()
-        .withMessage("the location.type should not be empty")
-        .bail()
-        .isIn(["Polygon", "Point"])
-        .withMessage(
-          "the location.type value is not among the expected ones which include: Polygon and Point"
-        ),
-      body("airqloud_tags")
-        .optional()
-        .custom((value) => {
-          return Array.isArray(value);
-        })
-        .withMessage("the tags should be an array"),
-    ],
-  ]),
-  createGridController.update
-);
-router.delete(
-  "/",
-  oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(validNetworks())
-      .withMessage("the tenant value is not among the expected ones"),
-  ]),
-  oneOf([
-    query("id")
-      .exists()
-      .withMessage(
-        "the airqloud identifier is missing in request, consider using id"
-      )
-      .bail()
-      .trim()
-      .isMongoId()
-      .withMessage("id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
-  ]),
-  createGridController.delete
-);
-/*** NEW approaches for paths */
 router.get(
   "/:grid_id",
   oneOf([
@@ -494,7 +263,7 @@ router.get(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["kcca", "airqo"])
+        .isIn(validNetworks())
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -521,7 +290,7 @@ router.delete(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["kcca", "airqo"])
+        .isIn(validNetworks())
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -554,7 +323,7 @@ router.put(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["kcca", "airqo"])
+        .isIn(validNetworks())
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -661,7 +430,7 @@ router.patch(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["kcca", "airqo"])
+        .isIn(validNetworks())
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -757,7 +526,7 @@ router.patch(
 
   createGridController.refresh
 );
-/************************ managing grids ********************/
+/************************ managing grids *************************/
 router.put(
   "/:grid_id/assign-site/:site_id",
   oneOf([
@@ -769,7 +538,7 @@ router.put(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["kcca", "airqo"])
+        .isIn(validNetworks())
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -813,7 +582,7 @@ router.get(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["kcca", "airqo"])
+        .isIn(validNetworks())
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -840,7 +609,7 @@ router.get(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["kcca", "airqo"])
+        .isIn(validNetworks())
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -867,7 +636,7 @@ router.post(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["kcca", "airqo"])
+        .isIn(validNetworks())
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -914,7 +683,7 @@ router.delete(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["kcca", "airqo"])
+        .isIn(validNetworks())
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -961,7 +730,7 @@ router.delete(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["kcca", "airqo"])
+        .isIn(validNetworks())
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -994,104 +763,37 @@ router.delete(
 
   createGridController.unAssignOneSiteFromGrid
 );
+router.post(
+  "/upload-shapefile",
+  upload.single("shapefile"),
+  createGridController.createGridFromShapefile
+);
+router.post(
+  "/nearby",
+  oneOf([
+    [
+      body("latitude")
+        .trim()
+        .exists()
+        .withMessage("the latitude is missing")
+        .notEmpty()
+        .withMessage("the latitude should not be empty"),
+      body("longitude")
+        .trim()
+        .exists()
+        .withMessage("the longitude is missing")
+        .notEmpty()
+        .withMessage("the longitude should not be empty"),
+    ],
+  ]),
+  createGridController.findGridUsingGPSCoordinates
+);
 
 /************************ admin levels ********************/
 router.post("/levels", createGridController.createAdminLevel);
-router.put("/levels", createGridController.updateAdminLevel);
-router.delete("/levels", createGridController.deleteAdminLevel);
+router.put("/levels/:level_id", createGridController.updateAdminLevel);
+router.delete("/levels/:level_id", createGridController.deleteAdminLevel);
 router.get("/levels", createGridController.listAdminLevels);
+router.get("/levels/:level_id", createGridController.listAdminLevels);
 
 module.exports = router;
-
-// ...
-
-// Custom validation function for validating polygon coordinates
-const validatePolygonCoordinates = (value) => {
-  // Check if the value is an array
-  if (!Array.isArray(value)) {
-    throw new Error("Coordinates must be provided as an array");
-  }
-
-  // Check if the value contains at least one polygon
-  if (value.length === 0) {
-    throw new Error("At least one polygon must be provided");
-  }
-
-  // Check if each polygon is a valid array of coordinates
-  for (const polygon of value) {
-    // Check if the polygon is an array
-    if (!Array.isArray(polygon)) {
-      throw new Error(
-        "Each polygon must be provided as an array of coordinates"
-      );
-    }
-
-    // Check if the polygon has at least four coordinates
-    if (polygon.length < 4) {
-      throw new Error("Each polygon must have at least four coordinates");
-    }
-
-    // Add additional validation rules for each coordinate if needed
-    // For example, checking if each coordinate is an array with two numbers (longitude and latitude)
-  }
-
-  // Return true if the validation passes
-  return true;
-};
-
-// Custom validation function for validating multipolygon coordinates
-const validateMultiPolygonCoordinates = (value) => {
-  // Check if the value is an array
-  if (!Array.isArray(value)) {
-    throw new Error("Coordinates must be provided as an array");
-  }
-
-  // Check if the value contains at least one multipolygon
-  if (value.length === 0) {
-    throw new Error("At least one multipolygon must be provided");
-  }
-
-  // Check if each multipolygon is a valid array of polygons
-  for (const multipolygon of value) {
-    // Validate the polygon coordinates using the validatePolygonCoordinates function
-    validatePolygonCoordinates(multipolygon);
-  }
-
-  // Return true if the validation passes
-  return true;
-};
-
-// Controller action for creating a new GeoAirQloud
-const createGrid = [
-  // Input validation using express-validator
-  body("name")
-    .trim()
-    .notEmpty()
-    .withMessage("Name is required"),
-  body("shape.type")
-    .trim()
-    .notEmpty()
-    .withMessage("Shape type is required")
-    .bail()
-    .isIn(["Polygon", "MultiPolygon"])
-    .withMessage("the shape type must either be Polygon or MultiPolygon"),
-  body("shape.coordinates")
-    .custom((value) => {
-      const shapeType = req.body.shape.type;
-
-      // Perform coordinate validation based on the shape type
-      if (shapeType === "Polygon") {
-        return validatePolygonCoordinates(value);
-      } else if (shapeType === "MultiPolygon") {
-        return validateMultiPolygonCoordinates(value);
-      }
-
-      // Return true if the shape type is not recognized (no validation performed)
-      return true;
-    })
-    .withMessage("Invalid coordinates provided"),
-
-  async (req, res) => {
-    // ...
-  },
-];

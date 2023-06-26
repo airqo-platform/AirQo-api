@@ -72,6 +72,7 @@ const createCohort = {
       }
     } catch (error) {
       logObject("error", error);
+      logger.error(`Internal Server Error -- ${error.message}`);
       res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -139,7 +140,8 @@ const createCohort = {
       }
     } catch (error) {
       logObject("error", error);
-      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+      logger.error(`Internal Server Error -- ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -204,7 +206,8 @@ const createCohort = {
       }
     } catch (error) {
       logObject("error", error);
-      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+      logger.error(`Internal Server Error -- ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -268,7 +271,8 @@ const createCohort = {
       }
     } catch (error) {
       logObject("error", error);
-      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+      logger.error(`Internal Server Error -- ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -334,7 +338,8 @@ const createCohort = {
       }
     } catch (error) {
       logObject("error", error);
-      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+      logger.error(`Internal Server Error -- ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -397,7 +402,8 @@ const createCohort = {
       }
     } catch (error) {
       logObject("error", error);
-      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+      logger.error(`Internal Server Error -- ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -459,7 +465,8 @@ const createCohort = {
       }
     } catch (error) {
       logObject("error", error);
-      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+      logger.error(`Internal Server Error -- ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -525,7 +532,8 @@ const createCohort = {
       }
     } catch (error) {
       logObject("error", error);
-      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+      logger.error(`Internal Server Error -- ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -534,8 +542,6 @@ const createCohort = {
   },
   listSummary: async (req, res) => {
     try {
-      const { query } = req;
-      let request = {};
       logText(".....................................");
       logText("list all cohorts by query params provided");
       const hasErrors = !validationResult(req).isEmpty();
@@ -556,7 +562,15 @@ const createCohort = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      request["query"] = query;
+      const { query } = req;
+      let { tenant } = query;
+
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_NETWORK;
+      }
+
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
       request["query"]["summary"] = "yes";
       let responseFromListCohorts = await createCohortUtil.list(request);
       logElement(
@@ -567,7 +581,7 @@ const createCohort = {
         const status = responseFromListCohorts.status
           ? responseFromListCohorts.status
           : httpStatus.OK;
-        res.status(status).json({
+        return res.status(status).json({
           success: true,
           message: responseFromListCohorts.message,
           cohorts: responseFromListCohorts.data,
@@ -576,7 +590,7 @@ const createCohort = {
         const status = responseFromListCohorts.status
           ? responseFromListCohorts.status
           : httpStatus.INTERNAL_SERVER_ERROR;
-        res.status(status).json({
+        return res.status(status).json({
           success: false,
           message: responseFromListCohorts.message,
           errors: responseFromListCohorts.errors
@@ -586,7 +600,7 @@ const createCohort = {
       }
     } catch (errors) {
       logger.error(`Internal Server Error -- ${errors.message}`);
-      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: errors.message },
@@ -595,8 +609,6 @@ const createCohort = {
   },
   listDashboard: async (req, res) => {
     try {
-      const { query } = req;
-      let request = {};
       logText(".....................................");
       logText("list all cohorts by query params provided");
       const hasErrors = !validationResult(req).isEmpty();
@@ -617,7 +629,15 @@ const createCohort = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      request["query"] = query;
+      const { query } = req;
+      let { tenant } = query;
+
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_NETWORK;
+      }
+
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
       request["query"]["dashboard"] = "yes";
       let responseFromListCohorts = await createCohortUtil.list(request);
       logElement(
@@ -661,7 +681,7 @@ const createCohort = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
           convertErrorArrayToObject(nestedErrors)
@@ -708,6 +728,7 @@ const createCohort = {
       }
     } catch (error) {
       logElement("Internal Server Error", error.message);
+      logger.error(`Internal Server Error -- ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -721,7 +742,7 @@ const createCohort = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
           convertErrorArrayToObject(nestedErrors)
@@ -777,6 +798,7 @@ const createCohort = {
       }
     } catch (error) {
       logElement("Internal Server Error", error.message);
+      logger.error(`Internal Server Error -- ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -790,7 +812,7 @@ const createCohort = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
           convertErrorArrayToObject(nestedErrors)
@@ -847,7 +869,7 @@ const createCohort = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
           convertErrorArrayToObject(nestedErrors)
@@ -894,6 +916,7 @@ const createCohort = {
       }
     } catch (error) {
       logObject("error", error);
+      logger.error(`Internal Server Error -- ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -907,7 +930,7 @@ const createCohort = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
           convertErrorArrayToObject(nestedErrors)
@@ -950,6 +973,7 @@ const createCohort = {
       }
     } catch (error) {
       logObject("error", error);
+      logger.error(`Internal Server Error -- ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -963,7 +987,7 @@ const createCohort = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
           convertErrorArrayToObject(nestedErrors)
@@ -1007,6 +1031,7 @@ const createCohort = {
       }
     } catch (error) {
       logObject("error", error);
+      logger.error(`Internal Server Error -- ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
