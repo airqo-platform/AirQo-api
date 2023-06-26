@@ -1,0 +1,62 @@
+nameOverride: ''
+fullnameOverride: ''
+namespace: production
+images:
+  repositories:
+    api: eu.gcr.io/airqo-250220/airqo-prediction-api
+    predictJob: eu.gcr.io/airqo-250220/airqo-predict-job
+    trainJob: eu.gcr.io/airqo-250220/airqo-train-job
+  tag: prod-6050fa0d-1686855662
+api:
+  name: airqo-prediction-api
+  label: prediction-api
+  configmap: env-predict-production
+  replicaCount: 3
+  podAnnotations: {}
+  resources:
+    limits:
+      cpu: 50m
+      memory: 200Mi
+    requests:
+      cpu: 5m
+      memory: 120Mi
+jobs:
+  predict:
+    name: airqo-predict-job
+    configmap: env-predict-job-production
+    schedule: 0 0 * * *
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 4000Mi    
+  train:
+    name: airqo-train-job
+    configmap: env-train-job-production
+    schedule: 0 1 1 * *
+    suspend: false
+    resources:
+      limits:
+        cpu: 8000m
+        memory: 16000Mi
+      requests:
+        cpu: 2500m
+        memory: 4000Mi
+volumeMounts:
+  - name: config-volume
+    mountPath: /etc/config
+volumes:
+  - name: config-volume
+    configMap:
+      name: env-predict-production-files
+ingress:
+  enabled: false
+service:
+  type: NodePort
+  port: 5000
+  protocol: TCP
+  targetPort: 5000
+  nodePort: 30009
+autoscaling:
+  minReplicas: 1
+  maxReplicas: 3
+  targetMemoryUtilizationPercentage: 70
