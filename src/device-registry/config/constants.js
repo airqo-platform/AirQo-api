@@ -1052,7 +1052,13 @@ const defaultConfig = {
     return projection;
   },
 
-  COHORTS_INCLUSION_PROJECTION: {},
+  COHORTS_INCLUSION_PROJECTION: {
+    network_id: 1,
+    name: 1,
+    description: 1,
+    cohort_tags: 1,
+    cohort_codes: 1,
+  },
   COHORTS_EXCLUSION_PROJECTION: (category) => {
     const initialProjection = {};
     let projection = Object.assign({}, initialProjection);

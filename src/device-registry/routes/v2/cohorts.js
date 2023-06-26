@@ -9,6 +9,7 @@ const { logElement, logText, logObject } = require("@utils/log");
 const isEmpty = require("is-empty");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- cohorts-route-v2`);
+const { getModelByTenant } = require("@config/database");
 
 const NetworkSchema = require("@models/Network");
 const NetworkModel = (tenant) => {
@@ -231,7 +232,7 @@ router.post(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(validNetworks()())
+        .isIn(validNetworks())
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -262,7 +263,7 @@ router.get(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(validNetworks()())
+      .isIn(validNetworks())
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -296,7 +297,7 @@ router.get(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(validNetworks()())
+      .isIn(validNetworks())
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -330,7 +331,7 @@ router.get(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(validNetworks()())
+      .isIn(validNetworks())
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([

@@ -8,6 +8,7 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-cohort-controller`
 );
+const isEmpty = require("is-empty");
 
 const createCohort = {
   createNetwork: async (req, res) => {
