@@ -209,7 +209,9 @@ const createAirqloud = {
         );
       }
       request["query"] = query;
-      let responseFromRemoveAirQloud = await createAirQloudUtil.delete(request);
+      const responseFromRemoveAirQloud = await createAirQloudUtil.delete(
+        request
+      );
 
       if (responseFromRemoveAirQloud.success === true) {
         const status = responseFromRemoveAirQloud.status
@@ -607,66 +609,6 @@ const createAirqloud = {
     } catch (errors) {
       logger.error(`internal server error -- ${errors.message}`);
       res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: errors.message },
-      });
-    }
-  },
-
-  delete: async (req, res) => {
-    try {
-      const { query } = req;
-      const { body } = req;
-      let request = {};
-      logText(".................................................");
-      logText("inside delete airqloud............");
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        try {
-          logger.error(
-            `input validation errors ${JSON.stringify(
-              errors.convertErrorArrayToObject(nestedErrors)
-            )}`
-          );
-        } catch (e) {
-          logger.error(`internal server error -- ${e.message}`);
-        }
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
-        );
-      }
-      request["query"] = query;
-      request["body"] = body;
-      let responseFromRemoveAirQloud = await createAirQloudUtil.delete(request);
-
-      if (responseFromRemoveAirQloud.success === true) {
-        const status = responseFromRemoveAirQloud.status
-          ? responseFromRemoveAirQloud.status
-          : HTTPStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: responseFromRemoveAirQloud.message,
-          airqloud: responseFromRemoveAirQloud.data,
-        });
-      } else if (responseFromRemoveAirQloud.success === false) {
-        const status = responseFromRemoveAirQloud.status
-          ? responseFromRemoveAirQloud.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: responseFromRemoveAirQloud.message,
-          errors: responseFromRemoveAirQloud.errors
-            ? responseFromRemoveAirQloud.errors
-            : { message: "" },
-        });
-      }
-    } catch (errors) {
-      logger.error(`internal server error -- ${errors.message}`);
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: errors.message },

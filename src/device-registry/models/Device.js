@@ -362,12 +362,7 @@ deviceSchema.statics = {
 
       if (isEmpty(modifiedArgs.long_name && !isEmpty(modifiedArgs.name))) {
         try {
-          let nameWithoutWhiteSpaces = modifiedArgs.name.replace(
-            /[^a-zA-Z0-9]/g,
-            "_"
-          );
-          let shortenedName = nameWithoutWhiteSpaces.slice(0, 41);
-          modifiedArgs.long_name = shortenedName.trim().toLowerCase();
+          modifiedArgs.long_name = modifiedArgs.name;
         } catch (error) {
           logger.error(
             `internal server error -- sanitiseName-- ${error.message}`
