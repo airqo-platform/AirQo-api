@@ -1,11 +1,11 @@
-nameOverride: ""
-fullnameOverride: ""
+nameOverride: ''
+fullnameOverride: ''
 namespace: production
 images:
   repositories:
     api: eu.gcr.io/airqo-250220/airqo-view-api
     messageBroker: eu.gcr.io/airqo-250220/airqo-view-message-broker
-  tag: prod-6050fa0d-1686855662
+  tag: prod-7dd5bea9-1687787974
 api:
   name: airqo-view-api
   label: view-api
@@ -25,7 +25,7 @@ messageBroker:
   configmap: prod-view-message-broker-config
   replicaCount: 2
   podAnnotations:
-    sidecar.istio.io/inject: "false"
+    sidecar.istio.io/inject: 'false'
   resources:
     limits:
       cpu: 500m

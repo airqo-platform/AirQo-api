@@ -6,7 +6,7 @@ images:
     api: eu.gcr.io/airqo-250220/airqo-prediction-api
     predictJob: eu.gcr.io/airqo-250220/airqo-predict-job
     trainJob: eu.gcr.io/airqo-250220/airqo-train-job
-  tag: prod-6050fa0d-1686855662
+  tag: prod-7dd5bea9-1687787974
 api:
   name: airqo-prediction-api
   label: prediction-api
@@ -28,7 +28,7 @@ jobs:
     resources:
       limits:
         cpu: 1000m
-        memory: 4000Mi    
+        memory: 4000Mi
   train:
     name: airqo-train-job
     configmap: env-train-job-production
