@@ -207,9 +207,9 @@ def search_predictions():
 @ml_app.route(api.route["parish_predictions"], methods=["GET"])
 def parish_predictions():
     try:
-        page = request.args.get("page", 1, type=int)
-        page_size = request.args.get("page_size", 10, type=int)
-        limit = 100
+        page = int(request.args.get("page", 1, type=int))
+        page_size = int(request.args.get("page_size", 10, type=int))
+        limit = Config.PARISH_PREDICTIONS_QUERY_LIMIT
         if page_size > limit:
             page_size = limit
         offset = (page - 1) * page_size
@@ -223,7 +223,7 @@ def parish_predictions():
             "page": page,
             "page_size": page_size,
             "total_pages": total_pages,
-            "limit": limit,
+            "page_limit": limit,
             "data": data,
         }, 200
     except Exception as ex:

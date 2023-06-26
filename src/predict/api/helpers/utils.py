@@ -200,40 +200,35 @@ def geo_coordinates_cache_key_v2():
     return key
 
 
+@cache.memoize(timeout=Config.CACHE_TIMEOUT)
 def get_parish_predictions(parish_name: str, page_size: int, offset: int) -> []:
     from app import postgres_db, Predictions
 
-    if parish_name:
-        query = postgres_db.session.query(
-            func.ST_AsGeoJSON(Predictions.geometry).label("geometry"),
-            Predictions.parish.label("parish"),
-            Predictions.timestamp.label("timestamp"),
-            Predictions.pm2_5.label("pm2_5"),
-        ).filter(Predictions.parish.ilike(f"%{parish_name}%"))
+    query = postgres_db.session.query(
+        func.ST_AsGeoJSON(Predictions.geometry).label("geometry"),
+        Predictions.parish.label("parish"),
+        Predictions.timestamp.label("timestamp"),
+        Predictions.pm2_5.label("pm2_5"),
+    )
 
-    else:
-        query = postgres_db.session.query(
-            func.ST_AsGeoJSON(Predictions.geometry).label("geometry"),
-            Predictions.parish.label("parish"),
-            Predictions.timestamp.label("timestamp"),
-            Predictions.pm2_5.label("pm2_5"),
-        )
+    if parish_name:
+        query = query.filter(Predictions.parish.ilike(f"%{parish_name}%"))
 
     parishes = query.limit(page_size).offset(offset).all()
 
     total_rows = query.count()
     total_pages = math.ceil(total_rows / page_size)
 
-    data = []
-    for parish in parishes:
-        data.append(
-            {
-                "parish": parish.parish,
-                "pm2_5": parish.pm2_5,
-                "timestamp": parish.timestamp,
-                "geometry": json.loads(parish.geometry),
-            }
-        )
+    data = [
+        {
+            "parish": parish.parish,
+            "pm2_5": parish.pm2_5,
+            "timestamp": parish.timestamp,
+            "geometry": json.loads(parish.geometry),
+        }
+        for parish in parishes
+    ]
+
     return data, total_pages
 
 

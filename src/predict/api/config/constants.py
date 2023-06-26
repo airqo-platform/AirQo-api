@@ -22,8 +22,8 @@ class Config:
     AIRQO_BASE_URL = os.getenv("AIRQO_BASE_URL", "https://api.airqo.net")
     AIRQO_API_AUTH_TOKEN = os.getenv("AIRQO_API_AUTH_TOKEN", "")
     POSTGRES_CONNECTION_URL = os.getenv("POSTGRES_CONNECTION_URL")
-    AIRQO_API_AUTH_TOKEN = os.getenv("AIRQO_API_AUTH_TOKEN")
     CACHE_TIMEOUT = os.getenv("CACHE_TIMEOUT", 3600)
+    PARISH_PREDICTIONS_QUERY_LIMIT = os.getenv("PARISH_PREDICTIONS_QUERY_LIMIT", 100)
 
 
 class ProductionConfig(Config):
