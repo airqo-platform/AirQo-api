@@ -628,6 +628,7 @@ const generateFilter = {
   grids: (req) => {
     try {
       const { id, name, admin_level, grid_codes } = req.query;
+      const { grid_id } = req.params;
       let filter = {};
       if (name) {
         filter["name"] = name;
@@ -637,6 +638,10 @@ const generateFilter = {
         let geoCodesArray = grid_codes.split(",");
         filter["grid_codes"] = {};
         filter["grid_codes"]["$in"] = geoCodesArray;
+      }
+
+      if (grid_id) {
+        filter["_id"] = ObjectId(grid_id);
       }
 
       if (id) {
@@ -661,9 +666,14 @@ const generateFilter = {
   cohorts: (req) => {
     try {
       const { id, name, cohort_codes } = req.query;
+      const { cohort_id } = req.params;
       let filter = {};
       if (name) {
         filter["name"] = name;
+      }
+
+      if (cohort_id) {
+        filter["_id"] = ObjectId(cohort_id);
       }
 
       if (cohort_codes) {
@@ -690,9 +700,14 @@ const generateFilter = {
   networks: (req) => {
     try {
       const { id, name, network_codes } = req.query;
+      const { net_id } = req.params;
       let filter = {};
       if (name) {
         filter["name"] = name;
+      }
+
+      if (net_id) {
+        filter["_id"] = ObjectId(net_id);
       }
 
       if (network_codes) {
@@ -719,6 +734,7 @@ const generateFilter = {
   admin_levels: (req) => {
     try {
       const { id, name, admin_level_codes } = req.query;
+      const { level_id } = req.params;
       let filter = {};
       if (name) {
         filter["name"] = name;
@@ -728,6 +744,10 @@ const generateFilter = {
         let adminLevelCodesArray = admin_level_codes.split(",");
         filter["admin_level_codes"] = {};
         filter["admin_level_codes"]["$in"] = adminLevelCodesArray;
+      }
+
+      if (level_id) {
+        filter["_id"] = ObjectId(level_id);
       }
 
       if (id) {
