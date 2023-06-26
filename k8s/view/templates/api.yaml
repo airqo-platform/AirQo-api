@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.api.name }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "view.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+        app: {{ .Values.api.label }}
+  progressDeadlineSeconds: 600
+  replicas: {{ .Values.api.replicaCount }}
+  revisionHistoryLimit: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  minReadySeconds: 90
+  template:
+    metadata:
+      {{- with .Values.api.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        app: {{ .Values.api.label }}
+    spec:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 90
+              preference:
+                matchExpressions:
+                  - key: node-type
+                    operator: In
+                    values:
+                      - high-memory
+            - weight: 1
+              preference:
+                matchExpressions:
+                  - key: node-type
+                    operator: In
+                    values:
+                      - general-purpose
+      containers:
+        - name: {{ .Values.api.label }}
+          image: "{{ .Values.images.repositories.api }}:{{ .Values.images.tag }}"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: {{ .Values.service.targetPort }}
+              name: {{ .Values.api.label }}
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.api.configmap }}
+          resources:
+            {{- toYaml .Values.api.resources | nindent 12 }}
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sh", "-c", "sleep 10"]
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/config        
+      volumes:
+        - name: config-volume
+          configMap:
+            name: view-api-config-files

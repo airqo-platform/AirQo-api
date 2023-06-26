@@ -347,6 +347,13 @@ jobs:
           context: src/kafka-connectors/measurements-source-connector
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/measurements-connect:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/measurements-connect:latest
 
+      - name: Build and push biq query connector
+        uses: docker/build-push-action@v3
+        with:
+          push: true
+          context: src/kafka-connectors/bigquery-connector
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/bigquery-connector:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/bigquery-connector:latest
+
       - name: Login to k8s cluster
         uses: azure/k8s-set-context@v2
         with:
@@ -359,6 +366,13 @@ jobs:
           export PROD_KAFKA_CLUSTER=${{ secrets.PROD_KAFKA_CLUSTER }}
           cat k8s/kafka/connectors/measurements-connect.yaml | sed "s/{{MEASUREMENTS_CONNECT_IMAGE}}/$MEASUREMENTS_CONNECT_IMAGE/g" | sed "s/{{KAFKA_CLUSTER}}/$PROD_KAFKA_CLUSTER/g" | kubectl apply -n message-broker -f-
           kubectl apply -f k8s/kafka/connectors/purple-air-connector.yaml -n message-broker
+
+      - name: Set up GCP credentials and Kubernetes configmaps
+        run : |
+          gcloud secrets versions access latest --secret="prod-env-kafka-bigquery-connectors" > .env
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env bigquery-connectors | kubectl replace -f - -n production
+          gcloud secrets versions access latest --secret="prod-key-kafka-bigquery-connectors" > google_application_credentials.json
+          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json bigquery-connectors-files | kubectl replace -f - -n production
 
   ### auth service ###
   auth-service:
@@ -1032,7 +1046,7 @@ jobs:
           kubectl apply -n message-broker -f k8s/kafka/clusters/kafka-cluster.yaml
           kubectl rollout restart deployment kafka-cluster-entity-operator -n message-broker
           kubectl rollout restart deployment strimzi-cluster-operator -n message-broker
-          
+
   ### kafka topics ###
   kafka-topics:
     name: build-push-deploy-kafka-topics
@@ -1364,18 +1378,6 @@ jobs:
           target: api
           context: src/view
 
-      - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
-        with:
-          action: fjogeleit/yaml-update-action@main # Action to retry
-          with: |
-            valueFile: "k8s/view/api/values-prod.yaml"
-            propertyPath: "image.tag"
-            value: ${{ needs.image-tag.outputs.build_id }}
-            branch: ${{ env.DEPLOY_BRANCH }}
-            token: ${{ secrets.YAML_UPDATER_TOKEN }}
-            message: "Update view api production image tag to ${{ needs.image-tag.outputs.build_id }}"
-
       - name: Build and push Message Broker
         uses: docker/build-push-action@v3
         with:
@@ -1389,12 +1391,12 @@ jobs:
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
-            valueFile: "k8s/view/message-broker/values-prod.yaml"
-            propertyPath: "image.tag"
+            valueFile: "k8s/view/values-prod.yaml"
+            propertyPath: "images.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
             token: ${{ secrets.YAML_UPDATER_TOKEN }}
-            message: "Update view message broker production image tag to ${{ needs.image-tag.outputs.build_id }}"
+            message: "Update view production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
         uses: google-github-actions/auth@v0
@@ -1631,18 +1633,6 @@ jobs:
           target: production
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-prediction-api:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-prediction-api:latest
 
-      - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
-        with:
-          action: fjogeleit/yaml-update-action@main # Action to retry
-          with: |
-            valueFile: "k8s/predict/api/values-prod.yaml"
-            propertyPath: "image.tag"
-            value: ${{ needs.image-tag.outputs.build_id }}
-            branch: ${{ env.DEPLOY_BRANCH }}
-            token: ${{ secrets.YAML_UPDATER_TOKEN }}
-            message: "Update predict API production image tag to ${{ needs.image-tag.outputs.build_id }}"
-
       - name: Build and push predict Job Docker Image
         uses: docker/build-push-action@v3
         with:
@@ -1650,18 +1640,6 @@ jobs:
           context: src/predict/jobs/forecast
           target: production
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-predict-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-predict-job:latest
-
-      - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
-        with:
-          action: fjogeleit/yaml-update-action@main # Action to retry
-          with: |
-            valueFile: "k8s/predict/job/values-prod.yaml"
-            propertyPath: "image.tag"
-            value: ${{ needs.image-tag.outputs.build_id }}
-            branch: ${{ env.DEPLOY_BRANCH }}
-            token: ${{ secrets.YAML_UPDATER_TOKEN }}
-            message: "Update predict job production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Build and push train Job Docker Image
         uses: docker/build-push-action@v3
@@ -1676,12 +1654,12 @@ jobs:
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
-            valueFile: "k8s/predict/train-job/values-prod.yaml"
-            propertyPath: "image.tag"
+            valueFile: "k8s/predict/values-prod.yaml"
+            propertyPath: "images.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
             token: ${{ secrets.YAML_UPDATER_TOKEN }}
-            message: "Update predict train job production image tag to ${{ needs.image-tag.outputs.build_id }}"
+            message: "Update predict production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
         uses: google-github-actions/auth@v0
@@ -1705,8 +1683,6 @@ jobs:
           kubectl create configmap --dry-run=client -o yaml --from-env-file=train_job.env env-train-job-production | kubectl replace -f - -n production
           echo "=============== Updating the respective credentials files ==============="
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json env-predict-production-files | kubectl replace -f - -n production
-          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json predict-job-config-files | kubectl replace -f - -n production
-          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json train-job-config-files | kubectl replace -f - -n production
 
   ### network uptime ###
   network-uptime:
