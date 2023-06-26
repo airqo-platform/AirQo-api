@@ -91,6 +91,15 @@ def compute_differences(
     base_device: str,
     devices: list[str],
 ) -> BaseResult:
+    if len(devices) < 2:
+        return BaseResult(
+            results=[],
+            passed_devices=devices,
+            failed_devices=[],
+            errors=[],
+            error_devices=[],
+        )
+
     statistics_list = copy.copy(statistics)
     differences = []
     # TODO compute base device
@@ -100,8 +109,8 @@ def compute_differences(
         data[device] = device_statistics
 
     pairs = device_pairs(list(data.keys()))
-    passed_devices = []
-    failed_devices = []
+    passed_devices: list[str] = []
+    failed_devices: list[str] = []
 
     for device_pair in pairs:
         device_x = device_pair[0]
@@ -139,9 +148,9 @@ def compute_differences(
             failed_devices.extend([device_x, device_y])
 
     passed_devices = list(set(passed_devices))
-    failed_devices = list(set(failed_devices).difference(set(passed_devices)))
+    failed_devices = list(set(failed_devices).difference(passed_devices))
     error_devices = list(
-        set(devices).difference(set(passed_devices)).difference(set(failed_devices))
+        set(devices).difference(passed_devices).difference(failed_devices)
     )
     errors = []
     if error_devices:
@@ -227,6 +236,15 @@ def compute_inter_sensor_correlation(
     base_device: str,
     other_parameters: list[str],
 ) -> BaseResult:
+    if len(devices) < 2:
+        return BaseResult(
+            results=[],
+            passed_devices=devices,
+            failed_devices=[],
+            errors=[],
+            error_devices=[],
+        )
+
     passed_devices: list[str] = []
     failed_devices: list[str] = []
     results: list[dict] = []
@@ -289,8 +307,8 @@ def compute_inter_sensor_correlation(
 
                 passed_devices = list(set(passed_devices).intersection(set(first_pair)))
                 passed_pairs.remove(first_pair)
-
-    failed_devices = list(set(failed_devices).difference(set(passed_devices)))
+    passed_devices = list(set(passed_devices))
+    failed_devices = list(set(failed_devices).difference(passed_devices))
     error_devices = list(
         set(devices).difference(set(passed_devices)).difference(set(failed_devices))
     )
