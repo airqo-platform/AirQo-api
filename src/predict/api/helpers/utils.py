@@ -3,14 +3,14 @@ import math
 import traceback
 from datetime import datetime
 
+import geojson
 import pandas as pd
 import requests
 from dotenv import load_dotenv
-from flask import request, jsonify
+from flask import request
 from google.cloud import bigquery
 from sqlalchemy import func
 
-import geojson
 from app import cache
 from config.constants import connect_mongo, Config
 
@@ -24,52 +24,52 @@ def date_to_str(date: datetime):
 
 def heatmap_cache_key():
     args = request.args
-    airqloud = args.get('airqloud')
-    page = args.get('page')
-    limit = args.get('limit')
-    return f'{airqloud}_{page}_{limit}'
+    airqloud = args.get("airqloud")
+    page = args.get("page")
+    limit = args.get("limit")
+    return f"{airqloud}_{page}_{limit}"
 
 
 def daily_forecasts_cache_key():
     # create new var of current date and time as a string
     current_date = datetime.now().strftime("%Y-%m-%d")
     args = request.args
-    site_name = args.get('site_name')
-    region = args.get('region')
-    sub_county = args.get('sub_county')
-    county = args.get('county')
-    district = args.get('district')
-    parish = args.get('parish')
-    city = args.get('city')
-    site_id = args.get('site_id')
+    site_name = args.get("site_name")
+    region = args.get("region")
+    sub_county = args.get("sub_county")
+    county = args.get("county")
+    district = args.get("district")
+    parish = args.get("parish")
+    city = args.get("city")
+    site_id = args.get("site_id")
 
-    return f'daily_{current_date}_{site_name}_{region}_{sub_county}_{county}_{district}_{parish}_{city}_{site_id}'
+    return f"daily_{current_date}_{site_name}_{region}_{sub_county}_{county}_{district}_{parish}_{city}_{site_id}"
 
 
 def hourly_forecasts_cache_key():
     # create new var of current date and time as a string
     current_date = datetime.now().strftime("%Y-%m-%d")
     args = request.args
-    site_name = args.get('site_name')
-    region = args.get('region')
-    sub_county = args.get('sub_county')
-    county = args.get('county')
-    district = args.get('district')
-    parish = args.get('parish')
-    city = args.get('city')
-    site_id = args.get('site_id')
+    site_name = args.get("site_name")
+    region = args.get("region")
+    sub_county = args.get("sub_county")
+    county = args.get("county")
+    district = args.get("district")
+    parish = args.get("parish")
+    city = args.get("city")
+    site_id = args.get("site_id")
 
-    return f'hourly_{current_date}_{site_name}_{region}_{sub_county}_{county}_{district}_{parish}_{city}_{site_id}'
+    return f"hourly_{current_date}_{site_name}_{region}_{sub_county}_{county}_{district}_{parish}_{city}_{site_id}"
 
 
 def geo_coordinates_cache_key():
     key = (
-            "geo_coordinates:"
-            + str(round(float(request.args.get("latitude")), 6))
-            + ":"
-            + str(round(float(request.args.get("longitude")), 6))
-            + ":"
-            + str(request.args.get("distance_in_metres"))
+        "geo_coordinates:"
+        + str(round(float(request.args.get("latitude")), 6))
+        + ":"
+        + str(round(float(request.args.get("longitude")), 6))
+        + ":"
+        + str(request.args.get("distance_in_metres"))
     )
     return key
 
@@ -81,14 +81,19 @@ def convert_to_geojson(data):
     """
     features = []
     for record in data:
-        point = geojson.Point((record['values']['latitude'], record['values']['longitude']))
-        feature = geojson.Feature(geometry=point, properties={
-            "latitude": record['values']['latitude'],
-            "longitude": record['values']['longitude'],
-            "predicted_value": record['values']["predicted_value"],
-            "variance": record['values']["variance"],
-            "interval": record['values']["interval"],
-        })
+        point = geojson.Point(
+            (record["values"]["latitude"], record["values"]["longitude"])
+        )
+        feature = geojson.Feature(
+            geometry=point,
+            properties={
+                "latitude": record["values"]["latitude"],
+                "longitude": record["values"]["longitude"],
+                "predicted_value": record["values"]["predicted_value"],
+                "variance": record["values"]["variance"],
+                "interval": record["values"]["interval"],
+            },
+        )
         features.append(feature)
 
     return geojson.FeatureCollection(features)
@@ -101,46 +106,44 @@ def get_gp_predictions(airqloud=None, page=1, limit=500):
     pipeline = [
         {"$match": {"airqloud": airqloud.lower()} if airqloud else {}},
         {"$sort": {"created_at": -1}},
-        {"$group": {
-            "_id": {
-                "airqloud_id": "$airqloud_id",
-                "airqloud": "$airqloud"
-            },
-            "doc": {"$first": "$$ROOT"},
-        }},
-        {"$replaceRoot": {"newRoot": "$doc"}},
-        {"$project": {
-            '_id': 0,
-            'airqloud_id': 1,
-            'airqloud': 1,
-            'created_at': 1,
-            'values': 1
-        }},
-        {"$unwind": "$values"},
-        {"$setWindowFields": {
-            "partitionBy": {
-                "airqloud_id": "$airqloud_id",
-                "airqloud": "$airqloud"
-            },
-            "sortBy": {"created_at": 1},
-            "output": {
-                "total": {
-                    "$sum": 1,
-                    "window": {
-                        "documents": ["unbounded", "unbounded"]
-                    }
-                }
+        {
+            "$group": {
+                "_id": {"airqloud_id": "$airqloud_id", "airqloud": "$airqloud"},
+                "doc": {"$first": "$$ROOT"},
             }
-        }},
+        },
+        {"$replaceRoot": {"newRoot": "$doc"}},
+        {
+            "$project": {
+                "_id": 0,
+                "airqloud_id": 1,
+                "airqloud": 1,
+                "created_at": 1,
+                "values": 1,
+            }
+        },
+        {"$unwind": "$values"},
+        {
+            "$setWindowFields": {
+                "partitionBy": {"airqloud_id": "$airqloud_id", "airqloud": "$airqloud"},
+                "sortBy": {"created_at": 1},
+                "output": {
+                    "total": {
+                        "$sum": 1,
+                        "window": {"documents": ["unbounded", "unbounded"]},
+                    }
+                },
+            }
+        },
         {"$skip": (page - 1) * limit},
-        {"$limit": limit}
+        {"$limit": limit},
     ]
     predictions = db.gp_predictions.aggregate(pipeline)
     predictions = list(predictions)
-    created_at = predictions[0]['created_at']
-    total_count = predictions[0]['total']
+    created_at = predictions[0]["created_at"]
+    total_count = predictions[0]["total"]
     pages = math.ceil(total_count / limit)
-    airqloud_id = predictions[0]['airqloud_id']
+    airqloud_id = predictions[0]["airqloud_id"]
     return airqloud_id, created_at, predictions, total_count, pages
 
 
@@ -162,7 +165,7 @@ def get_health_tips() -> list[dict]:
 
 @cache.memoize(timeout=Config.CACHE_TIMEOUT)
 def get_predictions_by_geo_coordinates(
-        latitude: float, longitude: float, distance_in_metres: int
+    latitude: float, longitude: float, distance_in_metres: int
 ) -> dict:
     client = bigquery.Client()
 
@@ -186,6 +189,7 @@ def get_predictions_by_geo_coordinates(
 
     return data
 
+
 def geo_coordinates_cache_key_v2():
     key = (
         "geo_coordinates:"
@@ -196,16 +200,30 @@ def geo_coordinates_cache_key_v2():
     return key
 
 
-def get_parish_predictions(parish: str) -> []:
+def get_parish_predictions(parish_name: str, page_size: int, offset: int) -> []:
     from app import postgres_db, Predictions
 
-    query = postgres_db.session.query(
-        func.ST_AsGeoJSON(Predictions.geometry).label("geometry"),
-        Predictions.parish.label("parish"),
-        Predictions.timestamp.label("timestamp"),
-        Predictions.pm2_5.label("pm2_5"),
-    ).filter(Predictions.parish.ilike(f"%{parish}%"))
-    parishes = query.all()
+    if parish_name:
+        query = postgres_db.session.query(
+            func.ST_AsGeoJSON(Predictions.geometry).label("geometry"),
+            Predictions.parish.label("parish"),
+            Predictions.timestamp.label("timestamp"),
+            Predictions.pm2_5.label("pm2_5"),
+        ).filter(Predictions.parish.ilike(f"%{parish_name}%"))
+
+    else:
+        query = postgres_db.session.query(
+            func.ST_AsGeoJSON(Predictions.geometry).label("geometry"),
+            Predictions.parish.label("parish"),
+            Predictions.timestamp.label("timestamp"),
+            Predictions.pm2_5.label("pm2_5"),
+        )
+
+    parishes = query.limit(page_size).offset(offset).all()
+
+    total_rows = query.count()
+    total_pages = math.ceil(total_rows / page_size)
+
     data = []
     for parish in parishes:
         data.append(
@@ -216,7 +234,7 @@ def get_parish_predictions(parish: str) -> []:
                 "geometry": json.loads(parish.geometry),
             }
         )
-    return data
+    return data, total_pages
 
 
 def get_predictions_by_geo_coordinates_v2(latitude: float, longitude: float) -> dict:
@@ -236,23 +254,47 @@ def get_predictions_by_geo_coordinates_v2(latitude: float, longitude: float) -> 
 
 
 @cache.memoize(timeout=Config.CACHE_TIMEOUT)
-def get_forecasts(db_name, site_id=None, site_name=None, parish=None, county=None, city=None, district=None,
-                  region=None):
+def get_forecasts(
+    db_name,
+    site_id=None,
+    site_name=None,
+    parish=None,
+    county=None,
+    city=None,
+    district=None,
+    region=None,
+):
     db = connect_mongo()
     query = {}
-    params = {'site_id': site_id, 'site_name': site_name, 'parish': parish,
-              'county': county, 'city': city, 'district': district, 'region': region}
+    params = {
+        "site_id": site_id,
+        "site_name": site_name,
+        "parish": parish,
+        "county": county,
+        "city": city,
+        "district": district,
+        "region": region,
+    }
     for name, value in params.items():
         if value is not None:
             query[name] = value
-    site_forecasts = list(db[db_name].find(
-        query, {'_id': 0}).sort([('$natural', -1)]).limit(1))
+    site_forecasts = list(
+        db[db_name].find(query, {"_id": 0}).sort([("$natural", -1)]).limit(1)
+    )
 
     results = []
     if site_forecasts:
-        for time, pm2_5, health_tips in zip(site_forecasts[0]['time'], site_forecasts[0]['pm2_5'],
-                                            site_forecasts[0]['health_tips']):
-            result = {key: value for key, value in zip(['time', 'pm2_5', 'health_tips'], [time, pm2_5, health_tips])}
+        for time, pm2_5, health_tips in zip(
+            site_forecasts[0]["time"],
+            site_forecasts[0]["pm2_5"],
+            site_forecasts[0]["health_tips"],
+        ):
+            result = {
+                key: value
+                for key, value in zip(
+                    ["time", "pm2_5", "health_tips"], [time, pm2_5, health_tips]
+                )
+            }
             results.append(result)
-    formatted_results = {'forecasts': results}
+    formatted_results = {"forecasts": results}
     return formatted_results
