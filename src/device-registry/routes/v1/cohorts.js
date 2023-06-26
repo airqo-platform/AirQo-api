@@ -9,6 +9,7 @@ const { logElement, logText, logObject } = require("@utils/log");
 const isEmpty = require("is-empty");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- cohorts-route-v1`);
+const { getModelByTenant } = require("@config/database");
 
 const NetworkSchema = require("@models/Network");
 const NetworkModel = (tenant) => {
@@ -21,7 +22,9 @@ const NetworkModel = (tenant) => {
   }
 };
 
-const validNetworks = await NetworkModel("airqo").distinct("name");
+const validNetworks = async () => {
+  await NetworkModel("airqo").distinct("name");
+};
 
 const validatePagination = (req, res, next) => {
   // Retrieve the limit and skip values from the query parameters
@@ -108,8 +111,7 @@ router.delete(
         return ObjectId(value);
       }),
   ]),
-  setJWTAuth,
-  authJWT,
+
   createCohortController.delete
 );
 router.put(
@@ -216,118 +218,10 @@ router.put(
         .withMessage("each use should be an object ID"),
     ],
   ]),
-  setJWTAuth,
-  authJWT,
+
   createCohortController.update
 );
-router.patch(
-  "/:cohort_id",
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant cannot be empty if provided")
-        .bail()
-        .trim()
-        .toLowerCase()
-        .isIn(["kcca", "airqo"])
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-  oneOf([
-    param("cohort_id")
-      .exists()
-      .withMessage("the cohort_id is missing in request")
-      .bail()
-      .trim()
-      .isMongoId()
-      .withMessage("cohort_id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
-  ]),
-  oneOf([
-    [
-      body("net_email")
-        .optional()
-        .notEmpty()
-        .withMessage("the email should not be empty if provided")
-        .bail()
-        .isEmail()
-        .withMessage("this is not a valid email address")
-        .trim(),
-      body("net_website")
-        .optional()
-        .notEmpty()
-        .withMessage("the net_website should not be empty if provided")
-        .bail()
-        .isURL()
-        .withMessage("the net_website is not a valid URL")
-        .trim(),
-      body("net_status")
-        .optional()
-        .notEmpty()
-        .withMessage("the net_status should not be empty if provided")
-        .bail()
-        .toLowerCase()
-        .isIn(["active", "inactive", "pending"])
-        .withMessage(
-          "the net_status value is not among the expected ones which include: active, inactive, pending"
-        )
-        .trim(),
-      body("net_phoneNumber")
-        .optional()
-        .notEmpty()
-        .withMessage("the phoneNumber should not be empty if provided")
-        .bail()
-        .isMobilePhone()
-        .withMessage("the phoneNumber is not a valid one")
-        .bail()
-        .trim(),
-      body("net_category")
-        .optional()
-        .notEmpty()
-        .withMessage("the net_category should not be empty if provided")
-        .bail()
-        .toLowerCase()
-        .isIn([
-          "business",
-          "research",
-          "policy",
-          "awareness",
-          "school",
-          "others",
-        ])
-        .withMessage(
-          "the status value is not among the expected ones which include: business, research, policy, awareness, school, others"
-        )
-        .trim(),
-      body("net_name")
-        .if(body("net_name").exists())
-        .notEmpty()
-        .withMessage("the net_name should not be empty")
-        .trim(),
-      body("net_devices")
-        .optional()
-        .custom((value) => {
-          return Array.isArray(value);
-        })
-        .withMessage("the net_devices should be an array")
-        .bail()
-        .notEmpty()
-        .withMessage("the net_devices should not be empty"),
-      body("net_devices.*")
-        .optional()
-        .isMongoId()
-        .withMessage("each use should be an object ID"),
-    ],
-  ]),
-  setJWTAuth,
-  authJWT,
-  createCohortController.refresh
-);
+
 router.post(
   "/",
   oneOf([
@@ -504,8 +398,7 @@ router.put(
         }),
     ],
   ]),
-  setJWTAuth,
-  authJWT,
+
   createCohortController.assignOneDeviceToCohort
 );
 router.get(
@@ -606,8 +499,7 @@ router.post(
         .withMessage("device_id provided must be an object ID"),
     ],
   ]),
-  setJWTAuth,
-  authJWT,
+
   createCohortController.assignManyDevicesToCohort
 );
 router.delete(
@@ -654,8 +546,7 @@ router.delete(
         .withMessage("device_id provided must be an object ID"),
     ],
   ]),
-  setJWTAuth,
-  authJWT,
+
   createCohortController.unAssignManyDevicesFromCohort
 );
 router.delete(
@@ -699,13 +590,12 @@ router.delete(
         }),
     ],
   ]),
-  setJWTAuth,
-  authJWT,
+
   createCohortController.unAssignOneDeviceFromCohort
 );
 /************************ networks ********************/
 router.post("/networks", createCohortController.createNetwork);
-router.update("/networks/:net_id", createCohortController.updateNetwork);
+router.put("/networks/:net_id", createCohortController.updateNetwork);
 router.delete("/networks/:net_id", createCohortController.deleteNetwork);
 router.get("/networks", createCohortController.listNetworks);
 router.get("/networks/:net_id", createCohortController.listNetworks);
