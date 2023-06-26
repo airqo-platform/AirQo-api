@@ -153,6 +153,7 @@ def compute_differences(
         failed_devices=failed_devices,
         errors=errors,
         results=differences,
+        error_devices=error_devices,
     )
 
 
@@ -303,6 +304,7 @@ def compute_inter_sensor_correlation(
         passed_devices=passed_devices,
         failed_devices=failed_devices,
         errors=errors,
+        error_devices=error_devices,
     )
 
 
@@ -383,6 +385,7 @@ def compute_intra_sensor_correlation(
         passed_devices=passed_devices,
         failed_devices=failed_devices,
         errors=errors,
+        error_devices=error_devices,
     )
 
 
@@ -580,6 +583,7 @@ def compute_data_completeness(
         passed_devices=passed_devices,
         failed_devices=failed_devices,
         errors=errors,
+        error_devices=error_devices,
     )
 
 
