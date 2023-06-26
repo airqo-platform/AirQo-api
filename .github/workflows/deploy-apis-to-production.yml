@@ -367,6 +367,13 @@ jobs:
           cat k8s/kafka/connectors/measurements-connect.yaml | sed "s/{{MEASUREMENTS_CONNECT_IMAGE}}/$MEASUREMENTS_CONNECT_IMAGE/g" | sed "s/{{KAFKA_CLUSTER}}/$PROD_KAFKA_CLUSTER/g" | kubectl apply -n message-broker -f-
           kubectl apply -f k8s/kafka/connectors/purple-air-connector.yaml -n message-broker
 
+      - name: Set up GCP credentials and Kubernetes configmaps
+        run : |
+          gcloud secrets versions access latest --secret="prod-env-kafka-bigquery-connectors" > .env
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env bigquery-connectors | kubectl replace -f - -n production
+          gcloud secrets versions access latest --secret="prod-key-kafka-bigquery-connectors" > google_application_credentials.json
+          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json bigquery-connectors-files | kubectl replace -f - -n production
+
   ### auth service ###
   auth-service:
     name: build-push-deploy-auth
