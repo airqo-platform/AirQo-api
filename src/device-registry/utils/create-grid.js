@@ -22,6 +22,7 @@ const { Transform } = require("stream");
 const multer = require("multer");
 const upload = multer({ dest: "uploads/" });
 const shapefile = require("shapefile");
+const AdmZip = require("adm-zip");
 
 const GridModel = (tenant) => {
   try {
@@ -156,6 +157,104 @@ const createGrid = {
       };
     }
   },
+  batchCreate: async (request) => {
+    try {
+      const { shape } = request.body; // Assuming the input data is passed in the request body as 'data' field
+      const { coordinates, type } = shape;
+      const batchSize = 100; // Define the size of each batch
+      const totalBatches = Math.ceil(data.length / batchSize);
+
+      for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+        const startIdx = batchIndex * batchSize;
+        const endIdx = Math.min(startIdx + batchSize, coordinates.length);
+        const batchData = coordinates.slice(startIdx, endIdx);
+
+        // Process the batch of data using the Grid Schema
+        const gridModels = batchData.map((item) => {
+          // Perform any necessary transformations on 'item' before creating a Grid Model
+          return new GridModel(item);
+        });
+
+        // Bulk insert the gridModels using your preferred method (e.g., mongoose insertMany)
+        await GridModel(tenant).insertMany(gridModels);
+      }
+
+      /************* END batch processing ************ */
+    } catch (error) {
+      logger.error(`internal server error -- ${err.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: err.message },
+      };
+    }
+  },
+  streamCreate: async (request) => {
+    try {
+      /****************START stream processing ********** */
+      // const { data } = req.body; // Assuming the input data is passed in the request body as 'data' field
+      const { shape } = request.body;
+      const { type, coordinates } = shape;
+      // Create a Readable stream from the input data
+      const readableStream = new Readable({
+        objectMode: true,
+        read() {
+          // Push each data item into the stream
+          coordinates.forEach((item) => this.push(item));
+          this.push(null); // Signal the end of the stream
+        },
+      });
+
+      // Create a custom Transform stream for processing and transforming the data
+      const transformStream = new GridTransformStream();
+
+      // Create a Writable stream to save the processed data using GridModel.create()
+      const writableStream = new Writable({
+        objectMode: true,
+        write(gridModel, encoding, callback) {
+          gridModel.save((error) => {
+            if (error) {
+              callback(error);
+            } else {
+              callback();
+            }
+          });
+        },
+      });
+
+      // Connect the streams together using stream.pipeline() or a similar method
+      stream.pipeline(
+        readableStream,
+        transformStream,
+        writableStream,
+        (error) => {
+          if (error) {
+            console.error("Error during streaming processing:", error);
+            res.status(500).json({
+              success: false,
+              message: "Error during streaming processing",
+            });
+          } else {
+            res.status(200).json({
+              success: true,
+              message: "Streaming processing completed",
+            });
+          }
+        }
+      );
+
+      /******************* END stream processing ***************/
+    } catch (error) {
+      logger.error(`internal server error -- ${err.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: err.message },
+      };
+    }
+  },
   create: async (request) => {
     try {
       const { body, query } = request;
@@ -177,83 +276,6 @@ const createGrid = {
       } else {
         modifiedBody["center_point"] =
           responseFromCalculateGeographicalCenter.data;
-
-        /**********
-         * using batching mechanism for storage********* */
-
-        const { data } = req.body; // Assuming the input data is passed in the request body as 'data' field
-        const batchSize = 100; // Define the size of each batch
-        const totalBatches = Math.ceil(data.length / batchSize);
-
-        for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
-          const startIdx = batchIndex * batchSize;
-          const endIdx = Math.min(startIdx + batchSize, data.length);
-          const batchData = data.slice(startIdx, endIdx);
-
-          // Process the batch of data using the Grid Schema
-          const gridModels = batchData.map((item) => {
-            // Perform any necessary transformations on 'item' before creating a Grid Model
-            return new GridModel(item);
-          });
-
-          // Bulk insert the gridModels using your preferred method (e.g., mongoose insertMany)
-          await GridModel(tenant).insertMany(gridModels);
-        }
-
-        /************* END batch processing ************ */
-
-        /****************START stream processing ********** */
-        // const { data } = req.body; // Assuming the input data is passed in the request body as 'data' field
-
-        // Create a Readable stream from the input data
-        const readableStream = new Readable({
-          objectMode: true,
-          read() {
-            // Push each data item into the stream
-            data.forEach((item) => this.push(item));
-            this.push(null); // Signal the end of the stream
-          },
-        });
-
-        // Create a custom Transform stream for processing and transforming the data
-        const transformStream = new GridTransformStream();
-
-        // Create a Writable stream to save the processed data using GridModel.create()
-        const writableStream = new Writable({
-          objectMode: true,
-          write(gridModel, encoding, callback) {
-            gridModel.save((error) => {
-              if (error) {
-                callback(error);
-              } else {
-                callback();
-              }
-            });
-          },
-        });
-
-        // Connect the streams together using stream.pipeline() or a similar method
-        stream.pipeline(
-          readableStream,
-          transformStream,
-          writableStream,
-          (error) => {
-            if (error) {
-              console.error("Error during streaming processing:", error);
-              res.status(500).json({
-                success: false,
-                message: "Error during streaming processing",
-              });
-            } else {
-              res.status(200).json({
-                success: true,
-                message: "Streaming processing completed",
-              });
-            }
-          }
-        );
-
-        /******************* END stream processing ***************/
 
         const responseFromRegisterGrid = await GridModel(tenant).register(
           modifiedBody
@@ -678,7 +700,13 @@ const createGrid = {
   },
   createGridFromShapefile: async (request) => {
     try {
+      const uploadedFile = request.file;
+      const zip = new AdmZip(uploadedFile.path);
+      zip.extractAllTo("uploads/", true);
+
       const shapefilePath = request.file.path;
+      logObject("request.file", request.file);
+      logObject("shapefilePath", shapefilePath);
       const file = await shapefile.open(shapefilePath);
       const source = await file.source();
 
@@ -712,6 +740,7 @@ const createGrid = {
         message: "successfully retrieved the Grid format",
       };
     } catch (error) {
+      logObject("error", error);
       logger.error(`Internal Server Error -- ${error.message}`);
       return {
         success: false,

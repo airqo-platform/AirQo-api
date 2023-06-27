@@ -31,6 +31,7 @@
     "@googlemaps/google-maps-services-js": "^3.1.16",
     "@kafkajs/confluent-schema-registry": "^3.0.1",
     "@log4js-node/slack": "^1.0.0",
+    "adm-zip": "^0.5.10",
     "app-module-path": "^2.2.0",
     "avsc": "^5.4.16",
     "axios": "^0.21.4",
