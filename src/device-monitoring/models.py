@@ -2,9 +2,12 @@ from dataclasses import dataclass, asdict
 from datetime import datetime, timedelta
 from enum import Enum
 
+import pandas as pd
+from google.cloud import bigquery
 from pymongo import DESCENDING
 
 from app import cache
+from config.constants import Config
 from config.db_connection import connect_mongo
 
 
@@ -132,6 +135,45 @@ class DeviceUptime(BaseModel):
                 ]
             )
         )
+
+
+class DeviceBattery:
+    @staticmethod
+    @cache.memoize(timeout=1800)
+    def get_device_battery(
+        device: str, start_date_time: str, end_date_time: str
+    ) -> pd.DataFrame:
+        client = bigquery.Client()
+        cols = [
+            "timestamp",
+            "device_id as device_name",
+            f"battery as voltage",
+        ]
+
+        data_table = f"`{Config.BIGQUERY_RAW_DATA}`"
+
+        query = (
+            f" SELECT {', '.join(map(str, set(cols)))}, "
+            f" FROM {data_table} "
+            f" WHERE {data_table}.timestamp >= '{str(start_date_time)}' "
+            f" AND {data_table}.timestamp <= '{str(end_date_time)}' "
+            f" AND {data_table}.device_id = '{device}' "
+            f" AND {data_table}.battery is not null "
+        )
+
+        query = f"select distinct * from ({query})"
+
+        dataframe = client.query(query=query).result().to_dataframe()
+
+        return dataframe
+
+    @staticmethod
+    def format_device_battery(
+        data: pd.DataFrame, rounding: int, minutes_average: int
+    ) -> list:
+        data["voltage"] = data["voltage"].apply(float)
+        data["voltage"] = data["voltage"].round(rounding)
+        return data.to_dict("records")
 
 
 class CollocationBatchStatus(Enum):
