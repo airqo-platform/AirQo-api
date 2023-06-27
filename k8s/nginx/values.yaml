@@ -96,7 +96,7 @@ controller:
     ## Used as an alternative to specifying a certificate and key using `controller.defaultTLS.cert` and `controller.defaultTLS.key` parameters.
     ## Note: Alternatively, omitting the default server secret completely will configure NGINX to reject TLS connections to the default server.
     ## Format: <namespace>/<secret_name>
-    secret: ""
+    secret: "nginx-ingress/tls-secret"
 
   wildcardTLS:
     ## The base64-encoded TLS certificate for every Ingress/VirtualServer host that has TLS enabled but no secret specified.
@@ -111,7 +111,7 @@ controller:
     ## The value must follow the following format: `<namespace>/<name>`.
     ## Used as an alternative to specifying a certificate and key using `controller.wildcardTLS.cert` and `controller.wildcardTLS.key` parameters.
     ## Format: <namespace>/<secret_name>
-    secret: ""
+    secret: "nginx-ingress/tls-secret"
 
   ## The node selector for pod assignment for the Ingress Controller pods.
   # nodeSelector: {}
