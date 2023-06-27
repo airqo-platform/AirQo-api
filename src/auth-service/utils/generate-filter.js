@@ -699,16 +699,17 @@ const filter = {
     try {
       const { query, params } = req;
       const { id } = query;
-      const { user_id, favorite_id } = params;
+      const { firebase_user_id, favorite_id } = params;
       let filter = {};
-      if (user_id) {
-        filter["user_id"] = ObjectId(user_id);
-      }
+      
       if (id) {
         filter["_id"] = ObjectId(id);
       }
       if (favorite_id) {
         filter["_id"] = ObjectId(favorite_id);
+      }
+      if (firebase_user_id) {
+        filter["firebase_user_id"] = firebase_user_id;
       }
 
       return filter;
