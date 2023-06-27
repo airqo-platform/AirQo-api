@@ -9,7 +9,7 @@ from flask import Flask, jsonify
 from flask_caching import Cache
 from flask_cors import CORS
 from flask_pymongo import PyMongo
-from werkzeug.exceptions import NotFound
+from werkzeug.exceptions import NotFound, MethodNotAllowed
 
 from config import constants
 from config.constants import Config
@@ -108,6 +108,12 @@ def handle_exception(error):
 def handle_404_exception(error):
     print(error)
     return jsonify({"message": "Requested Url not found on this service"}), 404
+
+
+@app.errorhandler(MethodNotAllowed)
+def handle_405_exception(error):
+    print(error)
+    return jsonify({"message": "Method not allowed for this endpoint."}), 405
 
 
 @app.before_request
