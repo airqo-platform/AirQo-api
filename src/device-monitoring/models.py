@@ -1,6 +1,7 @@
 from dataclasses import dataclass, asdict
 from datetime import datetime, timedelta
 from enum import Enum
+from typing import Union
 
 import pandas as pd
 from google.cloud import bigquery
@@ -9,6 +10,7 @@ from pymongo import DESCENDING
 from app import cache
 from config.constants import Config
 from config.db_connection import connect_mongo
+from helpers.convert_dates import date_to_str
 
 
 class BaseModel:
@@ -140,20 +142,18 @@ class DeviceUptime(BaseModel):
 class DeviceBattery:
     @staticmethod
     @cache.memoize(timeout=1800)
-    def get_device_battery(
-        device: str, start_date_time: str, end_date_time: str
-    ) -> pd.DataFrame:
+    def get_device_battery(device: str, start_date_time: str, end_date_time: str) -> []:
         client = bigquery.Client()
         cols = [
             "timestamp",
             "device_id as device_name",
-            f"battery as voltage",
+            "battery as voltage",
         ]
 
         data_table = f"`{Config.BIGQUERY_RAW_DATA}`"
 
         query = (
-            f" SELECT {', '.join(map(str, set(cols)))}, "
+            f" SELECT {', '.join(cols)}, "
             f" FROM {data_table} "
             f" WHERE {data_table}.timestamp >= '{str(start_date_time)}' "
             f" AND {data_table}.timestamp <= '{str(end_date_time)}' "
@@ -165,15 +165,38 @@ class DeviceBattery:
 
         dataframe = client.query(query=query).result().to_dataframe()
 
-        return dataframe
+        return dataframe.to_dict("records")
 
     @staticmethod
     def format_device_battery(
-        data: pd.DataFrame, rounding: int, minutes_average: int
-    ) -> list:
-        data["voltage"] = data["voltage"].apply(float)
-        data["voltage"] = data["voltage"].round(rounding)
-        return data.to_dict("records")
+        data: list, rounding: Union[int, None], minutes_average: Union[int, None]
+    ):
+        formatted_data = pd.DataFrame(data)
+        if len(formatted_data.index) == 0:
+            return data
+
+        if minutes_average:
+            data_df = pd.DataFrame(formatted_data)
+            formatted_data = pd.DataFrame()
+
+            data_df["timestamp"] = pd.to_datetime(data_df["timestamp"])
+            data_df.set_index("timestamp", inplace=True)
+
+            for device_name, group in data_df.groupby("device_name"):
+                resampled = group[["voltage"]].resample(f"{minutes_average}Min").mean()
+                resampled["device_name"] = device_name
+                resampled["timestamp"] = resampled.index
+                formatted_data = pd.concat(
+                    [formatted_data, resampled], ignore_index=True
+                )
+
+        if rounding:
+            formatted_data["voltage"] = formatted_data["voltage"].apply(float)
+            formatted_data["voltage"] = formatted_data["voltage"].round(rounding)
+
+        formatted_data["timestamp"] = formatted_data["timestamp"].apply(date_to_str)
+
+        return formatted_data.to_dict("records")
 
 
 class CollocationBatchStatus(Enum):

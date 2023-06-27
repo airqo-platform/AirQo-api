@@ -141,27 +141,25 @@ def get_device_uptime():
     "startDate|required:datetime",
     "endDate|required:datetime",
     "deviceName|required:str",
+    "minutesAverage|optional:int",
     "rounding|optional:int",
-    "deviceName|required:str",
 )
 def get_device_battery():
-    device_name = request.args.get("deviceName")
-    minutes_average = request.args.get("minutes_average", 30)
-    rounding = request.args.get("rounding", 2)
+    device_name = request.args.get("deviceName", type=str)
+    minutes_average = request.args.get("minutesAverage", type=int)
+    rounding = request.args.get("rounding", type=int)
 
     start_date = request.args.get("startDate")
     end_date = request.args.get("endDate")
 
-    device_battery = DeviceBattery.get_device_battery(
+    raw_data = DeviceBattery.get_device_battery(
         device=device_name, start_date_time=start_date, end_date_time=end_date
     )
-    formatted_device_battery = DeviceBattery.format_device_battery(
-        device_battery, rounding=int(rounding), minutes_average=int(minutes_average)
+    formatted_data = DeviceBattery.format_device_battery(
+        raw_data, rounding=rounding, minutes_average=minutes_average
     )
 
-    response = dict(
-        message="device battery query successful", data=formatted_device_battery
-    )
+    response = dict(message="device battery query successful", data=formatted_data)
     return jsonify(response), 200
 
 
