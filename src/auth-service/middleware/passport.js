@@ -211,7 +211,7 @@ const useGoogleStrategy = (tenant, req, res, next) =>
 
       try {
         const service = req.headers["service"];
-        const user = await UserModel(tenant.toLowerCase())
+        let user = await UserModel(tenant.toLowerCase())
           .findOne({
             email: profile._json.email,
           })
@@ -266,7 +266,7 @@ const useGoogleStrategy = (tenant, req, res, next) =>
         req.auth = {};
         req.auth.success = false;
         req.auth.message = "Server Error";
-        req.auth.error = e.message;
+        req.auth.error = error.message;
         next();
       }
     }

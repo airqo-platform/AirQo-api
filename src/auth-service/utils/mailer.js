@@ -372,8 +372,40 @@ const mailer = {
           address: constants.EMAIL,
         },
         to: `${email}`,
-        subject: "Welcome to AirQo!",
-        text: `${msgs.join_by_email(token)}`,
+        subject: "Verify your email address!",
+        html: msgs.join_by_email(token),
+        attachments: [
+          {
+            filename: "airqoLogo.png",
+            path: "../config/images/airqoLogo.png",
+            cid: "AirQoEmailLogo",
+            contentDisposition: "inline",
+          },
+          {
+            filename: "faceBookLogo.png",
+            path: "../config/images/facebookLogo.png",
+            cid: "FacebookLogo",
+            contentDisposition: "inline",
+          },
+          {
+            filename: "youtubeLogo.png",
+            path: "../config/images/youtubeLogo.png",
+            cid: "YoutubeLogo",
+            contentDisposition: "inline",
+          },
+          {
+            filename: "twitterLogo.png",
+            path: "../config/images/Twitter.png",
+            cid: "Twitter",
+            contentDisposition: "inline",
+          },
+          {
+            filename: "linkedInLogo.png",
+            path: "../config/images/linkedInLogo.png",
+            cid: "LinkedInLogo",
+            contentDisposition: "inline",
+          },
+        ],
       };
       let response = transporter.sendMail(mailOptions);
       let data = await response;
