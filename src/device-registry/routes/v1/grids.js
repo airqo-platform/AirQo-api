@@ -13,6 +13,7 @@ const { getModelByTenant } = require("@config/database");
 
 const NetworkSchema = require("@models/Network");
 const AdminLevelSchema = require("@models/AdminLevel");
+const { logText, logObject } = require("@utils/log");
 
 const NetworkModel = (tenant) => {
   try {
@@ -39,27 +40,72 @@ const AdminLevelModel = (tenant) => {
 };
 
 const validAdminLevels = async () => {
-  await AdminLevelModel("airqo").distinct("name");
+  const levels = await AdminLevelModel("airqo").distinct("name");
+  return levels.map((level) => level.toLowerCase());
 };
+
+const validateAdminLevels = async (value) => {
+  const networks = await validAdminLevels();
+  if (!networks.includes(value.toLowerCase())) {
+    throw new Error("Invalid network");
+  }
+};
+
 const validNetworks = async () => {
-  await NetworkModel("airqo").distinct("name");
+  const networks = await NetworkModel("airqo").distinct("name");
+  return networks.map((network) => network.toLowerCase());
+};
+const validateNetwork = async (value) => {
+  const networks = await validNetworks();
+  if (!networks.includes(value.toLowerCase())) {
+    throw new Error("Invalid network");
+  }
+};
+
+const validateCoordinate = (coordinate) => {
+  const [longitude, latitude] = coordinate;
+  if (
+    typeof latitude !== "number" ||
+    isNaN(latitude) ||
+    latitude < -90 ||
+    latitude > 90
+  ) {
+    logText("Invalid latitude coordinate");
+    throw new Error("Invalid latitude coordinate");
+  }
+  if (
+    typeof longitude !== "number" ||
+    isNaN(longitude) ||
+    longitude < -180 ||
+    longitude > 180
+  ) {
+    logText("Invalid longitude coordinate");
+    throw new Error("Invalid longitude coordinate");
+  }
 };
 
 const validatePolygonCoordinates = (value) => {
   if (!Array.isArray(value)) {
+    logText("Coordinates must be provided as an array");
     throw new Error("Coordinates must be provided as an array");
   }
   if (value.length === 0) {
+    logText("At least one polygon must be provided");
     throw new Error("At least one polygon must be provided");
   }
   for (const polygon of value) {
     if (!Array.isArray(polygon)) {
+      logText("Each polygon must be provided as an array of coordinates");
       throw new Error(
         "Each polygon must be provided as an array of coordinates"
       );
     }
     if (polygon.length < 4) {
+      logText("Each polygon must have at least four coordinates");
       throw new Error("Each polygon must have at least four coordinates");
+    }
+    for (const coordinate of polygon) {
+      validateCoordinate(coordinate);
     }
   }
   return true;
@@ -67,9 +113,11 @@ const validatePolygonCoordinates = (value) => {
 
 const validateMultiPolygonCoordinates = (value) => {
   if (!Array.isArray(value)) {
+    logText("Coordinates must be provided as an array");
     throw new Error("Coordinates must be provided as an array");
   }
   if (value.length === 0) {
+    logText("At least one multipolygon must be provided");
     throw new Error("At least one multipolygon must be provided");
   }
   for (const multipolygon of value) {
@@ -83,7 +131,6 @@ const validatePagination = (req, res, next) => {
   const skip = parseInt(req.query.skip, 10);
   req.query.limit = isNaN(limit) || limit < 1 ? 1000 : limit;
   req.query.skip = isNaN(skip) || skip < 0 ? 0 : skip;
-
   next();
 };
 
@@ -112,75 +159,100 @@ router.post(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(validNetworks())
+        .custom(validateNetwork)
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
   oneOf([
-    body("name")
-      .exists()
-      .withMessage("name should be provided")
-      .bail()
-      .trim()
-      .notEmpty()
-      .withMessage("Name is required"),
-    body("shape.type")
-      .exists()
-      .withMessage("Shape Type should be provided")
-      .bail()
-      .trim()
-      .notEmpty()
-      .withMessage("Shape type should not be empty")
-      .bail()
-      .isIn(["Polygon", "MultiPolygon"])
-      .withMessage("the shape type must either be Polygon or MultiPolygon"),
-    body("shape.coordinates")
-      .exists()
-      .withMessage("Shape Coordinates should be provided")
-      .bail()
-      .custom((value) => {
-        const shapeType = req.body.shape.type;
-        if (shapeType === "Polygon") {
-          return validatePolygonCoordinates(value);
-        } else if (shapeType === "MultiPolygon") {
-          return validateMultiPolygonCoordinates(value);
-        }
-        return true;
-      })
-      .withMessage("Invalid coordinates provided"),
-    body("admin_level")
-      .exists()
-      .withMessage("Admin Level should be provided")
-      .bail()
-      .trim()
-      .notEmpty()
-      .withMessage("Admin Level should not be empty")
-      .isIn(validAdminLevels())
-      // .isIn([
-      //   "village",
-      //   "district",
-      //   "parish",
-      //   "division",
-      //   "county",
-      //   "subcounty",
-      //   "country",
-      //   "state",
-      //   "province",
-      //   "region",
-      //   "municipality",
-      //   "city",
-      //   "town",
-      //   "ward",
-      //   "neighborhood",
-      //   "community",
-      //   "census tract",
-      //   "block",
-      //   "postal code",
-      //   "zip code",
-      // ])
-      .withMessage(
-        "admin_level values include but not limited to: province, state, village, county, subcounty, village, parish, country, division and district"
-      ),
+    [
+      body("name")
+        .exists()
+        .withMessage("name should be provided")
+        .bail()
+        .notEmpty()
+        .withMessage("The name should not be empty")
+        .trim(),
+      body("shape")
+        .exists()
+        .withMessage("shape should be provided")
+        .bail()
+        .notEmpty()
+        .withMessage("shape should not be empty")
+        .bail()
+        .isObject()
+        .withMessage("shape must be an object"),
+      body("shape.type")
+        .exists()
+        .withMessage("shape.type should be provided")
+        .bail()
+        .trim()
+        .notEmpty()
+        .withMessage("shape.type should not be empty")
+        .bail()
+        .isIn(["Polygon", "MultiPolygon"])
+        .withMessage("the shape type must either be Polygon or MultiPolygon"),
+      body("shape.coordinates")
+        .exists()
+        .withMessage("shape.coordinates should be provided")
+        .bail()
+        .custom((value, { req }) => {
+          const shapeType = req.body.shape.type;
+          if (shapeType === "Polygon") {
+            return validatePolygonCoordinates(value);
+          } else if (shapeType === "MultiPolygon") {
+            return validateMultiPolygonCoordinates(value);
+          }
+          return true;
+        }),
+      body("admin_level")
+        .exists()
+        .withMessage("admin_level should be provided")
+        .bail()
+        .trim()
+        .notEmpty()
+        .withMessage("admin_level should not be empty")
+        .bail()
+        .custom(validateAdminLevels)
+        // .isIn([
+        //   "village",
+        //   "district",
+        //   "parish",
+        //   "division",
+        //   "county",
+        //   "subcounty",
+        //   "country",
+        //   "state",
+        //   "province",
+        //   "region",
+        //   "municipality",
+        //   "city",
+        //   "town",
+        //   "ward",
+        //   "neighborhood",
+        //   "community",
+        //   "census tract",
+        //   "block",
+        //   "postal code",
+        //   "zip code",
+        // ])
+        .withMessage(
+          "admin_level values include but not limited to: province, state, village, county, subcounty, village, parish, country, division and district"
+        ),
+      body("network_id")
+        .trim()
+        .exists()
+        .withMessage("the network_id must be provided")
+        .bail()
+        .notEmpty()
+        .withMessage("the network_id should not be empty")
+        .bail()
+        .isMongoId()
+        .withMessage("id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+    ],
   ]),
   createGridController.create
 );
@@ -194,7 +266,7 @@ router.get(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(validNetworks())
+      .custom(validateNetwork)
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -222,7 +294,7 @@ router.get(
         )
         .bail()
         .toLowerCase()
-        .isIn(validAdminLevels())
+        .custom(validateAdminLevels)
         // .isIn([
         //   "village",
         //   "district",
@@ -252,33 +324,7 @@ router.get(
   ]),
   createGridController.list
 );
-router.get(
-  "/:grid_id",
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant cannot be empty if provided")
-        .bail()
-        .trim()
-        .toLowerCase()
-        .isIn(validNetworks())
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-  oneOf([
-    param("grid_id")
-      .optional()
-      .isMongoId()
-      .withMessage("grid_id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
-  ]),
-  createGridController.list
-);
+
 router.delete(
   "/:grid_id",
   oneOf([
@@ -290,7 +336,7 @@ router.delete(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(validNetworks())
+        .custom(validateNetwork)
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -323,7 +369,7 @@ router.put(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(validNetworks())
+        .custom(validateNetwork)
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -430,7 +476,7 @@ router.patch(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(validNetworks())
+        .custom(validateNetwork)
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -538,7 +584,7 @@ router.put(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(validNetworks())
+        .custom(validateNetwork)
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -582,7 +628,7 @@ router.get(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(validNetworks())
+        .custom(validateNetwork)
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -609,7 +655,7 @@ router.get(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(validNetworks())
+        .custom(validateNetwork)
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -636,7 +682,7 @@ router.post(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(validNetworks())
+        .custom(validateNetwork)
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -683,7 +729,7 @@ router.delete(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(validNetworks())
+        .custom(validateNetwork)
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -730,7 +776,7 @@ router.delete(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(validNetworks())
+        .custom(validateNetwork)
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -790,10 +836,69 @@ router.post(
 );
 
 /************************ admin levels ********************/
-router.post("/levels", createGridController.createAdminLevel);
+router.post(
+  "/levels",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty IF provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .custom(validateNetwork)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      body("name")
+        .exists()
+        .withMessage("the name is is missing in your request")
+        .bail()
+        .notEmpty()
+        .withMessage("the name should not be empty")
+        .trim(),
+      body("description")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty IF provided")
+        .trim(),
+    ],
+  ]),
+  createGridController.createAdminLevel
+);
+router.get("/levels", createGridController.listAdminLevels);
 router.put("/levels/:level_id", createGridController.updateAdminLevel);
 router.delete("/levels/:level_id", createGridController.deleteAdminLevel);
-router.get("/levels", createGridController.listAdminLevels);
 router.get("/levels/:level_id", createGridController.listAdminLevels);
 
+router.get(
+  "/:grid_id",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .custom(validateNetwork)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    param("grid_id")
+      .optional()
+      .isMongoId()
+      .withMessage("grid_id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+  ]),
+  createGridController.list
+);
 module.exports = router;

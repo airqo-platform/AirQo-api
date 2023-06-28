@@ -19,7 +19,6 @@ const adminLevelSchema = new Schema({
   },
   description: {
     type: String,
-    required: true,
   },
 });
 

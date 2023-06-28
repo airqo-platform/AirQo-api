@@ -46,7 +46,7 @@ const gridSchema = new Schema(
       type: String,
       index: true,
     },
-    center_point: { type: centerPointSchema },
+    centers: [centerPointSchema],
     long_name: {
       type: String,
       trim: true,
@@ -118,7 +118,7 @@ gridSchema.methods.toJSON = function() {
     grid_tags,
     admin_level,
     grid_codes,
-    center_point,
+    centers,
     shape,
     geoHash,
   } = this;
@@ -130,7 +130,7 @@ gridSchema.methods.toJSON = function() {
     grid_tags,
     admin_level,
     grid_codes,
-    center_point,
+    centers,
     shape,
     geoHash,
   };
@@ -214,6 +214,7 @@ gridSchema.statics.list = async function({
   skip = 0,
 } = {}) {
   try {
+    logText("we are inside model's list....");
     const inclusionProjection = constants.GRIDS_INCLUSION_PROJECTION;
     const exclusionProjection = constants.GRIDS_EXCLUSION_PROJECTION(
       filter.category ? filter.category : "none"

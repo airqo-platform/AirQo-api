@@ -1,3 +1,10 @@
+const geolib = require("geolib");
+const geohash = require("ngeohash");
+const { Transform } = require("stream");
+const multer = require("multer");
+const upload = multer({ dest: "uploads/" });
+const shapefile = require("shapefile");
+const AdmZip = require("adm-zip");
 const GridSchema = require("@models/Grid");
 const SiteSchema = require("@models/Site");
 const AdminLevelSchema = require("@models/AdminLevel");
@@ -9,8 +16,7 @@ const constants = require("@config/constants");
 const generateFilter = require("./generate-filter");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- create-grid-util`);
-const geolib = require("geolib");
-const geohash = require("ngeohash");
+const mongoose = require("mongoose");
 const { Schema } = require("mongoose");
 const ObjectId = Schema.Types.ObjectId;
 const { Kafka } = require("kafkajs");
@@ -18,17 +24,13 @@ const kafka = new Kafka({
   clientId: constants.KAFKA_CLIENT_ID,
   brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
 });
-const { Transform } = require("stream");
-const multer = require("multer");
-const upload = multer({ dest: "uploads/" });
-const shapefile = require("shapefile");
-const AdmZip = require("adm-zip");
 
 const GridModel = (tenant) => {
   try {
     const grids = mongoose.model("grids");
     return grids;
   } catch (error) {
+    logObject("error", error);
     const grids = getModelByTenant(tenant, "grid", GridSchema);
     return grids;
   }
@@ -66,7 +68,7 @@ class GridTransformStream extends Transform {
   _transform(chunk, encoding, callback) {
     try {
       // Perform any necessary transformations on 'chunk' before creating a Grid Model
-      const gridModel = new GridModel(tenant)(chunk);
+      const gridModel = GridModel(tenant)(chunk);
       this.push(gridModel);
       callback();
     } catch (error) {
@@ -172,7 +174,7 @@ const createGrid = {
         // Process the batch of data using the Grid Schema
         const gridModels = batchData.map((item) => {
           // Perform any necessary transformations on 'item' before creating a Grid Model
-          return new GridModel(item);
+          return new GridModel(tenant)(item);
         });
 
         // Bulk insert the gridModels using your preferred method (e.g., mongoose insertMany)
@@ -181,12 +183,12 @@ const createGrid = {
 
       /************* END batch processing ************ */
     } catch (error) {
-      logger.error(`internal server error -- ${err.message}`);
+      logger.error(`Internal Server Error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
         status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: err.message },
+        errors: { message: error.message },
       };
     }
   },
@@ -246,12 +248,12 @@ const createGrid = {
 
       /******************* END stream processing ***************/
     } catch (error) {
-      logger.error(`internal server error -- ${err.message}`);
+      logger.error(`Internal Server Error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
         status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: err.message },
+        errors: { message: error.message },
       };
     }
   },
@@ -260,12 +262,8 @@ const createGrid = {
       const { body, query } = request;
       const { tenant } = query;
       let modifiedBody = body;
-      let requestForCalucaltionGridCenter = {};
-      requestForCalucaltionGridCenter["body"] = {};
-      requestForCalucaltionGridCenter["body"]["coordinates"] = body.shape;
-
       const responseFromCalculateGeographicalCenter = await createGrid.calculateGeographicalCenter(
-        requestForCalucaltionGridCenter
+        request
       );
       logObject(
         "responseFromCalculateGeographicalCenter",
@@ -274,8 +272,7 @@ const createGrid = {
       if (responseFromCalculateGeographicalCenter.success === false) {
         return responseFromCalculateGeographicalCenter;
       } else {
-        modifiedBody["center_point"] =
-          responseFromCalculateGeographicalCenter.data;
+        modifiedBody["centers"] = responseFromCalculateGeographicalCenter.data;
 
         const responseFromRegisterGrid = await GridModel(tenant).register(
           modifiedBody
@@ -300,7 +297,7 @@ const createGrid = {
             });
             await kafkaProducer.disconnect();
           } catch (error) {
-            logger.error(`internal server error -- ${error.message}`);
+            logger.error(`Internal Server Error -- ${error.message}`);
           }
 
           return responseFromRegisterGrid;
@@ -308,13 +305,13 @@ const createGrid = {
           return responseFromRegisterGrid;
         }
       }
-    } catch (err) {
-      logger.error(`internal server error -- ${err.message}`);
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
         status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: err.message },
+        errors: { message: error.message },
       };
     }
   },
@@ -334,12 +331,12 @@ const createGrid = {
         });
         return responseFromModifyGrid;
       }
-    } catch (err) {
-      logger.error(`internal server error -- ${err.message}`);
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
-        errors: { message: err.message },
+        errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -357,12 +354,12 @@ const createGrid = {
         });
         return responseFromRemoveGrid;
       }
-    } catch (err) {
-      logger.error(`internal server error -- ${err.message}`);
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${error.message}`);
       return {
         success: false,
         message: "unable to delete airqloud",
-        errors: err.message,
+        errors: error.message,
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -444,7 +441,9 @@ const createGrid = {
   },
   calculateGeographicalCenter: async (request) => {
     try {
-      const { coordinates } = request.body;
+      const { coordinates, type } = request.body.shape;
+      logObject("coordinates", coordinates);
+      logObject("type", type);
 
       if (isEmpty(coordinates)) {
         return {
@@ -455,20 +454,19 @@ const createGrid = {
         };
       }
 
-      const centerPoint = geolib.getCenter(coordinates);
-
-      if (isEmpty(centerPoint)) {
-        return {
-          success: false,
-          message: "Unable to calculate the Grid's center",
-          status: httpStatus.BAD_REQUEST,
-        };
+      let centers = [];
+      if (type === "Polygon") {
+        const flattenedPolygon = coordinates.flat();
+        centers = [geolib.getCenter(flattenedPolygon)];
+      } else if (type === "MultiPolygon") {
+        const flattenedPolygons = coordinates.map((polygon) => polygon.flat());
+        centers = flattenedPolygons.map((polygon) => geolib.getCenter(polygon));
       }
 
       return {
         success: true,
-        message: "Successfully calculated the Grid's center point",
-        data: centerPoint,
+        message: "Successfully calculated the centers",
+        data: centers,
       };
     } catch (error) {
       logger.error(`Internal Server Error -- ${error.message}`);
@@ -480,6 +478,7 @@ const createGrid = {
       };
     }
   },
+
   findSites: async (request) => {
     try {
       const { query } = request;
@@ -568,12 +567,13 @@ const createGrid = {
         skip,
       });
       return responseFromListGrid;
-    } catch (err) {
-      logger.error(`internal server error -- ${err.message}`);
+    } catch (error) {
+      logObject("error", error);
+      logger.error(`Internal Server Error -- ${error.message}`);
       return {
         success: false,
-        message: "unable to list airqloud",
-        errors: err.message,
+        message: "Internal Server Error",
+        errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -809,7 +809,7 @@ const createGrid = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logElement("internal server error", error.message);
+      logElement("Internal Server Error", error.message);
       logger.error(`Internal Server Error ${error.message}`);
       return {
         success: false,
@@ -874,7 +874,7 @@ const createGrid = {
         status: httpStatus.OK,
       };
     } catch (error) {
-      logElement("internal server error", error.message);
+      logElement("Internal Server Error", error.message);
       logger.error(`Internal Server Error ${error.message}`);
       return {
         success: false,
