@@ -67,7 +67,6 @@ const deviceSchema = new mongoose.Schema(
       unique: true,
       minlength: minLength,
       match: noSpaces,
-      lowercase: true,
     },
     name: {
       type: String,
@@ -195,16 +194,7 @@ deviceSchema.plugin(uniqueValidator, {
   message: `{VALUE} must be unique!`,
 });
 
-deviceSchema.post("save", async function(doc) {
-  doc.device_codes = [doc._id, doc.name];
-  if (doc.device_number) {
-    doc.device_codes.push(doc.device_number);
-  }
-  if (doc.alias) {
-    doc.device_codes.push(doc.alias);
-  }
-  logObject("device_codes populated successfully:", doc);
-});
+deviceSchema.post("save", async function(doc) {});
 
 deviceSchema.pre("save", function(next) {
   if (this.isModified("name")) {
@@ -214,6 +204,15 @@ deviceSchema.pre("save", function(next) {
     }
     let n = this.name;
   }
+
+  this.device_codes = [this._id, this.name];
+  if (this.device_number) {
+    this.device_codes.push(this.device_number);
+  }
+  if (this.alias) {
+    this.device_codes.push(this.alias);
+  }
+
   return next();
 });
 

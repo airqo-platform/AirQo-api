@@ -41,7 +41,7 @@ router.get(
 );
 
 router.get(
-  "/users/:user_id",
+  "/users/:firebase_user_id",
   oneOf([
     [
       query("tenant")
@@ -53,19 +53,16 @@ router.get(
         .bail()
         .isIn(["kcca", "airqo"])
         .withMessage("the tenant value is not among the expected ones"),
-      param("user_id")
+      param("firebase_user_id")
         .exists()
         .withMessage(
-          "the user_id param is missing in request path, consider using user_id"
+          "the firebase_user_id param is missing in request path, consider using firebase_user_id"
         )
         .bail()
-        .trim()
-        .isMongoId()
-        .withMessage("user_id must be an object ID")
+        .notEmpty()
+        .withMessage("the firebase_user_id must not be empty")
         .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
+        .trim(),
     ],
   ]),
   setJWTAuth,
@@ -125,17 +122,14 @@ router.post(
         .customSanitizer((value) => {
           return ObjectId(value);
         }),
-      body("user_id")
+      body("firebase_user_id")
         .exists()
-        .withMessage("the user_id is missing in the request")
+        .withMessage("the firebase_user_id is missing in the request")
         .bail()
-        .trim()
-        .isMongoId()
-        .withMessage("user_id must be an object ID")
+        .notEmpty()
+        .withMessage("the firebase_user_id must not be empty")
         .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
+        .trim(),
       body("latitude")
         .exists()
         .withMessage("the latitude is is missing in your request")
@@ -260,18 +254,12 @@ router.put(
         .customSanitizer((value) => {
           return ObjectId(value);
         }),
-      body("user_id")
+      body("firebase_user_id")
         .optional()
         .notEmpty()
-        .withMessage("the user_id should not be empty IF provided")
+        .withMessage("the firebase_user_id should not be empty IF provided")
         .bail()
-        .trim()
-        .isMongoId()
-        .withMessage("user_id must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
+        .trim(),
       body("latitude")
         .optional()
         .notEmpty()

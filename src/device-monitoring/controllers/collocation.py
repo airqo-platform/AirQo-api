@@ -198,7 +198,7 @@ def delete_collocation_batch():
     )
 
     if batch is None:
-        return jsonify({"message": "Successful"}), 404
+        return jsonify({"message": "Successful"}), 204
     return (
         jsonify({"message": "Successful", "data": batch.to_dict(retain_batch_id=True)}),
         200,

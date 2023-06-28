@@ -121,6 +121,7 @@ airqloudSchema.pre("save", function(next) {
   if (this.isModified("_id")) {
     delete this._id;
   }
+  this.airqloud_codes = [this._id, this.name];
   return next();
 });
 
