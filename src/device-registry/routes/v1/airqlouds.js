@@ -699,4 +699,33 @@ router.post(
   airqloudController.bulkCreate
 );
 
+router.get(
+  "/combined/:net_id",
+  oneOf([
+    query("tenant")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty IF provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(constants.NETWORKS)
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    param("net_id")
+      .exists()
+      .withMessage("the network ID param is missing in your request")
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("network ID must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+  ]),
+  airqloudController.listCohortsAndGrids
+);
+
 module.exports = router;

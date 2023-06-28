@@ -1,13 +1,12 @@
 const AirQloudSchema = require("@models/Airqloud");
+const CohortSchema = require("@models/Cohort");
+const GridSchema = require("@models/Grid");
 const SiteSchema = require("@models/Site");
 const { logObject, logElement, logText } = require("./log");
 const { getModelByTenant } = require("@config/database");
 const isEmpty = require("is-empty");
 const axios = require("axios");
 const HTTPStatus = require("http-status");
-const axiosInstance = () => {
-  return axios.create();
-};
 const constants = require("@config/constants");
 const generateFilter = require("./generate-filter");
 const log4js = require("log4js");
@@ -18,11 +17,31 @@ const createLocationUtil = require("./create-location");
 const geolib = require("geolib");
 
 const { Kafka } = require("kafkajs");
+const httpStatus = require("http-status");
 const kafka = new Kafka({
   clientId: constants.KAFKA_CLIENT_ID,
   brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
 });
 
+const CohortModel = (tenant) => {
+  try {
+    const cohorts = mongoose.model("cohorts");
+    return cohorts;
+  } catch (error) {
+    const cohorts = getModelByTenant(tenant, "cohort", CohortSchema);
+    return cohorts;
+  }
+};
+
+const GridModel = (tenant) => {
+  try {
+    const grids = mongoose.model("grids");
+    return grids;
+  } catch (error) {
+    const grids = getModelByTenant(tenant, "grid", GridSchema);
+    return grids;
+  }
+};
 const createAirqloud = {
   initialIsCapital: (word) => {
     return word[0] !== word[0].toLowerCase();
@@ -35,7 +54,6 @@ const createAirqloud = {
       logger.error(`internal server error -- hasNoWhiteSpace -- ${e.message}`);
     }
   },
-
   retrieveCoordinates: async (request, entity) => {
     try {
       let entityInstance = {};
@@ -313,7 +331,6 @@ const createAirqloud = {
       };
     }
   },
-
   calculateGeographicalCenter: async (request) => {
     try {
       const { body, query } = request;
@@ -475,7 +492,6 @@ const createAirqloud = {
       };
     }
   },
-
   list: async (request) => {
     try {
       let { query } = request;
@@ -502,6 +518,62 @@ const createAirqloud = {
         message: "unable to list airqloud",
         errors: err.message,
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  listCohortsAndGrids: async (request) => {
+    try {
+      const { params } = request;
+      const network_id = params.net_id;
+      const tenant = request.query.tenant;
+
+      // Perform the aggregation pipeline to combine the records from Grid and Cohort collections
+      const combinedRecords = await GridModel(tenant)
+        .aggregate([
+          {
+            $match: { network_id }, // Match documents belonging to the specific organization
+          },
+          {
+            $project: {
+              _id: 1,
+              name: 1,
+              description: 1,
+              network_id: 1,
+            },
+          },
+          {
+            $lookup: {
+              from: "cohorts", // Name of the Cohort collection
+              let: { orgId: "$network_id" },
+              pipeline: [
+                {
+                  $match: {
+                    $expr: {
+                      $eq: ["$network_id", "$$orgId"],
+                    },
+                  },
+                },
+              ],
+              as: "cohorts",
+            },
+          },
+        ])
+        .exec();
+
+      logObject("combinedRecords", combinedRecords);
+
+      return {
+        success: true,
+        message: "Successfully returned the records",
+        data: combinedRecords,
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
