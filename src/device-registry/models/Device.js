@@ -58,7 +58,6 @@ const deviceSchema = new mongoose.Schema(
       unique: true,
       minlength: minLength,
       match: noSpaces,
-      lowercase: true,
     },
     name: {
       type: String,
