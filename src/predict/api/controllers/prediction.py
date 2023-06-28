@@ -3,15 +3,13 @@ import traceback
 from app import cache
 
 from dotenv import load_dotenv
-from flask import Blueprint, request
+from flask import Blueprint, request, jsonify
 
-from helpers.utils import get_gp_predictions, get_forecasts_helper, \
-    get_predictions_by_geo_coordinates, get_health_tips, convert_to_geojson, weekly_forecasts_cache_key, \
-    heatmap_cache_key, geo_coordinates_cache_key
+from helpers.utils import get_gp_predictions, \
+    get_predictions_by_geo_coordinates, get_health_tips, convert_to_geojson, \
+    heatmap_cache_key, geo_coordinates_cache_key, get_forecasts, hourly_forecasts_cache_key, daily_forecasts_cache_key
 from routes import api
 from config.constants import Config
-
-import math
 
 load_dotenv()
 
@@ -21,20 +19,57 @@ ml_app = Blueprint('ml_app', __name__)
 
 
 @ml_app.route(api.route['next_24hr_forecasts'], methods=['GET'])
+@cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=hourly_forecasts_cache_key)
 def get_next_24hr_forecasts():
     """
     Get forecasts for the next 24 hours from specified start time.
     """
-    return get_forecasts_helper(db_name='hourly_forecasts')
+
+    """
+    Get forecasts for the next 1 week from specified start day.
+    """
+    params = {name: request.args.get(name, default=None, type=str) for name in
+              ['site_id', 'site_name', 'parish', 'county', 'city', 'district', 'region']}
+    if not any(params.values()):
+        return (
+            jsonify({"message": "Please specify at least one query parameter", "success": False}),
+            400,
+        )
+    result = get_forecasts(**params, db_name='hourly_forecasts')
+    if result:
+        response = result
+    else:
+        response = {
+            "message": "forecasts for this site are not available",
+            "success": False,
+        }
+    data = jsonify(response)
+    return data, 200
 
 
 @ml_app.route(api.route['next_1_week_forecasts'], methods=['GET'])
-@cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=weekly_forecasts_cache_key)
+@cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=daily_forecasts_cache_key)
 def get_next_1_week_forecasts():
     """
     Get forecasts for the next 1 week from specified start day.
     """
-    return get_forecasts_helper(db_name='daily_forecasts')
+    params = {name: request.args.get(name, default=None, type=str) for name in
+              ['site_id', 'site_name', 'parish', 'county', 'city', 'district', 'region']}
+    if not any(params.values()):
+        return (
+            jsonify({"message": "Please specify at least one query parameter", "success": False}),
+            400,
+        )
+    result = get_forecasts(**params, db_name='daily_forecasts')
+    if result:
+        response = result
+    else:
+        response = {
+            "message": "forecasts for this site are not available",
+            "success": False,
+        }
+    data = jsonify(response)
+    return data, 200
 
 
 @ml_app.route(api.route['predict_for_heatmap'], methods=['GET'])
@@ -44,16 +79,9 @@ def predictions_for_heatmap():
     This function handles the GET requests to the predict_for_heatmap endpoint.
     It validates the request parameters and returns a geojson response with the GP model predictions.
     """
-
-    if request.method != 'GET':
-        return {
-            'message': 'Wrong request method. This is a GET endpoint.',
-            'success': False
-        }, 400
-
     airqloud = request.args.get('airqloud')
     page = int(request.args.get('page', 1))
-    limit = int(request.args.get('limit', 500))
+    limit = int(request.args.get('limit', 1000))
 
     if airqloud and not isinstance(airqloud, str):
         return {
@@ -62,7 +90,9 @@ def predictions_for_heatmap():
         }, 400
 
     try:
-        predictions, total_count, pages = get_gp_predictions(airqloud, page=page, limit=limit)
+        airqloud_id, created_at, predictions, total_count, pages = get_gp_predictions(airqloud,
+                                                                                      page=page,
+                                                                                      limit=limit)
         geojson_data = convert_to_geojson(predictions)
     except Exception as e:
         _logger.error(e)
@@ -79,12 +109,15 @@ def predictions_for_heatmap():
             }, 400
 
         return {
+            'data': geojson_data['features'],
+            'airqloud': airqloud,
+            'airqloud_id': airqloud_id,
+            'created_at': created_at,
             'success': True,
             'page': page,
             'limit': limit,
             'total': total_count,
             'pages': pages,
-            'data': geojson_data['features'],
         }, 200
 
     else:

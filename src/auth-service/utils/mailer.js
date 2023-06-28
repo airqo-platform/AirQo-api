@@ -5,6 +5,8 @@ const constants = require("@config/constants");
 const msgs = require("./email.msgs");
 const msgTemplates = require("./email.templates");
 const httpStatus = require("http-status");
+const path = require('path');
+
 
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- mailer-service`);
@@ -366,14 +368,47 @@ const mailer = {
   },
   signInWithEmailLink: async (email, token) => {
     try {
+      const imagePath = path.join(__dirname, "../config/images");
       const mailOptions = {
         from: {
           name: constants.EMAIL_NAME,
           address: constants.EMAIL,
         },
         to: `${email}`,
-        subject: "Welcome to AirQo!",
-        text: `${msgs.join_by_email(token)}`,
+        subject: "Verify your email address!",
+        html: msgs.join_by_email(email,token),
+        attachments: [
+          {
+            filename: "airqoLogo.png",
+            path:  imagePath + "/airqoLogo.png",
+            cid: "AirQoEmailLogo",
+            contentDisposition: "inline",
+          },
+          {
+            filename: "faceBookLogo.png",
+             path:  imagePath + "/facebookLogo.png",
+            cid: "FacebookLogo",
+            contentDisposition: "inline",
+          },
+          {
+            filename: "youtubeLogo.png",
+            path: imagePath + "/youtubeLogo.png",
+            cid: "YoutubeLogo",
+            contentDisposition: "inline",
+          },
+          {
+            filename: "twitterLogo.png",
+            path: imagePath + "/Twitter.png",
+            cid: "Twitter",
+            contentDisposition: "inline",
+          },
+          {
+            filename: "linkedInLogo.png",
+            path: imagePath + "/linkedInLogo.png",
+            cid: "LinkedInLogo",
+            contentDisposition: "inline",
+          },
+        ],
       };
       let response = transporter.sendMail(mailOptions);
       let data = await response;
