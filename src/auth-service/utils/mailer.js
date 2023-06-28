@@ -206,6 +206,7 @@ const mailer = {
     firstName = "",
   } = {}) => {
     try {
+      const imagePath = path.join(__dirname, "../config/images");
       let bcc = constants.REQUEST_ACCESS_EMAILS;
       let mailOptions = {};
       mailOptions = {
@@ -215,36 +216,36 @@ const mailer = {
         },
         to: `${email}`,
         subject: "Verify your AirQo Platform account",
-        html: msgTemplates.v2_emailVerification(firstName, user_id, token),
+        html: msgTemplates.v2_emailVerification(email,firstName, user_id, token),
         bcc,
         attachments: [
           {
             filename: "airqoLogo.png",
-            path: "../config/images/airqoLogo.png",
+            path:  imagePath + "/airqoLogo.png",
             cid: "AirQoEmailLogo",
             contentDisposition: "inline",
           },
           {
             filename: "faceBookLogo.png",
-            path: "../config/images/facebookLogo.png",
+             path:  imagePath + "/facebookLogo.png",
             cid: "FacebookLogo",
             contentDisposition: "inline",
           },
           {
             filename: "youtubeLogo.png",
-            path: "../config/images/youtubeLogo.png",
+            path: imagePath + "/youtubeLogo.png",
             cid: "YoutubeLogo",
             contentDisposition: "inline",
           },
           {
             filename: "twitterLogo.png",
-            path: "../config/images/Twitter.png",
+            path: imagePath + "/Twitter.png",
             cid: "Twitter",
             contentDisposition: "inline",
           },
           {
             filename: "linkedInLogo.png",
-            path: "../config/images/linkedInLogo.png",
+            path: imagePath + "/linkedInLogo.png",
             cid: "LinkedInLogo",
             contentDisposition: "inline",
           },

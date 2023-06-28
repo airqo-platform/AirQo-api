@@ -66,7 +66,7 @@ module.exports = {
 `;
   },
 
-  v2_emailVerification: (firstName, user_id, token) => {
+  v2_emailVerification: (email,firstName, user_id, token) => {
     const url = `${constants.PLATFORM_BASE_URL}/api/v1/users/verify/${user_id}/${token}`;
     return `
 <!DOCTYPE html>
