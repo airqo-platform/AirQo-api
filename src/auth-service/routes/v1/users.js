@@ -29,6 +29,23 @@ const headers = (req, res, next) => {
 };
 router.use(headers);
 
+router.get(
+  "/deleteMobileUserData/:userId/:token",
+  oneOf([
+    param("userId")
+      .exists()
+      .withMessage("the userId is missing in the request")
+      .bail(),
+  ]),
+  oneOf([
+    param("token")
+      .exists()
+      .withMessage("The deletion token is missing in the request")
+      .bail(),
+  ]),
+  createUserController.deleteMobileUserData
+); 
+
 router.post(
   "/loginUser",
   oneOf([
@@ -257,20 +274,6 @@ router.post(
     ],
   ]),
   createUserController.verifyVerificationToken
-);
-router.delete(
-  "/deleteMobileUserData",
-  oneOf([
-    query("userId")
-      .exists()
-      .withMessage("There's a missing required parameter in your request")
-      .bail(),
-    query("creationTime")
-      .exists()
-      .withMessage("There's a missing required parameter in your request")
-      .bail(),
-  ]),
-  createUserController.deleteMobileUserData
 );
 
 router.get(

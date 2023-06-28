@@ -11,6 +11,7 @@ const {getAuth} = require("firebase-admin/auth");
 const nodemailer = require("nodemailer");
 
 const emailTemplate = require("./config/emailTemplates");
+const crypto = require("crypto");
 
 const transporter = nodemailer.createTransport({
   service: "gmail",
@@ -26,10 +27,10 @@ const firestoreDb = getFirestore();
 
 /**
  * @param {any} email The user's email
- * @param {any} userId The user's userId
- * @param {any} creationTime The user's creation time
+ * @param {any} userId The user's id
+ * @param {any} token The user's token
  */
-async function sendDeleteConfirmationEmail(email, userId, creationTime) {
+async function sendDeleteConfirmationEmail(email, userId, token) {
   const mailOptions = {
     from: {
       name: "AirQo Data Team",
@@ -37,7 +38,7 @@ async function sendDeleteConfirmationEmail(email, userId, creationTime) {
     },
     to: email,
     subject: "Confirm Account Deletion - AirQo!",
-    html: emailTemplate.deleteConfirmationEmail(email, userId, creationTime),
+    html: emailTemplate.deleteConfirmationEmail(email, userId, token),
     attachments: [
       {
         filename: "airqoLogo.png",
@@ -102,9 +103,19 @@ exports.confirmAccountDeletionMobile =
 
       const userId = user.uid;
       let creationTime = user.metadata.creationTime;
-      creationTime=creationTime.replace(/\D/g, "");
+      creationTime = creationTime.replace(/\D/g, "");
 
-      sendDeleteConfirmationEmail(email, userId, creationTime);
+      const tokenString = `${userId}+${creationTime}`;
+
+
+      const token = crypto
+          .createHash("sha256")
+          .update(tokenString)
+          .digest("hex");
+
+      console.log("Token:", token);
+
+      sendDeleteConfirmationEmail(email, userId, token);
       response.status(200).json({
         success: true,
         message: "Account deletion email sent",
