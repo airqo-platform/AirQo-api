@@ -4,6 +4,7 @@ from datetime import datetime
 
 import numpy as np
 import pandas as pd
+import pymongo
 from bson import ObjectId
 from bson.errors import InvalidId
 from google.cloud import bigquery
@@ -67,6 +68,9 @@ def doc_to_collocation_batch(doc) -> CollocationBatch:
                 failed_devices=doc["results"]["data_completeness"]["failed_devices"],
                 passed_devices=doc["results"]["data_completeness"]["passed_devices"],
                 errors=doc["results"]["data_completeness"].get("errors", []),
+                error_devices=doc["results"]["data_completeness"].get(
+                    "error_devices", []
+                ),
                 results=[
                     DataCompleteness(
                         device_name=record["device_name"],
@@ -86,6 +90,9 @@ def doc_to_collocation_batch(doc) -> CollocationBatch:
                 passed_devices=doc["results"]["intra_sensor_correlation"][
                     "passed_devices"
                 ],
+                error_devices=doc["results"]["intra_sensor_correlation"].get(
+                    "error_devices", []
+                ),
                 errors=doc["results"]["intra_sensor_correlation"].get("errors", []),
                 results=[
                     IntraSensorCorrelation(
@@ -102,6 +109,7 @@ def doc_to_collocation_batch(doc) -> CollocationBatch:
             differences=BaseResult(
                 failed_devices=doc["results"]["differences"]["failed_devices"],
                 passed_devices=doc["results"]["differences"]["passed_devices"],
+                error_devices=doc["results"]["differences"].get("error_devices", []),
                 errors=doc["results"]["differences"].get("errors", []),
                 results=[
                     dict(record) for record in doc["results"]["differences"]["results"]
@@ -114,6 +122,9 @@ def doc_to_collocation_batch(doc) -> CollocationBatch:
                 passed_devices=doc["results"]["inter_sensor_correlation"][
                     "passed_devices"
                 ],
+                error_devices=doc["results"]["inter_sensor_correlation"].get(
+                    "error_devices", []
+                ),
                 errors=doc["results"]["inter_sensor_correlation"].get("errors", []),
                 results=[
                     dict(record)
@@ -208,7 +219,7 @@ class Collocation(BaseModel):
         errors = []
         errors.extend(inter_sensor_correlation.errors)
         errors.extend(differences.errors)
-        errors.extend(inter_sensor_correlation.errors)
+        errors.extend(intra_sensor_correlation.errors)
         errors.extend(data_completeness.errors)
 
         return CollocationBatchResult(
@@ -254,6 +265,16 @@ class Collocation(BaseModel):
         inter_sensor_correlation = collocation_batch.results.inter_sensor_correlation
         differences = collocation_batch.results.differences
 
+        error_devices = list(data_completeness.error_devices)
+        error_devices.extend(intra_sensor_correlation.error_devices)
+        error_devices.extend(inter_sensor_correlation.error_devices)
+        error_devices.extend(differences.error_devices)
+
+        failed_devices = list(data_completeness.failed_devices)
+        failed_devices.extend(intra_sensor_correlation.failed_devices)
+        failed_devices.extend(inter_sensor_correlation.failed_devices)
+        failed_devices.extend(differences.failed_devices)
+
         if len(collocation_batch.devices) > 1:
             passed_devices = (
                 set(data_completeness.passed_devices)
@@ -261,17 +282,18 @@ class Collocation(BaseModel):
                 .intersection(set(inter_sensor_correlation.passed_devices))
                 .intersection(set(differences.passed_devices))
             )
-            failed_devices = (
-                set(data_completeness.failed_devices)
-                .union(set(intra_sensor_correlation.failed_devices))
-                .union(set(inter_sensor_correlation.failed_devices))
-                .union(set(differences.failed_devices))
-            )
+
+            # failed_devices = (
+            #     set(data_completeness.failed_devices)
+            #     .union(set(intra_sensor_correlation.failed_devices))
+            #     .union(set(inter_sensor_correlation.failed_devices))
+            #     .union(set(differences.failed_devices))
+            # )
         else:
             passed_devices = set(data_completeness.passed_devices).intersection(
                 set(intra_sensor_correlation.passed_devices)
             )
-            failed_devices = set(collocation_batch.devices).difference(passed_devices)
+            # failed_devices = set(collocation_batch.devices).difference(passed_devices)
 
         summary: list[CollocationBatchResultSummary] = []
         summary.extend(
@@ -285,6 +307,13 @@ class Collocation(BaseModel):
                 device=device, status=CollocationDeviceStatus.FAILED
             )
             for device in failed_devices
+        )
+
+        summary.extend(
+            CollocationBatchResultSummary(
+                device=device, status=CollocationDeviceStatus.ERROR
+            )
+            for device in error_devices
         )
 
         return summary
@@ -536,7 +565,7 @@ class Collocation(BaseModel):
         return doc_to_collocation_batch(result)
 
     def __query_all_batches(self) -> list[CollocationBatch]:
-        docs = self.collection.find()
+        docs = self.collection.find().sort("date_created", pymongo.DESCENDING)
         return docs_to_collocation_batch_list(docs)
 
     def summary(self) -> list[CollocationSummary]:
