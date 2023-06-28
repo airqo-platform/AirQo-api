@@ -19,7 +19,6 @@ const networkSchema = new Schema({
   },
   description: {
     type: String,
-    required: true,
   },
 });
 

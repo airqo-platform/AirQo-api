@@ -23,9 +23,18 @@ const NetworkModel = (tenant) => {
 };
 
 const validNetworks = async () => {
-  await NetworkModel("airqo").distinct("name");
+  const networks = await NetworkModel("airqo").distinct("name");
+  return networks.map((network) => network.toLowerCase());
 };
 
+const validateNetwork = async (value) => {
+  const networks = await validNetworks();
+  if (!networks.includes(value.toLowerCase())) {
+    throw new Error("Invalid network");
+  }
+};
+
+logObject("validateNetwork", validateNetwork);
 const validatePagination = (req, res, next) => {
   // Retrieve the limit and skip values from the query parameters
   const limit = parseInt(req.query.limit, 10);
@@ -54,33 +63,7 @@ router.use(headers);
 router.use(validatePagination);
 
 /************************ the core functionality ********************/
-router.get(
-  "/:cohort_id",
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant cannot be empty if provided")
-        .bail()
-        .trim()
-        .toLowerCase()
-        .isIn(["kcca", "airqo"])
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-  oneOf([
-    param("cohort_id")
-      .optional()
-      .isMongoId()
-      .withMessage("cohort_id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
-  ]),
-  createCohortController.list
-);
+
 router.delete(
   "/:cohort_id",
   oneOf([
@@ -92,7 +75,7 @@ router.delete(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["kcca", "airqo"])
+        .custom(validateNetwork)
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -124,7 +107,7 @@ router.put(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["kcca", "airqo"])
+        .custom(validateNetwork)
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -232,23 +215,33 @@ router.post(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(validNetworks())
+        .custom(validateNetwork)
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
   oneOf([
     [
       body("name")
+        .trim()
         .exists()
         .withMessage("the name is is missing in your request")
         .bail()
         .notEmpty()
-        .withMessage("the name should not be empty")
-        .trim(),
+        .withMessage("the name should not be empty"),
       body("description")
+        .trim()
         .optional()
+        .notEmpty(),
+      body("network_id")
+        .trim()
+        .exists()
+        .withMessage("the network_id is is missing in your request")
+        .bail()
         .notEmpty()
-        .trim(),
+        .withMessage("the network_id should not be empty")
+        .bail()
+        .isMongoId()
+        .withMessage("the network_id  be an object ID"),
     ],
   ]),
   createCohortController.create
@@ -263,7 +256,7 @@ router.get(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(validNetworks())
+      .custom(validateNetwork)
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -297,7 +290,7 @@ router.get(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(validNetworks())
+      .custom(validateNetwork)
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -331,7 +324,7 @@ router.get(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(validNetworks())
+      .custom(validateNetwork)
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -592,10 +585,69 @@ router.delete(
 
   createCohortController.unAssignOneDeviceFromCohort
 );
-/************************ networks ********************/
-router.post("/networks", createCohortController.createNetwork);
+/************************ networks ******************************/
+router.post(
+  "/networks",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty IF provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .custom(validateNetwork)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      body("name")
+        .exists()
+        .withMessage("the name is is missing in your request")
+        .bail()
+        .notEmpty()
+        .withMessage("the name should not be empty")
+        .trim(),
+      body("description")
+        .optional()
+        .notEmpty()
+        .trim(),
+    ],
+  ]),
+  createCohortController.createNetwork
+);
 router.put("/networks/:net_id", createCohortController.updateNetwork);
 router.delete("/networks/:net_id", createCohortController.deleteNetwork);
 router.get("/networks", createCohortController.listNetworks);
 router.get("/networks/:net_id", createCohortController.listNetworks);
+
+router.get(
+  "/:cohort_id",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .custom(validateNetwork)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    param("cohort_id")
+      .optional()
+      .isMongoId()
+      .withMessage("cohort_id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+  ]),
+  createCohortController.list
+);
 module.exports = router;

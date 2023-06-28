@@ -167,7 +167,7 @@ const createCohort = {
       };
     }
   },
-  createNetwork: async (req, res) => {
+  createNetwork: async (request) => {
     try {
       /**
        * in the near future, this wont be needed since Kafka
@@ -179,22 +179,7 @@ const createCohort = {
       const responseFromCreateNetwork = await NetworkModel(tenant).register(
         body
       );
-
-      if (!isEmpty(responseFromCreateNetwork)) {
-        return {
-          success: true,
-          message: "successfuly created the network",
-          status: httpStatus.OK,
-          data: responseFromCreateNetwork,
-        };
-      } else if (isEmpty(responseFromCreateNetwork)) {
-        return {
-          success: false,
-          message: "Internal Server Error",
-          errors: { message: "unable to create the Network" },
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-        };
-      }
+      return responseFromCreateNetwork;
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
       return {

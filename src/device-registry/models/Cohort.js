@@ -17,8 +17,9 @@ const cohortSchema = new Schema(
     },
     name: {
       type: String,
-      required: true,
+      required: [true, "name is required!"],
       trim: true,
+      unique: true,
     },
     description: {
       type: String,
@@ -40,6 +41,8 @@ const cohortSchema = new Schema(
 
 cohortSchema.post("save", async function(doc) {
   doc.cohort_codes = [doc._id, doc.name];
+  // doc.cohort_codes.push(doc._id);
+  // doc.cohort_codes.push(doc.name);
   logObject("cohort_codes populated successfully:", doc);
 });
 
@@ -97,13 +100,6 @@ cohortSchema.statics.register = async function(args) {
         .trim()
         .toLowerCase();
     }
-
-    // Generate the GeoHash for the provided coordinates
-    const coordinates = modifiedArgs.shape.coordinates;
-    const geoHash = createGridUtil.generateGeoHashFromCoordinates(coordinates);
-
-    // Add the GeoHash to the modifiedArgs object
-    modifiedArgs.geoHash = geoHash;
 
     const createdCohort = await this.create(modifiedArgs);
 
@@ -174,6 +170,7 @@ cohortSchema.statics.list = async function({
     }
 
     const data = await pipeline;
+    logObject("the data baby", data);
     if (!isEmpty(data)) {
       return {
         success: true,
