@@ -84,15 +84,13 @@ const gridSchema = new Schema(
   { timestamps: true }
 );
 
-gridSchema.post("save", async function(doc) {
-  doc.grid_codes = [doc._id, doc.name];
-  logObject("grid_codes populated successfully:", doc);
-});
+gridSchema.post("save", async function(doc) {});
 
 gridSchema.pre("save", function(next) {
   if (this.isModified("_id")) {
     delete this._id;
   }
+  this.grid_codes = [this._id, this.name];
   return next();
 });
 

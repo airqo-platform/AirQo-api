@@ -39,17 +39,13 @@ const cohortSchema = new Schema(
   { timestamps: true }
 );
 
-cohortSchema.post("save", async function(doc) {
-  doc.cohort_codes = [doc._id, doc.name];
-  // doc.cohort_codes.push(doc._id);
-  // doc.cohort_codes.push(doc.name);
-  logObject("cohort_codes populated successfully:", doc);
-});
+cohortSchema.post("save", async function(doc) {});
 
 cohortSchema.pre("save", function(next) {
   if (this.isModified("_id")) {
     delete this._id;
   }
+  this.cohort_codes = [this._id, this.name];
   return next();
 });
 
