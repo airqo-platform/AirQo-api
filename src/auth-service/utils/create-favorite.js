@@ -58,20 +58,6 @@ const favorites = {
         return filter;
       }
 
-      if (!isEmpty(filter.user_id)) {
-        const userExists = await UserModel(tenant).exists({
-          _id: filter.user_id,
-        });
-        if (!userExists) {
-          return {
-            success: false,
-            message: "User not found",
-            status: httpStatus.BAD_REQUEST,
-            errors: { message: `User ${filter.user_id} not found` },
-          };
-        }
-      }
-
       const responseFromListFavoritesPromise = FavoriteModel(
         tenant.toLowerCase()
       ).list({ filter });
@@ -143,20 +129,10 @@ const favorites = {
     try {
       const { query, body } = request;
       const { tenant } = query;
-      const { user_id } = body;
       /**
        * check for edge cases?
        */
-      const userExists = await UserModel(tenant).exists({ _id: user_id });
-
-      if (!userExists) {
-        return {
-          success: false,
-          message: "User not found",
-          status: httpStatus.BAD_REQUEST,
-          errors: { message: `User ${user_id} not found` },
-        };
-      }
+      
 
       const responseFromCreateFavorite = await FavoriteModel(
         tenant.toLowerCase()
