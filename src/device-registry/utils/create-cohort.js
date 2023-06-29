@@ -11,8 +11,10 @@ const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-cohort-util`
 );
+const mongoose = require("mongoose");
 const { Schema } = require("mongoose");
-const ObjectId = Schema.Types.ObjectId;
+
+const ObjectId = mongoose.Types.ObjectId;
 const { Kafka } = require("kafkajs");
 const kafka = new Kafka({
   clientId: constants.KAFKA_CLIENT_ID,

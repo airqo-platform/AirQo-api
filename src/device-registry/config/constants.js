@@ -997,11 +997,12 @@ const defaultConfig = {
     name: 1,
     long_name: 1,
     description: 1,
-    geogroup_tags: 1,
+    grid_tags: 1,
     admin_level: 1,
-    geogroup_codes: 1,
+    grid_codes: 1,
     center_point: 1,
     shape: 1,
+    network_id: 1,
     sites: "$sites",
     numberOfSites: {
       $cond: {
