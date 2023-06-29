@@ -1,4 +1,7 @@
 import copy
+import json
+import os
+import tempfile
 import traceback
 from datetime import datetime
 
@@ -410,12 +413,19 @@ class Collocation(BaseModel):
             devices=devices, end_date=end_date, start_date=start_date
         )
 
-    def log_collection(self):
+    def export_collection(self) -> str:
         docs = self.collection.find()
         data = []
         for doc in docs:
-            data.append(doc)
-        print(data)
+            data.append({**doc, **{"_id": str(doc["_id"])}})
+
+        json_data = json.dumps(data, default=str)
+        temp_dir = tempfile.gettempdir()
+        file_path = os.path.join(temp_dir, "collocation_collection.json")
+        with open(file_path, "w") as file:
+            file.write(json_data)
+
+        return file_path
 
     def __update_batch_status(self, data: CollocationBatch) -> CollocationBatch:
         data_dict = data.to_dict()
