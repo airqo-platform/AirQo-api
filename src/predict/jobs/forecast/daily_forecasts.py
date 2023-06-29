@@ -8,7 +8,7 @@ from models import Events
 from utils import get_trained_model_from_gcs
 
 db = connect_mongo()
-fixed_columns = ['site_id', 'site_name', 'sub_county', 'parish', 'county', 'city', 'district', 'region']
+fixed_columns = ['site_id']
 
 
 def get_lag_features(df_tmp, TARGET_COL):
