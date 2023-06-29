@@ -1675,15 +1675,14 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           push: true
-          context: src/predict/jobs/predict_places_air_quality
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-predict-places-air-quality:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-predict-places-air-quality:latest
-
+          context: src/predict/jobs/new_directory
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-predict-places-air-quality:latest-update
       - name: Update corresponding helm values file(with retry)
         uses: Wandalen/wretry.action@master
         with:
           action: fjogeleit/yaml-update-action@main
           with: |
-            valueFile: "k8s/predict/predict-places-air-quality/values-prod.yaml"
+            valueFile: "k8s/predict/new_directory/values-prod.yaml"
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
@@ -1750,10 +1749,11 @@ jobs:
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
-            valueFile: "k8s/network-uptime/values-prod.yaml"
-            propertyPath: "image.tag"
+            valueFile: "k8s/predict/new_directory/values-prod.yaml"
+            
+            propertyPath: "image.new_property"
             value: ${{ needs.image-tag.outputs.build_id }}
-            branch: ${{ env.DEPLOY_BRANCH }}
+            branch: 'search-api-dataCICD'
             token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update network-uptime production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
