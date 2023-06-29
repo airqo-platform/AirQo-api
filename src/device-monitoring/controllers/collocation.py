@@ -3,7 +3,7 @@ import logging
 import re
 import uuid
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, send_file
 
 import routes
 from config.constants import CollocationDefaults
@@ -31,7 +31,7 @@ collocation_bp = Blueprint(
 def check_batch_id():
     if request.method == "GET" or request.method == "DELETE":
         if re.match("/api/v2/monitor/collocation/summary", request.path) or re.match(
-            "/api/v2/monitor/collocation/log-data", request.path
+            "/api/v2/monitor/collocation/export-collection", request.path
         ):
             return None
         batch_id = request.args.get("batchId")
@@ -47,14 +47,11 @@ def batch_not_found_exception(error):
     return jsonify({"message": error.message}), 404
 
 
-@collocation_bp.route("log-data", methods=["GET"])
+@collocation_bp.route("export-collection", methods=["GET"])
 def log_collocation_data():
     collocation = Collocation()
-    collocation.log_collection()
-    return (
-        jsonify({}),
-        200,
-    )
+    file_path = collocation.export_collection()
+    return send_file(file_path, as_attachment=True)
 
 
 @collocation_bp.route("", methods=["POST"])
