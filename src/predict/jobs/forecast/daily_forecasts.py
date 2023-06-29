@@ -41,9 +41,7 @@ def preprocess_forecast_data(target_column):
     # TODO: Eventually move to events API instead of bigquery
     forecast_data = Events.fetch_bigquery_data()
     forecast_data['created_at'] = pd.to_datetime(forecast_data['created_at'], format='%Y-%m-%d')
-    forecast_data = forecast_data[pd.to_numeric(forecast_data['device_number'], errors='coerce').notnull()]
     forecast_data['device_number'] = forecast_data['device_number'].astype(str)
-    forecast_data = forecast_data.dropna(subset=['device_number'])
     forecast_data = forecast_data.groupby(
         fixed_columns + ['device_number']).resample('D', on='created_at').mean(numeric_only=True)
     forecast_data = forecast_data.reset_index()

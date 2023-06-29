@@ -7,8 +7,7 @@ from lightgbm import LGBMRegressor, early_stopping
 from sklearn.metrics import mean_squared_error
 
 from config import configuration, environment
-from transform import fetch_bigquery_data
-from utils import upload_trained_model_to_gcs
+from utils import upload_trained_model_to_gcs, fetch_bigquery_data
 
 warnings.filterwarnings("ignore")
 
@@ -20,11 +19,13 @@ print(f'mlflow server uri: {mlflow.get_tracking_uri()}')
 
 def preprocess_forecast_data():
     print('preprocess_forecast_data started.....')
-    forecast_data = fetch_bigquery_data()
+    forecast_data = fetch_bigquery_data(job_type='daily_forecast')
     forecast_data['created_at'] = pd.to_datetime(forecast_data['created_at'], format='%Y-%m-%d')
     forecast_data['device_number'] = forecast_data['device_number'].astype(str)
     forecast_data = forecast_data.groupby(
         ['device_number']).resample('D', on='created_at').mean(numeric_only=True)
+    forecast_data = forecast_data.reset_index()
+    forecast_data = forecast_data.set_index('created_at').interpolate(groupby='device_number', method='time')
     forecast_data = forecast_data.reset_index()
     forecast_data['device_number'] = forecast_data['device_number'].astype(int)
     print('preprocess_forecast_data completed.....')

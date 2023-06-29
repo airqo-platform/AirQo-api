@@ -18,34 +18,35 @@ print(f'mlflow server uri: {mlflow.get_tracking_uri()}')
 
 def preprocess_forecast_data():
     print('preprocess_forecast_data started.....')
-    forecast_data = fetch_bigquery_data()
+    forecast_data = fetch_bigquery_data(job_type='hourly_forecast')
     forecast_data['created_at'] = pd.to_datetime(forecast_data['created_at'], format='%Y-%m-%d %H:%M:%S')
     forecast_data['device_number'] = forecast_data['device_number'].astype(str)
     forecast_data = forecast_data.groupby(
         ['device_number']).resample('H', on='created_at').mean(numeric_only=True)
     forecast_data = forecast_data.reset_index()
+    forecast_data = forecast_data.set_index('created_at').interpolate(groupby='device_number', method='time')
+    forecast_data = forecast_data.reset_index()
     forecast_data['device_number'] = forecast_data['device_number'].astype(int)
+    forecast_data = forecast_data[forecast_data['device_number'] != -1]
     print('preprocess_forecast_data completed.....')
     return forecast_data
 
 
 def initialise_training_constants():
-    train_model_now = True
     target_col = 'pm2_5'
 
     forecast_data = preprocess_forecast_data()
 
-    if train_model_now:
-        train = preprocess_df(forecast_data, target_col)
-        clf = train_model(train)
+    model_data = preprocess_df(forecast_data, target_col)
+    clf = train_model(model_data)
 
-        upload_trained_model_to_gcs(
-            clf,
-            configuration.GOOGLE_CLOUD_PROJECT_ID,
-            configuration.AIRQO_PREDICT_BUCKET,
-            'hourly_forecast_model.pkl')
+    upload_trained_model_to_gcs(
+        clf,
+        configuration.GOOGLE_CLOUD_PROJECT_ID,
+        configuration.AIRQO_PREDICT_BUCKET,
+        'hourly_forecast_model.pkl')
 
-        print(clf)
+    print(clf)
 
 
 def train_model(train):
@@ -53,6 +54,8 @@ def train_model(train):
     Perform the actual training
     """
     print('feature selection started.....')
+    # sort values by both device_number and created_at
+    train = train.sort_values(by=['device_number', 'created_at'])
     features = [c for c in train.columns if c not in ["created_at", "pm2_5"]]
     print(features)
     target_col = "pm2_5"
@@ -62,8 +65,8 @@ def train_model(train):
         device_df = train[train['device_number'] == device_number]
         device_df = device_df.sort_values(by='created_at')
         months = device_df['created_at'].dt.month.unique()
-        train_months = months[:9]
-        test_months = months[9:]
+        train_months = months[:4]
+        test_months = months[4:]
         train_df = device_df[device_df['created_at'].dt.month.isin(train_months)]
         test_df = device_df[device_df['created_at'].dt.month.isin(test_months)]
         train_data = pd.concat([train_data, train_df])
@@ -136,10 +139,9 @@ def train_model(train):
 
 
 def get_lag_features(df_tmp, TARGET_COL):
-    df_tmp = df_tmp.sort_values(by=['device_number', 'created_at'])
+    df_tmp = df_tmp.sort_values(by=['created_at', 'device_number'])
 
-    # rolling features
-    shifts = [1, 2, 3, 4]
+    shifts = [1, 2, 3, 4, 5, 6]
     for s in shifts:
         df_tmp[f'pm2_5_last_{s}_hour'] = df_tmp.groupby(['device_number'])[TARGET_COL].shift(s)
 
@@ -160,13 +162,14 @@ def get_other_features(df_tmp):
     for a in attributes:
         df_tmp[a] = df_tmp['created_at'].dt.__getattribute__(a)
     df_tmp['week'] = df_tmp['created_at'].dt.isocalendar().week.astype(int)
+
+    print('Additional features added')
     return df_tmp
 
 
 def preprocess_df(df_tmp, target_column):
-    df_tmp = df_tmp.dropna()
-    df_tmp = get_lag_features(df_tmp, target_column)
     df_tmp = get_other_features(df_tmp)
+    df_tmp = get_lag_features(df_tmp, target_column)
 
     return df_tmp
 
