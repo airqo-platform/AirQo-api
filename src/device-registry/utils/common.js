@@ -1,7 +1,6 @@
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- common-util`);
-const HTTPStatus = require("http-status");
 const isEmpty = require("is-empty");
 const AirQloudSchema = require("@models/Airqloud");
 const SiteSchema = require("@models/Site");
@@ -9,9 +8,12 @@ const DeviceSchema = require("@models/Device");
 const { getModelByTenant } = require("@config/database");
 const distanceUtil = require("./distance");
 const cryptoJS = require("crypto-js");
-const { logObject } = require("./log");
+const { logObject } = require("@utils/log");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
+const geolib = require("geolib");
+const geohash = require("ngeohash");
+const httpStatus = require("http-status");
 
 const devicesModel = (tenant) => {
   return getModelByTenant(tenant.toLowerCase(), "device", DeviceSchema);
@@ -53,7 +55,7 @@ const common = {
           success: true,
           message,
           data: filteredSites,
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       } else if (responseFromListAirQloud.success === false) {
         return responseFromListAirQloud;
@@ -62,7 +64,7 @@ const common = {
       return {
         success: false,
         message: "Internal Server Error",
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
         errors: { message: error.message },
       };
     }
@@ -93,7 +95,7 @@ const common = {
           success: true,
           data: siteIds,
           message,
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       } else if (responseFromListSites.success === false) {
         return responseFromListSites;
@@ -102,7 +104,7 @@ const common = {
       return {
         success: false,
         message: "Internal Server Error",
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
         errors: { message: error.message },
       };
     }
@@ -126,7 +128,7 @@ const common = {
         success: false,
         message: "Internal Server Error",
         errors: { message: e.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -137,7 +139,7 @@ const common = {
           callback({
             success: true,
             message: "retrieved the number of devices",
-            status: HTTPStatus.OK,
+            status: httpStatus.OK,
             data: count,
           });
         } else if (err) {
@@ -145,7 +147,7 @@ const common = {
             success: false,
             message: "Internal Server Error",
             errors: { message: err.message },
-            status: HTTPStatus.INTERNAL_SERVER_ERROR,
+            status: httpStatus.INTERNAL_SERVER_ERROR,
           });
         }
       });
@@ -155,7 +157,7 @@ const common = {
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       });
     }
   },
@@ -169,7 +171,7 @@ const common = {
       if (isEmpty(originalText)) {
         return {
           success: false,
-          status: HTTPStatus.BAD_REQUEST,
+          status: httpStatus.BAD_REQUEST,
           message: "the provided encrypted key is not recognizable",
           errors: { message: "the provided encrypted key is not recognizable" },
         };
@@ -178,7 +180,7 @@ const common = {
           success: true,
           message: "successfully decrypted the text",
           data: originalText,
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       }
     } catch (err) {
@@ -187,7 +189,57 @@ const common = {
         success: false,
         message: "Internal Server Error",
         errors: { message: err.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  generateGeoHashFromCoordinates: (shape) => {
+    try {
+      logObject("shape", shape);
+      const { coordinates, type } = shape;
+      // Flatten the coordinates array to handle both Polygon and MultiPolygon
+
+      if (type === "MultiPolygon") {
+        logObject("coordinates.flat(2.1)", coordinates.flat(2));
+        const flattenedMultiPolygonCoordinates = coordinates
+          .flat(3)
+          .map(([longitude, latitude]) => ({
+            latitude,
+            longitude,
+          }));
+
+        const centerPoint = geolib.getCenter(flattenedMultiPolygonCoordinates);
+        // Generate the GeoHash using the center point
+        const geoHash = geohash.encode(
+          centerPoint.latitude,
+          centerPoint.longitude
+        );
+        return geoHash;
+      } else if (type === "Polygon") {
+        logObject("coordinates.flat(2)", coordinates.flat(2));
+        const flattenedPolygonCoordinates = coordinates
+          .flat(2)
+          .map(([longitude, latitude]) => ({
+            latitude,
+            longitude,
+          }));
+
+        const centerPoint = geolib.getCenter(flattenedPolygonCoordinates);
+        // Generate the GeoHash using the center point
+        const geoHash = geohash.encode(
+          centerPoint.latitude,
+          centerPoint.longitude
+        );
+        return geoHash;
+      }
+    } catch (error) {
+      logObject("the error in the common util", error);
+      logger.error(`Internal Server Error ---  ${JSON.stringify(error)}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },

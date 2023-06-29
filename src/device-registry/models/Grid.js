@@ -8,8 +8,7 @@ const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- grid-model`);
-const geolib = require("geolib");
-const createGridUtil = require("@utils/create-grid");
+const commonUtil = require("@utils/common");
 
 const shapeSchema = new Schema(
   {
@@ -158,13 +157,6 @@ gridSchema.statics.register = async function(args) {
         .toLowerCase();
     }
 
-    // Generate the GeoHash for the provided coordinates
-    const coordinates = modifiedArgs.shape.coordinates;
-    const geoHash = createGridUtil.generateGeoHashFromCoordinates(coordinates);
-
-    // Add the GeoHash to the modifiedArgs object
-    modifiedArgs.geoHash = geoHash;
-
     const createdGrid = await this.create(modifiedArgs);
 
     if (!isEmpty(createdGrid)) {
@@ -184,22 +176,24 @@ gridSchema.statics.register = async function(args) {
         },
       };
     }
-  } catch (err) {
+  } catch (error) {
+    logObject("error", error);
     let response = {
       message: "validation errors for some of the provided fields",
       success: false,
       status: httpStatus.CONFLICT,
+      errors: { message: error.message },
     };
 
-    if (!isEmpty(err.errors)) {
+    if (!isEmpty(error.errors)) {
       response.errors = {};
 
-      Object.entries(err.errors).forEach(([key, value]) => {
+      Object.entries(error.errors).forEach(([key, value]) => {
         response.errors.message = value.message;
         response.errors[value.path] = value.message;
       });
     } else {
-      response.errors = { message: err.message };
+      response.errors = { message: error.message };
     }
 
     return response;
@@ -254,9 +248,9 @@ gridSchema.statics.list = async function({
         status: httpStatus.OK,
       };
     }
-  } catch (err) {
+  } catch (error) {
     return {
-      errors: { message: err.message },
+      errors: { message: error.message },
       message: "Internal Server Error",
       success: false,
       status: httpStatus.INTERNAL_SERVER_ERROR,
@@ -297,9 +291,9 @@ gridSchema.statics.modify = async function({ filter = {}, update = {} } = {}) {
         errors: filter,
       };
     }
-  } catch (err) {
+  } catch (error) {
     return {
-      errors: { message: err.message },
+      errors: { message: error.message },
       message: "Internal Server Error",
       success: false,
       status: httpStatus.INTERNAL_SERVER_ERROR,
@@ -334,11 +328,11 @@ gridSchema.statics.remove = async function({ filter = {} } = {}) {
         errors: filter,
       };
     }
-  } catch (err) {
+  } catch (error) {
     return {
       success: false,
       message: "Internal Server Error",
-      errors: { message: err.message },
+      errors: { message: error.message },
       status: httpStatus.INTERNAL_SERVER_ERROR,
     };
   }

@@ -316,7 +316,7 @@ const createGrid = {
       request["query"]["tenant"] = tenant;
 
       let responseFromCreateGrid = await createGridUtil.create(request);
-      logObject("responseFromCreateGrid in controller", responseFromCreateGrid);
+      // logObject("responseFromCreateGrid in controller", responseFromCreateGrid);
       if (responseFromCreateGrid.success === true) {
         const status = responseFromCreateGrid.status
           ? responseFromCreateGrid.status

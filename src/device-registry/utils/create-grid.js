@@ -1,3 +1,7 @@
+const GridSchema = require("@models/Grid");
+const SiteSchema = require("@models/Site");
+const AdminLevelSchema = require("@models/AdminLevel");
+const { getModelByTenant } = require("@config/database");
 const geolib = require("geolib");
 const geohash = require("ngeohash");
 const { Transform } = require("stream");
@@ -5,18 +9,15 @@ const multer = require("multer");
 const upload = multer({ dest: "uploads/" });
 const shapefile = require("shapefile");
 const AdmZip = require("adm-zip");
-const GridSchema = require("@models/Grid");
-const SiteSchema = require("@models/Site");
-const AdminLevelSchema = require("@models/AdminLevel");
 const { logObject, logElement, logText } = require("./log");
-const { getModelByTenant } = require("@config/database");
+
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const generateFilter = require("./generate-filter");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- create-grid-util`);
-const mongoose = require("mongoose");
+// const mongoose = require("mongoose");
 const { Schema } = require("mongoose");
 const ObjectId = Schema.Types.ObjectId;
 const { Kafka } = require("kafkajs");
@@ -24,13 +25,14 @@ const kafka = new Kafka({
   clientId: constants.KAFKA_CLIENT_ID,
   brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
 });
+const commonUtil = require("@utils/common");
 
 const GridModel = (tenant) => {
   try {
     const grids = mongoose.model("grids");
     return grids;
   } catch (error) {
-    logObject("error", error);
+    // logObject("error", error);
     const grids = getModelByTenant(tenant, "grid", GridSchema);
     return grids;
   }
@@ -105,18 +107,6 @@ const generateGeoHash = (latitude, longitude, precision = 9) => {
 };
 
 const createGrid = {
-  generateGeoHashFromCoordinates: (coordinates) => {
-    // Flatten the coordinates array to handle both Polygon and MultiPolygon
-    const flattenedCoordinates = [].concat(...coordinates);
-    // Calculate the center point of the coordinates
-    const centerPoint = geolib.getCenter(flattenedCoordinates);
-    // Generate the GeoHash using the center point
-    const geoHash = geolib.getGeoHash(
-      centerPoint.latitude,
-      centerPoint.longitude
-    );
-    return geoHash;
-  },
   retrieveCoordinates: async (request) => {
     try {
       const { tenant } = request.query;
@@ -259,9 +249,8 @@ const createGrid = {
   },
   create: async (request) => {
     try {
-      const { body, query } = request;
-      const { tenant } = query;
-      let modifiedBody = body;
+      const { tenant } = request.query;
+      let modifiedBody = request.body;
       const responseFromCalculateGeographicalCenter = await createGrid.calculateGeographicalCenter(
         request
       );
@@ -273,12 +262,13 @@ const createGrid = {
         return responseFromCalculateGeographicalCenter;
       } else {
         modifiedBody["centers"] = responseFromCalculateGeographicalCenter.data;
+        // logObject("modifiedBody", modifiedBody);
 
         const responseFromRegisterGrid = await GridModel(tenant).register(
           modifiedBody
         );
 
-        logObject("responseFromRegisterGrid", responseFromRegisterGrid);
+        // logObject("responseFromRegisterGrid in UTIL", responseFromRegisterGrid);
 
         if (responseFromRegisterGrid.success === true) {
           try {
@@ -722,16 +712,12 @@ const createGrid = {
       const coordinates = features[0].geometry.coordinates;
       const shapeType = features[0].geometry.type;
 
-      // Generate the GeoHash from the extracted coordinates
-      const geoHash = createGrid.generateGeoHashFromCoordinates(coordinates);
-
       // Create the Grid data object
       const gridData = {
         shape: {
           type: shapeType,
           coordinates: coordinates,
         },
-        geoHash,
       };
       return {
         success: true,
@@ -750,7 +736,6 @@ const createGrid = {
       };
     }
   },
-
   listAvailableSites: async (request) => {
     try {
       const { tenant } = request.query;
