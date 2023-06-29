@@ -541,27 +541,11 @@ const defaultConfig = {
     longitude: 1,
     reference_site: 1,
     place_id: 1,
-    user: { $arrayElemAt: ["$users", 0] },
+    firebase_user_id:1,
   },
 
   FAVORITES_EXCLUSION_PROJECTION: (category) => {
-    const initialProjection = {
-      "user.notifications": 0,
-      "user.emailConfirmed": 0,
-      "user.locationCount": 0,
-      "user.firstName": 0,
-      "user.lastName": 0,
-      "user.email": 0,
-      "user.organization": 0,
-      "user.long_organization": 0,
-      "user.privilege": 0,
-      "user.userName": 0,
-      "user.password": 0,
-      "user.duration": 0,
-      "user.__v": 0,
-      "user.role": 0,
-      "user.updatedAt": 0,
-    };
+    const initialProjection = {  };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {
       projection = Object.assign({}, {});

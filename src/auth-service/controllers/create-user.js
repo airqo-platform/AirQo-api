@@ -306,14 +306,8 @@ const createUser = {
   deleteMobileUserData: async (req, res) => {
     try {
       logText("We are deleting the app data.....");
-      const { userId } = req.query;
-      const { creationTime } = req.query;
 
-      let request = {};
-      request["body"] = {};
-      request["body"]["userId"] = userId;
-      request["body"]["creationTime"] = creationTime;
-      logObject("request:", request);
+      let request = Object.assign({}, req);
 
       const responseFromDeleteAppData =
         await createUserUtil.deleteMobileUserData(request);

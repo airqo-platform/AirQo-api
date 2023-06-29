@@ -1,0 +1,46 @@
+nameOverride: ''
+fullnameOverride: ''
+namespace: production
+images:
+  repositories:
+    api: eu.gcr.io/airqo-250220/airqo-view-api
+    messageBroker: eu.gcr.io/airqo-250220/airqo-view-message-broker
+  tag: prod-8adf45a7-1687979378
+api:
+  name: airqo-view-api
+  label: view-api
+  configmap: prod-view-api-config
+  replicaCount: 2
+  podAnnotations: {}
+  resources:
+    limits:
+      cpu: 100m
+      memory: 1500Mi
+    requests:
+      cpu: 10m
+      memory: 500Mi
+messageBroker:
+  name: airqo-view-message-broker
+  label: view-msg-brokr
+  configmap: prod-view-message-broker-config
+  replicaCount: 2
+  podAnnotations:
+    sidecar.istio.io/inject: 'false'
+  resources:
+    limits:
+      cpu: 500m
+      memory: 800Mi
+    requests:
+      cpu: 50m
+      memory: 400Mi
+ingress:
+  enabled: false
+service:
+  type: NodePort
+  port: 8080
+  protocol: TCP
+  targetPort: 8080
+autoscaling:
+  minReplicas: 1
+  maxReplicas: 4
+  targetCPUUtilizationPercentage: 70

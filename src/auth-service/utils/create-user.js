@@ -1308,20 +1308,26 @@ const join = {
 
   deleteMobileUserData: async (request) => {
     try {
-      const { body } = request;
-      let { userId } = body;
-      let { creationTime } = body;
+      const { userId, token } = request.params;
+
       const userRecord = await admin.auth().getUser(userId);
 
-      //get creation time and compare with creationTime
-      let userCreationTime = userRecord.metadata.creationTime;
-      userCreationTime = userCreationTime.replace(/\D/g, "");
-      if (userCreationTime !== creationTime) {
+      let creationTime = userRecord.metadata.creationTime;
+      creationTime = creationTime.replace(/\D/g, "");
+
+      const tokenString = `${userId}+${creationTime}`;
+
+      const verificationToken = crypto
+          .createHash("sha256")
+          .update(tokenString)
+          .digest("hex");
+   
+      if (token !== verificationToken) {
         return {
           success: false,
-          message: "Invalid request",
+          message: "Invalid token",
           status: httpStatus.BAD_REQUEST,
-          errors: { message: "Invalid request" },
+          errors: { message: "Invalid token" },
         };
       }
 
