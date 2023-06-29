@@ -1,3 +1,12 @@
+#Forecast API documentation
+## Introduction
+This document discusses AirQo’s Forecast API and provides guidelines on how one can use it to access air quality PM2.5 forecasts for any particular location using the `site_id` query parameter, though work is ongoing to allow querying by other parameters such as `city`, `region`, etc.
+
+## Forecasting
+The concept of forecasting is at its core concerned with predicting or estimating a given value of a given variable such as temperature, price of a commodity at a future point in time. 
+This can involve taking into account a number of factors such as how that value has changed in previous hours, days or weeks, as well as any other factors that may affect the value.To forcast air quality PM2.5 values, we take into accound details such as the .device that 
+
+
 # Running the app
 
 ## 1. fetch and checkout branch from github.
