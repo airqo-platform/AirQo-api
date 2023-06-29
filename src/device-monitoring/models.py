@@ -11,6 +11,7 @@ from app import cache
 from config.constants import Config
 from config.db_connection import connect_mongo
 from helpers.convert_dates import date_to_str
+from helpers.exceptions import CollocationError
 
 
 class BaseModel:
@@ -210,7 +211,6 @@ class CollocationBatchStatus(Enum):
             return CollocationBatchStatus[value]
         except Exception as ex:
             print(ex)
-            print("hello")
             return CollocationBatchStatus.RUNNING
 
 
@@ -367,9 +367,24 @@ class CollocationBatch:
         data["status"] = self.status.value
         return data
 
+    def validate(self, raise_exception=True) -> bool:
+        if self.end_date <= self.start_date:
+            if raise_exception:
+                raise CollocationError(
+                    message="start date cannot be greater or equal to end date"
+                )
+            else:
+                return False
+        if len(self.devices) < 1:
+            if raise_exception:
+                raise CollocationError(message="devices cannot be empty")
+            else:
+                return False
+        return True
+
     def to_api_output(self):
         data = self.to_dict()
-        data["summary"] = self.get_summary()
+        data["summary"] = [row.to_dict() for row in self.get_summary()]
         return data
 
     def logical_end_date(self) -> datetime:
