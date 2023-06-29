@@ -166,16 +166,15 @@ def save_collocation_batch():
         created_by=user_details,
         status=CollocationBatchStatus.SCHEDULED,
         results=CollocationBatchResult.empty_results(),
-        summary=[],
         errors=[],
     )
 
-    batch.update_status()
+    batch.set_status()
     collocation = Collocation()
     batch = collocation.save_batch(batch)
 
     return (
-        jsonify({"message": "success", "data": batch.to_dict(retain_batch_id=True)}),
+        jsonify({"message": "success", "data": batch.to_api_output()}),
         200,
     )
 
@@ -194,7 +193,7 @@ def delete_collocation_batch():
     if batch is None:
         return jsonify({"message": "Successful"}), 204
     return (
-        jsonify({"message": "Successful", "data": batch.to_dict(retain_batch_id=True)}),
+        jsonify({"message": "Successful", "data": batch.to_api_output()}),
         200,
     )
 
@@ -207,7 +206,7 @@ def reset_collocation_batch():
     batch = collocation.reset_batch(batch)
 
     return (
-        jsonify({"message": "Successful", "data": batch.to_dict(retain_batch_id=True)}),
+        jsonify({"message": "Successful", "data": batch.to_api_output()}),
         200,
     )
 
@@ -221,7 +220,7 @@ def get_collocation_batch():
     if batch is None:
         return jsonify({"message": "Successful"}), 404
     return (
-        jsonify({"message": "Successful", "data": batch.to_dict(retain_batch_id=True)}),
+        jsonify({"message": "Successful", "data": batch.to_api_output()}),
         200,
     )
 

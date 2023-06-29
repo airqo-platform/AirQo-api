@@ -360,24 +360,22 @@ class CollocationBatch:
 
     status: CollocationBatchStatus
     results: CollocationBatchResult
-    summary: list[CollocationBatchResultSummary]
     errors: list[str]
 
-    def to_dict(self, retain_batch_id=False):
+    def to_dict(self):
         data = asdict(self)
-        if not retain_batch_id:
-            del data["batch_id"]
-        summary = []
-        for record in self.summary:
-            summary.append(record.to_dict())
         data["status"] = self.status.value
-        data["summary"] = summary
+        return data
+
+    def to_api_output(self):
+        data = self.to_dict()
+        data["summary"] = self.get_summary()
         return data
 
     def logical_end_date(self) -> datetime:
         return self.end_date + timedelta(minutes=90)
 
-    def passed_devices(self) -> list:
+    def get_passed_devices(self) -> list:
         passed_devices = (
             set(self.results.data_completeness.passed_devices)
             .intersection(set(self.results.intra_sensor_correlation.passed_devices))
@@ -386,14 +384,14 @@ class CollocationBatch:
         )
         return list(passed_devices)
 
-    def failed_devices(self) -> list:
+    def get_failed_devices(self) -> list:
         failed_devices = set(self.results.data_completeness.failed_devices)
         failed_devices.update(self.results.intra_sensor_correlation.failed_devices)
         failed_devices.update(self.results.inter_sensor_correlation.failed_devices)
         failed_devices.update(self.results.differences.failed_devices)
         return list(failed_devices)
 
-    def error_devices(self) -> list:
+    def get_error_devices(self) -> list:
         error_devices = (
             set(self.results.data_completeness.error_devices)
             .intersection(set(self.results.intra_sensor_correlation.error_devices))
@@ -401,6 +399,46 @@ class CollocationBatch:
             .intersection(set(self.results.differences.error_devices))
         )
         return list(error_devices)
+
+    def get_summary(self) -> list[CollocationBatchResultSummary]:
+        if self.status == CollocationBatchStatus.SCHEDULED:
+            return [
+                CollocationBatchResultSummary(
+                    device=device, status=CollocationDeviceStatus.SCHEDULED
+                )
+                for device in self.devices
+            ]
+
+        if self.status == CollocationBatchStatus.RUNNING:
+            return [
+                CollocationBatchResultSummary(
+                    device=device, status=CollocationDeviceStatus.RUNNING
+                )
+                for device in self.devices
+            ]
+
+        summary: list[CollocationBatchResultSummary] = []
+        summary.extend(
+            CollocationBatchResultSummary(
+                device=device, status=CollocationDeviceStatus.PASSED
+            )
+            for device in self.get_passed_devices()
+        )
+        summary.extend(
+            CollocationBatchResultSummary(
+                device=device, status=CollocationDeviceStatus.FAILED
+            )
+            for device in self.get_failed_devices()
+        )
+
+        summary.extend(
+            CollocationBatchResultSummary(
+                device=device, status=CollocationDeviceStatus.ERROR
+            )
+            for device in self.get_error_devices()
+        )
+
+        return summary
 
     def has_results(self) -> bool:
         data_completeness = list(self.results.data_completeness.error_devices)
@@ -438,14 +476,10 @@ class CollocationBatch:
             and len(data_completeness) != 0
         )
 
-    def summary_to_dict(self) -> dict:
-        data = asdict(self)
-        del data["batch_id"]
-        data["status"] = self.status.value
-        return data
-
-    def update_status(self):
+    def set_status(self):
         now = datetime.utcnow()
+        devices = self.devices
+        has_results = self.has_results()
         if now < self.start_date:
             self.status = CollocationBatchStatus.SCHEDULED
         elif now >= self.logical_end_date() and self.has_results():

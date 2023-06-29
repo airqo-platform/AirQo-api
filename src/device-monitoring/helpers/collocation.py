@@ -30,7 +30,6 @@ from models import (
     CollocationBatch,
     CollocationBatchResult,
     CollocationSummary,
-    CollocationDeviceStatus,
     CollocationBatchResultSummary,
     DataCompletenessResult,
     DataCompleteness,
@@ -138,13 +137,6 @@ def doc_to_collocation_batch(doc) -> CollocationBatch:
             data_source=doc["results"]["data_source"],
             errors=doc["results"].get("errors", []),
         ),
-        summary=[
-            CollocationBatchResultSummary(
-                device=record["device"],
-                status=CollocationDeviceStatus[record["status"]],
-            )
-            for record in doc.get("summary", [])
-        ],
         errors=doc.get("errors", []),
     )
 
@@ -237,49 +229,6 @@ class Collocation(BaseModel):
         )
 
     @staticmethod
-    def compute_batch_results_summary(
-        collocation_batch: CollocationBatch,
-    ) -> list[CollocationBatchResultSummary]:
-        if collocation_batch.status == CollocationBatchStatus.SCHEDULED:
-            return [
-                CollocationBatchResultSummary(
-                    device=device, status=CollocationDeviceStatus.SCHEDULED
-                )
-                for device in collocation_batch.devices
-            ]
-
-        if collocation_batch.status == CollocationBatchStatus.RUNNING:
-            return [
-                CollocationBatchResultSummary(
-                    device=device, status=CollocationDeviceStatus.RUNNING
-                )
-                for device in collocation_batch.devices
-            ]
-
-        summary: list[CollocationBatchResultSummary] = []
-        summary.extend(
-            CollocationBatchResultSummary(
-                device=device, status=CollocationDeviceStatus.PASSED
-            )
-            for device in collocation_batch.passed_devices()
-        )
-        summary.extend(
-            CollocationBatchResultSummary(
-                device=device, status=CollocationDeviceStatus.FAILED
-            )
-            for device in collocation_batch.failed_devices()
-        )
-
-        summary.extend(
-            CollocationBatchResultSummary(
-                device=device, status=CollocationDeviceStatus.ERROR
-            )
-            for device in collocation_batch.error_devices()
-        )
-
-        return summary
-
-    @staticmethod
     @cache.memoize(timeout=1800)
     def get_data(
         devices: list[str], start_date_time: datetime, end_date_time: datetime
@@ -363,9 +312,7 @@ class Collocation(BaseModel):
         )
 
         if count == 0:
-            data = batch
-            data.summary = self.compute_batch_results_summary(data)
-            self.collection.insert_one(data.to_dict())
+            self.collection.insert_one(batch.to_dict())
 
         return self.__query_by_devices_and_collocation_dates(
             devices=devices, end_date=end_date, start_date=start_date
@@ -408,7 +355,9 @@ class Collocation(BaseModel):
         return docs_to_collocation_batch_list(docs)
 
     def __query_incomplete_batches(self) -> list[CollocationBatch]:
-        docs = self.collection.find({"status": {"$ne": CollocationBatchStatus.COMPLETED.value}})
+        docs = self.collection.find(
+            {"status": {"$ne": CollocationBatchStatus.COMPLETED.value}}
+        )
         return docs_to_collocation_batch_list(docs)
 
     def __query_by_devices_and_collocation_dates(
@@ -432,18 +381,13 @@ class Collocation(BaseModel):
         incomplete_batches = self.__query_incomplete_batches()
 
         for batch in incomplete_batches:
-            batch.update_status()
+            batch.set_status()
             self.__update_batch_status(batch)
 
     def compute_and_update_results(self, batches: list[CollocationBatch]):
         for batch in batches:
             results = self.compute_batch_results(batch)
-            updated_batch = self.__update_batch_results((batch.batch_id, results))
-            self.__compute_and_update_summary(updated_batch)
-
-    def __compute_and_update_summary(self, batch: CollocationBatch):
-        summary = self.compute_batch_results_summary(batch)
-        self.update_batch_summary((batch.batch_id, summary))
+            self.__update_batch_results((batch.batch_id, results))
 
     def __update_batch_results(
         self, batch_tuple: tuple[str, CollocationBatchResult]
@@ -489,9 +433,8 @@ class Collocation(BaseModel):
     def reset_batch(self, data: CollocationBatch) -> CollocationBatch:
         reset_batch: CollocationBatch = data
         reset_batch.results = CollocationBatchResult.empty_results()
-        reset_batch.update_status()
+        reset_batch.set_status()
 
-        reset_batch.summary = self.compute_batch_results_summary(reset_batch)
         filter_set = {"_id": ObjectId(reset_batch.batch_id)}
         update_set = {"$set": reset_batch.to_dict()}
         self.collection.update_one(filter_set, update_set)
@@ -538,7 +481,7 @@ class Collocation(BaseModel):
                     batch_name=batch.batch_name,
                     errors=batch.results.errors,
                 )
-                for result_summary in batch.summary
+                for result_summary in batch.get_summary()
             )
 
         return summary
