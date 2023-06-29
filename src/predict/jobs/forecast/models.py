@@ -13,15 +13,27 @@ class Events:
 
     # TODO: Remove this and use Events API only
     @staticmethod
-    def fetch_bigquery_data(job_type):
+    def fetch_monthly_bigquery_data():
         """gets data from the bigquery table"""
-
-        months = configuration.MONTHS_OF_DATA_HOURLY_JOB if job_type == 'hourly_forecast' else configuration.MONTHS_OF_DATA_DAILY_JOB
 
         credentials = service_account.Credentials.from_service_account_file(configuration.CREDENTIALS)
         tenants = str(configuration.TENANTS).split(',')
         query = f"""
-        SELECT DISTINCT timestamp , site_id, device_number,pm2_5_calibrated_value FROM `{configuration.GOOGLE_CLOUD_PROJECT_ID}.averaged_data.hourly_device_measurements` where DATE(timestamp) >= DATE_SUB(CURRENT_DATE(), INTERVAL {months} MONTH) and tenant IN UNNEST({tenants}) ORDER BY device_number, timestamp 
+        SELECT DISTINCT timestamp , site_id, device_number,pm2_5_calibrated_value FROM `{configuration.GOOGLE_CLOUD_PROJECT_ID}.averaged_data.hourly_device_measurements` where DATE(timestamp) >= DATE_SUB(CURRENT_DATE(), INTERVAL {configuration.MONTHS_OF_DATA} MONTH) and tenant IN UNNEST({tenants}) ORDER BY device_number, timestamp 
+        """
+        df = pd.read_gbq(query, project_id=configuration.GOOGLE_CLOUD_PROJECT_ID, credentials=credentials)
+        df.rename(columns={'timestamp': 'created_at', 'pm2_5_calibrated_value': 'pm2_5'}, inplace=True)
+        return df
+
+    @staticmethod
+    def fetch_hourly_bigquery_data():
+        """gets data from the bigquery table"""
+
+        credentials = service_account.Credentials.from_service_account_file(configuration.CREDENTIALS)
+        tenants = str(configuration.TENANTS).split(',')
+        query = f"""
+SELECT DISTINCT timestamp , site_id, device_number,pm2_5_calibrated_value FROM `{configuration.GOOGLE_CLOUD_PROJECT_ID}.averaged_data.hourly_device_measurements` where DATE(timestamp) >= DATETIME_SUB(CURRENT_DATETIME(), INTERVAL {configuration.NUMBER_OF_HOURS} HOUR) and tenant IN UNNEST({tenants}) and timestamp > '2022-01-01' ORDER BY device_number, timestamp 
+
         """
         df = pd.read_gbq(query, project_id=configuration.GOOGLE_CLOUD_PROJECT_ID, credentials=credentials)
         df.rename(columns={'timestamp': 'created_at', 'pm2_5_calibrated_value': 'pm2_5'}, inplace=True)

@@ -38,7 +38,7 @@ def get_other_features(df_tmp):
 def preprocess_forecast_data(target_column):
     """preprocess data before making forecasts"""
     print('preprocess_forecast_data started.....')
-    forecast_data = Events.fetch_bigquery_data(job_type='daily_forecast')
+    forecast_data = Events.fetch_monthly_bigquery_data()
     forecast_data['created_at'] = pd.to_datetime(forecast_data['created_at'])
     forecast_data['pm2_5'] = forecast_data.groupby(fixed_columns + ['device_number'])['pm2_5'].transform(
         lambda x: x.interpolate(method='linear', limit_direction='both'))
