@@ -193,7 +193,7 @@ def compute_devices_inter_sensor_correlation(
     )
     device_pair_data = device_pair_data.select_dtypes(include="number")
 
-    device_pair_correlation = {}
+    device_pair_correlation: dict = dict()
 
     for col in correlation_cols:
         try:
@@ -543,45 +543,6 @@ def compute_data_completeness(
             )
         )
 
-        # if len(device_data.index) == 0:
-        #     completeness.append(
-        #         DataCompleteness(
-        #             device_name=device,
-        #             actual=len(device_data.index),
-        #             expected=expected_records,
-        #             completeness=0,
-        #             missing=1,
-        #             passed=False,
-        #         )
-        #     )
-        #     continue
-        # device_data["timestamp"] = device_data["timestamp"].apply(
-        #     lambda x: format_date(x, str_format="%Y-%m-%dT%H:00:00.000Z")
-        # )
-        # device_data.dropna(subset=[parameter], inplace=True)
-
-        # device_hourly_list = []
-        # for hour in dates:
-        #
-        #     hourly_data = device_data[device_data["timestamp"] == hour]
-        #     hourly_completeness = (
-        #         hourly_data[parameter].count() / expected_records
-        #     )
-        #     hourly_completeness = 1 if hourly_completeness > 1 else hourly_completeness
-        #     device_hourly_list.append(hourly_completeness)
-        #
-        # device_completeness = sum(device_hourly_list) / len(device_hourly_list)
-
-        # completeness.append(
-        #     DataCompleteness(
-        #         device_name=device,
-        #         actual=len(device_data.index),
-        #         expected=expected_records,
-        #         completeness=device_completeness,
-        #         missing=1 - device_completeness,
-        #         passed=bool(device_completeness >= expected_records),
-        #     )
-        # )
     passed_devices = list(filter(lambda x: x.passed is True, completeness))
     passed_devices = [x.device_name for x in passed_devices]
     failed_devices = list(filter(lambda x: x.passed is False, completeness))

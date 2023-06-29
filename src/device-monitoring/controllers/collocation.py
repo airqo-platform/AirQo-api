@@ -171,9 +171,6 @@ def save_collocation_batch():
     )
 
     batch.update_status()
-    if batch == CollocationBatchStatus.COMPLETED:
-        batch.status = CollocationBatchStatus.OVERDUE
-
     collocation = Collocation()
     batch = collocation.save_batch(batch)
 
@@ -196,6 +193,19 @@ def delete_collocation_batch():
 
     if batch is None:
         return jsonify({"message": "Successful"}), 204
+    return (
+        jsonify({"message": "Successful", "data": batch.to_dict(retain_batch_id=True)}),
+        200,
+    )
+
+
+@collocation_bp.route("/reset", methods=["PATCH"])
+def reset_collocation_batch():
+    batch_id = request.args.get("batchId")
+    collocation = Collocation()
+    batch: CollocationBatch = collocation.get_batch(batch_id=batch_id)
+    batch = collocation.reset_batch(batch)
+
     return (
         jsonify({"message": "Successful", "data": batch.to_dict(retain_batch_id=True)}),
         200,
