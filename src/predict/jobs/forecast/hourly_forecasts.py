@@ -1,4 +1,4 @@
-import datetime
+from datetime import datetime
 
 import numpy as np
 import pandas as pd
@@ -119,8 +119,15 @@ def get_next_24_hour_forecasts(target_column, model):
     next_24_hour_forecasts['device_number'] = next_24_hour_forecasts['device_number'].astype(int)
     next_24_hour_forecasts['pm2_5'] = next_24_hour_forecasts['pm2_5'].astype(float)
     next_24_hour_forecasts.rename(columns={'created_at': 'time'}, inplace=True)
-    return next_24_hour_forecasts[fixed_columns + ['time', 'pm2_5',
-                                                   'device_number']][[next_24_hour_forecasts['time'] >= datetime.datetime.utcnow()]]
+    next_24_hour_forecasts['time'] = pd.to_datetime(next_24_hour_forecasts['time'], utc=True)
+    current_time = datetime.utcnow()
+    current_time_utc = pd.Timestamp(current_time, tz='UTC')
+    result = next_24_hour_forecasts[fixed_columns + ['time', 'pm2_5', 'device_number']][
+        next_24_hour_forecasts['time'] >= current_time_utc]
+
+    return result
+
+
 if __name__ == '__main__':
     TARGET_COL = 'pm2_5'
     model = get_trained_model_from_gcs(configuration.GOOGLE_CLOUD_PROJECT_ID, configuration.AIRQO_PREDICT_BUCKET,
