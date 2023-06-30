@@ -278,7 +278,7 @@ const join = {
 
       if (responseFromModifyUser.success === true) {
         const user = responseFromModifyUser.data;
-        if (process.env.NODE_ENV !== "production") {
+        if (process.env.NODE_ENV && process.env.NODE_ENV !== "production") {
           return {
             success: true,
             message: responseFromModifyUser.message,
