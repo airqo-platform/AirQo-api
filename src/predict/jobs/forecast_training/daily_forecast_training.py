@@ -23,7 +23,7 @@ def preprocess_forecast_data():
     forecast_data['created_at'] = pd.to_datetime(forecast_data['created_at'])
     forecast_data['pm2_5'] = forecast_data.groupby('device_number')['pm2_5'].transform(
         lambda x: x.interpolate(method='linear', limit_direction='both'))
-    forecast_data = forecast_data.dropna(subset=['pm2_5'])  # no data at all for the device
+    forecast_data = forecast_data.dropna(subset=['pm2_5'])  # no data at all for the device thus it's removed
     forecast_data['device_number'] = forecast_data['device_number'].astype(str)
     forecast_data = forecast_data.groupby(
         ['device_number']).resample('D', on='created_at').mean(numeric_only=True)

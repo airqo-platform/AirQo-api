@@ -136,7 +136,7 @@ def train_model(train):
 def get_lag_features(df_tmp, TARGET_COL):
     df_tmp = df_tmp.sort_values(by=['created_at', 'device_number'])
 
-    shifts = [1, 2]
+    shifts = [1, 2]  # TODO: Review to increase these both in training and the actual job
     for s in shifts:
         df_tmp[f'pm2_5_last_{s}_hour'] = df_tmp.groupby(['device_number'])[TARGET_COL].shift(s)
 
