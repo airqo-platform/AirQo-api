@@ -11,6 +11,7 @@ from app import cache
 from config.constants import Config
 from config.db_connection import connect_mongo
 from helpers.convert_dates import date_to_str
+from helpers.exceptions import CollocationError
 
 
 class BaseModel:
@@ -203,7 +204,14 @@ class CollocationBatchStatus(Enum):
     SCHEDULED = "SCHEDULED"
     RUNNING = "RUNNING"
     COMPLETED = "COMPLETED"
-    OVERDUE = "OVERDUE"
+
+    @staticmethod
+    def get_status(value):
+        try:
+            return CollocationBatchStatus[value]
+        except Exception as ex:
+            print(ex)
+            return CollocationBatchStatus.RUNNING
 
 
 class CollocationDeviceStatus(Enum):
@@ -212,7 +220,6 @@ class CollocationDeviceStatus(Enum):
     PASSED = "PASSED"
     RUNNING = "RUNNING"
     SCHEDULED = "SCHEDULED"
-    OVERDUE = "OVERDUE"
 
 
 @dataclass
@@ -228,10 +235,10 @@ class DataCompleteness:
 @dataclass
 class IntraSensorCorrelation:
     device_name: str
-    pm2_5_pearson: float
-    pm10_pearson: float
-    pm2_5_r2: float
-    pm10_r2: float
+    pm2_5_pearson: Union[float, None]
+    pm10_pearson: Union[float, None]
+    pm2_5_r2: Union[float, None]
+    pm10_r2: Union[float, None]
     passed: bool
 
 
@@ -353,42 +360,147 @@ class CollocationBatch:
 
     status: CollocationBatchStatus
     results: CollocationBatchResult
-    summary: list[CollocationBatchResultSummary]
     errors: list[str]
 
-    def to_dict(self, retain_batch_id=False):
+    def to_dict(self):
         data = asdict(self)
-        if not retain_batch_id:
-            del data["batch_id"]
-        summary = []
-        for record in self.summary:
-            summary.append(record.to_dict())
         data["status"] = self.status.value
-        data["summary"] = summary
+        return data
+
+    def validate(self, raise_exception=True) -> bool:
+        if self.end_date <= self.start_date:
+            if raise_exception:
+                raise CollocationError(
+                    message="start date cannot be greater or equal to end date"
+                )
+            else:
+                return False
+        if len(self.devices) < 1:
+            if raise_exception:
+                raise CollocationError(message="devices cannot be empty")
+            else:
+                return False
+        return True
+
+    def to_api_output(self):
+        data = self.to_dict()
+        data["summary"] = [row.to_dict() for row in self.get_summary()]
         return data
 
     def logical_end_date(self) -> datetime:
         return self.end_date + timedelta(minutes=90)
 
-    def summary_to_dict(self) -> dict:
-        data = asdict(self)
-        del data["batch_id"]
-        data["status"] = self.status.value
-        return data
+    def get_passed_devices(self) -> list:
+        passed_devices = (
+            set(self.results.data_completeness.passed_devices)
+            .intersection(set(self.results.intra_sensor_correlation.passed_devices))
+            .intersection(set(self.results.inter_sensor_correlation.passed_devices))
+            .intersection(set(self.results.differences.passed_devices))
+        )
+        return list(passed_devices)
 
-    def update_status(self):
+    def get_failed_devices(self) -> list:
+        failed_devices = set(self.results.data_completeness.failed_devices)
+        failed_devices.update(self.results.intra_sensor_correlation.failed_devices)
+        failed_devices.update(self.results.inter_sensor_correlation.failed_devices)
+        failed_devices.update(self.results.differences.failed_devices)
+        return list(failed_devices)
+
+    def get_error_devices(self) -> list:
+        error_devices = (
+            set(self.results.data_completeness.error_devices)
+            .intersection(set(self.results.intra_sensor_correlation.error_devices))
+            .intersection(set(self.results.inter_sensor_correlation.error_devices))
+            .intersection(set(self.results.differences.error_devices))
+        )
+        return list(error_devices)
+
+    def get_summary(self) -> list[CollocationBatchResultSummary]:
+        if self.status == CollocationBatchStatus.SCHEDULED:
+            return [
+                CollocationBatchResultSummary(
+                    device=device, status=CollocationDeviceStatus.SCHEDULED
+                )
+                for device in self.devices
+            ]
+
+        if self.status == CollocationBatchStatus.RUNNING:
+            return [
+                CollocationBatchResultSummary(
+                    device=device, status=CollocationDeviceStatus.RUNNING
+                )
+                for device in self.devices
+            ]
+
+        summary: list[CollocationBatchResultSummary] = []
+        summary.extend(
+            CollocationBatchResultSummary(
+                device=device, status=CollocationDeviceStatus.PASSED
+            )
+            for device in self.get_passed_devices()
+        )
+        summary.extend(
+            CollocationBatchResultSummary(
+                device=device, status=CollocationDeviceStatus.FAILED
+            )
+            for device in self.get_failed_devices()
+        )
+
+        summary.extend(
+            CollocationBatchResultSummary(
+                device=device, status=CollocationDeviceStatus.ERROR
+            )
+            for device in self.get_error_devices()
+        )
+
+        return summary
+
+    def has_results(self) -> bool:
+        data_completeness = list(self.results.data_completeness.error_devices)
+        data_completeness.extend(self.results.data_completeness.passed_devices)
+        data_completeness.extend(self.results.data_completeness.failed_devices)
+
+        inter_sensor_correlation = list(
+            self.results.inter_sensor_correlation.error_devices
+        )
+        inter_sensor_correlation.extend(
+            self.results.inter_sensor_correlation.passed_devices
+        )
+        inter_sensor_correlation.extend(
+            self.results.inter_sensor_correlation.failed_devices
+        )
+
+        intra_sensor_correlation = list(
+            self.results.intra_sensor_correlation.error_devices
+        )
+        intra_sensor_correlation.extend(
+            self.results.intra_sensor_correlation.passed_devices
+        )
+        intra_sensor_correlation.extend(
+            self.results.intra_sensor_correlation.failed_devices
+        )
+
+        differences = list(self.results.differences.error_devices)
+        differences.extend(self.results.differences.passed_devices)
+        differences.extend(self.results.differences.failed_devices)
+
+        return (
+            len(differences) != 0
+            and len(inter_sensor_correlation) != 0
+            and len(intra_sensor_correlation) != 0
+            and len(data_completeness) != 0
+        )
+
+    def set_status(self):
         now = datetime.utcnow()
-        if (
-            now >= self.logical_end_date()
-            and self.status != CollocationBatchStatus.COMPLETED
-        ):
-            self.status = CollocationBatchStatus.OVERDUE
-        elif self.start_date > now:
+        devices = self.devices
+        has_results = self.has_results()
+        if now < self.start_date:
             self.status = CollocationBatchStatus.SCHEDULED
-        elif self.logical_end_date() > now >= self.start_date:
-            self.status = CollocationBatchStatus.RUNNING
-        elif self.logical_end_date() >= now:
+        elif now >= self.logical_end_date() and self.has_results():
             self.status = CollocationBatchStatus.COMPLETED
+        else:
+            self.status = CollocationBatchStatus.RUNNING
 
 
 @dataclass
