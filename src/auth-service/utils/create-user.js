@@ -278,20 +278,28 @@ const join = {
 
       if (responseFromModifyUser.success === true) {
         const user = responseFromModifyUser.data;
-        const responseFromSendEmail = await mailer.update(
-          user.email,
-          user.firstName,
-          user.lastName
-        );
-
-        if (responseFromSendEmail.success === true) {
+        if (process.env.NODE_ENV !== "production") {
           return {
             success: true,
             message: responseFromModifyUser.message,
             data: responseFromModifyUser.data,
           };
-        } else if (responseFromSendEmail.success === false) {
-          return responseFromSendEmail;
+        } else {
+          const responseFromSendEmail = await mailer.update(
+            user.email,
+            user.firstName,
+            user.lastName
+          );
+
+          if (responseFromSendEmail.success === true) {
+            return {
+              success: true,
+              message: responseFromModifyUser.message,
+              data: responseFromModifyUser.data,
+            };
+          } else if (responseFromSendEmail.success === false) {
+            return responseFromSendEmail;
+          }
         }
       } else if (responseFromModifyUser.success === false) {
         return responseFromModifyUser;
@@ -302,6 +310,7 @@ const join = {
         success: false,
         message: "Internal Server Error",
         errors: { message: e.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -1094,10 +1103,10 @@ const join = {
       const tokenString = `${userId}+${creationTime}`;
 
       const verificationToken = crypto
-          .createHash("sha256")
-          .update(tokenString)
-          .digest("hex");
-   
+        .createHash("sha256")
+        .update(tokenString)
+        .digest("hex");
+
       if (token !== verificationToken) {
         return {
           success: false,
