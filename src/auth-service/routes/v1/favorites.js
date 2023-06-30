@@ -181,6 +181,112 @@ router.post(
   createFavoriteController.create
 );
 
+router.post(
+  "/syncFavorites/:firebase_user_id",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      param("firebase_user_id")
+        .exists()
+        .withMessage("the firebase_user_id is missing in the request")
+        .bail()
+        .notEmpty()
+        .withMessage("the firebase_user_id must not be empty")
+        .bail()
+        .trim(),
+    ],
+  ]),
+  oneOf([
+    [
+      body("favorite_places")
+        .exists()
+        .withMessage("the favorite_places are missing in the request body")
+        .bail()
+         .custom((value) => {
+            return Array.isArray(value);
+          })
+          .withMessage("Invalid request body format. The favorite_places should be an array"),
+      body("favorite_places.*")
+        .optional()
+        .isObject()
+        .withMessage("Each favorite place should be an object"),
+      body("favorite_places.*.name")
+        .exists()
+        .withMessage("name is missing in the favorite place object")
+        .bail()
+        .notEmpty()
+        .withMessage("the name must not be empty")
+        .bail()
+        .trim(),
+      body("favorite_places.*.location")
+        .exists()
+        .withMessage("location is missing in the favorite place object")
+        .bail()
+        .notEmpty()
+        .withMessage("the location must not be empty")
+        .bail()
+        .trim(),
+      body("favorite_places.*.place_id")
+        .exists()
+        .withMessage("place_id is missing in the favorite place object")
+        .bail()
+        .notEmpty()
+        .withMessage("the place_id must not be empty")
+        .bail()
+        .trim(),
+      body("favorite_places.*.reference_site")
+        .optional()
+        .notEmpty()
+        .withMessage("the reference_site should not be empty IF provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("reference_site must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("favorite_places.*.firebase_user_id")
+        .exists()
+        .withMessage("the firebase_user_id is missing in the favorite place object")
+        .bail()
+        .notEmpty()
+        .withMessage("the firebase_user_id must not be empty")
+        .bail()
+        .trim(),
+      body("favorite_places.*.latitude")
+        .exists()
+        .withMessage("the latitude is is missing in the favorite place object")
+        .bail()
+        .matches(constants.LATITUDE_REGEX, "i")
+        .withMessage("the latitude provided is not valid"),
+      body("favorite_places.*.longitude")
+        .exists()
+        .withMessage("the longitude is is missing in the favorite place object")
+        .bail()
+        .matches(constants.LONGITUDE_REGEX, "i")
+        .withMessage("the longitude provided is not valid"),
+          
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  createFavoriteController.syncFavorites
+);
+
+
 router.put(
   "/:favorite_id",
   (req, res, next) => {
@@ -380,5 +486,7 @@ router.get(
   authJWT,
   createFavoriteController.list
 );
+
+
 
 module.exports = router;
