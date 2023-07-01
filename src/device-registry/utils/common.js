@@ -5,10 +5,12 @@ const isEmpty = require("is-empty");
 const AirQloudSchema = require("@models/Airqloud");
 const SiteSchema = require("@models/Site");
 const DeviceSchema = require("@models/Device");
-const { getModelByTenant } = require("@config/database");
+const CohortSchema = require("@models/Cohort");
+const GridSchema = require("@models/Grid");
+const { getModelByTenant, getTenantDB, mongodb } = require("@config/database");
 const distanceUtil = require("./distance");
 const cryptoJS = require("crypto-js");
-const { logObject } = require("@utils/log");
+const { logObject, logText } = require("@utils/log");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const geolib = require("geolib");
@@ -25,6 +27,27 @@ const sitesModel = (tenant) => {
 
 const airqloudsModel = (tenant) => {
   return getModelByTenant(tenant.toLowerCase(), "airqloud", AirQloudSchema);
+};
+
+const GridModel = (tenant) => {
+  try {
+    const grids = mongoose.model("grids");
+    return grids;
+  } catch (error) {
+    // logObject("error", error);
+    const grids = getModelByTenant(tenant, "grid", GridSchema);
+    return grids;
+  }
+};
+
+const CohortModel = (tenant) => {
+  try {
+    const cohorts = mongoose.model("cohorts");
+    return cohorts;
+  } catch (error) {
+    const cohorts = getModelByTenant(tenant, "cohort", CohortSchema);
+    return cohorts;
+  }
 };
 
 const common = {
@@ -240,6 +263,32 @@ const common = {
         message: "Internal Server Error",
         errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  getDocumentsByNetworkId: async (tenantId, networkId, category) => {
+    try {
+      let cohortsQuery = CohortModel(tenantId).find({
+        network_id: ObjectId(networkId),
+      });
+      let gridsQuery = GridModel(tenantId).find({
+        network_id: ObjectId(networkId),
+      });
+
+      if (category && category === "summary") {
+        cohortsQuery = cohortsQuery.select("name description");
+        gridsQuery = gridsQuery.select("name shape.type");
+      }
+
+      const cohorts = await cohortsQuery;
+      const grids = await gridsQuery;
+      return { cohorts, grids };
+    } catch (error) {
+      return {
+        success: false,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+        message: "Internal Server Error",
       };
     }
   },

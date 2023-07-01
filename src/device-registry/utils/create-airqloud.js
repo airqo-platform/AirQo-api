@@ -1,14 +1,12 @@
 const AirQloudSchema = require("@models/Airqloud");
-const CohortSchema = require("@models/Cohort");
-const GridSchema = require("@models/Grid");
 const SiteSchema = require("@models/Site");
-const { logObject, logElement, logText } = require("./log");
+const { logObject } = require("./log");
 const { getModelByTenant } = require("@config/database");
 const isEmpty = require("is-empty");
-const axios = require("axios");
 const HTTPStatus = require("http-status");
 const constants = require("@config/constants");
 const generateFilter = require("./generate-filter");
+const commonUtil = require("@utils/common");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-airqloud-util`
@@ -23,25 +21,6 @@ const kafka = new Kafka({
   brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
 });
 
-const CohortModel = (tenant) => {
-  try {
-    const cohorts = mongoose.model("cohorts");
-    return cohorts;
-  } catch (error) {
-    const cohorts = getModelByTenant(tenant, "cohort", CohortSchema);
-    return cohorts;
-  }
-};
-
-const GridModel = (tenant) => {
-  try {
-    const grids = mongoose.model("grids");
-    return grids;
-  } catch (error) {
-    const grids = getModelByTenant(tenant, "grid", GridSchema);
-    return grids;
-  }
-};
 const createAirqloud = {
   initialIsCapital: (word) => {
     return word[0] !== word[0].toLowerCase();
@@ -525,49 +504,25 @@ const createAirqloud = {
     try {
       const { params } = request;
       const network_id = params.net_id;
-      const tenant = request.query.tenant;
-
-      // Perform the aggregation pipeline to combine the records from Grid and Cohort collections
-      const combinedRecords = await GridModel(tenant)
-        .aggregate([
-          {
-            $match: { network_id }, // Match documents belonging to the specific organization
-          },
-          {
-            $project: {
-              _id: 1,
-              name: 1,
-              description: 1,
-              network_id: 1,
-            },
-          },
-          {
-            $lookup: {
-              from: "cohorts", // Name of the Cohort collection
-              let: { orgId: "$network_id" },
-              pipeline: [
-                {
-                  $match: {
-                    $expr: {
-                      $eq: ["$network_id", "$$orgId"],
-                    },
-                  },
-                },
-              ],
-              as: "cohorts",
-            },
-          },
-        ])
-        .exec();
-
-      logObject("combinedRecords", combinedRecords);
-
-      return {
-        success: true,
-        message: "Successfully returned the records",
-        data: combinedRecords,
-        status: httpStatus.OK,
-      };
+      const { tenant, category } = request.query;
+      return await commonUtil
+        .getDocumentsByNetworkId(tenant, network_id, category)
+        .then(({ cohorts, grids }) => {
+          return {
+            success: true,
+            message: `Successfully returned the AirQlouds for network ${network_id}`,
+            data: { cohorts, grids },
+            status: httpStatus.OK,
+          };
+        })
+        .catch((error) => {
+          return {
+            success: false,
+            message: "Internal Server Error",
+            errors: { message: error.message },
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+          };
+        });
     } catch (error) {
       return {
         success: false,

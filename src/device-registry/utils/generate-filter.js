@@ -665,11 +665,15 @@ const generateFilter = {
 
   cohorts: (req) => {
     try {
-      const { id, name, cohort_codes } = req.query;
+      const { id, name, cohort_codes, network_id } = req.query;
       const { cohort_id } = req.params;
       let filter = {};
       if (name) {
         filter["name"] = name;
+      }
+
+      if (network_id) {
+        filter["network_id"] = ObjectId(network_id);
       }
 
       if (cohort_id) {

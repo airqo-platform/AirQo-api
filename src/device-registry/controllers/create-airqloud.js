@@ -646,7 +646,80 @@ const createAirqloud = {
       if (isEmpty(tenant)) {
         tenant = constants.DEFAULT_TENANT || "airqo";
       }
+
       request["query"]["dashboard"] = "yes";
+      request["query"]["tenant"] = tenant;
+      const responseFromListCohortsAndGrids = await createAirQloudUtil.listCohortsAndGrids(
+        request
+      );
+      logElement(
+        "has the response for listing airqlouds been successful?",
+        responseFromListCohortsAndGrids.success
+      );
+      if (responseFromListCohortsAndGrids.success === true) {
+        const status = responseFromListCohortsAndGrids.status
+          ? responseFromListCohortsAndGrids.status
+          : HTTPStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromListCohortsAndGrids.message,
+          airqlouds: responseFromListCohortsAndGrids.data,
+        });
+      } else if (responseFromListCohortsAndGrids.success === false) {
+        const status = responseFromListCohortsAndGrids.status
+          ? responseFromListCohortsAndGrids.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromListCohortsAndGrids.message,
+          errors: responseFromListCohortsAndGrids.errors
+            ? responseFromListCohortsAndGrids.errors
+            : { message: "Internal Server Error" },
+        });
+      }
+    } catch (errors) {
+      logger.error(`Internal Server Error -- ${errors.message}`);
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: errors.message },
+      });
+    }
+  },
+
+  listCohortsAndGridsSummary: async (req, res) => {
+    try {
+      logText(".....................................");
+      logText("list all Cohorts and Grids by query params provided");
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`Internal Server Error -- ${e.message}`);
+        }
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+
+      const { query } = req;
+      let request = Object.assign({}, req);
+      let { tenant } = query;
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT || "airqo";
+      }
+
+      request["query"]["dashboard"] = "yes";
+      request["query"]["tenant"] = tenant;
+      request["query"]["category"] = "summary";
       const responseFromListCohortsAndGrids = await createAirQloudUtil.listCohortsAndGrids(
         request
       );
