@@ -37,15 +37,16 @@ const FavoriteSchema = new mongoose.Schema(
       type: ObjectId,
       trim: true,
     },
-    user_id: {
-      type: ObjectId,
+    firebase_user_id: {
+      type: String,
       trim: true,
-      ref: "user",
-      required: [true, "user_id is required!"],
+      required: [true, "firebase_user_id is required!"],
     },
   },
   { timestamps: true }
 );
+
+FavoriteSchema.index({ place_id: 1, firebase_user_id: 1 }, { unique: true });
 
 FavoriteSchema.pre("save", function (next) {
   return next();
@@ -101,20 +102,17 @@ FavoriteSchema.statics = {
       const exclusionProjection = constants.FAVORITES_EXCLUSION_PROJECTION(
         filter.category ? filter.category : "none"
       );
-      const favorites = await this.aggregate()
+      let pipeline = await this.aggregate()
         .match(filter)
         .sort({ createdAt: -1 })
-        .lookup({
-          from: "users",
-          localField: "user_id",
-          foreignField: "_id",
-          as: "users",
-        })
         .project(inclusionProjection)
-        .project(exclusionProjection)
         .skip(skip ? skip : 0)
         .limit(limit ? limit : 100)
         .allowDiskUse(true);
+      if (Object.keys(exclusionProjection).length > 0) {
+        pipeline.project(exclusionProjection);
+      }
+      const favorites = pipeline;
       if (!isEmpty(favorites)) {
         return {
           success: true,
@@ -186,6 +184,7 @@ FavoriteSchema.statics = {
           location: 1,
           latitude: 1,
           longitude: 1,
+          firebase_user_id:1,
         },
       };
       const removedFavorite = await this.findOneAndRemove(
@@ -230,6 +229,7 @@ FavoriteSchema.methods = {
       longitude: this.longitude,
       place_id: this.place_id,
       reference_site: this.reference_site,
+      firebase_user_id: this.firebase_user_id,
     };
   },
 };

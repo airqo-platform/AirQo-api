@@ -136,8 +136,8 @@ module.exports = {
         `
     ;
   },
-  deleteConfirmationEmail: (email, userId, creationTime) => {
-    const deletionLink=`${baseUrl}/api/v1/users/deleteMobileUserData?userId=${userId}&creationTime=${creationTime}`;
+  deleteConfirmationEmail: (email, userId, token) => {
+    const deletionLink=`${baseUrl}/api/v2/users/deleteMobileUserData/${userId}/${token}`;
     return `
       <!DOCTYPE html>
 <html>

@@ -91,10 +91,10 @@ def collocation_periodic_task():
     from models import CollocationBatch
 
     collocation = Collocation()
-    collocation.compute_and_update_overdue_batches()
     collocation.update_batches_statues()
     running_batches: list[CollocationBatch] = collocation.get_running_batches()
     collocation.compute_and_update_results(running_batches)
+    collocation.update_batches_statues()
 
 
 @app.errorhandler(Exception)

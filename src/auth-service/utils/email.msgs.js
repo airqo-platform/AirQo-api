@@ -133,7 +133,7 @@ module.exports = {
       `Follow this link to access the platform right now: ${constants.LOGIN_PAGE}\n`
     );
   },
-  join_by_email: (token) => {
+  join_by_email: (email,token) => {
     return `<!DOCTYPE html>
 <html>
 
