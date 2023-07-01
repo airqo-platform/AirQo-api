@@ -18,9 +18,6 @@ class Config:
     CREDENTIALS = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
     GOOGLE_CLOUD_PROJECT_ID = os.getenv('GOOGLE_CLOUD_PROJECT')
     AIRQO_API_AUTH_TOKEN = os.getenv('AIRQO_API_AUTH_TOKEN')
-
-
-    TENANT = os.getenv('TENANT', 'airqo')
     MONTHS_OF_DATA = os.getenv('MONTHS_OF_DATA', 2)
     # prediction configs
 
@@ -48,14 +45,11 @@ class Config:
 class ProductionConfig(Config):
     DB_NAME = os.getenv("DB_NAME_PROD")
     MONGO_URI = os.getenv('MONGO_GCE_URI')
-    DB_NAME_DEVICE_REGISTRY = os.getenv("DB_NAME_PROD_DEVICE_REGISTRY")
-    MONGO_URI_DEVICE_REGISTRY = os.getenv('MONGO_GCE_URI_DEVICE_REGISTRY')
     AIRQO_PREDICT_BUCKET = os.getenv('AIRQO_PREDICT_BUCKET_PROD')
     AIRQO_API_BASE_URL = os.getenv('AIRQO_API_BASE_URL_PROD')
     GOOGLE_CLOUD_PROJECT_ID = os.getenv('GOOGLE_CLOUD_PROJECT')
     CREDENTIALS = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
     AIRQO_API_AUTH_TOKEN = os.getenv('AIRQO_API_AUTH_TOKEN')
-
 
 
 class TestingConfig(Config):
@@ -72,7 +66,6 @@ class TestingConfig(Config):
     AIRQO_API_AUTH_TOKEN = os.getenv('AIRQO_API_AUTH_TOKEN')
 
 
-
 class DevelopmentConfig(Config):
     DEVELOPMENT = True
     DEBUG = True
@@ -85,8 +78,6 @@ class DevelopmentConfig(Config):
     GOOGLE_CLOUD_PROJECT_ID = os.getenv('GOOGLE_CLOUD_PROJECT')
     CREDENTIALS = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
     AIRQO_API_AUTH_TOKEN = os.getenv('AIRQO_API_AUTH_TOKEN')
-
-
 
 
 app_config = {

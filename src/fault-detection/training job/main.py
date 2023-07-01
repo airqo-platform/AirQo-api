@@ -2,9 +2,9 @@ import numpy as np
 import pandas as pd
 from google.oauth2 import service_account
 from config import configuration
+from sklearn.preprocessing import MinMaxScaler
 from keras.models import Sequential
 from keras.layers import Bidirectional, LSTM, Dense
-from sklearn.preprocessing import MinMaxScaler
 # import gcsfs
 from datetime import datetime
 import joblib
@@ -47,8 +47,8 @@ def add_fault_columns(df, offset_threshold, min_value, max_value, highvar_thresh
                                       (df1['s2_pm2_5'] < min_value) | (df1['s2_pm2_5'] > max_value)) * 1
         df1['data_loss_fault'] = (df1['s1_pm2_5'].isnull() | df1['s2_pm2_5'].isnull()) * 1
 
-        df1['high_var_fault'] = (df1['s1_pm2_5'].rolling(10).std() > highvar_threshold) | (
-                df1['s2_pm2_5'].rolling(10).std() > highvar_threshold) * 1
+        df1['high_var_fault'] = ((df1['s1_pm2_5'].rolling(10).std() > highvar_threshold) | (
+                df1['s2_pm2_5'].rolling(10).std() > highvar_threshold)).astype(int)
 
         df1.reset_index(inplace=True)
         fault_df = pd.concat([fault_df, df1], ignore_index=True)
@@ -72,19 +72,33 @@ def get_other_features(df):
     return df
 
 
-def create_dataset(df, window_size):
+def scale_data(df):
     """
-    creates a dataset for LSTM training from a dataframe
+    scales data using MinMaxScaler
     """
-    X = []
-    y = []
-    for i in range(len(df) - window_size):
-        X.append(df.iloc[i:i + window_size, :-4].values)
-        y.append(
-            df.iloc[i + window_size - 1, -4:].values)
-    X = np.array(X)
-    y = np.array(y)
-    return X, y
+    inputs = df.iloc[:, : -4].values
+    targets = df.iloc[:, -4:].values
+    input_scaler = MinMaxScaler()
+    target_scaler = MinMaxScaler()
+
+    # fit the scalers on the training data
+    input_scaler.fit(inputs)
+    target_scaler.fit(targets)
+
+    # transform the inputs and targets
+    scaled_inputs = input_scaler.transform(inputs)
+    scaled_targets = target_scaler.transform(targets)
+
+    return scaled_inputs, scaled_targets, input_scaler, target_scaler
+
+
+def create_dataset(X, y, time_steps=1):
+    Xs, ys = [], []
+    for i in range(len(X) - time_steps):
+        v = X[i:(i + time_steps), :]
+        Xs.append(v)
+        ys.append(y[i + time_steps])
+    return np.array(Xs), np.array(ys)
 
 
 def split_data_by_date(df):
@@ -108,59 +122,6 @@ def split_data_by_date(df):
         test_data['timestamp'] = test_data['timestamp'].astype(str)
     return train_data, test_data
 
-
-def reshape_and_scale_data(train_data, test_data):
-    """ Reshapes and scales data """
-    window_size = 480
-    scaler = MinMaxScaler()
-
-    def process_data(data, fit=False):
-        X_list = []
-        y_list = []
-        for device in data["device_number"].unique():
-            X, y = create_dataset(data[data["device_number"] == device], window_size)
-            X = X.reshape(-1, window_size, data.shape[1] - 4)
-            if fit:
-                X = scaler.fit_transform(X)
-            else:
-                X = scaler.transform(X)
-            X_list.append(X)
-            y_list.append(y)
-
-        # Concatenate lists
-        X_array = np.concatenate(X_list, axis=0)
-        y_array = np.concatenate(y_list, axis=0)
-        return X_array, y_array
-
-    # Process train and test data
-    X_train, y_train = process_data(train_data, fit=True)
-    X_test, y_test = process_data(test_data)
-
-    return X_train, y_train, X_test, y_test
-
-
-def build_and_train_model(X_train, y_train):
-    """
-    builds and trains LSTM model
-    """
-    model = Sequential()
-    model.add(Bidirectional(LSTM(64)))  # choose a suitable number of hidden units
-    model.add(Dense(4, activation='sigmoid'))  # choose a suitable activation function for binary classification
-    model.compile(loss='binary_crossentropy', optimizer='adam',
-                  metrics=['accuracy'])  # choose a suitable loss function and optimizer
-    model.fit(X_train, y_train, epochs=10, batch_size=32)  # choose suitable number of epochs and batch size
-    return model
-
-
-def evaluate_and_predict_model(model, X_test, y_test, X_new):
-    """
-    evaluates and predicts with LSTM model
-    """
-    model.evaluate(X_test, y_test)
-    y_pred = model.predict(X_new)  # change X_new as needed
-    return y_pred
-
-
 def preprocess_data(train_data, test_data):
     train_data = get_other_features(train_data)
     test_data = get_other_features(test_data)
@@ -168,12 +129,32 @@ def preprocess_data(train_data, test_data):
     fault_test_data = add_fault_columns(test_data, 25, 0, 350, 50)
     return fault_train_data, fault_test_data
 
+def create_model(train_data):
+
+    timesteps = X.shape[1]
+    features = X.shape[2]
+
+    # create the model
+    model = Sequential()
+    model.add(LSTM(16, input_shape=(timesteps, features)))
+    model.add(Dense(4, activation='sigmoid'))
+
+    # compile the model
+    model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
+
+    # train the model
+    history = model.fit(X_train, y_train, epochs=10, batch_size=32, validation_split=0.2)
+
 
 if __name__ == '__main__':
     device_data = fetch_bigquery_data()
     train_data, test_data = split_data_by_date(device_data)
     fault_train_data, fault_test_data = preprocess_data(train_data, test_data)
-    X_train, y_train, X_test, y_test = reshape_and_scale_data(fault_train_data, fault_test_data)
+    X_train, y_train, input_scaler, target_scaler = scale_data(fault_train_data)
+    X_test, y_test, _, _ = scale_data(fault_test_data)
+    X_train, y_train = create_dataset(X_train, y_train, 10)
+    X_test, y_test = create_dataset(X_test, y_test, 10)
+
     model = build_and_train_model(X_train, y_train)
     print(model)
     # y_pred = evaluate_and_predict_model(model, X_test, y_test, X_new)
