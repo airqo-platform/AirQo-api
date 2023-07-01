@@ -5,8 +5,6 @@ const { getModelByTenant } = require("@config/database");
 const geolib = require("geolib");
 const geohash = require("ngeohash");
 const { Transform } = require("stream");
-const multer = require("multer");
-const upload = multer({ dest: "uploads/" });
 const shapefile = require("shapefile");
 const AdmZip = require("adm-zip");
 const { logObject, logElement, logText } = require("./log");
@@ -19,6 +17,7 @@ const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- create-grid-util`);
 const { Schema } = require("mongoose");
 const ObjectId = Schema.Types.ObjectId;
 const { Kafka } = require("kafkajs");
+const fs = require("fs");
 const kafka = new Kafka({
   clientId: constants.KAFKA_CLIENT_ID,
   brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
@@ -178,7 +177,7 @@ const createGrid = {
   streamCreate: async (request) => {
     try {
       /****************START stream processing ********** */
-      // const { data } = req.body; // Assuming the input data is passed in the request body as 'data' field
+      // const { data } = request.body; // Assuming the input data is passed in the request body as 'data' field
       const { shape } = request.body;
       const { type, coordinates } = shape;
       // Create a Readable stream from the input data
@@ -356,6 +355,7 @@ const createGrid = {
           shape: {},
         },
       };
+
       const responseFromRetrieveCoordinates = await createGrid.retrieveCoordinates(
         request
       );
@@ -366,27 +366,23 @@ const createGrid = {
           responseFromRetrieveCoordinates.data.coordinates[0];
       }
 
-      const responseFromFindSites = await createGrid.findSites(request);
+      const responseFromFindSites = await createGrid.findSites(
+        request,
+        updateBodyForGrid.body.shape
+      );
       if (!responseFromFindSites.success) {
         return responseFromFindSites;
       } else {
         updateBodyForGrid.body.sites = responseFromFindSites.data || [];
       }
 
-      const requestForCalucaltionGridCenter = {
-        body: {
-          coordinates: updateBodyForGrid.body.shape.coordinates,
-        },
-      };
-
       const responseFromCalculateGeographicalCenter = await createGrid.calculateGeographicalCenter(
-        requestForCalucaltionGridCenter
+        updateBodyForGrid.body.shape
       );
-
       if (!responseFromCalculateGeographicalCenter.success) {
         return responseFromCalculateGeographicalCenter;
       } else {
-        updateBodyForGrid.body.center_point =
+        updateBodyForGrid.body.centers =
           responseFromCalculateGeographicalCenter.data;
       }
 
@@ -398,7 +394,7 @@ const createGrid = {
       if (updateResponse) {
         return {
           success: true,
-          message: "successfully refreshed the Grid",
+          message: "Successfully refreshed the Grid",
           status: httpStatus.OK,
           data: updateResponse,
         };
@@ -420,6 +416,7 @@ const createGrid = {
       };
     }
   },
+
   calculateGeographicalCenter: async (request) => {
     try {
       const { coordinates, type } = request.body.shape;
@@ -459,7 +456,7 @@ const createGrid = {
       };
     }
   },
-  findSites: async (request) => {
+  findSites: async (request, shape) => {
     try {
       const { query } = request;
       const { tenant } = query;
@@ -490,12 +487,23 @@ const createGrid = {
         };
       }
 
-      const gridPolygon = grid.shape.coordinates[0].map(
-        ([longitude, latitude]) => ({
+      let gridPolygon = [];
+      const { type, coordinates } = shape;
+
+      if (type === "Polygon") {
+        gridPolygon = coordinates[0].map(([longitude, latitude]) => ({
           longitude,
           latitude,
-        })
-      );
+        }));
+      } else if (type === "MultiPolygon") {
+        coordinates.forEach((polygon) => {
+          const polygonPoints = polygon[0].map(([longitude, latitude]) => ({
+            longitude,
+            latitude,
+          }));
+          gridPolygon.push(...polygonPoints);
+        });
+      }
 
       const sites = await SiteModel(tenant).find({});
 
@@ -509,8 +517,8 @@ const createGrid = {
         .map(({ _id }) => _id);
 
       const successMessage = isEmpty(site_ids)
-        ? "no associated Sites found"
-        : "successfully searched for the associated Sites";
+        ? "No associated Sites found"
+        : "Successfully searched for the associated Sites";
 
       return {
         success: true,
@@ -656,17 +664,32 @@ const createGrid = {
       const { query, body } = request;
       const { tenant } = query;
       const { latitude, longitude } = body;
-      const targetGeoHash = generateGeoHash(latitude, longitude);
-      if (targetGeoHash.success && targetGeoHash.success === false) {
-        return targetGeoHash;
+
+      const grid = await GridModel(tenant)
+        .findOne({
+          "shape.coordinates": {
+            $geoIntersects: {
+              $geometry: {
+                type: "Point",
+                coordinates: [longitude, latitude],
+              },
+            },
+          },
+        })
+        .lean();
+
+      if (!grid) {
+        return {
+          success: false,
+          message: "No Grid found for the provided coordinates",
+          status: httpStatus.NOT_FOUND,
+        };
       }
-      const nearbyGrids = await GridModel(tenant).find({
-        geoHash: { $regex: `^${targetGeoHash}` },
-      });
+
       return {
         success: true,
-        message: "successfully retrieved the nearest Grids",
-        data: nearbyGrids,
+        message: "Grid found",
+        data: grid,
         status: httpStatus.OK,
       };
     } catch (error) {
@@ -679,13 +702,12 @@ const createGrid = {
     }
   },
   createGridFromShapefile: async (request) => {
+    const uploadedFile = request.file;
+    const shapefilePath = uploadedFile.path;
     try {
-      const uploadedFile = request.file;
       const zip = new AdmZip(uploadedFile.path);
       zip.extractAllTo("uploads/", true);
-
-      const shapefilePath = request.file.path;
-      logObject("request.file", request.file);
+      logObject("uploadedFile", uploadedFile);
       logObject("shapefilePath", shapefilePath);
       const file = await shapefile.open(shapefilePath);
       const source = await file.source();
@@ -698,25 +720,27 @@ const createGrid = {
         features.push(result.value);
       }
 
-      // Extract the coordinates and shape type from the first feature
       const coordinates = features[0].geometry.coordinates;
       const shapeType = features[0].geometry.type;
 
-      // Create the Grid data object
       const gridData = {
         shape: {
           type: shapeType,
           coordinates: coordinates,
         },
       };
+      fs.unlinkSync(shapefilePath);
       return {
         success: true,
         data: gridData,
+        message: "Successfully retrieved the Grid format",
         status: httpStatus.OK,
-        message: "successfully retrieved the Grid format",
       };
     } catch (error) {
       logObject("error", error);
+      if (fs.existsSync(shapefilePath)) {
+        fs.unlinkSync(shapefilePath);
+      }
       logger.error(`Internal Server Error -- ${error.message}`);
       return {
         success: false,
@@ -726,6 +750,7 @@ const createGrid = {
       };
     }
   },
+
   listAvailableSites: async (request) => {
     try {
       const { tenant } = request.query;

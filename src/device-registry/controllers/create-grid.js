@@ -905,6 +905,7 @@ const createGrid = {
   },
   createGridFromShapefile: async (req, res) => {
     try {
+      logText("uploading the shapefile.....");
       const { query } = req;
       let { tenant } = query;
       if (isEmpty(tenant)) {
@@ -922,6 +923,7 @@ const createGrid = {
         return res.status(status).json(responseFromCreateGridFromShapefile);
       }
     } catch (error) {
+      logObject("error", error);
       logger.error(`internal server error -- ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,

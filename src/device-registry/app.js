@@ -16,6 +16,7 @@ const routes = require("@routes");
 
 // const moesif = require("moesif-nodejs");
 const compression = require("compression");
+const { logObject } = require("./utils/log");
 
 const app = express();
 app.use(compression());
@@ -139,6 +140,7 @@ app.use(function(err, req, res, next) {
       errors: { message: err.message },
     });
   } else {
+    logObject("err", err);
     logger.error(`server side error--- ${err.message}`);
     res.status(err.status || 500).json({
       success: false,
