@@ -905,6 +905,11 @@ const createGrid = {
   },
   createGridFromShapefile: async (req, res) => {
     try {
+      return res.status(httpStatus.NOT_IMPLEMENTED).json({
+        success: false,
+        message: "Not Yet Implemented",
+        errors: { message: "Not Yet Implemented" },
+      });
       logText("uploading the shapefile.....");
       const { query } = req;
       let { tenant } = query;
@@ -938,6 +943,11 @@ const createGrid = {
      * this one returned those valid ones which are not yet assigned to the provided Grid
      */
     try {
+      return res.status(httpStatus.NOT_IMPLEMENTED).json({
+        success: false,
+        message: "Not Yet Implemented",
+        errors: { message: "Not Yet Implemented" },
+      });
       logText("listing available grids....");
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
@@ -1002,6 +1012,11 @@ const createGrid = {
      * just retrieve all Sites which have been assigned to the proviced Grid
      */
     try {
+      return res.status(httpStatus.NOT_IMPLEMENTED).json({
+        success: false,
+        message: "Not Yet Implemented",
+        errors: { message: "Not Yet Implemented" },
+      });
       logText("listing assigned grids....");
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
@@ -1077,6 +1092,11 @@ const createGrid = {
      * this is where we are also able to ensure that only Sites with Devices are added
      */
     try {
+      return res.status(httpStatus.NOT_IMPLEMENTED).json({
+        success: false,
+        message: "Not Yet Implemented",
+        errors: { message: "Not Yet Implemented" },
+      });
       logText("assign many grids....");
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
@@ -1134,6 +1154,11 @@ const createGrid = {
   },
   unAssignManySitesFromGrid: async (req, res) => {
     try {
+      return res.status(httpStatus.NOT_IMPLEMENTED).json({
+        success: false,
+        message: "Not Yet Implemented",
+        errors: { message: "Not Yet Implemented" },
+      });
       logText("unAssign grid....");
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
@@ -1192,6 +1217,11 @@ const createGrid = {
   },
   assignOneSiteToGrid: async (req, res) => {
     try {
+      return res.status(httpStatus.NOT_IMPLEMENTED).json({
+        success: false,
+        message: "Not Yet Implemented",
+        errors: { message: "Not Yet Implemented" },
+      });
       logText("assign one grid....");
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
@@ -1249,6 +1279,11 @@ const createGrid = {
   },
   unAssignOneSiteFromGrid: async (req, res) => {
     try {
+      return res.status(httpStatus.NOT_IMPLEMENTED).json({
+        success: false,
+        message: "Not Yet Implemented",
+        errors: { message: "Not Yet Implemented" },
+      });
       logText("unAssign grid....");
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
