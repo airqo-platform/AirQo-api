@@ -6,7 +6,7 @@ images:
     api: eu.gcr.io/airqo-250220/airqo-prediction-api
     predictJob: eu.gcr.io/airqo-250220/airqo-predict-job
     trainJob: eu.gcr.io/airqo-250220/airqo-train-job
-  tag: prod-013bc436-1688056762
+  tag: prod-998d45e3-1688104822
 api:
   name: airqo-prediction-api
   label: prediction-api

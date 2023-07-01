@@ -125,15 +125,20 @@ module.exports = {
       "AirQo Data Team"
     );
   },
-  user_updated: (firstName, lastName) => {
+  user_updated: (firstName, lastName, updatedData) => {
+    const updatedFields = Object.keys(updatedData)
+      .map((field) => `• ${field}: ${updatedData[field]}`)
+      .join("\n");
+
     return (
-      `Dear ${firstName + " " + lastName} \n\n` +
-      "Your AirQo Platform account details have been updated. \n\n" +
-      "If this activity sounds suspicious to you, please reach out to your organisation's administrator \n\n" +
+      `Dear ${firstName} ${lastName},\n\n` +
+      "Your AirQo Analytics account details have been updated:\n\n" +
+      `${updatedFields}\n\n` +
+      "If this activity sounds suspicious to you, please reach out to your organisation's administrator.\n\n" +
       `Follow this link to access the platform right now: ${constants.LOGIN_PAGE}\n`
     );
   },
-  join_by_email: (email,token) => {
+  join_by_email: (email, token) => {
     return `<!DOCTYPE html>
 <html>
 
