@@ -1000,14 +1000,14 @@ const defaultConfig = {
     grid_tags: 1,
     admin_level: 1,
     grid_codes: 1,
-    center_point: 1,
+    centers: 1,
     shape: 1,
     network_id: 1,
     sites: "$sites",
     numberOfSites: {
       $cond: {
         if: { $isArray: "$sites" },
-        then: { $size: "$sites" },
+        then: { $size: { $ifNull: ["$sites._id", []] } },
         else: "NA",
       },
     },

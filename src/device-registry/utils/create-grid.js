@@ -10,14 +10,12 @@ const upload = multer({ dest: "uploads/" });
 const shapefile = require("shapefile");
 const AdmZip = require("adm-zip");
 const { logObject, logElement, logText } = require("./log");
-
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const generateFilter = require("./generate-filter");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- create-grid-util`);
-// const mongoose = require("mongoose");
 const { Schema } = require("mongoose");
 const ObjectId = Schema.Types.ObjectId;
 const { Kafka } = require("kafkajs");
@@ -25,7 +23,6 @@ const kafka = new Kafka({
   clientId: constants.KAFKA_CLIENT_ID,
   brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
 });
-const commonUtil = require("@utils/common");
 
 const GridModel = (tenant) => {
   try {
@@ -37,7 +34,6 @@ const GridModel = (tenant) => {
     return grids;
   }
 };
-
 const SiteModel = (tenant) => {
   try {
     const sites = mongoose.model("sites");
@@ -47,7 +43,6 @@ const SiteModel = (tenant) => {
     return sites;
   }
 };
-
 const AdminLevelModel = (tenant) => {
   try {
     const adminlevels = mongoose.model("adminlevels");
@@ -61,7 +56,6 @@ const AdminLevelModel = (tenant) => {
     return adminlevels;
   }
 };
-
 class GridTransformStream extends Transform {
   constructor(options) {
     super({ objectMode: true, ...options });
@@ -78,7 +72,6 @@ class GridTransformStream extends Transform {
     }
   }
 }
-
 const generateGeoHash = (latitude, longitude, precision = 9) => {
   try {
     // Calculate the boundaries for a radius of 1 kilometer around the target location
@@ -109,8 +102,8 @@ const generateGeoHash = (latitude, longitude, precision = 9) => {
 const createGrid = {
   retrieveCoordinates: async (request) => {
     try {
-      const { tenant } = request.query;
-      if (isEmpty(request.query.id)) {
+      const { tenant, id } = request.query;
+      if (isEmpty(id)) {
         return {
           success: false,
           message: "Bad Request",
@@ -119,7 +112,7 @@ const createGrid = {
         };
       }
       const responseFromFindGrid = await GridModel(tenant)
-        .findById(ObjectId(request.query.id))
+        .findById(ObjectId(id))
         .lean();
 
       if (isEmpty(responseFromFindGrid)) {
@@ -131,14 +124,14 @@ const createGrid = {
             message: "no record exists for this grid_id",
           },
         };
+      } else if (!isEmpty(responseFromFindGrid)) {
+        return {
+          data: responseFromFindGrid.shape.coordinates,
+          success: true,
+          message: "Successfully retrieved the Grid's coordinates",
+          status: httpStatus.OK,
+        };
       }
-
-      return {
-        data: responseFromFindGrid.shape,
-        success: true,
-        message: "retrieved the coordinates",
-        status: httpStatus.OK,
-      };
     } catch (error) {
       logger.error(`Internal Server Error -- ${error.message}`);
       return {
@@ -289,7 +282,6 @@ const createGrid = {
           } catch (error) {
             logger.error(`Internal Server Error -- ${error.message}`);
           }
-
           return responseFromRegisterGrid;
         } else if (responseFromRegisterGrid.success === false) {
           return responseFromRegisterGrid;
@@ -364,7 +356,6 @@ const createGrid = {
           shape: {},
         },
       };
-
       const responseFromRetrieveCoordinates = await createGrid.retrieveCoordinates(
         request
       );
@@ -468,7 +459,6 @@ const createGrid = {
       };
     }
   },
-
   findSites: async (request) => {
     try {
       const { query } = request;
