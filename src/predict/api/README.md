@@ -1,11 +1,60 @@
-#Forecast API documentation
+# Forecast API documentation
 ## Introduction
-This document discusses AirQo’s Forecast API and provides guidelines on how one can use it to access air quality PM2.5 forecasts for any particular location using the `site_id` query parameter, though work is ongoing to allow querying by other parameters such as `city`, `region`, etc.
+This page conatins AirQo’s Forecast API and provides guidelines on how one can use it to access air quality PM2.5 forecasts for any particular location using the `site_id` query parameter, though work is ongoing to allow querying by other parameters such as `city`, `region`, etc.
 
 ## Forecasting
-The concept of forecasting is at its core concerned with predicting or estimating a given value of a given variable such as temperature, price of a commodity at a future point in time. 
-This can involve taking into account a number of factors such as how that value has changed in previous hours, days or weeks, as well as any other factors that may affect the value.To forcast air quality PM2.5 values, we take into accound details such as the .device that 
+The concept of forecasting involves predicting or estimating a given value of a given variable such as temperature, price of a commodity at a future point in time. 
 
+This can involve taking into account a number of factors such as how that value has changed in previous hours, days or weeks, as well as any other factors that may affect the value.
+
+## Forecasting at AirQo
+AirQo project has a large network of custom built air quality monitors placed in various locations within Uganda and Africa, We also have devices from other partners both local and international such as KCCA, the US Embassy amongst others. 
+
+All these serve as sources for air quality data measured in `µg/m3`. This data is received at an hourly rate. Using this data, we are also able to leverage machine learning techniques to forecast the air quality of a given site / location or even region, using data that has been received so far along with other factors such as the location,etc.
+
+To make air quality forecasts of  PM2.5 values, we take into accound details such as the `device_number`, `time`, `previous_day_pm2_5_value`, `previous_1_week_pm_2_5_value`, amongst others. 
+
+The code used to train the models  for making `hourly_forecasts`(next 24 hours) and  `daily_forecasts`(next_1_week) is available [here](https://github.com/airqo-platform/AirQo-api/tree/staging/src/predict/jobs/forecast_training) for the model training and [here](https://github.com/airqo-platform/AirQo-api/tree/staging/src/predict/jobs/forecast) for the job to make the actual forecasts
+
+The ability to accurately predict what air quality will be in the coming days is also essential for empowering everyone from governments to families to make informed decisions to protect health and guide action, just as we do with weather.
+
+## Forecast API usage guidelines
+Our forecast APi currently supports 2 endpoints, `hourly_forecast` and `daily_forecast`.
+
+* Hourly forecasts (next 24 hours) - `{base_url}/api/v2/predict/hourly-forecast`
+* Daily-forecasts (next 7 days) - `{base_url}/api/v2/predict/daily-forecast`
+
+Listed below are the query parameters for both endpoints:
+| Query Parameter      | Description |  Required        | Possible value | Constraints
+| ------------- |:-------------:| -----:| --------:|-----:|
+| `site_id`    | Site ID for location whose forecast is required | no | "640f19699b912345" | value must be a string & valid site on `airqo` network |
+| `token`     |  Authorisation token required to use the endpoint | yes| `abcdefgh` | Value must be a string
+
+
+### Sample Result
+```
+
+{
+  forecast: {
+            {
+            "health_tips": [
+                {
+                    "_id": "64283ce9e82a77001e55c0b5",
+                    "aqi_category": {
+                        "max": 35.49,
+                        "min": 12.1
+                    },
+                    "description": "Today is a great day for outdoor activity.",
+                    "image":"link to image"
+                    "title": "For Everyone"
+                }
+            ],
+            "pm2_5": 23.405056521739112,
+            "time": "2023-06-22T00:00:00+00:00"
+        },
+  }
+}
+````
 
 # Running the app
 
