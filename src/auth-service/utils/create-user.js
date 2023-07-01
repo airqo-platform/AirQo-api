@@ -269,6 +269,20 @@ const join = {
         return responseFromGenerateFilter;
       }
 
+      const user = await UserModel(tenant).find(filter).lean();
+      logObject("the user details with lean(", user);
+      if (isEmpty(user)) {
+        logger.error(`the provided User does not exist in the System`);
+        return {
+          message: "Bad Request Error",
+          success: false,
+          errors: {
+            message: "the provided User does not exist in the System",
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
       const responseFromModifyUser = await UserModel(
         tenant.toLowerCase()
       ).modify({
@@ -277,7 +291,8 @@ const join = {
       });
 
       if (responseFromModifyUser.success === true) {
-        const user = responseFromModifyUser.data;
+        const { _id, ...updatedUserDetails } = responseFromModifyUser.data;
+        logObject("updatedUserDetails", updatedUserDetails);
         if (process.env.NODE_ENV && process.env.NODE_ENV !== "production") {
           return {
             success: true,
@@ -285,10 +300,12 @@ const join = {
             data: responseFromModifyUser.data,
           };
         } else {
+          logObject("user Object", user);
           const responseFromSendEmail = await mailer.update(
-            user.email,
-            user.firstName,
-            user.lastName
+            user[0].email,
+            user[0].firstName,
+            user[0].lastName,
+            updatedUserDetails
           );
 
           if (responseFromSendEmail.success === true) {
@@ -305,6 +322,7 @@ const join = {
         return responseFromModifyUser;
       }
     } catch (e) {
+      logObject("e", e);
       logger.error(`Internal Server Error ${e.message}`);
       return {
         success: false,
