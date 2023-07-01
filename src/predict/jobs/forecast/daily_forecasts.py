@@ -112,7 +112,7 @@ def get_next_1week_forecasts(target_column, model):
 
     for device in test_forecast_data["device_number"].unique():
         test_copy = test_forecast_data[test_forecast_data["device_number"] == device]
-        for i in range(int(configuration.FORECAST_HORIZON)):
+        for i in range(int(configuration.FORECAST_DAILY_HORIZON)):
             new_row = get_new_row(test_copy, device, model)
             test_copy = pd.concat([test_copy, new_row.to_frame().T], ignore_index=True)
         next_1_week_forecasts = pd.concat([next_1_week_forecasts, test_copy], ignore_index=True)
