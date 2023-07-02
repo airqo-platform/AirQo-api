@@ -345,6 +345,8 @@ UserSchema.statics = {
   async modify({ filter = {}, update = {} } = {}) {
     try {
       let options = { new: true };
+      const fieldNames = Object.keys(update);
+      const fieldsString = fieldNames.join(" ");
       let modifiedUpdate = update;
       modifiedUpdate["$addToSet"] = {};
 
@@ -382,7 +384,7 @@ UserSchema.statics = {
         filter,
         modifiedUpdate,
         options
-      ).exec();
+      ).select(fieldsString);
 
       if (!isEmpty(updatedUser)) {
         return {

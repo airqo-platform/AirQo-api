@@ -269,6 +269,20 @@ const join = {
         return responseFromGenerateFilter;
       }
 
+      const user = await UserModel(tenant).find(filter).lean();
+      logObject("the user details with lean(", user);
+      if (isEmpty(user)) {
+        logger.error(`the provided User does not exist in the System`);
+        return {
+          message: "Bad Request Error",
+          success: false,
+          errors: {
+            message: "the provided User does not exist in the System",
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
       const responseFromModifyUser = await UserModel(
         tenant.toLowerCase()
       ).modify({
@@ -277,31 +291,44 @@ const join = {
       });
 
       if (responseFromModifyUser.success === true) {
-        const user = responseFromModifyUser.data;
-        const responseFromSendEmail = await mailer.update(
-          user.email,
-          user.firstName,
-          user.lastName
-        );
-
-        if (responseFromSendEmail.success === true) {
+        const { _id, ...updatedUserDetails } = responseFromModifyUser.data;
+        logObject("updatedUserDetails", updatedUserDetails);
+        if (process.env.NODE_ENV && process.env.NODE_ENV !== "production") {
           return {
             success: true,
             message: responseFromModifyUser.message,
             data: responseFromModifyUser.data,
           };
-        } else if (responseFromSendEmail.success === false) {
-          return responseFromSendEmail;
+        } else {
+          logObject("user Object", user);
+          const responseFromSendEmail = await mailer.update(
+            user[0].email,
+            user[0].firstName,
+            user[0].lastName,
+            updatedUserDetails
+          );
+
+          if (responseFromSendEmail.success === true) {
+            return {
+              success: true,
+              message: responseFromModifyUser.message,
+              data: responseFromModifyUser.data,
+            };
+          } else if (responseFromSendEmail.success === false) {
+            return responseFromSendEmail;
+          }
         }
       } else if (responseFromModifyUser.success === false) {
         return responseFromModifyUser;
       }
     } catch (e) {
+      logObject("e", e);
       logger.error(`Internal Server Error ${e.message}`);
       return {
         success: false,
         message: "Internal Server Error",
         errors: { message: e.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -1318,10 +1345,10 @@ const join = {
       const tokenString = `${userId}+${creationTime}`;
 
       const verificationToken = crypto
-          .createHash("sha256")
-          .update(tokenString)
-          .digest("hex");
-   
+        .createHash("sha256")
+        .update(tokenString)
+        .digest("hex");
+
       if (token !== verificationToken) {
         return {
           success: false,
