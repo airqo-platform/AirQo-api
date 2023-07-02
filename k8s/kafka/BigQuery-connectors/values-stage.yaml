@@ -5,8 +5,8 @@ app:
   configmap: bigquery-connectors
 replicaCount: 2
 image:
-  repository: eu.gcr.io/airqo-250220/airqo-stage-bigquery-connectors
-  tag: ""
+  repository: eu.gcr.io/airqo-250220/stage-bigquery-connectors
+  tag: latest
 nameOverride: ""
 fullnameOverride: ""
 podAnnotations: {}
@@ -31,7 +31,7 @@ service:
   port: 8081
   protocol: TCP
   targetPort: 8081
-  nodePort: 30008
+  nodePort: 31204
 autoscaling:
   minReplicas: 1
   maxReplicas: 3
