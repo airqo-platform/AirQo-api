@@ -132,9 +132,10 @@ const run = async() => {
                         logObject("error.details[0]", error.details[0])
                         logObject("error.details", error.details)
                         const errorDetails = error.details.map(detail => {
-                            logObject("KAFKA: the single error detail", detail)
-                            logger.error(`KAFKA: Input validation error details CONTEXT -- ${JSON.stringify(detail.context)}`);
-                            logger.error(`KAFKA: Input validation error details CONTEXT VALUE -- ${JSON.stringify(detail.context.value)}`);
+                            logObject("KAFKA: Input validation error single detail", detail)
+                            logger.error(`KAFKA: Input validation error single detail -- ${JSON.stringify(detail)}`);
+                            // logger.error(`KAFKA: Input validation error details CONTEXT -- ${JSON.stringify(detail.context)}`);
+                            // logger.error(`KAFKA: Input validation error details CONTEXT VALUE -- ${JSON.stringify(detail.context.value)}`);
                             const event = detail.context.value;
                             logObject("KAFKA: the event causing the error", event)
                             const { device_number, device_id, timestamp, site_id } = event;
