@@ -127,15 +127,33 @@ module.exports = {
   },
   user_updated: (firstName, lastName, updatedData) => {
     const updatedFields = Object.keys(updatedData)
-      .map((field) => `• ${field}: ${updatedData[field]}`)
+      .map((field) => `• ${field}`)
       .join("\n");
 
     return (
       `Dear ${firstName} ${lastName},\n\n` +
-      "Your AirQo Analytics account details have been updated:\n\n" +
+      "Your AirQo Analytics account details have been updated.\n\n" +
+      "The following fields have been updated:\n" +
       `${updatedFields}\n\n` +
-      "If this activity sounds suspicious to you, please reach out to your organisation's administrator.\n\n" +
+      "If this activity sounds suspicious to you, please reach out to your organization's administrator.\n\n" +
       `Follow this link to access the platform right now: ${constants.LOGIN_PAGE}\n`
+    );
+  },
+
+  forgotten_password_updated: (firstName, lastName) => {
+    return (
+      `Dear ${firstName} ${lastName},\n\n` +
+      "Your AirQo Analytics account password has been successfully reset.\n\n" +
+      "If you did not initiate this password reset, please reach out to your organization's administrator immediately.\n\n" +
+      `Follow this link to access the platform: ${constants.LOGIN_PAGE}\n`
+    );
+  },
+  known_password_updated: (firstName, lastName) => {
+    return (
+      `Dear ${firstName} ${lastName},\n\n` +
+      "Your AirQo Analytics account password has been successfully updated.\n\n" +
+      "If you did not initiate this password change, please reach out to your organization's administrator immediately.\n\n" +
+      `Follow this link to access the platform: ${constants.LOGIN_PAGE}\n`
     );
   },
   join_by_email: (email, token) => {
