@@ -695,16 +695,19 @@ jobs:
           gcloud secrets versions access latest --secret="sta-env-predict" > api.env
           gcloud secrets versions access latest --secret="sta-env-predict-job" > predict_job.env
           gcloud secrets versions access latest --secret="sta-env-predict-train-job" > train_job.env
+          gcloud secrets versions access latest --secret="sta-env-predict-predict-places-air-quality" > predict_places_air_quality.env
           gcloud secrets versions access latest --secret="sta-key-predict-service-account" > google_application_credentials.json 
           echo "=============== Updating the respective .env files ==============="
           kubectl create configmap --dry-run=client -o yaml --from-env-file=api.env env-predict-staging | kubectl replace -f - -n staging
           kubectl create configmap --dry-run=client -o yaml --from-env-file=predict_job.env env-predict-job-staging | kubectl replace -f - -n staging
           kubectl create configmap --dry-run=client -o yaml --from-env-file=train_job.env env-train-job-staging | kubectl replace -f - -n staging
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=predict_places_air_quality.env env-predict-places-air-quality-staging | kubectl replace -f - -n staging
           echo "=============== Updating the respective credentials files ==============="
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json env-predict-staging-files | kubectl replace -f - -n staging
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json predict-job-config-files | kubectl replace -f - -n staging
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json train-job-config-files | kubectl replace -f - -n staging
-
+          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json predict-places-air-quality-config-files | kubectl replace -f - -n staging
+          
   ### kafka cluster operator ###
   kafka-cluster-operator:
     name: build-push-deploy-kafka-cluster-operator
