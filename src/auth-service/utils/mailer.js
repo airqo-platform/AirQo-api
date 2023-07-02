@@ -518,7 +518,84 @@ const mailer = {
       };
     }
   },
+  updateForgottenPassword: async (email, firstName, lastName) => {
+    try {
+      const mailOptions = {
+        from: {
+          name: constants.EMAIL_NAME,
+          address: constants.EMAIL,
+        },
+        to: `${email}`,
+        subject: "AirQo Analytics Password Reset Successful",
+        text: `${msgs.forgotten_password_updated(firstName, lastName)}`,
+      };
+      let response = transporter.sendMail(mailOptions);
+      let data = await response;
 
+      if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
+        return {
+          success: true,
+          message: "email successfully sent",
+          data,
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: false,
+          message: "Internal Server Error",
+          errors: { message: data },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        error: error.message,
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  updateKnownPassword: async (email, firstName, lastName) => {
+    try {
+      const mailOptions = {
+        from: {
+          name: constants.EMAIL_NAME,
+          address: constants.EMAIL,
+        },
+        to: `${email}`,
+        subject: "AirQo Analytics Password Update Successful",
+        text: `${msgs.known_password_updated(firstName, lastName)}`,
+      };
+      let response = transporter.sendMail(mailOptions);
+      let data = await response;
+
+      if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
+        return {
+          success: true,
+          message: "email successfully sent",
+          data,
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: false,
+          message: "Internal Server Error",
+          errors: { message: data },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        error: error.message,
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
   newMobileAppUser: async ({ email, message, subject } = {}) => {
     try {
       logObject("the values to send to email function", {
