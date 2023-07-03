@@ -5,7 +5,7 @@ images:
   repositories:
     api: eu.gcr.io/airqo-250220/airqo-stage-view-api
     messageBroker: eu.gcr.io/airqo-250220/airqo-stage-view-message-broker
-  tag: stage-f70219c4-1687764226
+  tag: stage-fe759cbc-1688036255
 api:
   name: airqo-stage-view-api
   label: view-api
