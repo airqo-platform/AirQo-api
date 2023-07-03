@@ -14,12 +14,19 @@ RUN pip install -r requirements.txt
 FROM base as production
 ENV ENV=production
 CMD ["python", "daily_forecast_training.py"]
+
+# Production
+FROM base as production
+ENV ENV=production
 CMD ["python", "hourly_forecast_training.py"]
 
 # Staging
 FROM base as staging
 ENV ENV=staging
 CMD ["python", "daily_forecast_training.py"]
+
+FROM base as staging
+ENV ENV=staging
 CMD ["python", "hourly_forecast_training.py"]
 
 
@@ -27,4 +34,7 @@ CMD ["python", "hourly_forecast_training.py"]
 FROM base as development
 ENV ENV=development
 CMD ["python", "daily_forecast_training.py"]
+
+FROM base as development
+ENV ENV=development
 CMD ["python", "hourly_forecast_training.py"]
