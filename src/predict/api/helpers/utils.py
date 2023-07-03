@@ -31,7 +31,6 @@ def heatmap_cache_key():
 
 
 def daily_forecasts_cache_key():
-    # create new var of current date and time as a string
     current_date = datetime.now().strftime("%Y-%m-%d")
     args = request.args
     site_name = args.get("site_name")
@@ -47,7 +46,6 @@ def daily_forecasts_cache_key():
 
 
 def hourly_forecasts_cache_key():
-    # create new var of current date and time as a string
     current_date = datetime.now().strftime("%Y-%m-%d")
     args = request.args
     site_name = args.get("site_name")
@@ -81,35 +79,58 @@ def convert_to_geojson(data):
     """
     features = []
     for record in data:
-        point = geojson.Point(
-            (record["values"]["latitude"], record["values"]["longitude"])
-        )
-        feature = geojson.Feature(
-            geometry=point,
-            properties={
-                "latitude": record["values"]["latitude"],
-                "longitude": record["values"]["longitude"],
-                "predicted_value": record["values"]["predicted_value"],
-                "variance": record["values"]["variance"],
-                "interval": record["values"]["interval"],
-            },
-        )
+        point = geojson.Point((record['values']['longitude'], record['values']['latitude']))
+        feature = geojson.Feature(geometry=point, properties={
+            "latitude": record['values']['latitude'],
+            "longitude": record['values']['longitude'],
+            "predicted_value": record['values']["predicted_value"],
+            "variance": record['values']["variance"],
+            "interval": record['values']["interval"],
+        })
         features.append(feature)
 
     return geojson.FeatureCollection(features)
 
 
 @cache.memoize(timeout=Config.CACHE_TIMEOUT)
-def get_gp_predictions(airqloud=None, page=1, limit=500):
-    """Returns PM 2.5 predictions for a particular airqloud name or id."""
+def get_gp_predictions(airqloud=None, page=1, limit=1000):
+    """Returns PM 2.5 predictions for a particular airqloud name or id or all airqlouds."""
 
     pipeline = [
-        {"$match": {"airqloud": airqloud.lower()} if airqloud else {}},
         {"$sort": {"created_at": -1}},
-        {
-            "$group": {
-                "_id": {"airqloud_id": "$airqloud_id", "airqloud": "$airqloud"},
-                "doc": {"$first": "$$ROOT"},
+        {"$project": {
+            '_id': 0,
+            'airqloud_id': 1,
+            'airqloud': 1,
+            'created_at': 1,
+            'values': 1
+        }},
+        {"$unwind": "$values"},
+    ]
+    if airqloud:
+        pipeline.insert(0, {"$match": {"airqloud": airqloud.lower()}})
+        pipeline.insert(3, {"$group": {
+            "_id": {
+                "airqloud_id": "$airqloud_id",
+                "airqloud": "$airqloud"
+            },
+            "doc": {"$first": "$$ROOT"},
+        }})
+        pipeline.insert(4, {"$replaceRoot": {"newRoot": "$doc"}})
+        pipeline.extend([
+        {"$setWindowFields": {
+            "partitionBy": {
+                "airqloud_id": "$airqloud_id",
+                "airqloud": "$airqloud"
+            } if airqloud else None,
+            "sortBy": {"created_at": 1},
+            "output": {
+                "total": {
+                    "$sum": 1,
+                    "window": {
+                        "documents": ["unbounded", "unbounded"]
+                    }
+                }
             }
         },
         {"$replaceRoot": {"newRoot": "$doc"}},
@@ -136,8 +157,8 @@ def get_gp_predictions(airqloud=None, page=1, limit=500):
             }
         },
         {"$skip": (page - 1) * limit},
-        {"$limit": limit},
-    ]
+        {"$limit": limit}
+    ])
     predictions = db.gp_predictions.aggregate(pipeline)
     predictions = list(predictions)
     created_at = predictions[0]["created_at"]
