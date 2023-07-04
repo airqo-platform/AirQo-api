@@ -127,7 +127,7 @@ healthChecks:
 
 # -- Attach the Falco process to a tty inside the container. Needed to flush Falco logs as soon as they are emitted.
 # Set it to "true" when you need the Falco logs to be immediately displayed.
-tty: false
+tty: true
 
 #########################
 # Scenario requirements #
@@ -331,11 +331,15 @@ customRules:
 # -- For configuration values, see https://github.com/falcosecurity/charts/blob/master/falcosidekick/values.yaml
 falcosidekick:
   # -- Enable falcosidekick deployment.
-  enabled: false
+  enabled: true
   # -- Enable usage of full FQDN of falcosidekick service (useful when a Proxy is used).
   fullfqdn: false
   # -- Listen port. Default value: 2801
   listenPort: ""
+  webui:
+    enabled: true
+    redis:
+      storageEnabled: false
 
 ####################
 # falcoctl config  #
