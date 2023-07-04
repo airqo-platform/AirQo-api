@@ -340,6 +340,7 @@ falcosidekick:
     enabled: true
     redis:
       storageEnabled: false
+    user: "<< username >>:<< password >>"
 
 ####################
 # falcoctl config  #
