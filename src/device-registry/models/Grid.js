@@ -37,9 +37,10 @@ const centerPointSchema = new Schema(
 
 const gridSchema = new Schema(
   {
-    network_id: {
-      type: ObjectId,
-      required: [true, "network_id is required!"],
+    network: {
+      type: String,
+      trim: true,
+      required: [true, "the network is required!"],
     },
     geoHash: {
       type: String,
@@ -111,6 +112,7 @@ gridSchema.methods.toJSON = function() {
     _id,
     name,
     long_name,
+    network,
     description,
     grid_tags,
     admin_level,
@@ -125,6 +127,7 @@ gridSchema.methods.toJSON = function() {
     long_name,
     description,
     grid_tags,
+    network,
     admin_level,
     grid_codes,
     centers,
@@ -136,6 +139,10 @@ gridSchema.methods.toJSON = function() {
 gridSchema.statics.register = async function(args) {
   try {
     let modifiedArgs = { ...args };
+
+    if (isEmpty(modifiedArgs.network)) {
+      modifiedArgs.network = constants.DEFAULT_NETWORK;
+    }
 
     if (!isEmpty(modifiedArgs.long_name && isEmpty(modifiedArgs.name))) {
       modifiedArgs.name = modifiedArgs.long_name

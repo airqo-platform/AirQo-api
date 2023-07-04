@@ -10,7 +10,6 @@ const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- grids-route-v2`);
 const multer = require("multer");
 const upload = multer({ dest: "uploads/" });
 const { getModelByTenant } = require("@config/database");
-
 const NetworkSchema = require("@models/Network");
 const AdminLevelSchema = require("@models/AdminLevel");
 const { logText, logObject } = require("@utils/log");
@@ -324,7 +323,6 @@ router.get(
   ]),
   createGridController.list
 );
-
 router.delete(
   "/:grid_id",
   oneOf([
@@ -465,8 +463,8 @@ router.put(
 
   createGridController.update
 );
-router.patch(
-  "/:grid_id",
+router.put(
+  "/refresh/:grid_id",
   oneOf([
     [
       query("tenant")
@@ -478,98 +476,19 @@ router.patch(
         .toLowerCase()
         .custom(validateNetwork)
         .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-  oneOf([
-    param("grid_id")
-      .exists()
-      .withMessage("the grid_id is missing in request")
-      .bail()
-      .trim()
-      .isMongoId()
-      .withMessage("grid_id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
-  ]),
-  oneOf([
-    [
-      body("net_email")
-        .optional()
-        .notEmpty()
-        .withMessage("the email should not be empty if provided")
+      param("grid_id")
+        .exists()
+        .withMessage("the grid ID param is missing in the request")
         .bail()
-        .isEmail()
-        .withMessage("this is not a valid email address")
-        .trim(),
-      body("net_website")
-        .optional()
-        .notEmpty()
-        .withMessage("the net_website should not be empty if provided")
-        .bail()
-        .isURL()
-        .withMessage("the net_website is not a valid URL")
-        .trim(),
-      body("net_status")
-        .optional()
-        .notEmpty()
-        .withMessage("the net_status should not be empty if provided")
-        .bail()
-        .toLowerCase()
-        .isIn(["active", "inactive", "pending"])
-        .withMessage(
-          "the net_status value is not among the expected ones which include: active, inactive, pending"
-        )
-        .trim(),
-      body("net_phoneNumber")
-        .optional()
-        .notEmpty()
-        .withMessage("the phoneNumber should not be empty if provided")
-        .bail()
-        .isMobilePhone()
-        .withMessage("the phoneNumber is not a valid one")
-        .bail()
-        .trim(),
-      body("net_category")
-        .optional()
-        .notEmpty()
-        .withMessage("the net_category should not be empty if provided")
-        .bail()
-        .toLowerCase()
-        .isIn([
-          "business",
-          "research",
-          "policy",
-          "awareness",
-          "school",
-          "others",
-        ])
-        .withMessage(
-          "the status value is not among the expected ones which include: business, research, policy, awareness, school, others"
-        )
-        .trim(),
-      body("net_name")
-        .if(body("net_name").exists())
-        .notEmpty()
-        .withMessage("the net_name should not be empty")
-        .trim(),
-      body("net_sites")
-        .optional()
-        .custom((value) => {
-          return Array.isArray(value);
-        })
-        .withMessage("the net_sites should be an array")
-        .bail()
-        .notEmpty()
-        .withMessage("the net_sites should not be empty"),
-      body("net_sites.*")
-        .optional()
+        .trim()
         .isMongoId()
-        .withMessage("each use should be an object ID"),
+        .withMessage("the grid ID must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
     ],
   ]),
-
   createGridController.refresh
 );
 /************************ managing grids *************************/
@@ -869,11 +788,124 @@ router.post(
   ]),
   createGridController.createAdminLevel
 );
-router.get("/levels", createGridController.listAdminLevels);
-router.put("/levels/:level_id", createGridController.updateAdminLevel);
-router.delete("/levels/:level_id", createGridController.deleteAdminLevel);
-router.get("/levels/:level_id", createGridController.listAdminLevels);
-
+router.get(
+  "/levels",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .custom(validateNetwork)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  createGridController.listAdminLevels
+);
+router.put(
+  "/levels/:level_id",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .custom(validateNetwork)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      param("level_id")
+        .exists()
+        .withMessage("the admin level ID is missing in request")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the admin level ID must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("name")
+        .optional()
+        .not()
+        .exists()
+        .withMessage("admin level names cannot be updated"),
+    ],
+  ]),
+  createGridController.updateAdminLevel
+);
+router.delete(
+  "/levels/:level_id",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .custom(validateNetwork)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      param("level_id")
+        .exists()
+        .withMessage("the admin level ID is missing in request")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the admin level ID must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+    ],
+  ]),
+  createGridController.deleteAdminLevel
+);
+router.get(
+  "/levels/:level_id",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant cannot be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .custom(validateNetwork)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      param("level_id")
+        .exists()
+        .withMessage("the admin level ID is missing in request")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the admin level ID must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+    ],
+  ]),
+  createGridController.listAdminLevels
+);
 router.get(
   "/:grid_id",
   oneOf([

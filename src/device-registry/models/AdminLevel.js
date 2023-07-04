@@ -165,7 +165,7 @@ adminLevelSchema.statics.modify = async function({
       modifiedUpdateBody,
       options
     ).exec();
-
+    logObject("updatedAdminLevel", updatedAdminLevel);
     if (!isEmpty(updatedAdminLevel)) {
       return {
         success: true,

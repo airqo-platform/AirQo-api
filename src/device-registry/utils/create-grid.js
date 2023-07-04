@@ -101,8 +101,9 @@ const generateGeoHash = (latitude, longitude, precision = 9) => {
 const createGrid = {
   retrieveCoordinates: async (request) => {
     try {
-      const { tenant, id } = request.query;
-      if (isEmpty(id)) {
+      const { tenant } = request.query;
+      const { grid_id } = request.params;
+      if (isEmpty(grid_id)) {
         return {
           success: false,
           message: "Bad Request",
@@ -110,9 +111,12 @@ const createGrid = {
           errors: { message: "the Grid Object ID is required" },
         };
       }
+      logObject("grid_id", grid_id);
       const responseFromFindGrid = await GridModel(tenant)
-        .findById(ObjectId(id))
+        .findById(grid_id)
         .lean();
+
+      logObject("responseFromFindGrid", responseFromFindGrid);
 
       if (isEmpty(responseFromFindGrid)) {
         return {
@@ -125,13 +129,14 @@ const createGrid = {
         };
       } else if (!isEmpty(responseFromFindGrid)) {
         return {
-          data: responseFromFindGrid.shape.coordinates,
+          data: responseFromFindGrid.shape,
           success: true,
           message: "Successfully retrieved the Grid's coordinates",
           status: httpStatus.OK,
         };
       }
     } catch (error) {
+      logObject("error", error);
       logger.error(`Internal Server Error -- ${error.message}`);
       return {
         success: false,
@@ -347,8 +352,9 @@ const createGrid = {
   },
   refresh: async (request) => {
     try {
-      const { query } = request;
-      const { tenant, id } = query;
+      const { query, params } = request;
+      const { tenant } = query;
+      const { grid_id } = params;
 
       const updateBodyForGrid = {
         body: {
@@ -356,20 +362,35 @@ const createGrid = {
         },
       };
 
+      /***
+       * In this Refresh logic, we are supposed to add new Sites that have Devices deployed to them onto the Grid
+       * And remove those Sites which do not have Devices deployed on them
+       */
+
+      /***
+       * first using the Grid ID to find the coordinates we shall use to find the Sites
+       * Look for the sites that fall within the Grid's cordinates
+       * Update each of thoses Sites' grid_id field with the name of the Grid
+       */
+
       const responseFromRetrieveCoordinates = await createGrid.retrieveCoordinates(
         request
+      );
+      logObject(
+        "responseFromRetrieveCoordinates",
+        responseFromRetrieveCoordinates
       );
       if (!responseFromRetrieveCoordinates.success) {
         return responseFromRetrieveCoordinates;
       } else {
-        updateBodyForGrid.body.shape.coordinates =
-          responseFromRetrieveCoordinates.data.coordinates[0];
+        updateBodyForGrid.body.shape = responseFromRetrieveCoordinates.data;
       }
 
       const responseFromFindSites = await createGrid.findSites(
         request,
         updateBodyForGrid.body.shape
       );
+      logObject("responseFromFindSites", responseFromFindSites);
       if (!responseFromFindSites.success) {
         return responseFromFindSites;
       } else {
@@ -379,6 +400,11 @@ const createGrid = {
       const responseFromCalculateGeographicalCenter = await createGrid.calculateGeographicalCenter(
         updateBodyForGrid.body.shape
       );
+
+      logObject(
+        "responseFromCalculateGeographicalCenter",
+        responseFromCalculateGeographicalCenter
+      );
       if (!responseFromCalculateGeographicalCenter.success) {
         return responseFromCalculateGeographicalCenter;
       } else {
@@ -387,10 +413,10 @@ const createGrid = {
       }
 
       const updateResponse = await GridModel(tenant).findByIdAndUpdate(
-        ObjectId(id),
+        ObjectId(grid_id),
         updateBodyForGrid
       );
-
+      logObject("updateResponse", updateResponse);
       if (updateResponse) {
         return {
           success: true,
@@ -407,6 +433,7 @@ const createGrid = {
         };
       }
     } catch (error) {
+      logObject("error", error);
       logger.error(`Internal Server Error -- ${error.message}`);
       return {
         success: false,
@@ -598,6 +625,7 @@ const createGrid = {
       if (filter.success && filter.success === "false") {
         return filter;
       }
+      logObject("filter", filter);
       const update = request.body;
       const responseFromUpdateAdminLevel = await AdminLevelModel(tenant).modify(
         {
@@ -605,6 +633,7 @@ const createGrid = {
           update,
         }
       );
+      logObject("responseFromUpdateAdminLevel", responseFromUpdateAdminLevel);
       return responseFromUpdateAdminLevel;
     } catch (error) {
       logger.error(`Internal Server Error -- ${error.message}`);

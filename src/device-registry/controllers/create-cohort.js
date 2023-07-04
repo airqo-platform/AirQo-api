@@ -55,7 +55,7 @@ const createCohort = {
         return res.status(status).json({
           success: true,
           message: responseFromCreateNetwork.message,
-          cohort: responseFromCreateNetwork.data,
+          new_network: responseFromCreateNetwork.data,
         });
       } else if (responseFromCreateNetwork.success === false) {
         const status = responseFromCreateNetwork.status
@@ -189,7 +189,7 @@ const createCohort = {
         return res.status(status).json({
           success: true,
           message: responseFromUpdateNetwork.message,
-          cohort: responseFromUpdateNetwork.data,
+          updated_network: responseFromUpdateNetwork.data,
         });
       } else if (responseFromUpdateNetwork.success === false) {
         const status = responseFromUpdateNetwork.status
@@ -244,7 +244,7 @@ const createCohort = {
       let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
 
-      const responseFromRemoveNetwork = await createNetworkUtil.deleteNetwork(
+      const responseFromRemoveNetwork = await createCohortUtil.deleteNetwork(
         request
       );
 
@@ -255,7 +255,7 @@ const createCohort = {
         return res.status(status).json({
           success: true,
           message: responseFromRemoveNetwork.message,
-          cohort: responseFromRemoveNetwork.data,
+          deleted_network: responseFromRemoveNetwork.data,
         });
       } else if (responseFromRemoveNetwork.success === false) {
         const status = responseFromRemoveNetwork.status

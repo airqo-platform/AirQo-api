@@ -1002,7 +1002,7 @@ const defaultConfig = {
     grid_codes: 1,
     centers: 1,
     shape: 1,
-    network_id: 1,
+    network: 1,
     sites: "$sites",
     numberOfSites: {
       $cond: {
@@ -1048,13 +1048,18 @@ const defaultConfig = {
     };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {
-      projection = Object.assign({}, {});
+      projection = Object.assign(initialProjection, {
+        shape: 0,
+        grid_tags: 0,
+        grid_codes: 0,
+        centers: 0,
+      });
     }
     return projection;
   },
 
   COHORTS_INCLUSION_PROJECTION: {
-    network_id: 1,
+    network: 1,
     name: 1,
     description: 1,
     cohort_tags: 1,

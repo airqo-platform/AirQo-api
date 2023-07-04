@@ -21,7 +21,7 @@ const siteSchema = new Schema(
       type: [
         {
           type: ObjectId,
-          ref: "cohort",
+          ref: "grid",
           unique: true,
         },
       ],

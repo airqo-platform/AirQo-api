@@ -11,9 +11,10 @@ const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- cohort-model`);
 
 const cohortSchema = new Schema(
   {
-    network_id: {
-      type: ObjectId,
-      required: [true, "network_id is required!"],
+    network: {
+      type: String,
+      trim: true,
+      required: [true, "the network is required!"],
     },
     name: {
       type: String,
@@ -63,19 +64,24 @@ cohortSchema.plugin(uniqueValidator, {
 cohortSchema.index({ geoHash: 1 });
 
 cohortSchema.methods.toJSON = function() {
-  const { _id, name, description, cohort_tags, cohort_codes } = this;
+  const { _id, name, description, cohort_tags, cohort_codes, network } = this;
   return {
     _id,
     name,
     description,
     cohort_tags,
     cohort_codes,
+    network,
   };
 };
 
 cohortSchema.statics.register = async function(args) {
   try {
     let modifiedArgs = { ...args };
+
+    if (isEmpty(modifiedArgs.network)) {
+      modifiedArgs.network = constants.DEFAULT_NETWORK;
+    }
 
     if (!isEmpty(modifiedArgs.long_name && isEmpty(modifiedArgs.name))) {
       modifiedArgs.name = modifiedArgs.long_name

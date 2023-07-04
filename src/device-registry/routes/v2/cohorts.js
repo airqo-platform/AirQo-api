@@ -622,7 +622,6 @@ router.put("/networks/:net_id", createCohortController.updateNetwork);
 router.delete("/networks/:net_id", createCohortController.deleteNetwork);
 router.get("/networks", createCohortController.listNetworks);
 router.get("/networks/:net_id", createCohortController.listNetworks);
-
 router.get(
   "/:cohort_id",
   oneOf([

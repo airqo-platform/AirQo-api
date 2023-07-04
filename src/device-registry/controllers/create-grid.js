@@ -122,7 +122,7 @@ const createGrid = {
         return res.status(status).json({
           success: true,
           message: responseFromUpdateAdminLevel.message,
-          admin_levels: responseFromUpdateAdminLevel.data,
+          updated_admin_level: responseFromUpdateAdminLevel.data,
         });
       } else if (responseFromUpdateAdminLevel.success === false) {
         const status = responseFromUpdateAdminLevel.status
@@ -526,12 +526,11 @@ const createGrid = {
         const status = responseFromRefreshGrid.status
           ? responseFromRefreshGrid.status
           : httpStatus.INTERNAL_SERVER_ERROR;
-        const errors = responseFromRefreshGrid.errors
-          ? responseFromRefreshGrid.errors
-          : { message: "Internal Server Error" };
         return res.status(status).json({
           message: responseFromRefreshGrid.message,
-          errors,
+          errors: responseFromRefreshGrid.errors
+            ? responseFromRefreshGrid.errors
+            : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
