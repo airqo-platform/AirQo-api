@@ -148,6 +148,10 @@ router.post(
         .bail()
         .notEmpty()
         .withMessage("the message must not be empty if provided"),
+       body("country")
+        .optional()
+        .notEmpty()
+        .withMessage("the country must not be empty if provided"),
     ],
   ]),
   createUserController.sendFeedback

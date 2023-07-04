@@ -545,11 +545,12 @@ const join = {
   sendFeedback: async (request) => {
     try {
       const { body } = request;
-      const { email, message, subject } = body;
+      const { email, message, subject, country } = body;
       const responseFromSendEmail = await mailer.feedback({
         email,
         message,
         subject,
+        country,
       });
 
       logObject("responseFromSendEmail ....", responseFromSendEmail);

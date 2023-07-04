@@ -9,6 +9,39 @@ const path = require("path");
 
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- mailer-service`);
+const imagePath = path.join(__dirname, "../config/images");
+const attachments = [
+  {
+    filename: "airqoLogo.png",
+    path: imagePath + "/airqoLogo.png",
+    cid: "AirQoEmailLogo",
+    contentDisposition: "inline",
+  },
+  {
+    filename: "faceBookLogo.png",
+    path: imagePath + "/facebookLogo.png",
+    cid: "FacebookLogo",
+    contentDisposition: "inline",
+  },
+  {
+    filename: "youtubeLogo.png",
+    path: imagePath + "/youtubeLogo.png",
+    cid: "YoutubeLogo",
+    contentDisposition: "inline",
+  },
+  {
+    filename: "twitterLogo.png",
+    path: imagePath + "/Twitter.png",
+    cid: "Twitter",
+    contentDisposition: "inline",
+  },
+  {
+    filename: "linkedInLogo.png",
+    path: imagePath + "/linkedInLogo.png",
+    cid: "LinkedInLogo",
+    contentDisposition: "inline",
+  },
+];
 
 const mailer = {
   candidate: async (firstName, lastName, email, tenant) => {
@@ -205,7 +238,6 @@ const mailer = {
     firstName = "",
   } = {}) => {
     try {
-      const imagePath = path.join(__dirname, "../config/images");
       let bcc = constants.REQUEST_ACCESS_EMAILS;
       let mailOptions = {};
       mailOptions = {
@@ -222,38 +254,7 @@ const mailer = {
           token
         ),
         bcc,
-        attachments: [
-          {
-            filename: "airqoLogo.png",
-            path: imagePath + "/airqoLogo.png",
-            cid: "AirQoEmailLogo",
-            contentDisposition: "inline",
-          },
-          {
-            filename: "faceBookLogo.png",
-            path: imagePath + "/facebookLogo.png",
-            cid: "FacebookLogo",
-            contentDisposition: "inline",
-          },
-          {
-            filename: "youtubeLogo.png",
-            path: imagePath + "/youtubeLogo.png",
-            cid: "YoutubeLogo",
-            contentDisposition: "inline",
-          },
-          {
-            filename: "twitterLogo.png",
-            path: imagePath + "/Twitter.png",
-            cid: "Twitter",
-            contentDisposition: "inline",
-          },
-          {
-            filename: "linkedInLogo.png",
-            path: imagePath + "/linkedInLogo.png",
-            cid: "LinkedInLogo",
-            contentDisposition: "inline",
-          },
-        ],
+        attachments: attachments,
       };
 
       let response = transporter.sendMail(mailOptions);
@@ -373,7 +374,6 @@ const mailer = {
   },
   signInWithEmailLink: async (email, token) => {
     try {
-      const imagePath = path.join(__dirname, "../config/images");
       const mailOptions = {
         from: {
           name: constants.EMAIL_NAME,
@@ -382,38 +382,7 @@ const mailer = {
         to: `${email}`,
         subject: "Verify your email address!",
         html: msgs.join_by_email(email, token),
-        attachments: [
-          {
-            filename: "airqoLogo.png",
-            path: imagePath + "/airqoLogo.png",
-            cid: "AirQoEmailLogo",
-            contentDisposition: "inline",
-          },
-          {
-            filename: "faceBookLogo.png",
-            path: imagePath + "/facebookLogo.png",
-            cid: "FacebookLogo",
-            contentDisposition: "inline",
-          },
-          {
-            filename: "youtubeLogo.png",
-            path: imagePath + "/youtubeLogo.png",
-            cid: "YoutubeLogo",
-            contentDisposition: "inline",
-          },
-          {
-            filename: "twitterLogo.png",
-            path: imagePath + "/Twitter.png",
-            cid: "Twitter",
-            contentDisposition: "inline",
-          },
-          {
-            filename: "linkedInLogo.png",
-            path: imagePath + "/linkedInLogo.png",
-            cid: "LinkedInLogo",
-            contentDisposition: "inline",
-          },
-        ],
+        attachments: attachments,
       };
       let response = transporter.sendMail(mailOptions);
       let data = await response;
@@ -645,11 +614,11 @@ const mailer = {
     }
   },
 
-  feedback: async ({ email, message, subject } = {}) => {
+  feedback: async ({ email, message, subject, country } = {}) => {
     try {
       let bcc = constants.REQUEST_ACCESS_EMAILS;
 
-      const mailOptions = {
+      let mailOptions = {
         from: {
           name: constants.EMAIL_NAME,
           address: constants.EMAIL,
@@ -660,6 +629,21 @@ const mailer = {
         to: constants.SUPPORT_EMAIL,
         bcc,
       };
+      if (subject == 'Report Air Pollution' & country == 'uganda') { 
+
+        mailOptions = {
+          from: {
+            name: constants.EMAIL_NAME,
+            address: constants.EMAIL,
+          },
+          subject,
+          html:msgTemplates.feedbackKCCA(email,message),
+          cc: email,
+          to: constants.SUPPORT_EMAIL,
+          bcc,
+          attachments:attachments
+        };
+      }
 
       if (email === "automated-tests@airqo.net") {
         return {
