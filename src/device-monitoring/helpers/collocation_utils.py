@@ -116,9 +116,13 @@ def compute_differences(
     )
     errors = []
     if error_devices:
-        errors = [
+        errors.append(
             f"Failed to compute differences for devices {', '.join(error_devices) }"
-        ]
+        )
+
+    if failed_devices:
+        errors.append(f"{', '.join(failed_devices) } failed differences.")
+
     return BaseResult(
         passed_devices=passed_devices,
         failed_devices=failed_devices,
@@ -276,9 +280,13 @@ def compute_inter_sensor_correlation(
     )
     errors = []
     if error_devices:
-        errors = [
-            f"Failed to compute inter sensor correlation  for devices {', '.join(error_devices) }"
-        ]
+        errors.append(
+            f"Failed to compute inter sensor correlation for devices {', '.join(error_devices) }"
+        )
+
+    if failed_devices:
+        errors.append(f"{', '.join(failed_devices) } failed inter sensor correlation.")
+
     return BaseResult(
         results=results,
         passed_devices=passed_devices,
@@ -356,9 +364,12 @@ def compute_intra_sensor_correlation(
 
     errors = []
     if error_devices:
-        errors = [
+        errors.append(
             f"Failed to compute intra sensor correlation  for devices {', '.join(error_devices) }"
-        ]
+        )
+
+    if failed_devices:
+        errors.append(f"{', '.join(failed_devices)} failed intra sensor correlation.")
 
     return IntraSensorCorrelationResult(
         results=correlation,
@@ -518,9 +529,12 @@ def compute_data_completeness(
 
     errors = []
     if error_devices:
-        errors = [
+        errors.append(
             f"Failed to compute data completeness for devices {', '.join(error_devices) }"
-        ]
+        )
+
+    if failed_devices:
+        errors.append(f"{', '.join(failed_devices) } failed data completeness.")
 
     return DataCompletenessResult(
         results=completeness,
