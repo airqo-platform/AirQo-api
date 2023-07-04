@@ -6,6 +6,7 @@ images:
     api: eu.gcr.io/airqo-250220/airqo-stage-prediction-api
     predictJob: eu.gcr.io/airqo-250220/stage-airqo-predict-job
     trainJob: eu.gcr.io/airqo-250220/stage-airqo-train-job
+    predictPlaces: eu.gcr.io/airqo-250220/stage-airqo-predict-places-air-quality
   tag: stage-fe759cbc-1688036255
 api:
   name: airqo-stage-prediction-api
@@ -33,6 +34,15 @@ jobs:
     name: stage-airqo-train-job
     configmap: env-train-job-staging
     schedule: 0 1 1 * *
+    suspend: true
+    resources:
+      limits:
+        cpu: 2500m
+        memory: 4000Mi
+  predictPlaces:
+    name: stage-airqo-predict-places-air-quality
+    configmap: env-predict-places-air-quality-staging
+    schedule: 30 * * * *
     suspend: true
     resources:
       limits:
