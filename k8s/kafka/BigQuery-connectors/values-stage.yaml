@@ -26,12 +26,6 @@ volumes:
       name: bigquery-connectors-files
 ingress:
   enabled: false      
-service:
-  type: NodePort
-  port: 8081
-  protocol: TCP
-  targetPort: 8081
-  nodePort: 31204
 autoscaling:
   minReplicas: 1
   maxReplicas: 3
