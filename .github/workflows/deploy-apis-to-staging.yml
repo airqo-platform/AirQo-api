@@ -640,6 +640,13 @@ jobs:
           target: staging
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-airqo-train-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-airqo-train-job:latest
 
+      - name: Build and push predict places image
+        uses: docker/build-push-action@v3
+        with:
+          push: true
+          context: src/predict/jobs/predict_places_air_quality
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-airqo-predict-places-air-quality:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-airqo-predict-places-air-quality:latest
+
       - name: Update corresponding helm values file(with retry)
         uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
@@ -651,24 +658,6 @@ jobs:
             branch: ${{ env.DEPLOY_BRANCH }}
             token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update predict staging image tag to ${{ needs.image-tag.outputs.build_id }}"
-
-      - name: Build and push predict places image
-        uses: docker/build-push-action@v3
-        with:
-          push: true
-          context: src/predict/jobs/predict_places_air_quality
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-airqo-predict-places-air-quality:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-airqo-predict-places-air-quality:latest
-
-      - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@master
-        with:
-          action: fjogeleit/yaml-update-action@main
-          with: |
-            valueFile: "k8s/predict/predict-places-air-quality/values-stage.yaml"
-            propertyPath: "image.tag"
-            value: ${{ needs.image-tag.outputs.build_id }}
-            branch: ${{ env.DEPLOY_BRANCH }}
-            message: "Update predict places air quality staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
       - name: Login to GCP
         uses: google-github-actions/auth@v1.1.1
@@ -691,17 +680,10 @@ jobs:
           kubectl create configmap --dry-run=client -o yaml --from-env-file=api.env env-predict-staging | kubectl replace -f - -n staging
           kubectl create configmap --dry-run=client -o yaml --from-env-file=predict_job.env env-predict-job-staging | kubectl replace -f - -n staging
           kubectl create configmap --dry-run=client -o yaml --from-env-file=train_job.env env-train-job-staging | kubectl replace -f - -n staging
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=predict_places_air_quality.env env-predict-places-air-quality-staging | kubectl replace -f - -n staging
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=predict_places_air_quality.env env-predict-places-air-quality | kubectl replace -f - -n staging
           echo "=============== Updating the respective credentials files ==============="
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json env-predict-staging-files | kubectl replace -f - -n staging
-<<<<<<< HEAD
-          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json predict-job-config-files | kubectl replace -f - -n staging
-          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json train-job-config-files | kubectl replace -f - -n staging
-          kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json predict-places-air-quality-config-files | kubectl replace -f - -n staging
-          
-=======
-
->>>>>>> 8b1417e95f08a7622394c770ab94c81799a66c44
+                              
   ### kafka cluster operator ###
   kafka-cluster-operator:
     name: build-push-deploy-kafka-cluster-operator
