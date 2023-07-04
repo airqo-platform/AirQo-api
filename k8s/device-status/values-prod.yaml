@@ -4,7 +4,7 @@ app:
   configmap: env-device-status-production
 image:
   repository: eu.gcr.io/airqo-250220/airqo-device-status-job
-  tag: prod-a13f9e16-1688458716
+  tag: prod-f6d97551-1688472494
 nameOverride: ''
 fullnameOverride: ''
 resources:
