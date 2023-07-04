@@ -88,7 +88,7 @@ def scale_data(df):
     # transform the inputs and targets
     scaled_inputs = input_scaler.transform(inputs)
     scaled_targets = target_scaler.transform(targets)
-
+    print("Data scaled")
     return scaled_inputs, scaled_targets, input_scaler, target_scaler
 
 
@@ -98,6 +98,7 @@ def create_dataset(X, y, time_steps=1):
         v = X[i:(i + time_steps), :]
         Xs.append(v)
         ys.append(y[i + time_steps])
+    print("Dataset created")
     return np.array(Xs), np.array(ys)
 
 
@@ -120,7 +121,9 @@ def split_data_by_date(df):
         # convert timestamp column to string
         train_data['timestamp'] = train_data['timestamp'].astype(str)
         test_data['timestamp'] = test_data['timestamp'].astype(str)
+    print("Data split by date")
     return train_data, test_data
+
 
 def preprocess_data(train_data, test_data):
     train_data = get_other_features(train_data)
@@ -129,10 +132,10 @@ def preprocess_data(train_data, test_data):
     fault_test_data = add_fault_columns(test_data, 25, 0, 350, 50)
     return fault_train_data, fault_test_data
 
-def create_model(train_data):
 
-    timesteps = X.shape[1]
-    features = X.shape[2]
+def create_lstm_model(X_train, y_train):
+    timesteps = X_train.shape[1]
+    features = X_train.shape[2]
 
     # create the model
     model = Sequential()
@@ -144,6 +147,8 @@ def create_model(train_data):
 
     # train the model
     history = model.fit(X_train, y_train, epochs=10, batch_size=32, validation_split=0.2)
+    loss, accuracy = model.evaluate(X_test, y_test)
+    return model, history, loss, accuracy
 
 
 if __name__ == '__main__':
@@ -155,6 +160,8 @@ if __name__ == '__main__':
     X_train, y_train = create_dataset(X_train, y_train, 10)
     X_test, y_test = create_dataset(X_test, y_test, 10)
 
-    model = build_and_train_model(X_train, y_train)
+    model, history, loss, accuracy = create_lstm_model(X_train, y_train)
+
     print(model)
+    # print()
     # y_pred = evaluate_and_predict_model(model, X_test, y_test, X_new)
