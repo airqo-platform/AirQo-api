@@ -11,6 +11,7 @@ import pymongo
 from bson import ObjectId
 from bson.errors import InvalidId
 from google.cloud import bigquery
+from bson import json_util
 
 from app import cache
 from config.constants import Config
@@ -324,11 +325,11 @@ class Collocation(BaseModel):
         for doc in docs:
             data.append({**doc, **{"_id": str(doc["_id"])}})
 
-        json_data = json.dumps(data, default=str)
+        bson_data = json_util.dumps(data)
         temp_dir = tempfile.gettempdir()
         file_path = os.path.join(temp_dir, "collocation_collection.json")
         with open(file_path, "w") as file:
-            file.write(json_data)
+            file.write(bson_data)
 
         return file_path
 

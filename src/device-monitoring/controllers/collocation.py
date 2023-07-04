@@ -51,7 +51,7 @@ def batch_error_exception(error):
 
 
 @collocation_bp.route("export-collection", methods=["GET"])
-def log_collocation_data():
+def export_collocation_data():
     collocation = Collocation()
     file_path = collocation.export_collection()
     return send_file(file_path, as_attachment=True)
