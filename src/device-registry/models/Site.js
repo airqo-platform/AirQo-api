@@ -298,19 +298,7 @@ const siteSchema = new Schema(
   }
 );
 
-siteSchema.post("save", async function(doc) {
-  doc.site_codes = [doc._id, doc.name, doc.generated_name, doc.lat_long];
-  if (doc.search_name) {
-    doc.site_codes.push(doc.search_name);
-  }
-  if (doc.location_name) {
-    doc.site_codes.push(doc.location_name);
-  }
-  if (doc.formatted_name) {
-    doc.site_codes.push(doc.formatted_name);
-  }
-  logObject("site_codes populated successfully:", doc);
-});
+siteSchema.post("save", async function(doc) {});
 
 siteSchema.pre("save", function(next) {
   if (this.isModified("latitude")) {
@@ -325,6 +313,18 @@ siteSchema.pre("save", function(next) {
   if (this.isModified("generated_name")) {
     delete this.generated_name;
   }
+
+  this.site_codes = [this._id, this.name, this.generated_name, this.lat_long];
+  if (this.search_name) {
+    this.site_codes.push(this.search_name);
+  }
+  if (this.location_name) {
+    this.site_codes.push(this.location_name);
+  }
+  if (this.formatted_name) {
+    this.site_codes.push(this.formatted_name);
+  }
+
   return next();
 });
 

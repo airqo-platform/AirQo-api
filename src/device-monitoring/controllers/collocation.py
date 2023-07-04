@@ -3,16 +3,14 @@ import logging
 import re
 import uuid
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, send_file
 
 import routes
 from config.constants import CollocationDefaults
 from helpers.collocation import Collocation
-from helpers.collocation_utils import (
-    validate_collocation_request,
-)
 from helpers.convert_dates import str_to_date
-from helpers.exceptions import CollocationBatchNotFound
+from helpers.exceptions import CollocationBatchNotFound, CollocationError
+from helpers.request_validators import validate_request_json
 from helpers.utils import decode_user_token
 from models import (
     CollocationBatch,
@@ -31,7 +29,7 @@ collocation_bp = Blueprint(
 def check_batch_id():
     if request.method == "GET" or request.method == "DELETE":
         if re.match("/api/v2/monitor/collocation/summary", request.path) or re.match(
-            "/api/v2/monitor/collocation/log-data", request.path
+            "/api/v2/monitor/collocation/export-collection", request.path
         ):
             return None
         batch_id = request.args.get("batchId")
@@ -47,35 +45,44 @@ def batch_not_found_exception(error):
     return jsonify({"message": error.message}), 404
 
 
-@collocation_bp.route("log-data", methods=["GET"])
+@collocation_bp.errorhandler(CollocationError)
+def batch_error_exception(error):
+    return jsonify({"message": error.message}), 400
+
+
+@collocation_bp.route("export-collection", methods=["GET"])
 def log_collocation_data():
     collocation = Collocation()
-    collocation.log_collection()
-    return (
-        jsonify({}),
-        200,
-    )
+    file_path = collocation.export_collection()
+    return send_file(file_path, as_attachment=True)
 
 
 @collocation_bp.route("", methods=["POST"])
+@validate_request_json(
+    "startDate|required:date",
+    "endDate|required:date",
+    "devices|required:list",
+    "batchName|optional:str",
+    "baseDevice|optional:str",
+    "dataCompletenessThreshold|optional:float",
+    "intraCorrelationThreshold|optional:float",
+    "interCorrelationThreshold|optional:float",
+    "intraCorrelationR2Threshold|optional:float",
+    "interCorrelationR2Threshold|optional:float",
+    "differencesThreshold|optional:float",
+    "interCorrelationParameter|optional:str",
+    "intraCorrelationParameter|optional:str",
+    "dataCompletenessParameter|optional:str",
+    "differencesParameter|optional:str",
+    "interCorrelationAdditionalParameters|optional:list",
+)
 def save_collocation_batch():
-    token = request.headers.get("Authorization", "")
     json_data = request.get_json()
     devices = json_data.get("devices", [])
     base_device = json_data.get("baseDevice", None)
-    start_date = json_data.get("startDate", None)
-    end_date = json_data.get("endDate", None)
-
-    if start_date is None or end_date is None:
-        return (
-            jsonify(
-                {
-                    "message": "Some errors occurred while processing this request",
-                    "errors": "startDate and endDate are missing",
-                }
-            ),
-            400,
-        )
+    start_date = str_to_date(json_data.get("startDate"), str_format="%Y-%m-%d")
+    end_date = str_to_date(json_data.get("endDate"), str_format="%Y-%m-%d")
+    user_details = decode_user_token(request.headers.get("Authorization", ""))
 
     expected_records_per_hour = json_data.get(
         "expectedRecordsPerHour", CollocationDefaults.ExpectedRecordsPerHour
@@ -125,27 +132,6 @@ def save_collocation_batch():
         CollocationDefaults.InterCorrelationAdditionalParameters,
     )
 
-    errors = validate_collocation_request(
-        start_date=start_date,
-        end_date=end_date,
-        devices=devices,
-    )
-
-    if errors:
-        return (
-            jsonify(
-                {
-                    "message": "Some errors occurred while processing this request",
-                    "errors": errors,
-                }
-            ),
-            400,
-        )
-
-    user_details = decode_user_token(token)
-    start_date = str_to_date(start_date, str_format="%Y-%m-%d")
-    end_date = str_to_date(end_date, str_format="%Y-%m-%d")
-
     batch = CollocationBatch(
         batch_id="",
         batch_name=batch_name,
@@ -169,19 +155,16 @@ def save_collocation_batch():
         created_by=user_details,
         status=CollocationBatchStatus.SCHEDULED,
         results=CollocationBatchResult.empty_results(),
-        summary=[],
         errors=[],
     )
 
-    batch.update_status()
-    if batch == CollocationBatchStatus.COMPLETED:
-        batch.status = CollocationBatchStatus.OVERDUE
-
+    batch.set_status()
+    batch.validate()
     collocation = Collocation()
     batch = collocation.save_batch(batch)
 
     return (
-        jsonify({"message": "success", "data": batch.to_dict(retain_batch_id=True)}),
+        jsonify({"message": "success", "data": batch.to_api_output()}),
         200,
     )
 
@@ -198,9 +181,22 @@ def delete_collocation_batch():
     )
 
     if batch is None:
-        return jsonify({"message": "Successful"}), 404
+        return jsonify({"message": "Successful"}), 204
     return (
-        jsonify({"message": "Successful", "data": batch.to_dict(retain_batch_id=True)}),
+        jsonify({"message": "Successful", "data": batch.to_api_output()}),
+        200,
+    )
+
+
+@collocation_bp.route("/reset", methods=["PATCH"])
+def reset_collocation_batch():
+    batch_id = request.args.get("batchId")
+    collocation = Collocation()
+    batch: CollocationBatch = collocation.get_batch(batch_id=batch_id)
+    batch = collocation.reset_batch(batch)
+
+    return (
+        jsonify({"message": "Successful", "data": batch.to_api_output()}),
         200,
     )
 
@@ -214,7 +210,7 @@ def get_collocation_batch():
     if batch is None:
         return jsonify({"message": "Successful"}), 404
     return (
-        jsonify({"message": "Successful", "data": batch.to_dict(retain_batch_id=True)}),
+        jsonify({"message": "Successful", "data": batch.to_api_output()}),
         200,
     )
 
