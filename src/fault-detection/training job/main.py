@@ -124,6 +124,31 @@ def split_data_by_date(df):
     return train_data, test_data
 
 
+def upload_trained_model_to_gcs(trained_model, scaler, project_name, bucket_name, source_blob_name, gcsfs=None):
+    fs = gcsfs.GCSFileSystem(project=project_name)
+
+    # Backup previous model and scaler
+    try:
+        # Backup model
+        fs.rename(f'{bucket_name}/{source_blob_name}', f'{bucket_name}/{datetime.now()}-{source_blob_name}')
+        print("Bucket: Previous model is backed up")
+
+        # Backup scaler
+        fs.rename(f'{bucket_name}/scaler.pkl', f'{bucket_name}/{datetime.now()}-scaler.pkl')
+        print("Bucket: Previous scaler is backed up")
+    except:
+        print("Bucket: No file to update")
+
+    # Store new model and scaler
+    with fs.open(bucket_name + '/' + source_blob_name, 'wb') as model_handle:
+        joblib.dump(trained_model, model_handle)
+
+    with fs.open(bucket_name + '/scaler.pkl', 'wb') as scaler_handle:
+        joblib.dump(scaler, scaler_handle)
+
+    print("Trained model and scaler are uploaded to GCS bucket")
+
+
 def preprocess_data(train_data, test_data):
     train_data_1 = get_other_features(train_data)
     test_data_1 = get_other_features(test_data)
@@ -164,6 +189,7 @@ if __name__ == '__main__':
 
     model, history, loss, f1_score = create_lstm_model(X_train.astype('float32'), y_train.astype('float32'), X_test.astype('float32'), y_test.astype('float32'))
 
-    print(model)
+    #save model  ans scaler to GCS
+    upload_trained_model_to_gcs(model, input_scaler, 'iot-predictive-maintenance', 'iot-predictive-maintenance', 'lstm_model.h5')
     # print()
     # y_pred = evaluate_and_predict_model(model, X_test, y_test, X_new)
