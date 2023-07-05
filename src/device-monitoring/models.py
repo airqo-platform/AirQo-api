@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Union
 
+import numpy as np
 import pandas as pd
 from google.cloud import bigquery
 from pymongo import DESCENDING
@@ -195,6 +196,7 @@ class DeviceBattery:
             formatted_data["voltage"] = formatted_data["voltage"].apply(float)
             formatted_data["voltage"] = formatted_data["voltage"].round(rounding)
 
+        formatted_data.replace(np.nan, None, inplace=True)
         formatted_data["timestamp"] = formatted_data["timestamp"].apply(date_to_str)
 
         return formatted_data.to_dict("records")
