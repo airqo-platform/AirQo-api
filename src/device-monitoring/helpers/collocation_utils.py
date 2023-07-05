@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
 
-from helpers.convert_dates import format_date, validate_date
+from helpers.convert_dates import format_date
 from models import (
     DataCompleteness,
     IntraSensorCorrelation,
@@ -32,44 +32,6 @@ def dates_array(start_date_time: datetime, end_date_time: datetime) -> list[date
         dates.append(varying_date)
         varying_date = varying_date + timedelta(hours=1)
     return list(set(dates))
-
-
-def validate_collocation_request(
-    devices,
-    start_date,
-    end_date,
-) -> dict:
-    errors = {}
-    try:
-        if not devices or not isinstance(
-            devices, list
-        ):  # TODO add device restrictions e.g not more that 3 devices
-            raise Exception
-    except Exception:
-        errors["devices"] = "Provide a list of devices"
-
-    try:
-        start_date = validate_date(start_date)
-    except Exception:
-        errors["startDate"] = (
-            "This query param is required."
-            "Please provide a valid date formatted datetime string (%Y-%m-%d)"
-        )
-
-    try:
-        end_date = validate_date(end_date)
-    except Exception:
-        errors["endDate"] = (
-            "This query param is required."
-            "Please provide a valid date formatted datetime string (%Y-%m-%d)"
-        )
-
-    if (
-        start_date > end_date
-    ):  # TODO add interval restrictions e.g not more that 10 days
-        errors["dates"] = "endDate must be greater or equal to the startDate"
-
-    return errors
 
 
 def device_pairs(devices: list[str]) -> list[list[str]]:
@@ -154,9 +116,13 @@ def compute_differences(
     )
     errors = []
     if error_devices:
-        errors = [
+        errors.append(
             f"Failed to compute differences for devices {', '.join(error_devices) }"
-        ]
+        )
+
+    if failed_devices:
+        errors.append(f"{', '.join(failed_devices) } failed differences.")
+
     return BaseResult(
         passed_devices=passed_devices,
         failed_devices=failed_devices,
@@ -193,7 +159,7 @@ def compute_devices_inter_sensor_correlation(
     )
     device_pair_data = device_pair_data.select_dtypes(include="number")
 
-    device_pair_correlation = {}
+    device_pair_correlation: dict = dict()
 
     for col in correlation_cols:
         try:
@@ -314,9 +280,13 @@ def compute_inter_sensor_correlation(
     )
     errors = []
     if error_devices:
-        errors = [
-            f"Failed to compute inter sensor correlation  for devices {', '.join(error_devices) }"
-        ]
+        errors.append(
+            f"Failed to compute inter sensor correlation for devices {', '.join(error_devices) }"
+        )
+
+    if failed_devices:
+        errors.append(f"{', '.join(failed_devices) } failed inter sensor correlation.")
+
     return BaseResult(
         results=results,
         passed_devices=passed_devices,
@@ -394,9 +364,12 @@ def compute_intra_sensor_correlation(
 
     errors = []
     if error_devices:
-        errors = [
+        errors.append(
             f"Failed to compute intra sensor correlation  for devices {', '.join(error_devices) }"
-        ]
+        )
+
+    if failed_devices:
+        errors.append(f"{', '.join(failed_devices)} failed intra sensor correlation.")
 
     return IntraSensorCorrelationResult(
         results=correlation,
@@ -527,61 +500,25 @@ def compute_data_completeness(
     completeness: list[DataCompleteness] = []
 
     for device in devices:
-        device_data = data.get(device, pd.DataFrame())
-        device_data.dropna(subset=[parameter], inplace=True)
-        device_completeness = len(device_data.index) / expected_records
-        device_completeness = 1 if device_completeness > 1 else device_completeness
+        try:
+            device_data = data.get(device, pd.DataFrame())
+            device_data.dropna(subset=[parameter], inplace=True)
+            device_completeness = len(device_data.index) / expected_records
+            device_completeness = 1 if device_completeness > 1 else device_completeness
 
-        completeness.append(
-            DataCompleteness(
-                device_name=device,
-                actual=len(device_data.index),
-                expected=expected_records,
-                completeness=device_completeness,
-                missing=1 - device_completeness,
-                passed=device_completeness >= threshold,
+            completeness.append(
+                DataCompleteness(
+                    device_name=device,
+                    actual=len(device_data.index),
+                    expected=expected_records,
+                    completeness=device_completeness,
+                    missing=1 - device_completeness,
+                    passed=device_completeness >= threshold,
+                )
             )
-        )
+        except Exception as ex:
+            print(f"Data completeness computation error: {ex}")
 
-        # if len(device_data.index) == 0:
-        #     completeness.append(
-        #         DataCompleteness(
-        #             device_name=device,
-        #             actual=len(device_data.index),
-        #             expected=expected_records,
-        #             completeness=0,
-        #             missing=1,
-        #             passed=False,
-        #         )
-        #     )
-        #     continue
-        # device_data["timestamp"] = device_data["timestamp"].apply(
-        #     lambda x: format_date(x, str_format="%Y-%m-%dT%H:00:00.000Z")
-        # )
-        # device_data.dropna(subset=[parameter], inplace=True)
-
-        # device_hourly_list = []
-        # for hour in dates:
-        #
-        #     hourly_data = device_data[device_data["timestamp"] == hour]
-        #     hourly_completeness = (
-        #         hourly_data[parameter].count() / expected_records
-        #     )
-        #     hourly_completeness = 1 if hourly_completeness > 1 else hourly_completeness
-        #     device_hourly_list.append(hourly_completeness)
-        #
-        # device_completeness = sum(device_hourly_list) / len(device_hourly_list)
-
-        # completeness.append(
-        #     DataCompleteness(
-        #         device_name=device,
-        #         actual=len(device_data.index),
-        #         expected=expected_records,
-        #         completeness=device_completeness,
-        #         missing=1 - device_completeness,
-        #         passed=bool(device_completeness >= expected_records),
-        #     )
-        # )
     passed_devices = list(filter(lambda x: x.passed is True, completeness))
     passed_devices = [x.device_name for x in passed_devices]
     failed_devices = list(filter(lambda x: x.passed is False, completeness))
@@ -592,9 +529,12 @@ def compute_data_completeness(
 
     errors = []
     if error_devices:
-        errors = [
+        errors.append(
             f"Failed to compute data completeness for devices {', '.join(error_devices) }"
-        ]
+        )
+
+    if failed_devices:
+        errors.append(f"{', '.join(failed_devices) } failed data completeness.")
 
     return DataCompletenessResult(
         results=completeness,

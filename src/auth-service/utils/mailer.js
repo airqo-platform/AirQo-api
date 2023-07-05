@@ -5,8 +5,7 @@ const constants = require("@config/constants");
 const msgs = require("./email.msgs");
 const msgTemplates = require("./email.templates");
 const httpStatus = require("http-status");
-const path = require('path');
-
+const path = require("path");
 
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- mailer-service`);
@@ -26,7 +25,7 @@ const mailer = {
           address: constants.EMAIL,
         },
         to: `${email}`,
-        subject: "AirQo Platform JOIN request",
+        subject: "AirQo Analytics JOIN request",
         text: msgs.joinRequest(firstName, lastName),
         bcc,
       };
@@ -166,7 +165,7 @@ const mailer = {
             address: constants.EMAIL,
           },
           to: `${email}`,
-          subject: "Welcome to the AirQo Platform",
+          subject: "Welcome to AirQo Analytics",
           text: `${msgs.welcome_general(firstName, lastName, password, email)}`,
           bcc,
         };
@@ -215,19 +214,24 @@ const mailer = {
           address: constants.EMAIL,
         },
         to: `${email}`,
-        subject: "Verify your AirQo Platform account",
-        html: msgTemplates.v2_emailVerification(email,firstName, user_id, token),
+        subject: "Verify your AirQo Analytics account",
+        html: msgTemplates.v2_emailVerification(
+          email,
+          firstName,
+          user_id,
+          token
+        ),
         bcc,
         attachments: [
           {
             filename: "airqoLogo.png",
-            path:  imagePath + "/airqoLogo.png",
+            path: imagePath + "/airqoLogo.png",
             cid: "AirQoEmailLogo",
             contentDisposition: "inline",
           },
           {
             filename: "faceBookLogo.png",
-             path:  imagePath + "/facebookLogo.png",
+            path: imagePath + "/facebookLogo.png",
             cid: "FacebookLogo",
             contentDisposition: "inline",
           },
@@ -377,17 +381,17 @@ const mailer = {
         },
         to: `${email}`,
         subject: "Verify your email address!",
-        html: msgs.join_by_email(email,token),
+        html: msgs.join_by_email(email, token),
         attachments: [
           {
             filename: "airqoLogo.png",
-            path:  imagePath + "/airqoLogo.png",
+            path: imagePath + "/airqoLogo.png",
             cid: "AirQoEmailLogo",
             contentDisposition: "inline",
           },
           {
             filename: "faceBookLogo.png",
-             path:  imagePath + "/facebookLogo.png",
+            path: imagePath + "/facebookLogo.png",
             cid: "FacebookLogo",
             contentDisposition: "inline",
           },
@@ -475,7 +479,7 @@ const mailer = {
       };
     }
   },
-  update: async (email, firstName, lastName) => {
+  update: async (email, firstName, lastName, updatedUserDetails) => {
     try {
       const mailOptions = {
         from: {
@@ -483,8 +487,8 @@ const mailer = {
           address: constants.EMAIL,
         },
         to: `${email}`,
-        subject: "AirQo Platform account updated",
-        text: `${msgs.user_updated(firstName, lastName)}`,
+        subject: "AirQo Analytics account updated",
+        text: `${msgs.user_updated(firstName, lastName, updatedUserDetails)}`,
       };
       let response = transporter.sendMail(mailOptions);
       let data = await response;
@@ -514,7 +518,84 @@ const mailer = {
       };
     }
   },
+  updateForgottenPassword: async (email, firstName, lastName) => {
+    try {
+      const mailOptions = {
+        from: {
+          name: constants.EMAIL_NAME,
+          address: constants.EMAIL,
+        },
+        to: `${email}`,
+        subject: "AirQo Analytics Password Reset Successful",
+        text: `${msgs.forgotten_password_updated(firstName, lastName)}`,
+      };
+      let response = transporter.sendMail(mailOptions);
+      let data = await response;
 
+      if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
+        return {
+          success: true,
+          message: "email successfully sent",
+          data,
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: false,
+          message: "Internal Server Error",
+          errors: { message: data },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        error: error.message,
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  updateKnownPassword: async (email, firstName, lastName) => {
+    try {
+      const mailOptions = {
+        from: {
+          name: constants.EMAIL_NAME,
+          address: constants.EMAIL,
+        },
+        to: `${email}`,
+        subject: "AirQo Analytics Password Update Successful",
+        text: `${msgs.known_password_updated(firstName, lastName)}`,
+      };
+      let response = transporter.sendMail(mailOptions);
+      let data = await response;
+
+      if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
+        return {
+          success: true,
+          message: "email successfully sent",
+          data,
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: false,
+          message: "Internal Server Error",
+          errors: { message: data },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        error: error.message,
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
   newMobileAppUser: async ({ email, message, subject } = {}) => {
     try {
       logObject("the values to send to email function", {

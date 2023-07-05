@@ -131,15 +131,47 @@ const run = async() => {
                         logObject("error.details[0].message", error.details[0].message)
                         logObject("error.details[0]", error.details[0])
                         logObject("error.details", error.details)
-                        logger.error(
-                            `KAFKA: ALL the input validation errors --- ${JSON.stringify(error.details)}`
-                        );
+                        const errorDetails = error.details.map(detail => {
+                            const event = detail.context.value;
+                            logObject("KAFKA: the event causing the error", event)
+                            const {
+                                device_number,
+                                device_id,
+                                timestamp,
+                                site_id,
+                                battery,
+                                network,
+                                device_latitude,
+                                device_longitude,
+                                site_latitude,
+                                site_longitude,
+                            } = value[detail.path[0]];
+                            return {
+                                message: detail.message,
+                                key: detail.context.key,
+                                value: detail.context.value,
+                                path: detail.path,
+                                device_number: device_number ? device_number : undefined,
+                                device_id: device_id ? device_id : undefined,
+                                timestamp: timestamp ? timestamp : undefined,
+                                site_id: site_id ? site_id : undefined,
+                                battery: battery ? battery : undefined,
+                                network: network ? network : undefined,
+                                device_latitude: device_latitude ? device_latitude : undefined,
+                                device_longitude: device_longitude ? device_longitude : undefined,
+                                site_latitude: site_latitude ? site_latitude : undefined,
+                                site_longitude: site_longitude ? site_longitude : undefined,
+                            };
+                        });
+                        logger.error(`KAFKA: Input validation formatted errors -- ${JSON.stringify(errorDetails)}`);
 
-                        logger.info(
-                            `KAFKA: the VALUE for ALL the shared input validation errors --- ${JSON.stringify(value)}`
-                        );
+                        // logger.error(
+                        //     `KAFKA: ALL the input validation errors --- ${JSON.stringify(error.details)}`
+                        // );
 
-
+                        // logger.info(
+                        //     `KAFKA: the VALUE for ALL the shared input validation errors --- ${JSON.stringify(value)}`
+                        // );
                     } else {
                         logObject("value", value)
                         logObject("cleanedMeasurements", cleanedMeasurements)
