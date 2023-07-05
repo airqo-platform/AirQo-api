@@ -4,9 +4,7 @@ from google.oauth2 import service_account
 from config import configuration
 from sklearn.preprocessing import MinMaxScaler
 from keras.models import Sequential
-import keras.backend as K
 from keras.layers import LSTM, Dense, Dropout
-# import gcsfs
 from datetime import datetime
 import joblib
 
@@ -187,10 +185,10 @@ if __name__ == '__main__':
     X_train, y_train = create_dataset(X_train, y_train,7)
     X_test, y_test = create_dataset(X_test, y_test, 7)
 
-    model, history, loss, f1_score = create_lstm_model(X_train.astype('float32'), y_train.astype('float32'), X_test.astype('float32'), y_test.astype('float32'))
+    model, history, loss, accuracy = create_lstm_model(X_train.astype('float32'), y_train.astype('float32'), X_test.astype('float32'), y_test.astype('float32'))
 
     #save model  ans scaler to GCS
-    upload_trained_model_to_gcs(model, input_scaler, configuration.GOOGLE_CLOUD_PROJECT_ID, 'iot-predictive-maintenance', 'lstm_model.h5')
+    upload_trained_model_to_gcs(model, input_scaler, configuration.GOOGLE_CLOUD_PROJECT_ID, configuration.AIRQO_FAULT_DETECTION_BUCKET, 'lstm_model.h5')
 
     # print()
     # y_pred = evaluate_and_predict_model(model, X_test, y_test, X_new)
