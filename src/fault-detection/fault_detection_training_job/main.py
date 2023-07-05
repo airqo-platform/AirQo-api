@@ -6,6 +6,7 @@ from sklearn.preprocessing import MinMaxScaler
 from keras.models import Sequential
 from keras.layers import LSTM, Dense, Dropout
 from datetime import datetime
+import gcsfs
 import joblib
 
 
@@ -28,6 +29,7 @@ def fetch_bigquery_data():
     df['device_number'] = df['device_number'].astype(int)
     print('data fetched from bigquery')
     return df
+
 
 def add_fault_columns(df, offset_threshold, min_value, max_value, highvar_threshold):
     """
@@ -122,7 +124,7 @@ def split_data_by_date(df):
     return train_data, test_data
 
 
-def upload_trained_model_to_gcs(trained_model, scaler, project_name, bucket_name, source_blob_name, gcsfs=None):
+def upload_trained_model_to_gcs(trained_model, scaler, project_name, bucket_name, source_blob_name):
     fs = gcsfs.GCSFileSystem(project=project_name)
 
     # Backup previous model and scaler
@@ -182,13 +184,15 @@ if __name__ == '__main__':
     fault_train_data, fault_test_data = preprocess_data(train_data, test_data)
     X_train, y_train, input_scaler = scale_data(fault_train_data)
     X_test, y_test, _ = scale_data(fault_test_data)
-    X_train, y_train = create_dataset(X_train, y_train,7)
+    X_train, y_train = create_dataset(X_train, y_train, 7)
     X_test, y_test = create_dataset(X_test, y_test, 7)
 
-    model, history, loss, accuracy = create_lstm_model(X_train.astype('float32'), y_train.astype('float32'), X_test.astype('float32'), y_test.astype('float32'))
+    model, history, loss, accuracy = create_lstm_model(X_train.astype('float32'), y_train.astype('float32'),
+                                                       X_test.astype('float32'), y_test.astype('float32'))
 
-    #save model  ans scaler to GCS
-    upload_trained_model_to_gcs(model, input_scaler, configuration.GOOGLE_CLOUD_PROJECT_ID, configuration.AIRQO_FAULT_DETECTION_BUCKET, 'lstm_model.h5')
+    # save model  ans scaler to GCS
+    upload_trained_model_to_gcs(model, input_scaler, configuration.GOOGLE_CLOUD_PROJECT_ID,
+                                configuration.AIRQO_FAULT_DETECTION_BUCKET, 'lstm_model.h5')
 
     # print()
     # y_pred = evaluate_and_predict_model(model, X_test, y_test, X_new)
