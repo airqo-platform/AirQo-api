@@ -1,5 +1,4 @@
 import copy
-import json
 import os
 import tempfile
 import traceback
@@ -38,6 +37,7 @@ from models import (
     IntraSensorCorrelation,
     BaseResult,
     BaseModel,
+    DeviceStatusSummary,
 )
 
 
@@ -470,6 +470,9 @@ class Collocation(BaseModel):
         summary: list[CollocationSummary] = []
         for batch in batches:
             created_by = f"{batch.created_by.get('first_name', '')} {batch.created_by.get('last_name', '')}"
+            devices_status_summary: dict[
+                str, list[DeviceStatusSummary]
+            ] = batch.get_devices_status_summary()
             summary.extend(
                 CollocationSummary(
                     batch_id=batch.batch_id,
@@ -481,6 +484,7 @@ class Collocation(BaseModel):
                     date_added=batch.date_created,
                     batch_name=batch.batch_name,
                     errors=batch.results.errors,
+                    status_summary=devices_status_summary.get(result_summary.device),
                 )
                 for result_summary in batch.get_summary()
             )

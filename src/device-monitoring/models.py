@@ -331,6 +331,15 @@ class CollocationBatchResult:
 
 
 @dataclass
+class DeviceStatusSummary:
+    title: str
+    description: str
+    status: str
+    action: str
+    extra_message: str
+
+
+@dataclass
 class CollocationBatch:
     batch_id: str
     batch_name: str
@@ -502,6 +511,100 @@ class CollocationBatch:
         else:
             self.status = CollocationBatchStatus.RUNNING
 
+    def get_devices_status_summary(self) -> dict[str, list[DeviceStatusSummary]]:
+        status_summary: dict[str, list[DeviceStatusSummary]] = {}
+
+        for device in self.devices:
+            status_summary[device] = []
+
+        for device_result in self.results.data_completeness.results:
+            status_summary[device_result.device_name].append(
+                DeviceStatusSummary(
+                    title=f"Data completeness was {device_result.completeness * 100}%",
+                    description=f"Data completeness was set to {self.data_completeness_threshold} records per hour. "
+                    f"Totalling to {device_result.expected} hourly records for the entire collocation period."
+                    f"Device sent {device_result.actual} hourly records.",
+                    status="PASSED" if device_result.passed else "FAILED",
+                    action="All good"
+                    if device_result.passed
+                    else "Adjust completeness threshold",
+                    extra_message="Meets recommended data completeness"
+                    if device_result.passed
+                    else "Doesn’t meet recommended completeness",
+                )
+            )
+
+        for device_result in self.results.intra_sensor_correlation.results:
+            status_summary[device_result.device_name].append(
+                DeviceStatusSummary(
+                    title=f"PM2.5 pearson correlation was {device_result.pm2_5_pearson}",
+                    description=f"Acceptable device sensor correlation were set to ≥ {self.intra_correlation_threshold} and R2 ≥ {self.intra_correlation_r2_threshold}",
+                    status="PASSED" if device_result.passed else "FAILED",
+                    action="All good"
+                    if device_result.passed
+                    else "Adjust Correlation threshold",
+                    extra_message="Meets recommended sensor correlation"
+                    if device_result.passed
+                    else "Doesn’t meet recommended sensor correlation",
+                )
+            )
+
+        for device in self.results.inter_sensor_correlation.passed_devices:
+            status_summary[device].append(
+                DeviceStatusSummary(
+                    title=f"Passed device to device correlation",
+                    description=f"Acceptable device sensor correlation were set to ≥ {self.inter_correlation_threshold} and R2 ≥ {self.inter_correlation_r2_threshold}",
+                    status="PASSED",
+                    action="All good",
+                    extra_message="Meets recommended device to device correlation",
+                )
+            )
+
+        for device in self.results.differences.passed_devices:
+            status_summary[device].append(
+                DeviceStatusSummary(
+                    title=f"Passed device differences",
+                    description=f"Acceptable device differences was set to ≥ {self.differences_threshold}",
+                    status="PASSED",
+                    action="All good",
+                    extra_message="Meets recommended differences checks",
+                )
+            )
+
+        failed_inter_sensor_correlation = set(
+            self.results.inter_sensor_correlation.failed_devices
+        )
+        failed_inter_sensor_correlation.update(
+            set(self.results.inter_sensor_correlation.error_devices)
+        )
+
+        failed_differences = set(self.results.differences.failed_devices)
+        failed_differences.update(set(self.results.differences.error_devices))
+
+        for device in failed_inter_sensor_correlation:
+            status_summary[device].append(
+                DeviceStatusSummary(
+                    title=f"Failed device to device correlation",
+                    description=f"Acceptable device sensor correlation were set to ≥ {self.inter_correlation_threshold} and R2 ≥ {self.inter_correlation_r2_threshold}",
+                    status="FAILED",
+                    action="Adjust Correlation threshold",
+                    extra_message="Doesn’t meet recommended device to device correlation",
+                )
+            )
+
+        for device in failed_differences:
+            status_summary[device].append(
+                DeviceStatusSummary(
+                    title=f"Failed device differences",
+                    description=f"Acceptable device differences was set to ≥ {self.differences_threshold}",
+                    status="PASSED",
+                    action="Adjust differences threshold",
+                    extra_message="Doesn’t meet recommended differences checks",
+                )
+            )
+
+        return status_summary
+
 
 @dataclass
 class IntraSensorData:
@@ -527,7 +630,5 @@ class CollocationSummary:
     end_date: datetime
     status: str
     date_added: datetime
-    errors: list[str]
-
-    def to_dict(self):
-        return asdict(self)
+    errors: list[str]  # deprecated
+    status_summary: list[DeviceStatusSummary]

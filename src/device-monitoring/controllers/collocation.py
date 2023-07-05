@@ -219,7 +219,7 @@ def get_collocation_batch():
 def collocation_summary():
     collocation = Collocation()
     summary = collocation.summary()
-    return jsonify({"data": list(map(lambda x: x.to_dict(), summary))}), 200
+    return jsonify({"data": list(map(lambda x: x, summary))}), 200
 
 
 @collocation_bp.route("/data", methods=["GET"])
