@@ -16,8 +16,9 @@
         "test": "mocha ./**/test/ut_*.js --exit",
         "test-models": "mocha ./models/test/ut_site.js --exit",
         "test-controllers": "mocha ./controllers/test/ut_create-site.js --exit",
-        "test-utils": "node ./utils/test/generate-tests.js | xargs -0 -I {} sh -c {}",
-        "test-utils-2": "mocha ./utils/test/ut_create-site.js --exit"
+        "test-utils": "mocha ./utils/test/ut_$FILE --exit",
+        "test-utils-all": "mocha ./utils/test/ut_*.js --exit",
+        "test-utils-sep": "node ./utils/test/generate-tests.js | xargs -0 -I {} sh -c {}"
     },
     "_moduleAliases": {
         "@root": ".",
