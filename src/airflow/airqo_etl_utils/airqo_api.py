@@ -225,7 +225,7 @@ class AirQoApi:
                     method="get",
                 )
 
-                meta_data[key] = response["data"]
+                meta_data[key] = float(response["data"])
             except Exception as ex:
                 print(ex)
 
