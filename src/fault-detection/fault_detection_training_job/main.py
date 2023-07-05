@@ -190,6 +190,7 @@ if __name__ == '__main__':
     model, history, loss, f1_score = create_lstm_model(X_train.astype('float32'), y_train.astype('float32'), X_test.astype('float32'), y_test.astype('float32'))
 
     #save model  ans scaler to GCS
-    upload_trained_model_to_gcs(model, input_scaler, 'iot-predictive-maintenance', 'iot-predictive-maintenance', 'lstm_model.h5')
+    upload_trained_model_to_gcs(model, input_scaler, configuration.GOOGLE_CLOUD_PROJECT_ID, 'iot-predictive-maintenance', 'lstm_model.h5')
+
     # print()
     # y_pred = evaluate_and_predict_model(model, X_test, y_test, X_new)
