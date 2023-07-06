@@ -62,16 +62,6 @@ class AirNowApi:
             handle_api_error(api_request)
             return None
 
-    def get_tenants(self) -> List[dict]:
-        # TODO: Create endpoint to return networks
-        return [
-            {
-                "network": str(Tenant.US_EMBASSY),
-                "data_source": str(DataSource.AIRNOW),
-                "api_key": self.US_EMBASSY_API_KEY,
-            }
-        ]
-
 
 def handle_api_error(api_request):
     try:

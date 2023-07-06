@@ -297,6 +297,25 @@ class AirQoApi:
             params = {"tenant": str(Tenant.AIRQO), "id": site.pop("site_id")}
             response = self.__request("devices/sites", params, site, "put")
             print(response)
+    
+    def get_tenants(
+        self, data_source
+    ) -> list[dict]:
+        response = self.__request("users/networks")
+
+        return [
+            {
+                **network,
+                **{
+                    "network_id": network.get("_id", None),
+                    "network": network.get("net_name", None),
+                    "data_source": network.get("net_data_source", None),
+                    "api_key": network.get("net_api_key", None),
+                },
+            }
+            for network in response.get("networks", [])
+            if network.get("net_data_source") == data_source
+        ]
 
     def __request(
         self, endpoint, params=None, body=None, method=None, version="v1", base_url=None
