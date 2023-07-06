@@ -93,7 +93,6 @@ def get_new_row(df_tmp, device, model):
 
 
 def append_health_tips(pm2_5, health_tips):
-    tips = []
     if health_tips is None:
         return []
     return list(filter(lambda tip: tip['aqi_category']['min'] <= pm2_5 <= tip['aqi_category']['max'], health_tips))
@@ -116,7 +115,6 @@ def get_next_1week_forecasts(target_column, model):
             new_row = get_new_row(test_copy, device, model)
             test_copy = pd.concat([test_copy, new_row.to_frame().T], ignore_index=True)
         next_1_week_forecasts = pd.concat([next_1_week_forecasts, test_copy], ignore_index=True)
-
     next_1_week_forecasts['device_number'] = next_1_week_forecasts['device_number'].astype(int)
     next_1_week_forecasts['pm2_5'] = next_1_week_forecasts['pm2_5'].astype(float)
     next_1_week_forecasts.rename(columns={'created_at': 'time'}, inplace=True)
@@ -130,6 +128,11 @@ if __name__ == '__main__':
                                        'daily_forecast_model.pkl')
     forecasts = get_next_1week_forecasts(TARGET_COL, model)
     forecasts['time'] = forecasts['time'].apply(lambda x: x.isoformat())
+    try:
+        Events.save_daily_forecasts_to_bigquery(forecasts)
+    except Exception as e:
+        print(f"Error while saving daily forecasts to BigQuery: {e}")
+
     print("Adding health tips")
     health_tips = Events.fetch_health_tips()
     attempts = 1

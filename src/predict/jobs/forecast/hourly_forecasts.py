@@ -2,12 +2,11 @@ from datetime import datetime
 
 import numpy as np
 import pandas as pd
+from scipy.stats import skew
 
 from config import connect_mongo, configuration
 from models import Events
 from utils import get_trained_model_from_gcs
-
-from scipy.stats import skew
 
 db = connect_mongo()
 fixed_columns = ['site_id']
@@ -92,7 +91,6 @@ def get_new_row(df_tmp, device, model):
 
 
 def append_health_tips(pm2_5, health_tips):
-    tips = []
     if health_tips is None:
         return []
     return list(filter(lambda tip: tip['aqi_category']['min'] <= pm2_5 <= tip['aqi_category']['max'], health_tips))
@@ -134,6 +132,10 @@ if __name__ == '__main__':
                                        'hourly_forecast_model.pkl')
     forecasts = get_next_24_hour_forecasts(TARGET_COL, model)
     forecasts['time'] = forecasts['time'].apply(lambda x: x.isoformat())
+    try:
+        Events.save_hourly_forecasts_to_bigquery(forecasts)
+    except Exception as e:
+        print(f"Error while saving hourly forecasts to BigQuery: {e}")
     print("Adding health tips")
     health_tips = Events.fetch_health_tips()
     attempts = 1
