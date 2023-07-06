@@ -416,6 +416,12 @@ const join = {
           if (email !== constants.EMAIL) {
             token = Math.floor(Math.random() * (999999 - 100000) + 100000);
           }
+          if (purpose === "mobileAccountDelete") {
+            responseFromSendEmail = await mailer.deleteMobileAccountEmail(
+              email,
+              token
+            );
+          }
           if (purpose === "auth") {
             responseFromSendEmail = await mailer.authenticateEmail(
               email,
