@@ -1,13 +1,13 @@
 apiVersion: k8s.nginx.org/v1
 kind: VirtualServer
 metadata:
-  name: docs-virtual-server
-  namespace: production
+  name: dev-docs-virtual-server
+  namespace: development
 spec:
-  host: wiki.airqo.net
+  host: dev-wiki.airqo.net
   upstreams:
     - name: docs
-      service: airqo-prod-docs-svc
+      service: airqo-dev-docs-svc
       port: 3000
   routes:
     - path: /

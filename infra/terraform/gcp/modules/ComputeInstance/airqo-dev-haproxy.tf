@@ -4,9 +4,11 @@ resource "google_compute_instance" "airqo_dev_haproxy" {
   zone    = var.zone["b"]
 
   machine_type = "e2-small"
+  
+  allow_stopping_for_update = true
 
   boot_disk {
-    auto_delete = true
+    auto_delete = false
     source      = "https://www.googleapis.com/compute/v1/projects/${var.project_id}/zones/${var.zone["b"]}/disks/airqo-dev-haproxy"
   }
 
