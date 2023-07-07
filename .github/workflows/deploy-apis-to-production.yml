@@ -249,7 +249,7 @@ jobs:
               echo "run_kafka_topics=true" >>$GITHUB_OUTPUT
             fi
 
-            if [[ $file == src/kafka/connectors/* ]]; then
+            if [[ $file == src/kafka-connectors/* ]]; then
               echo "run_kafka_connectors=true" >>$GITHUB_OUTPUT
             fi
 
