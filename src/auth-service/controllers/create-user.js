@@ -961,11 +961,14 @@ const createUser = {
           convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { body, query } = req;
+      const { body, query, params } = req;
       let request = {};
       request["body"] = body;
       request["query"] = query;
       request["query"]["purpose"] = "auth";
+      if (params) {
+        request["query"]["purpose"] = params.purpose;
+      }
       await createUserUtil.generateSignInWithEmailLink(request, (value) => {
         if (value.success === true) {
           const status = value.status ? value.status : httpStatus.OK;

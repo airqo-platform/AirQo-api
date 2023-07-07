@@ -17,10 +17,10 @@ module.exports = {
   joinRequest: (firstName, lastName) => {
     return (
       `Dear ${firstName + " " + lastName}, \n\n` +
-      "Your request to join the AirQo platform has been received, " +
+      "Your request to join AirQo Analytics has been received, " +
       "we shall get back to you as soon as possible. \n\n" +
       "Before utilising the AirQo data, your application record has to undergo " +
-      "the process of approval by the AirQo platform administration.\n" +
+      "the process of approval by AirQo Analytics administration.\n" +
       "Once your application is approved, you will receive a confirmation email\n\n" +
       "Please visit our website to learn more about us. \n" +
       `https://airqo.net/`
@@ -98,7 +98,7 @@ module.exports = {
       `Your password is: ${password}\n\n` +
       `You can always change your password in your account settings after login\n` +
       `Follow this link to access the dashboard right now: ${constants.LOGIN_PAGE}\n` +
-      "A guide to using the platform will be found under the Documentation section of the platform\n\n\n\n" +
+      "A guide to using AirQo Analytics will be found under the Documentation section of AirQo Analytics\n\n\n\n" +
       // `Demos for using our main features can be found on our Youtube channel here: ${constants.YOUTUBE_CHANNEL}\n\n\n\n` +
       "PLEASE DO NOT REPLY TO THIS EMAIL\n\n" +
       "For KCCA related questions, please contact:\n" +
@@ -109,33 +109,51 @@ module.exports = {
   welcome_general: (firstName, lastName, password, username) => {
     return (
       `Dear ${firstName + " " + lastName} \n\n` +
-      "Welcome to the AirQo air quality monitoring platform. Your login credentials are as follows: \n\n" +
+      "Welcome to AirQo Analytics. Your login credentials are as follows: \n\n" +
       `YOUR USERNAME: ${username}\n` +
       `YOUR PASSWORD: ${password}\n\n` +
       `To access the dashboard, please follow this link: ${constants.LOGIN_PAGE}\n` +
       `After login, you can change your password in your account settings.\n\n` +
-      `You can also use your platform credentials to access the AirQo API\n` +
+      `You can also use your AirQo Analytics credentials to access the AirQo API\n` +
       `The AirQo API reference can be found here: https://docs.airqo.net/airqo-rest-api-documentation/ \n\n` +
-      `By actively utilising the platform, you automatically agree to the AirQo terms and conditions: https://docs.airqo.net/airqo-terms-and-conditions/HxYx3ysdA6k0ng6YJkU3/ \n\n` +
+      `By actively utilising AirQo Analytics, you automatically agree to the AirQo terms and conditions: https://docs.airqo.net/airqo-terms-and-conditions/HxYx3ysdA6k0ng6YJkU3/ \n\n` +
       /// `Demos for using our main features can be found on our Youtube channel here:  ${constants.YOUTUBE_CHANNEL}\n\n\n\n` +
       "For any technical challenges or suggestions, please contact us at support@airqo.net. \n\n" +
       "Please note that this is an automated message, so please do not reply to this email. \n\n" +
-      "To learn more about the AirQo platform and its features, please refer to the user guide available here: https://docs.airqo.net/airqo-platform/ \n\n" +
+      "To learn more about AirQo Analytics and its features, please refer to the user guide available here: https://docs.airqo.net/airqo-platform/ \n\n" +
       "Best regards, \n\n" +
       "AirQo Data Team"
     );
   },
   user_updated: (firstName, lastName, updatedData) => {
     const updatedFields = Object.keys(updatedData)
-      .map((field) => `• ${field}: ${updatedData[field]}`)
+      .map((field) => `• ${field}`)
       .join("\n");
 
     return (
       `Dear ${firstName} ${lastName},\n\n` +
-      "Your AirQo Analytics account details have been updated:\n\n" +
+      "Your AirQo Analytics account details have been updated.\n\n" +
+      "The following fields have been updated:\n" +
       `${updatedFields}\n\n` +
-      "If this activity sounds suspicious to you, please reach out to your organisation's administrator.\n\n" +
-      `Follow this link to access the platform right now: ${constants.LOGIN_PAGE}\n`
+      "If this activity sounds suspicious to you, please reach out to your organization's administrator.\n\n" +
+      `Follow this link to access AirQo Analytics right now: ${constants.LOGIN_PAGE}\n`
+    );
+  },
+
+  forgotten_password_updated: (firstName, lastName) => {
+    return (
+      `Dear ${firstName} ${lastName},\n\n` +
+      "Your AirQo Analytics account password has been successfully reset.\n\n" +
+      "If you did not initiate this password reset, please reach out to your organization's administrator immediately.\n\n" +
+      `Follow this link to access AirQo Analytics: ${constants.LOGIN_PAGE}\n`
+    );
+  },
+  known_password_updated: (firstName, lastName) => {
+    return (
+      `Dear ${firstName} ${lastName},\n\n` +
+      "Your AirQo Analytics account password has been successfully updated.\n\n" +
+      "If you did not initiate this password change, please reach out to your organization's administrator immediately.\n\n" +
+      `Follow this link to access AirQo Analytics: ${constants.LOGIN_PAGE}\n`
     );
   },
   join_by_email: (email, token) => {

@@ -32,7 +32,7 @@ module.exports = {
     <p>Whether you are here for your brand, for a cause, or just for fun, welcome!</p>
     <p>If there is anything you need, we will be here every step of the way.</p>
     <br> 
-    <a href=${constants.PLATFORM_BASE_URL}> Check out our air quality analytics platform</a>
+    <a href=${constants.PLATFORM_BASE_URL}> Check out AirQo Analytics</a>
     <p>Weekly new updates and improvements to our products</p>
     <br> 
     <a href=${constants.PLATFORM_BASE_URL}> Support our expansion in Africa</a>
@@ -50,8 +50,8 @@ module.exports = {
   emailVerification: (firstName, user_id, token) => {
     return `
 <h3>Dear ${firstName}</h3>
-<p> Thank you for signing up for our platform! We are excited to have you on board.</p>
-<p> Before you can fully access all of the features and services offered by our platform, we need to verify your account. </p>
+<p> Thank you for signing up for AirQo Analytics! We are excited to have you on board.</p>
+<p> Before you can fully access all of the features and services offered by AirQo Analytics, we need to verify your account. </p>
 <p> This is a quick and easy process that helps us ensure the security and privacy of our users. </p>
 <br>
 <p> To verify your account, please click on the following link: <a href=${constants.PLATFORM_BASE_URL}/api/v1/users/verify/${user_id}/${token}>verification link</a></p>
@@ -59,7 +59,7 @@ module.exports = {
 <br>
 <p> If you have any questions or need assistance with the verification process, please don't hesitate to reach out to our support team: support@airqo.net.</p>
 <br>
-<p> Thank you for choosing our platform, and we look forward to helping you achieve your goals</p>
+<p> Thank you for choosing AirQo Analytics, and we look forward to helping you achieve your goals</p>
 <br>
 <p> Sincerely,</p>
 <p> The AirQo Data Team</p>
@@ -197,14 +197,14 @@ module.exports = {
     return `
 <h3>Dear ${firstName}</h3>
 <p> Congratulations! Your account has been successfully verified.</p>
-<p> We are pleased to inform you that you can now fully access all of the features and services offered by our platform.</p>
+<p> We are pleased to inform you that you can now fully access all of the features and services offered by AirQo Analytics.</p>
 <br>
 <p>YOUR USERAME: ${username} </p>
 <p>YOUR PASSWORD: ${password} </p>
 <p>ACCESS LINK: ${constants.PLATFORM_BASE_URL}/login </p>
 <br>
 <p> If you have any questions or need assistance with anything, please don't hesitate to reach out to our customer support team. We are here to help.</p>
-<p> Thank you for choosing our platform, and we look forward to helping you achieve your goals </p>
+<p> Thank you for choosing AirQo Analytics, and we look forward to helping you achieve your goals </p>
 <br>
 <p> Sincerely, <p>
 <p> The AirQo Data Team </p>
@@ -259,5 +259,129 @@ module.exports = {
     <p>We've designed it to be easy to use and navigate, so you can find what you're looking for quickly. Get air quality information like air quality lessons and tips on how to reduce air pollution that you can share with your pals through text or visual updates.</p>
     <p>We're constantly updating and improving our app to make sure you have the best experience possible. If you have any questions or feedback, please don't hesitate to reach out to us through the app's support feature</p>
     <p>Thank you for choosing our app, and we can't wait for you to see what it can do for you. Happy exploring!</p>`;
+  },
+
+  deleteMobileAccountEmail: (email, token) => {
+    return `
+    <!DOCTYPE html>
+<html>
+
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+
+    <body style="margin: 0; padding: 0;font-family:Arial, sans-serif;">
+
+        <div style="width: 90%; height: 100%; padding: 32px; background: #F3F6F8;">
+            <!-- Email content container with white background -->
+            <table style="width: 100%; max-width: 1024px; margin: 0 auto; background: white;">
+                <tr>
+                    <td style="padding: 24px;">
+                        <!-- Logo and title section -->
+                        <table style="width: 100%; padding-bottom: 24px;">
+                            <tr>
+                                <td style="display: flex; align-items: center;">
+                                    <img src="cid:AirQoEmailLogo" alt="logo" style="height: 50px; margin-right: 10px;">
+                                    <span
+                                        style="color: #135DFF; margin-left: auto; font-family: Inter; font-size: 20px; font-weight: 600; line-height: 24px; letter-spacing: 0em; text-align: right;">Breathe
+                                        Clean</span>
+                                </td>
+                            </tr>
+                            
+                        </table>
+
+                        <!-- Email content section -->
+                        <table style="width: 100%;">
+                            <tr>
+                                <td
+                                    style="padding-bottom: 24px; color: #344054; font-size: 16px; font-family: Inter; font-weight: 600; line-height: 24px; word-wrap: break-word;">
+                                    Hello,
+                                </td>
+                            </tr>
+                            <tr>
+                                <td
+                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                                    We received your request to delete your AirQo account. Before we proceed, we need to verify your identity. Please follow
+                                    the instructions below:
+                                    <br />
+                                    <ol>
+                                        <li>Open the app.</li>
+                                        <li>Enter the verification code: ${token}</li>
+                                    </ol>
+                                    
+                                    Please note that deleting your account will permanently remove all your data associated with AirQo. This action cannot
+                                    be undone.
+                                    <br /><br />
+                                    
+                                    If you did not initiate this request, please contact our support team immediately.
+                                    Thank you for using AirQo.
+
+                                    <br />
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style=" height: 8px; background: #EBF1FF;"></td>
+                            </tr>
+                        </table>
+
+                        <!-- Social media section -->
+                        <table style="width: 100%; text-align: center; padding-top: 32px; padding-bottom: 32px;">
+                            <tr>
+                                <td>
+                                    <a href="https://www.facebook.com/AirQo/" target="_blank"><img
+                                            src="cid:FacebookLogo" alt="FacebookLogo"
+                                            style="width: 24px; height: 24px; margin-right: 20px; border-radius: 50%;"></a>
+                                    <a href="https://www.youtube.com/@airqo7875" target="_blank"><img
+                                            src="cid:YoutubeLogo" alt="YoutubeLogo"
+                                            style="width: 24px; height: 24px; margin-right: 20px; border-radius: 50%;"></a>
+                                    <a href="https://www.linkedin.com/company/airqo/" target="_blank"><img
+                                            src="cid:LinkedInLogo" alt="LinkedInLogo"
+                                            style="width: 24px; height: 24px; margin-right: 20px; border-radius: 50%;"></a>
+                                    <a href="https://twitter.com/AirQoProject" target="_blank"><img src="cid:Twitter"
+                                            alt="Twitter"
+                                            style="width: 24px; height: 24px; margin-right: 20px; border-radius: 50%;"></a>
+                                </td>
+                            </tr>
+                        </table>
+
+                        <!-- Footer section -->
+                        <table style="width: 100%; text-align: center;">
+                            <tr>
+                                <td>
+                                    <span
+                                        style="color: #667085; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">This
+                                        email was sent to</span>
+                                    <span
+                                        style="color: #135DFF; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">${email}</span>
+                                    <span
+                                        style="color: #667085; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">.
+                                        If you'd rather not receive this kind of email, you can </span>
+                                    <span
+                                        style="color: #135DFF; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">unsubscribe</span>
+                                    <span
+                                        style="color: #667085; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">
+                                        or </span>
+                                    <span
+                                        style="color: #135DFF; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">manage
+                                        your email preferences.</span><br /><br />
+                                    <span
+                                        style="color: #667085; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">©
+                                        2023 AirQo<br /><br />
+                                        Makerere University, Software Systems Centre, Block B, Level 3, College of
+                                        Computing and
+                                        Information Sciences, Plot 56 University Pool Road</span>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
+        </div>
+
+    </body>
+
+</html>
+    `
   },
 };

@@ -51,7 +51,7 @@ def batch_error_exception(error):
 
 
 @collocation_bp.route("export-collection", methods=["GET"])
-def log_collocation_data():
+def export_collocation_data():
     collocation = Collocation()
     file_path = collocation.export_collection()
     return send_file(file_path, as_attachment=True)
@@ -82,7 +82,7 @@ def save_collocation_batch():
     base_device = json_data.get("baseDevice", None)
     start_date = str_to_date(json_data.get("startDate"), str_format="%Y-%m-%d")
     end_date = str_to_date(json_data.get("endDate"), str_format="%Y-%m-%d")
-    user_details = decode_user_token(request.headers.get("Authorization", ""))
+    user_details = decode_user_token(request.args.get("TOKEN", ""))
 
     expected_records_per_hour = json_data.get(
         "expectedRecordsPerHour", CollocationDefaults.ExpectedRecordsPerHour
@@ -219,7 +219,7 @@ def get_collocation_batch():
 def collocation_summary():
     collocation = Collocation()
     summary = collocation.summary()
-    return jsonify({"data": list(map(lambda x: x.to_dict(), summary))}), 200
+    return jsonify({"data": list(map(lambda x: x, summary))}), 200
 
 
 @collocation_bp.route("/data", methods=["GET"])

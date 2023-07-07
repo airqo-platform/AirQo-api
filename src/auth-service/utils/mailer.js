@@ -10,6 +10,40 @@ const path = require("path");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- mailer-service`);
 
+const imagePath = path.join(__dirname, "../config/images");
+const attachments = [
+  {
+    filename: "airqoLogo.png",
+    path: imagePath + "/airqoLogo.png",
+    cid: "AirQoEmailLogo",
+    contentDisposition: "inline",
+  },
+  {
+    filename: "faceBookLogo.png",
+    path: imagePath + "/facebookLogo.png",
+    cid: "FacebookLogo",
+    contentDisposition: "inline",
+  },
+  {
+    filename: "youtubeLogo.png",
+    path: imagePath + "/youtubeLogo.png",
+    cid: "YoutubeLogo",
+    contentDisposition: "inline",
+  },
+  {
+    filename: "twitterLogo.png",
+    path: imagePath + "/Twitter.png",
+    cid: "Twitter",
+    contentDisposition: "inline",
+  },
+  {
+    filename: "linkedInLogo.png",
+    path: imagePath + "/linkedInLogo.png",
+    cid: "LinkedInLogo",
+    contentDisposition: "inline",
+  },
+];
+
 const mailer = {
   candidate: async (firstName, lastName, email, tenant) => {
     try {
@@ -441,6 +475,46 @@ const mailer = {
     }
   },
 
+  deleteMobileAccountEmail: async (email, token) => {
+    try {
+      const mailOptions = {
+        from: {
+          name: constants.EMAIL_NAME,
+          address: constants.EMAIL,
+        },
+        to: `${email}`,
+        subject: "Confirm Account Deletion - AirQo",
+        html: msgTemplates.deleteMobileAccountEmail(email, token),
+        attachments: attachments,
+      };
+      let response = transporter.sendMail(mailOptions);
+      let data = await response;
+
+      if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
+        return {
+          success: true,
+          message: "email successfully sent",
+          data,
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: false,
+          message: "Internal Server Error",
+          errors: { message: data },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
   authenticateEmail: async (email, token) => {
     try {
       const mailOptions = {
@@ -518,7 +592,84 @@ const mailer = {
       };
     }
   },
+  updateForgottenPassword: async (email, firstName, lastName) => {
+    try {
+      const mailOptions = {
+        from: {
+          name: constants.EMAIL_NAME,
+          address: constants.EMAIL,
+        },
+        to: `${email}`,
+        subject: "AirQo Analytics Password Reset Successful",
+        text: `${msgs.forgotten_password_updated(firstName, lastName)}`,
+      };
+      let response = transporter.sendMail(mailOptions);
+      let data = await response;
 
+      if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
+        return {
+          success: true,
+          message: "email successfully sent",
+          data,
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: false,
+          message: "Internal Server Error",
+          errors: { message: data },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        error: error.message,
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  updateKnownPassword: async (email, firstName, lastName) => {
+    try {
+      const mailOptions = {
+        from: {
+          name: constants.EMAIL_NAME,
+          address: constants.EMAIL,
+        },
+        to: `${email}`,
+        subject: "AirQo Analytics Password Update Successful",
+        text: `${msgs.known_password_updated(firstName, lastName)}`,
+      };
+      let response = transporter.sendMail(mailOptions);
+      let data = await response;
+
+      if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
+        return {
+          success: true,
+          message: "email successfully sent",
+          data,
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: false,
+          message: "Internal Server Error",
+          errors: { message: data },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        error: error.message,
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
   newMobileAppUser: async ({ email, message, subject } = {}) => {
     try {
       logObject("the values to send to email function", {

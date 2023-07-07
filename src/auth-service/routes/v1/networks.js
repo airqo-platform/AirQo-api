@@ -664,6 +664,16 @@ router.put(
         .bail()
         .notEmpty()
         .withMessage("the net_users should not be empty"),
+      body("net_data_source")
+        .optional()
+        .notEmpty()
+        .withMessage("the data source should not be empty if provided")
+        .bail(),
+      body("net_api_key")
+        .optional()
+        .notEmpty()
+        .withMessage("the api key should not be empty if provided")
+        .bail(),
       body("net_users.*")
         .optional()
         .isMongoId()

@@ -419,6 +419,12 @@ const join = {
           if (email !== constants.EMAIL) {
             token = Math.floor(Math.random() * (999999 - 100000) + 100000);
           }
+          if (purpose === "mobileAccountDelete") {
+            responseFromSendEmail = await mailer.deleteMobileAccountEmail(
+              email,
+              token
+            );
+          }
           if (purpose === "auth") {
             responseFromSendEmail = await mailer.authenticateEmail(
               email,
@@ -1103,7 +1109,23 @@ const join = {
           filter,
           update,
         });
-        return responseFromModifyUser;
+
+        if (responseFromModifyUser.success === true) {
+          const { email, firstName, lastName } = userDetails;
+          const responseFromSendEmail = await mailer.updateForgottenPassword(
+            email,
+            firstName,
+            lastName
+          );
+
+          if (responseFromSendEmail.success === true) {
+            return responseFromModifyUser;
+          } else if (responseFromSendEmail.success === false) {
+            return responseFromSendEmail;
+          }
+        } else if (responseFromModifyUser.success === false) {
+          return responseFromModifyUser;
+        }
       } else if (responseFromCheckTokenValidity.success === false) {
         return responseFromCheckTokenValidity;
       }
@@ -1192,7 +1214,23 @@ const join = {
         filter,
         update,
       });
-      return responseFromUpdateUser;
+
+      if (responseFromUpdateUser.success === true) {
+        const { email, firstName, lastName } = user[0];
+        const responseFromSendEmail = await mailer.updateKnownPassword(
+          email,
+          firstName,
+          lastName
+        );
+
+        if (responseFromSendEmail.success === true) {
+          return responseFromUpdateUser;
+        } else if (responseFromSendEmail.success === false) {
+          return responseFromSendEmail;
+        }
+      } else if (responseFromUpdateUser.success === false) {
+        return responseFromUpdateUser;
+      }
     } catch (e) {
       logObject("the error when updating known password", e);
       logger.error(`Internal Server Error ${e.message}`);

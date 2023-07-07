@@ -249,7 +249,7 @@ jobs:
               echo "run_kafka_topics=true" >>$GITHUB_OUTPUT
             fi
 
-            if [[ $file == src/kafka/connectors/* ]]; then
+            if [[ $file == src/kafka-connectors/* ]]; then
               echo "run_kafka_connectors=true" >>$GITHUB_OUTPUT
             fi
 
@@ -418,6 +418,18 @@ jobs:
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+
+      - name: Update corresponding helm values file(with retry)
+        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
+        with:
+          action: fjogeleit/yaml-update-action@main # Action to retry
+          with: |
+            valueFile: "k8s/kafka/BigQuery-connectors/values-stage.yaml"
+            propertyPath: "image.tag"
+            value: ${{ needs.image-tag.outputs.build_id }}
+            branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
+            message: "Update BigQuery-connectors staging image tag to ${{ needs.image-tag.outputs.build_id }}          
 
       - name: Deploy to k8s cluster
         run: |
