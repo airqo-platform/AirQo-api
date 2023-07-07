@@ -1,6 +1,6 @@
 app:
-  name: airqo-stage-BigQuery-connectors
-  label: BigQuery-connectors
+  name: airqo-stage-bigquery-connectors
+  label: bigquery-connectors
   namespace: staging
   configmap: bigquery-connectors
 replicaCount: 2
