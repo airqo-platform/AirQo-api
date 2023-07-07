@@ -1,8 +1,11 @@
+import datetime
+
 import pandas as pd
 import requests
 from google.oauth2 import service_account
 
 from config import configuration
+from forecast.utils import date_to_str
 
 credentials = service_account.Credentials.from_service_account_file(configuration.CREDENTIALS)
 
@@ -17,10 +20,16 @@ class Events:
     def fetch_monthly_bigquery_data():
         """gets data from the bigquery table"""
 
-        tenants = str(configuration.TENANTS).split(',')
+        start_date = datetime.datetime.utcnow() - datetime.timedelta(days=configuration.NUMBER_OF_MONTHS)
+        start_date = date_to_str(start_date, format='%Y-%m-%dT00:00:00Z')
+
         query = f"""
-        SELECT DISTINCT timestamp , site_id, device_number,pm2_5_calibrated_value FROM `{configuration.GOOGLE_CLOUD_PROJECT_ID}.averaged_data.hourly_device_measurements` where DATE(timestamp) >= DATE_SUB(CURRENT_DATE(), INTERVAL {configuration.NUMBER_OF_MONTHS} MONTH) and tenant IN UNNEST({tenants}) ORDER BY device_number, timestamp
+                SELECT DISTINCT timestamp , site_id, device_number, pm2_5_calibrated_value 
+                FROM `{configuration.BIGQUERY_HOURLY_DATA_TABLE}` 
+                WHERE DATE(timestamp) >= '{start_date}' 
+                ORDER BY device_number, timestamp 
         """
+
         df = pd.read_gbq(query, project_id=configuration.GOOGLE_CLOUD_PROJECT_ID, credentials=credentials)
         df.rename(columns={'timestamp': 'created_at', 'pm2_5_calibrated_value': 'pm2_5'}, inplace=True)
         return df
@@ -29,11 +38,16 @@ class Events:
     def fetch_hourly_bigquery_data():
         """gets data from the bigquery table"""
 
-        tenants = str(configuration.TENANTS).split(',')
-        query = f"""
-SELECT DISTINCT timestamp , site_id, device_number,pm2_5_calibrated_value FROM `{configuration.GOOGLE_CLOUD_PROJECT_ID}.averaged_data.hourly_device_measurements` where DATE(timestamp) >= DATETIME_SUB(CURRENT_DATETIME(), INTERVAL {configuration.NUMBER_OF_HOURS} HOUR) and tenant IN UNNEST({tenants}) and timestamp > '2022-01-01' ORDER BY device_number, timestamp 
+        start_date = datetime.datetime.utcnow() - datetime.timedelta(hours=int(configuration.NUMBER_OF_HOURS))
+        start_date = date_to_str(start_date, format='%Y-%m-%dT00:00:00Z')
 
+        query = f"""
+                SELECT DISTINCT timestamp , site_id, device_number,pm2_5_calibrated_value 
+                FROM `{configuration.GOOGLE_CLOUD_PROJECT_ID}.averaged_data.hourly_device_measurements` 
+                WHERE DATE(timestamp) >= '{start_date}' 
+                ORDER BY device_number, timestamp 
         """
+
         df = pd.read_gbq(query, project_id=configuration.GOOGLE_CLOUD_PROJECT_ID, credentials=credentials)
         df.rename(columns={'timestamp': 'created_at', 'pm2_5_calibrated_value': 'pm2_5'}, inplace=True)
         return df
