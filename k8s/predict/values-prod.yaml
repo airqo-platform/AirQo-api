@@ -35,7 +35,7 @@ jobs:
     configmap: env-train-job-production
     schedule: 0 1 1 * *
     suspend: false
-    resources:s
+    resources:
       limits:
         cpu: 8000m
         memory: 16000Mi
