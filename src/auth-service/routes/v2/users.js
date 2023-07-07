@@ -109,7 +109,7 @@ router.post(
 );
 
 router.post(
-  "/emailAuth",
+  "/emailAuth/:purpose",
   oneOf([
     [
       body("email")
@@ -118,6 +118,14 @@ router.post(
         .bail()
         .isEmail()
         .withMessage("this is not a valid email address"),
+    ],
+  ]),
+  oneOf([
+    [
+      param("purpose")
+        .optional()
+        .notEmpty()
+        .withMessage("The purpose should not be empty if provided"),
     ],
   ]),
   createUserController.emailAuth

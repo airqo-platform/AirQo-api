@@ -1,5 +1,4 @@
 import copy
-import json
 import os
 import tempfile
 import traceback
@@ -11,6 +10,7 @@ import pymongo
 from bson import ObjectId
 from bson.errors import InvalidId
 from google.cloud import bigquery
+from bson import json_util
 
 from app import cache
 from config.constants import Config
@@ -37,6 +37,7 @@ from models import (
     IntraSensorCorrelation,
     BaseResult,
     BaseModel,
+    DeviceStatusSummary,
 )
 
 
@@ -324,11 +325,11 @@ class Collocation(BaseModel):
         for doc in docs:
             data.append({**doc, **{"_id": str(doc["_id"])}})
 
-        json_data = json.dumps(data, default=str)
+        bson_data = json_util.dumps(data)
         temp_dir = tempfile.gettempdir()
         file_path = os.path.join(temp_dir, "collocation_collection.json")
         with open(file_path, "w") as file:
-            file.write(json_data)
+            file.write(bson_data)
 
         return file_path
 
@@ -469,6 +470,9 @@ class Collocation(BaseModel):
         summary: list[CollocationSummary] = []
         for batch in batches:
             created_by = f"{batch.created_by.get('first_name', '')} {batch.created_by.get('last_name', '')}"
+            devices_status_summary: dict[
+                str, list[DeviceStatusSummary]
+            ] = batch.get_devices_status_summary()
             summary.extend(
                 CollocationSummary(
                     batch_id=batch.batch_id,
@@ -480,6 +484,7 @@ class Collocation(BaseModel):
                     date_added=batch.date_created,
                     batch_name=batch.batch_name,
                     errors=batch.results.errors,
+                    status_summary=devices_status_summary.get(result_summary.device),
                 )
                 for result_summary in batch.get_summary()
             )

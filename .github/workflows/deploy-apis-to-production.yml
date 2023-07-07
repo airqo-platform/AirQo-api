@@ -360,6 +360,18 @@ jobs:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
 
+      - name: Update corresponding helm values file(with retry)
+        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
+        with:
+          action: fjogeleit/yaml-update-action@main # Action to retry
+          with: |
+            valueFile: "k8s/kafka/BigQuery-connectors/values-prod.yaml"
+            propertyPath: "image.tag"
+            value: ${{ needs.image-tag.outputs.build_id }}
+            branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
+            message: "Update BigQuery-connectors production image tag to ${{ needs.image-tag.outputs.build_id }}"
+
       - name: Deploy to k8s cluster
         run: |
           export MEASUREMENTS_CONNECT_IMAGE=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/measurements-connect:${{ needs.image-tag.outputs.build_id }}

@@ -8,7 +8,7 @@ from utils import (
     get_data_from_bigquery,
     get_shapefiles_gdf,
     predict_air_quality,
-    save_predicted_air_quality_in_postgresql,
+    save_predicted_air_quality,
 )
 
 if __name__ == "__main__":
@@ -42,4 +42,4 @@ if __name__ == "__main__":
     )
 
     predicted_gdf = predict_air_quality(merged_gdf)
-    save_predicted_air_quality_in_postgresql(predicted_gdf)
+    save_predicted_air_quality(predicted_gdf)
