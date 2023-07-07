@@ -35,7 +35,6 @@ You will need to add the following environment variables to your `.env` file
 | `MONGO_SHAPE_FILES_COLLECTION`   | **Required**. Mongo collection with shapefiles                               |
 | `AIRQO_API_TOKEN`                | **Required**. Your AirQo API token                                           |
 | `DEVICE_REGISTRY_URL`            | **Required**. e.g https://api.airqo.net/api/v1/devices                       |
-| `BIGQUERY_PLACES_PREDICTIONS`    | **Required**. BigQuery table to store predictions                            |
 | `POSTGRES_TABLE`                 | **Required**. e.g PostgresSQL table                                          |
 | `POSTGRES_CONNECTION_URL`        | **Required**. PostgresSQL db connection string                               |
 

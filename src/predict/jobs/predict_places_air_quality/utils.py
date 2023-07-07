@@ -134,33 +134,9 @@ def format_geometry(formatted_data: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     return formatted_data
 
 
-def save_predicted_air_quality_in_postgresql(data: gpd.GeoDataFrame):
+def save_predicted_air_quality(data: gpd.GeoDataFrame):
     engine = create_engine(Config.POSTGRES_CONNECTION_URL)
 
     data.to_postgis(name=Config.POSTGRES_TABLE, con=engine, if_exists="replace")
 
     print(f"Successfully saved data on PostgresSQL")
-
-
-def save_predicted_air_quality(data: gpd.GeoDataFrame, table: str):
-    data = format_geometry(data)
-    data.dropna(inplace=True)
-    client = bigquery.Client()
-    job_config = bigquery.LoadJobConfig(
-        schema=[
-            bigquery.SchemaField("square_kilometres", "FLOAT"),
-            bigquery.SchemaField("pm2_5", "FLOAT"),
-            bigquery.SchemaField("population_density", "FLOAT"),
-            bigquery.SchemaField("parish", "STRING"),
-            bigquery.SchemaField("timestamp", "DATETIME"),
-            bigquery.SchemaField("geometry", "GEOGRAPHY"),
-        ],
-        create_disposition=bigquery.CreateDisposition.CREATE_IF_NEEDED,
-        write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
-    )
-
-    job = client.load_table_from_dataframe(data, table, job_config=job_config)
-    job.result()
-
-    destination_table = client.get_table(table)
-    print(f"Total rows after load :  {destination_table.num_rows}")
