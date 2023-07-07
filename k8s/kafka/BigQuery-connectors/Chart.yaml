@@ -1,7 +1,7 @@
 apiVersion: v2
 appVersion: "1.16.0"
 description: AirQo Bigquery Connectors Helm chart 
-name: BigQuery-connectors
+name: bigquery-connectors
 home: https://airqo.net
 version: 0.1.0
 maintainers:

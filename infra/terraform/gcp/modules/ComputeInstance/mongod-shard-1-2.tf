@@ -10,6 +10,8 @@ resource "google_compute_instance" "mongod_shard_1_2" {
   }
 
   machine_type = "e2-highmem-2"
+  
+  allow_stopping_for_update = true
 
   metadata = {
     startup-script = "sudo ufw allow ssh"

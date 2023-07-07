@@ -9,6 +9,8 @@ resource "google_compute_instance" "airqo_dev_k8s_worker_2" {
     auto_delete = true
     source      = "https://www.googleapis.com/compute/v1/projects/${var.project_id}/zones/${var.zone["d"]}/disks/airqo-dev-k8s-worker-2"
   }
+  
+  allow_stopping_for_update = true
 
   metadata = {
     startup-script = "sudo ufw allow ssh"
