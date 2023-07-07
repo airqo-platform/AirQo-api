@@ -63,6 +63,9 @@ class Config:
     )
     BIGQUERY_DEVICE_UPTIME_TABLE = os.getenv("BIGQUERY_DEVICE_UPTIME_TABLE")
 
+    USERS_BASE_URL = os.getenv("USERS_BASE_URL")
+    JWT_TOKEN = os.getenv("JWT_TOKEN")
+
 
 class ProductionConfig(Config):
     DEVELOPMENT = False
