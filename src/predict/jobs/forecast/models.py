@@ -5,7 +5,7 @@ import requests
 from google.oauth2 import service_account
 
 from config import configuration
-from forecast.utils import date_to_str
+from utils import date_to_str
 
 credentials = service_account.Credentials.from_service_account_file(configuration.CREDENTIALS)
 
@@ -20,13 +20,13 @@ class Events:
     def fetch_monthly_bigquery_data():
         """gets data from the bigquery table"""
 
-        start_date = datetime.datetime.utcnow() - datetime.timedelta(days=configuration.NUMBER_OF_MONTHS)
-        start_date = date_to_str(start_date, format='%Y-%m-%dT00:00:00Z')
+        start_date = datetime.datetime.utcnow() - datetime.timedelta(days=int(configuration.NUMBER_OF_DAYS))
+        start_date = date_to_str(start_date, format='%Y-%m-%d')
 
         query = f"""
                 SELECT DISTINCT timestamp , site_id, device_number, pm2_5_calibrated_value 
-                FROM `{configuration.BIGQUERY_HOURLY_DATA_TABLE}` 
-                WHERE DATE(timestamp) >= '{start_date}' 
+                FROM `{configuration.BIGQUERY_HOURLY_TABLE}` 
+                WHERE DATE(timestamp) >= '{start_date}' AND device_number IS NOT NULL
                 ORDER BY device_number, timestamp 
         """
 
@@ -39,12 +39,12 @@ class Events:
         """gets data from the bigquery table"""
 
         start_date = datetime.datetime.utcnow() - datetime.timedelta(hours=int(configuration.NUMBER_OF_HOURS))
-        start_date = date_to_str(start_date, format='%Y-%m-%dT00:00:00Z')
+        start_date = date_to_str(start_date, format='%Y-%m-%d')
 
         query = f"""
                 SELECT DISTINCT timestamp , site_id, device_number,pm2_5_calibrated_value 
                 FROM `{configuration.GOOGLE_CLOUD_PROJECT_ID}.averaged_data.hourly_device_measurements` 
-                WHERE DATE(timestamp) >= '{start_date}' 
+                WHERE DATE(timestamp) >= '{start_date}' and device_number IS NOT NULL 
                 ORDER BY device_number, timestamp 
         """
 
