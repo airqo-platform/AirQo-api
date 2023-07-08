@@ -689,7 +689,9 @@ const createCohort = {
           success: false,
           message: "Device or Cohort not found",
           status: httpStatus.BAD_REQUEST,
-          errors: { message: "Device or Cohort not found" },
+          errors: {
+            message: `Device ${device_id} or Cohort ${cohort_id} not found`,
+          },
         };
       }
 
@@ -699,11 +701,14 @@ const createCohort = {
 
       logObject("device", device);
 
-      if (device.cohorts && device.cohorts.includes(cohort_id.toString())) {
+      if (
+        device.cohorts &&
+        device.cohorts.map(String).includes(cohort_id.toString())
+      ) {
         return {
           success: false,
           message: "Bad Request Error",
-          errors: { message: "Cohort already assigned to Device" },
+          errors: { message: "Device already assigned to Cohort" },
           status: httpStatus.BAD_REQUEST,
         };
       }
