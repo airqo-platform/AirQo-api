@@ -28,9 +28,8 @@ def fetch_bigquery_data(job_type):
     months = configuration.MONTHS_OF_DATA_HOURLY_JOB if job_type == 'hourly_forecast' else configuration.MONTHS_OF_DATA_DAILY_JOB
 
     credentials = service_account.Credentials.from_service_account_file(configuration.CREDENTIALS)
-    tenants = str(configuration.TENANTS).split(',')
     query = f"""
-    SELECT DISTINCT timestamp , device_number,pm2_5_calibrated_value FROM `{configuration.GOOGLE_CLOUD_PROJECT_ID}.averaged_data.hourly_device_measurements` where DATE(timestamp) >= DATE_SUB(CURRENT_DATE(), INTERVAL {months} MONTH) and tenant IN UNNEST({tenants}) ORDER BY device_number, timestamp 
+    SELECT DISTINCT timestamp , device_number,pm2_5_calibrated_value FROM `{configuration.BIGQUERY_TABLE}` where DATE(timestamp) >= DATE_SUB(CURRENT_DATE(), INTERVAL {months} MONTH) AND device_number IS NOT NULL ORDER BY device_number, timestamp 
     """
     df = pd.read_gbq(query, project_id=configuration.GOOGLE_CLOUD_PROJECT_ID, credentials=credentials)
     df.rename(columns={'timestamp': 'created_at', 'pm2_5_calibrated_value': 'pm2_5'}, inplace=True)
