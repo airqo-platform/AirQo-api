@@ -55,6 +55,7 @@ const stageConfig = {
 const defaultConfig = {
   NETWORKS: process.env.NETWORKS.split(","),
   ACTIVITY_TYPES: process.env.ACTIVITY_TYPES.split(","),
+  RECALL_TYPES: process.env.RECALL_TYPES.split(","),
   AQI_CATEGORIES: "good,moderate,u4sg,unhealthy,very_unhealthy,hazardous".split(
     ","
   ),
