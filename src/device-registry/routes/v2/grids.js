@@ -237,20 +237,13 @@ router.post(
         .withMessage(
           "admin_level values include but not limited to: province, state, village, county, subcounty, village, parish, country, division and district"
         ),
-      body("network_id")
+      body("network")
         .trim()
         .exists()
-        .withMessage("the network_id must be provided")
+        .withMessage("the network must be provided")
         .bail()
         .notEmpty()
-        .withMessage("the network_id should not be empty")
-        .bail()
-        .isMongoId()
-        .withMessage("id must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
+        .withMessage("the network should not be empty"),
     ],
   ]),
   createGridController.create

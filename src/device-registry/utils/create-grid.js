@@ -1,5 +1,6 @@
 const GridSchema = require("@models/Grid");
 const SiteSchema = require("@models/Site");
+const DeviceSchema = require("@models/Device");
 const AdminLevelSchema = require("@models/AdminLevel");
 const { getModelByTenant } = require("@config/database");
 const geolib = require("geolib");
@@ -55,15 +56,31 @@ const AdminLevelModel = (tenant) => {
     return adminlevels;
   }
 };
+
+const DeviceModel = (tenant) => {
+  try {
+    const devices = mongoose.model("devices");
+    return devices;
+  } catch (error) {
+    const devices = getModelByTenant(tenant, "device", DeviceSchema);
+    return devices;
+  }
+};
+
 class GridTransformStream extends Transform {
-  constructor(options) {
+  constructor(centers, options) {
     super({ objectMode: true, ...options });
+    this.centers = centers;
   }
 
   _transform(chunk, encoding, callback) {
     try {
       // Perform any necessary transformations on 'chunk' before creating a Grid Model
-      const gridModel = GridModel(tenant)(chunk);
+      const gridModel = new GridModel({
+        // Use the 'chunk' data and the 'centers' as needed
+        // Example: grid_id: chunk.grid_id, centers: this.centers
+        // Modify the code according to your specific requirements
+      });
       this.push(gridModel);
       callback();
     } catch (error) {
@@ -71,6 +88,7 @@ class GridTransformStream extends Transform {
     }
   }
 }
+
 const generateGeoHash = (latitude, longitude, precision = 9) => {
   try {
     // Calculate the boundaries for a radius of 1 kilometer around the target location
@@ -99,53 +117,6 @@ const generateGeoHash = (latitude, longitude, precision = 9) => {
 };
 
 const createGrid = {
-  retrieveCoordinates: async (request) => {
-    try {
-      const { tenant } = request.query;
-      const { grid_id } = request.params;
-      if (isEmpty(grid_id)) {
-        return {
-          success: false,
-          message: "Bad Request",
-          status: httpStatus.BAD_REQUEST,
-          errors: { message: "the Grid Object ID is required" },
-        };
-      }
-      logObject("grid_id", grid_id);
-      const responseFromFindGrid = await GridModel(tenant)
-        .findById(grid_id)
-        .lean();
-
-      logObject("responseFromFindGrid", responseFromFindGrid);
-
-      if (isEmpty(responseFromFindGrid)) {
-        return {
-          success: false,
-          message: "unable to retrieve grid details",
-          status: httpStatus.BAD_REQUEST,
-          errors: {
-            message: "no record exists for this grid_id",
-          },
-        };
-      } else if (!isEmpty(responseFromFindGrid)) {
-        return {
-          data: responseFromFindGrid.shape,
-          success: true,
-          message: "Successfully retrieved the Grid's coordinates",
-          status: httpStatus.OK,
-        };
-      }
-    } catch (error) {
-      logObject("error", error);
-      logger.error(`Internal Server Error -- ${error.message}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
-    }
-  },
   batchCreate: async (request) => {
     try {
       const { shape } = request.body; // Assuming the input data is passed in the request body as 'data' field
@@ -195,14 +166,20 @@ const createGrid = {
         },
       });
 
+      const centerResponse = await calculateGeographicalCenter(request);
+      if (!centerResponse.success) {
+        // Handle the error or return an appropriate response
+      }
+      const centers = centerResponse.data;
+
       // Create a custom Transform stream for processing and transforming the data
-      const transformStream = new GridTransformStream();
+      const transformStream = new GridTransformStream(centers);
 
       // Create a Writable stream to save the processed data using GridModel.create()
       const writableStream = new Writable({
         objectMode: true,
         write(gridModel, encoding, callback) {
-          gridModel.save((error) => {
+          GridModel(tenant).create(gridModel, (error) => {
             if (error) {
               callback(error);
             } else {
@@ -350,87 +327,66 @@ const createGrid = {
       };
     }
   },
+
   refresh: async (request) => {
     try {
-      const { query, params } = request;
-      const { tenant } = query;
-      const { grid_id } = params;
+      const { tenant } = request.query;
+      const { grid_id } = request.params;
 
-      const updateBodyForGrid = {
-        body: {
-          shape: {},
-        },
-      };
-
-      /***
-       * In this Refresh logic, we are supposed to add new Sites that have Devices deployed to them onto the Grid
-       * And remove those Sites which do not have Devices deployed on them
-       */
-
-      /***
-       * first using the Grid ID to find the coordinates we shall use to find the Sites
-       * Look for the sites that fall within the Grid's cordinates
-       * Update each of thoses Sites' grid_id field with the name of the Grid
-       */
-
-      const responseFromRetrieveCoordinates = await createGrid.retrieveCoordinates(
-        request
-      );
-      logObject(
-        "responseFromRetrieveCoordinates",
-        responseFromRetrieveCoordinates
-      );
-      if (!responseFromRetrieveCoordinates.success) {
-        return responseFromRetrieveCoordinates;
-      } else {
-        updateBodyForGrid.body.shape = responseFromRetrieveCoordinates.data;
+      if (isEmpty(grid_id)) {
+        return {
+          success: false,
+          message: "Bad Request",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "the Grid Object ID is required" },
+        };
       }
+      logObject("grid_id", grid_id);
+      const responseFromFindGrid = await GridModel(tenant)
+        .findById(grid_id)
+        .lean();
 
       const responseFromFindSites = await createGrid.findSites(
         request,
-        updateBodyForGrid.body.shape
+        responseFromFindGrid.shape
       );
       logObject("responseFromFindSites", responseFromFindSites);
-      if (!responseFromFindSites.success) {
+      if (responseFromFindSites.success === false) {
         return responseFromFindSites;
       } else {
-        updateBodyForGrid.body.sites = responseFromFindSites.data || [];
-      }
+        const site_ids = responseFromFindSites.data;
+        if (isEmpty(site_ids)) {
+          return {
+            success: true,
+            message: "no Sites found for this Grid ID",
+            status: httpStatus.OK,
+            data: [],
+          };
+        }
+        const responseFromUpdateManySites = await SiteModel(tenant).updateMany(
+          { _id: { $in: site_ids } },
+          { $set: { grid_id: grid_id } }
+        );
 
-      const responseFromCalculateGeographicalCenter = await createGrid.calculateGeographicalCenter(
-        updateBodyForGrid.body.shape
-      );
-
-      logObject(
-        "responseFromCalculateGeographicalCenter",
-        responseFromCalculateGeographicalCenter
-      );
-      if (!responseFromCalculateGeographicalCenter.success) {
-        return responseFromCalculateGeographicalCenter;
-      } else {
-        updateBodyForGrid.body.centers =
-          responseFromCalculateGeographicalCenter.data;
-      }
-
-      const updateResponse = await GridModel(tenant).findByIdAndUpdate(
-        ObjectId(grid_id),
-        updateBodyForGrid
-      );
-      logObject("updateResponse", updateResponse);
-      if (updateResponse) {
-        return {
-          success: true,
-          message: "Successfully refreshed the Grid",
-          status: httpStatus.OK,
-          data: updateResponse,
-        };
-      } else {
-        return {
-          success: false,
-          message: "Internal Server Error",
-          errors: { message: "Unable to update Grid" },
-          status: httpStatus.BAD_REQUEST,
-        };
+        if (responseFromUpdateManySites.modifiedCount === site_ids.length) {
+          return {
+            success: true,
+            message: "the Grid Refresh has been successful",
+            status: httpStatus.OK,
+          };
+        } else {
+          logger.error(
+            `Internal Server Error -- Some associated sites may not have been updated during Grid refresh`
+          );
+          return {
+            success: false,
+            message: "Some associated sites may not have been updated.",
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+            errors: {
+              message: `Only ${responseFromUpdateManySites.modifiedCount} out of ${site_ids.length} were updated `,
+            },
+          };
+        }
       }
     } catch (error) {
       logObject("error", error);
@@ -505,6 +461,7 @@ const createGrid = {
       const grid = await GridModel(tenant)
         .findOne(filter)
         .lean();
+
       if (isEmpty(grid)) {
         return {
           success: false,
@@ -532,7 +489,13 @@ const createGrid = {
         });
       }
 
-      const sites = await SiteModel(tenant).find({});
+      const sitesWithDeployedDevices = await DeviceModel(tenant).distinct(
+        "site_id"
+      );
+
+      const sites = await SiteModel(tenant).find({
+        _id: { $in: sitesWithDeployedDevices },
+      });
 
       const site_ids = sites
         .filter(
