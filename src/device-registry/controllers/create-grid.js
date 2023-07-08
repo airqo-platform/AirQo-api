@@ -937,16 +937,7 @@ const createGrid = {
     }
   },
   listAvailableSites: async (req, res) => {
-    /**a bit similar to findSites
-     * the difference: findSites returns all associated Sites
-     * this one returned those valid ones which are not yet assigned to the provided Grid
-     */
     try {
-      return res.status(httpStatus.NOT_IMPLEMENTED).json({
-        success: false,
-        message: "Not Yet Implemented",
-        errors: { message: "Not Yet Implemented" },
-      });
       logText("listing available grids....");
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
@@ -1007,15 +998,7 @@ const createGrid = {
     }
   },
   listAssignedSites: async (req, res) => {
-    /**
-     * just retrieve all Sites which have been assigned to the proviced Grid
-     */
     try {
-      return res.status(httpStatus.NOT_IMPLEMENTED).json({
-        success: false,
-        message: "Not Yet Implemented",
-        errors: { message: "Not Yet Implemented" },
-      });
       logText("listing assigned grids....");
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
@@ -1051,13 +1034,13 @@ const createGrid = {
         if (responseFromListAssignedSites.data.length === 0) {
           return res.status(status).json({
             success: true,
-            message: "no assigned grids to this grid",
+            message: `no assigned sites to this grid ${req.params.grid_id}`,
             assigned_grids: [],
           });
         }
         return res.status(status).json({
           success: true,
-          message: "successfully retrieved the assigned grids for this grid",
+          message: responseFromListAssignedSites.message,
           assigned_grids: responseFromListAssignedSites.data,
         });
       } else if (responseFromListAssignedSites.success === false) {

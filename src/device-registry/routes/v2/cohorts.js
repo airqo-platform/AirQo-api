@@ -232,16 +232,13 @@ router.post(
         .trim()
         .optional()
         .notEmpty(),
-      body("network_id")
+      body("network")
         .trim()
         .exists()
-        .withMessage("the network_id is is missing in your request")
+        .withMessage("the network is is missing in your request")
         .bail()
         .notEmpty()
-        .withMessage("the network_id should not be empty")
-        .bail()
-        .isMongoId()
-        .withMessage("the network_id  be an object ID"),
+        .withMessage("the network should not be empty"),
     ],
   ]),
   createCohortController.create
