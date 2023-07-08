@@ -1,6 +1,6 @@
 app:
-  name: airqo-BigQuery-connectors
-  label: BigQuery-connectors
+  name: airqo-bigquery-connectors
+  label: bigquery-connectors
   namespace: production
   configmap: bigquery-connectors
 replicaCount: 2

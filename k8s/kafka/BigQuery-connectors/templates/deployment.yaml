@@ -4,7 +4,7 @@ metadata:
   name: {{ .Values.app.name }}
   namespace: {{ .Values.app.namespace }}
   labels:
-    {{- include "BigQuery-connectors.labels" . | nindent 4 }}
+    {{- include "bigquery-connectors.labels" . | nindent 4 }}
 spec:
   selector:
     matchLabels:
@@ -40,8 +40,6 @@ spec:
         - name: {{ .Values.app.label }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          ports:
-            - containerPort: {{ .Values.service.port }}
           envFrom:
             - configMapRef:
                 name: {{ .Values.app.configmap }} 

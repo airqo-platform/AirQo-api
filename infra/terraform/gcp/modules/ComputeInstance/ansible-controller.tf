@@ -9,6 +9,8 @@ resource "google_compute_instance" "ansible_controller" {
   }
 
   machine_type = "e2-small"
+  
+  allow_stopping_for_update = true
 
   metadata = {
     startup-script = "sudo ufw allow ssh"

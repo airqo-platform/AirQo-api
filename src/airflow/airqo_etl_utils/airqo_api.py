@@ -300,7 +300,7 @@ class AirQoApi:
     
     def get_tenants(
         self, data_source
-    ) -> list[dict]:
+    ) -> list:
         response = self.__request("users/networks")
 
         return [
