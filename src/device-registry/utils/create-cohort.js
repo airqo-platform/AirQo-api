@@ -496,6 +496,8 @@ const createCohort = {
         };
       }
 
+      const alreadyAssignedDevices = [];
+
       for (const device_id of device_ids) {
         const device = await DeviceModel(tenant)
           .findById(ObjectId(device_id))
@@ -512,16 +514,25 @@ const createCohort = {
           };
         }
 
-        if (device.cohorts && device.cohorts.includes(cohort_id.toString())) {
-          return {
-            success: false,
-            message: "Bad Request Error",
-            errors: {
-              message: `Cohort ${cohort_id} is already assigned to the device ${device_id}`,
-            },
-            status: httpStatus.BAD_REQUEST,
-          };
+        if (
+          device.cohorts &&
+          device.cohorts.map(String).includes(cohort_id.toString())
+        ) {
+          alreadyAssignedDevices.push(device_id);
         }
+      }
+
+      if (alreadyAssignedDevices.length > 0) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: {
+            message: `The following devices are already assigned to the Cohort ${cohort_id}: ${alreadyAssignedDevices.join(
+              ", "
+            )}`,
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
       }
 
       const totalDevices = device_ids.length;
@@ -742,23 +753,17 @@ const createCohort = {
 
       // Check if the cohort exists
       const cohort = await CohortModel(tenant).findById(cohort_id);
-      if (!cohort) {
-        return {
-          success: false,
-          message: "Bad Request Error",
-          errors: { message: "Cohort not found" },
-          status: httpStatus.BAD_REQUEST,
-        };
-      }
-
       // Check if the device exists
       const device = await DeviceModel(tenant).findById(device_id);
-      if (!device) {
+
+      if (!cohort || !device) {
         return {
           success: false,
-          status: httpStatus.BAD_REQUEST,
           message: "Bad Request Error",
-          errors: { message: "Device not found" },
+          errors: {
+            message: `Invalid Request --- either Cohort ${cohort_id.toString()} or Device ${device_id.toString()} not found`,
+          },
+          status: httpStatus.BAD_REQUEST,
         };
       }
 
@@ -772,7 +777,7 @@ const createCohort = {
           message: "Bad Request Error",
           status: httpStatus.BAD_REQUEST,
           errors: {
-            message: `Cohort ${cohort_id.toString()} is not part of the device's cohorts`,
+            message: `Device ${device_id.toString()} is not assigned to Cohort ${cohort_id.toString()}`,
           },
         };
       }
