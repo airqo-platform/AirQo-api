@@ -3,7 +3,6 @@ const SiteSchema = require("@models/Site");
 const { logObject } = require("./log");
 const { getModelByTenant } = require("@config/database");
 const isEmpty = require("is-empty");
-const HTTPStatus = require("http-status");
 const constants = require("@config/constants");
 const generateFilter = require("./generate-filter");
 const commonUtil = require("@utils/common");
@@ -48,7 +47,7 @@ const createAirqloud = {
           return {
             success: false,
             message: "unable to retrieve location details",
-            status: HTTPStatus.NOT_FOUND,
+            status: httpStatus.NOT_FOUND,
             errors: {
               message: "no record exists for this location_id",
             },
@@ -60,14 +59,14 @@ const createAirqloud = {
             data: data.location,
             success: true,
             message: "retrieved the location",
-            status: HTTPStatus.OK,
+            status: httpStatus.OK,
           };
         }
         if (responseFromListAirQloud.data.length > 1) {
           return {
             success: false,
             message: "unable to retrieve location details",
-            status: HTTPStatus.INTERNAL_SERVER_ERROR,
+            status: httpStatus.INTERNAL_SERVER_ERROR,
             errors: {
               message: "requested for one record but received many",
             },
@@ -80,7 +79,7 @@ const createAirqloud = {
           success: false,
           message: "unable to retrieve details from the provided location_id",
           errors: responseFromListAirQloud.errors,
-          status: HTTPStatus.INTERNAL_SERVER_ERROR,
+          status: httpStatus.INTERNAL_SERVER_ERROR,
         };
       }
     } catch (error) {
@@ -89,7 +88,7 @@ const createAirqloud = {
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -180,7 +179,7 @@ const createAirqloud = {
       return {
         success: false,
         message: "Internal Server Error",
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
         errors: { message: err.message },
       };
     }
@@ -208,7 +207,7 @@ const createAirqloud = {
         success: false,
         message: "Internal Server Error",
         errors: { message: err.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -232,7 +231,7 @@ const createAirqloud = {
         success: false,
         message: "unable to delete airqloud",
         errors: err.message,
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -294,7 +293,7 @@ const createAirqloud = {
         return {
           success: true,
           message: "successfully refreshed the AirQloud",
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
           data: responseFromUpdateAirQloud.data,
         };
       } else if (responseFromUpdateAirQloud.success === false) {
@@ -305,7 +304,7 @@ const createAirqloud = {
       return {
         success: false,
         message: "Internal Server Error",
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
         errors: { message: error.message },
       };
     }
@@ -386,7 +385,7 @@ const createAirqloud = {
           return {
             success: false,
             message: "unable to find one match for this airqloud id",
-            status: HTTPStatus.NOT_FOUND,
+            status: httpStatus.NOT_FOUND,
           };
         } else if (data.length === 1) {
           airqloud = responseFromListAirQlouds.data[0];
@@ -442,14 +441,14 @@ const createAirqloud = {
               success: true,
               message: "successfully searched for the associated Sites",
               data: site_ids,
-              status: HTTPStatus.OK,
+              status: httpStatus.OK,
             };
           } else if (isEmpty(site_ids)) {
             return {
               success: true,
               message: "no associated Sites found",
               data: site_ids,
-              status: HTTPStatus.OK,
+              status: httpStatus.OK,
             };
           }
         } else if (responseFromListSites.success === false) {
@@ -496,7 +495,7 @@ const createAirqloud = {
         success: false,
         message: "unable to list airqloud",
         errors: err.message,
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
