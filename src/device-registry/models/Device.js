@@ -462,7 +462,14 @@ deviceSchema.statics = {
         .allowDiskUse(true);
 
       if (Object.keys(exclusionProjection).length > 0) {
-        pipeline.project(exclusionProjection);
+        // Construct the $project stage dynamically with the exclusionProjection
+        const projectionStage = { $project: {} };
+        Object.entries(exclusionProjection).forEach(([key, value]) => {
+          projectionStage.$project[key] = value;
+        });
+
+        // Add the projection stage to the pipeline
+        pipeline.push(projectionStage);
       }
 
       const response = await pipeline;
@@ -484,6 +491,8 @@ deviceSchema.statics = {
         };
       }
     } catch (error) {
+      logObject("error", error);
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
       return {
         success: false,
         message: "unable to retrieve devices",
