@@ -11,6 +11,70 @@ const logger = log4js.getLogger(
 );
 
 const createFavorite = {
+  syncFavorites: async (req, res) => {
+     try {
+      logText("Syncing Favorites.....");
+       const { query } = req;
+       let { tenant } = query;
+       const hasErrors = !validationResult(req).isEmpty();
+       logObject("hasErrors", hasErrors);
+       if (hasErrors) {
+         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+         return badRequest(
+           res,
+           "bad request errors",
+           convertErrorArrayToObject(nestedErrors)
+         );
+       }
+     
+      let request = Object.assign({}, req);
+       if (isEmpty(tenant)) {
+         request["query"]["tenant"] = constants.DEFAULT_TENANT;
+       }
+     
+      const responseFromSyncFavorites = await createFavoriteUtil.syncFavorites(
+         request
+       );
+ 
+      if (responseFromSyncFavorites.success === true) {
+         const status = responseFromSyncFavorites.status
+           ? responseFromSyncFavorites.status
+           : httpStatus.OK;
+         return res.status(status).json({
+           success: true,
+           message: responseFromSyncFavorites.message
+             ? responseFromSyncFavorites.message
+             : "",
+           favorites: responseFromSyncFavorites.data
+             ? responseFromSyncFavorites.data
+             : [],
+         });
+       } else if (responseFromSyncFavorites.success === false) {
+         const status = responseFromSyncFavorites.status
+           ? responseFromSyncFavorites.status
+           : httpStatus.INTERNAL_SERVER_ERROR;
+         return res.status(status).json({
+           success: false,
+           message: responseFromSyncFavorites.message
+             ? responseFromSyncFavorites.message
+             : "",
+           errors: responseFromSyncFavorites.errors
+             ? responseFromSyncFavorites.errors
+             : { message: "Internal Server Error" },
+         });
+       }
+     } catch (err) {
+      logObject("error", error);
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+         success: false,
+         message: "Internal Server Error",
+         errors: { message: error.message },
+       });
+     }
+
+  },
+
   create: async (req, res) => {
     try {
       logText("creating Favorite.....");

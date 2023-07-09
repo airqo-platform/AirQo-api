@@ -1,5 +1,6 @@
 "use strict";
 const DeviceSchema = require("@models/Device");
+const NetworkSchema = require("@models/Network");
 const { getModelByTenant } = require("@config/database");
 const axios = require("axios");
 const { logObject, logElement, logText } = require("./log");
@@ -18,10 +19,6 @@ const QRCode = require("qrcode");
 const mongoose = require("mongoose").set("debug", true);
 const ObjectId = mongoose.Types.ObjectId;
 
-let devicesModel = (tenant) => {
-  return getModelByTenant(tenant, "device", DeviceSchema);
-};
-
 const DeviceModel = (tenant) => {
   try {
     let devices = mongoose.model("devices");
@@ -29,6 +26,16 @@ const DeviceModel = (tenant) => {
   } catch (error) {
     let devices = getModelByTenant(tenant, "device", DeviceSchema);
     return devices;
+  }
+};
+
+const NetworkModel = (tenant) => {
+  try {
+    const networks = mongoose.model("networks");
+    return networks;
+  } catch (error) {
+    const networks = getModelByTenant(tenant, "network", NetworkSchema);
+    return networks;
   }
 };
 
@@ -83,7 +90,7 @@ const createDevice = {
     try {
       const { query } = request;
       const { tenant } = query;
-      await devicesModel(tenant).countDocuments({}, (err, count) => {
+      await DeviceModel(tenant).countDocuments({}, (err, count) => {
         if (count) {
           callback({
             success: true,

@@ -401,14 +401,8 @@ const createUser = {
   deleteMobileUserData: async (req, res) => {
     try {
       logText("We are deleting the app data.....");
-      const { userId } = req.query;
-      const { creationTime } = req.query;
 
-      let request = {};
-      request["body"] = {};
-      request["body"]["userId"] = userId;
-      request["body"]["creationTime"] = creationTime;
-      logObject("request:", request);
+     let request = Object.assign({}, req);
      
       const responseFromDeleteAppData = await createUserUtil.deleteMobileUserData(
          request
@@ -1071,11 +1065,14 @@ const createUser = {
           convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { body, query } = req;
+      const { body, query, params } = req;
       let request = {};
       request["body"] = body;
       request["query"] = query;
       request["query"]["purpose"] = "auth";
+      if (params) {
+        request["query"]["purpose"] = params.purpose;
+      }
       await createUserUtil.generateSignInWithEmailLink(request, (value) => {
         if (value.success === true) {
           const status = value.status ? value.status : httpStatus.OK;

@@ -29,6 +29,24 @@ const headers = (req, res, next) => {
 };
 router.use(headers);
 
+
+router.get(
+  "/deleteMobileUserData/:userId/:token",
+  oneOf([
+    param("userId")
+      .exists()
+      .withMessage("the userId is missing in the request")
+      .bail(),
+  ]),
+  oneOf([
+    param("token")
+      .exists()
+      .withMessage("The deletion token is missing in the request")
+      .bail(),
+  ]),
+  createUserController.deleteMobileUserData
+); 
+
 router.post(
   "/loginUser",
   oneOf([
@@ -91,7 +109,7 @@ router.post(
 );
 
 router.post(
-  "/emailAuth",
+  "/emailAuth/:purpose",
   oneOf([
     [
       body("email")
@@ -100,6 +118,14 @@ router.post(
         .bail()
         .isEmail()
         .withMessage("this is not a valid email address"),
+    ],
+  ]),
+  oneOf([
+    [
+      param("purpose")
+        .optional()
+        .notEmpty()
+        .withMessage("The purpose should not be empty if provided"),
     ],
   ]),
   createUserController.emailAuth
@@ -800,20 +826,5 @@ router.get(
   authJWT,
   createUserController.list
 );
-
-router.delete(
-  "/deleteMobileUserData",
-   oneOf([
-    query("userId")
-      .exists()
-      .withMessage("There's a missing required parameter in your request")
-      .bail(),
-    query("creationTime")
-    .exists()
-    .withMessage("There's a missing required parameter in your request")
-    .bail()
-  ]),
-  createUserController.deleteMobileUserData
-); 
 
 module.exports = router;

@@ -1,3 +1,5 @@
+const { logElement, logObject, logText } = require("@utils/log");
+
 function monthsFromNow(number) {
   const num = isNaN(number) ? 1 : number;
   const d = new Date();

@@ -150,6 +150,8 @@ const defaultConfig = {
     net_name: 1,
     net_description: 1,
     net_acronym: 1,
+    net_data_source: 1,
+    net_api_key: 1,
     createdAt: {
       $dateToString: {
         format: "%Y-%m-%d %H:%M:%S",
@@ -242,6 +244,8 @@ const defaultConfig = {
           net_roles: 0,
           net_groups: 0,
           net_departments: 0,
+          net_data_source: 0,
+          net_api_key: 0,
           "net_manager.notifications": 0,
           "net_manager.emailConfirmed": 0,
           "net_manager.locationCount": 0,
@@ -327,6 +331,8 @@ const defaultConfig = {
       "network.net_groups": 0,
       "network.net_email": 0,
       "network.net_phoneNumber": 0,
+      "network.net_data_source": 0,
+      "network.net_api_key": 0,
       "network.net_category": 0,
       "network.createdAt": 0,
       "network.updatedAt": 0,
@@ -406,6 +412,8 @@ const defaultConfig = {
       "networks.net_email": 0,
       "networks.net_category": 0,
       "networks.net_phoneNumber": 0,
+      "network.net_data_source": 0,
+      "network.net_api_key": 0,
       "networks.net_manager": 0,
       "access_tokens.__v": 0,
       "access_tokens.user_id": 0,
@@ -523,27 +531,11 @@ const defaultConfig = {
     longitude: 1,
     reference_site: 1,
     place_id: 1,
-    user: { $arrayElemAt: ["$users", 0] },
+    firebase_user_id:1,
   },
 
   FAVORITES_EXCLUSION_PROJECTION: (category) => {
-    const initialProjection = {
-      "user.notifications": 0,
-      "user.emailConfirmed": 0,
-      "user.locationCount": 0,
-      "user.firstName": 0,
-      "user.lastName": 0,
-      "user.email": 0,
-      "user.organization": 0,
-      "user.long_organization": 0,
-      "user.privilege": 0,
-      "user.userName": 0,
-      "user.password": 0,
-      "user.duration": 0,
-      "user.__v": 0,
-      "user.role": 0,
-      "user.updatedAt": 0,
-    };
+    const initialProjection = {  };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {
       projection = Object.assign({}, {});

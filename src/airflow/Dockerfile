@@ -1,4 +1,4 @@
-FROM python:3 as utils-package
+FROM python:3.10 as utils-package
 RUN pip install --upgrade pip setuptools wheel
 WORKDIR airqo_etl_utils
 COPY airqo_etl_utils/* airqo_etl_utils/

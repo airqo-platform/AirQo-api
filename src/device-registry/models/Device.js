@@ -25,6 +25,15 @@ const accessCodeGenerator = require("generate-password");
 
 const deviceSchema = new mongoose.Schema(
   {
+    cohorts: {
+      type: [
+        {
+          type: ObjectId,
+          ref: "cohort",
+          unique: true,
+        },
+      ],
+    },
     latitude: {
       type: Number,
     },
@@ -58,7 +67,6 @@ const deviceSchema = new mongoose.Schema(
       unique: true,
       minlength: minLength,
       match: noSpaces,
-      lowercase: true,
     },
     name: {
       type: String,
@@ -186,16 +194,7 @@ deviceSchema.plugin(uniqueValidator, {
   message: `{VALUE} must be unique!`,
 });
 
-deviceSchema.post("save", async function(doc) {
-  doc.device_codes = [doc._id, doc.name];
-  if (doc.device_number) {
-    doc.device_codes.push(doc.device_number);
-  }
-  if (doc.alias) {
-    doc.device_codes.push(doc.alias);
-  }
-  logObject("device_codes populated successfully:", doc);
-});
+deviceSchema.post("save", async function(doc) {});
 
 deviceSchema.pre("save", function(next) {
   if (this.isModified("name")) {
@@ -205,6 +204,15 @@ deviceSchema.pre("save", function(next) {
     }
     let n = this.name;
   }
+
+  this.device_codes = [this._id, this.name];
+  if (this.device_number) {
+    this.device_codes.push(this.device_number);
+  }
+  if (this.alias) {
+    this.device_codes.push(this.alias);
+  }
+
   return next();
 });
 
@@ -268,6 +276,7 @@ deviceSchema.methods = {
       device_codes: this.device_codes,
       category: this.category,
       access_code: this.access_code,
+      cohorts: this.cohorts,
     };
   },
 };
@@ -362,12 +371,7 @@ deviceSchema.statics = {
 
       if (isEmpty(modifiedArgs.long_name && !isEmpty(modifiedArgs.name))) {
         try {
-          let nameWithoutWhiteSpaces = modifiedArgs.name.replace(
-            /[^a-zA-Z0-9]/g,
-            "_"
-          );
-          let shortenedName = nameWithoutWhiteSpaces.slice(0, 41);
-          modifiedArgs.long_name = shortenedName.trim().toLowerCase();
+          modifiedArgs.long_name = modifiedArgs.name;
         } catch (error) {
           logger.error(
             `internal server error -- sanitiseName-- ${error.message}`
@@ -428,7 +432,10 @@ deviceSchema.statics = {
       const exclusionProjection = constants.DEVICES_EXCLUSION_PROJECTION(
         filter.category ? filter.category : "none"
       );
-      const response = await this.aggregate()
+      if (!isEmpty(filter.category)) {
+        delete filter.category;
+      }
+      const pipeline = await this.aggregate()
         .match(filter)
         .lookup({
           from: "sites",
@@ -442,12 +449,23 @@ deviceSchema.statics = {
           foreignField: "_id",
           as: "previous_sites",
         })
+        .lookup({
+          from: "cohorts",
+          localField: "cohorts",
+          foreignField: "_id",
+          as: "cohorts",
+        })
         .sort({ createdAt: -1 })
         .project(inclusionProjection)
-        .project(exclusionProjection)
         .skip(_skip)
         .limit(_limit)
         .allowDiskUse(true);
+
+      if (Object.keys(exclusionProjection).length > 0) {
+        pipeline.project(exclusionProjection);
+      }
+
+      const response = await pipeline;
 
       // logger.info(`the data produced in the model -- ${response}`);
       if (!isEmpty(response)) {

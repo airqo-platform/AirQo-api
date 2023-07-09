@@ -21,8 +21,8 @@ const md5 = require("md5");
 const accessCodeGenerator = require("generate-password");
 const generateFilter = require("./generate-filter");
 const moment = require("moment-timezone");
-const admin = require('firebase-admin');
-const {db} = require("@config/firebase-admin");
+const admin = require("firebase-admin");
+const { db } = require("@config/firebase-admin");
 
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- create-user-util`);
@@ -89,7 +89,7 @@ const RoleModel = (tenant) => {
 
 async function deleteCollection(db, collectionPath, batchSize) {
   const collectionRef = db.collection(collectionPath);
-  const query = collectionRef.orderBy('__name__').limit(batchSize);
+  const query = collectionRef.orderBy("__name__").limit(batchSize);
 
   return new Promise((resolve, reject) => {
     deleteQueryBatch(db, query, batchSize, resolve, reject);
@@ -97,7 +97,8 @@ async function deleteCollection(db, collectionPath, batchSize) {
 }
 
 function deleteQueryBatch(db, query, batchSize, resolve, reject) {
-  query.get()
+  query
+    .get()
     .then((snapshot) => {
       // When there are no documents left, we are done
       if (snapshot.size === 0) {
@@ -113,7 +114,8 @@ function deleteQueryBatch(db, query, batchSize, resolve, reject) {
       return batch.commit().then(() => {
         return snapshot.size;
       });
-    }).then((numDeleted) => {
+    })
+    .then((numDeleted) => {
       if (numDeleted === 0) {
         resolve();
         return;
@@ -139,6 +141,7 @@ const join = {
       } else {
         filter = responseFromFilter;
       }
+      logObject("filter", filter);
       const responseFromListLogs = await LogModel(tenant).list({
         filter,
         limit,
@@ -266,6 +269,20 @@ const join = {
         return responseFromGenerateFilter;
       }
 
+      const user = await UserModel(tenant).find(filter).lean();
+      logObject("the user details with lean(", user);
+      if (isEmpty(user)) {
+        logger.error(`the provided User does not exist in the System`);
+        return {
+          message: "Bad Request Error",
+          success: false,
+          errors: {
+            message: "the provided User does not exist in the System",
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
       const responseFromModifyUser = await UserModel(
         tenant.toLowerCase()
       ).modify({
@@ -274,31 +291,44 @@ const join = {
       });
 
       if (responseFromModifyUser.success === true) {
-        const user = responseFromModifyUser.data;
-        const responseFromSendEmail = await mailer.update(
-          user.email,
-          user.firstName,
-          user.lastName
-        );
-
-        if (responseFromSendEmail.success === true) {
+        const { _id, ...updatedUserDetails } = responseFromModifyUser.data;
+        logObject("updatedUserDetails", updatedUserDetails);
+        if (process.env.NODE_ENV && process.env.NODE_ENV !== "production") {
           return {
             success: true,
             message: responseFromModifyUser.message,
             data: responseFromModifyUser.data,
           };
-        } else if (responseFromSendEmail.success === false) {
-          return responseFromSendEmail;
+        } else {
+          logObject("user Object", user);
+          const responseFromSendEmail = await mailer.update(
+            user[0].email,
+            user[0].firstName,
+            user[0].lastName,
+            updatedUserDetails
+          );
+
+          if (responseFromSendEmail.success === true) {
+            return {
+              success: true,
+              message: responseFromModifyUser.message,
+              data: responseFromModifyUser.data,
+            };
+          } else if (responseFromSendEmail.success === false) {
+            return responseFromSendEmail;
+          }
         }
       } else if (responseFromModifyUser.success === false) {
         return responseFromModifyUser;
       }
     } catch (e) {
+      logObject("e", e);
       logger.error(`Internal Server Error ${e.message}`);
       return {
         success: false,
         message: "Internal Server Error",
         errors: { message: e.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -385,6 +415,12 @@ const join = {
           let token = 100000;
           if (email !== constants.EMAIL) {
             token = Math.floor(Math.random() * (999999 - 100000) + 100000);
+          }
+          if (purpose === "mobileAccountDelete") {
+            responseFromSendEmail = await mailer.deleteMobileAccountEmail(
+              email,
+              token
+            );
           }
           if (purpose === "auth") {
             responseFromSendEmail = await mailer.authenticateEmail(
@@ -849,7 +885,23 @@ const join = {
           filter,
           update,
         });
-        return responseFromModifyUser;
+
+        if (responseFromModifyUser.success === true) {
+          const { email, firstName, lastName } = userDetails;
+          const responseFromSendEmail = await mailer.updateForgottenPassword(
+            email,
+            firstName,
+            lastName
+          );
+
+          if (responseFromSendEmail.success === true) {
+            return responseFromModifyUser;
+          } else if (responseFromSendEmail.success === false) {
+            return responseFromSendEmail;
+          }
+        } else if (responseFromModifyUser.success === false) {
+          return responseFromModifyUser;
+        }
       } else if (responseFromCheckTokenValidity.success === false) {
         return responseFromCheckTokenValidity;
       }
@@ -938,7 +990,23 @@ const join = {
         filter,
         update,
       });
-      return responseFromUpdateUser;
+
+      if (responseFromUpdateUser.success === true) {
+        const { email, firstName, lastName } = user[0];
+        const responseFromSendEmail = await mailer.updateKnownPassword(
+          email,
+          firstName,
+          lastName
+        );
+
+        if (responseFromSendEmail.success === true) {
+          return responseFromUpdateUser;
+        } else if (responseFromSendEmail.success === false) {
+          return responseFromSendEmail;
+        }
+      } else if (responseFromUpdateUser.success === false) {
+        return responseFromUpdateUser;
+      }
     } catch (e) {
       logObject("the error when updating known password", e);
       logger.error(`Internal Server Error ${e.message}`);
@@ -1081,20 +1149,26 @@ const join = {
 
   deleteMobileUserData: async (request) => {
     try {
-      const { body } = request;
-      let { userId } = body;
-      let { creationTime } = body;
+      const { userId, token } = request.params;
+
       const userRecord = await admin.auth().getUser(userId);
-      
-      //get creation time and compare with creationTime
-      let userCreationTime = userRecord.metadata.creationTime;
-      userCreationTime = userCreationTime.replace(/\D/g, "");
-      if (userCreationTime !== creationTime) {
+
+      let creationTime = userRecord.metadata.creationTime;
+      creationTime = creationTime.replace(/\D/g, "");
+
+      const tokenString = `${userId}+${creationTime}`;
+
+      const verificationToken = crypto
+        .createHash("sha256")
+        .update(tokenString)
+        .digest("hex");
+
+      if (token !== verificationToken) {
         return {
           success: false,
-          message: "Invalid request",
+          message: "Invalid token",
           status: httpStatus.BAD_REQUEST,
-          errors: { message: "Invalid request" },
+          errors: { message: "Invalid token" },
         };
       }
 
@@ -1104,31 +1178,38 @@ const join = {
           constants.FIREBASE_COLLECTION_KYA,
           constants.FIREBASE_COLLECTION_ANALYTICS,
           constants.FIREBASE_COLLECTION_NOTIFICATIONS,
-          constants.FIREBASE_COLLECTION_FAVORITE_PLACES
+          constants.FIREBASE_COLLECTION_FAVORITE_PLACES,
         ];
-        let collectionRef = db.collection(`${constants.FIREBASE_COLLECTION_USERS}`);
+        let collectionRef = db.collection(
+          `${constants.FIREBASE_COLLECTION_USERS}`
+        );
         let docRef = collectionRef.doc(userId);
 
-        docRef.delete().then(async () => {
-          for (var collection of collectionList) {
-            await deleteCollection(db, `${collection}/${userId}/${userId}`, 100);
-            collectionRef = db.collection(`${collection}`);
-            docRef = collectionRef.doc(userId);
-            docRef.delete();
-          }
-          logText('Document successfully deleted!');
-        }).catch((error) => {
-          logError('Error deleting document:', error);
-          logger.error(`Internal Server Error -- ${error.message}`);
-          return {
-            success: false,
-            message: "Error deleting Firestore documents",
-            status: httpStatus.INTERNAL_SERVER_ERROR,
-            errors: { message: error.message }
-          };
-        });
-
-        
+        docRef
+          .delete()
+          .then(async () => {
+            for (var collection of collectionList) {
+              await deleteCollection(
+                db,
+                `${collection}/${userId}/${userId}`,
+                100
+              );
+              collectionRef = db.collection(`${collection}`);
+              docRef = collectionRef.doc(userId);
+              docRef.delete();
+            }
+            logText("Document successfully deleted!");
+          })
+          .catch((error) => {
+            logError("Error deleting document:", error);
+            logger.error(`Internal Server Error -- ${error.message}`);
+            return {
+              success: false,
+              message: "Error deleting Firestore documents",
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+              errors: { message: error.message },
+            };
+          });
 
         return {
           success: true,
@@ -1136,7 +1217,7 @@ const join = {
           status: httpStatus.OK,
         };
       } catch (error) {
-        logError('Error deleting user:', error);
+        logError("Error deleting user:", error);
         logger.error(`Internal Server Error -- ${error.message}`);
         return {
           success: false,
@@ -1145,11 +1226,10 @@ const join = {
           errors: { message: error.message },
         };
       }
-
     } catch (error) {
       return {
         success: false,
-        status:httpStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
         message: "Internal Server Error",
         errors: { message: error.message },
       };

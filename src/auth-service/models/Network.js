@@ -38,6 +38,8 @@ const NetworkSchema = new Schema(
     net_manager_lastname: { type: String },
     has_children: { type: Number },
     net_children: [{ type: ObjectId, ref: "network" }],
+    net_data_source: { type: String },
+    net_api_key: { type: String },
     net_phoneNumber: {
       type: Number,
       unique: true,
@@ -112,6 +114,8 @@ NetworkSchema.methods = {
       net_description: this.net_description,
       net_acronym: this.net_acronym,
       net_createdAt: this.createdAt,
+      net_data_source: this.net_data_source,
+      net_api_key: this.net_api_key,
     };
   },
 };

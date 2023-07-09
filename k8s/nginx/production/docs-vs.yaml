@@ -4,7 +4,7 @@ metadata:
   name: docs-virtual-server
   namespace: production
 spec:
-  host: docs.airqo.net
+  host: wiki.airqo.net
   upstreams:
     - name: docs
       service: airqo-prod-docs-svc
