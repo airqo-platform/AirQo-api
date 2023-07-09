@@ -9,7 +9,11 @@ const devConfig = {
   DB_NAME: process.env.MONGO_DEV,
   REDIS_SERVER: process.env.REDIS_SERVER_DEV,
   REDIS_PORT: process.env.REDIS_PORT,
-  KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_DEV.split(","),
+  KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_DEV
+    ? process.env.KAFKA_BOOTSTRAP_SERVERS_DEV.split(",").filter(
+        (value) => value.trim() !== ""
+      )
+    : [],
   KAFKA_TOPICS: process.env.KAFKA_TOPICS_DEV,
   SCHEMA_REGISTRY: process.env.SCHEMA_REGISTRY_DEV,
   KAFKA_RAW_MEASUREMENTS_TOPICS: process.env.KAFKA_RAW_MEASUREMENTS_TOPICS_DEV,
@@ -24,7 +28,11 @@ const prodConfig = {
   DB_NAME: process.env.MONGO_PROD,
   REDIS_SERVER: process.env.REDIS_SERVER,
   REDIS_PORT: process.env.REDIS_PORT,
-  KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_PROD.split(","),
+  KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_PROD
+    ? process.env.KAFKA_BOOTSTRAP_SERVERS_PROD.split(",").filter(
+        (value) => value.trim() !== ""
+      )
+    : [],
   KAFKA_TOPICS: process.env.KAFKA_TOPICS_PROD,
   SCHEMA_REGISTRY: process.env.SCHEMA_REGISTRY_PROD,
   KAFKA_RAW_MEASUREMENTS_TOPICS: process.env.KAFKA_RAW_MEASUREMENTS_TOPICS_PROD,
@@ -40,7 +48,11 @@ const stageConfig = {
   DB_NAME: process.env.MONGO_STAGE,
   REDIS_SERVER: process.env.REDIS_SERVER,
   REDIS_PORT: process.env.REDIS_PORT,
-  KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_STAGE.split(","),
+  KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_STAGE
+    ? process.env.KAFKA_BOOTSTRAP_SERVERS_STAGE.split(",").filter(
+        (value) => value.trim() !== ""
+      )
+    : [],
   KAFKA_TOPICS: process.env.KAFKA_TOPICS_STAGE,
   SCHEMA_REGISTRY: process.env.SCHEMA_REGISTRY_STAGE,
   KAFKA_RAW_MEASUREMENTS_TOPICS:
@@ -53,12 +65,22 @@ const stageConfig = {
 };
 
 const defaultConfig = {
-  NETWORKS: process.env.NETWORKS.split(","),
-  ACTIVITY_TYPES: process.env.ACTIVITY_TYPES.split(","),
+  NETWORKS: process.env.NETWORKS
+    ? process.env.NETWORKS.split(",").filter((value) => value.trim() !== "")
+    : [],
+  ACTIVITY_TYPES: process.env.ACTIVITY_TYPES
+    ? process.env.ACTIVITY_TYPES.split(",").filter(
+        (value) => value.trim() !== ""
+      )
+    : [],
   AQI_CATEGORIES: "good,moderate,u4sg,unhealthy,very_unhealthy,hazardous".split(
     ","
   ),
-  MAINTENANCE_TYPES: process.env.MAINTENANCE_TYPES.split(","),
+  MAINTENANCE_TYPES: process.env.MAINTENANCE_TYPES
+    ? process.env.MAINTENANCE_TYPES.split(",").filter(
+        (value) => value.trim() !== ""
+      )
+    : [],
   DEFAULT_NETWORK: process.env.DEFAULT_NETWORK,
   DEFAULT_TENANT: process.env.DEFAULT_TENANT,
   DEFAULT_NEAREST_SITE_RADIUS: process.env.DEFAULT_NEAREST_SITE_RADIUS,
@@ -68,9 +90,15 @@ const defaultConfig = {
   SLACK_USERNAME: process.env.SLACK_USERNAME,
   DATAWAREHOUSE_RAW_DATA: process.env.DATAWAREHOUSE_RAW_DATA,
   MOESIF_APPLICATION_ID: process.env.MOESIF_APPLICATION_ID,
-  DOMAIN_WHITELIST: process.env.DOMAIN_WHITELIST.split(","),
+  DOMAIN_WHITELIST: process.env.DOMAIN_WHITELIST
+    ? process.env.DOMAIN_WHITELIST.split(",").filter(
+        (value) => value.trim() !== ""
+      )
+    : [],
   BIG_QUERY_LOCATION: process.env.BIG_QUERY_LOCATION,
-  TENANTS: process.env.TENANTS.split(","),
+  TENANTS: process.env.TENANTS
+    ? process.env.TENANTS.split(",").filter((value) => value.trim() !== "")
+    : [],
   SITES_TOPIC: process.env.SITES_TOPIC,
   DEVICES_TOPIC: process.env.DEVICES_TOPIC,
   LOCATIONS_TOPIC: process.env.LOCATIONS_TOPIC,
