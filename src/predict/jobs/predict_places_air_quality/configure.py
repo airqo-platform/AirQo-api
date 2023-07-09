@@ -20,9 +20,7 @@ class Config:
     MONGO_SHAPE_FILES_COLLECTION = os.getenv("MONGO_SHAPE_FILES_COLLECTION")
 
     AIRQO_API_TOKEN = os.getenv("AIRQO_API_TOKEN")
-    DEVICE_REGISTRY_URL = os.getenv(
-        "DEVICE_REGISTRY_URL", "https://api.airqo.net/api/v1/devices"
-    )
+    DEVICE_REGISTRY_URL = os.getenv("DEVICE_REGISTRY_URL")
 
     POSTGRES_TABLE = os.getenv("POSTGRES_TABLE")
     POSTGRES_CONNECTION_URL = os.getenv("POSTGRES_CONNECTION_URL")
