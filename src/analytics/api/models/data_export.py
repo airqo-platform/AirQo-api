@@ -7,10 +7,12 @@ from enum import Enum
 import pandas as pd
 import pymongo
 from bson import ObjectId
+from bson.errors import InvalidId
 from google.cloud import bigquery, storage
 
 from api.models.base.base_model import BasePyMongoModel
 from api.utils.dates import date_to_str
+from api.utils.exceptions import ExportRequestNotFound
 from config import Config
 
 
@@ -137,16 +139,12 @@ class DataExportModel(BasePyMongoModel):
     def get_scheduled_and_failed_requests(self) -> list[DataExportRequest]:
         filter_set = {
             "$or": [
-                {
-                    "status": {"$in": [DataExportStatus.SCHEDULED.value]},
-                },
+                {"status": {"$eq": DataExportStatus.SCHEDULED.value}},
                 {
                     "$and": [
-                        {
-                            "status": {"$in": [DataExportStatus.FAILED.value]},
-                            "retires": {"$gt": 0},
-                        }
-                    ],
+                        {"status": {"$eq": DataExportStatus.FAILED.value}},
+                        {"retires": {"$gt": 0}},
+                    ]
                 },
             ]
         }
@@ -190,8 +188,14 @@ class DataExportModel(BasePyMongoModel):
         return self.docs_to_data_export_requests(docs)
 
     def get_request_by_id(self, request_id: str) -> DataExportRequest:
-        filter_set = {"_id": ObjectId(f"{request_id}")}
+        try:
+            filter_set = {"_id": ObjectId(request_id)}
+        except InvalidId:
+            raise ExportRequestNotFound(request_id=request_id)
+
         doc = self.collection.find_one(filter_set)
+        if not doc:
+            raise ExportRequestNotFound(request_id=request_id)
         return self.doc_to_data_export_request(doc)
 
     def export_table_to_gcs(self, export_request: DataExportRequest):
