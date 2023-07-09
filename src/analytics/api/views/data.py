@@ -4,7 +4,7 @@ import traceback
 import flask_excel as excel
 import pandas as pd
 from flasgger import swag_from
-from flask import request
+from flask import request, jsonify
 from flask_restx import Resource
 
 from api.models import (
@@ -24,9 +24,23 @@ from api.utils.data_formatters import (
     compute_airqloud_summary,
 )
 from api.utils.dates import str_to_date, date_to_str
+from api.utils.exceptions import ExportRequestNotFound
 from api.utils.http import create_response, Status
-from api.utils.request_validators import validate_request_json
+from api.utils.request_validators import validate_request_json, validate_request_params
 from main import rest_api_v1, rest_api_v2
+
+
+@rest_api_v1.errorhandler(ExportRequestNotFound)
+@rest_api_v2.errorhandler(ExportRequestNotFound)
+def batch_not_found_exception(error):
+    return (
+        create_response(
+            error.message,
+            data={},
+            success=False
+        ),
+        Status.HTTP_400_BAD_REQUEST,
+    )
 
 
 @rest_api_v1.route("/data-download")
@@ -209,19 +223,19 @@ class DataExportV2Resource(Resource):
             f"{json_data.get('outputFormat', valid_output_formats[0])}".lower()
         )
 
-        if sum([len(sites) == 0, len(devices) == 0, len(airqlouds) == 0]) == 3:
+        if len(airqlouds) != 0:
+            devices = []
+            sites = []
+        elif len(sites) != 0:
+            devices = []
+            airqlouds = []
+        elif len(devices) != 0:
+            airqlouds = []
+            sites = []
+        else:
             return (
                 create_response(
                     f"Specify either a list of airqlouds, sites or devices in the request body",
-                    success=False,
-                ),
-                Status.HTTP_400_BAD_REQUEST,
-            )
-
-        if sum([len(sites) != 0, len(devices) != 0, len(airqlouds) != 0]) != 1:
-            return (
-                create_response(
-                    f"You cannot specify airqlouds, sites and devices in one go",
                     success=False,
                 ),
                 Status.HTTP_400_BAD_REQUEST,
@@ -306,7 +320,9 @@ class DataExportV2Resource(Resource):
                 Status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-    @swag_from("/api/docs/dashboard/monitoring_site_get.yml")
+    @validate_request_params(
+        "userId|required:str",
+    )
     def get(self):
         user_id = request.args.get("userId")
         try:
@@ -334,37 +350,27 @@ class DataExportV2Resource(Resource):
                 Status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-    @swag_from("/api/docs/dashboard/monitoring_site_get.yml")
+    @validate_request_params(
+        "requestId|required:str",
+    )
     def patch(self):
         request_id = request.args.get("requestId")
-        try:
-            data_export_model = DataExportModel()
-            export_request = data_export_model.get_request_by_id(request_id)
-            export_request.status = DataExportStatus.SCHEDULED
-            export_request.retries = 3
-            success = data_export_model.update_request_status_and_retries(
-                export_request
+        data_export_model = DataExportModel()
+        export_request = data_export_model.get_request_by_id(request_id)
+        export_request.status = DataExportStatus.SCHEDULED
+        export_request.retries = 3
+        success = data_export_model.update_request_status_and_retries(
+            export_request
+        )
+        if success:
+            return (
+                create_response(
+                    "request successfully updated",
+                    data=export_request.to_api_format(),
+                ),
+                Status.HTTP_200_OK,
             )
-            if success:
-                return (
-                    create_response(
-                        "request successfully updated",
-                        data=export_request.to_api_format(),
-                    ),
-                    Status.HTTP_200_OK,
-                )
-            else:
-                return (
-                    create_response(
-                        f"An Error occurred while processing your request. Please contact support",
-                        success=False,
-                    ),
-                    Status.HTTP_500_INTERNAL_SERVER_ERROR,
-                )
-
-        except Exception as ex:
-            print(ex)
-            traceback.print_exc()
+        else:
             return (
                 create_response(
                     f"An Error occurred while processing your request. Please contact support",
