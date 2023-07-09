@@ -551,17 +551,31 @@ router.post(
       body("latitude")
         .trim()
         .exists()
-        .withMessage("the latitude is missing")
+        .withMessage("The latitude is missing")
+        .bail()
         .notEmpty()
-        .withMessage("the latitude should not be empty"),
+        .withMessage("The latitude should not be empty")
+        .bail()
+        .toFloat()
+        .isFloat({ min: -90, max: 90 })
+        .withMessage("The latitude must be a valid number between -90 and 90"),
+
       body("longitude")
         .trim()
         .exists()
-        .withMessage("the longitude is missing")
+        .withMessage("The longitude is missing")
+        .bail()
         .notEmpty()
-        .withMessage("the longitude should not be empty"),
+        .withMessage("The longitude should not be empty")
+        .bail()
+        .toFloat()
+        .isFloat({ min: -180, max: 180 })
+        .withMessage(
+          "The longitude must be a valid number between -180 and 180"
+        ),
     ],
   ]),
+
   createGridController.findGridUsingGPSCoordinates
 );
 

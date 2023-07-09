@@ -689,31 +689,45 @@ const createGrid = {
       const { tenant } = query;
       const { latitude, longitude } = body;
 
-      const grid = await GridModel(tenant)
-        .findOne({
-          "shape.coordinates": {
-            $geoIntersects: {
-              $geometry: {
-                type: "Point",
-                coordinates: [longitude, latitude],
-              },
-            },
-          },
-        })
+      const grids = await GridModel(tenant)
+        .find()
         .lean();
 
-      if (!grid) {
+      const matchingGrid = grids.find((grid) => {
+        const { type, coordinates } = grid.shape;
+        if (type === "Polygon") {
+          const polygon = coordinates[0].map(([longitude, latitude]) => ({
+            latitude,
+            longitude,
+          }));
+          return geolib.isPointInPolygon({ latitude, longitude }, polygon);
+        } else if (type === "MultiPolygon") {
+          const polygons = coordinates.map((polygon) =>
+            polygon[0].map(([longitude, latitude]) => ({
+              latitude,
+              longitude,
+            }))
+          );
+          return polygons.some((polygon) =>
+            geolib.isPointInPolygon({ latitude, longitude }, polygon)
+          );
+        }
+        return false;
+      });
+
+      if (!matchingGrid) {
         return {
-          success: false,
+          success: true,
           message: "No Grid found for the provided coordinates",
-          status: httpStatus.NOT_FOUND,
+          status: httpStatus.OK,
+          data: [],
         };
       }
 
       return {
         success: true,
         message: "Grid found",
-        data: grid,
+        data: matchingGrid,
         status: httpStatus.OK,
       };
     } catch (error) {
@@ -725,6 +739,7 @@ const createGrid = {
       };
     }
   },
+
   createGridFromShapefile: async (request) => {
     const uploadedFile = request.file;
     const shapefilePath = uploadedFile.path;
