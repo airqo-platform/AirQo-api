@@ -146,7 +146,11 @@ PermissionSchema.statics = {
       let options = { new: true };
       let modifiedUpdate = update;
 
-      let updatedPermission = await this.findOneAndUpdate(
+      if (modifiedUpdate.permission) {
+        delete modifiedUpdate.permission;
+      }
+
+      const updatedPermission = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,
         options
@@ -164,7 +168,7 @@ PermissionSchema.statics = {
           success: true,
           message: "Permission does not exist, please crosscheck",
           data: [],
-          status: httpStatus.NOT_FOUND,
+          status: httpStatus.OK,
         };
       }
     } catch (error) {

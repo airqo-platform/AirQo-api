@@ -1,0 +1,47 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ .Values.jobs.predict.name }}
+  namespace: {{ .Values.namespace }}
+spec:
+  concurrencyPolicy: Allow
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  schedule: '{{ .Values.jobs.predict.schedule }}'
+  suspend: false
+  jobTemplate:
+    metadata:
+      name: {{ .Values.jobs.predict.name }}
+    spec:
+      template:
+        spec:
+          dnsPolicy: ClusterFirst
+          restartPolicy: OnFailure
+          schedulerName: default-scheduler
+          terminationGracePeriodSeconds: 30
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                - matchExpressions:
+                  - key: node-type
+                    operator: In
+                    values:
+                      - compute
+          containers:
+            - name: {{ .Values.jobs.predict.name }}
+              image: "{{ .Values.images.repositories.predictJob }}:{{ .Values.images.tag }}"
+              imagePullPolicy: IfNotPresent
+              envFrom:
+                - configMapRef:
+                    name: {{ .Values.jobs.predict.configmap }} 
+              {{- with .Values.volumeMounts }}
+              volumeMounts:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              resources:
+                {{- toYaml .Values.jobs.predict.resources | nindent 16 }}
+          {{- with .Values.volumes }}
+          volumes:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}

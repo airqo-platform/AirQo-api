@@ -1,13 +1,15 @@
 resource "google_compute_instance" "airqo_k8s_worker_4" {
   name    = "airqo-k8s-worker-4"
   project = var.project_id
-  zone    = var.zone
+  zone    = var.zone["b"]
 
   machine_type = "c2-standard-8"
+  
+  allow_stopping_for_update = true
 
   boot_disk {
     auto_delete = false
-    source      = "https://www.googleapis.com/compute/v1/projects/airqo-250220/zones/europe-west1-b/disks/airqo-k8s-worker-4"
+    source      = "https://www.googleapis.com/compute/v1/projects/${var.project_id}/zones/${var.zone["b"]}/disks/airqo-k8s-worker-4"
   }
 
   metadata = {
@@ -47,7 +49,7 @@ resource "google_compute_instance" "airqo_k8s_worker_4" {
   }
 
   resource_policies = [
-    "https://www.googleapis.com/compute/v1/projects/airqo-250220/regions/europe-west1/resourcePolicies/monthly-k8s-runners"
+    "https://www.googleapis.com/compute/v1/projects/${var.project_id}/regions/${var.region}/resourcePolicies/monthly-k8s-runners"
   ]
 }
-# terraform import google_compute_instance.airqo_k8s_worker_4 projects/${var.project_id}/zones/${var.zone}/instances/airqo-k8s-worker-4
+# terraform import google_compute_instance.airqo_k8s_worker_4 projects/${var.project_id}/zones/${var.zone["b"]}/instances/airqo-k8s-worker-4

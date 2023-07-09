@@ -32,7 +32,7 @@ router.get(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
+      .isIn(constants.NETWORKS)
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -154,7 +154,7 @@ router.get(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
+      .isIn(constants.NETWORKS)
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -276,7 +276,7 @@ router.get(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
+      .isIn(constants.NETWORKS)
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -398,7 +398,7 @@ router.get(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
+      .isIn(constants.NETWORKS)
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -520,7 +520,7 @@ router.get(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
+      .isIn(constants.NETWORKS)
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -642,7 +642,7 @@ router.get(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
+      .isIn(constants.NETWORKS)
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -764,7 +764,7 @@ router.get(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
+      .isIn(constants.NETWORKS)
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([

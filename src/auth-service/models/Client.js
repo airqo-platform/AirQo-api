@@ -84,7 +84,7 @@ ClientSchema.statics = {
           success: true,
           data: [],
           message: "operation successful but client NOT successfully created",
-          status: httpStatus.NOT_FOUND,
+          status: httpStatus.OK,
         };
       }
     } catch (err) {

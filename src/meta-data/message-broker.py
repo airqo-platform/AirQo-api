@@ -2,14 +2,12 @@ import argparse
 import json
 import traceback
 
-import urllib3
 from kafka import KafkaConsumer
 
 from airqo_api import AirQoApi
+from api.helpers.validation import remove_invalidate_meta_data_values
 from config import Config
 from api.models import extract as ext
-
-urllib3.disable_warnings()
 
 
 class MessageBroker:
@@ -72,17 +70,21 @@ class MessageBroker:
                 site_latitude, site_longitude
             )
             print(f"Saving site information for site {site_id} .....")
+            validated_data = remove_invalidate_meta_data_values(
+                {
+                    "altitude": altitude,
+                    "aspect": aspect,
+                    "landform_90": landform_90,
+                    "landform_270": landform_270,
+                    "bearing_to_kampala_center": bearing_from_kampala,
+                }
+            )
+
             airqo_api.update_site_meta_data(
                 {
                     **site_meta_data,
-                    **{
-                        "altitude": altitude,
-                        "aspect": aspect,
-                        "landform_90": landform_90,
-                        "landform_270": landform_270,
-                        "bearing_to_kampala_center": bearing_from_kampala,
-                        "weather_stations": weather_stations,
-                    },
+                    **validated_data,
+                    **{"weather_stations": weather_stations},
                 }
             )
 
@@ -143,20 +145,23 @@ class MessageBroker:
                 site_latitude, site_longitude
             )
             print(f"Saving distances for site {site_id} .....")
+            validated_data = remove_invalidate_meta_data_values(
+                {
+                    "distance_to_kampala_center": distance_from_kampala,
+                    "distance_to_nearest_road": distance_to_closest_road,
+                    "distance_to_nearest_secondary_road": distance_to_closest_secondary_road,
+                    "distance_to_nearest_primary_road": distance_to_closest_primary_road,
+                    "distance_to_nearest_residential_road": distance_to_closest_residential_road,
+                    "distance_to_nearest_tertiary_road": distance_to_closest_tertiary_road,
+                    "distance_to_nearest_trunk": distance_to_closest_trunk,
+                    "distance_to_nearest_unclassified_road": distance_to_closest_unclassified_road,
+                    "distance_to_nearest_motorway": distance_to_closest_motorway,
+                }
+            )
             airqo_api.update_site_meta_data(
                 {
                     **site_meta_data,
-                    **{
-                        "distance_to_kampala_center": distance_from_kampala,
-                        "distance_to_nearest_road": distance_to_closest_road,
-                        "distance_to_nearest_secondary_road": distance_to_closest_secondary_road,
-                        "distance_to_nearest_primary_road": distance_to_closest_primary_road,
-                        "distance_to_nearest_residential_road": distance_to_closest_residential_road,
-                        "distance_to_nearest_tertiary_road": distance_to_closest_tertiary_road,
-                        "distance_to_nearest_trunk": distance_to_closest_trunk,
-                        "distance_to_nearest_unclassified_road": distance_to_closest_unclassified_road,
-                        "distance_to_nearest_motorway": distance_to_closest_motorway,
-                    },
+                    **validated_data,
                 }
             )
 

@@ -17,6 +17,7 @@ module "ComputeInstance" {
 
   project_id     = var.project_id
   project_number = var.project_number
+  region         = var.region
   zone           = var.zone
   os             = var.os
   disk_size      = var.disk_size
@@ -30,6 +31,12 @@ module "ComputeInstanceTemplate" {
   region         = var.region
   os             = var.os
   disk_size      = var.disk_size
+}
+
+module "ComputeNetworkPeering" {
+  source = "./modules/ComputeNetworkPeering"
+  
+  project_id     = var.project_id
 }
 
 module "ComputeResourcePolicy" {

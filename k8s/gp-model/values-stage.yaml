@@ -1,13 +1,29 @@
 app:
   name: stage-gpmodel
+  cronJobName: stage-gpmodel-cron-job
+  brokerConsumerName: stage-gpmodel-broker-consumer
+  label: gpmodel
   namespace: staging
-  configmap: env-gp-model-staging
-image:
-  repository: eu.gcr.io/airqo-250220/airqo-stage-gp-model-job
-  tag: stage-948d4315-1680198467
+  configMap: env-gp-model-staging
+images:
+  tag: stage-fe759cbc-1688036255
+  repositories:
+    cronJob: eu.gcr.io/airqo-250220/airqo-stage-gp-model-job
+    brokerConsumer: eu.gcr.io/airqo-250220/airqo-stage-gp-model-broker-consumer
 nameOverride: ''
 fullnameOverride: ''
+podAnnotations: {}
 resources:
   limits:
     cpu: 1000m
     memory: 4000Mi
+  requests:
+    cpu: 50m
+    memory: 100Mi
+volumeMounts:
+  - name: config-volume
+    mountPath: /etc/config
+volumes:
+  - name: config-volume
+    configMap:
+      name: gp-model-job-config-files

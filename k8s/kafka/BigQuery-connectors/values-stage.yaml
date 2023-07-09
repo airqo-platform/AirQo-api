@@ -1,0 +1,32 @@
+app:
+  name: airqo-stage-bigquery-connectors
+  label: bigquery-connectors
+  namespace: staging
+  configmap: bigquery-connectors
+replicaCount: 2
+image:
+  repository: eu.gcr.io/airqo-250220/stage-bigquery-connectors
+  tag: stage-4aceaf50-1688725360
+nameOverride: ''
+fullnameOverride: ''
+podAnnotations: {}
+resources:
+  limits:
+    cpu: 1000m
+    memory: 500Mi
+  requests:
+    cpu: 100m
+    memory: 250Mi
+volumeMounts:
+  - name: config-volume
+    mountPath: /etc/config
+volumes:
+  - name: config-volume
+    configMap:
+      name: bigquery-connectors-files
+ingress:
+  enabled: false
+autoscaling:
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 70

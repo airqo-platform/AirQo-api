@@ -1,5 +1,7 @@
-FROM gcr.io/google-appengine/python as builder
-ARG PROJECT_DIR=/app-dir
+# syntax=docker/dockerfile:1
+
+FROM python:3.9-slim-buster as builder
+ARG PROJECT_DIR=/app
 
 RUN apt-get update && apt-get install -y \
   binutils \
@@ -7,12 +9,7 @@ RUN apt-get update && apt-get install -y \
   python-gdal \
   libspatialindex-dev
 
-RUN virtualenv /env -p python3.7
-ENV VIRTUAL_ENV /env
-ENV PATH /env/bin:$PATH
-
-RUN mkdir $PROJECT_DIR
-WORKDIR $PROJECT_DIR
+WORKDIR /app/
 
 COPY requirements.txt $PROJECT_DIR/
 RUN pip install -r requirements.txt
