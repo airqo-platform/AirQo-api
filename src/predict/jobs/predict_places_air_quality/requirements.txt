@@ -1,6 +1,7 @@
 pandas
 requests
 google-cloud-bigquery
+google-cloud-storage
 google-cloud-bigquery[pandas]
 geopandas
 pymongo
