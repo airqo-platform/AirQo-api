@@ -1,5 +1,5 @@
 const EventModel = require("@models/Event");
-const { getModelByTenant } = require("./multitenancy");
+const { getModelByTenant } = require("@config/database");
 const { logObject, logElement, logText } = require("./log");
 const constants = require("@config/constants");
 const generateFilter = require("./generate-filter");
@@ -512,8 +512,8 @@ const createEvent = {
         }
       });
     } catch (error) {
+      logObject("error", error);
       logger.error(`internal server error -- ${error.message}`);
-      logObject("error in util", error);
       callback({
         success: false,
         errors: { message: error.message },
@@ -1026,6 +1026,7 @@ const createEvent = {
       brief,
       latitude,
       longitude,
+      network,
     } = request.query;
     const currentTime = new Date().toISOString();
     const day = generateDateFormatWithoutHrs(currentTime);
@@ -1047,7 +1048,9 @@ const createEvent = {
       running ? running : "noRunning"
     }_${index ? index : "noIndex"}_${brief ? brief : "noBrief"}_${
       latitude ? latitude : "noLatitude"
-    }_${longitude ? longitude : "noLongitude"}`;
+    }_${longitude ? longitude : "noLongitude"}__${
+      network ? network : "noNetwork"
+    }`;
   },
   getEventsCount: async (request) => {},
   setCache: (data, request, callback) => {

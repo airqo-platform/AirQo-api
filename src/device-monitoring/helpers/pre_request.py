@@ -11,7 +11,7 @@ class PreRequest:
     """
     TENANT_KEY = "tenant"
     DOCS_ENDPOINTS = ['/apidocs', '/flasgger', '/apispec']
-    IGNORE_TENANT_HEADER = ['/api/v1/monitor/health', '/api/v1/monitor/devices/collocation']
+    IGNORE_TENANT_HEADER = ['/api/v1/monitor/health', '/api/v1/monitor/devices/collocation', '/api/v2/monitor/collocation']
     COMBINED_IGNORE_TENANT_HEADER = f"({')|('.join(chain(DOCS_ENDPOINTS, IGNORE_TENANT_HEADER))})"
 
     @classmethod

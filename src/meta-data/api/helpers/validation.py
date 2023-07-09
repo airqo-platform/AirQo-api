@@ -76,6 +76,17 @@ def validate_spatial_data(input_data):
     return validated_input, errors
 
 
+def remove_invalidate_meta_data_values(data: dict) -> dict:
+    validated_data = dict()
+    for key, value in data.items():
+        try:
+            validated_data[key] = float(value)
+        except Exception as ex:
+            print(ex)
+            pass
+    return validated_data
+
+
 if __name__ == "__main__":
     input_data = {"latitude": "0.4018972", "longitude": "32.0104067"}
     validated_input_data, errors = validate_spatial_data(input_data)

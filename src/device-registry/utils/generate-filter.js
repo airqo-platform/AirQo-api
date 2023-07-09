@@ -12,6 +12,7 @@ const ObjectId = mongoose.Types.ObjectId;
 const { logElement, logObject, logText } = require("./log");
 const constants = require("@config/constants");
 const log4js = require("log4js");
+const httpStatus = require("http-status");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- generate-filter-util`
 );
@@ -624,6 +625,150 @@ const generateFilter = {
     return filter;
   },
 
+  grids: (req) => {
+    try {
+      const { id, name, admin_level, grid_codes } = req.query;
+      const { grid_id } = req.params;
+      let filter = {};
+      if (name) {
+        filter["name"] = name;
+      }
+
+      if (grid_codes) {
+        let geoCodesArray = grid_codes.split(",");
+        filter["grid_codes"] = {};
+        filter["grid_codes"]["$in"] = geoCodesArray;
+      }
+
+      if (grid_id) {
+        filter["_id"] = ObjectId(grid_id);
+      }
+
+      if (id) {
+        filter["_id"] = ObjectId(id);
+      }
+
+      if (admin_level) {
+        filter["admin_level"] = admin_level;
+      }
+
+      return filter;
+    } catch (error) {
+      return {
+        success: false,
+        errors: { message: error.message },
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  cohorts: (req) => {
+    try {
+      const { id, name, cohort_codes, network_id } = req.query;
+      const { cohort_id } = req.params;
+      let filter = {};
+      if (name) {
+        filter["name"] = name;
+      }
+
+      if (network_id) {
+        filter["network_id"] = ObjectId(network_id);
+      }
+
+      if (cohort_id) {
+        filter["_id"] = ObjectId(cohort_id);
+      }
+
+      if (cohort_codes) {
+        let cohortCodesArray = cohort_codes.split(",");
+        filter["cohort_codes"] = {};
+        filter["cohort_codes"]["$in"] = cohortCodesArray;
+      }
+
+      if (id) {
+        filter["_id"] = ObjectId(id);
+      }
+
+      return filter;
+    } catch (error) {
+      return {
+        success: false,
+        errors: { message: error.message },
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  networks: (req) => {
+    try {
+      const { id, name, network_codes } = req.query;
+      const { net_id } = req.params;
+      let filter = {};
+      if (name) {
+        filter["name"] = name;
+      }
+
+      if (net_id) {
+        filter["_id"] = ObjectId(net_id);
+      }
+
+      if (network_codes) {
+        let networkCodesArray = network_codes.split(",");
+        filter["network_codes"] = {};
+        filter["network_codes"]["$in"] = networkCodesArray;
+      }
+
+      if (id) {
+        filter["_id"] = ObjectId(id);
+      }
+
+      return filter;
+    } catch (error) {
+      return {
+        success: false,
+        errors: { message: error.message },
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  admin_levels: (req) => {
+    try {
+      const { id, name, admin_level_codes } = req.query;
+      const { level_id } = req.params;
+      let filter = {};
+      if (name) {
+        filter["name"] = name;
+      }
+
+      if (admin_level_codes) {
+        let adminLevelCodesArray = admin_level_codes.split(",");
+        filter["admin_level_codes"] = {};
+        filter["admin_level_codes"]["$in"] = adminLevelCodesArray;
+      }
+
+      if (level_id) {
+        filter["_id"] = ObjectId(level_id);
+      }
+
+      if (id) {
+        filter["_id"] = ObjectId(id);
+      }
+
+      return filter;
+    } catch (error) {
+      return {
+        success: false,
+        errors: { message: error.message },
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
   locations: (req) => {
     let { id, name, admin_level, summary, network } = req.query;
     let filter = {};
@@ -708,6 +853,8 @@ const generateFilter = {
     let {
       id,
       device_id,
+      airqloud_id,
+      site_id,
       device_number,
       device_name,
       network,
@@ -720,6 +867,14 @@ const generateFilter = {
 
     if (device_id) {
       filter["device_id"] = ObjectId(device_id);
+    }
+
+    if (airqloud_id) {
+      filter["airqloud_id"] = ObjectId(airqloud_id);
+    }
+
+    if (site_id) {
+      filter["site_id"] = ObjectId(site_id);
     }
 
     if (tags) {
@@ -756,6 +911,92 @@ const generateFilter = {
       ];
     }
     return filter;
+  },
+
+  kyalessons: (request) => {
+    try {
+      const { query, body, params } = request;
+      const { id } = query;
+      const { task_id, lesson_id } = params;
+      let filter = {};
+      if (id) {
+        filter["_id"] = ObjectId(id);
+      }
+      if (lesson_id) {
+        filter["_id"] = ObjectId(lesson_id);
+      }
+      return filter;
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: {
+          message: error.message,
+        },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  kyatasks: (request) => {
+    try {
+      const { query, params } = request;
+      const { id } = query;
+      const { task_id, lesson_id } = params;
+      let filter = {};
+      if (id) {
+        filter["_id"] = ObjectId(id);
+      }
+      if (task_id) {
+        filter["_id"] = ObjectId(task_id);
+      }
+      if (lesson_id) {
+        filter["kya_lesson"] = ObjectId(lesson_id);
+      }
+      return filter;
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: {
+          message: error.message,
+        },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  kyaprogress: (request) => {
+    try {
+      const { query, params } = request;
+      const { id } = query;
+      const { user_id, lesson_id, progress_id } = params;
+      logObject("user_id", user_id && user_id.toString());
+      logObject("lesson_id ", lesson_id && lesson_id.toString());
+      let filter = {};
+      if (id) {
+        filter["_id"] = ObjectId(id);
+      }
+      if (progress_id) {
+        filter["_id"] = ObjectId(progress_id);
+      }
+      if (user_id) {
+        filter["user_id"] = ObjectId(user_id);
+      }
+      if (lesson_id) {
+        filter["lesson_id"] = ObjectId(lesson_id);
+      }
+      return filter;
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: {
+          message: error.message,
+        },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
   },
 };
 

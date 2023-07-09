@@ -8,7 +8,6 @@ jobs:
 
     image:
       repository: eu.gcr.io/airqo-250220/prod-events-monitor-job
-      pullPolicy: Always
       tag: "latest"
 
     configMap: prod-events-monitor-cronjob-config
@@ -24,7 +23,6 @@ jobs:
 
     image:
       repository: eu.gcr.io/airqo-250220/prod-events-notifs-job
-      pullPolicy: Always
       tag: "latest"
 
     configMap: prod-events-notifs-cronjob-config

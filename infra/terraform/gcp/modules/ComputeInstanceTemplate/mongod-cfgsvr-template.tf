@@ -20,7 +20,7 @@ resource "google_compute_instance_template" "mongod_cfgsvr_template" {
     managed-by-cnrm = "true"
   }
 
-  machine_type = "e2-custom-4-8192"
+  machine_type = "e2-highmem-2"
   name         = "mongod-cfgsvr-template"
 
   network_interface {

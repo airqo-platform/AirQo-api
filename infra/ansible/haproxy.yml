@@ -1,0 +1,80 @@
+- hosts: haproxy
+  become: yes
+  roles:
+    - Oefenweb.haproxy
+  vars:
+    haproxy_global_chroot: /var/lib/haproxy
+    haproxy_global_stats_sockets_default_param:
+      - "mode 660"
+      - "level admin"
+    haproxy_global_stats:
+      timeout: 30s
+
+    haproxy_listen:
+      - name: stats
+        description: Global statistics
+        bind:
+          - listen: "{{ ansible_eth0['ipv4']['address'] }}:8181"
+            param:
+              - ssl
+              - "crt /etc/haproxy/certs/dev-platform-airqo.pem"
+              - no-sslv3
+              - no-tlsv10
+              - no-tlsv11
+        timeout: 100s
+        maxconn: 10
+        mode: http
+        stats:
+          enable: true
+          uri: /stats
+          options:
+            - hide-version
+            - show-node
+          admin: if LOCALHOST
+          refresh: 30s
+          auth:
+            - user: "{{ user }}"
+              passwd: "{{ password }}"
+
+    haproxy_frontend:
+      - name: airqo_backend
+        description: Front-end for all traffic
+        bind:
+          - listen: "{{ ansible_eth0['ipv4']['address'] }}:80"
+          - listen: "{{ ansible_eth0['ipv4']['address'] }}:443"
+            param:
+              - ssl
+              - "crt /etc/haproxy/certs/dev-platform-airqo.pem"
+              - no-sslv3
+              - no-tlsv10
+              - no-tlsv11
+        mode: http
+        stick:
+          - table: type ip size 100k expire 40s store http_req_rate(300s)
+            stick_on: src
+        http_request:
+          - action: "track-sc0"
+            param: src
+          - action: deny
+            cond: "if { sc_http_req_rate(0) gt 600 }"
+            param: "deny_status 429"
+        redirect:
+          - string: "scheme https code 301"
+            cond: "if !{ ssl_fc }"
+        default_backend: airqo_backend
+
+    haproxy_backend:
+      - name: airqo_backend
+        description: Back-end with all (Apache) webservers
+        mode: http
+        balance: roundrobin
+        timeout: 60s
+        redirect:
+          - string: "scheme https code 301"
+            cond: "if !{ ssl_fc }"
+        server:
+          - name: airqo-k8s-worker-0
+            listen: "10.240.0.24:80"
+            param:
+              - "maxconn 30"
+              - check

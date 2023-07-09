@@ -1,0 +1,49 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ .Values.jobs.reports.name }}
+  namespace: {{ .Values.namespace }}
+spec:
+  concurrencyPolicy: Allow
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  schedule: "0 0 1 */3 *" # Once every 3 months
+  suspend: false
+  jobTemplate:
+    metadata:
+      name: {{ .Values.jobs.reports.name }}
+    spec:
+      template:
+        spec:
+          dnsPolicy: ClusterFirst
+          restartPolicy: OnFailure
+          schedulerName: default-scheduler
+          terminationGracePeriodSeconds: 30
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                - matchExpressions:
+                  - key: node-type
+                    operator: In
+                    values:
+                      - compute
+          containers:
+            - name: {{ .Values.jobs.reports.name }}
+              image: "{{ .Values.images.repositories.reportJob }}:{{ .Values.images.tag }}"
+              imagePullPolicy: IfNotPresent
+              terminationMessagePath: /dev/termination-log
+              terminationMessagePolicy: File
+              envFrom:
+                - configMapRef:
+                    name: {{ .Values.jobs.reports.configmap }} 
+              resources:
+                {{- toYaml .Values.jobs.resources | nindent 16 }}
+              {{- with .Values.volumeMounts }}
+              volumeMounts:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+          {{- with .Values.volumes }}
+          volumes:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}

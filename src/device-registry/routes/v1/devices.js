@@ -442,6 +442,7 @@ router.post(
         "device identification details are missing in the request, consider using the name"
       )
       .bail()
+      .trim()
       .notEmpty()
       .withMessage("the name should not be empty if provided"),
     body("long_name")
@@ -450,6 +451,7 @@ router.post(
         "device identification details are missing in the request, consider using the long_name"
       )
       .bail()
+      .trim()
       .notEmpty()
       .withMessage("the long_name should not be empty if provided"),
   ]),
@@ -826,9 +828,6 @@ router.put(
         .optional()
         .notEmpty()
         .withMessage("long_name should not be empty IF provided")
-        .bail()
-        .matches(/^[a-zA-Z0-9]+$/)
-        .withMessage("long_name should only contain alphanumeric characters.")
         .trim(),
       body("mountType")
         .optional()
@@ -1079,6 +1078,58 @@ router.put(
   ]),
   deviceController.update
 );
+
+router.put(
+  "/refresh",
+  oneOf([
+    query("tenant")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(constants.NETWORKS)
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    query("device_number")
+      .exists()
+      .withMessage(
+        "the device identifier is missing in request, consider using the device_number"
+      )
+      .bail()
+      .trim()
+      .isInt()
+      .withMessage("the device_number should be an integer value"),
+    query("id")
+      .exists()
+      .withMessage(
+        "the device identifier is missing in request, consider using the device_id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+    query("name")
+      .exists()
+      .withMessage(
+        "the device identifier is missing in request, consider using the name"
+      )
+      .bail()
+      .trim()
+      .isLowercase()
+      .withMessage("device name should be lower case")
+      .bail()
+      .matches(constants.WHITE_SPACES_REGEX, "i")
+      .withMessage("the device names do not have spaces in them"),
+  ]),
+  deviceController.refresh
+);
 /** return nearest coordinates */
 router.get(
   "/by/nearest-coordinates",
@@ -1105,6 +1156,7 @@ router.post(
         "device identification details are missing in the request, consider using the name"
       )
       .bail()
+      .trim()
       .notEmpty()
       .withMessage("the name should not be empty if provided"),
     body("long_name")
@@ -1113,6 +1165,7 @@ router.post(
         "device identification details are missing in the request, consider using the long_name"
       )
       .bail()
+      .trim()
       .notEmpty()
       .withMessage("the long_name should not be empty if provided"),
   ]),
@@ -1313,9 +1366,6 @@ router.put(
         .optional()
         .notEmpty()
         .withMessage("long_name should not be empty IF provided")
-        .bail()
-        .matches(/^[a-zA-Z0-9]+$/)
-        .withMessage("long_name should only contain alphanumeric characters.")
         .trim(),
       body("mountType")
         .optional()
