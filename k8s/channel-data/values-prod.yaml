@@ -4,7 +4,7 @@ app:
   configmap: env-update-channel-data-production
 image:
   repository: eu.gcr.io/airqo-250220/airqo-update-channel-data-job
-  tag: prod-8eb95d93-1688490494
+  tag: prod-02d48507-1688794963
 nameOverride: ''
 fullnameOverride: ''
 resources:
