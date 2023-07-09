@@ -11,7 +11,7 @@ const ObjectId = Schema.Types.ObjectId;
 const constants = require("@config/constants");
 const isEmpty = require("is-empty");
 const HTTPStatus = require("http-status");
-const { getModelByTenant } = require("@utils/multitenancy");
+const { getModelByTenant } = require("@config/database");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- event-model`);
 
@@ -478,6 +478,9 @@ eventSchema.statics = {
         index,
         summary,
       } = filter;
+
+      logObject("filter", filter);
+
       let search = filter;
       let groupId = "$device";
       let localField = "device";
@@ -569,7 +572,9 @@ eventSchema.statics = {
         projection["average_pm10"] = 0;
         projection["average_pm2_5"] = 0;
         projection["device_number"] = 0;
-        projection["image"] = 0;
+        projection["pm2_5.uncertaintyValue"] = 0;
+        projection["pm2_5.standardDeviationValue"] = 0;
+        projection["site"] = 0;
         projection[as] = 0;
       }
 
@@ -617,8 +622,16 @@ eventSchema.statics = {
       }
 
       if (running === "yes") {
+        delete projection["pm2_5.uncertaintyValue"];
+        delete projection["pm2_5.standardDeviationValue"];
+
         Object.assign(projection, {
-          average_pm2_5: 0,
+          site_image: 0,
+          is_reading_primary: 0,
+          deviceDetails: 0,
+          aqi_color: 0,
+          aqi_category: 0,
+          aqi_color_name: 0,
           pm2_5: 0,
           average_pm10: 0,
           pm10: 0,
@@ -651,11 +664,14 @@ eventSchema.statics = {
           stc_v: 0,
           stc: 0,
           siteDetails: 0,
+          aqi_color: 0,
+          aqi_category: 0,
+          aqi_color_name: 0,
         });
       }
 
       if (!isEmpty(index)) {
-        sort = { "values.pm2_5.value": 1 };
+        sort = { "pm2_5.value": 1 };
       }
 
       logObject("the query for this request", search);
@@ -738,9 +754,15 @@ eventSchema.statics = {
           .replaceRoot("values")
           .lookup({
             from: "photos",
-            localField: "device",
-            foreignField: "device_name",
-            as: "images",
+            localField: "site_id",
+            foreignField: "site_id",
+            as: "site_images",
+          })
+          .lookup({
+            from: "devices",
+            localField: "device_id",
+            foreignField: "_id",
+            as: "device_details",
           })
           .lookup({
             from,
@@ -774,7 +796,14 @@ eventSchema.statics = {
             _id: "$device",
             device: { $first: "$device" },
             device_id: { $first: "$device_id" },
-            image: { $first: { $arrayElemAt: ["$images", 0] } },
+            site_image: {
+              $first: { $arrayElemAt: ["$site_images.image_url", 0] },
+            },
+            is_reading_primary: {
+              $first: {
+                $arrayElemAt: ["$device_details.isPrimaryInLocation", 0],
+              },
+            },
             device_number: { $first: "$device_number" },
             health_tips: { $first: "$healthTips" },
             site: { $first: "$site" },
@@ -811,6 +840,7 @@ eventSchema.statics = {
             stc: { $first: "$stc" },
             [as]: elementAtIndex0,
           })
+
           .project({
             "health_tips.aqi_category": 0,
             "health_tips.value": 0,
@@ -819,20 +849,207 @@ eventSchema.statics = {
             "health_tips.__v": 0,
           })
           .project({
-            "image.createdAt": 0,
-            "image.updatedAt": 0,
-            "image.metadata": 0,
-            "image.__v": 0,
-            "image.device_name": 0,
-            "image.device_id": 0,
-            "image._id": 0,
-            "image.tags": 0,
-            "image.image_code": 0,
+            "site_image.createdAt": 0,
+            "site_image.updatedAt": 0,
+            "site_image.metadata": 0,
+            "site_image.__v": 0,
+            "site_image.device_name": 0,
+            "site_image.device_id": 0,
+            "site_image._id": 0,
+            "site_image.tags": 0,
+            "site_image.image_code": 0,
+            "site_image.site_id": 0,
+            "site_image.airqloud_id": 0,
           })
           .project(projection)
           .facet({
             total: [{ $count: "device" }],
-            data: [{ $addFields: { device: "$device" } }],
+            data: [
+              {
+                $addFields: {
+                  device: "$device",
+                  aqi_color: {
+                    $switch: {
+                      branches: [
+                        {
+                          case: {
+                            $and: [
+                              { $gte: ["$pm2_5.value", 0] },
+                              { $lt: ["$pm2_5.value", 12.1] },
+                            ],
+                          },
+                          then: "00e400",
+                        },
+                        {
+                          case: {
+                            $and: [
+                              { $gte: ["$pm2_5.value", 12.1] },
+                              { $lt: ["$pm2_5.value", 35.5] },
+                            ],
+                          },
+                          then: "ffff00",
+                        },
+                        {
+                          case: {
+                            $and: [
+                              { $gte: ["$pm2_5.value", 35.5] },
+                              { $lt: ["$pm2_5.value", 55.5] },
+                            ],
+                          },
+                          then: "ff7e00",
+                        },
+                        {
+                          case: {
+                            $and: [
+                              { $gte: ["$pm2_5.value", 55.5] },
+                              { $lt: ["$pm2_5.value", 150.5] },
+                            ],
+                          },
+                          then: "ff0000",
+                        },
+                        {
+                          case: {
+                            $and: [
+                              { $gte: ["$pm2_5.value", 150.5] },
+                              { $lt: ["$pm2_5.value", 250.5] },
+                            ],
+                          },
+                          then: "8f3f97",
+                        },
+                        {
+                          case: { $gte: ["$pm2_5.value", 250.5] },
+                          then: "7e0023",
+                        },
+                      ],
+                      default: "Unknown",
+                    },
+                  },
+
+                  aqi_category: {
+                    $switch: {
+                      branches: [
+                        {
+                          case: {
+                            $and: [
+                              { $gte: ["$pm2_5.value", 0] },
+                              { $lte: ["$pm2_5.value", 12] },
+                            ],
+                          },
+                          then: "Good",
+                        },
+                        {
+                          case: {
+                            $and: [
+                              { $gt: ["$pm2_5.value", 12] },
+                              { $lte: ["$pm2_5.value", 35.4] },
+                            ],
+                          },
+                          then: "Moderate",
+                        },
+                        {
+                          case: {
+                            $and: [
+                              { $gt: ["$pm2_5.value", 35.4] },
+                              { $lte: ["$pm2_5.value", 55.4] },
+                            ],
+                          },
+                          then: "Unhealthy for Sensitive Groups",
+                        },
+                        {
+                          case: {
+                            $and: [
+                              { $gt: ["$pm2_5.value", 55.4] },
+                              { $lte: ["$pm2_5.value", 150.4] },
+                            ],
+                          },
+                          then: "Unhealthy",
+                        },
+                        {
+                          case: {
+                            $and: [
+                              { $gt: ["$pm2_5.value", 150.4] },
+                              { $lte: ["$pm2_5.value", 250.4] },
+                            ],
+                          },
+                          then: "Very Unhealthy",
+                        },
+                        {
+                          case: {
+                            $and: [
+                              { $gt: ["$pm2_5.value", 250.4] },
+                              { $lte: ["$pm2_5.value", 500] },
+                            ],
+                          },
+                          then: "Hazardous",
+                        },
+                      ],
+                      default: "Unknown",
+                    },
+                  },
+                  aqi_color_name: {
+                    $switch: {
+                      branches: [
+                        {
+                          case: {
+                            $and: [
+                              { $gte: ["$pm2_5.value", 0] },
+                              { $lte: ["$pm2_5.value", 12] },
+                            ],
+                          },
+                          then: "Green",
+                        },
+                        {
+                          case: {
+                            $and: [
+                              { $gt: ["$pm2_5.value", 12] },
+                              { $lte: ["$pm2_5.value", 35.4] },
+                            ],
+                          },
+                          then: "Yellow",
+                        },
+                        {
+                          case: {
+                            $and: [
+                              { $gt: ["$pm2_5.value", 35.4] },
+                              { $lte: ["$pm2_5.value", 55.4] },
+                            ],
+                          },
+                          then: "Orange",
+                        },
+                        {
+                          case: {
+                            $and: [
+                              { $gt: ["$pm2_5.value", 55.4] },
+                              { $lte: ["$pm2_5.value", 150.4] },
+                            ],
+                          },
+                          then: "Red",
+                        },
+                        {
+                          case: {
+                            $and: [
+                              { $gt: ["$pm2_5.value", 150.4] },
+                              { $lte: ["$pm2_5.value", 250.4] },
+                            ],
+                          },
+                          then: "Purple",
+                        },
+                        {
+                          case: {
+                            $and: [
+                              { $gt: ["$pm2_5.value", 250.4] },
+                              { $lte: ["$pm2_5.value", 500] },
+                            ],
+                          },
+                          then: "Maroon",
+                        },
+                      ],
+                      default: "Unknown",
+                    },
+                  },
+                },
+              },
+            ],
           })
           .project({
             meta,
@@ -974,6 +1191,7 @@ eventSchema.statics = {
       }
     } catch (error) {
       logger.error(`list events -- ${error.message}`);
+      logObject("error", error);
       return {
         success: false,
         message: "Internal Server Error",

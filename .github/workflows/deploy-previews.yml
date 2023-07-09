@@ -17,7 +17,7 @@ jobs:
       lowercase: ${{ steps.string.outputs.lowercase }} # lowercase version
     steps:
       - id: string
-        uses: ASzc/change-string-case-action@v2
+        uses: ASzc/change-string-case-action@v5
         with:
           string: ${{ github.head_ref || github.ref_name }}
 
@@ -40,7 +40,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v3.5.3
         with:
           fetch-depth: 2
 
@@ -133,20 +133,20 @@ jobs:
       url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v3.5.3
 
       - name: Google Auth
         id: auth
-        uses: google-github-actions/auth@v0
+        uses: google-github-actions/auth@v1.1.1
         with:
           credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
 
       - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v0
+        uses: google-github-actions/setup-gcloud@v1.1.1
 
       - name: Docker Auth
         id: docker-auth
-        uses: docker/login-action@v2
+        uses: docker/login-action@v2.2.0
         with:
           registry: ${{ env.REGISTRY_URL }}
           username: _json_key
@@ -211,20 +211,20 @@ jobs:
       url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v3.5.3
 
       - name: Google Auth
         id: auth
-        uses: google-github-actions/auth@v0
+        uses: google-github-actions/auth@v1.1.1
         with:
           credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
 
       - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v0
+        uses: google-github-actions/setup-gcloud@v1.1.1
 
       - name: Docker Auth
         id: docker-auth
-        uses: docker/login-action@v2
+        uses: docker/login-action@v2.2.0
         with:
           registry: ${{ env.REGISTRY_URL }}
           username: _json_key
@@ -289,20 +289,20 @@ jobs:
       url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v3.5.3
 
       - name: Google Auth
         id: auth
-        uses: google-github-actions/auth@v0
+        uses: google-github-actions/auth@v1.1.1
         with:
           credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
 
       - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v0
+        uses: google-github-actions/setup-gcloud@v1.1.1
 
       - name: Docker Auth
         id: docker-auth
-        uses: docker/login-action@v2
+        uses: docker/login-action@v2.2.0
         with:
           registry: ${{ env.REGISTRY_URL }}
           username: _json_key
@@ -367,20 +367,20 @@ jobs:
       url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v3.5.3
 
       - name: Google Auth
         id: auth
-        uses: google-github-actions/auth@v0
+        uses: google-github-actions/auth@v1.1.1
         with:
           credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
 
       - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v0
+        uses: google-github-actions/setup-gcloud@v1.1.1
 
       - name: Docker Auth
         id: docker-auth
-        uses: docker/login-action@v2
+        uses: docker/login-action@v2.2.0
         with:
           registry: ${{ env.REGISTRY_URL }}
           username: _json_key
@@ -445,20 +445,20 @@ jobs:
       url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v3.5.3
 
       - name: Google Auth
         id: auth
-        uses: google-github-actions/auth@v0
+        uses: google-github-actions/auth@v1.1.1
         with:
           credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
 
       - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v0
+        uses: google-github-actions/setup-gcloud@v1.1.1
 
       - name: Docker Auth
         id: docker-auth
-        uses: docker/login-action@v2
+        uses: docker/login-action@v2.2.0
         with:
           registry: ${{ env.REGISTRY_URL }}
           username: _json_key
@@ -523,20 +523,20 @@ jobs:
       url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v3.5.3
 
       - name: Google Auth
         id: auth
-        uses: google-github-actions/auth@v0
+        uses: google-github-actions/auth@v1.1.1
         with:
           credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
 
       - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v0
+        uses: google-github-actions/setup-gcloud@v1.1.1
 
       - name: Docker Auth
         id: docker-auth
-        uses: docker/login-action@v2
+        uses: docker/login-action@v2.2.0
         with:
           registry: ${{ env.REGISTRY_URL }}
           username: _json_key
@@ -601,20 +601,20 @@ jobs:
       url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v3.5.3
 
       - name: Google Auth
         id: auth
-        uses: google-github-actions/auth@v0
+        uses: google-github-actions/auth@v1.1.1
         with:
           credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
 
       - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v0
+        uses: google-github-actions/setup-gcloud@v1.1.1
 
       - name: Docker Auth
         id: docker-auth
-        uses: docker/login-action@v2
+        uses: docker/login-action@v2.2.0
         with:
           registry: ${{ env.REGISTRY_URL }}
           username: _json_key
@@ -679,20 +679,20 @@ jobs:
       url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v3.5.3
 
       - name: Google Auth
         id: auth
-        uses: google-github-actions/auth@v0
+        uses: google-github-actions/auth@v1.1.1
         with:
           credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
 
       - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v0
+        uses: google-github-actions/setup-gcloud@v1.1.1
 
       - name: Docker Auth
         id: docker-auth
-        uses: docker/login-action@v2
+        uses: docker/login-action@v2.2.0
         with:
           registry: ${{ env.REGISTRY_URL }}
           username: _json_key
@@ -701,7 +701,7 @@ jobs:
       - name: Build and Push Container
         run: |
           cd src/meta-data/
-          docker build --target=deployment --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/meta-data-pr-previews:${{ github.sha }} .
+          docker build --target=api --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/meta-data-pr-previews:${{ github.sha }} .
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/meta-data-pr-previews:${{ github.sha }}
 
       - name: Deploy to Cloud Run
@@ -757,20 +757,20 @@ jobs:
       url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v3.5.3
 
       - name: Google Auth
         id: auth
-        uses: google-github-actions/auth@v0
+        uses: google-github-actions/auth@v1.1.1
         with:
           credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
 
       - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v0
+        uses: google-github-actions/setup-gcloud@v1.1.1
 
       - name: Docker Auth
         id: docker-auth
-        uses: docker/login-action@v2
+        uses: docker/login-action@v2.2.0
         with:
           registry: ${{ env.REGISTRY_URL }}
           username: _json_key
@@ -835,20 +835,20 @@ jobs:
       url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v3.5.3
 
       - name: Google Auth
         id: auth
-        uses: google-github-actions/auth@v0
+        uses: google-github-actions/auth@v1.1.1
         with:
           credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
 
       - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v0
+        uses: google-github-actions/setup-gcloud@v1.1.1
 
       - name: Docker Auth
         id: docker-auth
-        uses: docker/login-action@v2
+        uses: docker/login-action@v2.2.0
         with:
           registry: ${{ env.REGISTRY_URL }}
           username: _json_key
@@ -913,20 +913,20 @@ jobs:
       url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v3.5.3
 
       - name: Google Auth
         id: auth
-        uses: google-github-actions/auth@v0
+        uses: google-github-actions/auth@v1.1.1
         with:
           credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
 
       - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v0
+        uses: google-github-actions/setup-gcloud@v1.1.1
 
       - name: Docker Auth
         id: docker-auth
-        uses: docker/login-action@v2
+        uses: docker/login-action@v2.2.0
         with:
           registry: ${{ env.REGISTRY_URL }}
           username: _json_key
@@ -991,20 +991,20 @@ jobs:
       url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v3.5.3
 
       - name: Google Auth
         id: auth
-        uses: google-github-actions/auth@v0
+        uses: google-github-actions/auth@v1.1.1
         with:
           credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
 
       - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v0
+        uses: google-github-actions/setup-gcloud@v1.1.1
 
       - name: Docker Auth
         id: docker-auth
-        uses: docker/login-action@v2
+        uses: docker/login-action@v2.2.0
         with:
           registry: ${{ env.REGISTRY_URL }}
           username: _json_key

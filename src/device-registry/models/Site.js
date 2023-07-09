@@ -6,6 +6,9 @@ const isEmpty = require("is-empty");
 const constants = require("@config/constants");
 const HTTPStatus = require("http-status");
 
+const log4js = require("log4js");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- site-model`);
+
 const siteSchema = new Schema(
   {
     name: {
@@ -13,6 +16,15 @@ const siteSchema = new Schema(
       trim: true,
       unique: true,
       required: [true, "name is required!"],
+    },
+    grids: {
+      type: [
+        {
+          type: ObjectId,
+          ref: "grid",
+          unique: true,
+        },
+      ],
     },
     share_links: {
       preview: { type: String, trim: true },
@@ -298,6 +310,8 @@ const siteSchema = new Schema(
   }
 );
 
+siteSchema.post("save", async function(doc) {});
+
 siteSchema.pre("save", function(next) {
   if (this.isModified("latitude")) {
     delete this.latitude;
@@ -311,6 +325,18 @@ siteSchema.pre("save", function(next) {
   if (this.isModified("generated_name")) {
     delete this.generated_name;
   }
+
+  this.site_codes = [this._id, this.name, this.generated_name, this.lat_long];
+  if (this.search_name) {
+    this.site_codes.push(this.search_name);
+  }
+  if (this.location_name) {
+    this.site_codes.push(this.location_name);
+  }
+  if (this.formatted_name) {
+    this.site_codes.push(this.formatted_name);
+  }
+
   return next();
 });
 
@@ -341,6 +367,7 @@ siteSchema.methods = {
   toJSON() {
     return {
       _id: this._id,
+      grids: this.grids,
       name: this.name,
       generated_name: this.generated_name,
       search_name: this.search_name,
@@ -438,6 +465,8 @@ siteSchema.statics = {
       }
     } catch (err) {
       logObject("the error", err);
+      const stingifiedMessage = JSON.stringify(err ? err : "");
+      logger.error(`Internal Server Error -- ${stingifiedMessage}`);
       let response = {};
       let message = "validation errors for some of the provided fields";
       let status = HTTPStatus.CONFLICT;
@@ -461,7 +490,16 @@ siteSchema.statics = {
     filter = {},
   } = {}) {
     try {
-      let response = await this.aggregate()
+      const inclusionProjection = constants.SITES_INCLUSION_PROJECTION;
+      const exclusionProjection = constants.SITES_EXCLUSION_PROJECTION(
+        filter.category ? filter.category : "none"
+      );
+
+      if (!isEmpty(filter.category)) {
+        delete filter.category;
+      }
+
+      const pipeline = await this.aggregate()
         .match(filter)
         .lookup({
           from: "devices",
@@ -470,109 +508,36 @@ siteSchema.statics = {
           as: "devices",
         })
         .lookup({
+          from: "grids",
+          localField: "grids",
+          foreignField: "_id",
+          as: "grids",
+        })
+        .lookup({
           from: "airqlouds",
           localField: "airqlouds",
           foreignField: "_id",
           as: "airqlouds",
         })
         .sort({ createdAt: -1 })
-        .project({
-          _id: 1,
-          name: 1,
-          latitude: 1,
-          longitude: 1,
-          approximate_latitude: 1,
-          approximate_longitude: 1,
-          approximate_distance_in_km: 1,
-          bearing_in_radians: 1,
-          description: 1,
-          site_tags: 1,
-          site_codes: 1,
-          search_name: 1,
-          location_name: 1,
-          lat_long: 1,
-          country: 1,
-          network: 1,
-          district: 1,
-          sub_county: 1,
-          parish: 1,
-          region: 1,
-          village: 1,
-          city: 1,
-          street: 1,
-          generated_name: 1,
-          county: 1,
-          altitude: 1,
-          greenness: 1,
-          landform_270: 1,
-          landform_90: 1,
-          aspect: 1,
-          status: 1,
-          images: 1,
-          share_links: 1,
-          distance_to_nearest_road: 1,
-          distance_to_nearest_primary_road: 1,
-          distance_to_nearest_secondary_road: 1,
-          distance_to_nearest_tertiary_road: 1,
-          distance_to_nearest_unclassified_road: 1,
-          distance_to_nearest_residential_road: 1,
-          bearing_to_kampala_center: 1,
-          distance_to_kampala_center: 1,
-          createdAt: 1,
-          nearest_tahmo_station: 1,
-          devices: "$devices",
-          airqlouds: "$airqlouds",
-          weather_stations: 1,
-        })
-        .project({
-          "airqlouds.location": 0,
-          "airqlouds.airqloud_tags": 0,
-          "airqlouds.long_name": 0,
-          "airqlouds.updatedAt": 0,
-          "airqlouds.sites": 0,
-          "airqlouds.__v": 0,
-        })
-        .project({
-          "devices.height": 0,
-          "devices.__v": 0,
-          "devices.phoneNumber": 0,
-          "devices.mountType": 0,
-          "devices.powerType": 0,
-          "devices.generation_version": 0,
-          "devices.generation_count": 0,
-          "devices.pictures": 0,
-          "devices.tags": 0,
-          "devices.description": 0,
-          "devices.isUsedForCollocation": 0,
-          "devices.updatedAt": 0,
-          "devices.locationName": 0,
-          "devices.siteName": 0,
-          "devices.site_id": 0,
-          "devices.isRetired": 0,
-          "devices.long_name": 0,
-          "devices.nextMaintenance": 0,
-          "devices.readKey": 0,
-          "devices.writeKey": 0,
-          "devices.deployment_date": 0,
-          "devices.recall_date": 0,
-          "devices.maintenance_date": 0,
-          "devices.product_name": 0,
-          "devices.owner": 0,
-          "devices.device_manufacturer": 0,
-          "devices.channelID": 0,
-        })
+        .project(inclusionProjection)
         .skip(skip ? skip : 0)
         .limit(
           limit ? limit : parseInt(constants.DEFAULT_LIMIT_FOR_QUERYING_SITES)
         )
         .allowDiskUse(true);
 
+      if (Object.keys(exclusionProjection).length > 0) {
+        pipeline.project(exclusionProjection);
+      }
+
+      const response = await pipeline;
+
       if (!isEmpty(response)) {
-        let data = response;
         return {
           success: true,
           message: "successfully retrieved the site details",
-          data,
+          data: response,
           status: HTTPStatus.OK,
         };
       } else if (isEmpty(response)) {
@@ -584,6 +549,8 @@ siteSchema.statics = {
         };
       }
     } catch (error) {
+      const stingifiedMessage = JSON.stringify(error ? error : "");
+      logger.error(`Internal Server Error -- ${stingifiedMessage}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -671,6 +638,8 @@ siteSchema.statics = {
         };
       }
     } catch (error) {
+      const stingifiedMessage = JSON.stringify(error ? error : "");
+      logger.error(`Internal Server Error -- ${stingifiedMessage}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -708,6 +677,8 @@ siteSchema.statics = {
         };
       }
     } catch (error) {
+      const stingifiedMessage = JSON.stringify(error ? error : "");
+      logger.error(`Internal Server Error -- ${stingifiedMessage}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -717,7 +688,5 @@ siteSchema.statics = {
     }
   },
 };
-
-siteSchema.methods = {};
 
 module.exports = siteSchema;

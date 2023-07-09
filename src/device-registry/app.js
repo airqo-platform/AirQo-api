@@ -9,11 +9,14 @@ require("app-module-path").addPath(__dirname);
 const cookieParser = require("cookie-parser");
 const constants = require("@config/constants");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- app entry`);
-require("@config/database");
+// require("@config/database");
+const { mongodb } = require("@config/database");
+mongodb;
 const routes = require("@routes");
 
 // const moesif = require("moesif-nodejs");
 const compression = require("compression");
+const { logObject } = require("./utils/log");
 
 const app = express();
 app.use(compression());
@@ -41,6 +44,8 @@ app.use(cookieParser());
 app.use(express.static(path.join(__dirname, "public")));
 
 /****** the V1 endpoints ****************/
+app.use("/api/v1/devices/cohorts", routes.v1.cohorts);
+app.use("/api/v1/devices/grids", routes.v1.grids);
 app.use("/api/v1/devices/activities", routes.v1.activities);
 app.use("/api/v1/devices/airqlouds", routes.v1.airqlouds);
 app.use("/api/v1/devices/sites", routes.v1.sites);
@@ -48,10 +53,13 @@ app.use("/api/v1/devices/events", routes.v1.events);
 app.use("/api/v1/devices/locations", routes.v1.locations);
 app.use("/api/v1/devices/photos", routes.v1.photos);
 app.use("/api/v1/devices/tips", routes.v1.tips);
+app.use("/api/v1/devices/kya", routes.v1.kya);
 app.use("/api/v1/devices/sensors", routes.v1.sensors);
 app.use("/api/v1/devices", routes.v1.devices);
 
 /****** the V2 endpoints ****************/
+app.use("/api/v2/devices/cohorts", routes.v2.cohorts);
+app.use("/api/v2/devices/grids", routes.v2.grids);
 app.use("/api/v2/devices/activities", routes.v2.activities);
 app.use("/api/v2/devices/airqlouds", routes.v2.airqlouds);
 app.use("/api/v2/devices/sites", routes.v2.sites);
@@ -60,6 +68,7 @@ app.use("/api/v2/devices/measurements", routes.v2.measurements);
 app.use("/api/v2/devices/locations", routes.v2.locations);
 app.use("/api/v2/devices/photos", routes.v2.photos);
 app.use("/api/v2/devices/tips", routes.v2.tips);
+app.use("/api/v2/devices/kya", routes.v2.kya);
 app.use("/api/v2/devices/sensors", routes.v2.sensors);
 app.use("/api/v2/devices", routes.v2.devices);
 
@@ -131,6 +140,7 @@ app.use(function(err, req, res, next) {
       errors: { message: err.message },
     });
   } else {
+    logObject("err", err);
     logger.error(`server side error--- ${err.message}`);
     res.status(err.status || 500).json({
       success: false,

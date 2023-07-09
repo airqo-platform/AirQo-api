@@ -66,7 +66,12 @@ router.post(
         .trim()
         .escape()
         .customSanitizer((value) => {
-          return value.replace(/ /g, "_").toUpperCase();
+          const sanitizedValue = value.replace(/[^a-zA-Z]/g, " ");
+          const processedValue = sanitizedValue
+            .toUpperCase()
+            .replace(/ /g, "_");
+
+          return processedValue;
         }),
       body("network_id")
         .optional()
@@ -96,6 +101,12 @@ router.post(
 
 router.put(
   "/:permission_id",
+  (req, res, next) => {
+    if (!Object.keys(req.body).length) {
+      return res.status(400).json({ errors: "request body is empty" });
+    }
+    next();
+  },
   oneOf([
     [
       query("tenant")

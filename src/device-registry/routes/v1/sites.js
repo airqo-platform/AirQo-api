@@ -66,8 +66,9 @@ router.get(
   "/",
   oneOf([
     query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
       .bail()
       .trim()
       .toLowerCase()
@@ -75,6 +76,22 @@ router.get(
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   siteController.list
+);
+
+router.get(
+  "/summary",
+  oneOf([
+    query("tenant")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(constants.NETWORKS)
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  siteController.listSummary
 );
 
 router.get("/weather", siteController.listWeatherStations);

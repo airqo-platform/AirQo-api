@@ -41,7 +41,7 @@ class AirQoApi:
     def get_maintenance_logs(
         self, tenant: str, device: str, activity_type: str = None
     ) -> list:
-        params = {"tenant": tenant, "device": device}
+        params = {"tenant": str(Tenant.AIRQO), "device": device}
 
         if activity_type:
             params["activity_type"] = activity_type
@@ -107,7 +107,7 @@ class AirQoApi:
         tenant: Tenant = Tenant.ALL,
         device_category: DeviceCategory = DeviceCategory.NONE,
     ) -> list:
-        params = {"tenant": "airqo"}
+        params = {"tenant": str(Tenant.AIRQO)}
         if tenant != Tenant.ALL:
             params["network"] = str(tenant)
 
@@ -130,6 +130,11 @@ class AirQoApi:
                     ],
                     "mongo_id": device.get("_id", None),
                     "site_id": device.get("site", {}).get("_id", None),
+                    "site_latitude": device.get("site", {}).get("latitude", None),
+                    "site_generated_name": device.get("site", {}).get(
+                        "generated_name", None
+                    ),
+                    "site_longitude": device.get("site", {}).get("longitude", None),
                     "device_category": str(
                         DeviceCategory.from_str(device.get("category", ""))
                     ),
@@ -220,19 +225,31 @@ class AirQoApi:
                     method="get",
                 )
 
-                meta_data[key] = response["data"]
+                meta_data[key] = float(response["data"])
             except Exception as ex:
                 print(ex)
 
         return meta_data
+
+    def refresh_airqloud(self, airqloud_id):
+        query_params = {"tenant": str(Tenant.AIRQO), "id": airqloud_id}
+
+        try:
+            response = requests.put(
+                url=f"{self.AIRQO_BASE_URL}/devices/airqlouds/refresh",
+                params=query_params,
+            )
+
+            print(response.json())
+        except Exception as ex:
+            print(ex)
 
     def get_airqlouds(self, tenant: Tenant = Tenant.ALL) -> list:
         query_params = {"tenant": str(Tenant.AIRQO)}
 
         if tenant != Tenant.ALL:
             query_params["network"] = str(tenant)
-
-        response = self.__request("devices/airqlouds", query_params)
+        response = self.__request("devices/airqlouds/dashboard", query_params)
 
         return [
             {
@@ -277,9 +294,28 @@ class AirQoApi:
     def update_sites(self, updated_sites):
         for i in updated_sites:
             site = dict(i)
-            params = {"tenant": site.pop("tenant"), "id": site.pop("site_id")}
+            params = {"tenant": str(Tenant.AIRQO), "id": site.pop("site_id")}
             response = self.__request("devices/sites", params, site, "put")
             print(response)
+    
+    def get_tenants(
+        self, data_source
+    ) -> list:
+        response = self.__request("users/networks")
+
+        return [
+            {
+                **network,
+                **{
+                    "network_id": network.get("_id", None),
+                    "network": network.get("net_name", None),
+                    "data_source": network.get("net_data_source", None),
+                    "api_key": network.get("net_api_key", None),
+                },
+            }
+            for network in response.get("networks", [])
+            if network.get("net_data_source") == data_source
+        ]
 
     def __request(
         self, endpoint, params=None, body=None, method=None, version="v1", base_url=None

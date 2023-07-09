@@ -8,7 +8,7 @@ activities whch take place on a site.
 #### a) Using npm scripts
 
 
-Clone the project
+You can clone the project
 
 ```bash
   git clone https://github.com/airqo-platform/AirQo-api

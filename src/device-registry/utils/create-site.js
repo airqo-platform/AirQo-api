@@ -4,7 +4,7 @@ const SiteSchema = require("@models/Site");
 const UniqueIdentifierCounterSchema = require("@models/UniqueIdentifierCounter");
 const constants = require("@config/constants");
 const { logObject, logElement, logText } = require("./log");
-const { getModelByTenant } = require("./multitenancy");
+const { getModelByTenant } = require("@config/database");
 const isEmpty = require("is-empty");
 const axios = require("axios");
 const { Client } = require("@googlemaps/google-maps-services-js");
@@ -755,6 +755,26 @@ const createSite = {
           responseFromNearestWeatherStation
         );
       }
+
+      // if (
+      //   !isEmpty(request["body"]["site_codes"]) &&
+      //   request["body"]["site_codes"].length < 7
+      // ) {
+      //   const siteCodeValues = [
+      //     "site_id",
+      //     "name",
+      //     "_id",
+      //     "lat_long",
+      //     "generated name",
+      //     "location_name",
+      //     "search_name",
+      //     "formatted_name",
+      //   ];
+
+      //   for (const siteCode of siteCodeValues) {
+      //     request["body"]["site_codes"].push(siteCode);
+      //   }
+      // }
 
       request["query"]["tenant"] = tenant;
       let responseFromGenerateMetadata = await createSite.generateMetadata(
