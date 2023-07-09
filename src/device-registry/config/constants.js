@@ -9,7 +9,11 @@ const devConfig = {
   DB_NAME: process.env.MONGO_DEV,
   REDIS_SERVER: process.env.REDIS_SERVER_DEV,
   REDIS_PORT: process.env.REDIS_PORT,
-  KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_DEV.split(","),
+  KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_DEV
+    ? process.env.KAFKA_BOOTSTRAP_SERVERS_DEV.split(",").filter(
+        (value) => value.trim() !== ""
+      )
+    : [],
   KAFKA_TOPICS: process.env.KAFKA_TOPICS_DEV,
   SCHEMA_REGISTRY: process.env.SCHEMA_REGISTRY_DEV,
   KAFKA_RAW_MEASUREMENTS_TOPICS: process.env.KAFKA_RAW_MEASUREMENTS_TOPICS_DEV,
@@ -24,7 +28,11 @@ const prodConfig = {
   DB_NAME: process.env.MONGO_PROD,
   REDIS_SERVER: process.env.REDIS_SERVER,
   REDIS_PORT: process.env.REDIS_PORT,
-  KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_PROD.split(","),
+  KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_PROD
+    ? process.env.KAFKA_BOOTSTRAP_SERVERS_PROD.split(",").filter(
+        (value) => value.trim() !== ""
+      )
+    : [],
   KAFKA_TOPICS: process.env.KAFKA_TOPICS_PROD,
   SCHEMA_REGISTRY: process.env.SCHEMA_REGISTRY_PROD,
   KAFKA_RAW_MEASUREMENTS_TOPICS: process.env.KAFKA_RAW_MEASUREMENTS_TOPICS_PROD,
@@ -40,7 +48,11 @@ const stageConfig = {
   DB_NAME: process.env.MONGO_STAGE,
   REDIS_SERVER: process.env.REDIS_SERVER,
   REDIS_PORT: process.env.REDIS_PORT,
-  KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_STAGE.split(","),
+  KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_STAGE
+    ? process.env.KAFKA_BOOTSTRAP_SERVERS_STAGE.split(",").filter(
+        (value) => value.trim() !== ""
+      )
+    : [],
   KAFKA_TOPICS: process.env.KAFKA_TOPICS_STAGE,
   SCHEMA_REGISTRY: process.env.SCHEMA_REGISTRY_STAGE,
   KAFKA_RAW_MEASUREMENTS_TOPICS:
@@ -53,13 +65,25 @@ const stageConfig = {
 };
 
 const defaultConfig = {
-  NETWORKS: process.env.NETWORKS.split(","),
-  ACTIVITY_TYPES: process.env.ACTIVITY_TYPES.split(","),
-  RECALL_TYPES: process.env.RECALL_TYPES.split(","),
+  NETWORKS: process.env.NETWORKS
+    ? process.env.NETWORKS.split(",").filter((value) => value.trim() !== "")
+    : [],
+  ACTIVITY_TYPES: process.env.ACTIVITY_TYPES
+    ? process.env.ACTIVITY_TYPES.split(",").filter(
+        (value) => value.trim() !== ""
+      )
+    : [],
+  RECALL_TYPES: process.env.RECALL_TYPES
+    ? process.env.RECALL_TYPES.split(",").filter((value) => value.trim() !== "")
+    : [],
   AQI_CATEGORIES: "good,moderate,u4sg,unhealthy,very_unhealthy,hazardous".split(
     ","
   ),
-  MAINTENANCE_TYPES: process.env.MAINTENANCE_TYPES.split(","),
+  MAINTENANCE_TYPES: process.env.MAINTENANCE_TYPES
+    ? process.env.MAINTENANCE_TYPES.split(",").filter(
+        (value) => value.trim() !== ""
+      )
+    : [],
   DEFAULT_NETWORK: process.env.DEFAULT_NETWORK,
   DEFAULT_TENANT: process.env.DEFAULT_TENANT,
   DEFAULT_NEAREST_SITE_RADIUS: process.env.DEFAULT_NEAREST_SITE_RADIUS,
@@ -69,9 +93,15 @@ const defaultConfig = {
   SLACK_USERNAME: process.env.SLACK_USERNAME,
   DATAWAREHOUSE_RAW_DATA: process.env.DATAWAREHOUSE_RAW_DATA,
   MOESIF_APPLICATION_ID: process.env.MOESIF_APPLICATION_ID,
-  DOMAIN_WHITELIST: process.env.DOMAIN_WHITELIST.split(","),
+  DOMAIN_WHITELIST: process.env.DOMAIN_WHITELIST
+    ? process.env.DOMAIN_WHITELIST.split(",").filter(
+        (value) => value.trim() !== ""
+      )
+    : [],
   BIG_QUERY_LOCATION: process.env.BIG_QUERY_LOCATION,
-  TENANTS: process.env.TENANTS.split(","),
+  TENANTS: process.env.TENANTS
+    ? process.env.TENANTS.split(",").filter((value) => value.trim() !== "")
+    : [],
   SITES_TOPIC: process.env.SITES_TOPIC,
   DEVICES_TOPIC: process.env.DEVICES_TOPIC,
   LOCATIONS_TOPIC: process.env.LOCATIONS_TOPIC,
@@ -82,6 +112,8 @@ const defaultConfig = {
   TIPS_TOPIC: process.env.TIPS_TOPIC,
   KYA_TOPIC: process.env.KYA_TOPIC,
   KYA_LESSON: process.env.KYA_LESSON,
+  GRID_TOPIC: process.env.GRID_TOPIC,
+  COHORT_TOPIC: process.env.COHORT_TOPIC,
   HOURLY_MEASUREMENTS_TOPIC: process.env.HOURLY_MEASUREMENTS_TOPIC,
   PORT: process.env.PORT || 3000,
   TAHMO_API_GET_STATIONS_URL: process.env.TAHMO_API_GET_STATIONS_URL,
@@ -757,6 +789,14 @@ const defaultConfig = {
       "devices.owner": 0,
       "devices.device_manufacturer": 0,
       "devices.channelID": 0,
+      "grids.network_id": 0,
+      "grids.geoHash": 0,
+      "grids.center_point": 0,
+      "grids.long_name": 0,
+      "grids.description": 0,
+      "grids.grid_tags": 0,
+      "grids.grid_codes": 0,
+      "grids.shape": 0,
     };
 
     let projection = Object.assign({}, initialProjection);
@@ -953,6 +993,10 @@ const defaultConfig = {
       "previous_sites.site_codes": 0,
       "previous_sites.site_tags": 0,
       "previous_sites.land_use": 0,
+      "cohorts.network_id": 0,
+      "cohorts.description": 0,
+      "cohorts.cohort_tags": 0,
+      "cohorts.cohort_codes": 0,
     };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {
@@ -978,6 +1022,164 @@ const defaultConfig = {
     }
     return projection;
   },
+
+  GRIDS_INCLUSION_PROJECTION: {
+    _id: 1,
+    name: 1,
+    long_name: 1,
+    description: 1,
+    grid_tags: 1,
+    admin_level: 1,
+    grid_codes: 1,
+    centers: 1,
+    shape: 1,
+    network: 1,
+    sites: "$sites",
+    numberOfSites: {
+      $cond: {
+        if: { $isArray: "$sites" },
+        then: { $size: { $ifNull: ["$sites._id", []] } },
+        else: "NA",
+      },
+    },
+  },
+  GRIDS_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = {
+      "sites.altitude": 0,
+      "sites.greenness": 0,
+      "sites.landform_90": 0,
+      "sites.landform_270": 0,
+      "sites.aspect": 0,
+      "sites.distance_to_nearest_road": 0,
+      "sites.distance_to_nearest_primary_road": 0,
+      "sites.distance_to_nearest_secondary_road": 0,
+      "sites.distance_to_nearest_tertiary_road": 0,
+      "sites.distance_to_nearest_unclassified_road": 0,
+      "sites.distance_to_nearest_residential_road": 0,
+      "sites.bearing_to_kampala_center": 0,
+      "sites.distance_to_kampala_center": 0,
+      "sites.updatedAt": 0,
+      "sites.nearest_tahmo_station": 0,
+      "sites.formatted_name": 0,
+      "sites.geometry": 0,
+      "sites.google_place_id": 0,
+      "sites.site_tags": 0,
+      "sites.street": 0,
+      "sites.town": 0,
+      "sites.village": 0,
+      "sites.airqlouds": 0,
+      "sites.description": 0,
+      "sites.__v": 0,
+      "sites.airqloud_id": 0,
+      "sites.createdAt": 0,
+      "sites.lat_long": 0,
+      "sites.weather_stations": 0,
+      "sites.site_codes": 0,
+      "sites.network": 0,
+    };
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign(initialProjection, {
+        shape: 0,
+        grid_tags: 0,
+        grid_codes: 0,
+        centers: 0,
+      });
+    }
+    return projection;
+  },
+
+  COHORTS_INCLUSION_PROJECTION: {
+    network: 1,
+    name: 1,
+    description: 1,
+    cohort_tags: 1,
+    cohort_codes: 1,
+  },
+  COHORTS_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = {};
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign({}, {});
+    }
+    return projection;
+  },
+
+  AIRQLOUDS_INCLUSION_PROJECTION: {
+    _id: 1,
+    name: 1,
+    long_name: 1,
+    admin_level: 1,
+    location: 1,
+    airqloud_codes: 1,
+    numberOfSites: {
+      $cond: {
+        if: { $isArray: "$sites" },
+        then: { $size: "$sites" },
+        else: "NA",
+      },
+    },
+    description: 1,
+    airqloud_tags: 1,
+    isCustom: 1,
+    metadata: 1,
+    center_point: 1,
+    sites: "$sites",
+  },
+  AIRQLOUDS_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = {
+      "sites.altitude": 0,
+      "sites.greenness": 0,
+      "sites.landform_90": 0,
+      "sites.landform_270": 0,
+      "sites.aspect": 0,
+      "sites.distance_to_nearest_road": 0,
+      "sites.distance_to_nearest_primary_road": 0,
+      "sites.distance_to_nearest_secondary_road": 0,
+      "sites.distance_to_nearest_tertiary_road": 0,
+      "sites.distance_to_nearest_unclassified_road": 0,
+      "sites.distance_to_nearest_residential_road": 0,
+      "sites.bearing_to_kampala_center": 0,
+      "sites.distance_to_kampala_center": 0,
+      "sites.updatedAt": 0,
+      "sites.nearest_tahmo_station": 0,
+      "sites.formatted_name": 0,
+      "sites.geometry": 0,
+      "sites.google_place_id": 0,
+      "sites.site_tags": 0,
+      "sites.street": 0,
+      "sites.town": 0,
+      "sites.village": 0,
+      "sites.airqlouds": 0,
+      "sites.description": 0,
+      "sites.__v": 0,
+      "sites.airqloud_id": 0,
+      "sites.createdAt": 0,
+      "sites.lat_long": 0,
+      "sites.weather_stations": 0,
+      "sites.site_codes": 0,
+      "sites.network": 0,
+    };
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign(initialProjection, {
+        location: 0,
+        admin_level: 0,
+        isCustom: 0,
+        metadata: 0,
+        center_point: 0,
+        airqloud_codes: 0,
+        sites: 0,
+        description: 0,
+        airqloud_tags: 0,
+      });
+    }
+    if (category === "dashboard") {
+      projection = Object.assign(initialProjection, { location: 0 });
+    }
+    return projection;
+  },
+
   KYA_LESSONS_INCLUSION_PROJECTION: {
     _id: 1,
     title: 1,
@@ -1002,6 +1204,32 @@ const defaultConfig = {
     _id: 1,
   },
   KYA_LESSONS_PROGRESS_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = {};
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign({}, {});
+    }
+    return projection;
+  },
+  ADMIN_LEVEL_INCLUSION_PROJECTION: {
+    description: 1,
+    name: 1,
+    _id: 1,
+  },
+  ADMIN_LEVEL_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = {};
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign({}, {});
+    }
+    return projection;
+  },
+  NETWORK_INCLUSION_PROJECTION: {
+    description: 1,
+    name: 1,
+    _id: 1,
+  },
+  NETWORK_EXCLUSION_PROJECTION: (category) => {
     const initialProjection = {};
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {
