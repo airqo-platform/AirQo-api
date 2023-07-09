@@ -1,0 +1,16 @@
+- hosts: k8s_workers
+  become: true
+  tasks:
+    - name: Create the disk cleanup script worker node
+      template:
+        src: roles/k8s/templates/disk_cleanup.sh.j2
+        dest: /root/disk_cleanup.sh
+        mode: a+x
+
+    - name: Create cronjob for running the cleanup script
+      cron:
+        name: Clean up disk space
+        weekday: 6
+        hour: "{{ groups['k8s_workers'].index(inventory_hostname) }}"
+        minute: 0
+        job: sudo /bin/bash /root/disk_cleanup.sh

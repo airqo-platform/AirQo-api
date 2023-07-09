@@ -1,6 +1,6 @@
 resource "google_compute_instance" "mongod_shard_1_1" {
   boot_disk {
-    auto_delete = true
+    auto_delete = false
     source      = "mongod-shard-1-1"
   }
 
@@ -9,13 +9,15 @@ resource "google_compute_instance" "mongod_shard_1_1" {
     "type" = "mongo-shard"
   }
 
-  machine_type = "e2-custom-4-8192"
+  machine_type = "e2-highmem-2"
 
   metadata = {
     startup-script = "sudo ufw allow ssh"
   }
 
   name = "mongod-shard-1-1"
+  
+  allow_stopping_for_update = true
 
   network_interface {
     access_config {
@@ -43,6 +45,6 @@ resource "google_compute_instance" "mongod_shard_1_1" {
     scopes = ["https://www.googleapis.com/auth/devstorage.read_only", "https://www.googleapis.com/auth/logging.write", "https://www.googleapis.com/auth/monitoring.write", "https://www.googleapis.com/auth/service.management.readonly", "https://www.googleapis.com/auth/servicecontrol", "https://www.googleapis.com/auth/trace.append"]
   }
 
-  zone = var.zone
+  zone = var.zone["c"]
 }
-# terraform import google_compute_instance.mongod_shard_1_1 projects/${var.project_id}/zones/${var.zone}/instances/mongod-shard-1-1
+# terraform import google_compute_instance.mongod_shard_1_1 projects/${var.project_id}/zones/${var.zone["b"]}/instances/mongod-shard-1-1

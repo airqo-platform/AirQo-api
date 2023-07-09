@@ -1,6 +1,6 @@
 const HTTPStatus = require("http-status");
 const PhotoSchema = require("@models/Photo");
-const { getModelByTenant } = require("./multitenancy");
+const { getModelByTenant } = require("@config/database");
 const isEmpty = require("is-empty");
 const axios = require("axios");
 const constants = require("@config/constants");
@@ -398,17 +398,22 @@ const createPhoto = {
   extractImageIds: (request) => {
     try {
       const { image_urls } = request.body;
-      const { device_name } = request.query;
+      const { device_name, device_id, site_id, airqloud_id } = request.query;
       let photoNamesWithoutExtension = [];
       image_urls.forEach((imageURL) => {
         logElement("the imageURL", imageURL);
         let request = {};
         request["imageURL"] = imageURL;
-        const responseFromGetLastPath = createPhoto.getLastPath(request);
+        const responseFromGetLastPath = createPhoto.getCloudinaryPaths(request);
         logObject("responseFromGetLastPath", responseFromGetLastPath);
         if (responseFromGetLastPath.success === true) {
-          const cloudinaryPublicId = responseFromGetLastPath.data;
-          const prependFolderNameToCloudinaryPublicId = `devices/${device_name}/${cloudinaryPublicId}`;
+          const cloudinaryPublicId = responseFromGetLastPath.data.lastSegment;
+          const prependFolderNameToCloudinaryPublicId = `${
+            responseFromGetLastPath.data.thirdLastSegment
+          }/${device_name ||
+            site_id ||
+            device_id ||
+            airqloud_id}/${cloudinaryPublicId}`;
           photoNamesWithoutExtension.push(
             prependFolderNameToCloudinaryPublicId
           );
@@ -439,18 +444,22 @@ const createPhoto = {
       };
     }
   },
-  getLastPath: (request) => {
+  getCloudinaryPaths: (request) => {
     try {
       const { imageURL } = request;
       const segements = imageURL.split("/").filter((segment) => segment);
       const lastSegment = segements[segements.length - 1];
-      const removeFileExtension = lastSegment
+      const thirdLastSegment = segements[segements.length - 3];
+      const removedFileExtensionFromLastSegment = lastSegment
         .split(".")
         .slice(0, -1)
         .join(".");
       return {
         success: true,
-        data: removeFileExtension,
+        data: {
+          lastSegment: removedFileExtensionFromLastSegment,
+          thirdLastSegment,
+        },
         status: HTTPStatus.OK,
         message: "successfully removed the file extension",
       };
@@ -527,12 +536,14 @@ const createPhoto = {
     try {
       let { body, query } = request;
       let { tenant } = query;
-      let { image_url, device_name, device_id } = body;
+      let { image_url, device_name, device_id, site_id, airqloud_id } = body;
       let requestForImageIdExtraction = {};
       requestForImageIdExtraction["body"] = {};
       requestForImageIdExtraction["query"] = {};
       requestForImageIdExtraction["query"]["device_name"] = device_name;
       requestForImageIdExtraction["query"]["device_id"] = device_id;
+      requestForImageIdExtraction["query"]["site_id"] = site_id;
+      requestForImageIdExtraction["query"]["airqloud_id"] = airqloud_id;
       requestForImageIdExtraction["body"]["image_urls"] = [];
       requestForImageIdExtraction["body"]["image_urls"].push(image_url);
       const responseFromExtractImage = await createPhoto.extractImageIds(

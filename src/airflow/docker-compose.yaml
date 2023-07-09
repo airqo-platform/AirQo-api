@@ -70,7 +70,6 @@ services:
     build:
       context: .
       target: kafka-setup
-    platform: linux/amd64
     restart: on-failure
     healthcheck:
       test: "exit 0"

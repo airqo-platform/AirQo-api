@@ -8,6 +8,7 @@ const logger = log4js.getLogger(
 );
 const { validationResult } = require("express-validator");
 const createPhotoUtil = require("@utils/create-photo");
+const isEmpty = require("is-empty");
 
 const processImage = {
   create: async (req, res) => {
@@ -25,11 +26,7 @@ const processImage = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { body, query } = req;
-      let request = {};
-      request["body"] = body;
-      request["query"] = query;
-
+      let request = Object.assign({}, req);
       const responseFromCreatePhoto = await createPhotoUtil.create(request);
 
       if (responseFromCreatePhoto.success === true) {
@@ -77,10 +74,7 @@ const processImage = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { body, query } = req;
-      let request = {};
-      request["body"] = body;
-      request["query"] = query;
+      let request = Object.assign({}, req);
       const responseFromUpdatePhoto = await createPhotoUtil.update(request);
 
       if (responseFromUpdatePhoto.success === true) {
@@ -193,10 +187,8 @@ const processImage = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { body, query } = req;
-      let request = {};
-      request["body"] = body;
-      request["query"] = query;
+
+      let request = Object.assign({}, req);
       const responseFromListPhoto = await createPhotoUtil.list(request);
       logObject("responseFromListPhoto in controller", responseFromListPhoto);
 
@@ -233,6 +225,7 @@ const processImage = {
   /******************** platform ********************************/
   createPhotoOnPlatform: async (req, res) => {
     try {
+      logText("we are into this now....");
       const hasErrors = !validationResult(req).isEmpty();
       logElement("hasErrors", hasErrors);
       if (hasErrors) {
@@ -252,18 +245,16 @@ const processImage = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { body, query } = req;
-      const { tenant } = query;
-      const { image_url, device_name, device_id, network } = body;
+      const { query } = req;
+      let { tenant } = query;
 
-      let request = {};
-      request["body"] = {};
-      request["query"] = {};
-      request["body"]["image_url"] = image_url;
-      request["body"]["device_name"] = device_name;
-      request["body"]["device_id"] = device_id;
+      let request = Object.assign({}, req);
+
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+
       request["query"]["tenant"] = tenant;
-      request["body"]["network"] = network;
 
       const responseFromCreatePhotoOnPlatform = await createPhotoUtil.createPhotoOnPlatform(
         request
@@ -324,10 +315,9 @@ const processImage = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { body, query } = req;
-      let request = {};
-      request["body"] = body;
-      request["query"] = query;
+
+      let request = Object.assign({}, req);
+
       const responseFromDeletePhotoOnPlatform = await createPhotoUtil.deletePhotoOnPlatform(
         request
       );
@@ -387,10 +377,9 @@ const processImage = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { body, query } = req;
-      let request = {};
-      request["body"] = body;
-      request["query"] = query;
+
+      let request = Object.assign({}, req);
+
       const responseFromUpdatePhotoOnPlatform = await createPhotoUtil.updatePhotoOnPlatform(
         request
       );
@@ -451,10 +440,9 @@ const processImage = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { body, query } = req;
-      let request = {};
-      request["body"] = body;
-      request["query"] = query;
+
+      let request = Object.assign({}, req);
+
       const responseFromDeletePhotoOnCloudinary = await createPhotoUtil.deletePhotoOnCloudinary(
         request
       );
@@ -505,9 +493,7 @@ const processImage = {
         );
       }
       const { body, query } = req;
-      let request = {};
-      request["body"] = body;
-      request["query"] = query;
+      let request = Object.assign({}, req);
       const responseFromUpdatePhotoOnCloudinary = await createPhotoUtil.updatePhotoOnCloudinary(
         request
       );
@@ -558,9 +544,7 @@ const processImage = {
         );
       }
       const { body, query } = req;
-      let request = {};
-      request["body"] = body;
-      request["query"] = query;
+      let request = Object.assign({}, req);
       const responseFromCreatePhotoOnCloudinary = await createPhotoUtil.createPhotoOnCloudinary(
         request
       );
