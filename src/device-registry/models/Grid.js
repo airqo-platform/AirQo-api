@@ -105,7 +105,7 @@ gridSchema.plugin(uniqueValidator, {
   message: `{VALUE} is a duplicate value!`,
 });
 
-gridSchema.index({ geoHash: 1 });
+// gridSchema.index({ geoHash: 1 });
 
 gridSchema.methods.toJSON = function() {
   const {
