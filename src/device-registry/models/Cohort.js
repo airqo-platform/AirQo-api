@@ -163,18 +163,10 @@ cohortSchema.statics.list = async function({
       .match(filter)
       .sort({ createdAt: -1 })
       .project(inclusionProjection)
+      .project(exclusionProjection)
       .skip(skip ? skip : 0)
       .limit(limit ? limit : 1000)
       .allowDiskUse(true);
-
-    if (Object.keys(exclusionProjection).length > 0) {
-      pipeline.project(exclusionProjection);
-      // const projectionStage = { $project: {} };
-      // Object.entries(exclusionProjection).forEach(([key, value]) => {
-      //   projectionStage.$project[key] = value;
-      // });
-      // pipeline.push(projectionStage);
-    }
 
     const data = await pipeline;
     logObject("the data baby", data);

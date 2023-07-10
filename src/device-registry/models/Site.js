@@ -528,14 +528,6 @@ siteSchema.statics = {
         )
         .allowDiskUse(true);
 
-      // if (Object.keys(exclusionProjection).length > 0) {
-      //   const projectionStage = { $project: {} };
-      //   Object.entries(exclusionProjection).forEach(([key, value]) => {
-      //     projectionStage.$project[key] = value;
-      //   });
-      //   pipeline.push(projectionStage);
-      // }
-
       const response = await pipeline;
 
       if (!isEmpty(response)) {

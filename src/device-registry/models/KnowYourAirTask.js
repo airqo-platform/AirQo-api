@@ -116,6 +116,7 @@ knowYourAirTaskSchema.statics = {
           as: "kyalessons",
         })
         .project(inclusionProjection)
+        .project(exclusionProjection)
         .skip(skip ? skip : 0)
         .limit(
           limit
@@ -124,14 +125,6 @@ knowYourAirTaskSchema.statics = {
         )
         .allowDiskUse(true);
 
-      if (Object.keys(exclusionProjection).length > 0) {
-        pipeline.project(exclusionProjection);
-        // const projectionStage = { $project: {} };
-        // Object.entries(exclusionProjection).forEach(([key, value]) => {
-        //   projectionStage.$project[key] = value;
-        // });
-        // pipeline.push(projectionStage);
-      }
       const response = pipeline;
 
       if (!isEmpty(response)) {
