@@ -1677,8 +1677,8 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           push: true
-          context: src/predict/jobs/new_directory
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-predict-places-air-quality:latest-update
+          context: src/predict/jobs/predict_places_air_quality
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-predict-places-air-quality:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-airqo-predict-places-air-quality:latest
       - name: Update corresponding helm values file(with retry)
         uses: Wandalen/wretry.action@master
         with:
@@ -1751,7 +1751,7 @@ jobs:
           with: |
             valueFile: "k8s/predict/new_directory/values-prod.yaml"
             
-            propertyPath: "image.new_property"
+            propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: 'search-api-dataCICD'
             token: ${{ secrets.YAML_UPDATER_TOKEN }}
