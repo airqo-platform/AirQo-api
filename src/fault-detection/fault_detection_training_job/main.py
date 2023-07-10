@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import os
 from google.oauth2 import service_account
 from config import configuration
 from sklearn.preprocessing import MinMaxScaler
@@ -140,8 +141,16 @@ def upload_trained_model_to_gcs(trained_model, scaler, project_name, bucket_name
         print("Bucket: No file to update")
 
     # Store new model and scaler
+    # Save the model to a temporary local file
+    temp_file = 'temp_model.h5'
+    trained_model.save(temp_file)
+
+    # Upload the local file to GCS bucket
     with fs.open(bucket_name + '/' + source_blob_name, 'wb') as model_handle:
-        joblib.dump(trained_model, model_handle)
+        model_handle.write(open(temp_file, 'rb').read())
+
+    # Delete the temporary local file
+    os.remove(temp_file)
 
     with fs.open(bucket_name + '/scaler.pkl', 'wb') as scaler_handle:
         joblib.dump(scaler, scaler_handle)
