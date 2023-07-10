@@ -1,15 +1,11 @@
 const AirQloudSchema = require("@models/Airqloud");
 const SiteSchema = require("@models/Site");
-const { logObject, logElement, logText } = require("./log");
+const { logObject } = require("./log");
 const { getModelByTenant } = require("@config/database");
 const isEmpty = require("is-empty");
-const axios = require("axios");
-const HTTPStatus = require("http-status");
-const axiosInstance = () => {
-  return axios.create();
-};
 const constants = require("@config/constants");
 const generateFilter = require("./generate-filter");
+const commonUtil = require("@utils/common");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-airqloud-util`
@@ -18,6 +14,7 @@ const createLocationUtil = require("./create-location");
 const geolib = require("geolib");
 
 const { Kafka } = require("kafkajs");
+const httpStatus = require("http-status");
 const kafka = new Kafka({
   clientId: constants.KAFKA_CLIENT_ID,
   brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
@@ -35,7 +32,6 @@ const createAirqloud = {
       logger.error(`internal server error -- hasNoWhiteSpace -- ${e.message}`);
     }
   },
-
   retrieveCoordinates: async (request, entity) => {
     try {
       let entityInstance = {};
@@ -51,7 +47,7 @@ const createAirqloud = {
           return {
             success: false,
             message: "unable to retrieve location details",
-            status: HTTPStatus.NOT_FOUND,
+            status: httpStatus.NOT_FOUND,
             errors: {
               message: "no record exists for this location_id",
             },
@@ -63,14 +59,14 @@ const createAirqloud = {
             data: data.location,
             success: true,
             message: "retrieved the location",
-            status: HTTPStatus.OK,
+            status: httpStatus.OK,
           };
         }
         if (responseFromListAirQloud.data.length > 1) {
           return {
             success: false,
             message: "unable to retrieve location details",
-            status: HTTPStatus.INTERNAL_SERVER_ERROR,
+            status: httpStatus.INTERNAL_SERVER_ERROR,
             errors: {
               message: "requested for one record but received many",
             },
@@ -83,7 +79,7 @@ const createAirqloud = {
           success: false,
           message: "unable to retrieve details from the provided location_id",
           errors: responseFromListAirQloud.errors,
-          status: HTTPStatus.INTERNAL_SERVER_ERROR,
+          status: httpStatus.INTERNAL_SERVER_ERROR,
         };
       }
     } catch (error) {
@@ -92,7 +88,7 @@ const createAirqloud = {
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -183,7 +179,7 @@ const createAirqloud = {
       return {
         success: false,
         message: "Internal Server Error",
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
         errors: { message: err.message },
       };
     }
@@ -211,7 +207,7 @@ const createAirqloud = {
         success: false,
         message: "Internal Server Error",
         errors: { message: err.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -235,7 +231,7 @@ const createAirqloud = {
         success: false,
         message: "unable to delete airqloud",
         errors: err.message,
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -297,7 +293,7 @@ const createAirqloud = {
         return {
           success: true,
           message: "successfully refreshed the AirQloud",
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
           data: responseFromUpdateAirQloud.data,
         };
       } else if (responseFromUpdateAirQloud.success === false) {
@@ -308,12 +304,11 @@ const createAirqloud = {
       return {
         success: false,
         message: "Internal Server Error",
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
         errors: { message: error.message },
       };
     }
   },
-
   calculateGeographicalCenter: async (request) => {
     try {
       const { body, query } = request;
@@ -390,7 +385,7 @@ const createAirqloud = {
           return {
             success: false,
             message: "unable to find one match for this airqloud id",
-            status: HTTPStatus.NOT_FOUND,
+            status: httpStatus.NOT_FOUND,
           };
         } else if (data.length === 1) {
           airqloud = responseFromListAirQlouds.data[0];
@@ -446,14 +441,14 @@ const createAirqloud = {
               success: true,
               message: "successfully searched for the associated Sites",
               data: site_ids,
-              status: HTTPStatus.OK,
+              status: httpStatus.OK,
             };
           } else if (isEmpty(site_ids)) {
             return {
               success: true,
               message: "no associated Sites found",
               data: site_ids,
-              status: HTTPStatus.OK,
+              status: httpStatus.OK,
             };
           }
         } else if (responseFromListSites.success === false) {
@@ -475,7 +470,6 @@ const createAirqloud = {
       };
     }
   },
-
   list: async (request) => {
     try {
       let { query } = request;
@@ -501,7 +495,39 @@ const createAirqloud = {
         success: false,
         message: "unable to list airqloud",
         errors: err.message,
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  listCohortsAndGrids: async (request) => {
+    try {
+      const { params } = request;
+      const network_id = params.net_id;
+      const { tenant, category } = request.query;
+      return await commonUtil
+        .getDocumentsByNetworkId(tenant, network_id, category)
+        .then(({ cohorts, grids }) => {
+          return {
+            success: true,
+            message: `Successfully returned the AirQlouds for network ${network_id}`,
+            data: { cohorts, grids },
+            status: httpStatus.OK,
+          };
+        })
+        .catch((error) => {
+          return {
+            success: false,
+            message: "Internal Server Error",
+            errors: { message: error.message },
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+          };
+        });
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },

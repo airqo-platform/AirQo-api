@@ -1673,6 +1673,24 @@ jobs:
             token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update predict production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
+      - name: Build and push predict places image
+        uses: docker/build-push-action@v3
+        with:
+          push: true
+          context: src/predict/jobs/predict_places_air_quality
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-predict-places-air-quality:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-predict-places-air-quality:latest
+
+      - name: Update corresponding helm values file(with retry)
+        uses: Wandalen/wretry.action@master
+        with:
+          action: fjogeleit/yaml-update-action@main
+          with: |
+            valueFile: "k8s/predict/predict-places-air-quality/values-prod.yaml"
+            propertyPath: "image.tag"
+            value: ${{ needs.image-tag.outputs.build_id }}
+            branch: ${{ env.DEPLOY_BRANCH }}
+            message: "Update predict places air quality staging image tag to ${{ needs.image-tag.outputs.build_id }}"
+
       - name: Login to GCP
         uses: google-github-actions/auth@v1.1.1
         with:
