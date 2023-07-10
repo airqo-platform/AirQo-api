@@ -5,6 +5,10 @@ const { logElement, logText, logObject } = require("@utils/log");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 
+const constants = require("@config/constants");
+const log4js = require("log4js");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- defaults-model`);
+
 const periodSchema = new mongoose.Schema(
   {
     value: { type: String },
@@ -112,17 +116,19 @@ DefaultsSchema.statics = {
         return {
           success: true,
           data,
-          message: "default created",
+          message: "default created successfully with no issues detected",
           status: httpStatus.OK,
         };
-      } else {
+      } else if (isEmpty(data)) {
         return {
           success: true,
           message: "default not created despite successful operation",
-          status: httpStatus.CREATED,
+          status: httpStatus.OK,
+          data: [],
         };
       }
     } catch (err) {
+      logger.error(`Data conflicts detected -- ${err.message}`);
       let response = {};
       let errors = {};
       let message = "Internal Server Error";
@@ -152,72 +158,66 @@ DefaultsSchema.statics = {
   },
   async list({ skip = 0, limit = 20, filter = {} } = {}) {
     try {
-      let defaults = await this.find(filter)
+      const defaults = await this.find(filter)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .exec();
 
       if (!isEmpty(defaults)) {
-        let data = defaults;
         return {
           success: true,
-          data,
+          data: defaults,
           message: "successfully listed the defaults",
           status: httpStatus.OK,
         };
-      }
-      if (isEmpty(data)) {
+      } else if (isEmpty(defaults)) {
         return {
           success: true,
           message: "no defaults found for this search",
-          data,
-          status: httpStatus.NOT_FOUND,
+          data: [],
+          status: httpStatus.OK,
         };
       }
-      return {
-        success: false,
-        message: "unable to retrieve defaults",
-        data,
-        status: httpStatus.BAD_GATEWAY,
-      };
     } catch (error) {
+      logger.error(`Data conflicts detected -- ${error.message}`);
       return {
         success: false,
-        message: "unable to list the defaults",
-        errors: error.message,
+        message: "Data conflicts detected",
+        errors: { message: error.message },
         status: httpStatus.CONFLICT,
       };
     }
   },
   async modify({ filter = {}, update = {} } = {}) {
     try {
-      let options = { new: true };
+      const options = { new: true };
       if (update._id) {
         delete update._id;
       }
-      let updatedDefault = await this.findOneAndUpdate(
+      const updatedDefault = await this.findOneAndUpdate(
         filter,
         update,
         options
       ).exec();
 
       if (!isEmpty(updatedDefault)) {
-        let data = updatedDefault._doc;
         return {
           success: true,
           message: "successfully modified the default",
-          data,
+          data: updatedDefault._doc,
           status: httpStatus.OK,
         };
-      } else {
+      } else if (isEmpty(updatedDefault)) {
         return {
-          success: false,
+          success: true,
           message: "the default does not exist, please crosscheck",
-          status: httpStatus.NOT_FOUND,
+          status: httpStatus.OK,
+          data: [],
         };
       }
     } catch (err) {
+      logger.error(`Data conflicts detected -- ${err.message}`);
       let errors = {};
       let message = "";
       let status = "";
@@ -248,26 +248,27 @@ DefaultsSchema.statics = {
       let removedDefault = await this.findOneAndRemove(filter, options).exec();
 
       if (!isEmpty(removedDefault)) {
-        let data = removedDefault._doc;
         return {
           success: true,
           message: "successfully removed the default",
-          data,
+          data: removedDefault._doc,
           status: httpStatus.OK,
         };
-      } else {
+      } else if (isEmpty(removedDefault)) {
         return {
-          success: false,
+          success: true,
           message: "default does not exist, please crosscheck",
-          status: httpStatus.NOT_FOUND,
+          status: httpStatus.OK,
+          data: [],
         };
       }
     } catch (error) {
+      logger.error(`Data conflicts detected -- ${error.message}`);
       return {
         success: false,
-        message: "model server error",
-        errors: error.message,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
+        message: "Data conflicts detected",
+        errors: { message: error.message },
+        status: httpStatus.CONFLICT,
       };
     }
   },

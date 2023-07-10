@@ -1,3 +1,4 @@
+require("module-alias/register");
 process.env.NODE_ENV = "development";
 
 require("module-alias/register");

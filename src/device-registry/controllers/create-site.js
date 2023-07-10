@@ -6,7 +6,7 @@ const { validationResult } = require("express-validator");
 const errors = require("@utils/errors");
 const generateFilter = require("@utils/generate-filter");
 const createSiteUtil = require("@utils/create-site");
-const { getModelByTenant } = require("@utils/multitenancy");
+const { getModelByTenant } = require("@config/database");
 const constants = require("@config/constants");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
@@ -622,9 +622,9 @@ const manageSite = {
     }
   },
 
-  list: async (req, res) => {
+  listSummary: async (req, res) => {
     try {
-      const { tenant } = req.query;
+      let { tenant } = req.query;
       const limit = parseInt(req.query.limit, 0);
       const skip = parseInt(req.query.skip, 0);
       const hasErrors = !validationResult(req).isEmpty();
@@ -644,6 +644,78 @@ const manageSite = {
           "bad request errors",
           errors.convertErrorArrayToObject(nestedErrors)
         );
+      }
+
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT || "airqo";
+      }
+      let filter = generateFilter.sites(req);
+      filter["category"] = "summary";
+      let responseFromListSites = await createSiteUtil.list({
+        tenant,
+        filter,
+        limit,
+        skip,
+      });
+
+      if (responseFromListSites.success === true) {
+        const status = responseFromListSites.status
+          ? responseFromListSites.status
+          : HTTPStatus.OK;
+        res.status(status).json({
+          success: true,
+          message: responseFromListSites.message,
+          sites: responseFromListSites.data,
+        });
+      } else if (responseFromListSites.success === false) {
+        const status = responseFromListSites.status
+          ? responseFromListSites.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+
+        res.status(status).json({
+          success: false,
+          message: responseFromListSites.message,
+          errors: responseFromListSites.errors
+            ? responseFromListSites.errors
+            : { message: "" },
+        });
+      }
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
+  list: async (req, res) => {
+    try {
+      let { tenant } = req.query;
+      const limit = parseInt(req.query.limit, 0);
+      const skip = parseInt(req.query.skip, 0);
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_TENANT || "airqo";
       }
       let filter = generateFilter.sites(req);
       let responseFromListSites = await createSiteUtil.list({

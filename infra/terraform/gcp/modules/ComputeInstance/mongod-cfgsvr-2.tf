@@ -1,6 +1,6 @@
 resource "google_compute_instance" "mongod_cfgsvr_2" {
   boot_disk {
-    auto_delete = true
+    auto_delete = false
     source      = "mongod-cfgsvr-2"
   }
 
@@ -8,8 +8,10 @@ resource "google_compute_instance" "mongod_cfgsvr_2" {
     "env"  = "prod"
     "type" = "mongo-config-server"
   }
+  
+  allow_stopping_for_update = true
 
-  machine_type = "e2-custom-4-8192"
+  machine_type = "e2-standard-2"
 
   metadata = {
     startup-script = "sudo ufw allow ssh"
@@ -23,7 +25,7 @@ resource "google_compute_instance" "mongod_cfgsvr_2" {
     }
 
     network = "default"
-    network_ip = "10.132.0.48"
+    network_ip = "10.132.0.47"
   }
 
   project = var.project_id
@@ -43,6 +45,6 @@ resource "google_compute_instance" "mongod_cfgsvr_2" {
     scopes = ["https://www.googleapis.com/auth/devstorage.read_only", "https://www.googleapis.com/auth/logging.write", "https://www.googleapis.com/auth/monitoring.write", "https://www.googleapis.com/auth/service.management.readonly", "https://www.googleapis.com/auth/servicecontrol", "https://www.googleapis.com/auth/trace.append"]
   }
 
-  zone = var.zone
+  zone = var.zone["d"]
 }
-# terraform import google_compute_instance.mongod_cfgsvr_2 projects/${var.project_id}/zones/${var.zone}/instances/mongod-cfgsvr-2
+# terraform import google_compute_instance.mongod_cfgsvr_2 projects/${var.project_id}/zones/${var.zone["b"]}/instances/mongod-cfgsvr-2

@@ -4,7 +4,7 @@
     "private": true,
     "main": "./bin/www",
     "scripts": {
-        "start": "node --max-old-space-size=1024 ./bin/www",
+        "start": "NODE_ENV=production node --max-old-space-size=1024 ./bin/www",
         "stage": "NODE_ENV=staging node --max-old-space-size=1024 ./bin/www",
         "dev-mac": "NODE_ENV=development nodemon --max-old-space-size=1024 ./bin/www",
         "prod-mac": "NODE_ENV=production nodemon --max-old-space-size=1024 ./bin/www",
@@ -36,6 +36,7 @@
         "@googlemaps/google-maps-services-js": "^3.1.16",
         "@kafkajs/confluent-schema-registry": "^3.0.1",
         "@log4js-node/slack": "^1.0.0",
+        "adm-zip": "^0.5.10",
         "app-module-path": "^2.2.0",
         "avsc": "^5.4.16",
         "axios": "^0.21.4",
@@ -77,6 +78,7 @@
         "morgan": "^1.9.1",
         "mqtt": "^3.0.0",
         "multer": "^1.4.2",
+        "ngeohash": "^0.6.3",
         "node-fetch": "^2.6.1",
         "node-json-transform": "^1.1.2",
         "nodemon": "^1.19.4",
@@ -91,6 +93,7 @@
         "request": "^2.88.2",
         "retry-request": "^4.1.1",
         "serve-favicon": "~2.4.5",
+        "shapefile": "^0.6.6",
         "underscore": "^1.13.1",
         "unique-names-generator": "^4.3.0",
         "uuid": "^3.3.3"

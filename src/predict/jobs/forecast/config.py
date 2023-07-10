@@ -17,16 +17,13 @@ class Config:
     CSRF_ENABLED = True
     CREDENTIALS = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
     GOOGLE_CLOUD_PROJECT_ID = os.getenv('GOOGLE_CLOUD_PROJECT')
-
-    TENANT = os.getenv('TENANT', 'airqo')
-    MONTHS_OF_DATA = os.getenv('MONTHS_OF_DATA', 2)
-    # prediction configs
-
-    # load & preprocess test data:
+    AIRQO_API_AUTH_TOKEN = os.getenv('AIRQO_API_AUTH_TOKEN')
+    NUMBER_OF_MONTHS = os.getenv('NUMBER_OF_MONTHS', 1)
+    TENANTS = os.getenv('TENANTS')
+    FORECAST_HORIZON = os.getenv('FORECAST_HORIZON', 7)
     METADATA_PATH = 'meta.csv'
     BOUNDARY_LAYER_PATH = 'boundary_layer.csv'
 
-    # set constants
     test_start_datetime = datetime.now().strftime('%Y-%m-%d %H')
     daily_test_start_datetime = datetime.now().strftime('%Y-%m-%d')
 
@@ -52,7 +49,7 @@ class ProductionConfig(Config):
     AIRQO_API_BASE_URL = os.getenv('AIRQO_API_BASE_URL_PROD')
     GOOGLE_CLOUD_PROJECT_ID = os.getenv('GOOGLE_CLOUD_PROJECT')
     CREDENTIALS = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
-
+    AIRQO_API_AUTH_TOKEN = os.getenv('AIRQO_API_AUTH_TOKEN')
 
 
 class TestingConfig(Config):
@@ -66,6 +63,7 @@ class TestingConfig(Config):
     AIRQO_API_BASE_URL = os.getenv('AIRQO_API_BASE_URL_STAGE')
     GOOGLE_CLOUD_PROJECT_ID = os.getenv('GOOGLE_CLOUD_PROJECT')
     CREDENTIALS = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
+    AIRQO_API_AUTH_TOKEN = os.getenv('AIRQO_API_AUTH_TOKEN')
 
 
 class DevelopmentConfig(Config):
@@ -79,7 +77,7 @@ class DevelopmentConfig(Config):
     AIRQO_API_BASE_URL = os.getenv('AIRQO_API_BASE_URL_STAGE')
     GOOGLE_CLOUD_PROJECT_ID = os.getenv('GOOGLE_CLOUD_PROJECT')
     CREDENTIALS = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
-
+    AIRQO_API_AUTH_TOKEN = os.getenv('AIRQO_API_AUTH_TOKEN')
 
 
 app_config = {

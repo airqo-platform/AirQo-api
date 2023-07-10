@@ -3,7 +3,7 @@ const constants = require("./constants");
 const { logElement } = require("@utils/log");
 const REDIS_SERVER = constants.REDIS_SERVER;
 const REDIS_PORT = constants.REDIS_PORT;
-logElement("redis URL", REDIS_SERVER.concat(":", REDIS_PORT));
+logElement("redis URL", REDIS_SERVER && REDIS_SERVER.concat(":", REDIS_PORT));
 
 const client = redis.createClient({
   host: REDIS_SERVER,
