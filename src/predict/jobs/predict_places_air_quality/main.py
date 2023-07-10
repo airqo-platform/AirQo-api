@@ -6,7 +6,7 @@ from shapely.geometry import Point
 from utils import (
     get_airqlouds,
     get_data_from_bigquery,
-    get_shapefiles_gdf,
+    get_shapefiles_gdf_from_gcs,
     predict_air_quality,
     save_predicted_air_quality,
 )
@@ -31,7 +31,7 @@ if __name__ == "__main__":
     ]
     air_quality_readings_gdf = gpd.GeoDataFrame(air_quality_readings, geometry=geometry)
 
-    airqlouds_gdf = get_shapefiles_gdf()
+    airqlouds_gdf = get_shapefiles_gdf_from_gcs()
     merged_gdf = gpd.sjoin(
         airqlouds_gdf,
         air_quality_readings_gdf,

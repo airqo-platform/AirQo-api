@@ -82,7 +82,7 @@ def save_collocation_batch():
     base_device = json_data.get("baseDevice", None)
     start_date = str_to_date(json_data.get("startDate"), str_format="%Y-%m-%d")
     end_date = str_to_date(json_data.get("endDate"), str_format="%Y-%m-%d")
-    user_details = decode_user_token(request.headers.get("Authorization", ""))
+    user_details = decode_user_token(request.args.get("TOKEN", ""))
 
     expected_records_per_hour = json_data.get(
         "expectedRecordsPerHour", CollocationDefaults.ExpectedRecordsPerHour

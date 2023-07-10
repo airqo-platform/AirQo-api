@@ -249,7 +249,7 @@ jobs:
               echo "run_kafka_topics=true" >>$GITHUB_OUTPUT
             fi
 
-            if [[ $file == src/kafka/connectors/* ]]; then
+            if [[ $file == src/kafka-connectors/* ]]; then
               echo "run_kafka_connectors=true" >>$GITHUB_OUTPUT
             fi
 
@@ -1661,6 +1661,13 @@ jobs:
           target: production
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-train-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-train-job:latest
 
+      - name: Build and push predict places image
+        uses: docker/build-push-action@v3
+        with:
+          push: true
+          context: src/predict/jobs/new_directory
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-predict-places-air-quality:latest-update
+
       - name: Update corresponding helm values file(with retry)
         uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
@@ -1673,6 +1680,7 @@ jobs:
             token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update predict production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
+<<<<<<< HEAD
       - name: Build and push predict places image
         uses: docker/build-push-action@v3
         with:
@@ -1690,6 +1698,8 @@ jobs:
             branch: ${{ env.DEPLOY_BRANCH }}
             message: "Update predict places air quality staging image tag to ${{ needs.image-tag.outputs.build_id }}"
 
+=======
+>>>>>>> 75d353fb5f520abaa0167327993ede1ca8212bed
       - name: Login to GCP
         uses: google-github-actions/auth@v1.1.1
         with:
@@ -1705,11 +1715,13 @@ jobs:
           gcloud secrets versions access latest --secret="prod-env-predict-api" > api.env
           gcloud secrets versions access latest --secret="prod-env-predict-job" > predict_job.env
           gcloud secrets versions access latest --secret="prod-env-predict-train-job" > train_job.env
+          gcloud secrets versions access latest --secret="prod-env-predict-predict-places-air-quality" > predict_places_air_quality.env
           gcloud secrets versions access latest --secret="prod-key-predict-service-account" > google_application_credentials.json 
           echo "=============== Updating the respective .env files ==============="
           kubectl create configmap --dry-run=client -o yaml --from-env-file=api.env env-predict-production | kubectl replace -f - -n production
           kubectl create configmap --dry-run=client -o yaml --from-env-file=predict_job.env env-predict-job-production | kubectl replace -f - -n production
           kubectl create configmap --dry-run=client -o yaml --from-env-file=train_job.env env-train-job-production | kubectl replace -f - -n production
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=predict_places_air_quality.env env-predict-places-air-quality | kubectl replace -f - -n production
           echo "=============== Updating the respective credentials files ==============="
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json env-predict-production-files | kubectl replace -f - -n production
 
@@ -1753,7 +1765,7 @@ jobs:
             
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
-            branch: 'search-api-dataCICD'
+            branch: ${{ env.DEPLOY_BRANCH }}
             token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update network-uptime production image tag to ${{ needs.image-tag.outputs.build_id }}"
 
