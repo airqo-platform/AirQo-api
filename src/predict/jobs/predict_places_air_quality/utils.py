@@ -1,10 +1,11 @@
+import json
 from datetime import datetime
 
 import geopandas as gpd
 import pandas as pd
 import requests
 import xgboost as xgb
-from google.cloud import bigquery
+from google.cloud import bigquery, storage
 from pymongo import MongoClient
 from shapely import Polygon, MultiPolygon
 from sqlalchemy import create_engine
@@ -84,7 +85,24 @@ def get_data_from_bigquery(
     return dataframe
 
 
-def get_shapefiles_gdf() -> gpd.GeoDataFrame:
+def get_shapefiles_gdf_from_gcs() -> gpd.GeoDataFrame:
+    cloud_storage_client = storage.Client()
+    bucket = cloud_storage_client.get_bucket(Config.SHAPEFILES_BUCKET)
+
+    blobs = bucket.list_blobs()
+    shapefiles = gpd.GeoDataFrame()
+    for blob in blobs:
+        json_data = blob.download_as_text()
+        json_data = json.loads(json_data)
+        features = [feature for feature in json_data]
+        data = gpd.GeoDataFrame.from_features(features)
+        data.rename(columns={"km2": "square_kilometres"}, inplace=True)
+        shapefiles = pd.concat([shapefiles, data], ignore_index=True)
+
+    return shapefiles
+
+
+def get_shapefiles_gdf_from_mongo() -> gpd.GeoDataFrame:
     client = MongoClient(Config.MONGO_URI)
     db = client[Config.MONGO_DB]
     collection = db[Config.MONGO_SHAPE_FILES_COLLECTION]

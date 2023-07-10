@@ -923,11 +923,20 @@ const createSite = {
           retrievedAddress.division = object.long_name;
           retrievedAddress.village = object.long_name;
           retrievedAddress.sub_county = object.long_name;
+          retrievedAddress.search_name = object.long_name;
         }
         retrievedAddress.formatted_name = formatted_name;
         retrievedAddress.geometry = geometry;
         retrievedAddress.site_tags = types;
         retrievedAddress.google_place_id = google_place_id;
+        retrievedAddress.location_name = retrievedAddress.country !== "Uganda" ?
+          `${retrievedAddress.region}, ${retrievedAddress.country}`
+          : `${retrievedAddress.district}, ${retrievedAddress.country}`;
+        if (!retrievedAddress.search_name) {
+          retrievedAddress.search_name = retrievedAddress.town ?
+            retrievedAddress.town : retrievedAddress.district;
+        }
+        
       });
       return {
         success: true,

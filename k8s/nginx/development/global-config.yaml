@@ -1,0 +1,50 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-config
+  namespace: nginx-ingress
+data:
+  proxy-body-size:  "200m"
+  client-max-body-size: "200m"
+  location-snippets: "  
+    auth_request /auth;
+    error_page 500 = @internal_server_error;
+    error_page 404 = @page_not_found;
+    error_page 403 = @access_denied;
+    error_page 401 = @unauthorized;"
+  server-snippets: "
+    location @internal_server_error { return 500 '{\"success\":false, \"message\":\"Something went wrong!\", \"error\":\"Internal Server Error\"}'; }
+    location @page_not_found { return 404 '{\"success\":false, \"message\":\"Resource not found :(\", \"error\":\"Not Found\"}'; }
+    location @access_denied { return 403 '{\"success\":false, \"message\":\"Access denied :|\", \"error\":\"Insufficient Permissions\"}'; }
+    location @unauthorized { return 401 '{\"success\":false, \"message\":\"Invalid authentication\", \"error\":\"Unauthorized.\"}'; }
+    
+    location = /auth {      
+      if ($request_method = 'OPTIONS') { return 204; } 
+      if ($request_uri ~ '(/api/v1/users/emailAuth)|(/api/v2/users/emailAuth)') { return 200; }
+      if ($request_uri ~ '(/api/v1/users/loginUser)|(/api/v2/users/loginUser)') { return 200; }
+      if ($request_uri ~ '(/api/v1/users/emailLogin)|(/api/v2/users/emailLogin)') { return 200; }
+      if ($request_uri ~ '(/api/v1/users/forgotPassword)|(/api/v2/users/forgotPassword)') { return 200; }
+      if ($request_uri ~ '(/api/v1/users/candidates/register)|(/api/v2/users/candidates/register)') { return 200; }
+      if ($request_uri ~ '(/api/v1/users/verify)|(/api/v2/users/verify)') { return 200; }
+      if ($request_uri ~ '/airflow/api/v') { return 200; }    
+      if ($request_uri ~ '/grafana/api') { return 200; }    
+      if ($request_uri !~ '/api/v') { return 200; } # None API requests 
+
+      if ($request_uri ~ '/api/v1') { return 200; } # API v1 endpoint requests
+
+      set $method POST;
+      set $verification_path verify?tenant=airqo;
+
+      if ($request_uri ~* 'token=(?<token>[^&]+)') {
+        set $method GET;
+        set $verification_path tokens/$token/verify;
+      }
+
+      internal;
+      resolver                kube-dns.kube-system.svc.cluster.local valid=5s;
+      proxy_method            $method;
+      proxy_pass              http://airqo-dev-auth-api-svc.development.svc.cluster.local:3000/api/v2/users/$verification_path;
+      proxy_pass_request_body off;
+      proxy_set_header        Content-Length '';
+      proxy_set_header        X-Original-URI $request_uri;
+    }"
