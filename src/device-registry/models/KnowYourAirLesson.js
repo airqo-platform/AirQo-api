@@ -113,6 +113,7 @@ knowYourAirLessonSchema.statics = {
           as: "tasks",
         })
         .project(inclusionProjection)
+        .project(exclusionProjection)
         .skip(skip ? skip : 0)
         .limit(
           limit
@@ -120,17 +121,6 @@ knowYourAirLessonSchema.statics = {
             : parseInt(constants.DEFAULT_LIMIT_FOR_QUERYING_KYA_LESSONS)
         )
         .allowDiskUse(true);
-
-      if (Object.keys(exclusionProjection).length > 0) {
-        // Construct the $project stage dynamically with the exclusionProjection
-        const projectionStage = { $project: {} };
-        Object.entries(exclusionProjection).forEach(([key, value]) => {
-          projectionStage.$project[key] = value;
-        });
-
-        // Add the projection stage to the pipeline
-        pipeline.push(projectionStage);
-      }
 
       const response = pipeline;
 
