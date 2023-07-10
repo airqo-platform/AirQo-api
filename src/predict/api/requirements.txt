@@ -10,7 +10,7 @@ pandas
 google-cloud-bigquery
 google-cloud-bigquery[pandas]
 Flask-SQLAlchemy
-psycopg2
+psycopg2-binary
 GeoAlchemy2
 google-cloud-bigquery[pandas]==3.11.1
 geojson

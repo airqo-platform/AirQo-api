@@ -79,14 +79,19 @@ def convert_to_geojson(data):
     """
     features = []
     for record in data:
-        point = geojson.Point((record['values']['longitude'], record['values']['latitude']))
-        feature = geojson.Feature(geometry=point, properties={
-            "latitude": record['values']['latitude'],
-            "longitude": record['values']['longitude'],
-            "predicted_value": record['values']["predicted_value"],
-            "variance": record['values']["variance"],
-            "interval": record['values']["interval"],
-        })
+        point = geojson.Point(
+            (record["values"]["longitude"], record["values"]["latitude"])
+        )
+        feature = geojson.Feature(
+            geometry=point,
+            properties={
+                "latitude": record["values"]["latitude"],
+                "longitude": record["values"]["longitude"],
+                "predicted_value": record["values"]["predicted_value"],
+                "variance": record["values"]["variance"],
+                "interval": record["values"]["interval"],
+            },
+        )
         features.append(feature)
 
     return geojson.FeatureCollection(features)
@@ -98,42 +103,6 @@ def get_gp_predictions(airqloud=None, page=1, limit=1000):
 
     pipeline = [
         {"$sort": {"created_at": -1}},
-        {"$project": {
-            '_id': 0,
-            'airqloud_id': 1,
-            'airqloud': 1,
-            'created_at': 1,
-            'values': 1
-        }},
-        {"$unwind": "$values"},
-    ]
-    if airqloud:
-        pipeline.insert(0, {"$match": {"airqloud": airqloud.lower()}})
-        pipeline.insert(3, {"$group": {
-            "_id": {
-                "airqloud_id": "$airqloud_id",
-                "airqloud": "$airqloud"
-            },
-            "doc": {"$first": "$$ROOT"},
-        }})
-        pipeline.insert(4, {"$replaceRoot": {"newRoot": "$doc"}})
-        pipeline.extend([
-        {"$setWindowFields": {
-            "partitionBy": {
-                "airqloud_id": "$airqloud_id",
-                "airqloud": "$airqloud"
-            } if airqloud else None,
-            "sortBy": {"created_at": 1},
-            "output": {
-                "total": {
-                    "$sum": 1,
-                    "window": {
-                        "documents": ["unbounded", "unbounded"]
-                    }
-                }
-            }
-        },
-        {"$replaceRoot": {"newRoot": "$doc"}},
         {
             "$project": {
                 "_id": 0,
@@ -144,21 +113,68 @@ def get_gp_predictions(airqloud=None, page=1, limit=1000):
             }
         },
         {"$unwind": "$values"},
-        {
-            "$setWindowFields": {
-                "partitionBy": {"airqloud_id": "$airqloud_id", "airqloud": "$airqloud"},
-                "sortBy": {"created_at": 1},
-                "output": {
-                    "total": {
-                        "$sum": 1,
-                        "window": {"documents": ["unbounded", "unbounded"]},
+    ]
+    if airqloud:
+        pipeline.insert(0, {"$match": {"airqloud": airqloud.lower()}})
+        pipeline.insert(
+            3,
+            {
+                "$group": {
+                    "_id": {"airqloud_id": "$airqloud_id", "airqloud": "$airqloud"},
+                    "doc": {"$first": "$$ROOT"},
+                }
+            },
+        )
+        pipeline.insert(4, {"$replaceRoot": {"newRoot": "$doc"}})
+        pipeline.extend(
+            [
+                {
+                    "$setWindowFields": {
+                        "partitionBy": {
+                            "airqloud_id": "$airqloud_id",
+                            "airqloud": "$airqloud",
+                        }
+                        if airqloud
+                        else None,
+                        "sortBy": {"created_at": 1},
+                        "output": {
+                            "total": {
+                                "$sum": 1,
+                                "window": {"documents": ["unbounded", "unbounded"]},
+                            }
+                        },
                     }
                 },
-            }
-        },
-        {"$skip": (page - 1) * limit},
-        {"$limit": limit}
-    ])
+                {"$replaceRoot": {"newRoot": "$doc"}},
+                {
+                    "$project": {
+                        "_id": 0,
+                        "airqloud_id": 1,
+                        "airqloud": 1,
+                        "created_at": 1,
+                        "values": 1,
+                    }
+                },
+                {"$unwind": "$values"},
+                {
+                    "$setWindowFields": {
+                        "partitionBy": {
+                            "airqloud_id": "$airqloud_id",
+                            "airqloud": "$airqloud",
+                        },
+                        "sortBy": {"created_at": 1},
+                        "output": {
+                            "total": {
+                                "$sum": 1,
+                                "window": {"documents": ["unbounded", "unbounded"]},
+                            }
+                        },
+                    }
+                },
+                {"$skip": (page - 1) * limit},
+                {"$limit": limit},
+            ]
+        )
     predictions = db.gp_predictions.aggregate(pipeline)
     predictions = list(predictions)
     created_at = predictions[0]["created_at"]
