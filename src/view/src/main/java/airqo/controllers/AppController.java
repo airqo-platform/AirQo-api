@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 @Slf4j
 @Profile({"api"})
 @RestController
-@RequestMapping("mobile-app")
+@RequestMapping(value={"/api/v1/view/mobile-app", "/api/v2/view/mobile-app"})
 public class AppController {
 
 	@Autowired

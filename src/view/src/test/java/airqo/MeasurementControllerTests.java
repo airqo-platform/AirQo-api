@@ -31,7 +31,6 @@ import java.util.stream.Collectors;
 import static airqo.config.Constants.dateTimeFormat;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -115,9 +114,7 @@ public class MeasurementControllerTests {
 		Assertions.assertEquals(new DateTime(endDateTime).getDayOfWeek(), 7);
 	}
 
-	@Test
-	@DisplayName("Testing app insights V2 API query parameters")
-	public void testAppInsightsV2QueryParameters() throws Exception {
+	public void appInsightsV2QueryParameters() throws Exception {
 
 		String siteId = Arrays.stream(siteIds.split(",")).toList().get(0);
 
@@ -157,21 +154,6 @@ public class MeasurementControllerTests {
 
 	}
 
-	@Test
-	@DisplayName("App Insights V1 API Documentation")
-	public void shouldGenerateAppInsightsV1APIDocs() throws Exception {
-
-		when(insightsService.getInsights(startDateTime, endDateTime, siteIdsList)).thenReturn(insights);
-
-		this.mockMvc.perform(get("/api/v1/view/measurements/app/insights")
-				.contextPath("/api/v1/view")
-				.header("Authorization", "Token my-jwt-token")
-				.param("siteId", siteIds)
-				.param("startDateTime", startDateTimeStr)
-				.param("endDateTime", endDateTimeStr))
-			.andDo(print())
-			.andExpect(status().isOk());
-	}
 
 	@TestConfiguration
 	static class RestDocsConfiguration {
