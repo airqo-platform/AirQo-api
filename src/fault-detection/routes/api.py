@@ -1,4 +1,4 @@
-base_url = "/api/v1/predict-faults"
+base_url = "/api/v2/predict-faults"
 
 route = {
     "root": "/",

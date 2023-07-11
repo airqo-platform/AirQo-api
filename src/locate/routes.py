@@ -1,4 +1,4 @@
-BASE_URL = '/api/v1'
+BASE_URL = '/api/v2'
 ROOT = '/'
 HEALTH_CHECK = f'{BASE_URL}/locate/health'
 PARISHES = f'{BASE_URL}/locate/map/parishes'

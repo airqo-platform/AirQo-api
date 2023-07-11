@@ -1,4 +1,4 @@
-base_url = '/api/v1/calibrate'
+base_url = '/api/v2/calibrate'
 
 route = {
     'root': '/',
