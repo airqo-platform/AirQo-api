@@ -25,6 +25,15 @@ const accessCodeGenerator = require("generate-password");
 
 const deviceSchema = new mongoose.Schema(
   {
+    cohorts: {
+      type: [
+        {
+          type: ObjectId,
+          ref: "cohort",
+          unique: true,
+        },
+      ],
+    },
     latitude: {
       type: Number,
     },
@@ -267,6 +276,7 @@ deviceSchema.methods = {
       device_codes: this.device_codes,
       category: this.category,
       access_code: this.access_code,
+      cohorts: this.cohorts,
     };
   },
 };
@@ -361,12 +371,7 @@ deviceSchema.statics = {
 
       if (isEmpty(modifiedArgs.long_name && !isEmpty(modifiedArgs.name))) {
         try {
-          let nameWithoutWhiteSpaces = modifiedArgs.name.replace(
-            /[^a-zA-Z0-9]/g,
-            "_"
-          );
-          let shortenedName = nameWithoutWhiteSpaces.slice(0, 41);
-          modifiedArgs.long_name = shortenedName.trim().toLowerCase();
+          modifiedArgs.long_name = modifiedArgs.name;
         } catch (error) {
           logger.error(
             `internal server error -- sanitiseName-- ${error.message}`
@@ -427,7 +432,10 @@ deviceSchema.statics = {
       const exclusionProjection = constants.DEVICES_EXCLUSION_PROJECTION(
         filter.category ? filter.category : "none"
       );
-      const response = await this.aggregate()
+      if (!isEmpty(filter.category)) {
+        delete filter.category;
+      }
+      const pipeline = await this.aggregate()
         .match(filter)
         .lookup({
           from: "sites",
@@ -441,12 +449,20 @@ deviceSchema.statics = {
           foreignField: "_id",
           as: "previous_sites",
         })
+        .lookup({
+          from: "cohorts",
+          localField: "cohorts",
+          foreignField: "_id",
+          as: "cohorts",
+        })
         .sort({ createdAt: -1 })
         .project(inclusionProjection)
         .project(exclusionProjection)
         .skip(_skip)
         .limit(_limit)
         .allowDiskUse(true);
+
+      const response = await pipeline;
 
       // logger.info(`the data produced in the model -- ${response}`);
       if (!isEmpty(response)) {
@@ -465,6 +481,8 @@ deviceSchema.statics = {
         };
       }
     } catch (error) {
+      logObject("error", error);
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
       return {
         success: false,
         message: "unable to retrieve devices",
