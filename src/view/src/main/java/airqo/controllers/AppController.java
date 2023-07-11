@@ -25,15 +25,14 @@ public class AppController {
 	AppService appService;
 
 	@GetMapping("/version-info")
-	public ResponseEntity<ApiResponseBody> getAppDetails(@RequestParam(defaultValue = "") String packageName, @RequestParam(defaultValue = "") String  bundleId) {
+	public ResponseEntity<ApiResponseBody> getAppDetails(@RequestParam(defaultValue = "") String packageName, @RequestParam(defaultValue = "") String  bundleId, @RequestParam(defaultValue = "") String  version) {
 
-		new StoreVersion();
 		StoreVersion storeVersion;
 		if (!packageName.isEmpty()){
-			storeVersion = appService.getAndroidVersion(packageName);
+			storeVersion = appService.getAndroidVersion(packageName, version);
 		}
 		else {
-			storeVersion = appService.getIOSVersion(bundleId);
+			storeVersion = appService.getIOSVersion(bundleId, version);
 		}
 
 		ApiResponseBody apiResponseBody = new ApiResponseBody("Operation Successful", storeVersion);
