@@ -48,12 +48,12 @@ jobs:
     schedule: 30 * * * *
     suspend: true
     resources:
-  limits:
+      limits:
         cpu: 8000m
         memory: 16000Mi 
-  requests:
-    cpu: 2500m
-    memory: 4000Mi         
+      requests:
+        cpu: 2500m
+        memory: 4000Mi         
 volumeMounts:
   - name: config-volume
     mountPath: /etc/config
