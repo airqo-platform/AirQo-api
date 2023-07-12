@@ -1166,7 +1166,6 @@ const defaultConfig = {
         metadata: 0,
         center_point: 0,
         airqloud_codes: 0,
-        sites: 0,
         description: 0,
         airqloud_tags: 0,
       });

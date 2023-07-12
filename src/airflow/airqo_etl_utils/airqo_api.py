@@ -297,10 +297,8 @@ class AirQoApi:
             params = {"tenant": str(Tenant.AIRQO), "id": site.pop("site_id")}
             response = self.__request("devices/sites", params, site, "put")
             print(response)
-    
-    def get_tenants(
-        self, data_source
-    ) -> list:
+
+    def get_tenants(self, data_source) -> list:
         response = self.__request("users/networks")
 
         return [
