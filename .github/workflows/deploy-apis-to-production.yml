@@ -1666,7 +1666,7 @@ jobs:
         with:
           push: true
           context: src/predict/jobs/predict_places_air_quality
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-predict-places-air-quality:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-airqo-predict-places-air-quality:latest
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-predict-places-air-quality:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-predict-places-air-quality:latest
 
       - name: Update corresponding helm values file(with retry)
         uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
@@ -1679,27 +1679,7 @@ jobs:
             branch: ${{ env.DEPLOY_BRANCH }}
             token: ${{ secrets.YAML_UPDATER_TOKEN }}
             message: "Update predict production image tag to ${{ needs.image-tag.outputs.build_id }}"
-
-<<<<<<< HEAD
-      - name: Build and push predict places image
-        uses: docker/build-push-action@v3
-        with:
-          push: true
-          context: src/predict/jobs/predict_places_air_quality
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-predict-places-air-quality:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-airqo-predict-places-air-quality:latest
-      - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@master
-        with:
-          action: fjogeleit/yaml-update-action@main
-          with: |
-            valueFile: "k8s/predict/new_directory/values-prod.yaml"
-            propertyPath: "image.tag"
-            value: ${{ needs.image-tag.outputs.build_id }}
-            branch: ${{ env.DEPLOY_BRANCH }}
-            message: "Update predict places air quality staging image tag to ${{ needs.image-tag.outputs.build_id }}"
-
-=======
->>>>>>> 75d353fb5f520abaa0167327993ede1ca8212bed
+            
       - name: Login to GCP
         uses: google-github-actions/auth@v1.1.1
         with:
@@ -1761,7 +1741,7 @@ jobs:
         with:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
-            valueFile: "k8s/predict/new_directory/values-prod.yaml"
+            valueFile: "k8s/network-uptime/values-prod.yaml"
             
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
