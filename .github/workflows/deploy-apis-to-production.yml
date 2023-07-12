@@ -1742,7 +1742,6 @@ jobs:
           action: fjogeleit/yaml-update-action@main # Action to retry
           with: |
             valueFile: "k8s/network-uptime/values-prod.yaml"
-            
             propertyPath: "image.tag"
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
