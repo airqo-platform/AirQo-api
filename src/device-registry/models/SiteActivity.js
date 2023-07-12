@@ -3,9 +3,25 @@ const ObjectId = Schema.Types.ObjectId;
 const { logObject, logElement, logText } = require("@utils/log");
 const HTTPStatus = require("http-status");
 const isEmpty = require("is-empty");
+const validator = require("validator");
 
 const activitySchema = new Schema(
   {
+    firstName: { type: String, trim: true },
+    lastName: { type: String, trim: true },
+    username: { type: String, trim: true },
+    email: {
+      type: String,
+      unique: true,
+      required: [true, "Email is required"],
+      trim: true,
+      validate: {
+        validator(email) {
+          return validator.isEmail(email);
+        },
+        message: "{VALUE} is not a valid email!",
+      },
+    },
     device: { type: String, trim: true },
     site_id: { type: ObjectId },
     date: { type: Date },

@@ -91,7 +91,8 @@
     "shapefile": "^0.6.6",
     "underscore": "^1.13.1",
     "unique-names-generator": "^4.3.0",
-    "uuid": "^3.3.3"
+    "uuid": "^3.3.3",
+    "validator": "^13.9.0"
   },
   "devDependencies": {
     "acorn": "^6.4.2",
