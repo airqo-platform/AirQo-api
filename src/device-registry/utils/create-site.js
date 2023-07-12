@@ -934,7 +934,9 @@ const createSite = {
           : `${retrievedAddress.district}, ${retrievedAddress.country}`;
         if (!retrievedAddress.search_name) {
           retrievedAddress.search_name = retrievedAddress.town ?
-            retrievedAddress.town : retrievedAddress.district;
+            retrievedAddress.town : retrievedAddress.street ?
+              retrievedAddress.street : retrievedAddress.city ?
+                retrievedAddress.city : retrievedAddress.district
         }
         
       });
