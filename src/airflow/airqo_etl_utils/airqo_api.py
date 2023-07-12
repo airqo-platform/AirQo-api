@@ -314,7 +314,7 @@ class AirQoApi:
                 },
             }
             for network in response.get("networks", [])
-            if network.get("net_data_source") == data_source
+            if network.get("net_data_source") == str(data_source)
         ]
 
     def __request(
