@@ -53,7 +53,7 @@ class BigQueryApi:
             f" {self.hourly_measurements_table}.device_id AS device ,"
             f" FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', {self.hourly_measurements_table}.timestamp) AS timestamp ,"
             f" FROM {self.hourly_measurements_table} "
-            f" WHERE DATE({self.hourly_measurements_table}.timestamp) = '{day.strftime('%Y-%m-%d')}' "
+            f" WHERE DATE({self.hourly_measurements_table}.timestamp) >= '{day.strftime('%Y-%m-%d')}' "
             f" AND {self.hourly_measurements_table}.pm2_5_raw_value is not null "
         )
 

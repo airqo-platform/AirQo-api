@@ -13,11 +13,18 @@ from airqo_etl_utils.airflow_custom_utils import AirflowUtils
 def data_summary():
     import pandas as pd
 
-    def extract():
+    def extract(**kwargs):
         from airqo_etl_utils.bigquery_api import BigQueryApi
         from datetime import datetime, timedelta
+        from airqo_etl_utils.date import str_to_date
 
-        date_time = datetime.utcnow() - timedelta(days=2)
+        try:
+            date_time = kwargs.get("params", {}).get("start_date_time")
+            date_time = str_to_date(date_time)
+        except Exception as ex:
+            print(ex)
+            date_time = datetime.utcnow() - timedelta(days=2)
+
         bigquery_api = BigQueryApi()
         return bigquery_api.get_devices_hourly_data(day=date_time)
 
