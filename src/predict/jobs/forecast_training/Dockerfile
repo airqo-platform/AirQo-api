@@ -1,7 +1,7 @@
 FROM python:3.9-slim as base
 
 RUN apt-get update -y && apt-get install -y gcc && apt-get install -y git
-RUN apt install libgomp1
+RUN apt-get install libgomp1
 
 COPY . /app/
 WORKDIR /app/
