@@ -1,38 +1,41 @@
 import numpy as np
 import pandas as pd
-import os
+import datetime
+from utils import date_to_str, upload_trained_model_to_gcs
 from google.oauth2 import service_account
 from config import configuration
 from sklearn.preprocessing import MinMaxScaler
 from keras.models import Sequential
-from keras.layers import LSTM, Dense, Dropout
-from datetime import datetime
+from keras.layers import LSTM, Dense, Dropout, TimeDistributed
 import tensorflow as tf
-import gcsfs
-import joblib
 from keras.callbacks import EarlyStopping
 
 
 def fetch_bigquery_data():
     """gets data from the bigquery table"""
-    # print('fetching data from bigquery')
-    credentials = service_account.Credentials.from_service_account_file(configuration.CREDENTIALS)
+    credentials = service_account.Credentials.from_service_account_file(
+        configuration.CREDENTIALS)
+    start_date = datetime.datetime.utcnow() - datetime.timedelta(days=int(configuration.NUMBER_OF_DAYS))
+    start_date = date_to_str(start_date, format='%Y-%m-%d')
+
     query = f"""
-    SELECT DISTINCT timestamp, device_number, s1_pm2_5, s2_pm2_5 FROM {configuration.GOOGLE_CLOUD_PROJECT_ID}.raw_data.device_measurements where DATE(timestamp) >= DATE_SUB(CURRENT_DATE(), INTERVAL 20 DAY) and tenant = 'airqo'
-      ORDER
-      BY
-      timestamp
-      """
+            SELECT DISTINCT timestamp , site_id, device_number, s1_pm2_5, s2_pm2_5 
+            FROM `{configuration.GOOGLE_CLOUD_PROJECT_ID}.raw_data.device_measurements` 
+            WHERE DATE(timestamp) >= '{start_date}' AND device_number IS NOT NULL
+            ORDER BY timestamp 
+    """
+
     df = pd.read_gbq(query, project_id=configuration.GOOGLE_CLOUD_PROJECT_ID, credentials=credentials)
     df['timestamp'] = pd.to_datetime(df['timestamp'])
     df['device_number'] = df['device_number'].astype(str)
     df = df.groupby(['device_number', pd.Grouper(key='timestamp', freq='H')]).mean(numeric_only=True)
     df = df.reset_index()
     df.sort_values(by=['device_number', 'timestamp'], inplace=True)
-    # drop rows with null values
-    df.dropna(inplace=True)
     df['device_number'] = df['device_number'].astype(int)
-    print('data fetched from bigquery')
+    new_index = pd.date_range(start=df['timestamp'].min(), end=df['timestamp'].max(), freq='H')
+    df = df.set_index(['device_number', 'timestamp']).reindex(
+        pd.MultiIndex.from_product([df['device_number'].unique(), new_index], names=['device_number', 'timestamp']))
+    df = df.interpolate(method='linear', limit_direction='both').reset_index()
     return df
 
 
@@ -50,10 +53,8 @@ def add_fault_columns(df, offset_threshold, min_value, max_value, highvar_thresh
             lambda x: 1 if x >= offset_threshold else 0)
         df1['out_of_bounds_fault'] = ((df1['s1_pm2_5'] < min_value) | (df1['s1_pm2_5'] > max_value) |
                                       (df1['s2_pm2_5'] < min_value) | (df1['s2_pm2_5'] > max_value)) * 1
-
-        df1['high_var_fault'] = ((df1['s1_pm2_5'].rolling(10).std() > highvar_threshold) | (
-                df1['s2_pm2_5'].rolling(10).std() > highvar_threshold)).astype(int)
-
+        df1['high_var_fault'] = ((df1['s1_pm2_5'].rolling(7).std() > highvar_threshold) | (
+                df1['s2_pm2_5'].rolling(7).std() > highvar_threshold)).astype(int)
         df1.reset_index(inplace=True)
         fault_df = pd.concat([fault_df, df1], ignore_index=True)
 
@@ -103,14 +104,16 @@ def scale_data(df1, df2):
     return scaled_inputs[0], targets[0], scaled_inputs[1], targets[1], input_scaler
 
 
-def create_dataset(X, y, time_steps=1):
-    Xs, ys = [], []
-    for i in range(len(X) - time_steps):
-        v = X[i:(i + time_steps), :]
-        Xs.append(v)
-        ys.append(y[i + time_steps])
-    print("Dataset created")
-    return np.array(Xs), np.array(ys)
+def create_3d_lstm_array(x, y, time_steps, labels):
+    y_3d = np.reshape(y, (-1, time_steps, labels))
+    x_3d = []
+    device_nums = np.unique(x[:, 0])
+    for device_num in device_nums:
+        mask = x[:, 0] == device_num
+        features = x[mask, :]
+        x_3d.append(features)
+    x_3d = np.array(x_3d)
+    return x_3d, y_3d
 
 
 def split_data_by_date(df):
@@ -123,79 +126,43 @@ def split_data_by_date(df):
         device_df = df[df['device_number'] == device_number]
         device_df = device_df.sort_values(by='timestamp')
         split_date = device_df['timestamp'].dt.date.iloc[0] + pd.Timedelta(
-            days=15)
+            days=5)
         mask = device_df['timestamp'].dt.date < pd.date_range(split_date, periods=1)[0].date()
         train_df = device_df[mask]
         test_df = device_df[~mask]
         train_data = pd.concat([train_data, train_df])
         test_data = pd.concat([test_data, test_df])
         # convert timestamp column to string
-        train_data['timestamp'] = train_data['timestamp'].astype(str)
-        test_data['timestamp'] = test_data['timestamp'].astype(str)
     print("Data split by date")
     return train_data, test_data
-
-
-def upload_trained_model_to_gcs(trained_model, scaler, project_name, bucket_name, source_blob_name):
-    fs = gcsfs.GCSFileSystem(project=project_name)
-
-    # Backup previous model and scaler
-    try:
-        # Backup model
-        fs.rename(f'{bucket_name}/{source_blob_name}', f'{bucket_name}/{datetime.now()}-{source_blob_name}')
-        print("Bucket: Previous model is backed up")
-
-        # Backup scaler
-        fs.rename(f'{bucket_name}/scaler.pkl', f'{bucket_name}/{datetime.now()}-scaler.pkl')
-        print("Bucket: Previous scaler is backed up")
-    except:
-        print("Bucket: No file to update")
-
-    # Store new model and scaler
-    # Save the model to a temporary local file
-    temp_file = 'temp_model.keras'
-    trained_model.save(temp_file)
-
-    # Upload the local file to GCS bucket
-    with fs.open(bucket_name + '/' + source_blob_name, 'wb') as model_handle:
-        model_handle.write(open(temp_file, 'rb').read())
-
-    # Delete the temporary local file
-    os.remove(temp_file)
-
-    with fs.open(bucket_name + '/scaler.pkl', 'wb') as scaler_handle:
-        joblib.dump(scaler, scaler_handle)
-
-    print("Trained model and scaler are uploaded to GCS bucket")
-
 
 def preprocess_data(train_data, test_data):
     train_data_1 = get_other_features(train_data)
     test_data_1 = get_other_features(test_data)
-    fault_train_data = add_fault_columns(train_data_1, 25, 0, 350, 50)
-    fault_test_data = add_fault_columns(test_data_1, 25, 0, 350, 50)
+    fault_train_data = add_fault_columns(train_data_1, 15, 0, 200, 25)
+    fault_test_data = add_fault_columns(test_data_1, 15, 0, 200, 25)
     fault_train_data.drop('index', axis=1, inplace=True)
     fault_test_data.drop('index', axis=1, inplace=True)
     return fault_train_data, fault_test_data
 
 
-def create_lstm_model(X_train, y_train, X_test, y_test):
-    timesteps = X_train.shape[1]
-    features = X_train.shape[2]
+def create_lstm_model(x1, y1, x2, y2):
+    timesteps = x1.shape[1]
+    features = x1.shape[2]
 
     # create the model
     model = Sequential()
-    model.add(LSTM(50, input_shape=(timesteps, features)))
+    model.add(LSTM(50, input_shape=(timesteps, features), return_sequences=True))
     model.add(Dropout(0.2))
-    model.add(Dense(3, activation='sigmoid'))
+    model.add(TimeDistributed(Dense(3, activation='sigmoid')))
 
-    optimizer = tf.keras.optimizers.Adam(learning_rate=0.01)
+    optimizer = tf.keras.optimizers.Adam(learning_rate=0.1)
 
     model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=['accuracy'])
-    history = model.fit(X_train, y_train, epochs=10, batch_size=128, validation_split=0.2,
+    history = model.fit(x1, y1, epochs=10, batch_size=14, validation_split=0.2,
                         callbacks=[EarlyStopping(monitor='val_loss', patience=3)
                                    ])
-    loss, accuracy = model.evaluate(X_test, y_test)
+    loss, accuracy = model.evaluate(x2, y2)
     print(model.summary())
     return model, history, loss, accuracy
 
@@ -204,12 +171,17 @@ if __name__ == '__main__':
     device_data = fetch_bigquery_data()
     train_data, test_data = split_data_by_date(device_data)
     fault_train_data, fault_test_data = preprocess_data(train_data, test_data)
+    # store the forst value of the device number column in a variable
+    device_number_1 = fault_train_data['device_number'].iloc[0]
+    device_number_2 = fault_test_data['device_number'].iloc[0]
+    no_of_rows_train = fault_train_data[fault_train_data['device_number'] == device_number_1].shape[0]
+    no_of_rows_test = fault_test_data[fault_test_data['device_number'] == device_number_2].shape[0]
     X_train, y_train, X_test, y_test, input_scaler = scale_data(fault_train_data, fault_test_data)
-    X_train, y_train = create_dataset(X_train, y_train, 240)
-    X_test, y_test = create_dataset(X_test, y_test, 240)
 
-    model, history, loss, accuracy = create_lstm_model(X_train.astype('float32'), y_train.astype('float32'),
-                                                       X_test.astype('float32'), y_test.astype('float32'))
+    X_train_3D, y_train_3D = create_3d_lstm_array(X_train, y_train, no_of_rows_train, 3)
+    X_test_3D, y_test_3D = create_3d_lstm_array(X_test, y_test, no_of_rows_test, 3)
+    model, history, loss, accuracy = create_lstm_model(X_train_3D.astype('float32'), y_train_3D.astype('float32'),
+                                                       X_test_3D.astype('float32'), y_test_3D.astype('float32'))
 
     upload_trained_model_to_gcs(model, input_scaler, configuration.GOOGLE_CLOUD_PROJECT_ID,
                                 configuration.AIRQO_FAULT_DETECTION_BUCKET, 'lstm_model.keras')

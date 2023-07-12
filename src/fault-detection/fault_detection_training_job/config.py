@@ -17,6 +17,10 @@ class Config:
     MLFLOW_TRACKING_URI = os.getenv('MLFLOW_TRACKING_URI')
     MLFLOW_TRACKING_USERNAME = os.getenv('MLFLOW_TRACKING_USERNAME')
     MLFLOW_TRACKING_PASSWORD = os.getenv('MLFLOW_TRACKING_PASSWORD')
+    NUMBER_OF_DAYS=os.getenv('NUMBER_OF_DAYS')
+    MONGO_URI=os.getenv('MONGO_URI')
+    DB_NAME=os.getenv('DATABASE_NAME')
+
 
 
 class ProductionConfig(Config):
