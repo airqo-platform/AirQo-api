@@ -7,6 +7,8 @@ resource "google_compute_instance" "mongos_router_0" {
   labels = {
     "env"  = "prod"
   }
+  
+  allow_stopping_for_update = true
 
   machine_type = "e2-medium"
 
@@ -39,7 +41,7 @@ resource "google_compute_instance" "mongos_router_0" {
 
   service_account {
     email  = "${var.project_number}-compute@developer.gserviceaccount.com"
-    scopes = ["https://www.googleapis.com/auth/devstorage.read_only", "https://www.googleapis.com/auth/logging.write", "https://www.googleapis.com/auth/monitoring.write", "https://www.googleapis.com/auth/service.management.readonly", "https://www.googleapis.com/auth/servicecontrol", "https://www.googleapis.com/auth/trace.append"]
+    scopes = ["https://www.googleapis.com/auth/cloud-platform"]
   }
 
   tags = ["http-server", "https-server"]

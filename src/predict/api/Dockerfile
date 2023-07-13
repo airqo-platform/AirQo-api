@@ -1,12 +1,11 @@
-# Inherit from the Python Docker image
-FROM python:3.9.16-slim as base
+FROM python:3.9.17-slim-bullseye as base
 
   
 COPY . /app/
 WORKDIR /app/
 
-RUN pip install --upgrade pip
-RUN pip install -r requirements.txt
+RUN pip install --upgrade pip --no-cache-dir
+RUN pip install -r requirements.txt --no-cache-dir
 
 ENV PYTHONDONWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1

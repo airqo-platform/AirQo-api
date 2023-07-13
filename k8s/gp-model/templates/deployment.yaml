@@ -39,7 +39,7 @@ spec:
       containers:
         - name: {{ .Values.app.brokerConsumerName }}
           image: "{{ .Values.images.repositories.brokerConsumer }}:{{ .Values.images.tag }}"
-          imagePullPolicy: {{ .Values.images.pullPolicy }}
+          imagePullPolicy: IfNotPresent
           envFrom:
             - configMapRef:
                 name: {{ .Values.app.configMap }} 

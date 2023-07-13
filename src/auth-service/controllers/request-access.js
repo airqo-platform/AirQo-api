@@ -27,29 +27,8 @@ const requestAccess = {
       if (isEmpty(tenant)) {
         tenant = constants.DEFAULT_TENANT;
       }
-      const {
-        firstName,
-        lastName,
-        email,
-        long_organization,
-        jobTitle,
-        website,
-        description,
-        category,
-        country,
-      } = req.body;
-
-      let request = {};
+      let request = Object.assign({}, req.body);
       request["tenant"] = tenant.toLowerCase();
-      request["firstName"] = firstName;
-      request["lastName"] = lastName;
-      request["email"] = email;
-      request["long_organization"] = long_organization;
-      request["jobTitle"] = jobTitle;
-      request["website"] = website;
-      request["description"] = description;
-      request["category"] = category;
-      request["country"] = country;
 
       await requestAccessUtil
         .create(request, (value) => {
@@ -64,7 +43,7 @@ const requestAccess = {
             const status = value.status
               ? value.status
               : httpStatus.INTERNAL_SERVER_ERROR;
-            const errors = value.errors ? value.errors : "";
+            const errors = value.errors ? value.errors : { message: "" };
             return res.status(status).json({
               success: false,
               message: value.message,
@@ -73,7 +52,7 @@ const requestAccess = {
           }
         })
         .catch((error) => {
-          logger.error(`Internal Server Error ${error}`);
+          logger.error(`Internal Server Error ${JSON.stringify(error)}`);
           res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
             success: false,
             message: "Internal Server Error",
@@ -103,63 +82,46 @@ const requestAccess = {
       }
       let { tenant } = req.query;
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
+        tenant = constants.DEFAULT_TENANT || "airqo";
       }
-      const limit = parseInt(req.query.limit, 0);
-      const skip = parseInt(req.query.skip, 0);
-      let responseFromFilter = generateFilter.candidates(req);
-      logObject("responseFromFilter", responseFromFilter);
-      if (responseFromFilter.success === true) {
-        let filter = responseFromFilter.data;
-        const responseFromListCandidate = await requestAccessUtil.list({
-          tenant,
-          filter,
-          limit,
-          skip,
+
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
+
+      const responseFromListCandidate = await requestAccessUtil.list(request);
+      logObject("responseFromListCandidate", responseFromListCandidate);
+      if (responseFromListCandidate.success === true) {
+        const status = responseFromListCandidate.status
+          ? responseFromListCandidate.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromListCandidate.message,
+          candidates: responseFromListCandidate.data,
         });
-        logObject("responseFromListCandidate", responseFromListCandidate);
-        if (responseFromListCandidate.success === true) {
-          return res.status(httpStatus.OK).json({
-            success: true,
-            message: responseFromListCandidate.message,
-            candidates: responseFromListCandidate.data,
-          });
-        } else if (responseFromListCandidate.success === false) {
-          if (responseFromListCandidate.error) {
-            return res.status(httpStatus.BAD_GATEWAY).json({
-              success: false,
-              message: responseFromListCandidate.message,
-              error: responseFromListCandidate.error,
-            });
-          } else {
-            return res.status(httpStatus.BAD_REQUEST).json({
-              success: false,
-              message: responseFromListCandidate.message,
-            });
-          }
-        }
-      } else if (responseFromFilter.success === false) {
-        if (responseFromFilter.error) {
-          if (responseFromFilter.error) {
-            return res.status(httpStatus.BAD_GATEWAY).json({
-              success: false,
-              message: responseFromFilter.message,
-              error: responseFromFilter.error,
-            });
-          } else {
-            return res.status(httpStatus.BAD_REQUEST).json({
-              success: false,
-              message: responseFromFilter.message,
-            });
-          }
-        }
+      } else if (responseFromListCandidate.success === false) {
+        const status = responseFromListCandidate.status
+          ? responseFromListCandidate.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+
+        return res.status(status).json({
+          success: false,
+          message: responseFromListCandidate.message,
+          error: responseFromListCandidate.error
+            ? responseFromListCandidate.error
+            : "",
+          errors: responseFromListCandidate.errors
+            ? responseFromListCandidate.errors
+            : { message: "Internal Server Error" },
+        });
       }
     } catch (e) {
       logger.error(`Internal Server Error ${e.message}`);
-      return res.status(httpStatus.BAD_GATEWAY).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
-        message: "controller server error",
+        message: "Internal Server Error",
         error: e.message,
+        errors: { message: e.message },
       });
     }
   },
@@ -175,92 +137,64 @@ const requestAccess = {
           convertErrorArrayToObject(nestedErrors)
         );
       }
-      const {
-        firstName,
-        lastName,
-        email,
-        long_organization,
-        jobTitle,
-        website,
-        category,
-        description,
-        country,
-      } = req.body;
 
       let { tenant } = req.query;
       if (isEmpty(tenant)) {
         tenant = constants.DEFAULT_TENANT;
       }
-      let responseFromFilter = generateFilter.candidates(req);
+      const responseFromFilter = generateFilter.candidates(req);
       logObject("responseFromFilter", responseFromFilter);
 
-      if (responseFromFilter.success === true) {
-        let filter = responseFromFilter.data;
-        logObject("the filter in controller", filter);
-        let request = {};
-        request["tenant"] = tenant.toLowerCase();
-        request["firstName"] = firstName;
-        request["lastName"] = lastName;
-        request["email"] = email;
-        request["organization"] = tenant;
-        request["long_organization"] = long_organization;
-        request["jobTitle"] = jobTitle;
-        request["website"] = website;
-        request["description"] = description;
-        request["category"] = category;
-        request["country"] = country;
-        request["filter"] = filter;
+      if (responseFromFilter.success === false) {
+        return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+          success: false,
+          message: responseFromFilter.message,
+          error: responseFromFilter.error ? responseFromFilter.error : "",
+          errors: responseFromFilter.errors
+            ? responseFromFilter.errors
+            : { message: "Internal Server Error" },
+        });
+      }
 
-        let responseFromConfirmCandidate = await requestAccessUtil.confirm(
-          request
-        );
+      const filter = responseFromFilter.data;
+      logObject("the filter in controller", filter);
+      let request = Object.assign({}, req.body);
+      request["tenant"] = tenant.toLowerCase();
+      request["filter"] = filter;
+      const responseFromConfirmCandidate = await requestAccessUtil.confirm(
+        request
+      );
 
-        logObject("responseFromConfirmCandidate", responseFromConfirmCandidate);
-        if (responseFromConfirmCandidate.success === true) {
-          let status = responseFromConfirmCandidate.status
-            ? responseFromConfirmCandidate.status
-            : httpStatus.OK;
-          return res.status(status).json({
-            success: true,
-            message: responseFromConfirmCandidate.message,
-            user: responseFromConfirmCandidate.data,
-          });
-        } else if (responseFromConfirmCandidate.success === false) {
-          let status = responseFromConfirmCandidate.status
-            ? responseFromConfirmCandidate.status
-            : httpStatus.INTERNAL_SERVER_ERROR;
-
-          if (responseFromConfirmCandidate.error) {
-            res.status(status).json({
-              success: false,
-              message: responseFromConfirmCandidate.message,
-              error: responseFromConfirmCandidate.error
-                ? responseFromConfirmCandidate.error
-                : "",
-            });
-          }
-        }
-      } else if (responseFromFilter.success === false) {
-        if (responseFromFilter.error) {
-          if (responseFromFilter.error) {
-            return res.status(httpStatus.BAD_GATEWAY).json({
-              success: false,
-              message: responseFromFilter.message,
-              error: responseFromFilter.error,
-            });
-          } else {
-            return res.status(httpStatus.BAD_REQUEST).json({
-              success: false,
-              message: responseFromFilter.message,
-            });
-          }
-        }
+      logObject("responseFromConfirmCandidate", responseFromConfirmCandidate);
+      if (responseFromConfirmCandidate.success === true) {
+        const status = responseFromConfirmCandidate.status
+          ? responseFromConfirmCandidate.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromConfirmCandidate.message,
+          user: responseFromConfirmCandidate.data,
+        });
+      } else if (responseFromConfirmCandidate.success === false) {
+        const status = responseFromConfirmCandidate.status
+          ? responseFromConfirmCandidate.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromConfirmCandidate.message,
+          error: responseFromConfirmCandidate.error
+            ? responseFromConfirmCandidate.error
+            : "",
+          errors: responseFromConfirmCandidate.errors
+            ? responseFromConfirmCandidate.errors
+            : { message: "Internal Server Error" },
+        });
       }
     } catch (e) {
       logger.error(`Internal Server Error ${e.message}`);
-      return res.status(httpStatus.BAD_GATEWAY).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
-        message: "contoller server error",
+        message: "Internal Server Error",
         error: e.message,
         errors: { message: e.message },
       });
@@ -279,57 +213,45 @@ const requestAccess = {
       }
       let { tenant } = req.query;
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
+        tenant = constants.DEFAULT_TENANT || "airqo";
       }
-      const responseFromFilter = generateFilter.candidates(req);
+      const request = Object.assign({}, req);
+      request.query.tenant = tenant;
 
-      if (responseFromFilter.success == true) {
-        let responseFromDeleteCandidate = await requestAccessUtil.delete(
-          tenant,
-          responseFromFilter.data
-        );
+      const responseFromDeleteCandidate = await requestAccessUtil.delete(
+        request
+      );
 
-        if (responseFromDeleteCandidate.success == true) {
-          res.status(httpStatus.OK).json({
-            success: true,
-            message: responseFromDeleteCandidate.message,
-            candidate: responseFromDeleteCandidate.data,
-          });
-        } else if (responseFromDeleteCandidate.success == false) {
-          if (responseFromDeleteCandidate.error) {
-            res.status(httpStatus.BAD_GATEWAY).json({
-              success: false,
-              message: responseFromDeleteCandidate.message,
-              candidate: responseFromDeleteCandidate.data,
-              error: responseFromDeleteCandidate.error,
-            });
-          } else {
-            res.status(httpStatus.BAD_REQUEST).json({
-              success: false,
-              message: responseFromDeleteCandidate.message,
-              candidate: responseFromDeleteCandidate.data,
-            });
-          }
-        }
-      } else if (responseFromFilter.success == false) {
-        if (responseFromFilter.error) {
-          return res.status(httpStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromFilter.message,
-            error: responseFromFilter.error,
-          });
-        } else {
-          return res.status(httpStatus.BAD_REQUEST).json({
-            success: false,
-            message: responseFromFilter.message,
-          });
-        }
+      if (responseFromDeleteCandidate.success === true) {
+        const status = responseFromDeleteCandidate.status
+          ? responseFromDeleteCandidate.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromDeleteCandidate.message,
+          candidate: responseFromDeleteCandidate.data,
+        });
+      } else if (responseFromDeleteCandidate.success === false) {
+        const status = responseFromDeleteCandidate.status
+          ? responseFromDeleteCandidate.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromDeleteCandidate.message,
+          candidate: responseFromDeleteCandidate.data,
+          error: responseFromDeleteCandidate.error
+            ? responseFromDeleteCandidate.error
+            : "",
+          errors: responseFromDeleteCandidate.errors
+            ? responseFromDeleteCandidate.errors
+            : { message: "Internal Server Error" },
+        });
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      return res.status(httpStatus.BAD_GATEWAY).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
-        message: "controller server error",
+        message: "Internal Server Error",
         error: error.message,
         errors: { message: error.message },
       });
@@ -348,63 +270,47 @@ const requestAccess = {
       }
       let { tenant } = req.query;
       if (isEmpty(tenant)) {
-        tenant = constants.DEFAULT_TENANT;
+        tenant = constants.DEFAULT_TENANT || "airqo";
       }
-      const responseFromFilter = generateFilter.candidates(req);
-      logObject("responseFromFilter", responseFromFilter);
 
-      if (responseFromFilter.success == true) {
-        let filter = responseFromFilter.data;
-        let requestBody = req.body;
-        delete requestBody._id;
-        let responseFromUpdateCandidate = await requestAccessUtil.update(
-          tenant,
-          filter,
-          requestBody
-        );
-        logObject("responseFromUpdateCandidate", responseFromUpdateCandidate);
-        if (responseFromUpdateCandidate.success == true) {
-          res.status(httpStatus.OK).json({
-            success: true,
-            message: responseFromUpdateCandidate.message,
-            candidate: responseFromUpdateCandidate.data,
-          });
-        } else if (responseFromUpdateCandidate.success == false) {
-          if (responseFromUpdateCandidate.error) {
-            res.status(httpStatus.BAD_GATEWAY).json({
-              success: false,
-              message: responseFromUpdateCandidate.message,
-              candidate: responseFromUpdateCandidate.data,
-              error: responseFromUpdateCandidate.error,
-            });
-          } else {
-            res.status(httpStatus.BAD_REQUEST).json({
-              success: false,
-              message: responseFromUpdateCandidate.message,
-              candidate: responseFromUpdateCandidate.data,
-            });
-          }
-        }
-      } else if (responseFromFilter.success == false) {
-        if (responseFromFilter.error) {
-          return res.status(httpStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromFilter.message,
-            error: responseFromFilter.error,
-          });
-        } else {
-          return res.status(httpStatus.BAD_REQUEST).json({
-            success: false,
-            message: responseFromFilter.message,
-          });
-        }
+      let request = Object.assign({}, req);
+      request.query.tenant = tenant;
+
+      const responseFromUpdateCandidate = await requestAccessUtil.update(
+        request
+      );
+
+      logObject("responseFromUpdateCandidate", responseFromUpdateCandidate);
+      if (responseFromUpdateCandidate.success === true) {
+        return res.status(httpStatus.OK).json({
+          success: true,
+          message: responseFromUpdateCandidate.message,
+          candidate: responseFromUpdateCandidate.data,
+        });
+      } else if (responseFromUpdateCandidate.success === false) {
+        const status = responseFromUpdateCandidate.status
+          ? responseFromUpdateCandidate.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+
+        return res.status(status).json({
+          success: false,
+          message: responseFromUpdateCandidate.message,
+          candidate: responseFromUpdateCandidate.data,
+          error: responseFromUpdateCandidate.error
+            ? responseFromUpdateCandidate.error
+            : "",
+          errors: responseFromUpdateCandidate.errors
+            ? responseFromUpdateCandidate.errors
+            : { message: "Internal Server Error" },
+        });
       }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      return res.status(httpStatus.BAD_GATEWAY).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
-        message: "controller server error",
+        message: "Internal Server Error",
         error: error.message,
+        errors: { message: error.message },
       });
     }
   },

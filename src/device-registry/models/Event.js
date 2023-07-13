@@ -11,7 +11,7 @@ const ObjectId = Schema.Types.ObjectId;
 const constants = require("@config/constants");
 const isEmpty = require("is-empty");
 const HTTPStatus = require("http-status");
-const { getModelByTenant } = require("@utils/multitenancy");
+const { getModelByTenant } = require("@config/database");
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- event-model`);
 
@@ -797,53 +797,115 @@ eventSchema.statics = {
                   aqi_color: {
                     $switch: {
                       branches: [
-                        { case: { $lt: ["$pm2_5.value", 50] }, then: "00e400" },
                         {
-                          case: { $lt: ["$pm2_5.value", 100] },
+                          case: {
+                            $and: [
+                              { $gte: ["$pm2_5.value", 0] },
+                              { $lt: ["$pm2_5.value", 12.1] },
+                            ],
+                          },
+                          then: "00e400",
+                        },
+                        {
+                          case: {
+                            $and: [
+                              { $gte: ["$pm2_5.value", 12.1] },
+                              { $lt: ["$pm2_5.value", 35.5] },
+                            ],
+                          },
                           then: "ffff00",
                         },
                         {
-                          case: { $lt: ["$pm2_5.value", 150] },
+                          case: {
+                            $and: [
+                              { $gte: ["$pm2_5.value", 35.5] },
+                              { $lt: ["$pm2_5.value", 55.5] },
+                            ],
+                          },
                           then: "ff7e00",
                         },
                         {
-                          case: { $lt: ["$pm2_5.value", 200] },
+                          case: {
+                            $and: [
+                              { $gte: ["$pm2_5.value", 55.5] },
+                              { $lt: ["$pm2_5.value", 150.5] },
+                            ],
+                          },
                           then: "ff0000",
                         },
                         {
-                          case: { $lt: ["$pm2_5.value", 300] },
+                          case: {
+                            $and: [
+                              { $gte: ["$pm2_5.value", 150.5] },
+                              { $lt: ["$pm2_5.value", 250.5] },
+                            ],
+                          },
                           then: "8f3f97",
                         },
                         {
-                          case: { $gte: ["$pm2_5.value", 300] },
+                          case: { $gte: ["$pm2_5.value", 250.5] },
                           then: "7e0023",
                         },
                       ],
                       default: "Unknown",
                     },
                   },
+
                   aqi_category: {
                     $switch: {
                       branches: [
-                        { case: { $lt: ["$pm2_5.value", 50] }, then: "Good" },
                         {
-                          case: { $lt: ["$pm2_5.value", 100] },
+                          case: {
+                            $and: [
+                              { $gte: ["$pm2_5.value", 0] },
+                              { $lte: ["$pm2_5.value", 12] },
+                            ],
+                          },
+                          then: "Good",
+                        },
+                        {
+                          case: {
+                            $and: [
+                              { $gt: ["$pm2_5.value", 12] },
+                              { $lte: ["$pm2_5.value", 35.4] },
+                            ],
+                          },
                           then: "Moderate",
                         },
                         {
-                          case: { $lt: ["$pm2_5.value", 150] },
+                          case: {
+                            $and: [
+                              { $gt: ["$pm2_5.value", 35.4] },
+                              { $lte: ["$pm2_5.value", 55.4] },
+                            ],
+                          },
                           then: "Unhealthy for Sensitive Groups",
                         },
                         {
-                          case: { $lt: ["$pm2_5.value", 200] },
+                          case: {
+                            $and: [
+                              { $gt: ["$pm2_5.value", 55.4] },
+                              { $lte: ["$pm2_5.value", 150.4] },
+                            ],
+                          },
                           then: "Unhealthy",
                         },
                         {
-                          case: { $lt: ["$pm2_5.value", 300] },
+                          case: {
+                            $and: [
+                              { $gt: ["$pm2_5.value", 150.4] },
+                              { $lte: ["$pm2_5.value", 250.4] },
+                            ],
+                          },
                           then: "Very Unhealthy",
                         },
                         {
-                          case: { $gte: ["$pm2_5.value", 300] },
+                          case: {
+                            $and: [
+                              { $gt: ["$pm2_5.value", 250.4] },
+                              { $lte: ["$pm2_5.value", 500] },
+                            ],
+                          },
                           then: "Hazardous",
                         },
                       ],
@@ -853,25 +915,58 @@ eventSchema.statics = {
                   aqi_color_name: {
                     $switch: {
                       branches: [
-                        { case: { $lt: ["$pm2_5.value", 50] }, then: "Green" },
                         {
-                          case: { $lt: ["$pm2_5.value", 100] },
+                          case: {
+                            $and: [
+                              { $gte: ["$pm2_5.value", 0] },
+                              { $lte: ["$pm2_5.value", 12] },
+                            ],
+                          },
+                          then: "Green",
+                        },
+                        {
+                          case: {
+                            $and: [
+                              { $gt: ["$pm2_5.value", 12] },
+                              { $lte: ["$pm2_5.value", 35.4] },
+                            ],
+                          },
                           then: "Yellow",
                         },
                         {
-                          case: { $lt: ["$pm2_5.value", 150] },
+                          case: {
+                            $and: [
+                              { $gt: ["$pm2_5.value", 35.4] },
+                              { $lte: ["$pm2_5.value", 55.4] },
+                            ],
+                          },
                           then: "Orange",
                         },
                         {
-                          case: { $lt: ["$pm2_5.value", 200] },
+                          case: {
+                            $and: [
+                              { $gt: ["$pm2_5.value", 55.4] },
+                              { $lte: ["$pm2_5.value", 150.4] },
+                            ],
+                          },
                           then: "Red",
                         },
                         {
-                          case: { $lt: ["$pm2_5.value", 300] },
+                          case: {
+                            $and: [
+                              { $gt: ["$pm2_5.value", 150.4] },
+                              { $lte: ["$pm2_5.value", 250.4] },
+                            ],
+                          },
                           then: "Purple",
                         },
                         {
-                          case: { $gte: ["$pm2_5.value", 300] },
+                          case: {
+                            $and: [
+                              { $gt: ["$pm2_5.value", 250.4] },
+                              { $lte: ["$pm2_5.value", 500] },
+                            ],
+                          },
                           then: "Maroon",
                         },
                       ],

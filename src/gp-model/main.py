@@ -8,6 +8,7 @@ from gpflow import set_trainable
 from config import connect_mongo, Config
 from config import configuration
 import argparse
+from threading import Thread
 from shapely.geometry import Point, Polygon
 from data.data import (
     get_airqloud_data,

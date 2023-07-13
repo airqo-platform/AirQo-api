@@ -4,7 +4,7 @@ const SiteSchema = require("@models/Site");
 const UniqueIdentifierCounterSchema = require("@models/UniqueIdentifierCounter");
 const constants = require("@config/constants");
 const { logObject, logElement, logText } = require("./log");
-const { getModelByTenant } = require("./multitenancy");
+const { getModelByTenant } = require("@config/database");
 const isEmpty = require("is-empty");
 const axios = require("axios");
 const { Client } = require("@googlemaps/google-maps-services-js");
@@ -923,11 +923,22 @@ const createSite = {
           retrievedAddress.division = object.long_name;
           retrievedAddress.village = object.long_name;
           retrievedAddress.sub_county = object.long_name;
+          retrievedAddress.search_name = object.long_name;
         }
         retrievedAddress.formatted_name = formatted_name;
         retrievedAddress.geometry = geometry;
         retrievedAddress.site_tags = types;
         retrievedAddress.google_place_id = google_place_id;
+        retrievedAddress.location_name = retrievedAddress.country !== "Uganda" ?
+          `${retrievedAddress.region}, ${retrievedAddress.country}`
+          : `${retrievedAddress.district}, ${retrievedAddress.country}`;
+        if (!retrievedAddress.search_name) {
+          retrievedAddress.search_name = retrievedAddress.town ?
+            retrievedAddress.town : retrievedAddress.street ?
+              retrievedAddress.street : retrievedAddress.city ?
+                retrievedAddress.city : retrievedAddress.district
+        }
+        
       });
       return {
         success: true,

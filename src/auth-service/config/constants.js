@@ -66,10 +66,20 @@ const stageConfig = {
 };
 
 const defaultConfig = {
+  GMAIL_VERIFICATION_FAILURE_REDIRECT:
+    process.env.GMAIL_VERIFICATION_FAILURE_REDIRECT,
+  GMAIL_VERIFICATION_SUCCESS_REDIRECT:
+    process.env.GMAIL_VERIFICATION_SUCCESS_REDIRECT,
   SUPER_ADMIN_PERMISSIONS: process.env.SUPER_ADMIN_PERMISSIONS
     ? process.env.SUPER_ADMIN_PERMISSIONS.split(",").filter(
         (value) => value.trim() !== ""
       )
+    : [],
+  TENANTS: process.env.TENANTS
+    ? process.env.TENANTS.split(",").filter((value) => value.trim() !== "")
+    : [],
+  NETWORKS: process.env.NETWORKS
+    ? process.env.NETWORKS.split(",").filter((value) => value.trim() !== "")
     : [],
   UNIQUE_CONSUMER_GROUP: process.env.UNIQUE_CONSUMER_GROUP,
   UNIQUE_PRODUCER_GROUP: process.env.UNIQUE_PRODUCER_GROUP,
@@ -140,6 +150,8 @@ const defaultConfig = {
     net_name: 1,
     net_description: 1,
     net_acronym: 1,
+    net_data_source: 1,
+    net_api_key: 1,
     createdAt: {
       $dateToString: {
         format: "%Y-%m-%d %H:%M:%S",
@@ -189,7 +201,13 @@ const defaultConfig = {
       "net_manager.createdAt": 0,
       "net_manager.updatedAt": 0,
       "net_manager.groups": 0,
-      "net_manager.roles": 0,
+      "net_manager.role": 0,
+      "net_manager.resetPasswordExpires": 0,
+      "net_manager.resetPasswordToken": 0,
+      "net_manager.phoneNumber": 0,
+      "net_manager.organization": 0,
+      "net_manager.profilePicture": 0,
+      "net_manager.is_email_verified": 0,
       "net_manager.permissions": 0,
       "net_permissions.__v": 0,
       "net_permissions.createdAt": 0,
@@ -226,6 +244,8 @@ const defaultConfig = {
           net_roles: 0,
           net_groups: 0,
           net_departments: 0,
+          net_data_source: 0,
+          net_api_key: 0,
           "net_manager.notifications": 0,
           "net_manager.emailConfirmed": 0,
           "net_manager.locationCount": 0,
@@ -311,6 +331,8 @@ const defaultConfig = {
       "network.net_groups": 0,
       "network.net_email": 0,
       "network.net_phoneNumber": 0,
+      "network.net_data_source": 0,
+      "network.net_api_key": 0,
       "network.net_category": 0,
       "network.createdAt": 0,
       "network.updatedAt": 0,
@@ -390,6 +412,8 @@ const defaultConfig = {
       "networks.net_email": 0,
       "networks.net_category": 0,
       "networks.net_phoneNumber": 0,
+      "network.net_data_source": 0,
+      "network.net_api_key": 0,
       "networks.net_manager": 0,
       "access_tokens.__v": 0,
       "access_tokens.user_id": 0,
@@ -431,6 +455,127 @@ const defaultConfig = {
       "my_networks.createdAt": 0,
       "my_networks.updatedAt": 0,
       "my_networks.__v": 0,
+    };
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign({}, {});
+    }
+
+    return projection;
+  },
+
+  CANDIDATES_INCLUSION_PROJECTION: {
+    _id: 1,
+    firstName: 1,
+    lastName: 1,
+    email: 1,
+    description: 1,
+    category: 1,
+    long_organization: 1,
+    jobTitle: 1,
+    website: 1,
+    status: 1,
+    createdAt: {
+      $dateToString: {
+        format: "%Y-%m-%d %H:%M:%S",
+        date: "$_id",
+      },
+    },
+    updatedAt: 1,
+    country: 1,
+    existing_user: { $arrayElemAt: ["$user", 0] },
+    network: { $arrayElemAt: ["$network", 0] },
+  },
+
+  CANDIDATES_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = {
+      "existing_user.locationCount": 0,
+      "existing_user.privilege": 0,
+      "existing_user.website": 0,
+      "existing_user.organization": 0,
+      "existing_user.long_organization": 0,
+      "existing_user.category": 0,
+      "existing_user.jobTitle": 0,
+      "existing_user.profilePicture": 0,
+      "existing_user. phoneNumber": 0,
+      "existing_user.description": 0,
+      "existing_user.createdAt": 0,
+      "existing_user.updatedAt": 0,
+      "existing_user.notifications": 0,
+      "existing_user.emailConfirmed": 0,
+      "existing_user.password": 0,
+      "existing_user.__v": 0,
+      "existing_user.duration": 0,
+      "existing_user.verified": 0,
+      "existing_user.networks": 0,
+      "existing_user.groups": 0,
+      "existing_user.role": 0,
+      "existing_user.permissions": 0,
+      "existing_user.userName": 0,
+      "existing_user.country": 0,
+      network: 0,
+    };
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign({}, {});
+    }
+
+    return projection;
+  },
+
+  FAVORITES_INCLUSION_PROJECTION: {
+    _id: 1,
+    name: 1,
+    location: 1,
+    latitude: 1,
+    longitude: 1,
+    reference_site: 1,
+    place_id: 1,
+    firebase_user_id: 1,
+  },
+
+  FAVORITES_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = { nothing: 0 };
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign({}, {});
+    }
+
+    return projection;
+  },
+
+  TOKENS_INCLUSION_PROJECTION: {
+    _id: 1,
+    user_id: 1,
+    name: 1,
+    token: 1,
+    network_id: 1,
+    last_used_at: 1,
+    expires: 1,
+    last_ip_address: 1,
+    user: { $arrayElemAt: ["$users", 0] },
+  },
+
+  TOKENS_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = {
+      "user._id": 0,
+      "user.notifications": 0,
+      "user.verified": 0,
+      "user.networks": 0,
+      "user.groups": 0,
+      "user.roles": 0,
+      "user.permissions": 0,
+      "user.locationCount": 0,
+      "user.userName": 0,
+      "user.password": 0,
+      "user.long_organization": 0,
+      "user.privilege": 0,
+      "user.duration": 0,
+      "user.createdAt": 0,
+      "user.updatedAt": 0,
+      "user.__v": 0,
+      "user.resetPasswordExpires": 0,
+      "user.resetPasswordToken": 0,
     };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {

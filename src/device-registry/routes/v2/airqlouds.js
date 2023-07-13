@@ -10,11 +10,6 @@ const { logElement, logText, logObject } = require("@utils/log");
 const isEmpty = require("is-empty");
 
 const headers = (req, res, next) => {
-  // const allowedOrigins = constants.DOMAIN_WHITELIST;
-  // const origin = req.headers.origin;
-  // if (allowedOrigins.includes(origin)) {
-  //   res.setHeader("Access-Control-Allow-Origin", origin);
-  // }
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.header(
     "Access-Control-Allow-Headers",
@@ -255,6 +250,118 @@ router.get(
     ],
   ]),
   airqloudController.list
+);
+
+router.get(
+  "/summary",
+  oneOf([
+    query("tenant")
+      .exists()
+      .withMessage("tenant should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(constants.NETWORKS)
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    [
+      query("id")
+        .optional()
+        .notEmpty()
+        .trim()
+        .isMongoId()
+        .withMessage("id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      query("name")
+        .optional()
+        .notEmpty()
+        .withMessage("name cannot be empty")
+        .trim(),
+      query("admin_level")
+        .optional()
+        .notEmpty()
+        .withMessage(
+          "admin_level is empty, should not be if provided in request"
+        )
+        .bail()
+        .toLowerCase()
+        .isIn([
+          "village",
+          "district",
+          "parish",
+          "division",
+          "county",
+          "subcounty",
+          "country",
+          "state",
+          "province",
+        ])
+        .withMessage(
+          "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district"
+        ),
+    ],
+  ]),
+  airqloudController.listSummary
+);
+
+router.get(
+  "/dashboard",
+  oneOf([
+    query("tenant")
+      .exists()
+      .withMessage("tenant should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(constants.NETWORKS)
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    [
+      query("id")
+        .optional()
+        .notEmpty()
+        .trim()
+        .isMongoId()
+        .withMessage("id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      query("name")
+        .optional()
+        .notEmpty()
+        .withMessage("name cannot be empty")
+        .trim(),
+      query("admin_level")
+        .optional()
+        .notEmpty()
+        .withMessage(
+          "admin_level is empty, should not be if provided in request"
+        )
+        .bail()
+        .toLowerCase()
+        .isIn([
+          "village",
+          "district",
+          "parish",
+          "division",
+          "county",
+          "subcounty",
+          "country",
+          "state",
+          "province",
+        ])
+        .withMessage(
+          "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district"
+        ),
+    ],
+  ]),
+  airqloudController.listDashboard
 );
 
 router.get(
@@ -570,6 +677,64 @@ router.get(
       ),
   ]),
   airqloudController.calculateGeographicalCenter
+);
+
+router.get(
+  "/combined/:net_id/summary",
+  oneOf([
+    query("tenant")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty IF provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(constants.NETWORKS)
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    param("net_id")
+      .exists()
+      .withMessage("the network ID param is missing in your request")
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("network ID must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+  ]),
+  airqloudController.listCohortsAndGridsSummary
+);
+
+router.get(
+  "/combined/:net_id",
+  oneOf([
+    query("tenant")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty IF provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(constants.NETWORKS)
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    param("net_id")
+      .exists()
+      .withMessage("the network ID param is missing in your request")
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("network ID must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+  ]),
+  airqloudController.listCohortsAndGrids
 );
 
 module.exports = router;

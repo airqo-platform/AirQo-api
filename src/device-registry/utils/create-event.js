@@ -1,5 +1,5 @@
 const EventModel = require("@models/Event");
-const { getModelByTenant } = require("./multitenancy");
+const { getModelByTenant } = require("@config/database");
 const { logObject, logElement, logText } = require("./log");
 const constants = require("@config/constants");
 const generateFilter = require("./generate-filter");

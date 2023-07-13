@@ -6,12 +6,12 @@ app:
   namespace: production
   configMap: env-gp-model-production
 images:
-  tag: latest
+  tag: prod-0ed1bc17-1688642909
   repositories:
     cronJob: eu.gcr.io/airqo-250220/airqo-gp-model-job
     brokerConsumer: eu.gcr.io/airqo-250220/airqo-gp-model-broker-consumer
-nameOverride: ""
-fullnameOverride: ""
+nameOverride: ''
+fullnameOverride: ''
 podAnnotations: {}
 resources:
   limits:
@@ -20,3 +20,10 @@ resources:
   requests:
     cpu: 50m
     memory: 100Mi
+volumeMounts:
+  - name: config-volume
+    mountPath: /etc/config
+volumes:
+  - name: config-volume
+    configMap:
+      name: gp-model-job-config-files

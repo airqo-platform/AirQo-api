@@ -2,7 +2,7 @@
 const HTTPStatus = require("http-status");
 module.exports = { getDevicesCount, list, decryptKey };
 const DeviceSchema = require("@models/Device");
-const { getModelByTenant } = require("./multitenancy");
+const { getModelByTenant } = require("@config/database");
 const axios = require("axios");
 const { logObject, logElement, logText } = require("./log");
 const { transform } = require("node-json-transform");
@@ -13,7 +13,7 @@ const errors = require("./errors");
 const isEmpty = require("is-empty");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
-  `${constants.ENVIRONMENT} -- create-device-util`
+  `${constants.ENVIRONMENT} -- create-monitor-util`
 );
 
 const qs = require("qs");
@@ -42,9 +42,8 @@ async function list(request) {
         : { message: "" };
       let status = responseFromFilter.status ? responseFromFilter.status : "";
       try {
-        logger.error(
-          `the error from filter in list -- ${JSON.stringify(errors)}`
-        );
+        let errorsString = errors ? JSON.stringify(errors) : "";
+        logger.error(`the error from filter in list -- ${errorsString}`);
       } catch (error) {
         logger.error(`internal server error -- ${error.message}`);
       }
@@ -75,10 +74,9 @@ async function list(request) {
         ? responseFromListDevice.errors
         : { message: "" };
       try {
+        let errorsString = errors ? JSON.stringify(errors) : "";
         logger.error(
-          `responseFromListDevice was not a success -- ${
-            responseFromListDevice.message
-          } -- ${JSON.stringify(errors)}`
+          `responseFromListDevice was not a success -- ${responseFromListDevice.message} -- ${errorsString}`
         );
       } catch (error) {
         logger.error(`internal server error -- ${error.message}`);

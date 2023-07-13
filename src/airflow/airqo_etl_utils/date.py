@@ -11,9 +11,16 @@ class DateUtils:
         return datetime.strftime(date, str_format)
 
     @staticmethod
-    def get_dag_date_time_values(historical: bool = False, days: int = None, hours: int = None, **kwargs,):
+    def get_dag_date_time_values(
+        historical: bool = False,
+        days: int = None,
+        hours: int = None,
+        **kwargs,
+    ):
         try:
-            is_manual_run = kwargs["dag_run"].external_trigger if "dag_run" in kwargs else False
+            is_manual_run = (
+                kwargs["dag_run"].external_trigger if "dag_run" in kwargs else False
+            )
             print("IS MANUAL RUN:", is_manual_run)
             if historical and is_manual_run:
                 start_date_time = kwargs.get("params", {}).get("start_date_time")
@@ -24,7 +31,7 @@ class DateUtils:
                 start_date_time = dag_run.conf["start_date_time"]
                 end_date_time = dag_run.conf["end_date_time"]
         except Exception as e:
-            print("Exception in get_dag_date_time_values",repr(e))
+            print("Exception in get_dag_date_time_values", repr(e))
             if hours is not None:
                 start_date_time = datetime.utcnow() - timedelta(hours=hours)
                 end_date_time = start_date_time + timedelta(hours=hours)

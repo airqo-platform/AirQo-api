@@ -4,7 +4,7 @@ import traceback
 import flask_excel as excel
 import pandas as pd
 from flasgger import swag_from
-from flask import request
+from flask import request, jsonify
 from flask_restx import Resource
 
 from api.models import (
@@ -21,12 +21,26 @@ from api.models.data_export import (
 # Middlewares
 from api.utils.data_formatters import (
     format_to_aqcsv,
-    compute_airqloud_data_statistics,
+    compute_airqloud_summary,
 )
-from api.utils.dates import str_to_date
+from api.utils.dates import str_to_date, date_to_str
+from api.utils.exceptions import ExportRequestNotFound
 from api.utils.http import create_response, Status
-from api.utils.request_validators import validate_request_json
+from api.utils.request_validators import validate_request_json, validate_request_params
 from main import rest_api_v1, rest_api_v2
+
+
+@rest_api_v1.errorhandler(ExportRequestNotFound)
+@rest_api_v2.errorhandler(ExportRequestNotFound)
+def batch_not_found_exception(error):
+    return (
+        create_response(
+            error.message,
+            data={},
+            success=False
+        ),
+        Status.HTTP_400_BAD_REQUEST,
+    )
 
 
 @rest_api_v1.route("/data-download")
@@ -183,6 +197,7 @@ class DataExportV2Resource(Resource):
         "sites|optional:list",
         "devices|optional:list",
         "airqlouds|optional:list",
+        "meta_data|optional:dict",
     )
     def post(self):
         valid_pollutants = ["pm2_5", "pm10", "no2"]
@@ -194,6 +209,7 @@ class DataExportV2Resource(Resource):
 
         start_date = json_data["startDateTime"]
         end_date = json_data["endDateTime"]
+        meta_data = json_data.get("meta_data", [])
         sites = json_data.get("sites", [])
         devices = json_data.get("devices", [])
         airqlouds = json_data.get("airqlouds", [])
@@ -207,19 +223,19 @@ class DataExportV2Resource(Resource):
             f"{json_data.get('outputFormat', valid_output_formats[0])}".lower()
         )
 
-        if sum([len(sites) == 0, len(devices) == 0, len(airqlouds) == 0]) == 3:
+        if len(airqlouds) != 0:
+            devices = []
+            sites = []
+        elif len(sites) != 0:
+            devices = []
+            airqlouds = []
+        elif len(devices) != 0:
+            airqlouds = []
+            sites = []
+        else:
             return (
                 create_response(
                     f"Specify either a list of airqlouds, sites or devices in the request body",
-                    success=False,
-                ),
-                Status.HTTP_400_BAD_REQUEST,
-            )
-
-        if sum([len(sites) != 0, len(devices) != 0, len(airqlouds) != 0]) != 1:
-            return (
-                create_response(
-                    f"You cannot specify airqlouds, sites and devices in one go",
                     success=False,
                 ),
                 Status.HTTP_400_BAD_REQUEST,
@@ -278,6 +294,8 @@ class DataExportV2Resource(Resource):
                 devices=devices,
                 request_id="",
                 pollutants=pollutants,
+                retries=3,
+                meta_data=meta_data,
             )
 
             data_export_request.status = DataExportStatus.SCHEDULED
@@ -286,7 +304,7 @@ class DataExportV2Resource(Resource):
             return (
                 create_response(
                     "request successfully received",
-                    data=data_export_request.to_dict(format_datetime=True),
+                    data=data_export_request.to_api_format(),
                 ),
                 Status.HTTP_200_OK,
             )
@@ -302,14 +320,16 @@ class DataExportV2Resource(Resource):
                 Status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-    @swag_from("/api/docs/dashboard/monitoring_site_get.yml")
+    @validate_request_params(
+        "userId|required:str",
+    )
     def get(self):
         user_id = request.args.get("userId")
         try:
             data_export_model = DataExportModel()
             requests = data_export_model.get_user_requests(user_id)
 
-            data = [x.to_dict(format_datetime=True) for x in requests]
+            data = [x.to_api_format() for x in requests]
 
             return (
                 create_response(
@@ -330,34 +350,27 @@ class DataExportV2Resource(Resource):
                 Status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-    @swag_from("/api/docs/dashboard/monitoring_site_get.yml")
+    @validate_request_params(
+        "requestId|required:str",
+    )
     def patch(self):
         request_id = request.args.get("requestId")
-        try:
-            data_export_model = DataExportModel()
-            export_request = data_export_model.get_request_by_id(request_id)
-            export_request.status = DataExportStatus.SCHEDULED
-            success = data_export_model.update_request_status(export_request)
-            if success:
-                return (
-                    create_response(
-                        "request successfully updated",
-                        data=export_request.to_dict(format_datetime=True),
-                    ),
-                    Status.HTTP_200_OK,
-                )
-            else:
-                return (
-                    create_response(
-                        f"An Error occurred while processing your request. Please contact support",
-                        success=False,
-                    ),
-                    Status.HTTP_500_INTERNAL_SERVER_ERROR,
-                )
-
-        except Exception as ex:
-            print(ex)
-            traceback.print_exc()
+        data_export_model = DataExportModel()
+        export_request = data_export_model.get_request_by_id(request_id)
+        export_request.status = DataExportStatus.SCHEDULED
+        export_request.retries = 3
+        success = data_export_model.update_request_status_and_retries(
+            export_request
+        )
+        if success:
+            return (
+                create_response(
+                    "request successfully updated",
+                    data=export_request.to_api_format(),
+                ),
+                Status.HTTP_200_OK,
+            )
+        else:
             return (
                 create_response(
                     f"An Error occurred while processing your request. Please contact support",
@@ -379,8 +392,8 @@ class DataSummaryResource(Resource):
         try:
             json_data = request.get_json()
 
-            start_date_time = json_data["startDateTime"]
-            end_date_time = json_data["endDateTime"]
+            start_date_time = str_to_date(json_data["startDateTime"])
+            end_date_time = str_to_date(json_data["endDateTime"])
             airqloud = str(json_data.get("airqloud", ""))
 
             if airqloud.strip() == "":
@@ -391,14 +404,15 @@ class DataSummaryResource(Resource):
                     ),
                     Status.HTTP_400_BAD_REQUEST,
                 )
-
-            data = EventsModel.get_data_for_summary(
+            start_date_time = date_to_str(start_date_time, format="%Y-%m-%dT%H:00:00Z")
+            end_date_time = date_to_str(end_date_time, format="%Y-%m-%dT%H:00:00Z")
+            data = EventsModel.get_devices_summary(
                 airqloud=airqloud,
                 start_date_time=start_date_time,
                 end_date_time=end_date_time,
             )
 
-            summary = compute_airqloud_data_statistics(
+            summary = compute_airqloud_summary(
                 data=pd.DataFrame(data),
                 start_date_time=start_date_time,
                 end_date_time=end_date_time,
@@ -411,7 +425,7 @@ class DataSummaryResource(Resource):
                         data={},
                         success=False,
                     ),
-                    Status.HTTP_404_NOT_FOUND,
+                    Status.HTTP_200_OK,
                 )
 
             return (

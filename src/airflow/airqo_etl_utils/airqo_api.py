@@ -41,7 +41,7 @@ class AirQoApi:
     def get_maintenance_logs(
         self, tenant: str, device: str, activity_type: str = None
     ) -> list:
-        params = {"tenant": tenant, "device": device}
+        params = {"tenant": str(Tenant.AIRQO), "device": device}
 
         if activity_type:
             params["activity_type"] = activity_type
@@ -107,7 +107,7 @@ class AirQoApi:
         tenant: Tenant = Tenant.ALL,
         device_category: DeviceCategory = DeviceCategory.NONE,
     ) -> list:
-        params = {"tenant": "airqo"}
+        params = {"tenant": str(Tenant.AIRQO)}
         if tenant != Tenant.ALL:
             params["network"] = str(tenant)
 
@@ -225,7 +225,7 @@ class AirQoApi:
                     method="get",
                 )
 
-                meta_data[key] = response["data"]
+                meta_data[key] = float(response["data"])
             except Exception as ex:
                 print(ex)
 
@@ -294,9 +294,26 @@ class AirQoApi:
     def update_sites(self, updated_sites):
         for i in updated_sites:
             site = dict(i)
-            params = {"tenant": site.pop("tenant"), "id": site.pop("site_id")}
+            params = {"tenant": str(Tenant.AIRQO), "id": site.pop("site_id")}
             response = self.__request("devices/sites", params, site, "put")
             print(response)
+
+    def get_tenants(self, data_source) -> list:
+        response = self.__request("users/networks")
+
+        return [
+            {
+                **network,
+                **{
+                    "network_id": network.get("_id", None),
+                    "network": network.get("net_name", None),
+                    "data_source": network.get("net_data_source", None),
+                    "api_key": network.get("net_api_key", None),
+                },
+            }
+            for network in response.get("networks", [])
+            if network.get("net_data_source") == str(data_source)
+        ]
 
     def __request(
         self, endpoint, params=None, body=None, method=None, version="v1", base_url=None

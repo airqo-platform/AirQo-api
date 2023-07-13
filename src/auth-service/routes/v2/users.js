@@ -16,7 +16,6 @@ const {
 } = require("@middleware/passport");
 
 const mongoose = require("mongoose");
-const { login } = require("@controllers/create-user");
 const ObjectId = mongoose.Types.ObjectId;
 
 const headers = (req, res, next) => {
@@ -29,6 +28,24 @@ const headers = (req, res, next) => {
   next();
 };
 router.use(headers);
+
+
+router.get(
+  "/deleteMobileUserData/:userId/:token",
+  oneOf([
+    param("userId")
+      .exists()
+      .withMessage("the userId is missing in the request")
+      .bail(),
+  ]),
+  oneOf([
+    param("token")
+      .exists()
+      .withMessage("The deletion token is missing in the request")
+      .bail(),
+  ]),
+  createUserController.deleteMobileUserData
+); 
 
 router.post(
   "/loginUser",
@@ -92,7 +109,7 @@ router.post(
 );
 
 router.post(
-  "/emailAuth",
+  "/emailAuth/:purpose?",
   oneOf([
     [
       body("email")
@@ -101,6 +118,14 @@ router.post(
         .bail()
         .isEmail()
         .withMessage("this is not a valid email address"),
+    ],
+  ]),
+  oneOf([
+    [
+      param("purpose")
+        .optional()
+        .notEmpty()
+        .withMessage("The purpose should not be empty if provided"),
     ],
   ]),
   createUserController.emailAuth
@@ -204,6 +229,57 @@ router.get(
     ],
   ]),
   createUserController.verifyEmail
+);
+
+/**
+ * version two of verification
+ */
+router.post(
+  "/verification/generate",
+  setJWTAuth,
+  authJWT,
+  createUserController.generateVerificationToken
+);
+
+router.post(
+  "/verification/verify",
+  setJWTAuth,
+  authJWT,
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+
+  oneOf([
+    [
+      body("email")
+        .exists()
+        .withMessage("the email must be provided")
+        .bail()
+        .notEmpty()
+        .withMessage("the email must not be empty if provided")
+        .bail()
+        .isEmail()
+        .withMessage("this is not a valid email address"),
+      body("token")
+        .exists()
+        .withMessage("the token is missing in the request")
+        .bail()
+        .trim()
+        .isInt()
+        .withMessage("token must be an integer"),
+    ],
+  ]),
+  createUserController.verifyVerificationToken
 );
 
 router.get(
@@ -365,25 +441,7 @@ router.post(
   ]),
   createUserController.create
 );
-router.get(
-  "/email/confirm/",
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant should not be empty if provided")
-        .trim()
-        .toLowerCase()
-        .bail()
-        .isIn(["kcca", "airqo"])
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-  setJWTAuth,
-  authJWT,
-  createUserController.confirmEmail
-);
+
 router.put(
   "/updatePasswordViaEmail",
   oneOf([

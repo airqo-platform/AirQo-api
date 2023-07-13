@@ -48,7 +48,7 @@ class AirnowDataUtils:
 
     @staticmethod
     def extract_bam_data(start_date_time: str, end_date_time: str) -> pd.DataFrame:
-        tenants = AirNowApi().get_tenants()
+        tenants = AirQoApi().get_tenants(DataSource.AIRNOW)
         bam_data = pd.DataFrame()
         dates = Utils.query_dates_array(
             start_date_time=start_date_time,
