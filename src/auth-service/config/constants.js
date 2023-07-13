@@ -531,11 +531,11 @@ const defaultConfig = {
     longitude: 1,
     reference_site: 1,
     place_id: 1,
-    firebase_user_id:1,
+    firebase_user_id: 1,
   },
 
   FAVORITES_EXCLUSION_PROJECTION: (category) => {
-    const initialProjection = {  };
+    const initialProjection = { nothing: 0 };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {
       projection = Object.assign({}, {});

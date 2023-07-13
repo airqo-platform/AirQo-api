@@ -9,3 +9,4 @@ pymongo~=4.3.3
 lightgbm~=3.3.5
 pandas-gbq~=0.19.1
 google-cloud-bigquery==3.11.1
+scipy~=1.10.1

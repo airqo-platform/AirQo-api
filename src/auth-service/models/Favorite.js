@@ -106,12 +106,11 @@ FavoriteSchema.statics = {
         .match(filter)
         .sort({ createdAt: -1 })
         .project(inclusionProjection)
+        .project(exclusionProjection)
         .skip(skip ? skip : 0)
         .limit(limit ? limit : 100)
         .allowDiskUse(true);
-      if (Object.keys(exclusionProjection).length > 0) {
-        pipeline.project(exclusionProjection);
-      }
+
       const favorites = pipeline;
       if (!isEmpty(favorites)) {
         return {
@@ -184,7 +183,7 @@ FavoriteSchema.statics = {
           location: 1,
           latitude: 1,
           longitude: 1,
-          firebase_user_id:1,
+          firebase_user_id: 1,
         },
       };
       const removedFavorite = await this.findOneAndRemove(
