@@ -1,12 +1,13 @@
-nameOverride: ''
-fullnameOverride: ''
+nameOverride: ""
+fullnameOverride: ""
 namespace: staging
 images:
   repositories:
     api: eu.gcr.io/airqo-250220/airqo-stage-prediction-api
     predictJob: eu.gcr.io/airqo-250220/stage-airqo-predict-job
     trainJob: eu.gcr.io/airqo-250220/stage-airqo-train-job
-  tag: stage-d18a70d9-1688709891
+    predictPlaces: eu.gcr.io/airqo-250220/stage-airqo-predict-places-air-quality
+  tag: stage-8c7470f3-1689164286
 api:
   name: airqo-stage-prediction-api
   label: prediction-api
@@ -34,6 +35,14 @@ jobs:
     configmap: env-train-job-staging
     schedule: 0 1 1 * *
     suspend: true
+    resources:
+      limits:
+        cpu: 2500m
+        memory: 4000Mi
+  predictPlaces:
+    name: stage-airqo-predict-places-air-quality
+    configmap: env-predict-places-air-quality-staging
+    schedule: 0 * * * *
     resources:
       limits:
         cpu: 2500m

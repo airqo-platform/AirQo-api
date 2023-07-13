@@ -27,7 +27,7 @@ import static airqo.config.Constants.dateTimeFormat;
 @Slf4j
 @Profile({"api"})
 @RestController
-@RequestMapping("measurements")
+@RequestMapping("/api/v1/view/measurements")
 public class MeasurementController {
 
 	@Autowired

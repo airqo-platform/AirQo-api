@@ -116,6 +116,7 @@ knowYourAirTaskSchema.statics = {
           as: "kyalessons",
         })
         .project(inclusionProjection)
+        .project(exclusionProjection)
         .skip(skip ? skip : 0)
         .limit(
           limit
@@ -123,10 +124,6 @@ knowYourAirTaskSchema.statics = {
             : parseInt(constants.DEFAULT_LIMIT_FOR_QUERYING_KYA_TASKS)
         )
         .allowDiskUse(true);
-
-      if (Object.keys(exclusionProjection).length > 0) {
-        pipeline.project(exclusionProjection);
-      }
 
       const response = pipeline;
 
