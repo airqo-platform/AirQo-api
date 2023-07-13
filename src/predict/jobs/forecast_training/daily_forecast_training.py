@@ -7,8 +7,7 @@ from lightgbm import LGBMRegressor, early_stopping
 from sklearn.metrics import mean_squared_error
 
 from config import configuration, environment
-from transform import fetch_bigquery_data
-from utils import upload_trained_model_to_gcs
+from utils import upload_trained_model_to_gcs, fetch_bigquery_data
 
 warnings.filterwarnings("ignore")
 
@@ -20,34 +19,36 @@ print(f'mlflow server uri: {mlflow.get_tracking_uri()}')
 
 def preprocess_forecast_data():
     print('preprocess_forecast_data started.....')
-    forecast_data = fetch_bigquery_data()
-    forecast_data['created_at'] = pd.to_datetime(forecast_data['created_at'], format='%Y-%m-%d')
+    forecast_data = fetch_bigquery_data(job_type='daily_forecast')
+    forecast_data['created_at'] = pd.to_datetime(forecast_data['created_at'])
+    forecast_data['pm2_5'] = forecast_data.groupby('device_number')['pm2_5'].transform(
+        lambda x: x.interpolate(method='linear', limit_direction='both'))
+    forecast_data = forecast_data.dropna(subset=['pm2_5'])  # no data at all for the device thus it's removed
     forecast_data['device_number'] = forecast_data['device_number'].astype(str)
     forecast_data = forecast_data.groupby(
         ['device_number']).resample('D', on='created_at').mean(numeric_only=True)
     forecast_data = forecast_data.reset_index()
+    forecast_data['pm2_5'] = forecast_data.groupby('device_number')['pm2_5'].transform(
+        lambda x: x.interpolate(method='linear', limit_direction='both'))  # interpolate again after resampling
     forecast_data['device_number'] = forecast_data['device_number'].astype(int)
     print('preprocess_forecast_data completed.....')
     return forecast_data
 
 
 def initialise_training_constants():
-    train_model_now = True
     target_col = 'pm2_5'
 
     forecast_data = preprocess_forecast_data()
+    train = preprocess_df(forecast_data, target_col)
+    clf = train_model(train)
 
-    if train_model_now:
-        train = preprocess_df(forecast_data, target_col)
-        clf = train_model(train)
+    upload_trained_model_to_gcs(
+        clf,
+        configuration.GOOGLE_CLOUD_PROJECT_ID,
+        configuration.AIRQO_PREDICT_BUCKET,
+        'daily_forecast_model.pkl')
 
-        upload_trained_model_to_gcs(
-            clf,
-            configuration.GOOGLE_CLOUD_PROJECT_ID,
-            configuration.AIRQO_PREDICT_BUCKET,
-            'daily_forecast_model.pkl')
-
-        print(clf)
+    print(clf)
 
 
 def train_model(train):
@@ -165,7 +166,6 @@ def get_other_features(df_tmp):
 
 
 def preprocess_df(df_tmp, target_column):
-    df_tmp = df_tmp.dropna()
     df_tmp = get_lag_features(df_tmp, target_column)
     df_tmp = get_other_features(df_tmp)
 

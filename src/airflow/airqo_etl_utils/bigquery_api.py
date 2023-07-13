@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 
 import pandas as pd
 from google.cloud import bigquery
@@ -37,8 +38,59 @@ class BigQueryApi:
         self.airqlouds_sites_table = configuration.BIGQUERY_AIRQLOUDS_SITES_TABLE
         self.sites_meta_data_table = configuration.BIGQUERY_SITES_META_DATA_TABLE
         self.devices_table = configuration.BIGQUERY_DEVICES_TABLE
+        self.devices_summary_table = configuration.BIGQUERY_DEVICES_SUMMARY_TABLE
 
         self.package_directory, _ = os.path.split(__file__)
+
+    def get_devices_hourly_data(
+        self,
+        day: datetime,
+    ) -> pd.DataFrame:
+        query = (
+            f" SELECT {self.hourly_measurements_table}.pm2_5_calibrated_value , "
+            f" {self.hourly_measurements_table}.pm2_5_raw_value ,"
+            f" {self.hourly_measurements_table}.site_id ,"
+            f" {self.hourly_measurements_table}.device_id AS device ,"
+            f" FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', {self.hourly_measurements_table}.timestamp) AS timestamp ,"
+            f" FROM {self.hourly_measurements_table} "
+            f" WHERE DATE({self.hourly_measurements_table}.timestamp) >= '{day.strftime('%Y-%m-%d')}' "
+            f" AND {self.hourly_measurements_table}.pm2_5_raw_value is not null "
+        )
+
+        job_config = bigquery.QueryJobConfig()
+        job_config.use_query_cache = True
+
+        dataframe = (
+            bigquery.Client()
+            .query(f"select distinct * from ({query})", job_config)
+            .result()
+            .to_dataframe()
+        )
+
+        return dataframe
+
+    def save_devices_summary_data(
+        self,
+        data: pd.DataFrame,
+    ):
+        schema = [
+            bigquery.SchemaField("device", "STRING"),
+            bigquery.SchemaField("site_id", "STRING"),
+            bigquery.SchemaField("timestamp", "TIMESTAMP"),
+            bigquery.SchemaField("uncalibrated_records", "INTEGER"),
+            bigquery.SchemaField("calibrated_records", "INTEGER"),
+            bigquery.SchemaField("hourly_records", "INTEGER"),
+            bigquery.SchemaField("calibrated_percentage", "FLOAT"),
+            bigquery.SchemaField("uncalibrated_percentage", "FLOAT"),
+        ]
+
+        job_config = self.client.LoadJobConfig(schema=schema)
+        job = bigquery.Client().load_table_from_dataframe(
+            dataframe=data,
+            destination=self.devices_summary_table,
+            job_config=job_config,
+        )
+        job.result()
 
     def validate_data(
         self,
