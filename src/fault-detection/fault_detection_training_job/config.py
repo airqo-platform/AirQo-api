@@ -19,6 +19,7 @@ class Config:
     MLFLOW_TRACKING_PASSWORD = os.getenv('MLFLOW_TRACKING_PASSWORD')
     NUMBER_OF_DAYS=os.getenv('NUMBER_OF_DAYS')
     MONGO_URI=os.getenv('MONGO_URI')
+    BIGQUERY_TABLE = os.getenv('BIGQUERY_TABLE')
     DB_NAME=os.getenv('DATABASE_NAME')
 
 

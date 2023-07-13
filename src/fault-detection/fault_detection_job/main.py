@@ -1,20 +1,22 @@
 import pandas as pd
+import os
 import joblib
 from google.oauth2 import service_account
 from config import configuration
+from utils import date_to_str
 import gcsfs
 import numpy as np
+from tensorflow import keras
+import datetime
+
 
 def fetch_bigquery_data():
     """gets data from the bigquery table"""
-    # print('fetching data from bigquery')
-    credentials = service_account.Credentials.from_service_account_file(configuration.CREDENTIALS)
-    query = f"""
-    SELECT DISTINCT timestamp, device_number, s1_pm2_5, s2_pm2_5 FROM {configuration.GOOGLE_CLOUD_PROJECT_ID}.raw_data.device_measurements where DATE(timestamp) >= DATE_SUB(CURRENT_DATE(), INTERVAL 10 DAY) and tenant = 'airqo'
-      ORDER
-      BY
-      timestamp
-      """
+    credentials = service_account.Credentials.from_service_account_file(
+        configuration.CREDENTIALS)
+
+
+
     df = pd.read_gbq(query, project_id=configuration.GOOGLE_CLOUD_PROJECT_ID, credentials=credentials)
     df['timestamp'] = pd.to_datetime(df['timestamp'])
     df['device_number'] = df['device_number'].astype(str)
@@ -22,7 +24,10 @@ def fetch_bigquery_data():
     df = df.reset_index()
     df.sort_values(by=['device_number', 'timestamp'], inplace=True)
     df['device_number'] = df['device_number'].astype(int)
-    print('data fetched from bigquery')
+    new_index = pd.date_range(start=df['timestamp'].min(), end=df['timestamp'].max(), freq='H')
+    df = df.set_index(['device_number', 'timestamp']).reindex(
+        pd.MultiIndex.from_product([df['device_number'].unique(), new_index], names=['device_number', 'timestamp']))
+    df = df.interpolate(method='linear', limit_direction='both').reset_index()
     return df
 
 
@@ -30,14 +35,16 @@ def scale_data(df, scaler):
     """
     scales data using MinMaxScaler
     """
+
+    additional_features = []
+
     inputs = df.iloc[:, : 3].values
-    additional_features = df.iloc[:, 3:].values.astype('float32')
+    additional_features = df.iloc[:, 3:].values
+    scaled_df = scaler.transform(inputs)
 
-    scaled_inputs = scaler.transform(inputs)
-    scaled_inputs = np.concatenate((scaled_inputs, additional_features), axis=1)
+    scaled_inputs = np.concatenate((scaled_df, additional_features), axis=1)
 
-    print("Data scaled")
-
+    print('Data scaled')
     return scaled_inputs
 
 
@@ -66,12 +73,18 @@ def load_trained_model_and_scaler_from_gcs(project_name, bucket_name, source_blo
     fs = gcsfs.GCSFileSystem(project=project_name)
 
     # load the model from GCS bucket
+    # Download the model file to a temporary local file
+    temp_file = 'temp_model.keras'
     with fs.open(bucket_name + '/' + source_blob_name, 'rb') as model_handle:
-        model = joblib.load(model_handle)
+        open(temp_file, 'wb').write(model_handle.read())
 
-        print("Model loaded from GCS bucket")
+    model = keras.models.load_model(temp_file)
 
-        # load the scaler from GCS bucket
+    os.remove(temp_file)
+
+    print("Model loaded from GCS bucket")
+
+    # load the scaler from GCS bucket
     with fs.open(bucket_name + '/' + scaler_blob_name, 'rb') as scaler_handle:
         scaler = joblib.load(scaler_handle)
 
@@ -80,20 +93,16 @@ def load_trained_model_and_scaler_from_gcs(project_name, bucket_name, source_blo
     return model, scaler
 
 
-# def get_trained_model_from_gcs(project_name, bucket_name, source_blob_name):
-#     fs = gcsfs.GCSFileSystem(project=project_name)
-#     fs.ls(bucket_name)
-#     with fs.open(bucket_name + '/' + source_blob_name, 'rb') as handle:
-#         job = joblib.load(handle)
-#     return job
+def create_3d_lstm_array(x):
+    x_3d = []
+    device_nums = np.unique(x[:, 0])
+    for device_num in device_nums:
+        mask = x[:, 0] == device_num
+        features = x[mask, :]
+        x_3d.append(features)
+    x_3d = np.array(x_3d)
+    return x_3d
 
-def create_dataset(X, time_steps=1):
-    Xs = []
-    for i in range(len(X) - time_steps):
-        v = X[i:(i + time_steps), :]
-        Xs.append(v)
-    print("Dataset created")
-    return np.array(Xs)
 
 def get_faulty_devices(df, fault_df):
     faulty_devices = []
@@ -109,13 +118,13 @@ if __name__ == '__main__':
     original_data = device_data.copy()
     new_data = preprocess_data(original_data)
     model, scaler = load_trained_model_and_scaler_from_gcs(configuration.GOOGLE_CLOUD_PROJECT_ID,
-                                                           configuration.BUCKET_NAME, 'lstm_model.h5', 'scaler.pkl')
+                                                           configuration.BUCKET_NAME, 'lstm_model.keras', 'scaler.pkl')
     scaled_data = scale_data(new_data, scaler)
-    X_new = create_dataset(scaled_data, 7)
-    y_pred = model.predict(X_new)
+    X_new = create_3d_lstm_array(scaled_data)
+    y_pred = model.predict_classes(X_new.astype('float32'))
     y_pred = np.round(y_pred)
     pred_df = pd.DataFrame(y_pred,
-                           columns=['offset_fault', 'out_of_bounds_fault', 'data_loss_fault', 'high_variance_fault'])
+                           columns=['offset_fault', 'out_of_bounds_fault', 'high_variance_fault'])
 
     pred_df['device_number'] = original_data['device_number'].iloc[7:].values
 
@@ -123,6 +132,6 @@ if __name__ == '__main__':
 
     # return rows where atleast one fault is detected(1)
     final_df = final_df[(final_df.iloc[:, 3:] == 1).any(axis=1)]
-    #save df to mongodb
+    # save df to mongodb
 
     print(final_df.head())

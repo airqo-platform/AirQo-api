@@ -3,11 +3,12 @@ import pandas as pd
 import datetime
 from utils import date_to_str, upload_trained_model_to_gcs
 from google.oauth2 import service_account
+import tensorflow as tf
+from bayes_opt import BayesianOptimization
 from config import configuration
 from sklearn.preprocessing import MinMaxScaler
 from keras.models import Sequential
 from keras.layers import LSTM, Dense, Dropout, TimeDistributed
-import tensorflow as tf
 from keras.callbacks import EarlyStopping
 
 
@@ -15,14 +16,10 @@ def fetch_bigquery_data():
     """gets data from the bigquery table"""
     credentials = service_account.Credentials.from_service_account_file(
         configuration.CREDENTIALS)
-    start_date = datetime.datetime.utcnow() - datetime.timedelta(days=int(configuration.NUMBER_OF_DAYS))
-    start_date = date_to_str(start_date, format='%Y-%m-%d')
 
     query = f"""
-            SELECT DISTINCT timestamp , site_id, device_number, s1_pm2_5, s2_pm2_5 
-            FROM `{configuration.GOOGLE_CLOUD_PROJECT_ID}.raw_data.device_measurements` 
-            WHERE DATE(timestamp) >= '{start_date}' AND device_number IS NOT NULL
-            ORDER BY timestamp 
+    SELECT DISTINCT device_number, timestamp, s1_pm2_5, s2_pm2_5 FROM `{configuration.BIGQUERY_TABLE}` 
+WHERE DATE(timestamp) BETWEEN DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY) AND DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)  ORDER BY device_number, timestamp DESC
     """
 
     df = pd.read_gbq(query, project_id=configuration.GOOGLE_CLOUD_PROJECT_ID, credentials=credentials)
@@ -87,21 +84,21 @@ def scale_data(df1, df2):
     additional_features = []
     targets = []
 
-    input_scaler = MinMaxScaler()
+    scaler = MinMaxScaler()
 
     for df in dfs:
         inputs = df.iloc[:, : 3].values
         additional_features.append(df.iloc[:, 3:-3].values)
         targets.append(df.iloc[:, -3:].values)
-        input_scaler.fit(inputs)
-        scaled_inputs.append(input_scaler.transform(inputs))
+        scaler.fit(inputs)
+        scaled_inputs.append(scaler.transform(inputs))
 
     scaled_inputs = [np.concatenate((scaled_input, feature), axis=1) for scaled_input, feature in
                      zip(scaled_inputs, additional_features)]
 
     print("Data scaled")
 
-    return scaled_inputs[0], targets[0], scaled_inputs[1], targets[1], input_scaler
+    return scaled_inputs[0], targets[0], scaled_inputs[1], targets[1], scaler
 
 
 def create_3d_lstm_array(x, y, time_steps, labels):
@@ -116,25 +113,20 @@ def create_3d_lstm_array(x, y, time_steps, labels):
     return x_3d, y_3d
 
 
-def split_data_by_date(df):
+def split_data_by_device_number(df):
     """
     splits data by date for each device
     """
-    train_data = pd.DataFrame()
-    test_data = pd.DataFrame()
-    for device_number in df['device_number'].unique():
-        device_df = df[df['device_number'] == device_number]
-        device_df = device_df.sort_values(by='timestamp')
-        split_date = device_df['timestamp'].dt.date.iloc[0] + pd.Timedelta(
-            days=5)
-        mask = device_df['timestamp'].dt.date < pd.date_range(split_date, periods=1)[0].date()
-        train_df = device_df[mask]
-        test_df = device_df[~mask]
-        train_data = pd.concat([train_data, train_df])
-        test_data = pd.concat([test_data, test_df])
-        # convert timestamp column to string
-    print("Data split by date")
-    return train_data, test_data
+    device_numbers = df['device_number'].unique()
+    np.random.shuffle(device_numbers)
+    train_device_numbers = device_numbers[:int(len(device_numbers) * 0.8)]
+    test_device_numbers = device_numbers[int(len(device_numbers) * 0.8):]
+
+    train_df = df[df['device_number'].isin(train_device_numbers)]
+    test_df = df[df['device_number'].isin(test_device_numbers)]
+
+    return train_df, test_df
+
 
 def preprocess_data(train_data, test_data):
     train_data_1 = get_other_features(train_data)
@@ -146,31 +138,102 @@ def preprocess_data(train_data, test_data):
     return fault_train_data, fault_test_data
 
 
-def create_lstm_model(x1, y1, x2, y2):
-    timesteps = x1.shape[1]
-    features = x1.shape[2]
+# def create_lstm_model(x1, y1, x2, y2):
+#     timesteps = x1.shape[1]
+#     features = x1.shape[2]
+#
+#     # create the model
+#     model = Sequential()
+#     model.add(LSTM(50, input_shape=(timesteps, features), return_sequences=True))
+#     model.add(Dropout(0.2))
+#     model.add(TimeDistributed(Dense(3, activation='sigmoid')))
+#
+#     optimizer = tf.keras.optimizers.Adam(learning_rate=0.001)
+#
+#     model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=['accuracy'])
+#     history = model.fit(x1, y1, epochs=10, batch_size=14, validation_split=0.2,
+#                         callbacks=[EarlyStopping(monitor='val_loss', patience=3)
+#                                    ])
+#     loss, accuracy = model.evaluate(x2, y2)
+#     print(model.summary())
+#     return model, history, loss, accuracy
+# Define a function that performs Bayesian optimization on the LSTM model
+def optimize_lstm_model(x1, y1, x2, y2):
+    # Define a function that creates and compiles the model
+    def create_lstm_model(learning_rate):
+        timesteps = x1.shape[1]
+        features = x1.shape[2]
+        model = Sequential()
+        model.add(LSTM(50, input_shape=(timesteps, features), return_sequences=True))
+        model.add(Dropout(0.2))
+        model.add(TimeDistributed(Dense(3, activation='sigmoid')))
+        optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
+        model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=['accuracy'])
+        return model
 
-    # create the model
-    model = Sequential()
-    model.add(LSTM(50, input_shape=(timesteps, features), return_sequences=True))
-    model.add(Dropout(0.2))
-    model.add(TimeDistributed(Dense(3, activation='sigmoid')))
+    # Define a function that trains and evaluates the model
+    def train_evaluate(learning_rate, epochs, batch_size):
+        # Convert the hyperparameters to integers
+        epochs = int(epochs)
+        batch_size = int(batch_size)
 
-    optimizer = tf.keras.optimizers.Adam(learning_rate=0.1)
+        # Create and fit the model
+        model = create_lstm_model(learning_rate)
+        history = model.fit(x1, y1, epochs=epochs, batch_size=batch_size, validation_split=0.2,
+                            callbacks=[EarlyStopping(monitor='val_loss', patience=3)
+                                       ])
 
-    model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=['accuracy'])
-    history = model.fit(x1, y1, epochs=10, batch_size=14, validation_split=0.2,
-                        callbacks=[EarlyStopping(monitor='val_loss', patience=3)
-                                   ])
-    loss, accuracy = model.evaluate(x2, y2)
-    print(model.summary())
-    return model, history, loss, accuracy
+        # Evaluate the model on the test data
+        loss, accuracy = model.evaluate(x2, y2)
+
+        # Return the negative accuracy as the objective to be minimized
+        return -accuracy
+
+    # Define the bounds of the hyperparameters
+    pbounds = {
+        'learning_rate': (0.01, 0.2),
+        'epochs': (5, 15),
+        'batch_size': (8, 20)
+    }
+
+    # Create a BayesianOptimization object
+    optimizer = BayesianOptimization(
+        f=train_evaluate,
+        pbounds=pbounds,
+        random_state=42,
+    )
+
+    # Perform the optimization with 10 initial points and 20 subsequent points
+    optimizer.maximize(
+        init_points=10,
+        n_iter=20,
+    )
+
+    # Print the best hyperparameters and score
+    print(optimizer.max)
+
+    # Retrieve the best hyperparameters
+    best_learning_rate = optimizer.max['params']['learning_rate']
+    best_epochs = int(optimizer.max['params']['epochs'])
+    best_batch_size = int(optimizer.max['params']['batch_size'])
+
+    # Create and fit the best model
+    best_model = create_lstm_model(best_learning_rate)
+    best_history = best_model.fit(x1, y1, epochs=best_epochs, batch_size=best_batch_size, validation_split=0.2,
+                                  callbacks=[EarlyStopping(monitor='val_loss', patience=3)
+                                             ])
+
+    # Evaluate the best model on the test data
+    best_loss, best_accuracy = best_model.evaluate(x2, y2)
+
+    # Return the best model, accuracy, history, and loss
+    return best_model, best_accuracy, best_history, best_loss
 
 
 if __name__ == '__main__':
     device_data = fetch_bigquery_data()
-    train_data, test_data = split_data_by_date(device_data)
-    fault_train_data, fault_test_data = preprocess_data(train_data, test_data)
+    train_data, test_data = split_data_by_device_number(device_data)
+    fault_train_data, fault_test_data = preprocess_data(train_data.copy(), test_data.copy())
     # store the forst value of the device number column in a variable
     device_number_1 = fault_train_data['device_number'].iloc[0]
     device_number_2 = fault_test_data['device_number'].iloc[0]
@@ -180,9 +243,9 @@ if __name__ == '__main__':
 
     X_train_3D, y_train_3D = create_3d_lstm_array(X_train, y_train, no_of_rows_train, 3)
     X_test_3D, y_test_3D = create_3d_lstm_array(X_test, y_test, no_of_rows_test, 3)
-    model, history, loss, accuracy = create_lstm_model(X_train_3D.astype('float32'), y_train_3D.astype('float32'),
-                                                       X_test_3D.astype('float32'), y_test_3D.astype('float32'))
-
+    model, history, loss, accuracy = optimize_lstm_model(X_train_3D.astype('float32'), y_train_3D.astype('float32'),
+                                                         X_test_3D.astype('float32'), y_test_3D.astype('float32'))
+    print(model.summary())
     upload_trained_model_to_gcs(model, input_scaler, configuration.GOOGLE_CLOUD_PROJECT_ID,
                                 configuration.AIRQO_FAULT_DETECTION_BUCKET, 'lstm_model.keras')
 

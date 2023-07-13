@@ -6,6 +6,6 @@ gcsfs
 pandas-gbq
 google-cloud-bigquery
 tensorflow
-sklearn
 joblib
+scikit-learn
 
