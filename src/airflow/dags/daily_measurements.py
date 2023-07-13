@@ -93,7 +93,7 @@ def historical_daily_measurements():
         from airqo_etl_utils.daily_data_utils import DailyDataUtils
 
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
-            historical=True,days=7, **kwargs
+            historical=True, days=7, **kwargs
         )
         return DailyDataUtils.query_hourly_data(
             start_date_time=start_date_time,

@@ -108,7 +108,7 @@ router.post(
 );
 
 router.post(
-  "/emailAuth/:purpose",
+  "/emailAuth/:purpose?",
   oneOf([
     [
       body("email")

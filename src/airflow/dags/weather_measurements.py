@@ -21,7 +21,7 @@ def weather_data_historical_raw_measurements():
         from airqo_etl_utils.date import DateUtils
 
         start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
-            historical=True,days=7, **kwargs
+            historical=True, days=7, **kwargs
         )
         return WeatherDataUtils.query_raw_data_from_tahmo(
             start_date_time=start_date_time, end_date_time=end_date_time

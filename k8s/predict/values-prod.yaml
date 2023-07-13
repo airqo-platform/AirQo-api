@@ -1,12 +1,13 @@
-nameOverride: ''
-fullnameOverride: ''
+nameOverride: ""
+fullnameOverride: ""
 namespace: production
 images:
   repositories:
     api: eu.gcr.io/airqo-250220/airqo-prediction-api
     predictJob: eu.gcr.io/airqo-250220/airqo-predict-job
     trainJob: eu.gcr.io/airqo-250220/airqo-train-job
-  tag: prod-02d48507-1688794963
+    predictPlaces: eu.gcr.io/airqo-250220/airqo-predict-places-air-quality
+  tag: prod-c493aa42-1689180555
 api:
   name: airqo-prediction-api
   label: prediction-api
@@ -34,6 +35,17 @@ jobs:
     configmap: env-train-job-production
     schedule: 0 1 1 * *
     suspend: false
+    resources:
+      limits:
+        cpu: 8000m
+        memory: 16000Mi
+      requests:
+        cpu: 2500m
+        memory: 4000Mi
+  predictPlaces:
+    name: airqo-predict-places-air-quality
+    configmap: env-predict-places-air-quality-production
+    schedule: 0 * * * *
     resources:
       limits:
         cpu: 8000m

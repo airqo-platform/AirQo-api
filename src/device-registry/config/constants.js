@@ -1015,7 +1015,7 @@ const defaultConfig = {
     },
   },
   KYA_TASKS_EXCLUSION_PROJECTION: (category) => {
-    const initialProjection = {};
+    const initialProjection = { nothing: 0 };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {
       projection = Object.assign({}, {});
@@ -1097,7 +1097,7 @@ const defaultConfig = {
     cohort_codes: 1,
   },
   COHORTS_EXCLUSION_PROJECTION: (category) => {
-    const initialProjection = {};
+    const initialProjection = { nothing: 0 };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {
       projection = Object.assign({}, {});
@@ -1169,7 +1169,6 @@ const defaultConfig = {
         metadata: 0,
         center_point: 0,
         airqloud_codes: 0,
-        sites: 0,
         description: 0,
         airqloud_tags: 0,
       });
@@ -1188,7 +1187,7 @@ const defaultConfig = {
     tasks: 1,
   },
   KYA_LESSONS_EXCLUSION_PROJECTION: (category) => {
-    const initialProjection = {};
+    const initialProjection = { nothing: 0 };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {
       projection = Object.assign({}, {});
@@ -1204,7 +1203,7 @@ const defaultConfig = {
     _id: 1,
   },
   KYA_LESSONS_PROGRESS_EXCLUSION_PROJECTION: (category) => {
-    const initialProjection = {};
+    const initialProjection = { nothing: 0 };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {
       projection = Object.assign({}, {});
@@ -1217,7 +1216,7 @@ const defaultConfig = {
     _id: 1,
   },
   ADMIN_LEVEL_EXCLUSION_PROJECTION: (category) => {
-    const initialProjection = {};
+    const initialProjection = { nothing: 0 };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {
       projection = Object.assign({}, {});
@@ -1230,7 +1229,7 @@ const defaultConfig = {
     _id: 1,
   },
   NETWORK_EXCLUSION_PROJECTION: (category) => {
-    const initialProjection = {};
+    const initialProjection = { nothing: 0 };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {
       projection = Object.assign({}, {});
