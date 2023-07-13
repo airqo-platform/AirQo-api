@@ -16,8 +16,10 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -28,11 +30,17 @@ public class AppService {
 	@Value("${airqo.play-store.version}")
 	String playStoreVersion;
 
+	@Value("${android-url}")
+	private String androidUrl;
+
+	@Value("${ios-url}")
+	private String iOSUrl;
+
 	@SentrySpan
-	public StoreVersion getAndroidVersion(String packageName) {
+	public StoreVersion getAndroidVersion(String packageName, String userVersion) {
 		StoreVersion storeVersion = new StoreVersion();
-		storeVersion.setUrl("https://play.google.com/store/apps/details?id=" + packageName);
 		storeVersion.setVersion(playStoreVersion);
+		storeVersion.setUrl(androidUrl);
 
 		Document document;
 
@@ -87,12 +95,20 @@ public class AppService {
 			}
 		}
 
+		if(!userVersion.isEmpty()){
+			List<Integer> userVersionParts = Arrays.stream(userVersion.split("\\.")).map(Integer::parseInt).toList();
+			List<Integer> updatedVersionParts = Arrays.stream(storeVersion.getVersion().split("\\.")).map(Integer::parseInt).toList();
+			boolean isUpdated = compareVersions(userVersionParts, updatedVersionParts);
+			storeVersion.setIsUpdated(isUpdated);
+		}
 
 		return storeVersion;
 	}
 
-	public StoreVersion getIOSVersion(String bundleId) {
+	public StoreVersion getIOSVersion(String bundleId, String userVersion) {
 		StoreVersion storeVersion = new StoreVersion();
+		storeVersion.setUrl(iOSUrl);
+
 		try {
 
 			HttpClient httpClient = HttpClient.newBuilder()
@@ -111,14 +127,40 @@ public class AppService {
 			});
 
 			String version = ((HashMap<Object, Object>) ((List) textBody.get("results")).get(0)).get("version").toString();
-			String url = ((HashMap<Object, Object>) ((List) textBody.get("results")).get(0)).get("trackViewUrl").toString();
 
 			storeVersion.setVersion(version);
-			storeVersion.setUrl(url);
 		} catch (Exception e) {
 			log.error(e.getLocalizedMessage());
 		}
 
+		if(!userVersion.isEmpty()){
+			List<Integer> userVersionParts = Arrays.stream(userVersion.split("\\.")).map(Integer::parseInt).toList();
+			List<Integer> updatedVersionParts = Arrays.stream(storeVersion.getVersion().split("\\.")).map(Integer::parseInt).toList();
+			boolean isUpdated = compareVersions(userVersionParts, updatedVersionParts);
+			storeVersion.setIsUpdated(isUpdated);
+		}
 		return storeVersion;
+	}
+
+	private boolean compareVersions(List<Integer> userVersion, List<Integer> updatedVersion) {
+		Integer updatedMajorVersion = updatedVersion.get(0);
+		Integer updatedMinorVersion = updatedVersion.get(1);
+		Integer updatedPatchVersion = updatedVersion.get(2);
+
+		Integer userMajorVersion = userVersion.get(0);
+		Integer userMinorVersion = userVersion.get(1);
+		Integer userPatchVersion = userVersion.get(2);
+
+		if (Objects.equals(updatedMajorVersion, userMajorVersion)) {
+			if (Objects.equals(updatedMinorVersion, userMinorVersion)) {
+				return userPatchVersion >= updatedPatchVersion;
+			} else {
+				return userMinorVersion >= updatedMinorVersion;
+			}
+
+		} else {
+			return userMajorVersion >= updatedMajorVersion;
+		}
+
 	}
 }
