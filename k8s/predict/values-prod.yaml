@@ -1,5 +1,5 @@
-nameOverride: ''
-fullnameOverride: ''
+nameOverride: ""
+fullnameOverride: ""
 namespace: production
 images:
   repositories:
@@ -45,8 +45,7 @@ jobs:
   predictPlaces:
     name: airqo-predict-places-air-quality
     configmap: env-predict-places-air-quality-production
-    schedule: 30 * * * *
-    suspend: true
+    schedule: 0 * * * *
     resources:
       limits:
         cpu: 8000m

@@ -1,5 +1,5 @@
-nameOverride: ''
-fullnameOverride: ''
+nameOverride: ""
+fullnameOverride: ""
 namespace: staging
 images:
   repositories:
@@ -42,8 +42,7 @@ jobs:
   predictPlaces:
     name: stage-airqo-predict-places-air-quality
     configmap: env-predict-places-air-quality-staging
-    schedule: 30 * * * *
-    suspend: true
+    schedule: 0 * * * *
     resources:
       limits:
         cpu: 2500m
