@@ -197,6 +197,7 @@ class DeviceBattery:
             formatted_data["voltage"] = formatted_data["voltage"].round(rounding)
 
         formatted_data.replace(np.nan, None, inplace=True)
+        formatted_data.sort_values("timestamp", inplace=True)
         formatted_data["timestamp"] = formatted_data["timestamp"].apply(date_to_str)
 
         return formatted_data.to_dict("records")
