@@ -1070,7 +1070,7 @@ const createUser = {
       request["body"] = body;
       request["query"] = query;
       request["query"]["purpose"] = "auth";
-      if (params) {
+      if (params.purpose) {
         request["query"]["purpose"] = params.purpose;
       }
       await createUserUtil.generateSignInWithEmailLink(request, (value) => {

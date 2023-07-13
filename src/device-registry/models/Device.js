@@ -457,13 +457,10 @@ deviceSchema.statics = {
         })
         .sort({ createdAt: -1 })
         .project(inclusionProjection)
+        .project(exclusionProjection)
         .skip(_skip)
         .limit(_limit)
         .allowDiskUse(true);
-
-      if (Object.keys(exclusionProjection).length > 0) {
-        pipeline.project(exclusionProjection);
-      }
 
       const response = await pipeline;
 
@@ -484,6 +481,8 @@ deviceSchema.statics = {
         };
       }
     } catch (error) {
+      logObject("error", error);
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
       return {
         success: false,
         message: "unable to retrieve devices",

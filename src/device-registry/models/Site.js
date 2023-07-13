@@ -521,15 +521,12 @@ siteSchema.statics = {
         })
         .sort({ createdAt: -1 })
         .project(inclusionProjection)
+        .project(exclusionProjection)
         .skip(skip ? skip : 0)
         .limit(
           limit ? limit : parseInt(constants.DEFAULT_LIMIT_FOR_QUERYING_SITES)
         )
         .allowDiskUse(true);
-
-      if (Object.keys(exclusionProjection).length > 0) {
-        pipeline.project(exclusionProjection);
-      }
 
       const response = await pipeline;
 

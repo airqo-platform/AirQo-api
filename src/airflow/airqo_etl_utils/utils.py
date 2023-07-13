@@ -89,7 +89,6 @@ class Utils:
 
         return data
 
-
     @staticmethod
     def get_hourly_date_time_values():
         from airqo_etl_utils.date import date_to_str_hours
