@@ -8,7 +8,7 @@ from models import Events
 from utils import get_trained_model_from_gcs
 
 db = connect_mongo()
-fixed_columns = ['site_id', 'site_name', 'sub_county', 'parish', 'county', 'city', 'district', 'region']
+fixed_columns = ['site_id']
 
 
 def get_lag_features(df_tmp, TARGET_COL):
@@ -37,27 +37,22 @@ def get_other_features(df_tmp):
 
 def preprocess_forecast_data(target_column):
     """preprocess data before making forecasts"""
-
-    # TODO: Eventually move to events API instead of bigquery
-    forecast_data = Events.fetch_bigquery_data()
-    forecast_data['created_at'] = pd.to_datetime(forecast_data['created_at'], format='%Y-%m-%d')
-    forecast_data = forecast_data[pd.to_numeric(forecast_data['device_number'], errors='coerce').notnull()]
+    print('preprocess_forecast_data started.....')
+    forecast_data = Events.fetch_monthly_bigquery_data()
+    forecast_data['created_at'] = pd.to_datetime(forecast_data['created_at'])
+    forecast_data['pm2_5'] = forecast_data.groupby(fixed_columns + ['device_number'])['pm2_5'].transform(
+        lambda x: x.interpolate(method='linear', limit_direction='both'))
+    forecast_data = forecast_data.dropna(subset=['pm2_5'])  # no data at all for the device
     forecast_data['device_number'] = forecast_data['device_number'].astype(str)
-    forecast_data = forecast_data.dropna(subset=['device_number'])
-    forecast_data = forecast_data.groupby(
-        fixed_columns + ['device_number']).resample('D', on='created_at').mean(numeric_only=True)
+    forecast_data = forecast_data.groupby(fixed_columns +
+                                          ['device_number']).resample('D', on='created_at').mean(numeric_only=True)
     forecast_data = forecast_data.reset_index()
     forecast_data.sort_values(
         by=fixed_columns + ['device_number',
                             'created_at'], inplace=True)
-
-    forecast_data['device_number'] = forecast_data['device_number'].astype(int)
-    forecast_data.dropna(subset=['pm2_5'], inplace=True)
-
-    # Add lag features
     forecast_data = get_lag_features(forecast_data, target_column)
     forecast_data = get_other_features(forecast_data)
-    print('preprocess_forecast_data completed')
+    print('preprocess_forecast_data completed.....')
     return forecast_data
 
 
@@ -70,6 +65,7 @@ def get_new_row(df_tmp, device, model):
     new_row["device_number"] = device
     new_row[f'pm2_5_last_1_day'] = last_row["pm2_5"]
     new_row[f'pm2_5_last_2_day'] = last_row[f'pm2_5_last_{1}_day']
+
     shifts = [3, 7, 14, 30]
     functions = ['mean', 'std', 'max', 'min']
     for s in shifts:
@@ -97,7 +93,6 @@ def get_new_row(df_tmp, device, model):
 
 
 def append_health_tips(pm2_5, health_tips):
-    tips = []
     if health_tips is None:
         return []
     return list(filter(lambda tip: tip['aqi_category']['min'] <= pm2_5 <= tip['aqi_category']['max'], health_tips))
@@ -116,16 +111,19 @@ def get_next_1week_forecasts(target_column, model):
 
     for device in test_forecast_data["device_number"].unique():
         test_copy = test_forecast_data[test_forecast_data["device_number"] == device]
-        for i in range(int(configuration.FORECAST_HORIZON)):
+        for i in range(int(configuration.FORECAST_DAILY_HORIZON)):
             new_row = get_new_row(test_copy, device, model)
             test_copy = pd.concat([test_copy, new_row.to_frame().T], ignore_index=True)
         next_1_week_forecasts = pd.concat([next_1_week_forecasts, test_copy], ignore_index=True)
-
     next_1_week_forecasts['device_number'] = next_1_week_forecasts['device_number'].astype(int)
     next_1_week_forecasts['pm2_5'] = next_1_week_forecasts['pm2_5'].astype(float)
     next_1_week_forecasts.rename(columns={'created_at': 'time'}, inplace=True)
-    return next_1_week_forecasts[fixed_columns + ['time', 'pm2_5',
-                                                  'device_number']]
+    current_time = datetime.utcnow()
+    current_time_utc = pd.Timestamp(current_time, tz='UTC')
+    result = next_1_week_forecasts[fixed_columns + ['time', 'pm2_5', 'device_number']][
+        next_1_week_forecasts['time'] >= current_time_utc]
+
+    return result
 
 
 if __name__ == '__main__':
@@ -134,6 +132,11 @@ if __name__ == '__main__':
                                        'daily_forecast_model.pkl')
     forecasts = get_next_1week_forecasts(TARGET_COL, model)
     forecasts['time'] = forecasts['time'].apply(lambda x: x.isoformat())
+    try:
+        Events.save_daily_forecasts_to_bigquery(forecasts)
+    except Exception as e:
+        print(f"Error while saving daily forecasts to BigQuery: {e}")
+
     print("Adding health tips")
     health_tips = Events.fetch_health_tips()
     attempts = 1
