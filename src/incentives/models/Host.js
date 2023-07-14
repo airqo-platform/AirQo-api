@@ -1,11 +1,11 @@
 const mongoose = require("mongoose").set("debug", true);
 const Schema = mongoose.Schema;
-const { logObject, logElement, logText } = require("../utils/log");
+const { logObject, logElement, logText } = require("@utils/log");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 const isEmpty = require("is-empty");
-const { getModelByTenant } = require("../utils/multitenancy");
-const constants = require("../config/constants");
-const HTTPStatus = require("http-status");
+const { getModelByTenant } = require("@utils/multitenancy");
+const constants = require("@config/constants");
+const httpStatus = require("http-status");
 
 const HostSchema = new Schema({
   first_name: {
@@ -96,7 +96,7 @@ HostSchema.statics = {
     } catch (err) {
       let response = {};
       message = "validation errors for some of the provided fields";
-      let status = HTTPStatus.CONFLICT;
+      let status = httpStatus.CONFLICT;
       if (err.code === 11000) {
         Object.entries(err.keyPattern).forEach(([key, value]) => {
           return (response[key] = "duplicate value");
@@ -129,7 +129,7 @@ HostSchema.statics = {
           success: true,
           data,
           message: "successfully listed the hosts",
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       }
 
@@ -138,7 +138,7 @@ HostSchema.statics = {
           success: true,
           message: "no hosts exist for this search",
           data,
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       }
       return {
@@ -146,14 +146,14 @@ HostSchema.statics = {
         message: "unable to retrieve hosts",
         data,
         errors: { message: "unable to retrieve hosts" },
-        status: HTTPStatus.NOT_FOUND,
+        status: httpStatus.NOT_FOUND,
       };
     } catch (error) {
       return {
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -176,14 +176,14 @@ HostSchema.statics = {
           success: true,
           message: "successfully modified the host",
           data,
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       } else {
         return {
           success: false,
           message: "host does not exist, please crosscheck",
           errors: { message: "host does not exist" },
-          status: HTTPStatus.NOT_FOUND,
+          status: httpStatus.NOT_FOUND,
         };
       }
     } catch (error) {
@@ -191,7 +191,7 @@ HostSchema.statics = {
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -208,14 +208,14 @@ HostSchema.statics = {
           success: true,
           message: "successfully removed the host",
           data,
-          status: HTTPStatus.OK,
+          status: httpStatus.OK,
         };
       } else {
         return {
           success: false,
           message: "host does not exist, please crosscheck",
           errors: { message: "host does not exist" },
-          status: HTTPStatus.NOT_FOUND,
+          status: httpStatus.NOT_FOUND,
         };
       }
     } catch (error) {
@@ -223,7 +223,7 @@ HostSchema.statics = {
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },

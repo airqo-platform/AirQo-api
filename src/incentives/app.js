@@ -1,24 +1,26 @@
+require("module-alias/register");
 var express = require("express");
 var path = require("path");
 const dotenv = require("dotenv");
 dotenv.config();
 var cookieParser = require("cookie-parser");
 require("./config/database");
-const middlewareConfig = require("./config/app.middleware");
-const { logElement, logObject, logText } = require("./utils/log");
-
-var api_v1 = require("./routes/api-v1");
-var api_v2 = require("./routes/api-v2");
-
+const middlewareConfig = require("@config/app.middleware");
+const { logElement, logObject, logText } = require("@utils/log");
+const routes = require("@routes");
 var app = express();
-
 middlewareConfig(app);
 
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, "public")));
 
-app.use("/api/v1/incentives", api_v1);
-app.use("/api/v2/incentives", api_v2);
+/****** the V1 endpoints ****************/
+app.use("/api/v1/incentives/hosts", routes.v1.hosts);
+app.use("/api/v1/incentives/transactions", routes.v1.transactions);
+
+/****** the V2 endpoints ****************/
+app.use("/api/v2/incentives/hosts", routes.v2.hosts);
+app.use("/api/v2/incentives/transactions", routes.v2.transactions);
 
 // catch 404 and forward to errors handler
 app.use(function (req, res, next) {

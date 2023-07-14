@@ -1,11 +1,10 @@
-const HTTPStatus = require("http-status");
-const { logObject, logElement, logText } = require("../utils/log");
-const { validationResult, body } = require("express-validator");
-const { tryCatchErrors, badRequest } = require("../utils/errors");
-const createTransactionUtil = require("../utils/create-transaction");
+const httpStatus = require("http-status");
+const { logObject, logElement, logText } = require("@utils/log");
+const { validationResult } = require("express-validator");
+const createTransactionUtil = require("@utils/create-transaction");
 const log4js = require("log4js");
-const logger = log4js.getLogger("create-transaction-util");
-const transformDataUtil = require("../utils/transform-data");
+const logger = log4js.getLogger("create-transaction-controller");
+const errors = require("@utils/errors");
 
 const createTransaction = {
   softRegister: async (req, res) => {
@@ -17,10 +16,10 @@ const createTransaction = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          transformDataUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       const { tenant } = req.query;
@@ -36,7 +35,7 @@ const createTransaction = {
       if (responseFromCreateTransaction.success === true) {
         let status = responseFromCreateTransaction.status
           ? responseFromCreateTransaction.status
-          : HTTPStatus.OK;
+          : httpStatus.OK;
         return res.status(status).json({
           success: true,
           message: responseFromCreateTransaction.message,
@@ -47,7 +46,7 @@ const createTransaction = {
       if (responseFromCreateTransaction.success === false) {
         let status = responseFromCreateTransaction.status
           ? responseFromCreateTransaction.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+          : httpStatus.INTERNAL_SERVER_ERROR;
         let errors = responseFromCreateTransaction.errors
           ? responseFromCreateTransaction.errors
           : "";
@@ -59,14 +58,14 @@ const createTransaction = {
         });
       }
     } catch (error) {
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         message: "Internal Server Error",
         errors: { message: error.message },
       });
     }
   },
   register: async (req, res) => {
-    return res.status(HTTPStatus.NOT_IMPLEMENTED).json({
+    return res.status(httpStatus.NOT_IMPLEMENTED).json({
       message: "coming soon",
       success: false,
     });
@@ -78,10 +77,10 @@ const createTransaction = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          transformDataUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       const { tenant } = req.query;
@@ -98,7 +97,7 @@ const createTransaction = {
       if (responseFromCreateTransaction.success === true) {
         let status = responseFromCreateTransaction.status
           ? responseFromCreateTransaction.status
-          : HTTPStatus.OK;
+          : httpStatus.OK;
         return res.status(status).json({
           success: true,
           message: responseFromCreateTransaction.message,
@@ -109,7 +108,7 @@ const createTransaction = {
       if (responseFromCreateTransaction.success === false) {
         let status = responseFromCreateTransaction.status
           ? responseFromCreateTransaction.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+          : httpStatus.INTERNAL_SERVER_ERROR;
         let errors = responseFromCreateTransaction.errors
           ? responseFromCreateTransaction.errors
           : "";
@@ -121,7 +120,7 @@ const createTransaction = {
         });
       }
     } catch (error) {
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         message: "Internal Server Error",
         errors: { message: error.message },
       });
@@ -134,10 +133,10 @@ const createTransaction = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          transformDataUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       let request = {};
@@ -150,7 +149,7 @@ const createTransaction = {
       if (responseFromCreateMomo.success === true) {
         const status = responseFromCreateMomo.status
           ? responseFromCreateMomo.status
-          : HTTPStatus.OK;
+          : httpStatus.OK;
         const data = responseFromCreateMomo.data
           ? responseFromCreateMomo.data
           : "";
@@ -164,7 +163,7 @@ const createTransaction = {
       if (responseFromCreateMomo.success === false) {
         const status = responseFromCreateMomo.status
           ? responseFromCreateMomo.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+          : httpStatus.INTERNAL_SERVER_ERROR;
         const errors = responseFromCreateMomo.errors
           ? responseFromCreateMomo.errors
           : "";
@@ -175,7 +174,7 @@ const createTransaction = {
         });
       }
     } catch (error) {
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         errors: { message: error.message },
         message: "Internal Server Error",
         success: false,
@@ -192,10 +191,10 @@ const createTransaction = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          transformDataUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       request["body"] = body;
@@ -207,7 +206,7 @@ const createTransaction = {
       if (responseFromUpdateTransaction.success === true) {
         let status = responseFromUpdateTransaction.status
           ? responseFromUpdateTransaction.status
-          : HTTPStatus.OK;
+          : httpStatus.OK;
         return res.status(status).json({
           success: true,
           message: responseFromUpdateTransaction.message,
@@ -222,7 +221,7 @@ const createTransaction = {
 
         let status = responseFromUpdateTransaction.status
           ? responseFromUpdateTransaction.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+          : httpStatus.INTERNAL_SERVER_ERROR;
 
         return res.status(status).json({
           success: false,
@@ -231,7 +230,7 @@ const createTransaction = {
         });
       }
     } catch (error) {
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         message: "Internal Server Error",
         errors: { message: error.message },
       });
@@ -247,10 +246,10 @@ const createTransaction = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          transformDataUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       request["query"] = query;
@@ -264,7 +263,7 @@ const createTransaction = {
       if (responseFromListTransactions.success === true) {
         let status = responseFromListTransactions.status
           ? responseFromListTransactions.status
-          : HTTPStatus.OK;
+          : httpStatus.OK;
         res.status(status).json({
           success: true,
           message: responseFromListTransactions.message,
@@ -278,7 +277,7 @@ const createTransaction = {
           : "";
         let status = responseFromListTransactions.status
           ? responseFromListTransactions.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+          : httpStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
           message: responseFromListTransactions.message,
@@ -286,7 +285,7 @@ const createTransaction = {
         });
       }
     } catch (error) {
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         message: "Internal Server Error",
         errors: { message: error.message },
       });
@@ -303,10 +302,10 @@ const createTransaction = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          transformDataUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       request["query"] = query;
@@ -318,7 +317,7 @@ const createTransaction = {
       if (responseFromRemoveTransaction.success === true) {
         let status = responseFromRemoveTransaction.status
           ? responseFromRemoveTransaction.status
-          : HTTPStatus.OK;
+          : httpStatus.OK;
         return res.status(status).json({
           success: true,
           message: responseFromRemoveTransaction.message,
@@ -332,7 +331,7 @@ const createTransaction = {
           : "";
         let status = responseFromRemoveTransaction.status
           ? responseFromRemoveTransaction.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
+          : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
           message: responseFromRemoveTransaction.message,
@@ -340,7 +339,7 @@ const createTransaction = {
         });
       }
     } catch (error) {
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         message: "Internal Server Error",
         errors: { message: error.message },
       });

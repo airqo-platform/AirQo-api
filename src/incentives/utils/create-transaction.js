@@ -1,14 +1,14 @@
-const TransactionModel = require("../models/Transaction");
-const constants = require("../config/constants");
-const { logObject, logElement, logText } = require("./log");
+const TransactionModel = require("@models/Transaction");
+const constants = require("@config/constants");
+const { logObject, logElement, logText } = require("@utils/log");
 const isEmpty = require("is-empty");
-const HTTPStatus = require("http-status");
-const generateFilter = require("./generate-filter");
+const httpStatus = require("http-status");
+const generateFilter = require("@utils/generate-filter");
 const log4js = require("log4js");
 const httpStatus = require("http-status");
 const logger = log4js.getLogger("create-transaction-util");
-const mtnMomoDisbursements = require("../config/momo-disbursement");
-const createHostUtil = require("./create-host");
+const mtnMomoDisbursements = require("@config/momo-disbursement");
+const createHostUtil = require("@utils/create-host");
 
 const createTransaction = {
   softCreate: async (request) => {
@@ -59,7 +59,7 @@ const createTransaction = {
       return {
         success: false,
         message: "unable to create transaction",
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
         errors: { message: err.message },
       };
     }
@@ -130,7 +130,7 @@ const createTransaction = {
       return {
         success: false,
         message: "unable to create transaction",
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
         errors: { message: err.message },
       };
     }
@@ -310,7 +310,7 @@ const createTransaction = {
         success: false,
         message: "unable to update transaction",
         errors: { message: err.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -359,7 +359,7 @@ const createTransaction = {
         success: false,
         message: "unable to delete transaction",
         errors: { message: err.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -413,7 +413,7 @@ const createTransaction = {
         success: false,
         message: "unable to list transaction",
         errors: { message: err.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },

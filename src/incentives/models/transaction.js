@@ -1,8 +1,8 @@
 const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 const ObjectId = mongoose.Schema.Types.ObjectId;
-const { getModelByTenant } = require("../utils/multitenancy");
-const { logObject, logElement, logText } = require("../utils/log");
+const { getModelByTenant } = require("@utils/multitenancy");
+const { logObject, logElement, logText } = require("@utils/log");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 
@@ -61,7 +61,7 @@ TransactionSchema.statics = {
     } catch (error) {
       let response = {};
       message = "validation errors for some of the provided fields";
-      let status = HTTPStatus.CONFLICT;
+      let status = httpStatus.CONFLICT;
       if (err.code === 11000) {
         Object.entries(err.keyPattern).forEach(([key, value]) => {
           return (response[key] = "duplicate value");

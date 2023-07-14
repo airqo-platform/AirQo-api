@@ -1,8 +1,7 @@
-const { logElement, logObject, logText } = require("../utils/log");
+const { logElement, logObject, logText } = require("@utils/log");
 const { useUserProvisioning, useDisbursements } = require("mtn-momo");
 const mtnMOMO = require("mtn-momo");
-
-const constants = require("../config/constants");
+const constants = require("@config/constants");
 
 const disburseMoney = async () => {
   try {
