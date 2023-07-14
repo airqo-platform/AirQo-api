@@ -1007,6 +1007,7 @@ const defaultConfig = {
     title: 1,
     content: 1,
     image: 1,
+    task_position: 1,
     kya_lesson: {
       $arrayElemAt: ["$kyalessons", 0],
     },

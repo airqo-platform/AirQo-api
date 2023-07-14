@@ -292,7 +292,7 @@ router.get(
 
 /************* tracking user progress ******************************/
 router.get(
-  "/progress",
+  "/progress/:user_id?",
   oneOf([
     [
       query("tenant")
@@ -340,13 +340,7 @@ router.get(
         .exists()
         .withMessage("the user_id is missing in the request")
         .bail()
-        .trim()
-        .isMongoId()
-        .withMessage("user_id must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
+        .trim(),
     ],
   ]),
   knowYourAirController.listUserLessonProgress
@@ -461,7 +455,7 @@ router.put(
         .withMessage("the progress should not be empty IF provided")
         .bail()
         .trim()
-        .isNumeric()
+        .isFloat()
         .withMessage("the progress should be a number"),
     ],
   ]),
@@ -518,11 +512,78 @@ router.post(
         .withMessage("the progress is missing in request")
         .bail()
         .trim()
-        .isNumeric()
+        .isFloat()
         .withMessage("the progress should be a number"),
     ],
   ]),
   knowYourAirController.createUserLessonProgress
+);
+
+router.post(
+  "/progress/sync/:user_id",
+  oneOf([
+    body()
+      .notEmpty()
+      .custom((value) => {
+        return !isEmpty(value);
+      })
+      .withMessage("the request body should not be empty"),
+  ]),
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("the tenant cannot be empty, if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(constants.NETWORKS)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      param("user_id")
+        .exists()
+        .withMessage("the user_id should exist")
+        .bail()
+        .trim(),
+    ],
+  ]),
+  oneOf([
+    [
+      body("kya_user_progress")
+        .exists()
+        .withMessage("the kya_user_progress is missing in the request body")
+        .bail()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("Invalid request body format. The kya_user_progress should be an array"),
+      body("kya_user_progress.*")
+        .optional()
+        .isObject()
+        .withMessage("Each kya user progress should be an object"),
+      body("kya_user_progress.*.progress")
+        .exists()
+        .withMessage("progress is missing in the kya user progress object")
+        .bail()
+        .notEmpty()
+        .withMessage("the progress must not be empty")
+        .bail()
+        .trim(),
+      body("kya_user_progress.*.lesson_id")
+        .exists()
+        .withMessage("lesson_id is missing in the kya user progress object")
+        .bail()
+        .notEmpty()
+        .withMessage("the lesson_id must not be empty")
+        .bail()
+        .trim(),
+    ],
+  ]),
+  knowYourAirController.syncUserLessonProgress
 );
 
 /******************* tasks *********************************************/
@@ -597,6 +658,13 @@ router.post(
         .isURL()
         .withMessage("the image url is not a valid URL")
         .trim(),
+      body("task_position")
+        .exists()
+        .withMessage("the task_position is missing in request")
+        .bail()
+        .isNumeric()
+        .withMessage("the task_position should be a number")
+        .trim(),
     ],
   ]),
   knowYourAirController.createTask
@@ -661,6 +729,13 @@ router.put(
         .bail()
         .isURL()
         .withMessage("the image url is not a valid URL")
+        .trim(),
+      body("task_position")
+        .exists()
+        .withMessage("the task_position is missing in request")
+        .bail()
+        .isNumeric()
+        .withMessage("the task_position should be a number")
         .trim(),
     ],
   ]),

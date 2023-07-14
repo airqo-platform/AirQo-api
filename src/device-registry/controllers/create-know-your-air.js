@@ -558,6 +558,76 @@ const createKnowYourAir = {
     }
   },
 
+  syncUserLessonProgress: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      const { query } = req;
+      let { tenant } = query;
+
+      if (isEmpty(tenant)) {
+        tenant = constants.DEFAULT_NETWORK;
+      }
+
+      let request = Object.assign({}, req);
+      request["query"]["tenant"] = tenant;
+
+      const responseFromSyncUserLessonProgress = await createKnowYourAirUtil.syncUserLessonProgress(
+        request
+      );
+      logObject(
+        "responseFromSyncUserLessonProgress in controller",
+        responseFromSyncUserLessonProgress
+      );
+
+      if (responseFromSyncUserLessonProgress.success === true) {
+        const status = responseFromSyncUserLessonProgress.status
+          ? responseFromSyncUserLessonProgress.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromSyncUserLessonProgress.message,
+          kya_user_progress: responseFromSyncUserLessonProgress.data,
+        });
+      } else if (responseFromSyncUserLessonProgress.success === false) {
+        const status = responseFromSyncUserLessonProgress.status
+          ? responseFromSyncUserLessonProgress.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromSyncUserLessonProgress.message,
+          errors: responseFromSyncUserLessonProgress.errors
+            ? responseFromSyncUserLessonProgress.errors
+            : { message: "" },
+        });
+      }
+    } catch (error) {
+      logObject("error", error);
+      logger.error(`internal server error -- ${error.message}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
   /****************** tasks ********************************/
   listTask: async (req, res) => {
     try {

@@ -9,9 +9,9 @@ const httpStatus = require("http-status");
 const userLessonProgressSchema = new Schema(
   {
     user_id: {
-      type: ObjectId,
-      ref: "user",
-      required: true,
+      type: String,
+      trim: true,
+      required: [true, "firebase_user_id is required!"],
     },
     lesson_id: {
       type: ObjectId,
@@ -32,17 +32,9 @@ const userLessonProgressSchema = new Schema(
   }
 );
 
-// userLessonProgressSchema.index(
-//   {
-//     user_id: 1,
-//     lesson_id: 1,
-//   },
-//   {
-//     unique: true,
-//   }
-// );
+userLessonProgressSchema.index({ lesson_id: 1, user_id: 1 }, { unique: true });
 
-userLessonProgressSchema.pre("save", function(next) {
+userLessonProgressSchema.pre("save", function (next) {
   next();
 });
 
