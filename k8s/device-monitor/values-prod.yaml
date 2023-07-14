@@ -16,9 +16,9 @@ podAnnotations: {}
 resources:
   limits:
     cpu: 500m
-    memory: 800Mi
+    memory: 1000Mi
   requests:
-    cpu: 5m
+    cpu: 10m
     memory: 50Mi
 volumeMounts:
   - name: config-volume

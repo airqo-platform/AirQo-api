@@ -12,10 +12,10 @@ fullnameOverride: ''
 podAnnotations: {}
 resources:
   limits:
-    cpu: 100m
-    memory: 900Mi
+    cpu: 200m
+    memory: 1500Mi
   requests:
-    cpu: 5m
+    cpu: 10m
     memory: 600Mi
 volumeMounts:
   - name: config-volume

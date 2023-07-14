@@ -13,9 +13,9 @@ podAnnotations: {}
 resources:
   limits:
     cpu: 50m
-    memory: 120Mi
+    memory: 500Mi
   requests:
-    cpu: 5m
+    cpu: 10m
     memory: 70Mi
 ingress:
   enabled: false
