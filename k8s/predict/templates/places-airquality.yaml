@@ -8,7 +8,7 @@ spec:
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 0
   schedule: '{{ .Values.jobs.predictPlaces.schedule }}'
-  suspend: {{ .Values.jobs.predictPlaces.suspend }}
+  suspend: false
   jobTemplate:
     metadata:
       name: {{ .Values.jobs.predictPlaces.name }}
