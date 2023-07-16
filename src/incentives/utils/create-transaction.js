@@ -11,29 +11,71 @@ const createTransaction = {
   /**** HOST PAYMENTS */
   sendMoneyToHost: async (request) => {
     try {
-    } catch (error) {}
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
   },
   addMoneyToOrganisationAccount: async (request) => {
     try {
-    } catch (error) {}
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
   },
   receiveMoneyFromHost: async (request) => {
     try {
-    } catch (error) {}
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
   },
   getTransactionDetails: async (request) => {
-    logText("send money to host.............");
+    logText("getTransactionDetails.............");
     try {
-    } catch (error) {}
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
   },
   /***** SIM CARD DATA LOADING */
   loadDataBundle: async (request) => {
     try {
-    } catch (error) {}
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
   },
   checkRemainingDataBundleBalance: async (request) => {
     try {
-    } catch (error) {}
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
   },
 };
 
