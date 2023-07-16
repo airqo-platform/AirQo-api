@@ -6,14 +6,28 @@ const logger = log4js.getLogger("generate-filter-util");
 
 const generateFilter = {
   hosts: (req) => {
-    let { id } = req.query;
-    let filter = {};
+    try {
+      const { id } = req.query;
+      const { host_id } = req.params;
+      let filter = {};
 
-    if (id) {
-      filter["_id"] = ObjectId(id);
+      if (id) {
+        filter["_id"] = ObjectId(id);
+      }
+
+      if (host_id) {
+        filter["_id"] = ObjectId(host_id);
+      }
+
+      return filter;
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+      return {
+        success: false,
+        errors: { message: error.message },
+        message: "Internal Server Error",
+      };
     }
-
-    return filter;
   },
   transactions: (req) => {
     let { id, status, transaction_id, host_id } = req.query;

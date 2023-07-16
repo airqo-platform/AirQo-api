@@ -1,16 +1,40 @@
 require("module-alias/register");
+const log4js = require("log4js");
 var express = require("express");
 var path = require("path");
 const dotenv = require("dotenv");
 dotenv.config();
 var cookieParser = require("cookie-parser");
-require("./config/database");
-const middlewareConfig = require("@config/app.middleware");
+const { mongodb } = require("./config/database");
+mongodb;
 const { logElement, logObject, logText } = require("@utils/log");
 const routes = require("@routes");
 var app = express();
-middlewareConfig(app);
+const morgan = require("morgan");
+const bodyParser = require("body-parser");
+const compression = require("compression");
+const helmet = require("helmet");
+const isDev = process.env.NODE_ENV === "development";
+const isProd = process.env.NODE_ENV === "production";
+const isTest = process.env.NODE_ENV === "test";
+app.use(bodyParser.json());
+app.use(
+  bodyParser.urlencoded({
+    extended: true,
+  })
+);
+if (isProd) {
+  app.use(compression());
+  app.use(helmet());
+}
+if (isDev) {
+  app.use(morgan("dev"));
+}
+if (isTest) {
+  app.use(morgan("dev"));
+}
 
+app.use(log4js.connectLogger(log4js.getLogger("http"), { level: "auto" }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, "public")));
 

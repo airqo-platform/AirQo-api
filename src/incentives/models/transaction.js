@@ -1,18 +1,21 @@
 const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 const ObjectId = mongoose.Schema.Types.ObjectId;
-const { getModelByTenant } = require("@utils/multitenancy");
+const { getModelByTenant } = require("@config/database");
 const { logObject, logElement, logText } = require("@utils/log");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 
-const TransactionSchema = new Schema({
-  amount: { type: Number },
-  host_id: { type: ObjectId },
-  description: { type: String },
-  transaction_id: { type: String },
-  status: { type: String },
-});
+const TransactionSchema = new Schema(
+  {
+    amount: { type: Number },
+    host_id: { type: ObjectId },
+    description: { type: String },
+    transaction_id: { type: String },
+    status: { type: String },
+  },
+  { timestamps: true }
+);
 
 TransactionSchema.pre("save", function (next) {
   if (this.isModified("password")) {
@@ -83,7 +86,16 @@ TransactionSchema.statics = {
   },
   async list({ skip = 0, limit = 5, filter = {} } = {}) {
     try {
-      let transactions = await this.find(filter)
+      let transactions = await this.aggregate()
+        .match(filter)
+        .addFields({
+          createdAt: {
+            $dateToString: {
+              format: "%Y-%m-%d %H:%M:%S",
+              date: "$_id",
+            },
+          },
+        })
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit);

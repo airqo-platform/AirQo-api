@@ -1,30 +1,40 @@
 const express = require("express");
 const router = express.Router();
-const middlewareConfig = require("../config/router.middleware");
-const createHostController = require("../controllers/create-host");
-const createTransactionController = require("../controllers/create-transaction");
+const createTransactionController = require("@controllers/create-transaction");
 const { check, oneOf, query, body, param } = require("express-validator");
-const constants = require("../config/constants");
+const constants = require("@config/constants");
 const mongoose = require("mongoose");
-const Schema = mongoose.Schema;
 const ObjectId = mongoose.Types.ObjectId;
-const incentivesController = require("../controllers/incentivize");
 
-middlewareConfig(router);
+const validatePagination = (req, res, next) => {
+  const limit = parseInt(req.query.limit, 10);
+  const skip = parseInt(req.query.skip, 10);
+  req.query.limit = isNaN(limit) || limit < 1 ? 1000 : limit;
+  req.query.skip = isNaN(skip) || skip < 0 ? 0 : skip;
+  next();
+};
 
-/*************** create-transaction usecase *****************/
+const headers = (req, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.header(
+    "Access-Control-Allow-Headers",
+    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
+  );
+  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
+  next();
+};
 
-router.post("/data", incentivesController.data);
-router.post("/disburse", incentivesController.disburse);
-router.post("/callback", incentivesController.callback);
-router.get("/balance", incentivesController.getBalance);
+router.use(headers);
+router.use(validatePagination);
+
 router.post(
-  "/transactions/soft",
+  "/hosts/:host_id/payments",
   oneOf([
     [
       query("tenant")
-        .exists()
-        .withMessage("tenant should be provided")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty IF provided")
         .bail()
         .trim()
         .toLowerCase()
@@ -34,51 +44,28 @@ router.post(
   ]),
   oneOf([
     [
-      body("amount")
-        .exists()
-        .withMessage("the amount is missing in your request")
-        .bail()
-        .notEmpty()
-        .withMessage("the amount should not be empty")
-        .isInt()
-        .withMessage("the amount should be a number")
-        .trim(),
-      body("description")
-        .if(body("description").exists())
-        .notEmpty()
-        .withMessage("the description should not be empty if provided")
-        .trim(),
-      body("host_id")
-        .exists()
-        .withMessage("the host_id is missing in your request")
-        .isMongoId()
-        .withMessage("the host_id should be an object ID")
-        .trim(),
-      body("transaction_id")
-        .exists()
-        .withMessage("the transaction_id is missing in your request")
-        .trim(),
-      body("status")
-        .exists()
-        .withMessage("the status is missing in your request")
-        .bail()
-        .isIn(["pending", "started", "finished"])
-        .withMessage(
-          "the status value is not among the expected ones which include: pending, started and finished"
-        )
-        .trim(),
+      //   body("amount")
+      //     .exists()
+      //     .withMessage("the amount is missing in your request")
+      //     .bail()
+      //     .notEmpty()
+      //     .withMessage("the amount should not be empty")
+      //     .isInt()
+      //     .withMessage("the amount should be a number")
+      //     .trim(),
     ],
   ]),
-  createTransactionController.softRegister
+  createTransactionController.sendMoneyToHost
 );
 
 router.post(
-  "/transactions",
+  "/accounts/payments",
   oneOf([
     [
       query("tenant")
-        .exists()
-        .withMessage("tenant should be provided")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty IF provided")
         .bail()
         .trim()
         .toLowerCase()
@@ -88,230 +75,134 @@ router.post(
   ]),
   oneOf([
     [
-      body("amount")
-        .exists()
-        .withMessage("the amount is missing in your request")
-        .bail()
-        .notEmpty()
-        .withMessage("the amount should not be empty")
-        .isInt()
-        .withMessage("the amount should be a number")
-        .trim(),
-      body("description")
-        .if(body("description").exists())
-        .notEmpty()
-        .withMessage("the description should not be empty if provided")
-        .trim(),
-      body("host_id")
-        .exists()
-        .withMessage("the host_id is missing in your request")
-        .isMongoId()
-        .withMessage("the host_id should be an object ID")
-        .trim(),
-      body("transaction_id")
-        .exists()
-        .withMessage("the transaction_id is missing in your request")
-        .trim(),
-      body("status")
-        .exists()
-        .withMessage("the status is missing in your request")
-        .bail()
-        .isIn(["pending", "started", "finished"])
-        .withMessage(
-          "the status value is not among the expected ones which include: pending, started and finished"
-        )
-        .trim(),
+      //   body("amount")
+      //     .exists()
+      //     .withMessage("the amount is missing in your request")
+      //     .bail()
+      //     .notEmpty()
+      //     .withMessage("the amount should not be empty")
+      //     .isInt()
+      //     .withMessage("the amount should be a number")
+      //     .trim(),
     ],
   ]),
-  createTransactionController.register
+  createTransactionController.addMoneyToOrganisationAccount
+);
+
+router.post(
+  "/accounts/receive",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty IF provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      //   body("amount")
+      //     .exists()
+      //     .withMessage("the amount is missing in your request")
+      //     .bail()
+      //     .notEmpty()
+      //     .withMessage("the amount should not be empty")
+      //     .isInt()
+      //     .withMessage("the amount should be a number")
+      //     .trim(),
+    ],
+  ]),
+  createTransactionController.receiveMoneyFromHost
+);
+
+router.post(
+  "/devices/:device_id/data",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty IF provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      //   body("amount")
+      //     .exists()
+      //     .withMessage("the amount is missing in your request")
+      //     .bail()
+      //     .notEmpty()
+      //     .withMessage("the amount should not be empty")
+      //     .isInt()
+      //     .withMessage("the amount should be a number")
+      //     .trim(),
+    ],
+  ]),
+  createTransactionController.loadDataBundle
 );
 
 router.get(
-  "/transactions",
+  "/payments/:transaction_id",
   oneOf([
     query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty IF provided")
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo"])
+      .isIn(constants.NETWORKS)
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
     [
-      query("id")
-        .if(query("id").exists())
-        .notEmpty()
-        .trim()
-        .isMongoId()
-        .withMessage("id must be an object ID")
+      param("transaction_id")
+        .exists()
+        .withMessage("the transaction_id should exist")
         .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
-      query("host_id")
-        .if(query("site_id").exists())
         .notEmpty()
-        .trim()
-        .isMongoId()
-        .withMessage("host_id must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
-      query("transaction_id")
-        .if(query("transaction_id").exists())
-        .notEmpty()
-        .withMessage("the transaction_id is empty")
-        .trim(),
-      query("status")
-        .if(query("status").exists())
-        .notEmpty()
-        .withMessage("the provided status must not be empty")
-        .bail()
+        .withMessage("the transaction_id cannot be empty")
         .trim(),
     ],
   ]),
-  createTransactionController.list
+  createTransactionController.getTransactionDetails
 );
 
-router.put(
-  "/transactions",
+router.get(
+  "/devices/:device_id/balance",
   oneOf([
     query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty IF provided")
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
-  ]),
-  oneOf([
-    query("id")
-      .exists()
-      .withMessage(
-        "the transaction identifier is missing in the request, consider using id"
-      )
-      .bail()
-      .trim()
-      .isMongoId()
-      .withMessage("id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
-  ]),
-  oneOf([
-    [
-      body("amount")
-        .if(body("amount").exists())
-        .notEmpty()
-        .withMessage("the amount should not be empty")
-        .bail()
-        .isInt()
-        .withMessage("the amount is not a number")
-        .trim(),
-      body("description")
-        .if(body("description").exists())
-        .notEmpty()
-        .withMessage("the description should not be empty when provided")
-        .trim(),
-      body("host_id")
-        .if(body("host_id").exists())
-        .notEmpty()
-        .withMessage("the host_id should not be empty")
-        .isMongoId()
-        .withMessage("should be a valid object ID"),
-      body("transaction_id")
-        .if(body("transaction_id").exists())
-        .notEmpty()
-        .withMessage("the transaction_id should not be empty"),
-      body("status")
-        .if(body("status").exists())
-        .notEmpty()
-        .withMessage("the status should not be empty")
-        .bail()
-        .toLowerCase()
-        .isIn(["pending", "started", "finished"])
-        .withMessage(
-          "the status value is not among the expected ones which include: pending, started and finished"
-        ),
-    ],
-  ]),
-  createTransactionController.update
-);
-
-router.delete(
-  "/transactions",
-  oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
-  ]),
-  oneOf([
-    query("id")
-      .exists()
-      .withMessage(
-        "the airqloud identifier is missing in request, consider using id"
-      )
-      .bail()
-      .trim()
-      .isMongoId()
-      .withMessage("id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
-  ]),
-  createTransactionController.delete
-);
-
-router.post(
-  "/transactions/momo",
-  oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
+      .isIn(constants.NETWORKS)
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
     [
-      body("hosts")
+      param("device_id")
         .exists()
-        .withMessage("the hosts are missing in request")
+        .withMessage("the transaction_id should exist")
         .bail()
-        .custom((value) => {
-          return Array.isArray(value);
-        })
-        .withMessage("the hosts must be an array"),
-      body("hosts.*")
-        .isMongoId()
-        .withMessage("the provided host is not an object ID"),
-      body("amount")
-        .exists()
-        .withMessage("the amount is missing in request")
-        .bail()
-        .trim()
-        .isInt()
-        .withMessage("amount must be a number"),
-      body("description")
-        .exists()
-        .withMessage("the description is missing in request")
+        .notEmpty()
+        .withMessage("the transaction_id cannot be empty")
         .trim(),
     ],
   ]),
-  createTransactionController.registerMomoMTN
+  createTransactionController.checkRemainingDataBundleBalance
 );
 
 module.exports = router;

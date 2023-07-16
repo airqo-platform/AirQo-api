@@ -8,7 +8,7 @@ const logger = log4js.getLogger("create-host-controller");
 const isEmpty = require("is-empty");
 
 const createHost = {
-  register: async (req, res) => {
+  create: async (req, res) => {
     logText("registering host.............");
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -25,8 +25,8 @@ const createHost = {
       if (isEmpty(tenant)) {
         tenant = "airqo";
       }
-
-      let responseFromCreateHost = await createHostUtil.create(request);
+      request.query.tenant = tenant;
+      const responseFromCreateHost = await createHostUtil.create(request);
       logObject("responseFromCreateHost in controller", responseFromCreateHost);
       if (responseFromCreateHost.success === true) {
         let status = responseFromCreateHost.status
@@ -37,20 +37,16 @@ const createHost = {
           message: responseFromCreateHost.message,
           created_host: responseFromCreateHost.data,
         });
-      }
-
-      if (responseFromCreateHost.success === false) {
-        let status = responseFromCreateHost.status
+      } else if (responseFromCreateHost.success === false) {
+        const status = responseFromCreateHost.status
           ? responseFromCreateHost.status
           : httpStatus.INTERNAL_SERVER_ERROR;
-        let errors = responseFromCreateHost.errors
-          ? responseFromCreateHost.errors
-          : "";
-
         return res.status(status).json({
           success: false,
           message: responseFromCreateHost.message,
-          errors,
+          errors: responseFromCreateHost.errors
+            ? responseFromCreateHost.errors
+            : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
@@ -60,12 +56,10 @@ const createHost = {
       });
     }
   },
-
   delete: async (req, res) => {
     try {
       logText(".................................................");
       logText("inside delete host............");
-      const { tenant } = req.query;
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -76,13 +70,18 @@ const createHost = {
         );
       }
 
+      let { tenant } = req.query;
       let request = Object.assign({}, req);
-      let responseFromRemoveHost = await createHostUtil.delete(request);
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+      request.query.tenant = tenant;
+      const responseFromRemoveHost = await createHostUtil.delete(request);
 
       logObject("responseFromRemoveHost", responseFromRemoveHost);
 
       if (responseFromRemoveHost.success === true) {
-        let status = responseFromRemoveHost.status
+        const status = responseFromRemoveHost.status
           ? responseFromRemoveHost.status
           : httpStatus.OK;
         return res.status(status).json({
@@ -90,9 +89,7 @@ const createHost = {
           message: responseFromRemoveHost.message,
           removed_host: responseFromRemoveHost.data,
         });
-      }
-
-      if (responseFromRemoveHost.success === false) {
+      } else if (responseFromRemoveHost.success === false) {
         const status = responseFromRemoveHost.status
           ? responseFromRemoveHost.status
           : httpStatus.INTERNAL_SERVER_ERROR;
@@ -101,7 +98,7 @@ const createHost = {
           message: responseFromRemoveHost.message,
           errors: responseFromRemoveHost.errors
             ? responseFromRemoveHost.errors
-            : "Internal Server Error",
+            : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
@@ -111,7 +108,6 @@ const createHost = {
       });
     }
   },
-
   update: async (req, res) => {
     try {
       logText("updating host................");
@@ -124,8 +120,13 @@ const createHost = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
+      let { tenant } = req.query;
       let request = Object.assign({}, req);
-      let responseFromUpdateHost = await createHostUtil.update(request);
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+      request.query.tenant = tenant;
+      const responseFromUpdateHost = await createHostUtil.update(request);
       logObject("responseFromUpdateHost", responseFromUpdateHost);
       if (responseFromUpdateHost.success === true) {
         const status = responseFromUpdateHost.status
@@ -140,13 +141,12 @@ const createHost = {
         const status = responseFromUpdateHost.status
           ? responseFromUpdateHost.status
           : httpStatus.INTERNAL_SERVER_ERROR;
-
         return res.status(status).json({
           success: false,
           message: responseFromUpdateHost.message,
           errors: responseFromUpdateHost.errors
             ? responseFromUpdateHost.errors
-            : "Internal Server Error",
+            : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
@@ -156,7 +156,6 @@ const createHost = {
       });
     }
   },
-
   list: async (req, res) => {
     try {
       logText(".....................................");
@@ -170,35 +169,36 @@ const createHost = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
+      let { tenant } = req.query;
       let request = Object.assign({}, req);
-
-      let responseFromListHosts = await createHostUtil.list(request);
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+      request.query.tenant = tenant;
+      const responseFromListHosts = await createHostUtil.list(request);
       logElement(
         "has the response for listing hosts been successful?",
         responseFromListHosts.success
       );
       if (responseFromListHosts.success === true) {
-        let status = responseFromListHosts.status
+        const status = responseFromListHosts.status
           ? responseFromListHosts.status
           : httpStatus.OK;
-        res.status(status).json({
+        return res.status(status).json({
           success: true,
           message: responseFromListHosts.message,
           hosts: responseFromListHosts.data,
         });
-      }
-
-      if (responseFromListHosts.success === false) {
-        let errors = responseFromListHosts.errors
-          ? responseFromListHosts.errors
-          : "";
-        let status = responseFromListHosts.status
+      } else if (responseFromListHosts.success === false) {
+        const status = responseFromListHosts.status
           ? responseFromListHosts.status
           : httpStatus.INTERNAL_SERVER_ERROR;
-        res.status(status).json({
+        return res.status(status).json({
           success: false,
           message: responseFromListHosts.message,
-          errors,
+          errors: responseFromListHosts.errors
+            ? responseFromListHosts.errors
+            : { message: "Internal Server Error" },
         });
       }
     } catch (error) {

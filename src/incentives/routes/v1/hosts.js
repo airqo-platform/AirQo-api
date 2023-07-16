@@ -1,31 +1,46 @@
 const express = require("express");
 const router = express.Router();
-const middlewareConfig = require("../config/router.middleware");
-const createHostController = require("../controllers/create-host");
-const createTransactionController = require("../controllers/create-transaction");
+const createHostController = require("@controllers/create-host");
 const { check, oneOf, query, body, param } = require("express-validator");
-const constants = require("../config/constants");
+const constants = require("@config/constants");
+const phoneUtil =
+  require("google-libphonenumber").PhoneNumberUtil.getInstance();
 const mongoose = require("mongoose");
-const Schema = mongoose.Schema;
 const ObjectId = mongoose.Types.ObjectId;
-const { check, oneOf, query, body, param } = require("express-validator");
+const validatePagination = (req, res, next) => {
+  const limit = parseInt(req.query.limit, 10);
+  const skip = parseInt(req.query.skip, 10);
+  req.query.limit = isNaN(limit) || limit < 1 ? 1000 : limit;
+  req.query.skip = isNaN(skip) || skip < 0 ? 0 : skip;
+  next();
+};
 
-middlewareConfig(router);
+const headers = (req, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.header(
+    "Access-Control-Allow-Headers",
+    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
+  );
+  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
+  next();
+};
+
+router.use(headers);
+router.use(validatePagination);
 
 /***************** create-host usecase ***********************/
 router.post(
-  "/hosts",
+  "/",
   oneOf([
-    [
-      query("tenant")
-        .exists()
-        .withMessage("tenant should be provided")
-        .bail()
-        .trim()
-        .toLowerCase()
-        .isIn(["kcca", "airqo"])
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
+    query("tenant")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty IF provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(constants.NETWORKS)
+      .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
     [
@@ -49,8 +64,13 @@ router.post(
         .bail()
         .notEmpty()
         .withMessage("the phone_number should not be empty")
-        .isInt()
-        .withMessage("the phone_number should be a number")
+        .bail()
+        .custom((value) => {
+          let parsedPhoneNumber = phoneUtil.parse(value);
+          let isValid = phoneUtil.isValidNumber(parsedPhoneNumber);
+          return isValid;
+        })
+        .withMessage("phone_number must be a valid one")
         .trim(),
       body("email")
         .exists()
@@ -58,12 +78,14 @@ router.post(
         .bail()
         .notEmpty()
         .withMessage("the email should not be empty")
+        .bail()
         .isEmail()
         .withMessage("this is not a valid email address")
         .trim(),
       body("site_id")
         .exists()
         .withMessage("the site_id is missing in your request")
+        .bail()
         .notEmpty()
         .withMessage("the site_id should not be empty")
         .bail()
@@ -74,41 +96,31 @@ router.post(
           return ObjectId(value);
         })
         .trim(),
-      body("device_id")
-        .exists()
-        .withMessage("the device_id is missing in your request")
-        .notEmpty()
-        .withMessage("the device_id should not be empty")
-        .bail()
-        .isMongoId()
-        .withMessage("device_id must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        })
-        .trim(),
     ],
   ]),
-  createHostController.register
+  createHostController.create
 );
 
 router.get(
-  "/hosts",
+  "/",
   oneOf([
     query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty IF provided")
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo"])
+      .isIn(constants.NETWORKS)
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
     [
       query("id")
-        .if(query("id").exists())
+        .optional()
         .notEmpty()
+        .withMessage("the id cannot be empty IF provided")
+        .bail()
         .trim()
         .isMongoId()
         .withMessage("id must be an object ID")
@@ -117,8 +129,9 @@ router.get(
           return ObjectId(value);
         }),
       query("site_id")
-        .if(query("site_id").exists())
+        .optional()
         .notEmpty()
+        .withMessage("the site_id cannot be empty IF provided")
         .trim()
         .isMongoId()
         .withMessage("site_id must be an object ID")
@@ -132,26 +145,25 @@ router.get(
 );
 
 router.put(
-  "/hosts",
+  "/:host_id",
   oneOf([
     query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty IF provided")
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo"])
+      .isIn(constants.NETWORKS)
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
-    query("id")
+    param("host_id")
       .exists()
-      .withMessage(
-        "the airqloud identifier is missing in request, consider using id"
-      )
+      .withMessage("the host_id is missing in the request")
       .bail()
       .isMongoId()
-      .withMessage("id must be an object ID")
+      .withMessage("host_id must be an object ID")
       .bail()
       .customSanitizer((value) => {
         return ObjectId(value);
@@ -160,68 +172,71 @@ router.put(
   ]),
   oneOf([
     [
-      body("name")
-        .if(body("name").exists())
+      body("first_name")
+        .optional()
         .notEmpty()
-        .withMessage("the name should not be empty")
+        .withMessage("the first_name should not be empty IF provided")
+        .trim(),
+      body("last_name")
+        .optional()
+        .notEmpty()
+        .withMessage("the last_name should not be empty IF provided")
+        .trim(),
+      body("phone_number")
+        .optional()
+        .notEmpty()
+        .withMessage("phone_number should not be empty IF provided")
+        .bail()
+        .trim()
+        .custom((value) => {
+          let parsedPhoneNumber = phoneUtil.parse(value);
+          let isValid = phoneUtil.isValidNumber(parsedPhoneNumber);
+          return isValid;
+        })
+        .withMessage("phone_number must be a valid one")
+        .bail(),
+      body("email")
+        .optional()
+        .notEmpty()
+        .withMessage("the email should not be empty IF provided")
+        .bail()
+        .isEmail()
+        .withMessage("this is not a valid email address")
+        .trim(),
+      body("site_id")
+        .optional()
+        .notEmpty()
+        .withMessage("the site_id should not be empty IF provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("the site_id should be an Object ID")
         .bail()
         .customSanitizer((value) => {
-          return createSiteUtil.sanitiseName(value);
-        })
-        .trim(),
-      body("description").if(body("description").exists()).notEmpty().trim(),
-      body("location")
-        .if(body("location").exists())
-        .notEmpty()
-        .withMessage("the location should not be empty"),
-      body("location.coordinates")
-        .if(body("location.coordinates").exists())
-        .notEmpty()
-        .withMessage("the location.coordinates should not be empty")
-        .bail()
-        .custom((value) => {
-          return Array.isArray(value);
-        })
-        .withMessage("the location.coordinates should be an array"),
-      body("location.type")
-        .if(body("location.type").exists())
-        .notEmpty()
-        .withMessage("the location.type should not be empty")
-        .bail()
-        .toLowerCase()
-        .isIn(["polygon", "point"])
-        .withMessage(
-          "the location.type value is not among the expected ones which include: polygon and point"
-        ),
-      body("airqloud_tags")
-        .if(body("airqloud_tags").exists())
-        .custom((value) => {
-          return Array.isArray(value);
-        })
-        .withMessage("the tags should be an array"),
+          return ObjectId(value);
+        }),
     ],
   ]),
   createHostController.update
 );
 
 router.delete(
-  "/hosts",
+  "/:host_id",
   oneOf([
     query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty IF provided")
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo"])
+      .isIn(constants.NETWORKS)
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
-    query("id")
+    param("host_id")
       .exists()
-      .withMessage(
-        "the airqloud identifier is missing in request, consider using id"
-      )
+      .withMessage("the host_id is missing in the request")
       .bail()
       .trim()
       .isMongoId()
@@ -232,6 +247,40 @@ router.delete(
       }),
   ]),
   createHostController.delete
+);
+
+router.get(
+  "/:host_id",
+  oneOf([
+    query("tenant")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty IF provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(constants.NETWORKS)
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    [
+      param("host_id")
+        .exists()
+        .withMessage("the host_id is missing in the request")
+        .bail()
+        .notEmpty()
+        .withMessage("the provided host_id must not be empty")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("host_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+    ],
+  ]),
+  createHostController.list
 );
 
 module.exports = router;

@@ -3,49 +3,46 @@ const Schema = mongoose.Schema;
 const { logObject, logElement, logText } = require("@utils/log");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 const isEmpty = require("is-empty");
-const { getModelByTenant } = require("@utils/multitenancy");
+const { getModelByTenant } = require("@config/database");
 const constants = require("@config/constants");
 const httpStatus = require("http-status");
 
-const HostSchema = new Schema({
-  first_name: {
-    type: String,
-    required: [true, "first_name is required!"],
-    trim: true,
+const HostSchema = new Schema(
+  {
+    first_name: {
+      type: String,
+      required: [true, "first_name is required!"],
+      trim: true,
+    },
+    last_name: {
+      type: String,
+      required: [true, "last_name is required"],
+      trim: true,
+    },
+    phone_number: {
+      type: Number,
+      required: [true, "phone_number is required"],
+      trim: true,
+    },
+    email: {
+      type: String,
+      required: [true, "email is required"],
+      trim: true,
+    },
+    site_id: {
+      type: ObjectId,
+      required: [true, "site_id is required"],
+      trim: true,
+    },
   },
-  last_name: {
-    type: String,
-    required: [true, "last_name is required"],
-    trim: true,
-  },
-  phone_number: {
-    type: Number,
-    required: [true, "phone_number is required"],
-    trim: true,
-  },
-  email: {
-    type: String,
-    required: [true, "email is required"],
-    trim: true,
-  },
-  site_id: {
-    type: ObjectId,
-    required: [true, "site_id is required"],
-    trim: true,
-  },
-  device_id: {
-    type: ObjectId,
-    required: [true, "device_id is required"],
-    trim: true,
-  },
-});
+  { timestamps: true }
+);
 
 HostSchema.index(
   {
     email: 1,
     phone_number: 1,
     site_id: 1,
-    device_id: 1,
   },
   {
     unique: true,
@@ -118,7 +115,16 @@ HostSchema.statics = {
   },
   async list({ skip = 0, limit = 5, filter = {} } = {}) {
     try {
-      let hosts = await this.find(filter)
+      let hosts = await this.aggregate()
+        .match(filter)
+        .addFields({
+          createdAt: {
+            $dateToString: {
+              format: "%Y-%m-%d %H:%M:%S",
+              date: "$_id",
+            },
+          },
+        })
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
@@ -183,7 +189,7 @@ HostSchema.statics = {
           success: false,
           message: "host does not exist, please crosscheck",
           errors: { message: "host does not exist" },
-          status: httpStatus.NOT_FOUND,
+          status: httpStatus.BAD_REQUEST,
         };
       }
     } catch (error) {
@@ -215,7 +221,7 @@ HostSchema.statics = {
           success: false,
           message: "host does not exist, please crosscheck",
           errors: { message: "host does not exist" },
-          status: httpStatus.NOT_FOUND,
+          status: httpStatus.BAD_REQUEST,
         };
       }
     } catch (error) {
@@ -236,7 +242,6 @@ HostSchema.methods = {
       first_name: this.first_name,
       last_name: this.last_name,
       site_id: this.site_id,
-      device_id: this.device_id,
       phone_number: this.phone_number,
     };
   },

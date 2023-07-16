@@ -5,13 +5,12 @@ const createTransactionUtil = require("@utils/create-transaction");
 const log4js = require("log4js");
 const logger = log4js.getLogger("create-transaction-controller");
 const errors = require("@utils/errors");
+const isEmpty = require("is-empty");
 
 const createTransaction = {
-  softRegister: async (req, res) => {
-    let request = {};
-    let { body } = req;
-    let { query } = req;
-    logText("registering transaction.............");
+  /**** HOST PAYMENTS */
+  sendMoneyToHost: async (req, res) => {
+    logText("send money to host.............");
     try {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
@@ -22,39 +21,38 @@ const createTransaction = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { tenant } = req.query;
-      request["body"] = body;
-      request["query"] = query;
+      let { tenant } = req.query;
+      let request = Object.assign({}, req);
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+      request.query.tenant = tenant;
 
-      let responseFromCreateTransaction =
-        await createTransactionUtil.softCreate(request);
+      const responseFromSendMoneyToHost =
+        await createTransactionUtil.sendMoneyToHost(request);
       logObject(
-        "responseFromCreateTransaction in controller",
-        responseFromCreateTransaction
+        "responseFromSendMoneyToHost in controller",
+        responseFromSendMoneyToHost
       );
-      if (responseFromCreateTransaction.success === true) {
-        let status = responseFromCreateTransaction.status
-          ? responseFromCreateTransaction.status
+      if (responseFromSendMoneyToHost.success === true) {
+        const status = responseFromSendMoneyToHost.status
+          ? responseFromSendMoneyToHost.status
           : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromCreateTransaction.message,
-          created_transaction: responseFromCreateTransaction.data,
+          message: responseFromSendMoneyToHost.message,
+          transaction: responseFromSendMoneyToHost.data,
         });
-      }
-
-      if (responseFromCreateTransaction.success === false) {
-        let status = responseFromCreateTransaction.status
-          ? responseFromCreateTransaction.status
+      } else if (responseFromSendMoneyToHost.success === false) {
+        const status = responseFromSendMoneyToHost.status
+          ? responseFromSendMoneyToHost.status
           : httpStatus.INTERNAL_SERVER_ERROR;
-        let errors = responseFromCreateTransaction.errors
-          ? responseFromCreateTransaction.errors
-          : "";
-
         return res.status(status).json({
           success: false,
-          message: responseFromCreateTransaction.message,
-          errors,
+          message: responseFromSendMoneyToHost.message,
+          errors: responseFromSendMoneyToHost.errors
+            ? responseFromSendMoneyToHost.errors
+            : "Internal Server Error",
         });
       }
     } catch (error) {
@@ -64,15 +62,8 @@ const createTransaction = {
       });
     }
   },
-  register: async (req, res) => {
-    return res.status(httpStatus.NOT_IMPLEMENTED).json({
-      message: "coming soon",
-      success: false,
-    });
-    let request = {};
-    let { body } = req;
-    let { query } = req;
-    logText("registering transaction.............");
+  addMoneyToOrganisationAccount: async (req, res) => {
+    logText("send money to host.............");
     try {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
@@ -83,40 +74,38 @@ const createTransaction = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { tenant } = req.query;
-      request["body"] = body;
-      request["query"] = query;
+      let { tenant } = req.query;
+      let request = Object.assign({}, req);
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+      request.query.tenant = tenant;
 
-      let responseFromCreateTransaction = await createTransactionUtil.create(
-        request
-      );
+      const responseFromAddMoneyToOrganisation =
+        await createTransactionUtil.sendMoneyToHost(request);
       logObject(
-        "responseFromCreateTransaction in controller",
-        responseFromCreateTransaction
+        "responseFromAddMoneyToOrganisation in controller",
+        responseFromAddMoneyToOrganisation
       );
-      if (responseFromCreateTransaction.success === true) {
-        let status = responseFromCreateTransaction.status
-          ? responseFromCreateTransaction.status
+      if (responseFromAddMoneyToOrganisation.success === true) {
+        const status = responseFromAddMoneyToOrganisation.status
+          ? responseFromAddMoneyToOrganisation.status
           : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromCreateTransaction.message,
-          transaction: responseFromCreateTransaction.data,
+          message: responseFromAddMoneyToOrganisation.message,
+          transaction: responseFromAddMoneyToOrganisation.data,
         });
-      }
-
-      if (responseFromCreateTransaction.success === false) {
-        let status = responseFromCreateTransaction.status
-          ? responseFromCreateTransaction.status
+      } else if (responseFromAddMoneyToOrganisation.success === false) {
+        const status = responseFromAddMoneyToOrganisation.status
+          ? responseFromAddMoneyToOrganisation.status
           : httpStatus.INTERNAL_SERVER_ERROR;
-        let errors = responseFromCreateTransaction.errors
-          ? responseFromCreateTransaction.errors
-          : "";
-
         return res.status(status).json({
           success: false,
-          message: responseFromCreateTransaction.message,
-          errors,
+          message: responseFromAddMoneyToOrganisation.message,
+          errors: responseFromAddMoneyToOrganisation.errors
+            ? responseFromAddMoneyToOrganisation.errors
+            : "Internal Server Error",
         });
       }
     } catch (error) {
@@ -126,10 +115,9 @@ const createTransaction = {
       });
     }
   },
-
-  registerMomoMTN: async (req, res) => {
+  receiveMoneyFromHost: async (req, res) => {
+    logText("send money to host.............");
     try {
-      const { body, query } = req;
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -139,94 +127,38 @@ const createTransaction = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      let request = {};
-      request["body"] = body;
-      request["query"] = query;
-      const responseFromCreateMomo = await createTransactionUtil.createMomoMTN(
-        request
-      );
-      logObject("responseFromCreateMomo", responseFromCreateMomo);
-      if (responseFromCreateMomo.success === true) {
-        const status = responseFromCreateMomo.status
-          ? responseFromCreateMomo.status
-          : httpStatus.OK;
-        const data = responseFromCreateMomo.data
-          ? responseFromCreateMomo.data
-          : "";
-        return res.status(status).json({
-          success: true,
-          message: responseFromCreateMomo.message,
-          data,
-        });
+      let { tenant } = req.query;
+      let request = Object.assign({}, req);
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
       }
+      request.query.tenant = tenant;
 
-      if (responseFromCreateMomo.success === false) {
-        const status = responseFromCreateMomo.status
-          ? responseFromCreateMomo.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        const errors = responseFromCreateMomo.errors
-          ? responseFromCreateMomo.errors
-          : "";
-        return res.status(status).json({
-          success: false,
-          message: "Internal Server Error",
-          errors,
-        });
-      }
-    } catch (error) {
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        errors: { message: error.message },
-        message: "Internal Server Error",
-        success: false,
-      });
-    }
-  },
-
-  update: async (req, res) => {
-    try {
-      let request = {};
-      let { body } = req;
-      let { query } = req;
-      logText("updating transaction................");
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
-        );
-      }
-      request["body"] = body;
-      request["query"] = query;
-      let responseFromUpdateTransaction = await createTransactionUtil.update(
-        request
+      const responseFromReceiveMoneyFromHost =
+        await createTransactionUtil.sendMoneyToHost(request);
+      logObject(
+        "responseFromReceiveMoneyFromHost in controller",
+        responseFromReceiveMoneyFromHost
       );
-      logObject("responseFromUpdateTransaction", responseFromUpdateTransaction);
-      if (responseFromUpdateTransaction.success === true) {
-        let status = responseFromUpdateTransaction.status
-          ? responseFromUpdateTransaction.status
+      if (responseFromReceiveMoneyFromHost.success === true) {
+        const status = responseFromReceiveMoneyFromHost.status
+          ? responseFromReceiveMoneyFromHost.status
           : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromUpdateTransaction.message,
-          updated_transaction: responseFromUpdateTransaction.data,
+          message: responseFromReceiveMoneyFromHost.message,
+          transaction: responseFromReceiveMoneyFromHost.data,
         });
-      }
-
-      if (responseFromUpdateTransaction.success === false) {
-        let errors = responseFromUpdateTransaction.errors
-          ? responseFromUpdateTransaction.errors
-          : "";
-
-        let status = responseFromUpdateTransaction.status
-          ? responseFromUpdateTransaction.status
+      } else if (responseFromReceiveMoneyFromHost.success === false) {
+        const status = responseFromReceiveMoneyFromHost.status
+          ? responseFromReceiveMoneyFromHost.status
           : httpStatus.INTERNAL_SERVER_ERROR;
-
         return res.status(status).json({
           success: false,
-          message: responseFromUpdateTransaction.message,
-          errors,
+          message: responseFromReceiveMoneyFromHost.message,
+          errors: responseFromReceiveMoneyFromHost.errors
+            ? responseFromReceiveMoneyFromHost.errors
+            : "Internal Server Error",
         });
       }
     } catch (error) {
@@ -236,13 +168,9 @@ const createTransaction = {
       });
     }
   },
-
-  list: async (req, res) => {
+  getTransactionDetails: async (req, res) => {
+    logText("send money to host.............");
     try {
-      const { query } = req;
-      let request = {};
-      logText(".....................................");
-      logText("list all transactions by query params provided");
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -252,36 +180,38 @@ const createTransaction = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      request["query"] = query;
-      let responseFromListTransactions = await createTransactionUtil.list(
-        request
-      );
-      logElement(
-        "has the response for listing transactions been successful?",
-        responseFromListTransactions.success
-      );
-      if (responseFromListTransactions.success === true) {
-        let status = responseFromListTransactions.status
-          ? responseFromListTransactions.status
-          : httpStatus.OK;
-        res.status(status).json({
-          success: true,
-          message: responseFromListTransactions.message,
-          transactions: responseFromListTransactions.data,
-        });
+      let { tenant } = req.query;
+      let request = Object.assign({}, req);
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
       }
+      request.query.tenant = tenant;
 
-      if (responseFromListTransactions.success === false) {
-        let errors = responseFromListTransactions.errors
-          ? responseFromListTransactions.errors
-          : "";
-        let status = responseFromListTransactions.status
-          ? responseFromListTransactions.status
+      const responseFromGetTransactionDetails =
+        await createTransactionUtil.sendMoneyToHost(request);
+      logObject(
+        "responseFromGetTransactionDetails in controller",
+        responseFromGetTransactionDetails
+      );
+      if (responseFromGetTransactionDetails.success === true) {
+        const status = responseFromGetTransactionDetails.status
+          ? responseFromGetTransactionDetails.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromGetTransactionDetails.message,
+          transaction: responseFromGetTransactionDetails.data,
+        });
+      } else if (responseFromGetTransactionDetails.success === false) {
+        const status = responseFromGetTransactionDetails.status
+          ? responseFromGetTransactionDetails.status
           : httpStatus.INTERNAL_SERVER_ERROR;
-        res.status(status).json({
+        return res.status(status).json({
           success: false,
-          message: responseFromListTransactions.message,
-          errors,
+          message: responseFromGetTransactionDetails.message,
+          errors: responseFromGetTransactionDetails.errors
+            ? responseFromGetTransactionDetails.errors
+            : "Internal Server Error",
         });
       }
     } catch (error) {
@@ -291,14 +221,10 @@ const createTransaction = {
       });
     }
   },
-
-  delete: async (req, res) => {
+  /***** SIM CARD DATA LOADING */
+  loadDataBundle: async (req, res) => {
+    logText("send money to host.............");
     try {
-      const { query } = req;
-      const { body } = req;
-      let request = {};
-      logText(".................................................");
-      logText("inside delete transaction............");
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -308,34 +234,93 @@ const createTransaction = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      request["query"] = query;
-      request["body"] = body;
-      let responseFromRemoveTransaction = await createTransactionUtil.delete(
-        request
-      );
+      let { tenant } = req.query;
+      let request = Object.assign({}, req);
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+      request.query.tenant = tenant;
 
-      if (responseFromRemoveTransaction.success === true) {
-        let status = responseFromRemoveTransaction.status
-          ? responseFromRemoveTransaction.status
+      const responseFromLoadDataBundle =
+        await createTransactionUtil.sendMoneyToHost(request);
+      logObject(
+        "responseFromLoadDataBundle in controller",
+        responseFromLoadDataBundle
+      );
+      if (responseFromLoadDataBundle.success === true) {
+        const status = responseFromLoadDataBundle.status
+          ? responseFromLoadDataBundle.status
           : httpStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromRemoveTransaction.message,
-          deleted_transaction: responseFromRemoveTransaction.data,
+          message: responseFromLoadDataBundle.message,
+          transaction: responseFromLoadDataBundle.data,
         });
-      }
-
-      if (responseFromRemoveTransaction.success === false) {
-        let errors = responseFromRemoveTransaction.errors
-          ? responseFromRemoveTransaction.errors
-          : "";
-        let status = responseFromRemoveTransaction.status
-          ? responseFromRemoveTransaction.status
+      } else if (responseFromLoadDataBundle.success === false) {
+        const status = responseFromLoadDataBundle.status
+          ? responseFromLoadDataBundle.status
           : httpStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromRemoveTransaction.message,
-          errors,
+          message: responseFromLoadDataBundle.message,
+          errors: responseFromLoadDataBundle.errors
+            ? responseFromLoadDataBundle.errors
+            : "Internal Server Error",
+        });
+      }
+    } catch (error) {
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+  checkRemainingDataBundleBalance: async (req, res) => {
+    logText("send money to host.............");
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      let { tenant } = req.query;
+      let request = Object.assign({}, req);
+      if (isEmpty(tenant)) {
+        tenant = "airqo";
+      }
+      request.query.tenant = tenant;
+
+      const responseFromCheckRemainingDataBundleBalance =
+        await createTransactionUtil.sendMoneyToHost(request);
+      logObject(
+        "responseFromCheckRemainingDataBundleBalance in controller",
+        responseFromCheckRemainingDataBundleBalance
+      );
+      if (responseFromCheckRemainingDataBundleBalance.success === true) {
+        const status = responseFromCheckRemainingDataBundleBalance.status
+          ? responseFromCheckRemainingDataBundleBalance.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromCheckRemainingDataBundleBalance.message,
+          transaction: responseFromCheckRemainingDataBundleBalance.data,
+        });
+      } else if (
+        responseFromCheckRemainingDataBundleBalance.success === false
+      ) {
+        const status = responseFromCheckRemainingDataBundleBalance.status
+          ? responseFromCheckRemainingDataBundleBalance.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromCheckRemainingDataBundleBalance.message,
+          errors: responseFromCheckRemainingDataBundleBalance.errors
+            ? responseFromCheckRemainingDataBundleBalance.errors
+            : "Internal Server Error",
         });
       }
     } catch (error) {

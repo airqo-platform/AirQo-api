@@ -2,14 +2,14 @@ const logText = (message) => {
   if (process.env.NODE_ENV === "development") {
     console.log(message);
   }
-  return "log deactivated in prod and stage";
+  return;
 };
 
 const logElement = (message, body) => {
   if (process.env.NODE_ENV === "development") {
     console.log(message + ": " + body);
   }
-  return "log deactivated in prod and stage";
+  return;
 };
 
 const logObject = (message, object) => {
@@ -17,7 +17,7 @@ const logObject = (message, object) => {
     console.log(message + ": ");
     console.dir(object);
   }
-  return "log deactivated in prod and stage";
+  return;
 };
 
 module.exports = { logText, logElement, logObject };

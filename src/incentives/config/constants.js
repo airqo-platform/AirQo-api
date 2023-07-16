@@ -17,6 +17,12 @@ const prodConfig = {
   REDIS_PORT: process.env.REDIS_PORT,
 };
 const defaultConfig = {
+  NETWORKS: process.env.NETWORKS
+    ? process.env.NETWORKS.split(",").filter((value) => value.trim() !== "")
+    : [],
+  SLACK_TOKEN: process.env.SLACK_TOKEN,
+  SLACK_CHANNEL: process.env.SLACK_CHANNEL,
+  SLACK_USERNAME: process.env.SLACK_USERNAME,
   PORT: process.env.PORT || 3000,
   JWT_SECRET: "thisisasecret",
   MTN_MOMO_URL_DISBURSEMENTS:
