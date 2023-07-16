@@ -3,8 +3,8 @@ const sinon = require("sinon");
 const chai = require("chai");
 const { expect } = chai;
 
-const v1 = require("./v1");
-const v2 = require("./v2");
+const v1 = require("@routes/v1");
+const v2 = require("@routes/v2");
 
 describe("API", () => {
   describe("v1", () => {

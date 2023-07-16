@@ -2,7 +2,7 @@ const sinon = require("sinon");
 const chai = require("chai");
 const { expect } = chai;
 
-const generateFilter = require("./generate-filter");
+const generateFilter = require("@utils/generate-filter");
 
 describe("generateFilter", () => {
   describe("hosts", () => {

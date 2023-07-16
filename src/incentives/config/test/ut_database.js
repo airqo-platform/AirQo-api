@@ -3,7 +3,7 @@ const chai = require("chai");
 const sinon = require("sinon");
 const mongoose = require("mongoose");
 const { expect } = chai;
-const { getModelByTenant, getTenantDB, mongodb } = require("./database");
+const { getModelByTenant, getTenantDB, mongodb } = require("@config/database");
 
 describe("database", () => {
   let mongooseCreateConnectionStub;

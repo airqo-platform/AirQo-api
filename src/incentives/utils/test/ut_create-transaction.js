@@ -4,7 +4,7 @@ const { expect } = chai;
 const httpStatus = require("http-status");
 
 const TransactionModel = require("@models/Transaction");
-const createTransaction = require("./createTransaction");
+const createTransaction = require("@utils/create-transaction");
 
 describe("createTransaction", () => {
   let request;

@@ -2,7 +2,7 @@ const sinon = require("sinon");
 const chai = require("chai");
 const { expect } = chai;
 
-const { logText, logElement, logObject } = require("./loggingUtils");
+const { logText, logElement, logObject } = require("@utils/log");
 
 describe("loggingUtils", () => {
   describe("logText", () => {

@@ -2,7 +2,7 @@ require("module-alias/register");
 const chai = require("chai");
 const sinon = require("sinon");
 const { expect } = chai;
-const log4js = require("./log4js");
+const log4js = require("@config/log4js");
 
 describe("log4js", () => {
   it("should have the correct appenders", () => {

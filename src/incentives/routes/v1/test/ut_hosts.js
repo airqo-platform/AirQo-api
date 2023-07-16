@@ -6,7 +6,7 @@ const express = require("express");
 const request = require("supertest");
 const { check, oneOf, query, body, param } = require("express-validator");
 const createHostController = require("@controllers/create-host");
-const createHostRouter = require("./create-host");
+const createHostRouter = require("@routes/hosts");
 
 describe("Create Host Router", () => {
   let app;

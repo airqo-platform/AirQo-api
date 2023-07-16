@@ -5,7 +5,7 @@ const { expect } = chai;
 const httpStatus = require("http-status");
 
 const HostModel = require("@models/Host");
-const createHost = require("./createHost");
+const createHost = require("@utils/create-host");
 
 describe("createHost", () => {
   let request;

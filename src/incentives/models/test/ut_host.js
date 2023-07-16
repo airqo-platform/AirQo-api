@@ -3,7 +3,7 @@ const sinon = require("sinon");
 const chai = require("chai");
 const { expect } = chai;
 const httpStatus = require("http-status");
-const HostModel = require("./HostModel");
+const HostModel = require("@models/Host");
 
 describe("HostModel", () => {
   describe("register", () => {

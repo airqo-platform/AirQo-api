@@ -5,7 +5,7 @@ const { expect } = chai;
 const httpStatus = require("http-status");
 const { validationResult } = require("express-validator");
 const createTransactionUtil = require("@utils/create-transaction");
-const createTransaction = require("./createTransaction");
+const createTransaction = require("@controllers/create-transaction");
 
 describe("createTransaction", () => {
   describe("sendMoneyToHost", () => {

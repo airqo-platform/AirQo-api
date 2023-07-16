@@ -3,7 +3,7 @@ const chai = require("chai");
 const { expect } = chai;
 const httpStatus = require("http-status");
 
-const errors = require("./errors");
+const errors = require("@utils/errors");
 
 describe("errors", () => {
   describe("convertErrorArrayToObject", () => {

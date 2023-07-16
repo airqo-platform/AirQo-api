@@ -6,7 +6,7 @@ const express = require("express");
 const request = require("supertest");
 const { check, oneOf, query, body, param } = require("express-validator");
 const createTransactionController = require("@controllers/create-transaction");
-const createTransactionRouter = require("./create-transaction");
+const createTransactionRouter = require("@routes/transactions");
 
 describe("Create Transaction Router", () => {
   let app;

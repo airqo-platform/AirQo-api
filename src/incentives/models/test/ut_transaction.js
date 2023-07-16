@@ -3,7 +3,7 @@ const sinon = require("sinon");
 const chai = require("chai");
 const { expect } = chai;
 const httpStatus = require("http-status");
-const transactionModel = require("./transactionModel");
+const transactionModel = require("@models/Transaction");
 
 describe("transactionModel", () => {
   describe("register", () => {

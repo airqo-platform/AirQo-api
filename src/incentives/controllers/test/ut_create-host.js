@@ -5,7 +5,7 @@ const { expect } = chai;
 const httpStatus = require("http-status");
 const { validationResult } = require("express-validator");
 const createHostUtil = require("@utils/create-host");
-const createHost = require("./createHost");
+const createHost = require("@controllers/create-host");
 
 describe("createHost", () => {
   describe("create", () => {
