@@ -37,7 +37,7 @@ The Incentives API requires authentication using an API token. Include the API t
 
 #### Add Money to Organizational Account
 
-- Endpoint: `/account/payments`
+- Endpoint: `/accounts/payments`
 - Method: POST
 - Description: Adds money to the organizational account for host payments.
 - Request Body: Amount, Payment Details
@@ -45,7 +45,7 @@ The Incentives API requires authentication using an API token. Include the API t
 
 #### Receive Money from Host
 
-- Endpoint: `/account/receive`
+- Endpoint: `/accounts/receive`
 - Method: POST
 - Description: Receives money from a host's mobile money account into the organizational account.
 - Request Body: Amount, Mobile Money Account, Payment Details
