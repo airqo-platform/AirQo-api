@@ -1162,7 +1162,6 @@ const defaultConfig = {
     if (category === "summary") {
       projection = Object.assign(initialProjection, {
         location: 0,
-        admin_level: 0,
         isCustom: 0,
         metadata: 0,
         center_point: 0,
