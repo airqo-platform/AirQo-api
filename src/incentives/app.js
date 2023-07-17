@@ -1,38 +1,129 @@
-var express = require('express');
-var path = require('path');
-const dotenv = require('dotenv');
+require("module-alias/register");
+const log4js = require("log4js");
+var express = require("express");
+var path = require("path");
+const dotenv = require("dotenv");
 dotenv.config();
-var cookieParser = require('cookie-parser');
-require('./config/database');
-const middlewareConfig = require('./config/app.middleware');
-
-var api = require('./routes/api');
-
+var cookieParser = require("cookie-parser");
+const { mongodb } = require("./config/database");
+mongodb;
+const { logElement, logObject, logText } = require("@utils/log");
+const routes = require("@routes");
 var app = express();
+const morgan = require("morgan");
+const bodyParser = require("body-parser");
+const compression = require("compression");
+const helmet = require("helmet");
+const isDev = process.env.NODE_ENV === "development";
+const isProd = process.env.NODE_ENV === "production";
+const isTest = process.env.NODE_ENV === "test";
+app.use(bodyParser.json());
+app.use(
+  bodyParser.urlencoded({
+    extended: true,
+  })
+);
+if (isProd) {
+  app.use(compression());
+  app.use(helmet());
+}
+if (isDev) {
+  app.use(morgan("dev"));
+}
+if (isTest) {
+  app.use(morgan("dev"));
+}
 
-middlewareConfig(app)
-
+app.use(log4js.connectLogger(log4js.getLogger("http"), { level: "auto" }));
 app.use(cookieParser());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, "public")));
 
-app.use('/api/v1/incentives', api);
+/****** the V1 endpoints ****************/
+app.use("/api/v1/incentives/hosts", routes.v1.hosts);
+app.use("/api/v1/incentives/transactions", routes.v1.transactions);
 
-// catch 404 and forward to error handler
+/****** the V2 endpoints ****************/
+app.use("/api/v2/incentives/hosts", routes.v2.hosts);
+app.use("/api/v2/incentives/transactions", routes.v2.transactions);
+
+// catch 404 and forward to errors handler
 app.use(function (req, res, next) {
-  var err = new Error('Not Found');
+  var err = new Error("Not Found");
   err.status = 404;
   next(err);
 });
 
-// error handler
 app.use(function (err, req, res, next) {
-  // set locals, only providing error in development
-  res.locals.message = err.message;
-  res.locals.error = req.app.get('env') === 'development' ? err : {};
+  if (err.status === 404) {
+    res.status(err.status).json({
+      success: false,
+      message: "this endpoint does not exist",
+      errors: { message: err.message },
+    });
+  }
 
-  // render the error page
-  res.status(err.status || 500);
-  res.render('error');
+  if (err.status === 400) {
+    res.status(err.status).json({
+      success: false,
+      message: "bad request errors",
+      errors: { message: err.message },
+    });
+  }
+
+  if (err.status === 401) {
+    res.status(err.status).json({
+      success: false,
+      message: "Unauthorized",
+      errors: { message: err.message },
+    });
+  }
+
+  if (err.status === 403) {
+    res.status(err.status).json({
+      success: false,
+      message: "Forbidden",
+      errors: { message: err.message },
+    });
+  }
+
+  if (err.status === 500) {
+    res.status(err.status).json({
+      success: false,
+      message: "Internal Server Error",
+      errors: { message: err.message },
+    });
+  }
+
+  if (err.status === 502) {
+    res.status(err.status).json({
+      success: false,
+      message: "Bad Gateway",
+      errors: { message: err.message },
+    });
+  }
+
+  if (err.status === 503) {
+    res.status(err.status).json({
+      success: false,
+      message: "Service Unavailable",
+      errors: { message: err.message },
+    });
+  }
+
+  if (err.status === 504) {
+    res.status(err.status).json({
+      success: false,
+      message: " Gateway Timeout.",
+      errors: { message: err.message },
+    });
+  }
+
+  logObject("the errors", err);
+  res.status(err.status || 500).json({
+    success: false,
+    message: "General Server Side Error, check logs",
+    errors: { message: err.message },
+  });
 });
 
 module.exports = app;
