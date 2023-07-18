@@ -12,6 +12,7 @@ const routes = require("@routes");
 var app = express();
 const morgan = require("morgan");
 const bodyParser = require("body-parser");
+const httpStatus = require("http-status");
 const compression = require("compression");
 const helmet = require("helmet");
 const isDev = process.env.NODE_ENV === "development";
@@ -46,6 +47,23 @@ app.use("/api/v1/incentives/transactions", routes.v1.transactions);
 app.use("/api/v2/incentives/hosts", routes.v2.hosts);
 app.use("/api/v2/incentives/transactions", routes.v2.transactions);
 
+class CustomError extends Error {
+  constructor(message, status = httpStatus.INTERNAL_SERVER_ERROR) {
+    super(message);
+    this.name = "CustomError";
+    this.status = status;
+  }
+
+  toResponseObject() {
+    return {
+      success: false,
+      message: "Internal Server Error",
+      errors: { message: this.message },
+      status: this.status,
+    };
+  }
+}
+
 // catch 404 and forward to errors handler
 app.use(function (req, res, next) {
   var err = new Error("Not Found");
@@ -54,6 +72,10 @@ app.use(function (req, res, next) {
 });
 
 app.use(function (err, req, res, next) {
+  if (err instanceof CustomError) {
+    res.status(err.status).json(err.toResponseObject());
+  }
+
   if (err.status === 404) {
     res.status(err.status).json({
       success: false,

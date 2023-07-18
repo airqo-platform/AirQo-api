@@ -248,7 +248,13 @@ HostSchema.methods = {
 };
 
 const HostModel = (tenant) => {
-  return getModelByTenant(tenant, "host", HostSchema);
+  try {
+    const hosts = mongoose.model("hosts");
+    return hosts;
+  } catch (error) {
+    const hosts = getModelByTenant(tenant, "host", HostSchema);
+    return hosts;
+  }
 };
 
 module.exports = HostModel;
