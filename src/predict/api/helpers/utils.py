@@ -277,7 +277,8 @@ def get_predictions_by_geo_coordinates_v2(latitude: float, longitude: float) -> 
         func.ST_Within(point, Predictions.geometry)
     )
     point = query.first()
-
+    if not point:
+        return {}
     return {
         "parish": point.parish,
         "pm2_5": point.pm2_5,
