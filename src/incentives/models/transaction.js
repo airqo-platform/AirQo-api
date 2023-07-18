@@ -9,10 +9,12 @@ const httpStatus = require("http-status");
 const TransactionSchema = new Schema(
   {
     amount: { type: Number },
-    host_id: { type: ObjectId },
+    host_id: { type: ObjectId, required: true },
     description: { type: String },
-    transaction_id: { type: String },
+    ext_transaction_id: { type: String },
     status: { type: String },
+    batch_id: { type: String },
+    request_id: { type: String },
   },
   { timestamps: true }
 );
@@ -226,14 +228,26 @@ TransactionSchema.methods = {
       amount: this.amount,
       host_id: this.host_id,
       description: this.description,
-      transaction_id: this.transaction_id,
+      ext_transaction_id: this.ext_transaction_id,
       status: this.status,
+      batch_id: this.batch_id,
+      request_id: this.request,
     };
   },
 };
 
-const transactionModel = (tenant) => {
-  return getModelByTenant(tenant, "transaction", TransactionSchema);
+const TransactionModel = (tenant) => {
+  try {
+    const transactions = mongoose.model("transactions");
+    return transactions;
+  } catch (error) {
+    const transactions = getModelByTenant(
+      tenant,
+      "transaction",
+      TransactionSchema
+    );
+    return transactions;
+  }
 };
 
-module.exports = transactionModel;
+module.exports = TransactionModel;
