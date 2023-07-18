@@ -36,7 +36,7 @@ jobs:
       run_calibrate: ${{ steps.check_files.outputs.run_calibrate }} # calibrate
       run_notifications: ${{ steps.check_files.outputs.run_notifications }} # notification
       run_network_uptime: ${{ steps.check_files.outputs.run_network_uptime }} # network_uptime
-
+      run_incentives: ${{ steps.check_files.outputs.run_incentives }} # incentives
     runs-on: ubuntu-latest
     steps:
       - name: checkout code
@@ -65,7 +65,8 @@ jobs:
           echo "run_view=false" >>$GITHUB_OUTPUT
           echo "run_calibrate=false" >>$GITHUB_OUTPUT 
           echo "run_notifications=false" >>$GITHUB_OUTPUT
-          echo "run_network_uptime=false" >>$GITHUB_OUTPUT 
+          echo "run_network_uptime=false" >>$GITHUB_OUTPUT
+          echo "run_incentives=false" >>$GITHUB_OUTPUT
 
           while IFS= read -r file
           do
@@ -116,6 +117,10 @@ jobs:
 
             if [[ $file == src/network-uptime/* ]]; then
               echo "run_network_uptime=true" >>$GITHUB_OUTPUT
+            fi
+
+            if [[ $file == src/incentives/* ]]; then
+              echo "run_incentives=true" >>$GITHUB_OUTPUT
             fi
 
           done < files.txt
@@ -1054,4 +1059,82 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               body: 'Network uptime changes in this PR available for preview [here](${{ needs.network-uptime.outputs.url }})'
+            })
+
+  ### incentives ###
+  incentives:
+    name: build-push-deploy-incentives
+    needs: [check, branch-name]
+    if: needs.check.outputs.run_incentives == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      url: ${{ steps.preview-url.outputs.url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3.5.3
+
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v1.1.1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
+
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1.1.1
+
+      - name: Docker Auth
+        id: docker-auth
+        uses: docker/login-action@v2.2.0
+        with:
+          registry: ${{ env.REGISTRY_URL }}
+          username: _json_key
+          password: ${{ secrets.GCP_SA_CREDENTIALS }}
+
+      - name: Build and Push Container
+        run: |
+          cd src/incentives/
+          docker build --target=staging --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/incentives-pr-previews:${{ github.sha }} .
+          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/incentives-pr-previews:${{ github.sha }}
+
+      - name: Deploy to Cloud Run
+        run: |-
+          gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-incentives-preview \
+            --region=${{ secrets.REGION }} \
+            --max-instances=10 \
+            --timeout=60 \
+            --concurrency=10 \
+            --image=${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/pr-previews/incentives-pr-previews:${{ github.sha }} \
+            --port=3000 \
+            --cpu=1000m \
+            --memory=256Mi \
+            --update-secrets=/etc/env/.env=sta-env-incentives:latest \
+            --command="/bin/sh","-c","cat /etc/env/.env >> /app/.env; npm run stage" \
+            --allow-unauthenticated
+
+      - name: Get preview service url
+        id: preview-url
+        run: |
+          read service_url < <(gcloud run services describe ${{ needs.branch-name.outputs.lowercase }}-incentives-preview \
+            --format='value(status.url)' \
+            --platform managed \
+            --region ${{ secrets.REGION }})
+          echo "url=${service_url}" >>$GITHUB_OUTPUT
+
+  incentives-pr-comment:
+    name: incentives-preview-link-comment
+    if: needs.check.outputs.run_incentives == 'true'
+    needs: [incentives]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: 'Incentives changes in this PR available for preview [here](${{ needs.incentives.outputs.url }})'
             })
