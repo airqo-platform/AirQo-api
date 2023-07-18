@@ -5,6 +5,27 @@ const { getModelByTenant } = require("@config/database");
 const { logObject, logElement, logText } = require("@utils/log");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
+const log4js = require("log4js");
+const logger = log4js.getLogger("transaction-model");
+
+const successResponse = {
+  success: true,
+  status: httpStatus.OK,
+};
+
+const errorResponse = {
+  success: false,
+  status: httpStatus.INTERNAL_SERVER_ERROR,
+};
+
+const notFoundResponse = {
+  success: false,
+  status: httpStatus.NOT_FOUND,
+};
+
+const transactionSchemaOptions = {
+  timestamps: true,
+};
 
 const TransactionSchema = new Schema(
   {
@@ -16,227 +37,201 @@ const TransactionSchema = new Schema(
     batch_id: { type: String },
     request_id: { type: String },
   },
-  { timestamps: true }
+  transactionSchemaOptions
 );
 
-TransactionSchema.pre("save", function (next) {
-  if (this.isModified("password")) {
-  }
-  return next();
-});
+const handleServerError = (error, message) => {
+  logObject("error", error);
+  const stingifiedMessage = JSON.stringify(error ? error : "");
+  logger.error(`Internal Server Error -- ${stingifiedMessage}`);
+  return {
+    ...errorResponse,
+    message,
+    errors: { message: error.message },
+  };
+};
 
-TransactionSchema.pre("findOneAndUpdate", function () {
-  let that = this;
-  const update = that.getUpdate();
-  if (update) {
-    if (update.__v != null) {
-      delete update.__v;
-    }
-    const keys = ["$set", "$setOnInsert"];
-    for (const key of keys) {
-      if (update[key] != null && update[key].__v != null) {
-        delete update[key].__v;
-        if (Object.keys(update[key]).length === 0) {
-          delete update[key];
-        }
-      }
-    }
-    update.$inc = update.$inc || {};
-    update.$inc.__v = 1;
-  }
+TransactionSchema.pre("save", function (next) {
+  return next();
 });
 
 TransactionSchema.pre("update", function (next) {
   return next();
 });
 
-TransactionSchema.statics = {
-  async register(args) {
-    logObject("the args", args);
-    try {
-      const data = await this.create({
-        ...args,
-      });
-      return {
-        success: true,
-        data,
-        message: "transaction created",
-        status: httpStatus.OK,
-      };
-    } catch (error) {
-      let response = {};
-      message = "validation errors for some of the provided fields";
-      let status = httpStatus.CONFLICT;
-      if (err.code === 11000) {
-        Object.entries(err.keyPattern).forEach(([key, value]) => {
-          return (response[key] = "duplicate value");
-        });
-      }
-      if (err.errors) {
-        Object.entries(err.errors).forEach(([key, value]) => {
-          return (response[value.path] = value.message);
-        });
-      }
-
-      return {
-        errors: response,
-        message,
-        success: false,
-        status,
-      };
-    }
-  },
-  async list({ skip = 0, limit = 5, filter = {} } = {}) {
-    try {
-      let transactions = await this.aggregate()
-        .match(filter)
-        .addFields({
-          createdAt: {
-            $dateToString: {
-              format: "%Y-%m-%d %H:%M:%S",
-              date: "$_id",
-            },
-          },
-        })
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit);
-      let data = transactions;
-      if (!isEmpty(data)) {
-        return {
-          success: true,
-          data,
-          message: "successfully listed the transactions",
-          status: httpStatus.OK,
-        };
-      }
-
-      if (isEmpty(data)) {
-        return {
-          success: true,
-          message: "no transactions exist for this search",
-          data,
-          status: httpStatus.NOT_FOUND,
-        };
-      }
-      return {
-        success: false,
-        message: "unable to retrieve transactions",
-        data,
-        errors: { message: "unable to retrieve transactions" },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
-    } catch (error) {
-      return {
-        success: false,
-        message: "Transaction model server error - list",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
-    }
-  },
-  async modify({ filter = {}, update = {} } = {}) {
-    try {
-      let modifiedUpdate = update;
-      let projection = { _id: 1 };
-      Object.keys(modifiedUpdate).forEach((key) => {
-        projection[key] = 1;
-      });
-      let options = { new: true, projection };
-      let updatedTransaction = await this.findOneAndUpdate(
-        filter,
-        modifiedUpdate,
-        options
-      );
-      const data = updatedTransaction;
-      if (!isEmpty(updatedTransaction)) {
-        return {
-          success: true,
-          message: "successfully modified the transaction",
-          data,
-          status: httpStatus.OK,
-        };
-      } else {
-        return {
-          success: false,
-          message: "transaction does not exist, please crosscheck",
-          status: httpStatus.NOT_FOUND,
-          errors: {
-            message: "transaction does not exist",
-          },
-        };
-      }
-    } catch (error) {
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
-    }
-  },
-  async remove({ filter = {} } = {}) {
-    try {
-      let projection = {
-        _id: 1,
-        amount: 1,
-        host_id: 1,
-        description: 1,
-        transaction_id: 1,
-        status: 1,
-      };
-      let options = {
-        projection,
-      };
-
-      let removedTransaction = await this.findOneAndRemove(filter, options);
-
-      logObject("removedTransaction", removedTransaction);
-
-      if (!isEmpty(removedTransaction)) {
-        const data = removedTransaction._doc;
-        return {
-          success: true,
-          message: "successfully removed the transaction",
-          data,
-          status: httpStatus.OK,
-        };
-      } else {
-        return {
-          success: false,
-          message: "transaction does not exist, please crosscheck",
-          status: httpStatus.NOT_FOUND,
-          errors: { message: "transaction does not exist" },
-        };
-      }
-    } catch (error) {
-      logObject("the error in transaction model", error);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
-    }
-  },
-};
-
-TransactionSchema.methods = {
-  toJSON() {
+TransactionSchema.statics.register = async function (args) {
+  logObject("the args", args);
+  try {
+    const data = await this.create(args);
     return {
-      _id: this._id,
-      amount: this.amount,
-      host_id: this.host_id,
-      description: this.description,
-      ext_transaction_id: this.ext_transaction_id,
-      status: this.status,
-      batch_id: this.batch_id,
-      request_id: this.request,
+      ...successResponse,
+      data,
+      message: "transaction created",
     };
-  },
+  } catch (error) {
+    if (error.code === 11000) {
+      const response = Object.entries(error.keyPattern).reduce(
+        (acc, [key, value]) => {
+          acc[key] = "duplicate value";
+          return acc;
+        },
+        {}
+      );
+      return {
+        ...errorResponse,
+        errors: response,
+        message: "validation errors for some of the provided fields",
+      };
+    }
+    if (error.errors) {
+      const response = Object.entries(error.errors).reduce(
+        (acc, [key, value]) => {
+          acc[value.path] = value.message;
+          return acc;
+        },
+        {}
+      );
+      return {
+        ...errorResponse,
+        errors: response,
+        message: "validation errors for some of the provided fields",
+      };
+    }
+    return handleServerError(error, "Internal Server Error");
+  }
 };
 
-const TransactionModel = (tenant) => {
+TransactionSchema.statics.list = async function ({
+  skip = 0,
+  limit = 5,
+  filter = {},
+} = {}) {
+  try {
+    const transactions = await this.aggregate()
+      .match(filter)
+      .addFields({
+        createdAt: {
+          $dateToString: {
+            format: "%Y-%m-%d %H:%M:%S",
+            date: "$_id",
+          },
+        },
+      })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    if (!isEmpty(transactions)) {
+      return {
+        ...successResponse,
+        data: transactions,
+        message: "successfully listed the transactions",
+      };
+    }
+
+    return {
+      ...notFoundResponse,
+      message: "no transactions exist for this search",
+    };
+  } catch (error) {
+    return handleServerError(error, "Transaction model server error - list");
+  }
+};
+
+TransactionSchema.statics.modify = async function ({
+  filter = {},
+  update = {},
+} = {}) {
+  try {
+    const modifiedUpdate = update;
+    const projection = { _id: 1 };
+    Object.keys(modifiedUpdate).forEach((key) => {
+      projection[key] = 1;
+    });
+    const options = { new: true, projection };
+
+    const updatedTransaction = await this.findOneAndUpdate(
+      filter,
+      modifiedUpdate,
+      options
+    );
+
+    if (isEmpty(updatedTransaction)) {
+      return {
+        ...notFoundResponse,
+        message: "transaction does not exist, please crosscheck",
+        errors: { message: "transaction does not exist" },
+      };
+    }
+
+    return {
+      ...successResponse,
+      message: "successfully modified the transaction",
+      data: updatedTransaction,
+    };
+  } catch (error) {
+    return handleServerError(error, "Internal Server Error");
+  }
+};
+
+TransactionSchema.statics.remove = async function ({ filter = {} } = {}) {
+  try {
+    const projection = {
+      _id: 1,
+      amount: 1,
+      host_id: 1,
+      description: 1,
+      status: 1,
+    };
+    const options = {
+      projection,
+    };
+
+    const removedTransaction = await this.findOneAndRemove(filter, options);
+
+    if (isEmpty(removedTransaction)) {
+      return {
+        ...notFoundResponse,
+        message: "transaction does not exist, please crosscheck",
+        errors: { message: "transaction does not exist" },
+      };
+    }
+
+    return {
+      ...successResponse,
+      message: "successfully removed the transaction",
+      data: removedTransaction._doc,
+    };
+  } catch (error) {
+    return handleServerError(error, "Internal Server Error");
+  }
+};
+
+TransactionSchema.methods.toJSON = function () {
+  const {
+    _id,
+    amount,
+    host_id,
+    description,
+    ext_transaction_id,
+    status,
+    batch_id,
+    request,
+  } = this;
+
+  return {
+    _id,
+    amount,
+    host_id,
+    description,
+    ext_transaction_id,
+    status,
+    batch_id,
+    request_id: request,
+  };
+};
+
+const createTransactionModel = (tenant) => {
   try {
     const transactions = mongoose.model("transactions");
     return transactions;
@@ -249,5 +244,7 @@ const TransactionModel = (tenant) => {
     return transactions;
   }
 };
+
+const TransactionModel = createTransactionModel;
 
 module.exports = TransactionModel;

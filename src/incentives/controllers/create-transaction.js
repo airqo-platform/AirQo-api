@@ -15,6 +15,11 @@ const createTransaction = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        logger.error(
+          `input validation errors ${JSON.stringify(
+            errors.convertErrorArrayToObject(nestedErrors)
+          )}`
+        );
         return errors.badRequest(
           res,
           "bad request errors",
@@ -68,6 +73,11 @@ const createTransaction = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        logger.error(
+          `input validation errors ${JSON.stringify(
+            errors.convertErrorArrayToObject(nestedErrors)
+          )}`
+        );
         return errors.badRequest(
           res,
           "bad request errors",
@@ -121,6 +131,11 @@ const createTransaction = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        logger.error(
+          `input validation errors ${JSON.stringify(
+            errors.convertErrorArrayToObject(nestedErrors)
+          )}`
+        );
         return errors.badRequest(
           res,
           "bad request errors",
@@ -174,6 +189,11 @@ const createTransaction = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        logger.error(
+          `input validation errors ${JSON.stringify(
+            errors.convertErrorArrayToObject(nestedErrors)
+          )}`
+        );
         return errors.badRequest(
           res,
           "bad request errors",
@@ -228,6 +248,11 @@ const createTransaction = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        logger.error(
+          `input validation errors ${JSON.stringify(
+            errors.convertErrorArrayToObject(nestedErrors)
+          )}`
+        );
         return errors.badRequest(
           res,
           "bad request errors",
@@ -281,6 +306,11 @@ const createTransaction = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        logger.error(
+          `input validation errors ${JSON.stringify(
+            errors.convertErrorArrayToObject(nestedErrors)
+          )}`
+        );
         return errors.badRequest(
           res,
           "bad request errors",

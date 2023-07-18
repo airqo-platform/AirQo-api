@@ -1,4 +1,4 @@
-const TransactionModel = require("@models/Transaction");
+const TransactionModel = require("@models/transaction");
 const constants = require("@config/constants");
 const { logObject, logElement, logText } = require("@utils/log");
 const isEmpty = require("is-empty");
