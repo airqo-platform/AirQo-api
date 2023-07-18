@@ -25,6 +25,7 @@
         "@routes": "routes"
     },
     "dependencies": {
+        "@log4js-node/slack": "^1.0.0",
         "body-parser": "~1.18.2",
         "compression": "^1.7.4",
         "cookie-parser": "~1.4.3",

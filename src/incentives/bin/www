@@ -3,11 +3,19 @@
 /**
  * Module dependencies.
  */
-
+const log4js = require('log4js');
 var app = require('../app');
-const constants = require('../config/constants');
+const constants = require('@config/constants');
 var debug = require('debug')('incetives-service:server');
 var http = require('http');
+const isEmpty = require("is-empty");
+
+const log4jsConfiguration = require("@config/log4js")
+log4js.configure(log4jsConfiguration);
+const logger = log4js.getLogger(
+    `${constants.ENVIRONMENT} -- www-start-script`
+);
+
 
 /**
  * Get port from environment and store in Express.

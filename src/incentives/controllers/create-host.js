@@ -14,6 +14,11 @@ const createHost = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        logger.error(
+          `input validation errors ${JSON.stringify(
+            errors.convertErrorArrayToObject(nestedErrors)
+          )}`
+        );
         return errors.badRequest(
           res,
           "bad request errors",
@@ -63,6 +68,11 @@ const createHost = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        logger.error(
+          `input validation errors ${JSON.stringify(
+            errors.convertErrorArrayToObject(nestedErrors)
+          )}`
+        );
         return errors.badRequest(
           res,
           "bad request errors",
@@ -114,6 +124,11 @@ const createHost = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        logger.error(
+          `input validation errors ${JSON.stringify(
+            errors.convertErrorArrayToObject(nestedErrors)
+          )}`
+        );
         return errors.badRequest(
           res,
           "bad request errors",
@@ -150,6 +165,8 @@ const createHost = {
         });
       }
     } catch (error) {
+      logObject("error", error);
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -163,6 +180,11 @@ const createHost = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        logger.error(
+          `input validation errors ${JSON.stringify(
+            errors.convertErrorArrayToObject(nestedErrors)
+          )}`
+        );
         return errors.badRequest(
           res,
           "bad request errors",

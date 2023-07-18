@@ -1,5 +1,6 @@
-const { logElement } = require("@utils/log");
-const constants = require("./constants");
+const { logElement, logObject } = require("@utils/log");
+const constants = require("@config/constants");
+
 const log4js = {
   appenders: {
     console: { type: "console" },

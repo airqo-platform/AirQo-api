@@ -1,6 +1,7 @@
 const devConfig = {
   MONGO_URI: `mongodb://localhost/`,
   DB_NAME: process.env.MONGO_DEV,
+  ENVIRONMENT: "DEVELOPMENT ENVIRONMENT",
   REDIS_SERVER: process.env.REDIS_SERVER_DEV,
   REDIS_PORT: process.env.REDIS_PORT,
   XENTE_BASE_URL: process.env.XENTE_DEV_BASE_URL,
@@ -10,6 +11,7 @@ const devConfig = {
 };
 const stageConfig = {
   MONGO_URI: process.env.MONGO_GCE_URI,
+  ENVIRONMENT: "STAGING ENVIRONMENT",
   DB_NAME: process.env.MONGO_STAGE,
   REDIS_SERVER: process.env.REDIS_SERVER,
   REDIS_PORT: process.env.REDIS_PORT,
@@ -21,6 +23,7 @@ const stageConfig = {
 const prodConfig = {
   MONGO_URI: process.env.MONGO_GCE_URI,
   DB_NAME: process.env.MONGO_PROD,
+  ENVIRONMENT: "PRODUCTION ENVIRONMENT",
   REDIS_SERVER: process.env.REDIS_SERVER,
   REDIS_PORT: process.env.REDIS_PORT,
   XENTE_BASE_URL: process.env.XENTE_PROD_BASE_URL,
