@@ -3,18 +3,30 @@ const devConfig = {
   DB_NAME: process.env.MONGO_DEV,
   REDIS_SERVER: process.env.REDIS_SERVER_DEV,
   REDIS_PORT: process.env.REDIS_PORT,
+  XENTE_BASE_URL: process.env.XENTE_DEV_BASE_URL,
+  XENTE_ACCOUNT_ID: process.env.XENTE_DEV_ACCOUNT_ID,
+  XENTE_PASSWORD: process.env.XENTE_DEV_PASSWORD,
+  XENTE_USERNAME: process.env.XENTE_DEV_USERNAME,
 };
 const stageConfig = {
   MONGO_URI: process.env.MONGO_GCE_URI,
   DB_NAME: process.env.MONGO_STAGE,
   REDIS_SERVER: process.env.REDIS_SERVER,
   REDIS_PORT: process.env.REDIS_PORT,
+  XENTE_BASE_URL: process.env.XENTE_STAGE_BASE_URL,
+  XENTE_ACCOUNT_ID: process.env.XENTE_STAGE_ACCOUNT_ID,
+  XENTE_PASSWORD: process.env.XENTE_STAGE_PASSWORD,
+  XENTE_USERNAME: process.env.XENTE_STAGE_USERNAME,
 };
 const prodConfig = {
   MONGO_URI: process.env.MONGO_GCE_URI,
   DB_NAME: process.env.MONGO_PROD,
   REDIS_SERVER: process.env.REDIS_SERVER,
   REDIS_PORT: process.env.REDIS_PORT,
+  XENTE_BASE_URL: process.env.XENTE_PROD_BASE_URL,
+  XENTE_ACCOUNT_ID: process.env.XENTE_PROD_ACCOUNT_ID,
+  XENTE_PASSWORD: process.env.XENTE_PROD_PASSWORD,
+  XENTE_USERNAME: process.env.XENTE_PROD_USERNAME,
 };
 const defaultConfig = {
   NETWORKS: process.env.NETWORKS
