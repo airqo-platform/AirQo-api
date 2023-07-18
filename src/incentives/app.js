@@ -4,6 +4,8 @@ var express = require("express");
 var path = require("path");
 const dotenv = require("dotenv");
 dotenv.config();
+const constants = require("@config/constants");
+
 var cookieParser = require("cookie-parser");
 const { mongodb } = require("./config/database");
 mongodb;
@@ -11,6 +13,7 @@ const { logElement, logObject, logText } = require("@utils/log");
 const routes = require("@routes");
 var app = express();
 const morgan = require("morgan");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- app entry`);
 const bodyParser = require("body-parser");
 const httpStatus = require("http-status");
 const compression = require("compression");

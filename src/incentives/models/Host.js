@@ -6,6 +6,23 @@ const isEmpty = require("is-empty");
 const { getModelByTenant } = require("@config/database");
 const constants = require("@config/constants");
 const httpStatus = require("http-status");
+const log4js = require("log4js");
+const logger = log4js.getLogger("host-model");
+
+const successResponse = {
+  success: true,
+  status: httpStatus.OK,
+};
+
+const errorResponse = {
+  success: false,
+  status: httpStatus.INTERNAL_SERVER_ERROR,
+};
+
+const badRequestResponse = {
+  success: false,
+  status: httpStatus.BAD_REQUEST,
+};
 
 const HostSchema = new Schema(
   {
@@ -49,211 +66,152 @@ HostSchema.index(
   }
 );
 
+const handleServerError = (error, message) => {
+  logObject("error", error);
+  const stingifiedMessage = JSON.stringify(error ? error : "");
+  logger.error(`Internal Server Error -- ${stingifiedMessage}`);
+  return {
+    ...errorResponse,
+    message,
+    errors: { message: error.message },
+  };
+};
+
 HostSchema.pre("save", function (next) {
   if (this.isModified("password")) {
   }
   return next();
 });
 
-HostSchema.pre("findOneAndUpdate", function () {
-  let that = this;
-  const update = that.getUpdate();
-  if (update) {
-    if (update.__v != null) {
-      delete update.__v;
-    }
-    const keys = ["$set", "$setOnInsert"];
-    for (const key of keys) {
-      if (update[key] != null && update[key].__v != null) {
-        delete update[key].__v;
-        if (Object.keys(update[key]).length === 0) {
-          delete update[key];
-        }
-      }
-    }
-    update.$inc = update.$inc || {};
-    update.$inc.__v = 1;
-  }
-});
-
 HostSchema.pre("update", function (next) {
   return next();
 });
 
-HostSchema.statics = {
-  async register(args) {
-    try {
-      return {
-        success: true,
-        data: await this.create({
-          ...args,
-        }),
-        message: "host created",
-      };
-    } catch (err) {
-      let response = {};
-      message = "validation errors for some of the provided fields";
-      let status = httpStatus.CONFLICT;
-      if (err.code === 11000) {
-        Object.entries(err.keyPattern).forEach(([key, value]) => {
-          return (response[key] = "duplicate value");
-        });
-      }
-      if (err.errors) {
-        Object.entries(err.errors).forEach(([key, value]) => {
-          return (response[value.path] = value.message);
-        });
-      }
-
-      return {
-        errors: response,
-        message,
-        success: false,
-        status,
-      };
-    }
-  },
-  async list({ skip = 0, limit = 5, filter = {} } = {}) {
-    try {
-      let hosts = await this.aggregate()
-        .match(filter)
-        .addFields({
-          createdAt: {
-            $dateToString: {
-              format: "%Y-%m-%d %H:%M:%S",
-              date: "$_id",
-            },
-          },
-        })
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .exec();
-      let data = hosts;
-      if (!isEmpty(data)) {
-        return {
-          success: true,
-          data,
-          message: "successfully listed the hosts",
-          status: httpStatus.OK,
-        };
-      }
-
-      if (isEmpty(data)) {
-        return {
-          success: true,
-          message: "no hosts exist for this search",
-          data,
-          status: httpStatus.OK,
-        };
-      }
-      return {
-        success: false,
-        message: "unable to retrieve hosts",
-        data,
-        errors: { message: "unable to retrieve hosts" },
-        status: httpStatus.NOT_FOUND,
-      };
-    } catch (error) {
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
-    }
-  },
-  async modify({ filter = {}, update = {} } = {}) {
-    try {
-      let modifiedUpdate = update;
-      let projection = { _id: 1 };
-      Object.keys(modifiedUpdate).forEach((key) => {
-        projection[key] = 1;
-      });
-      let options = { new: true, projection };
-      let updatedHost = await this.findOneAndUpdate(
-        filter,
-        modifiedUpdate,
-        options
-      );
-      let data = updatedHost;
-      if (!isEmpty(updatedHost)) {
-        return {
-          success: true,
-          message: "successfully modified the host",
-          data,
-          status: httpStatus.OK,
-        };
-      } else {
-        return {
-          success: false,
-          message: "host does not exist, please crosscheck",
-          errors: { message: "host does not exist" },
-          status: httpStatus.BAD_REQUEST,
-        };
-      }
-    } catch (error) {
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
-    }
-  },
-  async remove({ filter = {} } = {}) {
-    try {
-      let projection = { _id: 1, email: 1, first_name: 1, last_name: 1 };
-      let options = { projection };
-      let removedHost = await this.findOneAndRemove(filter, options);
-
-      logObject("data removed", removedHost);
-      if (!isEmpty(removedHost)) {
-        let data = removedHost._doc;
-        return {
-          success: true,
-          message: "successfully removed the host",
-          data,
-          status: httpStatus.OK,
-        };
-      } else {
-        return {
-          success: false,
-          message: "host does not exist, please crosscheck",
-          errors: { message: "host does not exist" },
-          status: httpStatus.BAD_REQUEST,
-        };
-      }
-    } catch (error) {
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
-    }
-  },
+HostSchema.statics.register = async function (args) {
+  try {
+    const data = await this.create({ ...args });
+    return {
+      ...successResponse,
+      data,
+      message: "host created",
+    };
+  } catch (error) {
+    return handleServerError(error, "Internal Server Error");
+  }
 };
 
-HostSchema.methods = {
-  toJSON() {
+HostSchema.statics.list = async function ({
+  skip = 0,
+  limit = 5,
+  filter = {},
+} = {}) {
+  try {
+    const hosts = await this.aggregate()
+      .match(filter)
+      .addFields({
+        createdAt: {
+          $dateToString: {
+            format: "%Y-%m-%d %H:%M:%S",
+            date: "$_id",
+          },
+        },
+      })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .exec();
+
+    if (!isEmpty(hosts)) {
+      return {
+        ...successResponse,
+        data: hosts,
+        message: "successfully listed the hosts",
+      };
+    }
+
     return {
-      _id: this._id,
-      first_name: this.first_name,
-      last_name: this.last_name,
-      site_id: this.site_id,
-      phone_number: this.phone_number,
+      ...successResponse,
+      message: "no hosts exist for this search",
     };
-  },
+  } catch (error) {
+    return handleServerError(error, "unable to retrieve hosts");
+  }
+};
+
+HostSchema.statics.modify = async function ({ filter = {}, update = {} } = {}) {
+  try {
+    const modifiedUpdate = update;
+    const projection = { _id: 1 };
+    Object.keys(modifiedUpdate).forEach((key) => {
+      projection[key] = 1;
+    });
+    const options = { new: true, projection };
+
+    const updatedHost = await this.findOneAndUpdate(
+      filter,
+      modifiedUpdate,
+      options
+    );
+
+    if (!isEmpty(updatedHost)) {
+      return {
+        ...successResponse,
+        message: "successfully modified the host",
+        data: updatedHost,
+      };
+    } else {
+      return {
+        ...badRequestResponse,
+        message: "host does not exist, please crosscheck",
+        errors: { message: "host does not exist" },
+      };
+    }
+  } catch (error) {
+    return handleServerError(error, "Internal Server Error");
+  }
+};
+
+HostSchema.statics.remove = async function ({ filter = {} } = {}) {
+  try {
+    const projection = { _id: 1, email: 1, first_name: 1, last_name: 1 };
+    const options = { projection };
+    const removedHost = await this.findOneAndRemove(filter, options);
+
+    if (!isEmpty(removedHost)) {
+      const data = removedHost._doc;
+      return {
+        ...successResponse,
+        message: "successfully removed the host",
+        data,
+      };
+    } else {
+      return {
+        ...badRequestResponse,
+        message: "host does not exist, please crosscheck",
+        errors: { message: "host does not exist" },
+      };
+    }
+  } catch (error) {
+    return handleServerError(error, "Internal Server Error");
+  }
+};
+
+HostSchema.methods.toJSON = function () {
+  const { _id, first_name, last_name, site_id, phone_number } = this;
+  return {
+    _id,
+    first_name,
+    last_name,
+    site_id,
+    phone_number,
+  };
 };
 
 const HostModel = (tenant) => {
   try {
-    const hosts = mongoose.model("hosts");
-    return hosts;
+    return mongoose.model("hosts");
   } catch (error) {
-    const hosts = getModelByTenant(tenant, "host", HostSchema);
-    return hosts;
+    return getModelByTenant(tenant, "host", HostSchema);
   }
 };
 
