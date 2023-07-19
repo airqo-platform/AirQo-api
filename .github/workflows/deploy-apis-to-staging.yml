@@ -440,7 +440,7 @@ jobs:
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
             token: ${{ secrets.YAML_UPDATER_TOKEN }}
-            message: "Update BigQuery-connectors staging image tag to ${{ needs.image-tag.outputs.build_id }}          
+            message: "Update BigQuery-connectors staging image tag to ${{ needs.image-tag.outputs.build_id }}
 
       - name: Deploy to k8s cluster
         run: |
@@ -450,7 +450,7 @@ jobs:
           kubectl apply -f k8s/kafka/connectors/purple-air-connector.yaml -n message-broker
 
       - name: Set up GCP credentials and Kubernetes configmaps
-        run : |
+        run: |
           gcloud secrets versions access latest --secret="sta-env-kafka-bigquery-connectors" > .env
           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env bigquery-connectors | kubectl replace -f - -n staging
           gcloud secrets versions access latest --secret="sta-key-kafka-bigquery-connectors" > google_application_credentials.json
@@ -706,7 +706,7 @@ jobs:
           kubectl create configmap --dry-run=client -o yaml --from-env-file=predict_places_air_quality.env env-predict-places-air-quality | kubectl replace -f - -n staging
           echo "=============== Updating the respective credentials files ==============="
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json env-predict-staging-files | kubectl replace -f - -n staging
-                              
+
   ### kafka cluster operator ###
   kafka-cluster-operator:
     name: build-push-deploy-kafka-cluster-operator
@@ -1808,7 +1808,7 @@ jobs:
           context: src/incentives/
           target: staging
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-incentives-api:${{ needs.image-tag.outputs.build_id }}, ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-incentives-api:latest
-    
+
       - name: Update corresponding helm values file(with retry)
         uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
@@ -1833,9 +1833,8 @@ jobs:
         run: |
           cd src/incentives/
           gcloud secrets versions access latest --secret="sta-env-incentives" > .env
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env incentives-api-config | kubectl replace -f - -n staging
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env stage-incentives-api-config | kubectl replace -f - -n staging
 
-          
   #### Channel data ######
   channel-data:
     name: build-push-deploy-channel-data-job
