@@ -2,7 +2,7 @@ app:
   name: airqo-incentives-api
   label: incentives-api
   namespace: production
-  configmap: incentives-api-config
+  configmap: prod-incentives-api-config
 replicaCount: 3
 image:
   repository: eu.gcr.io/airqo-250220/airqo-incentives-api
