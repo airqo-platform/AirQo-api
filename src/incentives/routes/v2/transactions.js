@@ -6,11 +6,30 @@ const constants = require("@config/constants");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 
+const commonFields = {
+  channelId: constants.XENTE_CHANNEL_ID,
+  customerId: constants.XENTE_CUSTOMER_ID,
+  customerPhone: constants.XENTE_CUSTOMER_PHONE,
+  customerEmail: constants.XENTE_CUSTOMER_EMAIL,
+  memo: constants.XENTE_MEMO,
+};
+
 const validatePagination = (req, res, next) => {
   const limit = parseInt(req.query.limit, 10);
   const skip = parseInt(req.query.skip, 10);
   req.query.limit = isNaN(limit) || limit < 1 ? 1000 : limit;
   req.query.skip = isNaN(skip) || skip < 0 ? 0 : skip;
+  next();
+};
+
+const addCommonFieldsToBody = (req, res, next) => {
+  const { channelId, customerId, customerPhone, customerEmail, memo } =
+    commonFields;
+  req.body.channelId = channelId;
+  req.body.customerId = customerId;
+  req.body.customerPhone = customerPhone;
+  req.body.customerEmail = customerEmail;
+  req.body.memo = memo;
   next();
 };
 
@@ -29,6 +48,7 @@ router.use(validatePagination);
 
 router.post(
   "/hosts/:host_id/payments",
+  addCommonFieldsToBody,
   oneOf([
     [
       query("tenant")
@@ -60,6 +80,7 @@ router.post(
 
 router.post(
   "/accounts/payments",
+  addCommonFieldsToBody,
   oneOf([
     [
       query("tenant")
@@ -91,6 +112,7 @@ router.post(
 
 router.post(
   "/accounts/receive",
+  addCommonFieldsToBody,
   oneOf([
     [
       query("tenant")
@@ -122,6 +144,7 @@ router.post(
 
 router.post(
   "/devices/:device_id/data",
+  addCommonFieldsToBody,
   oneOf([
     [
       query("tenant")
