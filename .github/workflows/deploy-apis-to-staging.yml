@@ -1807,7 +1807,7 @@ jobs:
           push: true
           context: src/incentives/
           target: staging
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-incentives-api:${{ needs.image-tag.outputs.build_id }}, ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-incentives-api:latest
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-incentives-api:${{ needs.image-tag.outputs.build_id }}, ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-incentives-api:latest
     
       - name: Update corresponding helm values file(with retry)
         uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
