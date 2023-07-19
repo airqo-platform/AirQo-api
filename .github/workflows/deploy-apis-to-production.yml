@@ -1799,7 +1799,7 @@ jobs:
         with:
           push: true
           context: src/incentives/
-          target: staging
+          target: production
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-incentives-api:${{ needs.image-tag.outputs.build_id }}, ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-incentives-api:latest
 
       - name: Update corresponding helm values file(with retry)
