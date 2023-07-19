@@ -5,7 +5,7 @@ app:
   configmap: incentives-api-config
 replicaCount: 2
 image:
-  repository: eu.gcr.io/airqo-250220/airqo-incentives-api
+  repository: eu.gcr.io/airqo-250220/airqo-stage-incentives-api
   tag: latest
 nameOverride: ""
 fullnameOverride: ""
@@ -16,22 +16,14 @@ resources:
     memory: 500Mi
   requests:
     cpu: 100m
-    memory: 250Mi
-volumeMounts:
-  - name: config-volume
-    mountPath: /etc/config
-volumes:
-  - name: config-volume
-    configMap:
-      name: incentives-api-config-files    
+    memory: 250Mi    
 ingress:
   enabled: false
 service:
   type: NodePort
   port: 3000
   protocol: TCP
-  targetPort: 3000
-  
+  targetPort: 3000 
 autoscaling:
   enabled: false
   minReplicas: 1

@@ -16,21 +16,14 @@ resources:
     memory: 500Mi
   requests:
     cpu: 100m
-    memory: 250Mi
-volumeMounts:
-  - name: config-volume
-    mountPath: /etc/config
-volumes:
-  - name: config-volume
-    configMap:
-      name: prod-incentives-api-config-files    
+    memory: 250Mi    
 ingress:
   enabled: false
 service:
   type: NodePort
   port: 3000
   protocol: TCP
-  targetPort: 3000
+  targetPort: 3000  
 autoscaling:
   enabled: false
   minReplicas: 1
