@@ -2,7 +2,7 @@ app:
   name: airqo-incentives-api
   label: incentives-api
   namespace: production
-  configmap: prod-incentives-api-config
+  configmap: incentives-api-config
 replicaCount: 3
 image:
   repository: eu.gcr.io/airqo-250220/airqo-incentives-api
@@ -31,7 +31,6 @@ service:
   port: 3000
   protocol: TCP
   targetPort: 3000
-  
 autoscaling:
   enabled: false
   minReplicas: 1
