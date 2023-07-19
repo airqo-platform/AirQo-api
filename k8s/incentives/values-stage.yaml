@@ -1,5 +1,5 @@
 app:
-  name: airqo-incentives-api
+  name: airqo-stage-incentives-api
   label: incentives-api
   namespace: staging
   configmap: incentives-api-config
