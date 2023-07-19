@@ -10,25 +10,23 @@ image:
 nameOverride: ""
 fullnameOverride: ""
 podAnnotations: {}
-resources: 
+resources:
   limits:
     cpu: 1000m
     memory: 500Mi
   requests:
     cpu: 100m
-    memory: 250Mi    
+    memory: 250Mi
 ingress:
   enabled: false
 service:
   type: NodePort
   port: 3000
   protocol: TCP
-  targetPort: 3000  
+  targetPort: 3000
 autoscaling:
-  enabled: false
+  enabled: true
   minReplicas: 1
   maxReplicas: 3
-  targetCPUUtilizationPercentage: 80
-  # targetMemoryUtilizationPercentage: 80
-
-
+  targetCPUUtilizationPercentage: 70
+  # targetMemoryUtilizationPercentage: 70
