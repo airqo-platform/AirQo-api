@@ -1,5 +1,5 @@
 const httpStatus = require("http-status");
-const { logObject, logElement, logText } = require("@utils/log");
+const { logObject, logText } = require("@utils/log");
 const { validationResult } = require("express-validator");
 const createTransactionUtil = require("@utils/create-transaction");
 const log4js = require("log4js");
@@ -8,7 +8,7 @@ const errors = require("@utils/errors");
 const isEmpty = require("is-empty");
 
 const createTransaction = {
-  /**** HOST PAYMENTS */
+  /******************************** HOST PAYMENTS *************************************************/
   sendMoneyToHost: async (req, res) => {
     logText("send money to host.............");
     try {
@@ -57,10 +57,12 @@ const createTransaction = {
           message: responseFromSendMoneyToHost.message,
           errors: responseFromSendMoneyToHost.errors
             ? responseFromSendMoneyToHost.errors
-            : "Internal Server Error",
+            : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
+      logObject("error", error);
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -92,7 +94,7 @@ const createTransaction = {
       request.query.tenant = tenant;
 
       const responseFromAddMoneyToOrganisation =
-        await createTransactionUtil.sendMoneyToHost(request);
+        await createTransactionUtil.addMoneyToOrganisationAccount(request);
       logObject(
         "responseFromAddMoneyToOrganisation in controller",
         responseFromAddMoneyToOrganisation
@@ -115,10 +117,12 @@ const createTransaction = {
           message: responseFromAddMoneyToOrganisation.message,
           errors: responseFromAddMoneyToOrganisation.errors
             ? responseFromAddMoneyToOrganisation.errors
-            : "Internal Server Error",
+            : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
+      logObject("error", error);
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -150,7 +154,7 @@ const createTransaction = {
       request.query.tenant = tenant;
 
       const responseFromReceiveMoneyFromHost =
-        await createTransactionUtil.sendMoneyToHost(request);
+        await createTransactionUtil.receiveMoneyFromHost(request);
       logObject(
         "responseFromReceiveMoneyFromHost in controller",
         responseFromReceiveMoneyFromHost
@@ -173,10 +177,12 @@ const createTransaction = {
           message: responseFromReceiveMoneyFromHost.message,
           errors: responseFromReceiveMoneyFromHost.errors
             ? responseFromReceiveMoneyFromHost.errors
-            : "Internal Server Error",
+            : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
+      logObject("error", error);
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -208,7 +214,7 @@ const createTransaction = {
       request.query.tenant = tenant;
 
       const responseFromGetTransactionDetails =
-        await createTransactionUtil.sendMoneyToHost(request);
+        await createTransactionUtil.getTransactionDetails(request);
       logObject(
         "responseFromGetTransactionDetails in controller",
         responseFromGetTransactionDetails
@@ -231,17 +237,19 @@ const createTransaction = {
           message: responseFromGetTransactionDetails.message,
           errors: responseFromGetTransactionDetails.errors
             ? responseFromGetTransactionDetails.errors
-            : "Internal Server Error",
+            : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
+      logObject("error", error);
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         message: "Internal Server Error",
         errors: { message: error.message },
       });
     }
   },
-  /***** SIM CARD DATA LOADING */
+  /******************************** SIM CARD DATA LOADING *********************************/
   loadDataBundle: async (req, res) => {
     logText("send money to host.............");
     try {
@@ -267,7 +275,7 @@ const createTransaction = {
       request.query.tenant = tenant;
 
       const responseFromLoadDataBundle =
-        await createTransactionUtil.sendMoneyToHost(request);
+        await createTransactionUtil.loadDataBundle(request);
       logObject(
         "responseFromLoadDataBundle in controller",
         responseFromLoadDataBundle
@@ -290,10 +298,12 @@ const createTransaction = {
           message: responseFromLoadDataBundle.message,
           errors: responseFromLoadDataBundle.errors
             ? responseFromLoadDataBundle.errors
-            : "Internal Server Error",
+            : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
+      logObject("error", error);
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -325,7 +335,7 @@ const createTransaction = {
       request.query.tenant = tenant;
 
       const responseFromCheckRemainingDataBundleBalance =
-        await createTransactionUtil.sendMoneyToHost(request);
+        await createTransactionUtil.checkRemainingDataBundleBalance(request);
       logObject(
         "responseFromCheckRemainingDataBundleBalance in controller",
         responseFromCheckRemainingDataBundleBalance
@@ -350,10 +360,12 @@ const createTransaction = {
           message: responseFromCheckRemainingDataBundleBalance.message,
           errors: responseFromCheckRemainingDataBundleBalance.errors
             ? responseFromCheckRemainingDataBundleBalance.errors
-            : "Internal Server Error",
+            : { message: "Internal Server Error" },
         });
       }
     } catch (error) {
+      logObject("error", error);
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         message: "Internal Server Error",
         errors: { message: error.message },

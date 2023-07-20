@@ -1,3 +1,4 @@
+require("module-alias/register");
 const sinon = require("sinon");
 const chai = require("chai");
 const { expect } = chai;
@@ -6,10 +7,18 @@ const httpStatus = require("http-status");
 const TransactionModel = require("@models/Transaction");
 const createTransaction = require("@utils/create-transaction");
 
+const axios = require("axios");
+const sinonChai = require("sinon-chai");
+const chaiHttp = require("chai-http");
+chai.use(sinonChai);
+chai.use(chaiHttp);
+
 describe("createTransaction", () => {
   let request;
+  let sandbox;
 
   beforeEach(() => {
+    sinon.createSandbox();
     request = {
       // mock request object
     };
@@ -17,6 +26,70 @@ describe("createTransaction", () => {
 
   afterEach(() => {
     sinon.restore();
+  });
+
+  describe("createProductItemForMobileMoneyPayout", () => {
+    it("should return the correct paymentProvider for airtelCodes", () => {
+      const phone_number = "0751234567"; // Example phone number for airtelCodes
+      const expectedResult = {
+        paymentProvider: "AIRTELMOBILEMONEYPAYOUTUG_AIRTELMOBILEMONEYPAYOUTUG",
+      };
+
+      const result = createProductItemForMobileMoneyPayout(phone_number);
+      expect(result).to.deep.equal(expectedResult);
+    });
+
+    it("should return the correct paymentProvider for mtnCodes", () => {
+      const phone_number = "0781234567"; // Example phone number for mtnCodes
+      const expectedResult = {
+        paymentProvider: "MTNMOBILEMONEYPAYOUTUG_MTNMOBILEMONEYPAYOUTUG",
+      };
+
+      const result = createProductItemForMobileMoneyPayout(phone_number);
+      expect(result).to.deep.equal(expectedResult);
+    });
+
+    it("should return undefined paymentProvider for unknown phone_number", () => {
+      const phone_number = "0791234567"; // Example phone number not in airtelCodes or mtnCodes
+      const expectedResult = {
+        paymentProvider: undefined,
+      };
+
+      const result = createProductItemForMobileMoneyPayout(phone_number);
+      expect(result).to.deep.equal(expectedResult);
+    });
+  });
+
+  describe("createPaymentProviderForCollections", () => {
+    it("should return the correct productItem for airtelCodes", () => {
+      const phone_number = "0751234567"; // Example phone number for airtelCodes
+      const expectedResult = {
+        productItem: "AIRTELMONEYUG",
+      };
+
+      const result = createPaymentProviderForCollections(phone_number);
+      expect(result).to.deep.equal(expectedResult);
+    });
+
+    it("should return the correct productItem for mtnCodes", () => {
+      const phone_number = "0781234567"; // Example phone number for mtnCodes
+      const expectedResult = {
+        productItem: "MTNMOBILEMONEYUG",
+      };
+
+      const result = createPaymentProviderForCollections(phone_number);
+      expect(result).to.deep.equal(expectedResult);
+    });
+
+    it("should return undefined productItem for unknown phone_number", () => {
+      const phone_number = "0791234567"; // Example phone number not in airtelCodes or mtnCodes
+      const expectedResult = {
+        productItem: undefined,
+      };
+
+      const result = createPaymentProviderForCollections(phone_number);
+      expect(result).to.deep.equal(expectedResult);
+    });
   });
 
   describe("getFirstBearerToken", () => {
@@ -142,493 +215,556 @@ describe("createTransaction", () => {
   });
 
   describe("sendMoneyToHost", () => {
-    it("should successfully send money to host", async () => {
+    it("should return successful response if the host exists and has a phone number", async () => {
       const request = {
-        // Mock request object
-        amount: 100,
-        host_id: "host123",
-        // Add other properties as required
+        body: {
+          amount: 1000,
+          channelId: "channel123",
+          customerId: "customer123",
+          customerPhone: "123456789",
+          customerEmail: "customer@example.com",
+          memo: "Payment for service",
+          batchId: "batch123",
+          requestId: "request123",
+          metadata: { key: "value" },
+        },
+        params: { host_id: "host123" },
+        query: { tenant: "tenant123" },
       };
 
-      const firstBearerToken = "firstBearerToken";
-      const secondBearerToken = "secondBearerToken";
-      const responseFromSaveTransaction = {
+      const expectedResponse = {
         success: true,
-        message: "Transaction successfully saved",
-        data: {}, // Mocked data object
+        message: "Transaction Successfully Completed",
+        // Add other expected response properties here if needed
       };
 
-      // Stub the getFirstBearerToken and getSecondBearerToken functions
-      sinon
-        .stub(createTransaction, "getFirstBearerToken")
-        .resolves(firstBearerToken);
-      sinon
-        .stub(createTransaction, "getSecondBearerToken")
-        .resolves(secondBearerToken);
-
-      // Stub the axios create and post functions
-      sinon
-        .stub(createTransaction.api, "create")
-        .returns(createTransaction.api);
-      sinon.stub(createTransaction.api, "post").resolves({
-        status: httpStatus.OK,
+      // Stubbing the external functions
+      const hostData = { _id: "host123", phone_number: "987654321" };
+      const axiosPostStub = sinon.stub(axios, "post").resolves({
         data: {
-          status: "success",
-          data: {
-            requestId: "request123",
-            batchId: "batch123",
-            transactionId: "transaction123",
-            // Add other properties as required
-          },
+          status: "SUCCESS",
+          data: { transactionId: "transaction123" },
         },
       });
 
-      // Stub the TransactionModel register function
-      sinon
-        .stub(TransactionModel.prototype, "register")
-        .resolves(responseFromSaveTransaction);
-
-      const response = await createTransaction.sendMoneyToHost(request);
-
-      // Assert the response
-      expect(response).to.deep.equal(responseFromSaveTransaction);
-
-      // Restore the stubbed functions
-      createTransaction.getFirstBearerToken.restore();
-      createTransaction.getSecondBearerToken.restore();
-      createTransaction.api.create.restore();
-      createTransaction.api.post.restore();
-      TransactionModel.prototype.register.restore();
-    });
-
-    it("should handle internal server error", async () => {
-      const request = {
-        // Mock request object
-        amount: 100,
-        host_id: "host123",
-        // Add other properties as required
-      };
-
-      const error = new Error("Error message");
-
-      // Stub the getFirstBearerToken and getSecondBearerToken functions
-      sinon.stub(createTransaction, "getFirstBearerToken").throws(error);
-      sinon.stub(createTransaction, "getSecondBearerToken").throws(error);
-
-      // Stub the axios create and post functions
-      sinon
-        .stub(createTransaction.api, "create")
-        .returns(createTransaction.api);
-      sinon.stub(createTransaction.api, "post").throws(error);
-
-      // Stub the logger error function
-      sinon.stub(logger, "error");
-
-      const response = await createTransaction.sendMoneyToHost(request);
-
-      // Assert the response
-      expect(response).to.deep.equal({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: "Error message" },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
+      const transactionModelRegisterStub = sinon
+        .stub()
+        .resolves(expectedResponse);
+      const HostModelStub = sinon.stub().returns({
+        find: sinon.stub().returns({
+          lean: sinon.stub().resolves(hostData),
+        }),
+      });
+      const TransactionModelStub = sinon.stub().returns({
+        register: transactionModelRegisterStub,
       });
 
-      // Assert that the logger error function was called
-      expect(logger.error).to.have.been.calledOnceWithExactly(
-        `Internal Server Error --- ${error}`
-      );
+      // Replace the actual dependencies with stubs for unit testing
+      const originalHostModel = require("@models/Host");
+      const originalTransactionModel = require("@models/transaction");
 
-      // Restore the stubbed functions
-      createTransaction.getFirstBearerToken.restore();
-      createTransaction.getSecondBearerToken.restore();
-      createTransaction.api.create.restore();
-      createTransaction.api.post.restore();
-      logger.error.restore();
+      require("@models/Host").hostModel = HostModelStub;
+      require("@models/transaction").TransactionModel = TransactionModelStub;
+
+      // Execute the function
+      const response = await sendMoneyToHost(request);
+
+      // Restore the original dependencies
+      require("@models/Host").hostModel = originalHostModel;
+      require("@models/transaction").TransactionModel =
+        originalTransactionModel;
+
+      // Assert the response
+      expect(response).to.deep.equal(expectedResponse);
+
+      // Assert that the stubbed functions were called with the correct parameters
+      sinon.assert.calledWith(HostModelStub, request.query.tenant);
+      sinon.assert.calledWith(HostModelStub().find, { _id: "host123" });
+      sinon.assert.calledWith(transactionModelRegisterStub, {
+        status: "SUCCESS",
+        batch_id: request.body.batchId,
+        ext_transaction_id: "transaction123",
+        request_id: request.body.requestId,
+        amount: request.body.amount,
+        host_id: "host123",
+        description: "Transaction Successfully Completed",
+      });
+
+      // Restore the stubs
+      axiosPostStub.restore();
     });
-
-    // Add more test cases as required
   });
 
   describe("addMoneyToOrganisationAccount", () => {
-    it("should successfully add money to the organization account", async () => {
+    it("should return successful response if the API call is successful", async () => {
       const request = {
-        // Mock request object
-        amount: 100,
-        host_id: "host123",
-        // Add other properties as required
+        body: {
+          amount: 1000,
+          phone_number: "987654321",
+          channelId: "channel123",
+          customerId: "customer123",
+          customerPhone: "customerPhone123",
+          customerEmail: "customer@example.com",
+          memo: "Payment for service",
+          batchId: "batch123",
+          requestId: "request123",
+          metadata: { key: "value" },
+        },
       };
 
-      const firstBearerToken = "firstBearerToken";
-      const secondBearerToken = "secondBearerToken";
-      const responseFromSaveTransaction = {
+      const expectedResponse = {
         success: true,
-        message: "Transaction successfully saved",
-        data: {}, // Mocked data object
+        message: "Transaction Successfully Completed",
+        // Add other expected response properties here if needed
       };
 
-      // Stub the getFirstBearerToken and getSecondBearerToken functions
-      sinon
-        .stub(createTransaction, "getFirstBearerToken")
-        .resolves(firstBearerToken);
-      sinon
-        .stub(createTransaction, "getSecondBearerToken")
-        .resolves(secondBearerToken);
-
-      // Stub the axios create and post functions
-      sinon
-        .stub(createTransaction.api, "create")
-        .returns(createTransaction.api);
-      sinon.stub(createTransaction.api, "post").resolves({
-        status: httpStatus.OK,
+      // Stubbing the external functions
+      const axiosPostStub = sinon.stub(axios, "post").resolves({
         data: {
-          status: "success",
-          data: {
-            requestId: "request123",
-            batchId: "batch123",
-            transactionId: "transaction123",
-            // Add other properties as required
-          },
+          status: "SUCCESS",
+          data: { transactionId: "transaction123" },
         },
       });
 
-      // Stub the TransactionModel register function
-      sinon
-        .stub(TransactionModel.prototype, "register")
-        .resolves(responseFromSaveTransaction);
+      const transactionModelRegisterStub = sinon
+        .stub()
+        .resolves(expectedResponse);
+      const createPaymentProviderForCollectionsStub = sinon
+        .stub()
+        .returns("MOCK_PAYMENT_PROVIDER"); // Replace with the expected payment provider
 
-      const response = await createTransaction.addMoneyToOrganisationAccount(
-        request
-      );
+      // Replace the actual dependencies with stubs for unit testing
+      const originalTransactionModel = require("@models/transaction");
+      const originalCreatePaymentProviderForCollections = require("./path/to/createPaymentProviderForCollections");
+
+      // Stub the required functions
+      sinon
+        .stub(require("@models/transaction"), "TransactionModel")
+        .get(() => transactionModelRegisterStub);
+      sinon
+        .stub(
+          require("./path/to/createPaymentProviderForCollections"),
+          "createPaymentProviderForCollections"
+        )
+        .returns(createPaymentProviderForCollectionsStub);
+
+      // Execute the function
+      const response = await addMoneyToOrganisationAccount(request);
+
+      // Restore the original dependencies
+      require("@models/transaction").TransactionModel =
+        originalTransactionModel.TransactionModel;
+      require("./path/to/createPaymentProviderForCollections").createPaymentProviderForCollections =
+        originalCreatePaymentProviderForCollections.createPaymentProviderForCollections;
 
       // Assert the response
-      expect(response).to.deep.equal(responseFromSaveTransaction);
+      expect(response).to.deep.equal(expectedResponse);
 
-      // Restore the stubbed functions
-      createTransaction.getFirstBearerToken.restore();
-      createTransaction.getSecondBearerToken.restore();
-      createTransaction.api.create.restore();
-      createTransaction.api.post.restore();
-      TransactionModel.prototype.register.restore();
-    });
-
-    it("should handle internal server error", async () => {
-      const request = {
-        // Mock request object
-        amount: 100,
-        host_id: "host123",
-        // Add other properties as required
-      };
-
-      const error = new Error("Error message");
-
-      // Stub the getFirstBearerToken and getSecondBearerToken functions
-      sinon.stub(createTransaction, "getFirstBearerToken").throws(error);
-      sinon.stub(createTransaction, "getSecondBearerToken").throws(error);
-
-      // Stub the axios create and post functions
-      sinon
-        .stub(createTransaction.api, "create")
-        .returns(createTransaction.api);
-      sinon.stub(createTransaction.api, "post").throws(error);
-
-      // Stub the logger error function
-      sinon.stub(logger, "error");
-
-      const response = await createTransaction.addMoneyToOrganisationAccount(
-        request
+      // Assert that the stubbed functions were called with the correct parameters
+      sinon.assert.calledWith(
+        createPaymentProviderForCollectionsStub,
+        request.body.phone_number
       );
-
-      // Assert the response
-      expect(response).to.deep.equal({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: "Error message" },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
+      sinon.assert.calledWith(transactionModelRegisterStub, {
+        status: "SUCCESS",
+        batch_id: request.body.batchId,
+        ext_transaction_id: "transaction123",
+        request_id: request.body.requestId,
+        amount: request.body.amount,
+        description: "Transaction Successfully Completed",
       });
 
-      // Assert that the logger error function was called
-      expect(logger.error).to.have.been.calledOnceWithExactly(
-        `Internal Server Error --- ${error}`
-      );
-
-      // Restore the stubbed functions
-      createTransaction.getFirstBearerToken.restore();
-      createTransaction.getSecondBearerToken.restore();
-      createTransaction.api.create.restore();
-      createTransaction.api.post.restore();
-      logger.error.restore();
+      // Restore the stubs
+      axiosPostStub.restore();
     });
-
-    // Add more test cases as required
   });
 
   describe("receiveMoneyFromHost", () => {
-    it("should successfully receive money from the host", async () => {
+    it("should return successful response if the API call is successful", async () => {
       const request = {
-        // Mock request object
-        amount: 100,
-        host_id: "host123",
-        // Add other properties as required
+        body: {
+          amount: 1000,
+          host_id: "host123",
+          channelId: "channel123",
+          customerId: "customer123",
+          customerPhone: "customerPhone123",
+          customerEmail: "customer@example.com",
+          memo: "Payment from host",
+          batchId: "batch123",
+          requestId: "request123",
+          metadata: { key: "value" },
+        },
+        query: {
+          tenant: "tenant123",
+        },
       };
 
-      const firstBearerToken = "firstBearerToken";
-      const secondBearerToken = "secondBearerToken";
-      const responseFromSaveTransaction = {
+      const expectedResponse = {
         success: true,
-        message: "Transaction successfully saved",
-        data: {}, // Mocked data object
+        message: "Transaction Successfully Completed",
+        // Add other expected response properties here if needed
       };
 
-      // Stub the getFirstBearerToken and getSecondBearerToken functions
-      sinon
-        .stub(createTransaction, "getFirstBearerToken")
-        .resolves(firstBearerToken);
-      sinon
-        .stub(createTransaction, "getSecondBearerToken")
-        .resolves(secondBearerToken);
-
-      // Stub the axios create and post functions
-      sinon
-        .stub(createTransaction.api, "create")
-        .returns(createTransaction.api);
-      sinon.stub(createTransaction.api, "post").resolves({
-        status: httpStatus.OK,
+      // Stubbing the external functions
+      const axiosPostStub = sinon.stub(axios, "post").resolves({
         data: {
-          status: "success",
-          data: {
-            requestId: "request123",
-            batchId: "batch123",
-            transactionId: "transaction123",
-            // Add other properties as required
-          },
+          status: "SUCCESS",
+          data: { transactionId: "transaction123" },
         },
       });
 
-      // Stub the TransactionModel register function
-      sinon
-        .stub(TransactionModel.prototype, "register")
-        .resolves(responseFromSaveTransaction);
+      const hostModelFindStub = sinon.stub().resolves({
+        phone_number: "987654321",
+      });
+      const transactionModelRegisterStub = sinon
+        .stub()
+        .resolves(expectedResponse);
+      const createPaymentProviderForCollectionsStub = sinon
+        .stub()
+        .returns("MOCK_PAYMENT_PROVIDER"); // Replace with the expected payment provider
 
-      const response = await createTransaction.receiveMoneyFromHost(request);
+      // Replace the actual dependencies with stubs for unit testing
+      const originalHostModel = require("@models/host");
+      const originalTransactionModel = require("@models/transaction");
+      const originalCreatePaymentProviderForCollections = require("./path/to/createPaymentProviderForCollections");
+
+      // Stub the required functions
+      sinon
+        .stub(require("@models/host"), "HostModel")
+        .get(() => hostModelFindStub);
+      sinon
+        .stub(require("@models/transaction"), "TransactionModel")
+        .get(() => transactionModelRegisterStub);
+      sinon
+        .stub(
+          require("./path/to/createPaymentProviderForCollections"),
+          "createPaymentProviderForCollections"
+        )
+        .returns(createPaymentProviderForCollectionsStub);
+
+      // Execute the function
+      const response = await receiveMoneyFromHost(request);
+
+      // Restore the original dependencies
+      require("@models/host").HostModel = originalHostModel.HostModel;
+      require("@models/transaction").TransactionModel =
+        originalTransactionModel.TransactionModel;
+      require("./path/to/createPaymentProviderForCollections").createPaymentProviderForCollections =
+        originalCreatePaymentProviderForCollections.createPaymentProviderForCollections;
 
       // Assert the response
-      expect(response).to.deep.equal(responseFromSaveTransaction);
+      expect(response).to.deep.equal(expectedResponse);
 
-      // Restore the stubbed functions
-      createTransaction.getFirstBearerToken.restore();
-      createTransaction.getSecondBearerToken.restore();
-      createTransaction.api.create.restore();
-      createTransaction.api.post.restore();
-      TransactionModel.prototype.register.restore();
-    });
-
-    it("should handle internal server error", async () => {
-      const request = {
-        // Mock request object
-        amount: 100,
+      // Assert that the stubbed functions were called with the correct parameters
+      sinon.assert.calledWith(hostModelFindStub, {
+        _id: "host123",
+      });
+      sinon.assert.calledWith(
+        createPaymentProviderForCollectionsStub,
+        "987654321"
+      );
+      sinon.assert.calledWith(transactionModelRegisterStub, {
+        status: "SUCCESS",
+        batch_id: request.body.batchId,
+        ext_transaction_id: "transaction123",
+        request_id: request.body.requestId,
+        amount: request.body.amount,
+        description: "Transaction Successfully Completed",
         host_id: "host123",
-        // Add other properties as required
-      };
-
-      const error = new Error("Error message");
-
-      // Stub the getFirstBearerToken and getSecondBearerToken functions
-      sinon.stub(createTransaction, "getFirstBearerToken").throws(error);
-      sinon.stub(createTransaction, "getSecondBearerToken").throws(error);
-
-      // Stub the axios create and post functions
-      sinon
-        .stub(createTransaction.api, "create")
-        .returns(createTransaction.api);
-      sinon.stub(createTransaction.api, "post").throws(error);
-
-      // Stub the logger error function
-      sinon.stub(logger, "error");
-
-      const response = await createTransaction.receiveMoneyFromHost(request);
-
-      // Assert the response
-      expect(response).to.deep.equal({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
       });
 
-      // Assert that the logger error function was called
-      expect(logger.error).to.have.been.calledOnceWithExactly(
-        `Internal Server Error --- ${error}`
-      );
-
-      // Restore the stubbed functions
-      createTransaction.getFirstBearerToken.restore();
-      createTransaction.getSecondBearerToken.restore();
-      createTransaction.api.create.restore();
-      createTransaction.api.post.restore();
-      logger.error.restore();
+      // Restore the stubs
+      axiosPostStub.restore();
     });
-
-    // Add more test cases as required
   });
 
   describe("getTransactionDetails", () => {
-    it("should successfully retrieve transaction details", async () => {
+    it("should return successful response if the API call is successful", async () => {
       const request = {
-        // Mock request object
         params: {
           transaction_id: "transaction123",
         },
-        // Add other properties as required
       };
 
-      const firstBearerToken = "firstBearerToken";
-      const secondBearerToken = "secondBearerToken";
-      const responseFromApi = {
-        status: httpStatus.OK,
-        data: {
-          status: "success",
-          data: {
-            transactionId: "transaction123",
-            // Add other properties as required
-          },
-        },
-      };
-
-      // Stub the getFirstBearerToken and getSecondBearerToken functions
-      sinon
-        .stub(createTransaction, "getFirstBearerToken")
-        .resolves(firstBearerToken);
-      sinon
-        .stub(createTransaction, "getSecondBearerToken")
-        .resolves(secondBearerToken);
-
-      // Stub the axios create and get functions
-      sinon
-        .stub(createTransaction.api, "create")
-        .returns(createTransaction.api);
-      sinon.stub(createTransaction.api, "get").resolves(responseFromApi);
-
-      const response = await createTransaction.getTransactionDetails(request);
-
-      // Assert the response
-      expect(response).to.deep.equal({
+      const expectedResponse = {
         success: true,
         message: "Successfully retrieved the data",
-        data: responseFromApi.data.data,
-        status: httpStatus.OK,
+        data: {
+          // Add mock data that would be returned from the API call
+          // based on your actual response structure
+          // For example:
+          transactionId: "transaction123",
+          amount: 1000,
+          customerId: "customer123",
+        },
+        status: 200, // HTTP status code for OK
+      };
+
+      // Stubbing the external functions
+      const axiosGetStub = sinon.stub(axios, "get").resolves({
+        data: {
+          data: expectedResponse.data, // Assuming the API returns an object with a 'data' property
+        },
       });
 
-      // Restore the stubbed functions
-      createTransaction.getFirstBearerToken.restore();
-      createTransaction.getSecondBearerToken.restore();
-      createTransaction.api.create.restore();
-      createTransaction.api.get.restore();
+      // Execute the function
+      const response = await getTransactionDetails(request);
+
+      // Assert the response
+      expect(response).to.deep.equal(expectedResponse);
+
+      // Assert that the stubbed function was called with the correct parameter
+      sinon.assert.calledWith(
+        axiosGetStub,
+        `${constants.XENTE_BASE_URL}/core/transactions/transaction123`
+      );
+
+      // Restore the stub
+      axiosGetStub.restore();
     });
 
-    it("should handle internal server error", async () => {
+    it("should return an error response if the API call fails", async () => {
       const request = {
-        // Mock request object
         params: {
           transaction_id: "transaction123",
         },
-        // Add other properties as required
       };
 
-      const error = new Error("Error message");
+      // Stubbing the external function to simulate API call failure
+      const axiosGetStub = sinon
+        .stub(axios, "get")
+        .rejects(new Error("Network Error"));
 
-      // Stub the getFirstBearerToken and getSecondBearerToken functions
-      sinon.stub(createTransaction, "getFirstBearerToken").throws(error);
-      sinon.stub(createTransaction, "getSecondBearerToken").throws(error);
-
-      // Stub the logger error function
-      sinon.stub(logger, "error");
-
-      const response = await createTransaction.getTransactionDetails(request);
+      // Execute the function
+      const response = await getTransactionDetails(request);
 
       // Assert the response
       expect(response).to.deep.equal({
         success: false,
         message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: "Network Error" }, // Assuming the error message from the rejected promise is used
+        status: 500, // HTTP status code for Internal Server Error
       });
 
-      // Assert that the logger error function was called
-      expect(logger.error).to.have.been.calledOnceWithExactly(
-        `Internal Server Error --- ${error}`
+      // Assert that the stubbed function was called with the correct parameter
+      sinon.assert.calledWith(
+        axiosGetStub,
+        `${constants.XENTE_BASE_URL}/core/transactions/transaction123`
       );
 
-      // Restore the stubbed functions
-      createTransaction.getFirstBearerToken.restore();
-      createTransaction.getSecondBearerToken.restore();
-      logger.error.restore();
+      // Restore the stub
+      axiosGetStub.restore();
     });
-
-    // Add more test cases as required
   });
 
   describe("loadDataBundle", () => {
-    it("should handle internal server error", async () => {
-      // Stub the getFirstBearerToken and getSecondBearerToken functions
-      const stubFirstBearerToken = sinon.stub().resolves("firstBearerToken");
-      const stubSecondBearerToken = sinon.stub().resolves("secondBearerToken");
-
-      // Replace the actual functions with the stubs
-      const getFirstBearerToken = stubFirstBearerToken;
-      const getSecondBearerToken = stubSecondBearerToken;
-
-      // Mock the necessary dependencies
-      const axios = {
-        create: sinon.stub().returns({
-          post: sinon.stub().resolves({
-            data: {
-              status: "success",
-              data: {
-                requestId: "12345",
-                batchId: "batchId123",
-                transactionId: "transactionId123",
-              },
-            },
-          }),
-        }),
+    it("should return successful response if the API call is successful", async () => {
+      const request = {
+        body: {
+          amount: 1000,
+          phone_number: "phone123",
+          product_item: "data_bundle",
+          channelId: "channel123",
+          customerId: "customer123",
+          customerPhone: "customerPhone123",
+          customerEmail: "customerEmail@example.com",
+          memo: "Load data bundle",
+          batchId: "batch123",
+          requestId: "request123",
+          metadata: { key: "value" },
+        },
+        query: {
+          tenant: "tenant123",
+        },
       };
-      const TransactionModel = sinon.stub().returns({
-        register: sinon.stub().resolves({
-          /* your desired response object */
-        }),
+
+      const expectedResponse = {
+        success: true,
+        message: "Successfully retrieved the data",
+        data: {
+          // Add mock data that would be returned from the API call
+          // based on your actual response structure
+          // For example:
+          transactionId: "transaction123",
+          amount: 1000,
+          customerId: "customer123",
+        },
+        status: 200, // HTTP status code for OK
+      };
+
+      // Stubbing the external functions
+      const axiosPostStub = sinon.stub(axios, "post").resolves({
+        data: {
+          data: expectedResponse.data, // Assuming the API returns an object with a 'data' property
+        },
       });
 
-      // Your test code here
-      const request = {
-        /* your request data here */
+      // Execute the function
+      const response = await loadDataBundle(request);
+
+      // Assert the response
+      expect(response).to.deep.equal(expectedResponse);
+
+      // Assert that the stubbed function was called with the correct parameters
+      const expectedApiUrl = `${constants.XENTE_BASE_URL}/transactions`;
+      const expectedLoadDataRequestObject = {
+        paymentProvider: constants.XENTE_DATA_PAYMENT_PROVIDER,
+        productItem: JSON.stringify("data_bundle"),
+        amount: JSON.stringify(1000),
+        productReference: JSON.stringify("phone123"),
+        paymentReference: constants.XENTE_DATA_PAYMENT_REFERENCE,
+        type: constants.XENTE_DATA_TYPE,
+        batchId: "batch123",
+        requestId: "request123",
+        metadata: { key: "value" },
+        memo: "Load data bundle",
+        channelId: "channel123",
+        customerId: "customer123",
+        customerPhone: "customerPhone123",
+        customerEmail: "customerEmail@example.com",
       };
-      const response = await createTransaction.loadDataBundle(request);
-
-      // Assertions and expectations
-      // ...
-    });
-  });
-
-  describe("checkRemainingDataBundleBalance", () => {
-    it("should return 'Not Yet Implemented' response", async () => {
-      const request = {
-        // Mock request object if required
-      };
-
-      const response = await createTransaction.checkRemainingDataBundleBalance(
-        request
+      sinon.assert.calledWith(
+        axiosPostStub,
+        expectedApiUrl,
+        expectedLoadDataRequestObject
       );
+
+      // Restore the stub
+      axiosPostStub.restore();
+    });
+
+    it("should return an error response if the API call fails", async () => {
+      const request = {
+        body: {
+          amount: 1000,
+          phone_number: "phone123",
+          product_item: "data_bundle",
+          channelId: "channel123",
+          customerId: "customer123",
+          customerPhone: "customerPhone123",
+          customerEmail: "customerEmail@example.com",
+          memo: "Load data bundle",
+          batchId: "batch123",
+          requestId: "request123",
+          metadata: { key: "value" },
+        },
+        query: {
+          tenant: "tenant123",
+        },
+      };
+
+      // Stubbing the external function to simulate API call failure
+      const axiosPostStub = sinon
+        .stub(axios, "post")
+        .rejects(new Error("Network Error"));
+
+      // Execute the function
+      const response = await loadDataBundle(request);
 
       // Assert the response
       expect(response).to.deep.equal({
         success: false,
-        message: "Not Yet Implemented",
-        status: httpStatus.NOT_IMPLEMENTED,
-        errors: { message: "Not Yet Implemented" },
+        message: "Internal Server Error",
+        errors: { message: "Network Error" }, // Assuming the error message from the rejected promise is used
+        status: 500, // HTTP status code for Internal Server Error
       });
+
+      // Assert that the stubbed function was called with the correct parameters
+      const expectedApiUrl = `${constants.XENTE_BASE_URL}/transactions`;
+      const expectedLoadDataRequestObject = {
+        paymentProvider: constants.XENTE_DATA_PAYMENT_PROVIDER,
+        productItem: JSON.stringify("data_bundle"),
+        amount: JSON.stringify(1000),
+        productReference: JSON.stringify("phone123"),
+        paymentReference: constants.XENTE_DATA_PAYMENT_REFERENCE,
+        type: constants.XENTE_DATA_TYPE,
+        batchId: "batch123",
+        requestId: "request123",
+        metadata: { key: "value" },
+        memo: "Load data bundle",
+        channelId: "channel123",
+        customerId: "customer123",
+        customerPhone: "customerPhone123",
+        customerEmail: "customerEmail@example.com",
+      };
+      sinon.assert.calledWith(
+        axiosPostStub,
+        expectedApiUrl,
+        expectedLoadDataRequestObject
+      );
+
+      // Restore the stub
+      axiosPostStub.restore();
+    });
+  });
+
+  const chai = require("chai");
+  const { expect } = chai;
+
+  const checkRemainingDataBundleBalance =
+    createTransaction.checkRemainingDataBundleBalance; // Update the path accordingly
+
+  describe("checkRemainingDataBundleBalance", () => {
+    it("should return a 'Not Yet Implemented' response", async () => {
+      const request = {
+        params: {
+          device_id: "device123",
+        },
+      };
+
+      const expectedResponse = {
+        success: false,
+        message: "Not Yet Implemented",
+        status: 501, // HTTP status code for Not Implemented
+        errors: { message: "Not Yet Implemented" },
+      };
+
+      // Execute the function
+      const response = await checkRemainingDataBundleBalance(request);
+
+      // Assert the response
+      expect(response).to.deep.equal(expectedResponse);
     });
 
-    // Add more test cases as required
+    it("should return an error response if an error occurs", async () => {
+      const request = {
+        params: {
+          device_id: "device123",
+        },
+      };
+
+      const errorMessage = "Something went wrong";
+
+      // Stubbing the log functions to simulate an error
+      const logObjectStub = chai.spy.on(console, "error");
+      const loggerErrorStub = chai.spy.on(logger, "error");
+
+      // Stubbing the error to be thrown by the function
+      const errorStub = new Error(errorMessage);
+      const throwStub = chai.spy.on(errorStub, "throw");
+
+      // Execute the function
+      const response = await checkRemainingDataBundleBalance(request);
+
+      // Assert the response
+      expect(response).to.deep.equal({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: errorMessage },
+        status: 500, // HTTP status code for Internal Server Error
+      });
+
+      // Assert that the error was logged
+      expect(logObjectStub).to.have.been.called.with("error", errorStub);
+      expect(loggerErrorStub).to.have.been.called.with(
+        `Internal Server Error --- ${JSON.stringify(errorStub)}`
+      );
+      expect(throwStub).to.have.been.called;
+
+      // Restore the stubs
+      logObjectStub.restore();
+      loggerErrorStub.restore();
+      throwStub.restore();
+    });
   });
 });

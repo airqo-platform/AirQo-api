@@ -29,13 +29,13 @@ const transactionSchemaOptions = {
 
 const TransactionSchema = new Schema(
   {
-    amount: { type: Number },
+    amount: { type: Number, required: true },
     host_id: { type: ObjectId, required: true },
     description: { type: String },
-    ext_transaction_id: { type: String },
-    status: { type: String },
-    batch_id: { type: String },
-    request_id: { type: String },
+    ext_transaction_id: { type: String, required: true },
+    status: { type: String, required: true },
+    batch_id: { type: String, required: true },
+    request_id: { type: String, required: true },
   },
   transactionSchemaOptions
 );
@@ -134,7 +134,7 @@ TransactionSchema.statics.list = async function ({
       message: "no transactions exist for this search",
     };
   } catch (error) {
-    return handleServerError(error, "Transaction model server error - list");
+    return handleServerError(error, "Internal Server Error");
   }
 };
 
