@@ -45,7 +45,7 @@ const KnowYourAirTaskModel = (tenant) => {
 
 const KnowYourAirUserLessonProgressModel = (tenant) => {
   try {
-    let kyaprogress = mongoose.model("kyaprogress");
+    let kyaprogress = mongoose.model("kyaprogresses");
     return kyaprogress;
   } catch (error) {
     let kyaprogress = getModelByTenant(
@@ -75,6 +75,7 @@ const createKnowYourAir = {
     try {
       const { query } = request;
       const { tenant } = query;
+      const { user_id } = request.params;
       const limit = parseInt(request.query.limit, 0);
       const skip = parseInt(request.query.skip, 0);
       const filter = generateFilter.kyalessons(request);
@@ -87,6 +88,7 @@ const createKnowYourAir = {
           filter,
           limit,
           skip,
+          user_id: user_id,
         }
       );
       logObject("responseFromListLessons", responseFromListLessons);

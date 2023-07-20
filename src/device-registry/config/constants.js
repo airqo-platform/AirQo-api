@@ -1182,6 +1182,7 @@ const defaultConfig = {
     completion_message: 1,
     image: 1,
     tasks: 1,
+    kya_user_progress: { $arrayElemAt: ["$kya_user_progress.progress", 0] },
   },
   KYA_LESSONS_EXCLUSION_PROJECTION: (category) => {
     const initialProjection = { nothing: 0 };

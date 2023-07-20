@@ -66,16 +66,16 @@ userLessonProgressSchema.statics = {
         return {
           success: true,
           data: createdKnowYourAirLessonProgress._doc,
-          message: "lesson created",
+          message: "Progress created",
           status: httpStatus.CREATED,
         };
       } else if (isEmpty(createdKnowYourAirLessonProgress)) {
         return {
           success: false,
-          message: "lesson not created despite successful operation",
+          message: "Progress not created despite successful operation",
           status: httpStatus.INTERNAL_SERVER_ERROR,
           errors: {
-            message: "lesson not created despite successful operation",
+            message: "Progress not created despite successful operation",
           },
         };
       }

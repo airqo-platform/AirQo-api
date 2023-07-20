@@ -54,6 +54,35 @@ router.get(
   knowYourAirController.listLessons
 );
 
+router.get(
+  "/lessons/users/:user_id",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("the tenant cannot be empty, if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(constants.NETWORKS)
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+
+  oneOf([
+    [
+      param("user_id")
+        .exists()
+        .withMessage("the user_id is missing in the request")
+        .bail()
+        .trim(),
+    ],
+  ]),
+
+  knowYourAirController.listLessons
+);
+
 router.post(
   "/lessons",
   oneOf([
@@ -455,8 +484,11 @@ router.put(
         .withMessage("the progress should not be empty IF provided")
         .bail()
         .trim()
-        .isFloat()
-        .withMessage("the progress should be a number"),
+        .custom((value) => {
+          const parsedValue = parseFloat(value);
+          return !isNaN(parsedValue) && parsedValue >= 0 && parsedValue <= 1;
+        })
+        .withMessage("the progress should be between 0 and 1"),
     ],
   ]),
   knowYourAirController.updateUserLessonProgress
@@ -512,12 +544,16 @@ router.post(
         .withMessage("the progress is missing in request")
         .bail()
         .trim()
-        .isFloat()
-        .withMessage("the progress should be a number"),
+        .custom((value) => {
+          const parsedValue = parseFloat(value);
+          return !isNaN(parsedValue) && parsedValue >= 0 && parsedValue <= 1;
+        })
+        .withMessage("the progress should be between 0 and 1"),
     ],
   ]),
   knowYourAirController.createUserLessonProgress
 );
+
 
 router.post(
   "/progress/sync/:user_id",
@@ -572,7 +608,13 @@ router.post(
         .notEmpty()
         .withMessage("the progress must not be empty")
         .bail()
-        .trim(),
+        .trim()
+        .custom((value) => {
+          const parsedValue = parseFloat(value);
+          return !isNaN(parsedValue) && parsedValue >= 0 && parsedValue <= 1;
+        })
+        .withMessage("the progress should be between 0 and 1"),
+
       body("kya_user_progress.*.lesson_id")
         .exists()
         .withMessage("lesson_id is missing in the kya user progress object")
