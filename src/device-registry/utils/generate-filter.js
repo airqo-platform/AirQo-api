@@ -981,7 +981,7 @@ const generateFilter = {
         filter["_id"] = ObjectId(progress_id);
       }
       if (user_id) {
-        filter["user_id"] = ObjectId(user_id);
+        filter["user_id"] = user_id;
       }
       if (lesson_id) {
         filter["lesson_id"] = ObjectId(lesson_id);
