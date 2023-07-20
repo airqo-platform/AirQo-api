@@ -273,10 +273,12 @@ jobs:
             
             if [[ $file == src/incentives/* ]]; then
               echo "run_incentives=true" >>$GITHUB_OUTPUT
+            fi 
 
             if [[ $file == k8s/incentives/* ]]; then
               echo "run_incentives=true" >>$GITHUB_OUTPUT              
-
+            fi
+            
             if [[ $file == src/channel-data/* ]]; then
               echo "run_channel_data=true" >>$GITHUB_OUTPUT
             fi
