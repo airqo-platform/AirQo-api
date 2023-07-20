@@ -39,7 +39,6 @@ const siteSchema = new Schema(
     search_name: {
       type: String,
       trim: true,
-      unique: true,
     },
     network: {
       type: String,
@@ -49,7 +48,6 @@ const siteSchema = new Schema(
     location_name: {
       type: String,
       trim: true,
-      unique: true,
     },
     generated_name: {
       type: String,
