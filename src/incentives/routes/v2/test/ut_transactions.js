@@ -1,12 +1,15 @@
 require("module-alias/register");
 const sinon = require("sinon");
 const chai = require("chai");
-const { expect } = chai;
+const app = require("@root/app");
+const chaiHttp = require("chai-http");
 const express = require("express");
 const request = require("supertest");
 const { check, oneOf, query, body, param } = require("express-validator");
 const createTransactionController = require("@controllers/create-transaction");
 const createTransactionRouter = require("@routes/transactions");
+chai.use(chaiHttp);
+const { expect } = chai;
 
 describe("Create Transaction Router", () => {
   let app;
@@ -16,23 +19,32 @@ describe("Create Transaction Router", () => {
     app.use(createTransactionRouter);
   });
 
+  // Test for POST /hosts/:host_id/payments route
   describe("POST /hosts/:host_id/payments", () => {
-    it("should call createTransactionController.sendMoneyToHost", async () => {
-      const createTransactionControllerStub = sinon.stub(
+    it("should call createTransactionController.sendMoneyToHost with correct arguments", async () => {
+      const sendMoneyToHostStub = sinon.stub(
         createTransactionController,
         "sendMoneyToHost"
       );
-      const hostId = "sample_host_id";
-      const requestBody = {}; // Provide a sample request body
+      sendMoneyToHostStub.resolves({
+        success: true,
+        message: "Transaction successful",
+      });
 
-      await request(app).post(`/hosts/${hostId}/payments`).send(requestBody);
+      const requestBody = {
+        // Add the request body here
+      };
 
-      expect(createTransactionControllerStub.calledOnce).to.be.true;
+      const response = await chai
+        .request(app)
+        .post("/hosts/your-host-id/payments")
+        .send(requestBody);
 
-      createTransactionControllerStub.restore();
+      expect(sendMoneyToHostStub.calledOnce).to.be.true;
+      expect(sendMoneyToHostStub.calledWithExactly(requestBody)).to.be.true;
+
+      sendMoneyToHostStub.restore();
     });
-
-    // Add more test cases for validation middleware if needed
   });
 
   describe("POST /accounts/payments", () => {
@@ -130,6 +142,15 @@ describe("Create Transaction Router", () => {
     });
 
     // Add more test cases for validation middleware if needed
+  });
+
+  // Test for non-existent route
+  describe("GET /nonexistent-route", () => {
+    it("should return 404 Not Found", async () => {
+      const response = await chai.request(app).get("/nonexistent-route");
+      expect(response.status).to.equal(404);
+      expect(response.body).to.have.property("message").to.equal("Not Found");
+    });
   });
 
   // Add more test cases for other routes if needed

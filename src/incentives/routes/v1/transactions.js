@@ -5,6 +5,8 @@ const { check, oneOf, query, body, param } = require("express-validator");
 const constants = require("@config/constants");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
+const phoneUtil =
+  require("google-libphonenumber").PhoneNumberUtil.getInstance();
 
 const commonFields = {
   channelId: constants.XENTE_CHANNEL_ID,
@@ -12,6 +14,9 @@ const commonFields = {
   customerPhone: constants.XENTE_CUSTOMER_PHONE,
   customerEmail: constants.XENTE_CUSTOMER_EMAIL,
   memo: constants.XENTE_MEMO,
+  metadata: constants.XENTE_METADATA,
+  batchId: constants.XENTE_BATCH_ID,
+  requestId: constants.XENTE_REQUEST_ID,
 };
 
 const validatePagination = (req, res, next) => {
@@ -23,13 +28,24 @@ const validatePagination = (req, res, next) => {
 };
 
 const addCommonFieldsToBody = (req, res, next) => {
-  const { channelId, customerId, customerPhone, customerEmail, memo } =
-    commonFields;
+  const {
+    channelId,
+    customerId,
+    customerPhone,
+    customerEmail,
+    memo,
+    metadata,
+    batchId,
+    requestId,
+  } = commonFields;
   req.body.channelId = channelId;
   req.body.customerId = customerId;
   req.body.customerPhone = customerPhone;
   req.body.customerEmail = customerEmail;
   req.body.memo = memo;
+  req.body.metadata = metadata;
+  req.body.batchId = batchId;
+  req.body.requestId = requestId;
   next();
 };
 
@@ -64,15 +80,25 @@ router.post(
   ]),
   oneOf([
     [
-      //   body("amount")
-      //     .exists()
-      //     .withMessage("the amount is missing in your request")
-      //     .bail()
-      //     .notEmpty()
-      //     .withMessage("the amount should not be empty")
-      //     .isInt()
-      //     .withMessage("the amount should be a number")
-      //     .trim(),
+      body("amount")
+        .exists()
+        .withMessage("the amount is missing in your request")
+        .bail()
+        .notEmpty()
+        .withMessage("the amount should not be empty")
+        .bail()
+        .isInt()
+        .withMessage("the amount should be a number")
+        .trim(),
+      param("host_id")
+        .exists()
+        .withMessage("the host_id is missing in your request")
+        .bail()
+        .notEmpty()
+        .withMessage("the host_id should not be empty")
+        .bail()
+        .isMongoId()
+        .withMessage("the host_id should be an Object ID"),
     ],
   ]),
   createTransactionController.sendMoneyToHost
@@ -96,15 +122,30 @@ router.post(
   ]),
   oneOf([
     [
-      //   body("amount")
-      //     .exists()
-      //     .withMessage("the amount is missing in your request")
-      //     .bail()
-      //     .notEmpty()
-      //     .withMessage("the amount should not be empty")
-      //     .isInt()
-      //     .withMessage("the amount should be a number")
-      //     .trim(),
+      body("amount")
+        .exists()
+        .withMessage("the amount is missing in your request")
+        .bail()
+        .notEmpty()
+        .withMessage("the amount should not be empty")
+        .bail()
+        .isInt()
+        .withMessage("the amount should be a number")
+        .trim(),
+      body("phone_number")
+        .exists()
+        .withMessage("the phone_number is missing in your request")
+        .bail()
+        .notEmpty()
+        .withMessage("the phone_number should not be empty")
+        .bail()
+        .custom((value) => {
+          let parsedPhoneNumber = phoneUtil.parse(value);
+          let isValid = phoneUtil.isValidNumber(parsedPhoneNumber);
+          return isValid;
+        })
+        .withMessage("phone_number must be a valid one")
+        .trim(),
     ],
   ]),
   createTransactionController.addMoneyToOrganisationAccount
@@ -128,15 +169,26 @@ router.post(
   ]),
   oneOf([
     [
-      //   body("amount")
-      //     .exists()
-      //     .withMessage("the amount is missing in your request")
-      //     .bail()
-      //     .notEmpty()
-      //     .withMessage("the amount should not be empty")
-      //     .isInt()
-      //     .withMessage("the amount should be a number")
-      //     .trim(),
+      body("amount")
+        .exists()
+        .withMessage("the amount is missing in your request")
+        .bail()
+        .notEmpty()
+        .withMessage("the amount should not be empty")
+        .bail()
+        .isInt()
+        .withMessage("the amount should be a number")
+        .trim(),
+      body("host_id")
+        .exists()
+        .withMessage("the host_id is missing in your request")
+        .bail()
+        .notEmpty()
+        .withMessage("the host_id should not be empty")
+        .bail()
+        .isMongoId()
+        .withMessage("the host_id should be an Object ID")
+        .trim(),
     ],
   ]),
   createTransactionController.receiveMoneyFromHost
@@ -160,15 +212,37 @@ router.post(
   ]),
   oneOf([
     [
-      //   body("amount")
-      //     .exists()
-      //     .withMessage("the amount is missing in your request")
-      //     .bail()
-      //     .notEmpty()
-      //     .withMessage("the amount should not be empty")
-      //     .isInt()
-      //     .withMessage("the amount should be a number")
-      //     .trim(),
+      body("amount")
+        .exists()
+        .withMessage("the amount is missing in your request")
+        .bail()
+        .notEmpty()
+        .withMessage("the amount should not be empty")
+        .isInt()
+        .withMessage("the amount should be a number")
+        .trim(),
+      body("phone_number")
+        .exists()
+        .withMessage("the phone_number is missing in your request")
+        .bail()
+        .notEmpty()
+        .withMessage("the phone_number should not be empty")
+        .bail()
+        .custom((value) => {
+          let parsedPhoneNumber = phoneUtil.parse(value);
+          let isValid = phoneUtil.isValidNumber(parsedPhoneNumber);
+          return isValid;
+        })
+        .withMessage("phone_number must be a valid one")
+        .trim(),
+      query("product_item")
+        .exists()
+        .withMessage("product_item should not be empty IF provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["ugung", "keko"])
+        .withMessage("the product_item value is not among the expected ones"),
     ],
   ]),
   createTransactionController.loadDataBundle
@@ -218,10 +292,13 @@ router.get(
     [
       param("device_id")
         .exists()
-        .withMessage("the transaction_id should exist")
+        .withMessage("the device_id should exist")
         .bail()
         .notEmpty()
-        .withMessage("the transaction_id cannot be empty")
+        .withMessage("the device_id cannot be empty")
+        .bail()
+        .isMongoId()
+        .withMessage("the device_id should be an Object ID")
         .trim(),
     ],
   ]),
