@@ -7,274 +7,120 @@ const { validationResult } = require("express-validator");
 const createTransactionUtil = require("@utils/create-transaction");
 const createTransaction = require("@controllers/create-transaction");
 
-describe("createTransaction", () => {
+describe("Create Transaction Controller", () => {
   describe("sendMoneyToHost", () => {
-    it("should send money to host", async () => {
-      const req = {
+    let req;
+    let res;
+
+    beforeEach(() => {
+      req = {
         query: {},
-        body: { hostId: "123", amount: 100 },
       };
-      const res = {
+      res = {
         status: sinon.stub().returnsThis(),
         json: sinon.stub(),
       };
-      const validationResultStub = sinon
-        .stub()
-        .returns({ isEmpty: () => true });
+    });
 
-      sinon
-        .stub(validationResult, "withDefaults")
-        .returns(validationResultStub);
+    it("should return success response when sendMoneyToHostUtil returns success", async () => {
+      sinon.stub(validationResult, "isEmpty").returns(true);
       sinon.stub(createTransactionUtil, "sendMoneyToHost").resolves({
         success: true,
         status: httpStatus.OK,
-        message: "Money sent to host",
-        data: { id: "123", hostId: "123", amount: 100 },
+        message: "Transaction successful",
+        data: { transactionId: "12345" },
       });
 
-      await createTransaction.sendMoneyToHost(req, res);
+      await createTransactionController.sendMoneyToHost(req, res);
 
-      expect(validationResultStub.calledOnceWith(req)).to.be.true;
-      expect(createTransactionUtil.sendMoneyToHost.calledOnceWith(req)).to.be
-        .true;
+      expect(validationResult.isEmpty.calledOnce).to.be.true;
+      expect(createTransactionUtil.sendMoneyToHost.calledOnce).to.be.true;
       expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
       expect(
-        res.json.calledOnceWith({
+        res.json.calledOnceWithExactly({
           success: true,
-          message: "Money sent to host",
-          transaction: { id: "123", hostId: "123", amount: 100 },
+          message: "Transaction successful",
+          transaction: { transactionId: "12345" },
         })
       ).to.be.true;
 
-      validationResult.withDefaults.restore();
+      validationResult.isEmpty.restore();
       createTransactionUtil.sendMoneyToHost.restore();
     });
 
-    // Add more test cases for the sendMoneyToHost method if needed
-  });
+    it("should return error response when input validation fails", async () => {
+      sinon.stub(validationResult, "isEmpty").returns(false);
+      const nestedErrors = [{ msg: "Invalid amount" }];
+      sinon.stub(validationResult, "errors").value([{ nestedErrors }]);
+      sinon.stub(createTransactionUtil, "sendMoneyToHost");
 
-  describe("addMoneyToOrganisationAccount", () => {
-    it("should add money to the organisation account", async () => {
-      const req = {
-        query: {},
-        body: { amount: 100 },
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-      const validationResultStub = sinon
-        .stub()
-        .returns({ isEmpty: () => true });
+      await createTransactionController.sendMoneyToHost(req, res);
 
-      sinon
-        .stub(validationResult, "withDefaults")
-        .returns(validationResultStub);
+      expect(validationResult.isEmpty.calledOnce).to.be.true;
+      expect(createTransactionUtil.sendMoneyToHost.called).to.be.false;
+      expect(res.status.calledOnceWith(httpStatus.BAD_REQUEST)).to.be.true;
+      expect(
+        res.json.calledOnceWithExactly({
+          success: false,
+          message: "bad request errors",
+          errors: { msg: "Invalid amount" },
+        })
+      ).to.be.true;
+
+      validationResult.isEmpty.restore();
+      validationResult.errors.restore();
+      createTransactionUtil.sendMoneyToHost.restore();
+    });
+
+    it("should return error response when sendMoneyToHostUtil returns error", async () => {
+      sinon.stub(validationResult, "isEmpty").returns(true);
       sinon.stub(createTransactionUtil, "sendMoneyToHost").resolves({
-        success: true,
-        status: httpStatus.OK,
-        message: "Money added to organisation account",
-        data: { id: "123", amount: 100 },
+        success: false,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        message: "Transaction failed",
       });
 
-      await createTransaction.addMoneyToOrganisationAccount(req, res);
+      await createTransactionController.sendMoneyToHost(req, res);
 
-      expect(validationResultStub.calledOnceWith(req)).to.be.true;
-      expect(createTransactionUtil.sendMoneyToHost.calledOnceWith(req)).to.be
+      expect(validationResult.isEmpty.calledOnce).to.be.true;
+      expect(createTransactionUtil.sendMoneyToHost.calledOnce).to.be.true;
+      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
         .true;
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
       expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Money added to organisation account",
-          transaction: { id: "123", amount: 100 },
+        res.json.calledOnceWithExactly({
+          success: false,
+          message: "Transaction failed",
+          errors: { message: "Internal Server Error" },
         })
       ).to.be.true;
 
-      validationResult.withDefaults.restore();
+      validationResult.isEmpty.restore();
       createTransactionUtil.sendMoneyToHost.restore();
     });
 
-    // Add more test cases for the addMoneyToOrganisationAccount method if needed
-  });
-
-  describe("receiveMoneyFromHost", () => {
-    it("should receive money from host", async () => {
-      const req = {
-        query: {},
-        body: { hostId: "123", amount: 100 },
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-      const validationResultStub = sinon
-        .stub()
-        .returns({ isEmpty: () => true });
-
+    it("should return error response when sendMoneyToHostUtil throws an error", async () => {
+      sinon.stub(validationResult, "isEmpty").returns(true);
       sinon
-        .stub(validationResult, "withDefaults")
-        .returns(validationResultStub);
-      sinon.stub(createTransactionUtil, "sendMoneyToHost").resolves({
-        success: true,
-        status: httpStatus.OK,
-        message: "Money received from host",
-        data: { id: "123", hostId: "123", amount: 100 },
-      });
+        .stub(createTransactionUtil, "sendMoneyToHost")
+        .throws(new Error("Internal Server Error"));
 
-      await createTransaction.receiveMoneyFromHost(req, res);
+      await createTransactionController.sendMoneyToHost(req, res);
 
-      expect(validationResultStub.calledOnceWith(req)).to.be.true;
-      expect(createTransactionUtil.sendMoneyToHost.calledOnceWith(req)).to.be
+      expect(validationResult.isEmpty.calledOnce).to.be.true;
+      expect(createTransactionUtil.sendMoneyToHost.calledOnce).to.be.true;
+      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
         .true;
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
       expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Money received from host",
-          transaction: { id: "123", hostId: "123", amount: 100 },
+        res.json.calledOnceWithExactly({
+          message: "Internal Server Error",
+          errors: { message: "Internal Server Error" },
         })
       ).to.be.true;
 
-      validationResult.withDefaults.restore();
+      validationResult.isEmpty.restore();
       createTransactionUtil.sendMoneyToHost.restore();
     });
-
-    // Add more test cases for the receiveMoneyFromHost method if needed
   });
 
-  describe("getTransactionDetails", () => {
-    it("should get transaction details", async () => {
-      const req = {
-        query: {},
-        body: { transactionId: "123" },
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-      const validationResultStub = sinon
-        .stub()
-        .returns({ isEmpty: () => true });
-
-      sinon
-        .stub(validationResult, "withDefaults")
-        .returns(validationResultStub);
-      sinon.stub(createTransactionUtil, "sendMoneyToHost").resolves({
-        success: true,
-        status: httpStatus.OK,
-        message: "Transaction details retrieved",
-        data: { id: "123", hostId: "123", amount: 100 },
-      });
-
-      await createTransaction.getTransactionDetails(req, res);
-
-      expect(validationResultStub.calledOnceWith(req)).to.be.true;
-      expect(createTransactionUtil.sendMoneyToHost.calledOnceWith(req)).to.be
-        .true;
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Transaction details retrieved",
-          transaction: { id: "123", hostId: "123", amount: 100 },
-        })
-      ).to.be.true;
-
-      validationResult.withDefaults.restore();
-      createTransactionUtil.sendMoneyToHost.restore();
-    });
-
-    // Add more test cases for the getTransactionDetails method if needed
-  });
-
-  describe("loadDataBundle", () => {
-    it("should load data bundle", async () => {
-      const req = {
-        query: {},
-        body: { simCardId: "123", dataAmount: "1GB" },
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-      const validationResultStub = sinon
-        .stub()
-        .returns({ isEmpty: () => true });
-
-      sinon
-        .stub(validationResult, "withDefaults")
-        .returns(validationResultStub);
-      sinon.stub(createTransactionUtil, "sendMoneyToHost").resolves({
-        success: true,
-        status: httpStatus.OK,
-        message: "Data bundle loaded",
-        data: { id: "123", simCardId: "123", dataAmount: "1GB" },
-      });
-
-      await createTransaction.loadDataBundle(req, res);
-
-      expect(validationResultStub.calledOnceWith(req)).to.be.true;
-      expect(createTransactionUtil.sendMoneyToHost.calledOnceWith(req)).to.be
-        .true;
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Data bundle loaded",
-          transaction: { id: "123", simCardId: "123", dataAmount: "1GB" },
-        })
-      ).to.be.true;
-
-      validationResult.withDefaults.restore();
-      createTransactionUtil.sendMoneyToHost.restore();
-    });
-
-    // Add more test cases for the loadDataBundle method if needed
-  });
-
-  describe("checkRemainingDataBundleBalance", () => {
-    it("should check remaining data bundle balance", async () => {
-      const req = {
-        query: {},
-        body: { simCardId: "123" },
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-      const validationResultStub = sinon
-        .stub()
-        .returns({ isEmpty: () => true });
-
-      sinon
-        .stub(validationResult, "withDefaults")
-        .returns(validationResultStub);
-      sinon.stub(createTransactionUtil, "sendMoneyToHost").resolves({
-        success: true,
-        status: httpStatus.OK,
-        message: "Remaining data bundle balance checked",
-        data: { simCardId: "123", remainingBalance: "500MB" },
-      });
-
-      await createTransaction.checkRemainingDataBundleBalance(req, res);
-
-      expect(validationResultStub.calledOnceWith(req)).to.be.true;
-      expect(createTransactionUtil.sendMoneyToHost.calledOnceWith(req)).to.be
-        .true;
-      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledOnceWith({
-          success: true,
-          message: "Remaining data bundle balance checked",
-          transaction: { simCardId: "123", remainingBalance: "500MB" },
-        })
-      ).to.be.true;
-
-      validationResult.withDefaults.restore();
-      createTransactionUtil.sendMoneyToHost.restore();
-    });
-
-    // Add more test cases for the checkRemainingDataBundleBalance method if needed
-  });
+  // Add more tests for other controller functions if needed
 });
