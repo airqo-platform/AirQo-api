@@ -56,6 +56,7 @@ jobs:
       run_kafka_topics: ${{ steps.check_files.outputs.run_kafka_topics }} # kafka topics
       run_airflow: ${{ steps.check_files.outputs.run_airflow }} # airflow
       run_network_uptime: ${{ steps.check_files.outputs.run_network_uptime }} # network_uptime
+      run_incentives: ${{ steps.check_files.outputs.run_incentives }} # incentives
       run_channel_data: ${{ steps.check_files.outputs.run_channel_data }} # channel data job
       run_kafka_connectors: ${{ steps.check_files.outputs.run_kafka_connectors }} # kafka connectors
       run_fault_detection: ${{ steps.check_files.outputs.run_fault_detection }} # fault detection
@@ -100,6 +101,7 @@ jobs:
           echo "run_kafka_topics=false" >>$GITHUB_OUTPUT
           echo "run_airflow=false" >>$GITHUB_OUTPUT
           echo "run_network_uptime=false" >>$GITHUB_OUTPUT
+          echo "run_incentives=false" >>$GITHUB_OUTPUT
           echo "run_channel_data=false" >>$GITHUB_OUTPUT
           echo "run_kafka_connectors=false" >>$GITHUB_OUTPUT
           echo "run_fault_detection=false" >>$GITHUB_OUTPUT
@@ -268,7 +270,15 @@ jobs:
             if [[ $file == k8s/network-uptime/* ]]; then
               echo "run_network_uptime=true" >>$GITHUB_OUTPUT
             fi
+
+            if [[ $file == src/incentives/* ]]; then
+              echo "run_incentives=true" >>$GITHUB_OUTPUT
+            fi
             
+            if [[ $file == k8s/incentives/* ]]; then
+              echo "run_incentives=true" >>$GITHUB_OUTPUT              
+            fi
+
             if [[ $file == src/channel-data/* ]]; then
               echo "run_channel_data=true" >>$GITHUB_OUTPUT
             fi
@@ -308,6 +318,7 @@ jobs:
               echo "run_auth_service=true" >>$GITHUB_OUTPUT
               echo "run_airflow=true" >>$GITHUB_OUTPUT
               echo "run_network_uptime=true" >>$GITHUB_OUTPUT
+              echo "run_incentives=true" >>$GITHUB_OUTPUT
               echo "run_channel_data=true" >>$GITHUB_OUTPUT
               echo "run_fault_detection=true" >>$GITHUB_OUTPUT
               echo "run_view=true" >>$GITHUB_OUTPUT
@@ -429,7 +440,7 @@ jobs:
             value: ${{ needs.image-tag.outputs.build_id }}
             branch: ${{ env.DEPLOY_BRANCH }}
             token: ${{ secrets.YAML_UPDATER_TOKEN }}
-            message: "Update BigQuery-connectors staging image tag to ${{ needs.image-tag.outputs.build_id }}          
+            message: "Update BigQuery-connectors staging image tag to ${{ needs.image-tag.outputs.build_id }}
 
       - name: Deploy to k8s cluster
         run: |
@@ -439,7 +450,7 @@ jobs:
           kubectl apply -f k8s/kafka/connectors/purple-air-connector.yaml -n message-broker
 
       - name: Set up GCP credentials and Kubernetes configmaps
-        run : |
+        run: |
           gcloud secrets versions access latest --secret="sta-env-kafka-bigquery-connectors" > .env
           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env bigquery-connectors | kubectl replace -f - -n staging
           gcloud secrets versions access latest --secret="sta-key-kafka-bigquery-connectors" > google_application_credentials.json
@@ -695,7 +706,7 @@ jobs:
           kubectl create configmap --dry-run=client -o yaml --from-env-file=predict_places_air_quality.env env-predict-places-air-quality | kubectl replace -f - -n staging
           echo "=============== Updating the respective credentials files ==============="
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json env-predict-staging-files | kubectl replace -f - -n staging
-                              
+
   ### kafka cluster operator ###
   kafka-cluster-operator:
     name: build-push-deploy-kafka-cluster-operator
@@ -1766,6 +1777,63 @@ jobs:
           cd src/network-uptime/
           gcloud secrets versions access latest --secret="sta-env-network-uptime" > .env
           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env env-network-uptime-staging | kubectl replace -f - -n staging
+
+  ### incentives ###
+  incentives:
+    name: build-push-incentives
+    needs: [check, image-tag]
+    if: needs.check.outputs.run_incentives == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3.5.3
+
+      - name: Login to GCR
+        uses: docker/login-action@v2.2.0
+        with:
+          registry: ${{ env.REGISTRY_URL }}
+          username: _json_key
+          password: ${{ secrets.GCR_CONFIG }}
+
+      - name: Login to K8S
+        uses: azure/k8s-set-context@v3.0
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v4.1.1
+        with:
+          push: true
+          context: src/incentives/
+          target: staging
+          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-incentives-api:${{ needs.image-tag.outputs.build_id }}, ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-incentives-api:latest
+
+      - name: Update corresponding helm values file(with retry)
+        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
+        with:
+          action: fjogeleit/yaml-update-action@main # Action to retry
+          with: |
+            valueFile: "k8s/incentives/values-stage.yaml"
+            propertyPath: "image.tag"
+            value: ${{ needs.image-tag.outputs.build_id }}
+            branch: ${{ env.DEPLOY_BRANCH }}
+            token: ${{ secrets.YAML_UPDATER_TOKEN }}
+            message: "Update incentives staging image tag to ${{ needs.image-tag.outputs.build_id }}"
+
+      - name: Login to GCP
+        uses: google-github-actions/auth@v1.1.1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
+
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1.1.1
+
+      - name: Update the corresponding k8s configmap(s)
+        run: |
+          cd src/incentives/
+          gcloud secrets versions access latest --secret="sta-env-incentives" > .env
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env stage-incentives-api-config | kubectl replace -f - -n staging
 
   #### Channel data ######
   channel-data:

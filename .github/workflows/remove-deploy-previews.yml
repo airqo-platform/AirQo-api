@@ -34,6 +34,7 @@ jobs:
       remove_preview__calibrate: ${{ steps.check_files.outputs.remove_preview__calibrate }} # calibrate
       remove_preview__notifications: ${{ steps.check_files.outputs.remove_preview__notifications }} # notification
       remove_preview__network_uptime: ${{ steps.check_files.outputs.remove_preview__network_uptime }} # network_uptime
+      remove_preview__incentives: ${{ steps.check_files.outputs.remove_preview__incentives }} #incentives
 
     runs-on: ubuntu-latest
     steps:
@@ -64,6 +65,7 @@ jobs:
           echo "remove_preview__calibrate=false" >>$GITHUB_OUTPUT 
           echo "remove_preview__notifications=false" >>$GITHUB_OUTPUT
           echo "remove_preview__network_uptime=false" >>$GITHUB_OUTPUT
+          echo "remove_preview__incentives=false" >>$GITHUB_OUTPUT 
 
           while IFS= read -r file
           do
@@ -115,6 +117,10 @@ jobs:
             if [[ $file == src/network-uptime/* ]]; then
               echo "remove_preview__network_uptime=true" >>$GITHUB_OUTPUT
             fi
+
+            if [[ $file == src/incentives/* ]]; then
+              echo "remove_preview__incentives=true" >>$GITHUB_OUTPUT
+            fi            
 
           done < files.txt
 
@@ -379,5 +385,27 @@ jobs:
       - name: Delete PR deploy preview
         run: |-
           gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-network-uptime-preview \
+            --region=${{ secrets.REGION }} \
+            --quiet
+
+  ### incentives ###
+  incentives:
+    name: build-push-incentives
+    needs: [check, branch-name]
+    if: needs.check.outputs.remove_preview__incentives == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v1.1.1
+        with:
+          credentials_json: "${{ secrets.GCP_SA_CREDENTIALS }}"
+
+      - name: Setup Cloud SDK
+        uses: "google-github-actions/setup-gcloud@v1.1.1"
+
+      - name: Delete PR deploy preview
+        run: |-
+          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-incentives-preview \
             --region=${{ secrets.REGION }} \
             --quiet

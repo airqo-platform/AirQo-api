@@ -14,7 +14,7 @@ You can clone the project
   git clone https://github.com/airqo-platform/AirQo-api
 ```
 
-Go to the microservice directory
+Go to the microservice directory and follow the steps below
 ```bash 
   cd AirQo-api/src/device-registry
 ```
