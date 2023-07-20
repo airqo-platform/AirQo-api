@@ -161,7 +161,7 @@ router.put(
       .custom((value) => {
         return !isEmpty(value);
       })
-      .withMessage("the request body should not be empty"),
+      .withMessage("The request body should not be empty."),
   ]),
   oneOf([
     [
