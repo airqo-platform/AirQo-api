@@ -212,7 +212,7 @@ router.delete(
         .bail()
         .trim()
         .isMongoId()
-        .withMessage("lesson_id must be an object ID")
+        .withMessage("the lesson_id must be an object ID")
         .bail()
         .customSanitizer((value) => {
           return ObjectId(value);
