@@ -1,6 +1,6 @@
 require("module-alias/register");
 ("use-strict");
-const activityController = require("../Activity");
+const activityController = require("../SiteActivity");
 
 let chai = require("chai"),
   expect = chai.expect;
