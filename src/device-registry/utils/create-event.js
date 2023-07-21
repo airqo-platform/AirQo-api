@@ -13,7 +13,6 @@ const { transform } = require("node-json-transform");
 const Dot = require("dot-object");
 const cleanDeep = require("clean-deep");
 const { getDevicesCount, list, decryptKey } = require("./create-monitor");
-const HTTPStatus = require("http-status");
 const redis = require("@config/redis");
 const axios = require("axios");
 const { BigQuery } = require("@google-cloud/bigquery");
@@ -23,8 +22,8 @@ const {
   addMonthsToProvideDateTime,
   formatDate,
 } = require("./date");
-
 const { Parser } = require("json2csv");
+const httpStatus = require("http-status");
 
 const createEvent = {
   getMeasurementsFromBigQuery: async (req) => {
@@ -80,7 +79,7 @@ const createEvent = {
           // return {
           //   success: false,
           //   message: "not authorized",
-          //   status: HTTPStatus.UNAUTHORIZED,
+          //   status: httpStatus.UNAUTHORIZED,
           //   errors: { message: "not authorized" },
           // };
         }
@@ -517,7 +516,7 @@ const createEvent = {
       callback({
         success: false,
         errors: { message: error.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
         message: "Internal Server Error",
       });
     }
@@ -609,21 +608,21 @@ const createEvent = {
         if (errors.length > 0 && nAdded === 0) {
           return {
             success: false,
-            status: HTTPStatus.CONFLICT,
+            status: httpStatus.CONFLICT,
             message: "all operations failed with conflicts",
             errors,
           };
         } else if (errors.length > 0 && nAdded > 0) {
           return {
             success: true,
-            status: HTTPStatus.OK,
+            status: httpStatus.OK,
             message: "finished the operation with some conflicts",
             errors,
           };
         } else if (errors.length === 0 && nAdded > 0) {
           return {
             success: true,
-            status: HTTPStatus.OK,
+            status: httpStatus.OK,
             message: "successfully added all the events",
           };
         }
@@ -636,7 +635,7 @@ const createEvent = {
       return {
         success: false,
         errors: { message: error.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -748,7 +747,7 @@ const createEvent = {
       return {
         success: false,
         message: "Internal Server Error",
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
         errors: { message: error.message },
       };
     }
@@ -764,7 +763,7 @@ const createEvent = {
           if (isEmpty(deviceDetail.category)) {
             return {
               success: false,
-              status: HTTPStatus.INTERNAL_SERVER_ERROR,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
               message:
                 "unable to categorise this device, please first update device details",
               errors: {
@@ -776,7 +775,7 @@ const createEvent = {
         } else {
           return {
             success: false,
-            status: HTTPStatus.NOT_FOUND,
+            status: httpStatus.NOT_FOUND,
             message: "no matching devices found",
             errors: { message: "no matching devices found" },
           };
@@ -790,7 +789,7 @@ const createEvent = {
             : { message: "" },
           status: responseFromListDevice.status
             ? responseFromListDevice.status
-            : HTTPStatus.INTERNAL_SERVER_ERROR,
+            : httpStatus.INTERNAL_SERVER_ERROR,
         };
       }
 
@@ -833,7 +832,7 @@ const createEvent = {
             return {
               success: false,
               message: "successful operation but no data sent",
-              status: HTTPStatus.CONFLICT,
+              status: httpStatus.CONFLICT,
               data: resp,
               errors: {
                 message: "likely a duplicate value or system conflict",
@@ -870,7 +869,7 @@ const createEvent = {
             },
             status: error.response
               ? error.response.data.status
-              : HTTPStatus.INTERNAL_SERVER_ERROR,
+              : httpStatus.INTERNAL_SERVER_ERROR,
           };
         });
     } catch (error) {
@@ -878,7 +877,7 @@ const createEvent = {
       return {
         message: "Internal Server Error",
         errors: { message: error.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
         success: false,
       };
     }
@@ -900,7 +899,7 @@ const createEvent = {
           if (isEmpty(deviceDetail.category)) {
             return {
               success: false,
-              status: HTTPStatus.INTERNAL_SERVER_ERROR,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
               message:
                 "unable to categorise this device, please first update device details",
             };
@@ -908,7 +907,7 @@ const createEvent = {
         } else {
           return {
             success: false,
-            status: HTTPStatus.NOT_FOUND,
+            status: httpStatus.NOT_FOUND,
             message: "device not found for this organisation",
           };
         }
@@ -953,7 +952,7 @@ const createEvent = {
             return {
               success: false,
               message: "successful operation but no data sent",
-              status: HTTPStatus.CONFLICT,
+              status: httpStatus.CONFLICT,
               errors: {
                 message: "likely duplicate values or system conflicts",
               },
@@ -964,7 +963,7 @@ const createEvent = {
               message: "successfully transmitted the data",
               success: true,
               data: output,
-              status: HTTPStatus.OK,
+              status: httpStatus.OK,
             };
           }
         })
@@ -988,7 +987,7 @@ const createEvent = {
             },
             status: error.response
               ? error.response.data.status
-              : HTTPStatus.INTERNAL_SERVER_ERROR,
+              : httpStatus.INTERNAL_SERVER_ERROR,
           };
         });
     } catch (error) {
@@ -1069,6 +1068,7 @@ const createEvent = {
       callback({
         success: true,
         message: "response stored in cache",
+        status: httpStatus.OK,
       });
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
@@ -1076,6 +1076,7 @@ const createEvent = {
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       });
     }
   },
@@ -1089,6 +1090,7 @@ const createEvent = {
             success: true,
             message: "utilising cache...",
             data: resultJSON,
+            status: httpStatus.OK,
           });
         } else if (err) {
           logger.error(`unable to get cache --- ${JSON.stringify(err)}`);
@@ -1096,22 +1098,25 @@ const createEvent = {
             success: false,
             message: "Internal Server Error",
             errors: { message: err.message },
+            status: httpStatus.INTERNAL_SERVER_ERROR,
           });
         } else {
           callback({
             success: false,
             message: "no cache present",
             errors: { message: "no cache present" },
+            status: httpStatus.INTERNAL_SERVER_ERROR,
           });
         }
       });
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      return {
+      callback({
         success: false,
         errors: { message: error.message },
         message: "Internal Server Error",
-      };
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      });
     }
   },
 
@@ -1218,7 +1223,7 @@ const createEvent = {
           return {
             success: false,
             message: "unable to find one device matching provided details",
-            status: HTTPStatus.BAD_REQUEST,
+            status: httpStatus.BAD_REQUEST,
           };
         }
       } else if (responseFromGetDeviceDetails.success === false) {
@@ -1325,7 +1330,7 @@ const createEvent = {
             errors,
             message: "some operational errors as we were trying to transform",
             data: transforms,
-            status: HTTPStatus.BAD_REQUEST,
+            status: httpStatus.BAD_REQUEST,
           };
         } else if (errors.length === 0) {
           return {
@@ -1333,7 +1338,7 @@ const createEvent = {
             errors,
             message: "transformation successfully done",
             data: transforms,
-            status: HTTPStatus.OK,
+            status: httpStatus.OK,
           };
         }
       });
@@ -1343,7 +1348,7 @@ const createEvent = {
         success: false,
         message: "server side error - transformEvents ",
         errors: { message: error.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -1427,7 +1432,7 @@ const createEvent = {
             let insertion = {
               msg: "successfuly added the event",
               event_details: filter,
-              status: HTTPStatus.CREATED,
+              status: httpStatus.CREATED,
             };
             data.push(insertion);
           }
@@ -1436,7 +1441,7 @@ const createEvent = {
             let errMsg = {
               msg: "unable to add the event",
               event_details: filter,
-              status: HTTPStatus.NOT_MODIFIED,
+              status: httpStatus.NOT_MODIFIED,
             };
             errors.push(errMsg);
             // logger.info(
@@ -1451,7 +1456,7 @@ const createEvent = {
           let errMsg = {
             msg: "duplicate event",
             event_details: filter,
-            status: HTTPStatus.FORBIDDEN,
+            status: httpStatus.FORBIDDEN,
           };
           errors.push(errMsg);
         }
@@ -1666,13 +1671,13 @@ const createEvent = {
         success: false,
         message: "finished the operation with some errors",
         errors,
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     } else {
       return {
         success: true,
         message: "successfully added all the events",
-        status: HTTPStatus.OK,
+        status: httpStatus.OK,
       };
     }
   },
@@ -1810,7 +1815,7 @@ const createEvent = {
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
