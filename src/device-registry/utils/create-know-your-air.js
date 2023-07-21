@@ -472,6 +472,8 @@ const createKnowYourAir = {
             }
           }
           else {
+            if (progress.progress == -1)
+              progress.completed = true;
             let requestBody = {
               query: {
                 tenant: tenant,

@@ -486,9 +486,9 @@ router.put(
         .trim()
         .custom((value) => {
           const parsedValue = parseFloat(value);
-          return !isNaN(parsedValue) && parsedValue >= 0 && parsedValue <= 1;
+          return !isNaN(parsedValue) && parsedValue >= -1 && parsedValue <= 1;
         })
-        .withMessage("the progress should be between 0 and 1"),
+        .withMessage("the progress should be between -1 and 1"),
     ],
   ]),
   knowYourAirController.updateUserLessonProgress
@@ -546,9 +546,9 @@ router.post(
         .trim()
         .custom((value) => {
           const parsedValue = parseFloat(value);
-          return !isNaN(parsedValue) && parsedValue >= 0 && parsedValue <= 1;
+          return !isNaN(parsedValue) && parsedValue >= -1 && parsedValue <= 1;
         })
-        .withMessage("the progress should be between 0 and 1"),
+        .withMessage("the progress should be between -1 and 1"),
     ],
   ]),
   knowYourAirController.createUserLessonProgress
@@ -611,9 +611,9 @@ router.post(
         .trim()
         .custom((value) => {
           const parsedValue = parseFloat(value);
-          return !isNaN(parsedValue) && parsedValue >= 0 && parsedValue <= 1;
+          return !isNaN(parsedValue) && parsedValue >= -1 && parsedValue <= 1;
         })
-        .withMessage("the progress should be between 0 and 1"),
+        .withMessage("the progress should be between -1 and 1"),
 
       body("kya_user_progress.*.lesson_id")
         .exists()
