@@ -1,4 +1,5 @@
-"use-strict";
+require("module-alias/register");
+("use-strict");
 const activityController = require("../Activity");
 
 let chai = require("chai"),
