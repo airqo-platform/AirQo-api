@@ -9,17 +9,49 @@ require("app-module-path").addPath(__dirname);
 const cookieParser = require("cookie-parser");
 const constants = require("@config/constants");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- app entry`);
-// require("@config/database");
 const { mongodb } = require("@config/database");
 mongodb;
 const routes = require("@routes");
-
 // const moesif = require("moesif-nodejs");
 const compression = require("compression");
 const { logObject } = require("./utils/log");
-
+const session = require("express-session");
+const MongoStore = require("connect-mongo")(session);
+const mongoose = require("mongoose");
+const morgan = require("morgan");
+const helmet = require("helmet");
+const passport = require("passport");
+const isDev = process.env.NODE_ENV === "development";
+const isProd = process.env.NODE_ENV === "production";
+const options = { mongooseConnection: mongoose.connection };
 const app = express();
-app.use(compression());
+
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET,
+    store: new MongoStore(options),
+    resave: false,
+    saveUninitialized: false,
+  })
+);
+
+if (isProd) {
+  app.use(compression());
+  app.use(helmet());
+} else if (isDev) {
+  app.use(morgan("dev"));
+} else {
+  app.use(compression());
+}
+
+app.use(passport.initialize());
+app.use(passport.session());
+app.use(bodyParser.json());
+app.use(
+  bodyParser.urlencoded({
+    extended: true,
+  })
+);
 
 // const moesifMiddleware = moesif({
 //   applicationId: constants.MOESIF_APPLICATION_ID,
