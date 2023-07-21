@@ -6,11 +6,11 @@ app:
 initContainer:
   image:
     repository: eu.gcr.io/airqo-250220/airqo-stage-calibrate-pickle-file
-    tag: stage-fe759cbc-1688036255
+    tag: stage-6c241924-1689940764
 replicaCount: 2
 image:
   repository: eu.gcr.io/airqo-250220/airqo-stage-calibrate-api
-  tag: stage-fe759cbc-1688036255
+  tag: stage-6c241924-1689940764
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}

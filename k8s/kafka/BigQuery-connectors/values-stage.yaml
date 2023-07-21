@@ -6,7 +6,7 @@ app:
 replicaCount: 2
 image:
   repository: eu.gcr.io/airqo-250220/stage-bigquery-connectors
-  tag: stage-4aceaf50-1688725360
+  tag: stage-57e991d2-1689862096
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
