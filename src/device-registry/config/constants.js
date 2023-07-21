@@ -1182,8 +1182,8 @@ const defaultConfig = {
     completion_message: 1,
     image: 1,
     tasks: 1,
-    kya_user_progress: { $arrayElemAt: ["$kya_user_progress.progress", 0] },
-    completion_status: { $arrayElemAt: ["$kya_user_progress.completed", 0] },
+    active_task: { $arrayElemAt: ["$kya_user_progress.active_task", 0] },
+    status: { $arrayElemAt: ["$kya_user_progress.status", 0] },
   },
   KYA_LESSONS_EXCLUSION_PROJECTION: (category) => {
     const initialProjection = { nothing: 0 };
@@ -1197,7 +1197,8 @@ const defaultConfig = {
   KYA_LESSONS_PROGRESS_INCLUSION_PROJECTION: {
     user_id: 1,
     lesson_id: 1,
-    progress: 1,
+    active_task: 1,
+    status: 1,
     completed: 1,
     _id: 1,
   },

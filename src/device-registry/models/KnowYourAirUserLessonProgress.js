@@ -22,10 +22,14 @@ const userLessonProgressSchema = new Schema(
       type: Boolean,
       default: false,
     },
-    progress: {
+    active_task: {
       type: Number,
       default: 0,
     },
+    status: {
+      type: String,
+      default: "todo"
+    }
   },
   {
     timestamps: true,
@@ -48,7 +52,7 @@ userLessonProgressSchema.methods = {
       user_id: this.user_id,
       lesson_id: this.lesson_id,
       completed: this.completed,
-      progress: this.progress,
+      active_task: this.active_task,
       _id: this._id,
     };
   },

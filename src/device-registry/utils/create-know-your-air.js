@@ -459,7 +459,8 @@ const createKnowYourAir = {
               {
                 user_id: user_id,
                 lesson_id: progress.lesson_id,
-                progress: progress.progress,
+                active_task: progress.active_task,
+                status: progress.status,
               },
             };
             let responseFromCreateUserLessonProgress = await createKnowYourAir.createUserLessonProgress(requestBody);
@@ -472,8 +473,6 @@ const createKnowYourAir = {
             }
           }
           else {
-            if (progress.progress == -1)
-              progress.completed = true;
             let requestBody = {
               query: {
                 tenant: tenant,

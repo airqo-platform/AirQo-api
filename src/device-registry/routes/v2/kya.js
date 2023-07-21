@@ -478,17 +478,19 @@ router.put(
         .trim()
         .isBoolean()
         .withMessage("the completed should be boolean"),
-      body("progress")
-        .optional()
-        .notEmpty()
-        .withMessage("the progress should not be empty IF provided")
+      body("active_task")
+        .exists()
+        .withMessage("the progress is missing in request")
         .bail()
-        .trim()
-        .custom((value) => {
-          const parsedValue = parseFloat(value);
-          return !isNaN(parsedValue) && parsedValue >= -1 && parsedValue <= 1;
-        })
-        .withMessage("the progress should be between -1 and 1"),
+        .trim(),
+      body("status")
+        .exists()
+        .withMessage("the status is missing in request")
+        .bail()
+        .isIn(["todo", "inProgress", "pendingCompletion", "complete"])
+        .withMessage("the status must be one of the following: todo, inProgress, pendingCompletion, complete")
+        .bail()
+        .trim(), ,
     ],
   ]),
   knowYourAirController.updateUserLessonProgress
@@ -533,22 +535,26 @@ router.post(
           return ObjectId(value);
         }),
       body("completed")
-        .exists()
-        .withMessage("the completed is missing in request")
+        .optional()
+        .notEmpty()
+        .withMessage("the lesson_id should not be empty IF provided")
         .bail()
         .trim()
         .isBoolean()
         .withMessage("the completed should be boolean"),
-      body("progress")
+      body("active_task")
         .exists()
         .withMessage("the progress is missing in request")
         .bail()
-        .trim()
-        .custom((value) => {
-          const parsedValue = parseFloat(value);
-          return !isNaN(parsedValue) && parsedValue >= -1 && parsedValue <= 1;
-        })
-        .withMessage("the progress should be between -1 and 1"),
+        .trim(),
+      body("status")
+        .exists()
+        .withMessage("the status is missing in request")
+        .bail()
+        .isIn(["todo", "inProgress", "pendingCompletion", "complete"])
+        .withMessage("the status must be one of the following: todo, inProgress, pendingCompletion, complete")
+        .bail()
+        .trim(),
     ],
   ]),
   knowYourAirController.createUserLessonProgress
@@ -601,28 +607,34 @@ router.post(
         .optional()
         .isObject()
         .withMessage("Each kya user progress should be an object"),
-      body("kya_user_progress.*.progress")
+      body("kya_user_progress.*.active_task")
         .exists()
-        .withMessage("progress is missing in the kya user progress object")
+        .withMessage("active_task is missing in the kya user progress object")
         .bail()
         .notEmpty()
-        .withMessage("the progress must not be empty")
-        .bail()
-        .trim()
-        .custom((value) => {
-          const parsedValue = parseFloat(value);
-          return !isNaN(parsedValue) && parsedValue >= -1 && parsedValue <= 1;
-        })
-        .withMessage("the progress should be between -1 and 1"),
-
-      body("kya_user_progress.*.lesson_id")
-        .exists()
-        .withMessage("lesson_id is missing in the kya user progress object")
-        .bail()
-        .notEmpty()
-        .withMessage("the lesson_id must not be empty")
+        .withMessage("the active_task must not be empty")
         .bail()
         .trim(),
+      body("kya_user_progress.*.status")
+        .exists()
+        .withMessage("status is missing in the kya user progress object")
+        .bail()
+        .isIn(["todo", "inProgress", "pendingCompletion", "complete"])
+        .withMessage("the status must be one of the following: todo, inProgress, pendingCompletion, complete")
+        .bail()
+        .trim(),
+
+      body("kya_user_progress.*._id")
+        .exists()
+        .withMessage("the lesson_id is missing in request")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("lesson_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
     ],
   ]),
   knowYourAirController.syncUserLessonProgress
