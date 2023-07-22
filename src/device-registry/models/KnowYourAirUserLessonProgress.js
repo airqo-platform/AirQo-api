@@ -28,7 +28,7 @@ const userLessonProgressSchema = new Schema(
     },
     status: {
       type: String,
-      default: "todo"
+      default: "TODO"
     }
   },
   {

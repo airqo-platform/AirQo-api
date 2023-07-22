@@ -487,8 +487,8 @@ router.put(
         .exists()
         .withMessage("the status is missing in request")
         .bail()
-        .isIn(["todo", "inProgress", "pendingCompletion", "complete"])
-        .withMessage("the status must be one of the following: todo, inProgress, pendingCompletion, complete")
+        .isIn(["TODO", "IN_PROGRESS", "PENDING_COMPLETION", "COMPLETE"])
+        .withMessage("the status must be one of the following: TODO, IN_PROGRESS, PENDING_COMPLETION, COMPLETE")
         .bail()
         .trim(), ,
     ],
@@ -551,8 +551,8 @@ router.post(
         .exists()
         .withMessage("the status is missing in request")
         .bail()
-        .isIn(["todo", "inProgress", "pendingCompletion", "complete"])
-        .withMessage("the status must be one of the following: todo, inProgress, pendingCompletion, complete")
+        .isIn(["TODO", "IN_PROGRESS", "PENDING_COMPLETION", "COMPLETE"])
+        .withMessage("the status must be one of the following: TODO, IN_PROGRESS, PENDING_COMPLETION, COMPLETE")
         .bail()
         .trim(),
     ],
@@ -619,8 +619,8 @@ router.post(
         .exists()
         .withMessage("status is missing in the kya user progress object")
         .bail()
-        .isIn(["todo", "inProgress", "pendingCompletion", "complete"])
-        .withMessage("the status must be one of the following: todo, inProgress, pendingCompletion, complete")
+        .isIn(["TODO", "IN_PROGRESS", "PENDING_COMPLETION", "COMPLETE"])
+        .withMessage("the status must be one of the following: TODO, IN_PROGRESS, PENDING_COMPLETION, COMPLETE")
         .bail()
         .trim(),
 
