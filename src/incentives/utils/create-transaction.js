@@ -5,7 +5,9 @@ const { logObject, logText } = require("@utils/log");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const log4js = require("log4js");
-const logger = log4js.getLogger("create-transaction-util");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- create-transaction-util`
+);
 const axios = require("axios");
 
 /*********************************** Helper Functions ***********************************/
