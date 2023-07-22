@@ -422,7 +422,7 @@ const createKnowYourAir = {
       );
       return responseFromCreateUserLessonProgress;
     } catch (error) {
-      logger.error("error", error);
+      logObject("error", JSON.stringify(error));
       logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
@@ -515,7 +515,7 @@ const createKnowYourAir = {
 
 
     } catch (error) {
-      logger.error("error", error);
+      logObject("error", JSON.stringify(error));
       logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
