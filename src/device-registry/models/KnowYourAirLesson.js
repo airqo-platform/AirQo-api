@@ -97,7 +97,7 @@ knowYourAirLessonSchema.statics = {
       };
     }
   },
-  async list({ skip = 0, limit = 1000, filter = {} } = {}) {
+  async list({ skip = 0, limit = 1000, filter = {}, user_id } = {}) {
     try {
       const inclusionProjection = constants.KYA_LESSONS_INCLUSION_PROJECTION;
       const exclusionProjection = constants.KYA_LESSONS_EXCLUSION_PROJECTION(
@@ -111,6 +111,28 @@ knowYourAirLessonSchema.statics = {
           localField: "_id",
           foreignField: "kya_lesson",
           as: "tasks",
+        })
+        .lookup({
+          from: "kyaprogresses",
+          localField: "_id",
+          foreignField: "lesson_id",
+          let: {
+            lessonId: "$_id",
+            userId: user_id,
+          },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$lesson_id", "$$lessonId"] },
+                    { $eq: ["$user_id", "$$userId"] },
+                  ]
+                }
+              }
+            }
+          ],
+          as: "kya_user_progress",
         })
         .project(inclusionProjection)
         .project(exclusionProjection)
