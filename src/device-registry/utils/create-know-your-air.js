@@ -45,7 +45,7 @@ const KnowYourAirTaskModel = (tenant) => {
 
 const KnowYourAirUserLessonProgressModel = (tenant) => {
   try {
-    let kyaprogress = mongoose.model("kyaprogress");
+    let kyaprogress = mongoose.model("kyaprogresses");
     return kyaprogress;
   } catch (error) {
     let kyaprogress = getModelByTenant(
@@ -75,6 +75,7 @@ const createKnowYourAir = {
     try {
       const { query } = request;
       const { tenant } = query;
+      const { user_id } = request.params;
       const limit = parseInt(request.query.limit, 0);
       const skip = parseInt(request.query.skip, 0);
       const filter = generateFilter.kyalessons(request);
@@ -87,6 +88,7 @@ const createKnowYourAir = {
           filter,
           limit,
           skip,
+          user_id: user_id,
         }
       );
       logObject("responseFromListLessons", responseFromListLessons);
@@ -420,7 +422,100 @@ const createKnowYourAir = {
       );
       return responseFromCreateUserLessonProgress;
     } catch (error) {
-      logger.error("error", error);
+      logObject("error", JSON.stringify(error));
+      logger.error(`internal server error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: "Internal Server Error" },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  syncUserLessonProgress: async (request) => {
+    try {
+      const { query, body, params } = request;
+      const { tenant } = query;
+      const { user_id } = params;
+      let progressList = body.kya_user_progress;
+
+      if (progressList.length !== 0) {
+
+        for (progress of progressList) {
+
+          let responseFromListProgress = await createKnowYourAir.listUserLessonProgress(request)
+          logObject(
+            "responseFromListProgress",
+            responseFromListProgress
+          );
+          if (responseFromListProgress.success === false) {
+            return responseFromListProgress;
+          }
+
+          if (responseFromListProgress.data.length == 0) {
+            let requestBody = {
+              body:
+              {
+                user_id: user_id,
+                lesson_id: progress.lesson_id,
+                active_task: progress.active_task,
+                status: progress.status,
+              },
+            };
+            let responseFromCreateUserLessonProgress = await createKnowYourAir.createUserLessonProgress(requestBody);
+            logObject(
+              "responseFromCreateUserLessonProgress",
+              responseFromCreateUserLessonProgress
+            );
+            if (responseFromCreateUserLessonProgress.success === false) {
+              return responseFromCreateUserLessonProgress;
+            }
+          }
+          else {
+            let requestBody = {
+              query: {
+                tenant: tenant,
+              },
+              params: {
+                progress_id: responseFromListProgress.data[0]._id,
+              },
+              body: progress,
+            }
+            let responseFromUpdateUserLessonProgress = await createKnowYourAir.updateUserLessonProgress(requestBody);
+            logObject(
+              "responseFromUpdateUserLessonProgress",
+              responseFromUpdateUserLessonProgress
+            );
+            if (responseFromUpdateUserLessonProgress.success === false) {
+              return responseFromUpdateUserLessonProgress;
+            }
+
+          }
+        }
+      }
+      let requestBody = {
+        query: {
+          tenant: tenant,
+        },
+        params: {
+          user_id: user_id,
+        }
+      };
+      let syncResponse = await createKnowYourAir.listUserLessonProgress(requestBody)
+
+      return syncResponse.success ?
+        {
+          success: true,
+          message: "Sync successful",
+          data: syncResponse.data,
+          status: httpStatus.OK,
+        } :
+        syncResponse;
+
+
+    } catch (error) {
+      logObject("error", JSON.stringify(error));
       logger.error(`internal server error -- ${error.message}`);
       return {
         success: false,
