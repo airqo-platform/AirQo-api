@@ -1,10 +1,12 @@
 const EventModel = require("@models/Event");
+const DeviceSchema = require("@models/Device");
 const { getModelByTenant } = require("@config/database");
 const { logObject, logElement, logText } = require("./log");
 const constants = require("@config/constants");
 const generateFilter = require("./generate-filter");
 const errors = require("./errors");
 const isEmpty = require("is-empty");
+const cryptoJS = require("crypto-js");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-event-util`
@@ -12,7 +14,6 @@ const logger = log4js.getLogger(
 const { transform } = require("node-json-transform");
 const Dot = require("dot-object");
 const cleanDeep = require("clean-deep");
-const { getDevicesCount, list, decryptKey } = require("./create-monitor");
 const redis = require("@config/redis");
 const axios = require("axios");
 const { BigQuery } = require("@google-cloud/bigquery");
@@ -24,6 +25,151 @@ const {
 } = require("./date");
 const { Parser } = require("json2csv");
 const httpStatus = require("http-status");
+const devicesModel = (tenant) => {
+  return getModelByTenant(tenant, "device", DeviceSchema);
+};
+
+const listDevices = async (request) => {
+  try {
+    let { tenant } = request.query;
+    const limit = parseInt(request.query.limit, 0);
+    const skip = parseInt(request.query.skip, 0);
+    let filter = {};
+    logObject("the request for the filter", request);
+    let responseFromFilter = generateFilter.devices(request);
+    // logger.info(`responseFromFilter -- ${responseFromFilter}`);
+
+    if (responseFromFilter.success === true) {
+      filter = responseFromFilter.data;
+      logObject("the filter being used", filter);
+      // logger.info(`the filter in list -- ${filter}`);
+    } else if (responseFromFilter.success === false) {
+      let errors = responseFromFilter.errors
+        ? responseFromFilter.errors
+        : { message: "" };
+      let status = responseFromFilter.status ? responseFromFilter.status : "";
+      try {
+        let errorsString = errors ? JSON.stringify(errors) : "";
+        logger.error(`the error from filter in list -- ${errorsString}`);
+      } catch (error) {
+        logger.error(`internal server error -- ${error.message}`);
+      }
+      return {
+        success: false,
+        message: responseFromFilter.message,
+        errors,
+        status,
+      };
+    }
+
+    let responseFromListDevice = await getModelByTenant(
+      tenant,
+      "device",
+      DeviceSchema
+    ).list({
+      filter,
+      limit,
+      skip,
+    });
+
+    // logger.info(
+    //   `the responseFromListDevice in list -- ${responseFromListDevice} `
+    // );
+
+    if (responseFromListDevice.success === false) {
+      let errors = responseFromListDevice.errors
+        ? responseFromListDevice.errors
+        : { message: "" };
+      try {
+        let errorsString = errors ? JSON.stringify(errors) : "";
+        logger.error(
+          `responseFromListDevice was not a success -- ${responseFromListDevice.message} -- ${errorsString}`
+        );
+      } catch (error) {
+        logger.error(`internal server error -- ${error.message}`);
+      }
+      return responseFromListDevice;
+    } else if (responseFromListDevice.success === true) {
+      let data = responseFromListDevice.data;
+      // logger.info(`responseFromListDevice was a success -- ${data}`);
+      return responseFromListDevice;
+    }
+  } catch (e) {
+    logger.error(`error for list devices util -- ${e.message}`);
+    return {
+      success: false,
+      message: "list devices util - server error",
+      errors: { message: e.message },
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+    };
+  }
+};
+
+const getDevicesCount = async (request, callback) => {
+  try {
+    const { query } = request;
+    const { tenant } = query;
+
+    await devicesModel(tenant).countDocuments({}, (err, count) => {
+      if (count) {
+        callback({
+          success: true,
+          message: "retrieved the number of devices",
+          status: httpStatus.OK,
+          data: count,
+        });
+      }
+      if (err) {
+        callback({
+          success: false,
+          message: "Internal Server Error",
+          errors: { message: err.message },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        });
+      }
+    });
+  } catch (error) {
+    logger.error(`internal server error -- ${error.message}`);
+    callback({
+      success: false,
+      message: "Internal Server Error",
+      errors: { message: error.message },
+    });
+  }
+};
+
+const decryptKey = async (encryptedKey) => {
+  try {
+    let bytes = cryptoJS.AES.decrypt(
+      encryptedKey,
+      constants.KEY_ENCRYPTION_KEY
+    );
+    let originalText = bytes.toString(cryptoJS.enc.Utf8);
+    let isKeyUnknown = isEmpty(originalText);
+    if (isKeyUnknown) {
+      return {
+        success: true,
+        status: httpStatus.NOT_FOUND,
+        message: "the provided encrypted key is not recognizable",
+      };
+    } else {
+      return {
+        success: true,
+        message: "successfully decrypted the text",
+        data: originalText,
+        status: httpStatus.OK,
+      };
+    }
+  } catch (err) {
+    logger.error(`internal server error -- ${err.message}`);
+    return {
+      success: false,
+      message: "unable to decrypt the key",
+      errors: { message: err.message },
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+    };
+  }
+};
 
 const createEvent = {
   getMeasurementsFromBigQuery: async (req) => {
@@ -49,7 +195,7 @@ const createEvent = {
         access_code,
       } = query;
 
-      const responseFromGetDeviceDetails = await list(req);
+      const responseFromGetDeviceDetails = await listDevices(req);
       let deviceDetails = {};
 
       if (responseFromGetDeviceDetails.success === true) {
@@ -755,7 +901,7 @@ const createEvent = {
   transmitMultipleSensorValues: async (request) => {
     try {
       let requestBody = {};
-      const responseFromListDevice = await list(request);
+      const responseFromListDevice = await listDevices(request);
       let deviceDetail = {};
       if (responseFromListDevice.success === true) {
         if (responseFromListDevice.data.length === 1) {
@@ -889,7 +1035,7 @@ const createEvent = {
       const { name, chid, device_number, tenant } = request.query;
       const { body } = request;
 
-      const responseFromListDevice = await list(request);
+      const responseFromListDevice = await listDevices(request);
 
       let deviceDetail = {};
 
@@ -1200,7 +1346,7 @@ const createEvent = {
       request["query"]["device"] = transformedEvent.filter.device;
       request["query"]["tenant"] = transformedEvent.tenant;
 
-      const responseFromGetDeviceDetails = await list(request);
+      const responseFromGetDeviceDetails = await listDevices(request);
       // logger.info(
       //   `responseFromGetDeviceDetails ${JSON.stringify(
       //     responseFromGetDeviceDetails
@@ -1829,7 +1975,7 @@ const createEvent = {
       request["query"]["tenant"] = tenant;
       request["query"]["device_number"] = chid || device_number;
 
-      const responseFromListDevice = await list(request);
+      const responseFromListDevice = await listDevices(request);
 
       let deviceDetail = {};
 

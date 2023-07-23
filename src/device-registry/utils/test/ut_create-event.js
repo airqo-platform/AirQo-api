@@ -48,6 +48,169 @@ describe("createHealthTips", () => {
       sinon.restore();
     });
 
+    describe("listDevices", () => {
+      it("should list devices successfully", async () => {
+        // Mock the request object
+        const request = {
+          query: {
+            tenant: "test_tenant",
+            limit: 10,
+            skip: 0,
+            // Add other necessary properties for filtering, etc.
+          },
+        };
+
+        // Mock the getModelByTenant function to return a device model with the desired list method
+        const deviceModelMock = {
+          list: sinon.stub().resolves({
+            success: true,
+            data: [
+              // Replace with the necessary device data objects
+            ],
+          }),
+        };
+        const getModelByTenantStub = sinon.stub().resolves(deviceModelMock);
+
+        // Call the function and assert
+        const result = await eventUtil.listDevices(request, {
+          getModelByTenant: getModelByTenantStub,
+        });
+
+        expect(result.success).to.be.true;
+        expect(result.data).to.be.an("array");
+        // Add more assertions based on the expected results of the eventUtil.listDevices function
+      });
+
+      it("should handle errors during device listing", async () => {
+        // Mock the request object
+        const request = {
+          query: {
+            tenant: "test_tenant",
+            limit: 10,
+            skip: 0,
+            // Add other necessary properties for filtering, etc.
+          },
+        };
+
+        // Mock the getModelByTenant function to return an error
+        const getModelByTenantStub = sinon
+          .stub()
+          .rejects(new Error("Error message"));
+
+        // Call the function and assert
+        const result = await eventUtil.listDevices(request, {
+          getModelByTenant: getModelByTenantStub,
+        });
+
+        expect(result.success).to.be.false;
+        expect(result.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+        expect(result.errors.message).to.equal("Error message");
+        // Add more assertions based on your error handling logic
+      });
+
+      // Add more test cases for different scenarios, e.g., pagination, filtering, etc.
+    });
+    describe("getDevicesCount", () => {
+      it("should get the number of devices successfully", async () => {
+        // Mock the request object
+        const request = {
+          query: {
+            tenant: "test_tenant",
+          },
+        };
+
+        // Mock the devicesModel to return the desired count
+        const devicesModelStub = sinon.stub().returns({
+          countDocuments: sinon.stub().yields(null, 100), // Replace 100 with the desired count
+        });
+        const getModelByTenantStub = sinon.stub().returns(devicesModelStub);
+
+        // Call the function and assert
+        const expectedResult = {
+          success: true,
+          message: "retrieved the number of devices",
+          status: httpStatus.OK,
+          data: 100, // Replace 100 with the desired count
+        };
+        const callback = sinon.stub();
+        await eventUtil.getDevicesCount(request, callback);
+
+        expect(callback.calledOnceWith(expectedResult)).to.be.true;
+      });
+
+      it("should handle errors during getting the device count", async () => {
+        // Mock the request object
+        const request = {
+          query: {
+            tenant: "test_tenant",
+          },
+        };
+
+        // Mock the devicesModel to return an error
+        const devicesModelStub = sinon.stub().returns({
+          countDocuments: sinon.stub().yields(new Error("Error message"), null),
+        });
+        const getModelByTenantStub = sinon.stub().returns(devicesModelStub);
+
+        // Call the function and assert
+        const expectedResult = {
+          success: false,
+          message: "Internal Server Error",
+          errors: { message: "Error message" },
+        };
+        const callback = sinon.stub();
+        await eventUtil.getDevicesCount(request, callback);
+
+        expect(callback.calledOnceWith(expectedResult)).to.be.true;
+        // Add more assertions based on your error handling logic
+      });
+
+      // Add more test cases for different scenarios if necessary
+    });
+    describe("decryptKey", () => {
+      it("should successfully decrypt the key", async () => {
+        // Mock the encryptedKey
+        const encryptedKey = "your_encrypted_key_here";
+
+        // Call the function and assert
+        const result = await eventUtil.decryptKey(encryptedKey);
+
+        expect(result.success).to.be.true;
+        expect(result.data).to.exist;
+        // Add more assertions based on the expected decrypted key or status
+      });
+
+      it("should handle unknown or unrecognized keys", async () => {
+        // Mock an unknown or unrecognized encrypted key
+        const encryptedKey = "unknown_encrypted_key_here";
+
+        // Call the function and assert
+        const result = await eventUtil.decryptKey(encryptedKey);
+
+        expect(result.success).to.be.true;
+        expect(result.status).to.equal(httpStatus.NOT_FOUND);
+        // Add more assertions based on the expected status and message
+      });
+
+      it("should handle errors during key decryption", async () => {
+        // Mock an error during decryption
+        const encryptedKey = "your_encrypted_key_here";
+        const cryptoJSStub = sinon
+          .stub(cryptoJS.AES, "decrypt")
+          .throws(new Error("Error message"));
+
+        // Call the function and assert
+        const result = await eventUtil.decryptKey(encryptedKey);
+
+        expect(result.success).to.be.false;
+        expect(result.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
+        expect(result.errors.message).to.equal("Error message");
+        // Add more assertions based on your error handling logic
+        cryptoJSStub.restore(); // Restore the original decrypt method after the test
+      });
+
+      // Add more test cases for different scenarios if necessary
+    });
     describe("create", function() {
       it("should create a new event", async function() {
         const stub = sinon
@@ -357,7 +520,7 @@ describe("createHealthTips", () => {
           .stub(EventModel.prototype, "list")
           .resolves(responseFromListEventsStub);
 
-        // Replace the eventUtil.getCache and getDevicesCount calls in the list function
+        // Replace the eventUtil.getCache and eventUtil.getDevicesCount calls in the list function
         eventUtil.list = eventUtil.list.bind({
           generateFilter,
           createEvent,
@@ -834,7 +997,7 @@ describe("createHealthTips", () => {
         );
       });
 
-      it("should return an error response if decryptKey fails", async () => {
+      it("should return an error response if eventUtil.decryptKey fails", async () => {
         // Arrange
         const request = {
           // ... Some test data ...
@@ -856,8 +1019,8 @@ describe("createHealthTips", () => {
           },
         });
 
-        // Stub the decryptKey function to return a failure response
-        sinon.stub(createEvent, "decryptKey").resolves({
+        // Stub the eventUtil.decryptKey function to return a failure response
+        sinon.stub(createEvent, "eventUtil.decryptKey").resolves({
           success: false,
           message: "Failed to decrypt the key",
         });
@@ -893,8 +1056,8 @@ describe("createHealthTips", () => {
           },
         });
 
-        // Stub the decryptKey function to return a success response
-        sinon.stub(createEvent, "decryptKey").resolves({
+        // Stub the eventUtil.decryptKey function to return a success response
+        sinon.stub(createEvent, "eventUtil.decryptKey").resolves({
           success: true,
           data: "DECRYPTED_KEY",
         });
@@ -983,7 +1146,7 @@ describe("createHealthTips", () => {
         expect(result.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
       });
 
-      it("should return an error response if decryptKey fails", async () => {
+      it("should return an error response if eventUtil.decryptKey fails", async () => {
         // Arrange
         const request = {
           // ... Some test data ...
@@ -996,8 +1159,8 @@ describe("createHealthTips", () => {
           data: [deviceDetail],
         });
 
-        // Stub the decryptKey function to return a failure response
-        sinon.stub(createEvent, "decryptKey").resolves({
+        // Stub the eventUtil.decryptKey function to return a failure response
+        sinon.stub(createEvent, "eventUtil.decryptKey").resolves({
           success: false,
           message: "Failed to decrypt the key",
         });
@@ -1026,8 +1189,8 @@ describe("createHealthTips", () => {
           data: [deviceDetail],
         });
 
-        // Stub the decryptKey function to return a success response
-        sinon.stub(createEvent, "decryptKey").resolves({
+        // Stub the eventUtil.decryptKey function to return a success response
+        sinon.stub(createEvent, "eventUtil.decryptKey").resolves({
           success: true,
           data: "DECRYPTED_KEY",
         });
