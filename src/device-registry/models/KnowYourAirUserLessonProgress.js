@@ -9,9 +9,9 @@ const httpStatus = require("http-status");
 const userLessonProgressSchema = new Schema(
   {
     user_id: {
-      type: ObjectId,
-      ref: "user",
-      required: true,
+      type: String,
+      trim: true,
+      required: [true, "firebase_user_id is required!"],
     },
     lesson_id: {
       type: ObjectId,
@@ -22,27 +22,23 @@ const userLessonProgressSchema = new Schema(
       type: Boolean,
       default: false,
     },
-    progress: {
+    active_task: {
       type: Number,
       default: 0,
     },
+    status: {
+      type: String,
+      default: "TODO"
+    }
   },
   {
     timestamps: true,
   }
 );
 
-// userLessonProgressSchema.index(
-//   {
-//     user_id: 1,
-//     lesson_id: 1,
-//   },
-//   {
-//     unique: true,
-//   }
-// );
+userLessonProgressSchema.index({ lesson_id: 1, user_id: 1 }, { unique: true });
 
-userLessonProgressSchema.pre("save", function(next) {
+userLessonProgressSchema.pre("save", function (next) {
   next();
 });
 
@@ -56,7 +52,7 @@ userLessonProgressSchema.methods = {
       user_id: this.user_id,
       lesson_id: this.lesson_id,
       completed: this.completed,
-      progress: this.progress,
+      active_task: this.active_task,
       _id: this._id,
     };
   },
@@ -74,16 +70,16 @@ userLessonProgressSchema.statics = {
         return {
           success: true,
           data: createdKnowYourAirLessonProgress._doc,
-          message: "lesson created",
+          message: "Progress created",
           status: httpStatus.CREATED,
         };
       } else if (isEmpty(createdKnowYourAirLessonProgress)) {
         return {
           success: false,
-          message: "lesson not created despite successful operation",
+          message: "Progress not created despite successful operation",
           status: httpStatus.INTERNAL_SERVER_ERROR,
           errors: {
-            message: "lesson not created despite successful operation",
+            message: "Progress not created despite successful operation",
           },
         };
       }

@@ -6,7 +6,7 @@ app:
 replicaCount: 2
 image:
   repository: eu.gcr.io/airqo-250220/bigquery-connectors
-  tag: prod-02d48507-1688794963
+  tag: prod-e24240cd-1689953067
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}

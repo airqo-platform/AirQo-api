@@ -2,11 +2,11 @@
 
 [![deploy-apis-to-production](https://github.com/airqo-platform/AirQo-api/actions/workflows/deploy-apis-to-production.yml/badge.svg)](https://github.com/airqo-platform/AirQo-api/actions/workflows/deploy-apis-to-production.yml) [![deploy-apis-to-staging](https://github.com/airqo-platform/AirQo-api/actions/workflows/deploy-apis-to-staging.yml/badge.svg)](https://github.com/airqo-platform/AirQo-api/actions/workflows/deploy-apis-to-staging.yml) [![run-tests](https://github.com/airqo-platform/AirQo-api/actions/workflows/test-changes.yml/badge.svg)](https://github.com/airqo-platform/AirQo-api/actions/workflows/test-changes.yml)
 
-## What is AirQo?
+## What is AirQo??
 
 The AirQo project aims to measure and quantify the scale of air pollution in and around Kampala City through the design, development and deployment of a network of low-cost air quality sensing devices mounted on either static or mobile objects.
 
-## System Architecture
+## System Architecture.
 
 **AirQo platform** is composed of many microservices written in different languages that talk to each other using Istio.
 

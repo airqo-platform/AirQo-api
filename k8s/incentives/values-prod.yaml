@@ -6,9 +6,9 @@ app:
 replicaCount: 3
 image:
   repository: eu.gcr.io/airqo-250220/airqo-incentives-api
-  tag: latest
-nameOverride: ""
-fullnameOverride: ""
+  tag: prod-e09ba140-1690038718
+nameOverride: ''
+fullnameOverride: ''
 podAnnotations: {}
 resources:
   limits:
@@ -29,4 +29,3 @@ autoscaling:
   minReplicas: 1
   maxReplicas: 3
   targetCPUUtilizationPercentage: 70
-  # targetMemoryUtilizationPercentage: 70
