@@ -1,0 +1,31 @@
+app:
+  name: airqo-stage-incentives-api
+  label: incentives-api
+  namespace: staging
+  configmap: stage-incentives-api-config
+replicaCount: 2
+image:
+  repository: eu.gcr.io/airqo-250220/airqo-stage-incentives-api
+  tag: stage-57e991d2-1689862096
+nameOverride: ''
+fullnameOverride: ''
+podAnnotations: {}
+resources:
+  limits:
+    cpu: 1000m
+    memory: 500Mi
+  requests:
+    cpu: 100m
+    memory: 250Mi
+ingress:
+  enabled: false
+service:
+  type: NodePort
+  port: 3000
+  protocol: TCP
+  targetPort: 3000
+autoscaling:
+  enabled: true
+  minReplicas: 1
+  maxReplicas: 2
+  targetCPUUtilizationPercentage: 80
