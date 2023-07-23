@@ -48,11 +48,9 @@ router.post(
         .withMessage("the provided deviceName cannot be empty")
         .trim(),
       body("recallType")
-        .exists()
-        .withMessage("recallType should be provided")
-        .bail()
+        .optional()
         .notEmpty()
-        .withMessage("recallType should not be empty")
+        .withMessage("recallType should not be empty if provided")
         .bail()
         .trim()
         .toLowerCase()
