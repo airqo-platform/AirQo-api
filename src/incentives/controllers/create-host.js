@@ -4,7 +4,10 @@ const { validationResult } = require("express-validator");
 const errors = require("@utils/errors");
 const createHostUtil = require("@utils/create-host");
 const log4js = require("log4js");
-const logger = log4js.getLogger("create-host-controller");
+const constants = require("@config/constants");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- create-host-controller`
+);
 const isEmpty = require("is-empty");
 
 const createHost = {
