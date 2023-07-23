@@ -2,7 +2,6 @@
 
 const app = require("../app");
 const constants = require("@config/constants");
-const middlewareConfig = require("../config/app.middleware");
 const debug = require('debug')('log4js-example');
 const cluster = require('express-cluster');
 const http = require("http");
@@ -80,15 +79,6 @@ try {
         console.error("Could not set up log directory, error was: ", e);
         process.exit(1);
     }
-}
-
-/****
- * pass the app instance to the middleware configuration
- */
-try {
-    middlewareConfig(app);
-} catch (e) {
-    logElement("middleware error", e.message)
 }
 
 // Set up the Kafka consumer

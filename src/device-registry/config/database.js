@@ -16,6 +16,7 @@ const options = {
   useFindAndModify: false,
   useUnifiedTopology: true,
   autoIndex: true,
+  keepAlive: true,
   poolSize: 10,
   bufferMaxEntries: 0,
   connectTimeoutMS: 1200000,

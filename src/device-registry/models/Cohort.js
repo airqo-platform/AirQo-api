@@ -161,6 +161,12 @@ cohortSchema.statics.list = async function({
 
     const pipeline = this.aggregate()
       .match(filter)
+      .lookup({
+        from: "devices",
+        localField: "_id",
+        foreignField: "cohorts",
+        as: "devices",
+      })
       .sort({ createdAt: -1 })
       .project(inclusionProjection)
       .project(exclusionProjection)
@@ -209,6 +215,7 @@ cohortSchema.statics.modify = async function({
     const modifiedUpdateBody = { ...update };
     delete modifiedUpdateBody._id;
     delete modifiedUpdateBody.name;
+    delete modifiedUpdateBody.cohort_codes;
 
     const updatedCohort = await this.findOneAndUpdate(
       filter,

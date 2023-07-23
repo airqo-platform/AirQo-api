@@ -1,4 +1,5 @@
-"use-strict";
+require("module-alias/register");
+("use-strict");
 const imageController = require("../Device");
 
 let chai = require("chai"),
