@@ -101,7 +101,9 @@ const validatePolygonCoordinates = (value) => {
     }
     if (polygon.length < 4) {
       logText("Each polygon must have at least four coordinates");
-      throw new Error("Each polygon must have at least four coordinates");
+      throw new Error(
+        "The coordinates you passed do not align with the Shape Type provided, plese crosscheck"
+      );
     }
     for (const coordinate of polygon) {
       validateCoordinate(coordinate);
@@ -117,7 +119,7 @@ const validateMultiPolygonCoordinates = (value) => {
   }
   if (value.length === 0) {
     logText("At least one multipolygon must be provided");
-    throw new Error("At least one multipolygon must be provided");
+    throw new Error("At least one Multipolygon must be provided");
   }
   for (const multipolygon of value) {
     validatePolygonCoordinates(multipolygon);

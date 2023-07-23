@@ -1100,6 +1100,13 @@ const defaultConfig = {
     cohort_tags: 1,
     cohort_codes: 1,
     devices: "$devices",
+    numberOfDevices: {
+      $cond: {
+        if: { $isArray: "$devices" },
+        then: { $size: { $ifNull: ["$devices._id", []] } },
+        else: "NA",
+      },
+    },
   },
   COHORTS_EXCLUSION_PROJECTION: (category) => {
     const initialProjection = {
