@@ -215,6 +215,7 @@ cohortSchema.statics.modify = async function({
     const modifiedUpdateBody = { ...update };
     delete modifiedUpdateBody._id;
     delete modifiedUpdateBody.name;
+    delete modifiedUpdateBody.cohort_codes;
 
     const updatedCohort = await this.findOneAndUpdate(
       filter,

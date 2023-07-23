@@ -1079,6 +1079,7 @@ const defaultConfig = {
       "sites.weather_stations": 0,
       "sites.site_codes": 0,
       "sites.network": 0,
+      "sites.grids": 0,
     };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {
