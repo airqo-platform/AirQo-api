@@ -1,10 +1,10 @@
 require("module-alias/register");
 const chai = require("chai");
 const sinon = require("sinon");
-const createLocation = require("./path/to/createLocation"); // Replace this with the correct path to your createLocation file
+const createLocation = require("@utils/create-location"); // Replace this with the correct path to your createLocation file
 const LocationSchema = require("@models/Location"); // Replace this with the correct path to your LocationSchema file
 const { getModelByTenant } = require("@config/database"); // Replace this with the correct path to your getModelByTenant file
-const HTTPStatus = require("http-status");
+const httpStatus = require("http-status");
 
 const expect = chai.expect;
 
@@ -105,7 +105,7 @@ describe("createLocation", () => {
       const registerErrorResponseMock = {
         success: false,
         message: "unable to create location",
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
         errors: {
           message: "Error message",
         },
@@ -181,7 +181,7 @@ describe("createLocation", () => {
       const modifyErrorResponseMock = {
         success: false,
         message: "unable to update location",
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
         errors: {
           message: "Error message",
         },
@@ -254,7 +254,7 @@ describe("createLocation", () => {
       const removeErrorResponseMock = {
         success: false,
         message: "unable to delete location",
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
         errors: {
           message: "Error message",
         },
@@ -330,7 +330,7 @@ describe("createLocation", () => {
       const listErrorResponseMock = {
         success: false,
         message: "unable to list location",
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
         errors: {
           message: "Error message",
         },
