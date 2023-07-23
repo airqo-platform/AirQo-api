@@ -73,6 +73,9 @@ const defaultConfig = {
         (value) => value.trim() !== ""
       )
     : [],
+  RECALL_TYPES: process.env.RECALL_TYPES
+    ? process.env.RECALL_TYPES.split(",").filter((value) => value.trim() !== "")
+    : [],
   AQI_CATEGORIES: "good,moderate,u4sg,unhealthy,very_unhealthy,hazardous".split(
     ","
   ),

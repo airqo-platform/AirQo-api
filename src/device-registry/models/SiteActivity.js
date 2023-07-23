@@ -24,6 +24,7 @@ const activitySchema = new Schema(
     tags: [{ type: String }],
     nextMaintenance: { type: Date },
     maintenanceType: { type: String },
+    recallType: { type: String },
     createdAt: {
       type: Date,
     },
@@ -44,6 +45,7 @@ activitySchema.methods = {
       activityType: this.activityType,
       activity_codes: this.activity_codes,
       maintenanceType: this.maintenanceType,
+      recallType: this.recallType,
       nextMaintenance: this.nextMaintenance,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
@@ -110,6 +112,7 @@ activitySchema.statics = {
           network: 1,
           activityType: 1,
           maintenanceType: 1,
+          recallType: 1,
           nextMaintenance: 1,
           createdAt: 1,
           updatedAt: 1,

@@ -33,38 +33,14 @@ const activity = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { body, query } = req;
-      const {
-        date,
-        height,
-        mountType,
-        powerType,
-        isPrimaryInLocation,
-        site_id,
-        network,
-      } = body;
-      let { tenant } = query;
-      const { deviceName } = query;
+      let { tenant } = req.query;
       if (isEmpty(tenant)) {
         tenant = "airqo";
       }
-      let request = {};
-
-      request["body"] = {};
-      request["query"] = {};
-      request["body"]["date"] = date;
-      request["body"]["height"] = height;
-      request["body"]["mountType"] = mountType;
-      request["body"]["powerType"] = powerType;
-      request["body"]["isPrimaryInLocation"] = isPrimaryInLocation;
-      request["body"]["site_id"] = site_id;
-      request["body"]["network"] = network;
-
+      let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
-      request["query"]["deviceName"] = deviceName;
-      request["query"]["type"] = "deploy";
 
-      const responseFromDeployDevice = await createActivityUtil.create(request);
+      const responseFromDeployDevice = await createActivityUtil.deploy(request);
       if (responseFromDeployDevice.success === true) {
         const status = responseFromDeployDevice.status
           ? responseFromDeployDevice.status
@@ -98,22 +74,35 @@ const activity = {
   },
   recall: async (req, res) => {
     try {
-      const { query } = req;
-      let { tenant } = query;
-      const { deviceName } = query;
+      logText("we are recalling....");
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errors.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`internal server error -- ${e.message}`);
+        }
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      let { tenant } = req.query;
 
       if (isEmpty(tenant)) {
         tenant = "airqo";
       }
-      let request = {};
+      let request = Object.assign({}, req);
 
-      request["body"] = {};
-      request["query"] = {};
       request["query"]["tenant"] = tenant;
-      request["query"]["deviceName"] = deviceName;
-      request["query"]["type"] = "recall";
 
-      const responseFromRecallDevice = await createActivityUtil.create(request);
+      const responseFromRecallDevice = await createActivityUtil.recall(request);
       if (responseFromRecallDevice.success === true) {
         const status = responseFromRecallDevice.status
           ? responseFromRecallDevice.status
@@ -147,46 +136,17 @@ const activity = {
   },
   maintain: async (req, res) => {
     try {
-      const { body, query } = req;
-      const {
-        date,
-        height,
-        mountType,
-        powerType,
-        isPrimaryInLocation,
-        tags,
-        description,
-        site_id,
-        network,
-        maintenanceType,
-      } = body;
-
+      const { query } = req;
       let { tenant } = query;
-      const { deviceName } = query;
-
       if (isEmpty(tenant)) {
         tenant = "airqo";
       }
 
-      let request = {};
-
-      request["body"] = {};
+      let request = Object.assign({}, req);
       request["query"] = {};
-      request["body"]["date"] = date;
-      request["body"]["height"] = height;
-      request["body"]["mountType"] = mountType;
-      request["body"]["network"] = network;
-      request["body"]["powerType"] = powerType;
-      request["body"]["isPrimaryInLocation"] = isPrimaryInLocation;
-      request["body"]["site_id"] = site_id;
-      request["body"]["description"] = description;
-      request["body"]["tags"] = tags;
-      request["body"]["maintenanceType"] = maintenanceType;
       request["query"]["tenant"] = tenant;
-      request["query"]["deviceName"] = deviceName;
-      request["query"]["type"] = "maintain";
 
-      const responseFromMaintainDevice = await createActivityUtil.create(
+      const responseFromMaintainDevice = await createActivityUtil.maintain(
         request
       );
       if (responseFromMaintainDevice.success === true) {
@@ -305,9 +265,6 @@ const activity = {
 
   update: async (req, res) => {
     try {
-      let request = {};
-      let { body } = req;
-      let { query } = req;
       logText("updating activity................");
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
@@ -328,16 +285,16 @@ const activity = {
         );
       }
 
-      let { tenant } = query;
+      let { tenant } = req.query;
 
       if (isEmpty(tenant)) {
         tenant = "airqo";
       }
-
-      request["body"] = body;
-      request["query"] = query;
+      let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
-      let responseFromUpdateActivity = await createActivityUtil.update(request);
+      const responseFromUpdateActivity = await createActivityUtil.update(
+        request
+      );
       logObject("responseFromUpdateActivity", responseFromUpdateActivity);
       if (responseFromUpdateActivity.success === true) {
         const status = responseFromUpdateActivity.status
@@ -372,8 +329,6 @@ const activity = {
   },
   delete: async (req, res) => {
     try {
-      const { query } = req;
-      let request = {};
       logText(".................................................");
       logText("inside delete activity............");
       const hasErrors = !validationResult(req).isEmpty();
@@ -395,15 +350,17 @@ const activity = {
         );
       }
 
-      let { tenant } = query;
+      let { tenant } = req.query;
 
       if (isEmpty(tenant)) {
         tenant = "airqo";
       }
 
-      request["query"] = query;
+      let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
-      let responseFromRemoveActivity = await createActivityUtil.delete(request);
+      const responseFromRemoveActivity = await createActivityUtil.delete(
+        request
+      );
 
       if (responseFromRemoveActivity.success === true) {
         const status = responseFromRemoveActivity.status
@@ -437,9 +394,6 @@ const activity = {
   },
   list: async (req, res) => {
     try {
-      const { query } = req;
-      let { tenant } = query;
-      let request = {};
       logText(".....................................");
       logText("list all activities by query params provided");
       const hasErrors = !validationResult(req).isEmpty();
@@ -463,10 +417,13 @@ const activity = {
         );
       }
 
+      let { tenant } = req.query;
+
       if (isEmpty(tenant)) {
         tenant = "airqo";
       }
-      request["query"] = query;
+
+      let request = Object.assign({}, req);
       request["query"]["tenant"] = tenant;
       let responseFromListActivities = await createActivityUtil.list(request);
       logElement(
