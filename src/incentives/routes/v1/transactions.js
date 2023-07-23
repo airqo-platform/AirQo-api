@@ -3,10 +3,45 @@ const router = express.Router();
 const createTransactionController = require("@controllers/create-transaction");
 const { check, oneOf, query, body, param } = require("express-validator");
 const constants = require("@config/constants");
+const { logObject } = require("@utils/log");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const phoneUtil =
   require("google-libphonenumber").PhoneNumberUtil.getInstance();
+
+const generatebatchId = () => {
+  const randomHex = Array.from({ length: 32 }, () =>
+    Math.floor(Math.random() * 16).toString(16)
+  ).join("");
+  return (
+    randomHex.substring(0, 8) +
+    "-" +
+    randomHex.substring(8, 12) +
+    "-" +
+    randomHex.substring(12, 16) +
+    "-" +
+    randomHex.substring(16, 20) +
+    "-" +
+    randomHex.substring(20)
+  );
+};
+
+const generaterequestId = () => {
+  const randomHex = Array.from({ length: 32 }, () =>
+    Math.floor(Math.random() * 16).toString(16)
+  ).join("");
+  return (
+    randomHex.substring(0, 8) +
+    "-" +
+    randomHex.substring(8, 12) +
+    "-" +
+    randomHex.substring(12, 16) +
+    "-" +
+    randomHex.substring(16, 20) +
+    "-" +
+    randomHex.substring(20)
+  );
+};
 
 const commonFields = {
   channelId: constants.XENTE_CHANNEL_ID,
@@ -15,8 +50,8 @@ const commonFields = {
   customerEmail: constants.XENTE_CUSTOMER_EMAIL,
   memo: constants.XENTE_MEMO,
   metadata: constants.XENTE_METADATA,
-  batchId: constants.XENTE_BATCH_ID,
-  requestId: constants.XENTE_REQUEST_ID,
+  batchId: generatebatchId(),
+  requestId: generaterequestId(),
 };
 
 const validatePagination = (req, res, next) => {

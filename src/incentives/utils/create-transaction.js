@@ -1,4 +1,6 @@
 const TransactionModel = require("@models/transaction");
+const mongoose = require("mongoose");
+const ObjectId = mongoose.Types.ObjectId;
 const HostModel = require("@models/Host");
 const constants = require("@config/constants");
 const { logObject, logText } = require("@utils/log");
@@ -11,57 +13,79 @@ const logger = log4js.getLogger(
 const axios = require("axios");
 
 /*********************************** Helper Functions ***********************************/
-function createProductItemForMobileMoneyPayout(phone_number) {
-  const airtelCodes = ["075", "070"];
-  const mtnCodes = ["078", "077"];
+const createProductItemForMobileMoneyPayout = (phone_number) => {
+  logObject("phone_number", phone_number);
+  const airtelCodes = ["25675", "25670"];
+  const mtnCodes = ["25678", "25677"];
   let paymentProvider;
-  if (airtelCodes.some((code) => phone_number.startsWith(code))) {
+  if (airtelCodes.some((code) => phone_number.toString().startsWith(code))) {
     paymentProvider = "AIRTELMOBILEMONEYPAYOUTUG_AIRTELMOBILEMONEYPAYOUTUG";
-  } else if (mtnCodes.some((code) => phone_number.startsWith(code))) {
+  } else if (
+    mtnCodes.some((code) => phone_number.toString().startsWith(code))
+  ) {
     paymentProvider = "MTNMOBILEMONEYPAYOUTUG_MTNMOBILEMONEYPAYOUTUG";
   }
-  const result = {
-    paymentProvider,
-  };
-  return result;
-}
-function createPaymentProviderForCollections(phone_number) {
-  const airtelCodes = ["075", "070"];
-  const mtnCodes = ["078", "077"];
+  logObject("paymentProvider", paymentProvider);
+  return paymentProvider;
+};
+
+const createPaymentProviderForCollections = (phone_number) => {
+  const airtelCodes = ["25675", "25670"];
+  const mtnCodes = ["25678", "25677"];
   let productItem;
-  if (airtelCodes.some((code) => phone_number.startsWith(code))) {
+  if (airtelCodes.some((code) => phone_number.toString().startsWith(code))) {
     productItem = "AIRTELMONEYUG";
-  } else if (mtnCodes.some((code) => phone_number.startsWith(code))) {
+  } else if (
+    mtnCodes.some((code) => phone_number.toString().startsWith(code))
+  ) {
     productItem = "MTNMOBILEMONEYUG";
   }
-  const result = {
-    productItem,
-  };
-  return result;
-}
-async function getFirstBearerToken() {
-  let firstBearerToken;
+  return productItem;
+};
+const getFirstBearerToken = async () => {
   try {
-    const firstTokenResponse = await axios.post(
-      `${constants.XENTE_BASE_URL}/auth/login`,
-      {
-        username: constants.XENTE_USERNAME,
+    logObject("constants.XENTE_USERNAME", constants.XENTE_USERNAME);
+    logObject("constants.XENTE_PASSWORD", constants.XENTE_PASSWORD);
+    logObject("constants.XENTE_BASE_URL", constants.XENTE_BASE_URL);
+    const url = `${constants.XENTE_BASE_URL}/auth/login`;
+    logObject("url", url);
+    return await axios
+      .post(url, {
+        email: constants.XENTE_USERNAME,
         password: constants.XENTE_PASSWORD,
-      }
-    );
-    const statusCode = firstTokenResponse.status;
-
-    if (statusCode === 401) {
-      return {
-        success: false,
-        message: "Unauthorized",
-        errors: { message: "Not Authorized" },
-        status: httpStatus.UNAUTHORIZED,
-      };
-    }
-    firstBearerToken = firstTokenResponse.data.token;
+      })
+      .then((response) => {
+        const statusCode = response.status;
+        if (statusCode === 401) {
+          return {
+            success: false,
+            message: "Unauthorized",
+            errors: { message: "Not Authorized" },
+            status: httpStatus.UNAUTHORIZED,
+          };
+        }
+        const firstBearerToken = response.data.token;
+        return firstBearerToken;
+      })
+      .catch((error) => {
+        logger.error(
+          `internal server error -- ${JSON.stringify(error.response.status)}`
+        );
+        if (error.response) {
+          return {
+            success: false,
+            message: "Response status outised of 2XX range",
+            errors: {
+              message: "Response status outised of 2XX range",
+              more: error.response.data.errors
+                ? error.response.data.errors
+                : "Response status outised of 2XX range",
+            },
+            status: error.response.status,
+          };
+        }
+      });
   } catch (error) {
-    logObject("error", error);
     logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
     return {
       success: false,
@@ -70,35 +94,51 @@ async function getFirstBearerToken() {
       errors: { message: error.message },
     };
   }
-  return firstBearerToken;
-}
-async function getSecondBearerToken(firstBearerToken) {
-  let secondBearerToken;
+};
+const getSecondBearerToken = async (firstBearerToken) => {
   try {
-    const secondTokenResponse = await axios.post(
-      `${constants.XENTE_BASE_URL}/auth/accounts/${constants.XENTE_ACCOUNT_ID}/login`,
-      {},
-      {
-        headers: {
-          Authorization: `Bearer ${firstBearerToken}`,
-        },
-      }
-    );
-
-    const statusCode = secondTokenResponse.status;
-
-    if (statusCode === 401) {
-      return {
-        success: false,
-        message: "Unauthorized",
-        errors: { message: "Not Authorized" },
-        status: httpStatus.UNAUTHORIZED,
-      };
-    }
-
-    secondBearerToken = secondTokenResponse.data.token;
+    return await axios
+      .post(
+        `${constants.XENTE_BASE_URL}/auth/accounts/${constants.XENTE_ACCOUNT_ID}/login`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${firstBearerToken}`,
+          },
+        }
+      )
+      .then((response) => {
+        const statusCode = response.status;
+        if (statusCode === 401) {
+          return {
+            success: false,
+            message: "Unauthorized",
+            errors: { message: "Not Authorized" },
+            status: httpStatus.UNAUTHORIZED,
+          };
+        }
+        const secondBearerToken = response.data.token;
+        return secondBearerToken;
+      })
+      .catch((error) => {
+        logger.error(
+          `internal server error -- ${JSON.stringify(error.response.status)}`
+        );
+        if (error.response) {
+          return {
+            success: false,
+            message: "Response status outised of 2XX range",
+            errors: {
+              message: "Response status outised of 2XX range",
+              more: error.response.data.errors
+                ? error.response.data.errors
+                : "Response status outised of 2XX range",
+            },
+            status: error.response.status,
+          };
+        }
+      });
   } catch (error) {
-    logObject("error", error);
     logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
     return {
       success: false,
@@ -107,8 +147,7 @@ async function getSecondBearerToken(firstBearerToken) {
       errors: { message: error.message },
     };
   }
-  return secondBearerToken;
-}
+};
 
 const createTransaction = {
   /*********************************** HOST PAYMENTS ***********************************/
@@ -129,10 +168,13 @@ const createTransaction = {
       const { host_id } = request.params; //*
       const { tenant } = request.query;
 
+      logObject("host_id", host_id);
+
       const hostData = await HostModel(tenant)
-        .find({ _id: ObjectId(host_id) })
+        .findById(ObjectId(host_id))
         .lean();
 
+      logObject("hostData", hostData);
       if (isEmpty(hostData) || isEmpty(hostData.phone_number)) {
         return {
           success: false,
@@ -140,7 +182,7 @@ const createTransaction = {
           status: httpStatus.BAD_REQUEST,
           errors: {
             message:
-              "either Host does not exist of they do not have a registered phone number",
+              "either Host does not exist or they do not have a registered phone number",
           },
         };
       } else {
@@ -153,7 +195,7 @@ const createTransaction = {
           memo,
           paymentProvider: constants.XENTE_PAYOUTS_PAYMENT_PROVIDER,
           productItem: createProductItemForMobileMoneyPayout(phone_number),
-          amount: JSON.stringify(amount),
+          amount: amount,
           productReference: JSON.stringify(phone_number),
           paymentReference: constants.XENTE_PAYOUTS_PAYMENT_REFERENCE,
           type: constants.XENTE_PAYOUTS_TYPE,
@@ -163,80 +205,85 @@ const createTransaction = {
         };
 
         const firstBearerToken = await getFirstBearerToken();
+        logObject("firstBearerToken", firstBearerToken);
+        if (firstBearerToken.success === false) {
+          return firstBearerToken;
+        }
         const secondBearerToken = await getSecondBearerToken(firstBearerToken);
+        logObject("secondBearerToken", secondBearerToken);
+        if (secondBearerToken.success === false) {
+          return secondBearerToken;
+        }
         const api = axios.create({
           headers: {
             Authorization: `Bearer ${secondBearerToken}`,
           },
         });
 
-        const response = await api
+        logObject("payHostRequestObject", payHostRequestObject);
+
+        return await api
           .post(
-            `${constants.XENTE_BASE_URL}/transactions`,
+            `${constants.XENTE_BASE_URL}/core/transactions`,
             payHostRequestObject
           )
+          .then(async (response) => {
+            const { status, data } = response.data;
+            const { transactionId } = data;
+
+            const transactionObjectForStorage = {
+              status,
+              batch_id: batchId,
+              ext_transaction_id: transactionId,
+              request_id: requestId,
+              amount,
+              host_id,
+              description: "Transaction Successfully Completed",
+            };
+
+            const responseFromSaveTransaction = await TransactionModel(
+              tenant
+            ).register(transactionObjectForStorage);
+            return responseFromSaveTransaction;
+          })
           .catch((error) => {
             logObject("API request error", error);
+            logger.error(
+              `Response from EXT system, the status is outside of 2XX range`
+            );
             if (error.response) {
-              logObject(
-                "Response status outised of 2XX range:",
-                error.response.status
-              );
-              logObject("Response data", error.response.data);
-              logger.error(
-                `Response status outised of 2XX range -- ${JSON.stringify(
-                  error.response
-                )}`
-              );
               return {
                 success: false,
-                message: "Response status outised of 2XX range",
-                errors: { message: "Response status outised of 2XX range" },
-                status: response.status,
+                message: "Response status outside of 2XX range",
+                errors: {
+                  message:
+                    "Response from EXT system, the status is outside of 2XX rangee",
+                },
+                status: error.response.status,
               };
             } else if (error.request) {
-              logObject("No response received", error.request);
-              logger.error(
-                `No response received -- ${JSON.stringify(error.request)}`
-              );
               return {
                 success: false,
                 message: "No response received",
                 errors: { message: "No response received" },
-                status: response.status
-                  ? response.status
+                status: error.response.status
+                  ? error.response.status
                   : httpStatus.INTERNAL_SERVER_ERROR,
               };
             } else {
-              logObject("Error", error.message);
-              logger.error(`Error -- ${JSON.stringify(error.message)}`);
               return {
                 success: false,
                 message: "Internal Server Error",
-                errors: { message: "Internal Server Error" },
-                status: response.status
-                  ? response.status
+                errors: {
+                  message:
+                    "Response from EXT system, the status is outside of 2XX range",
+                },
+                status: error.response.status
+                  ? error.response.status
                   : httpStatus.INTERNAL_SERVER_ERROR,
               };
             }
           });
-        const { status, data } = response.data;
-        const { transactionId } = data;
-
-        const transactionObjectForStorage = {
-          status,
-          batch_id: batchId,
-          ext_transaction_id: transactionId,
-          request_id: requestId,
-          amount,
-          host_id,
-          description: "Transaction Successfully Completed",
-        };
-
-        const responseFromSaveTransaction = await TransactionModel(
-          tenant
-        ).register(transactionObjectForStorage);
-        return responseFromSaveTransaction;
       }
     } catch (error) {
       logObject("error", error);
