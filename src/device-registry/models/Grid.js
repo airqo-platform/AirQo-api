@@ -226,7 +226,7 @@ gridSchema.statics.list = async function({
       .lookup({
         from: "sites",
         localField: "_id",
-        foreignField: "grid_id",
+        foreignField: "grids",
         as: "sites",
       })
       .sort({ createdAt: -1 })

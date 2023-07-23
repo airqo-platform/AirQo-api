@@ -161,6 +161,12 @@ cohortSchema.statics.list = async function({
 
     const pipeline = this.aggregate()
       .match(filter)
+      .lookup({
+        from: "devices",
+        localField: "_id",
+        foreignField: "cohorts",
+        as: "devices",
+      })
       .sort({ createdAt: -1 })
       .project(inclusionProjection)
       .project(exclusionProjection)
