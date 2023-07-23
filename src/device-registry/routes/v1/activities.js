@@ -47,6 +47,15 @@ router.post(
         .notEmpty()
         .withMessage("the provided deviceName cannot be empty")
         .trim(),
+      body("recallType")
+        .optional()
+        .notEmpty()
+        .withMessage("recallType should not be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(constants.RECALL_TYPES)
+        .withMessage("the recallType value is not among the expected ones"),
     ],
   ]),
   activityController.recall
@@ -164,7 +173,7 @@ router.post(
   ]),
   oneOf([
     [
-      query("maintenanceType")
+      body("maintenanceType")
         .optional()
         .notEmpty()
         .withMessage("maintenanceType should not be empty if provided")
@@ -256,6 +265,19 @@ router.get(
         .isIn(constants.MAINTENANCE_TYPES)
         .withMessage(
           "the maintenance_type value is not among the expected ones which are: corrective and preventive"
+        ),
+      query("recall_type")
+        .optional()
+        .notEmpty()
+        .withMessage("recall_type should not be empty IF provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(constants.RECALL_TYPES)
+        .withMessage(
+          `the maintenance_type value is not among the expected ones which are: ${JSON.stringify(
+            constants.RECALL_TYPES
+          )}`
         ),
       query("site_id")
         .optional()
