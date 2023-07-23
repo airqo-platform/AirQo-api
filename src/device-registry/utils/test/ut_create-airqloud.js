@@ -1,274 +1,271 @@
+process.env.NODE_ENV = "development";
+
+require('dotenv').config();
 require("module-alias/register");
 const chai = require("chai");
 const chaiHttp = require("chai-http");
-const sinon = require("sinon");
-const faker = require("faker");
-const geolib = require("geolib");
-const { Kafka } = require("kafkajs");
-
-const createAirqloud = require("@utils/create-airqloud");
-
+const should = chai.should();
 const expect = chai.expect;
+const assert = chai.assert;
+const faker = require("faker");
+const sinon = require("sinon");
 chai.use(chaiHttp);
 
-describe("createAirqloud", () => {
-  describe("initialIsCapital", () => {
-    it("should return true if the first character of the word is capitalized", () => {
-      const result = createAirqloud.initialIsCapital("Word");
-      expect(result).to.be.true;
-    });
+const HTTPStatus = require("http-status");
+const geolib = require("geolib");
+const { Kafka } = require("kafkajs");
+const kafka = new Kafka({
+  clientId: "airqloud-service",
+  brokers: "brokers:9092",
+});
 
-    it("should return false if the first character of the word is not capitalized", () => {
-      const result = createAirqloud.initialIsCapital("word");
-      expect(result).to.be.false;
-    });
-  });
+const airqloudUtil = require("@utils/create-airqloud");
+const locationUtil = require("@utils/create-location");
+const AirQloudSchema = require("@models/Airqloud");
 
-  describe("hasNoWhiteSpace", () => {
-    it("should return true if the word does not contain any whitespace", () => {
-      const result = createAirqloud.hasNoWhiteSpace("word");
-      expect(result).to.be.true;
-    });
+const generateFilter = require("@utils/generate-filter");
 
-    it("should return false if the word contains whitespace", () => {
-      const result = createAirqloud.hasNoWhiteSpace("word with space");
-      expect(result).to.be.false;
-    });
-  });
 
-  describe("retrieveCoordinates", () => {
-    it("should return location data if the response from list is successful and data is not empty", async () => {
-      const request = {
-        /* mock request object */
-      };
-      const entity = "location";
-      const responseFromListAirQloud = {
-        success: true,
-        data: [
-          {
-            location: {
-              /* location data */
+const stubValue = {
+    tenant: "airqo",
+    airqloud_codes: [],
+    long_name: faker.name.findName(),
+    airqloud_tags: [faker.datatype.string(), faker.datatype.string()],
+    admin_level: "country",
+    airqloud: faker.name.findName(),
+    id: faker.datatype.uuid(),
+    createdAt: faker.date.past(),
+    network: faker.datatype.string(),
+    location_id: faker.datatype.uuid(),
+    latitude: faker.address.latitude(),
+    longitude: faker.address.longitude(),
+    admin_level: 1,
+    summary: "This is an airqloud",
+    dashboard: "yes",
+    isCustom: false,
+}
+
+describe("Create AirQloud Util", function () {
+    beforeEach(() => {
+            sinon.restore();
+        });
+    let request = {
+                query: { tenant: 'test' },
+                body: { name: 'updated airqloud' },
+                id:stubValue.id,
+                name:stubValue.airqloud,
+                admin_level:stubValue.admin_level,
+                dashboard:stubValue.dashboard,
+                airqloud_codes:stubValue.airqloud_codes,
+            };
+    
+    describe('retrieveCoordinates', () => {
+        request = { 
+            tenant: stubValue.tenant
+        };
+        
+        afterEach(() => {
+            sinon.restore();
+        });
+        beforeEach(() => {
+            listResult = {
+                success: true,
+                data: [{ location: "testLocation" }]
+            };
+            sinon.stub(locationUtil, "list").returns(listResult);
+            sinon.stub(airqloudUtil, "list").returns(listResult);
+        });
+
+        it('should return the location coordinates if only one location is found', async () => {
+            for (let i = 0; i < 2; i++)
+            {
+                i == 0 ? entity = "location" : "airqloud";
+            const result = await airqloudUtil.retrieveCoordinates(request, entity);
+            assert.deepStrictEqual(result, {
+                data:"testLocation",
+                success: true,
+                message: 'retrieved the location',
+                status: HTTPStatus.OK,
+            });
+            }
+        });
+
+         it('should return the location coordinates if more than one location is found', async () => {
+             listResult.data = [{ location: "testLocation" }, { location:"testlocation"}]
+            
+            const result = await airqloudUtil.retrieveCoordinates(request, "location");
+            assert.deepStrictEqual(result, {
+            success: false,
+            message: "unable to retrieve location details",
+            status: HTTPStatus.INTERNAL_SERVER_ERROR,
+            errors: {
+              message: "requested for one record but received many",
             },
-          },
-        ],
-      };
+            });
+        });
 
-      const entityInstance = {
-        list: sinon.stub().resolves(responseFromListAirQloud),
-      };
+        it('should return an error if no location is found', async () => {
+            sinon.restore();
+            listResult = {
+                success: false,
+                data: []
+            };
+            sinon.stub(locationUtil, "list").returns(listResult);
+            const result = await airqloudUtil.retrieveCoordinates(request, 'location');
+            expect(result.success).to.be.false;
+            expect(result.message).to.equal("unable to retrieve details from the provided location_id");
+            sinon.assert.calledOnceWithExactly(locationUtil.list, request);
+        });
+    });
+    describe("Create Method", function () {
+        
+        it('should create an airqloud successfully', async function() {
+           
+            const createStubResponse = {
+                success: true,
+                message: 'site created',
+                data: stubValue,
+                status: HTTPStatus.ACCEPTED,
+            };
+            request = {
+                query: { tenant: stubValue.tenant },
+                body: { location_id: stubValue.location_id }
+            };
+            kafkaProducer = { 
+                connect: sinon.stub(),
+                send: sinon.stub(),
+                disconnect: sinon.stub()
+            };
+            sinon.stub(kafka, "producer").returns(kafkaProducer);
+            const retrieveCoordinatesStub = sinon.stub(airqloudUtil, 'retrieveCoordinates').resolves({
+                success: true,
+                data: { coordinates: [10, 20] }
+            });
+            const calculateGeographicalCenterStub = sinon.stub(airqloudUtil, 'calculateGeographicalCenter').resolves({
+                success: true,
+                data: { center: [10, 20] }
+            });
+            sinon.stub(AirQloudSchema.statics, "register").returns(createStubResponse);
+            
+            const response = await airqloudUtil.create(request);
+            expect(response).to.deep.equal(createStubResponse); 
 
-      const expectedResponse = {
-        success: true,
-        data: responseFromListAirQloud.data[0].location,
-        message: "retrieved the location",
-        status: 200,
-      };
+        });
+    })
 
-      const result = await createAirqloud.retrieveCoordinates(
-        request,
-        entityInstance,
-        entity
-      );
-      expect(result).to.deep.equal(expectedResponse);
+    describe("Update Function", function () {
+        it('should update an AirQloud document', async () => {
+            request = {
+                query: { tenant: 'airqo' },
+                body: { name: 'kampala' },
+                id:stubValue.id,
+                name:stubValue.airqloud,
+                admin_level:stubValue.admin_level,
+                dashboard:stubValue.dashboard,
+                airqloud_codes:stubValue.airqloud_codes,
+            };
+            sinon.stub(generateFilter, "airqlouds").returns(stubValue);
+           const updateStub= sinon.stub(airqloudUtil, "update").returns({
+                success: true,
+                data: stubValue,
+                message: "airqloud updated",
+                status: HTTPStatus.OK,
+            });
+            const response = await airqloudUtil.update(request);
+            expect(response).to.deep.equal({
+                success: true,
+                data: stubValue,
+                message: "airqloud updated",
+                status: HTTPStatus.OK,
+            });
+        }).timeout(10000);
+    })
+
+    describe('Delete function', function () {
+        const deleteStubResponse = {
+            success: true,
+            message: "successfully removed the airqloud",
+            data: stubValue,
+            status: HTTPStatus.OK,
+        };
+        beforeEach(() => {
+            sinon.restore();
+             request = {
+                query: { tenant: 'test' },
+                body: { name: 'updated airqloud' },
+                id:stubValue.id,
+                name:stubValue.airqloud,
+                admin_level:stubValue.admin_level,
+                dashboard:stubValue.dashboard,
+                airqloud_codes:stubValue.airqloud_codes,
+            };
+        });
+
+        it('returns success with airqloud data on successful deletion', async function () {
+            
+            const generateFilterStub=sinon.stub(generateFilter, "airqlouds").returns({ stubValue });
+            const removeStub=sinon.stub(AirQloudSchema.statics, "remove").returns(deleteStubResponse);
+            
+            const response = await airqloudUtil.delete(request);
+
+            expect(generateFilterStub.calledWithMatch(request)).to.be.true;
+            expect(removeStub.calledWithMatch({ filter: { stubValue } })).to.be.true;
+            expect(response).to.deep.equal(deleteStubResponse);
+            sinon.restore();
+        });
+
+        it('returns error message on deletion failure', async function () {
+            sinon.stub(generateFilter, "airqlouds").returns( stubValue );
+            sinon.stub(AirQloudSchema.statics, "remove").returns({
+                success: false,
+                message: "Internal Server Error",
+                errors: "Deletion Error",
+                status: HTTPStatus.INTERNAL_SERVER_ERROR,
+            });
+            
+            const response = await airqloudUtil.delete(request);
+
+            expect(response).to.deep.equal({
+                success: false,
+                errors: "Deletion Error",
+                message: "Internal Server Error",
+                status: HTTPStatus.INTERNAL_SERVER_ERROR,
+            });
+        });
     });
 
-    it("should return an error message if the response from list is successful but data is empty", async () => {
-      const request = {
-        /* mock request object */
-      };
-      const entity = "location";
-      const responseFromListAirQloud = {
-        success: true,
-        data: [],
-      };
+    describe("Calculate Geographical Center", async function () {
+        
 
-      const entityInstance = {
-        list: sinon.stub().resolves(responseFromListAirQloud),
-      };
+        afterEach(() => {
+            sinon.restore();
+        })
 
-      const expectedResponse = {
-        success: false,
-        message: "unable to retrieve location details",
-        status: 404,
-        errors: {
-          message: "no record exists for this location_id",
-        },
-      };
-
-      const result = await createAirqloud.retrieveCoordinates(
-        request,
-        entityInstance,
-        entity
-      );
-      expect(result).to.deep.equal(expectedResponse);
+        it('Successfully calculated the AirQloud\'s center point', async function () {
+            request = {
+                query: { id:stubValue.id },
+                body: { coordinates: 'kampala' },
+                id:stubValue.id,
+                name:stubValue.airqloud,
+                admin_level:stubValue.admin_level,
+                dashboard:stubValue.dashboard,
+                airqloud_codes:stubValue.airqloud_codes,
+            };
+            listResult = {
+                success: true,
+                data: [{
+                    location: { coordinates: [stubValue.latitude]},
+                }]
+            };
+            sinon.stub(airqloudUtil, "list").returns(listResult);
+            sinon.stub(geolib, "getCenter").returns({
+                latitude: stubValue.latitude,
+                 longitude: stubValue.longitude,
+            });
+            
+            const response = await airqloudUtil.calculateGeographicalCenter(request);
+            assert.deepStrictEqual(response.success,true);
+        });
     });
-
-    it("should return an error message if the response from list has more than one data", async () => {
-      const request = {
-        /* mock request object */
-      };
-      const entity = "location";
-      const responseFromListAirQloud = {
-        success: true,
-        data: [
-          {
-            /* location data 1 */
-          },
-          {
-            /* location data 2 */
-          },
-        ],
-      };
-
-      const entityInstance = {
-        list: sinon.stub().resolves(responseFromListAirQloud),
-      };
-
-      const expectedResponse = {
-        success: false,
-        message: "unable to retrieve location details",
-        status: 500,
-        errors: {
-          message: "requested for one record but received many",
-        },
-      };
-
-      const result = await createAirqloud.retrieveCoordinates(
-        request,
-        entityInstance,
-        entity
-      );
-      expect(result).to.deep.equal(expectedResponse);
-    });
-
-    it("should return an error message if the response from list is unsuccessful", async () => {
-      const request = {
-        /* mock request object */
-      };
-      const entity = "location";
-      const responseFromListAirQloud = {
-        success: false,
-        errors: {
-          /* error object */
-        },
-      };
-
-      const entityInstance = {
-        list: sinon.stub().resolves(responseFromListAirQloud),
-      };
-
-      const expectedResponse = {
-        success: false,
-        message: "unable to retrieve details from the provided location_id",
-        status: 500,
-        errors: responseFromListAirQloud.errors,
-      };
-
-      const result = await createAirqloud.retrieveCoordinates(
-        request,
-        entityInstance,
-        entity
-      );
-      expect(result).to.deep.equal(expectedResponse);
-    });
-
-    it("should return an error message if an error occurs during execution", async () => {
-      const request = {
-        /* mock request object */
-      };
-      const entity = "location";
-
-      const entityInstance = {
-        list: sinon.stub().throws(new Error("Internal Server Error")),
-      };
-
-      const expectedResponse = {
-        success: false,
-        message: "Internal Server Error",
-        status: 500,
-        errors: {
-          message: "Internal Server Error",
-        },
-      };
-
-      const result = await createAirqloud.retrieveCoordinates(
-        request,
-        entityInstance,
-        entity
-      );
-      expect(result).to.deep.equal(expectedResponse);
-    });
-  });
-
-  describe("create", () => {
-    it("should create a new airqloud with modified body and return the response", async () => {
-      const request = {
-        /* mock request object */
-      };
-      const body = {
-        /* mock request body */
-      };
-      const query = {
-        /* mock request query */
-      };
-      request.body = body;
-      request.query = query;
-
-      const location_id = faker.random.uuid();
-      body.location_id = location_id;
-
-      const responseFromRetrieveCoordinates = {
-        success: true,
-        data: {
-          /* location data */
-        },
-      };
-
-      const responseFromCalculateGeographicalCenter = {
-        success: true,
-        data: {
-          /* center point data */
-        },
-      };
-
-      const responseFromRegisterAirQloud = {
-        success: true,
-        data: {
-          /* created airqloud data */
-        },
-      };
-
-      sinon
-        .stub(createAirqloud, "retrieveCoordinates")
-        .resolves(responseFromRetrieveCoordinates);
-      sinon
-        .stub(createAirqloud, "calculateGeographicalCenter")
-        .resolves(responseFromCalculateGeographicalCenter);
-      sinon.stub(createAirqloud, "getModelByTenant").resolves({
-        register: sinon.stub().resolves(responseFromRegisterAirQloud),
-      });
-
-      const kafkaProducerStub = {
-        connect: sinon.stub().resolves(),
-        send: sinon.stub().resolves(),
-        disconnect: sinon.stub().resolves(),
-      };
-
-      const kafkaStub = {
-        producer: sinon.stub().returns(kafkaProducerStub),
-      };
-
-      sinon.stub(createAirqloud, "Kafka").returns(kafkaStub);
-
-      const expectedResponse = responseFromRegisterAirQloud;
-
-      const result = await createAirqloud.create(request);
-      expect(result).to.deep.equal(expectedResponse);
-
-      createAirqloud.retrieveCoordinates.restore();
-      createAirqloud.calculateGeographicalCenter.restore();
-      createAirqloud.getModelByTenant.restore();
-      createAirqloud.Kafka.restore();
-    });
-  });
+    
 });
