@@ -5,7 +5,7 @@ app:
   namespace: staging
   configMap: env-gp-model-staging
 images:
-  tag: stage-57e991d2-1689862096
+  tag: stage-ab5d9814-1690207471
   repositories:
     cronJob: eu.gcr.io/airqo-250220/airqo-stage-gp-model-job
 nameOverride: ''
