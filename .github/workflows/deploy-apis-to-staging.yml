@@ -49,7 +49,6 @@ jobs:
       run_view: ${{ steps.check_files.outputs.run_view }} # view
       run_calibrate: ${{ steps.check_files.outputs.run_calibrate }} # calibrate
       run_average_jobs: ${{ steps.check_files.outputs.run_average_jobs }} # average and calibration jobs
-      run_events_check: ${{ steps.check_files.outputs.run_events_check }} # event checks
       run_notifications: ${{ steps.check_files.outputs.run_notifications }} # notification
       run_kafka_cluster_operator: ${{ steps.check_files.outputs.run_kafka_cluster_operator }} # kafka cluster operator
       run_kafka_cluster: ${{ steps.check_files.outputs.run_kafka_cluster }} # kafka cluster
@@ -94,7 +93,6 @@ jobs:
           echo "run_view=false" >>$GITHUB_OUTPUT
           echo "run_calibrate=false" >>$GITHUB_OUTPUT 
           echo "run_average_jobs=false" >>$GITHUB_OUTPUT
-          echo "run_events_check=false" >>$GITHUB_OUTPUT
           echo "run_notifications=false" >>$GITHUB_OUTPUT
           echo "run_kafka_cluster_operator=false" >>$GITHUB_OUTPUT
           echo "run_kafka_cluster=false" >>$GITHUB_OUTPUT
@@ -227,10 +225,6 @@ jobs:
               echo "run_average_jobs=true" >>$GITHUB_OUTPUT
             fi
 
-            if [[ $file == src/data-mgt/python/events-monitor/* ]]; then
-              echo "run_events_check=true" >>$GITHUB_OUTPUT
-            fi
-
             if [[ $file == src/notifications/* ]]; then
               echo "run_notifications=true" >>$GITHUB_OUTPUT
             fi
@@ -301,7 +295,6 @@ jobs:
 
             if [[ $file == workflow-trigger ]]; then
               echo "run_notifications=true" >>$GITHUB_OUTPUT
-              echo "run_events_check=true" >>$GITHUB_OUTPUT
               echo "run_calibrate=true" >>$GITHUB_OUTPUT
               echo "run_average_jobs=true" >>$GITHUB_OUTPUT
               echo "run_meta_data=true" >>$GITHUB_OUTPUT
