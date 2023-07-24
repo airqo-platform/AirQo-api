@@ -23,7 +23,7 @@ messageBroker:
   name: airqo-stage-view-message-broker
   label: view-msg-brokr
   configmap: stage-view-message-broker-config
-  replicaCount: 2
+  replicaCount: 0
   podAnnotations:
     sidecar.istio.io/inject: 'false'
   resources:

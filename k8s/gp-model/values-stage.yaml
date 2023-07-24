@@ -1,7 +1,6 @@
 app:
   name: stage-gpmodel
   cronJobName: stage-gpmodel-cron-job
-  brokerConsumerName: stage-gpmodel-broker-consumer
   label: gpmodel
   namespace: staging
   configMap: env-gp-model-staging
@@ -9,7 +8,6 @@ images:
   tag: stage-57e991d2-1689862096
   repositories:
     cronJob: eu.gcr.io/airqo-250220/airqo-stage-gp-model-job
-    brokerConsumer: eu.gcr.io/airqo-250220/airqo-stage-gp-model-broker-consumer
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
