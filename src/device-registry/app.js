@@ -63,12 +63,12 @@ app.use(
 // app.use(moesifMiddleware);
 
 app.use(log4js.connectLogger(log4js.getLogger("http"), { level: "auto" }));
-app.use(bodyParser.json({ limit: "50mb" }));
+app.use(bodyParser.json({ limit: "500mb" }));
 app.use(express.json());
 app.use(
   bodyParser.urlencoded({
     extended: true,
-    limit: "50mb",
+    limit: "500mb",
     parameterLimit: 50000,
   })
 );
