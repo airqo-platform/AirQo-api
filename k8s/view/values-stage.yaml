@@ -4,7 +4,6 @@ namespace: staging
 images:
   repositories:
     api: eu.gcr.io/airqo-250220/airqo-stage-view-api
-    messageBroker: eu.gcr.io/airqo-250220/airqo-stage-view-message-broker
   tag: stage-57e991d2-1689862096
 api:
   name: airqo-stage-view-api
@@ -19,20 +18,6 @@ api:
     requests:
       cpu: 5m
       memory: 420Mi
-messageBroker:
-  name: airqo-stage-view-message-broker
-  label: view-msg-brokr
-  configmap: stage-view-message-broker-config
-  replicaCount: 0
-  podAnnotations:
-    sidecar.istio.io/inject: 'false'
-  resources:
-    limits:
-      cpu: 50m
-      memory: 600Mi
-    requests:
-      cpu: 10m
-      memory: 400Mi
 ingress:
   enabled: false
 service:

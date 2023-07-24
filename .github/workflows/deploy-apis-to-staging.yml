@@ -1271,14 +1271,6 @@ jobs:
           target: staging
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-gp-model-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-gp-model-job:latest
 
-      - name: Build and push broker consumer
-        uses: docker/build-push-action@v4.0.0
-        with:
-          push: true
-          context: src/gp-model
-          target: message-broker-consumers
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-gp-model-broker-consumer:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-gp-model-broker-consumer:latest
-
       - name: Update corresponding helm values file(with retry)
         uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
@@ -1496,14 +1488,6 @@ jobs:
           target: api
           context: src/view
 
-      - name: Build and push Message Broker
-        uses: docker/build-push-action@v4.1.1
-        with:
-          push: true
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-view-message-broker:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-view-message-broker:latest
-          target: message-broker
-          context: src/view
-
       - name: Update corresponding helm values file(with retry)
         uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
@@ -1529,8 +1513,6 @@ jobs:
           cd src/view/
           gcloud secrets versions access latest --secret="sta-env-view-api" > api.env
           kubectl create configmap --dry-run=client -o yaml --from-env-file=api.env stage-view-api-config | kubectl replace -f - -n staging
-          gcloud secrets versions access latest --secret="sta-env-view-message-broker" > message_broker.env
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=message_broker.env stage-view-message-broker-config | kubectl replace -f - -n staging
           gcloud secrets versions access latest --secret="sta-key-view-api-google-credentials" > google_application_credentials.json
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json view-api-config-files | kubectl replace -f - -n staging
 
