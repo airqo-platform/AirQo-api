@@ -3,7 +3,7 @@ app:
   label: bigquery-connectors
   namespace: production
   configmap: bigquery-connectors
-replicaCount: 2
+replicaCount: 0
 image:
   repository: eu.gcr.io/airqo-250220/bigquery-connectors
   tag: prod-e24240cd-1689953067
