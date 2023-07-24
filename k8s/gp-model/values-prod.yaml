@@ -1,13 +1,15 @@
 app:
   name: prod-gpmodel
   cronJobName: prod-gpmodel-cron-job
+  brokerConsumerName: prod-gpmodel-broker-consumer
   label: gpmodel
   namespace: production
   configMap: env-gp-model-production
 images:
-  tag: prod-a4713257-1690183591
+  tag: prod-a334ee99-1690207154
   repositories:
     cronJob: eu.gcr.io/airqo-250220/airqo-gp-model-job
+    brokerConsumer: eu.gcr.io/airqo-250220/airqo-gp-model-broker-consumer
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
