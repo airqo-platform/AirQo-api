@@ -16,6 +16,7 @@ const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- app entry`);
 const { mongodb } = require("@config/dbConnection");
 mongodb;
 const { logText, logObject } = require("@utils/log");
+require("@config/firebase-admin");
 
 const morgan = require("morgan");
 const compression = require("compression");
@@ -48,13 +49,6 @@ if (isDev) {
 }
 
 app.use(passport.initialize());
-app.use(passport.session());
-app.use(bodyParser.json());
-app.use(
-  bodyParser.urlencoded({
-    extended: true,
-  })
-);
 
 app.use(log4js.connectLogger(log4js.getLogger("http"), { level: "auto" }));
 app.use(bodyParser.json({ limit: "50mb" }));
@@ -66,7 +60,6 @@ app.use(
     parameterLimit: 50000,
   })
 );
-app.use(bodyParser.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, "public")));
 // app.use(bindCurrentNamespace);
@@ -98,8 +91,6 @@ app.use("/api/v2/users/tokens", routes.v2.tokens);
 app.use("/api/v2/users/departments", routes.v2.departments);
 app.use("/api/v2/users/groups", routes.v2.groups);
 app.use("/api/v2/users", routes.v2.users);
-
-require("@config/firebase-admin");
 
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {
