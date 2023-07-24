@@ -266,13 +266,13 @@ const common = {
       };
     }
   },
-  getDocumentsByNetworkId: async (tenantId, networkId, category) => {
+  getDocumentsByNetworkId: async (tenantId, network, category) => {
     try {
       let cohortsQuery = CohortModel(tenantId).find({
-        network_id: ObjectId(networkId),
+        network,
       });
       let gridsQuery = GridModel(tenantId).find({
-        network_id: ObjectId(networkId),
+        network,
       });
 
       if (category && category === "summary") {

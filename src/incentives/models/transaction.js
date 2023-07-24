@@ -6,7 +6,10 @@ const { logObject, logElement, logText } = require("@utils/log");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const log4js = require("log4js");
-const logger = log4js.getLogger("transaction-model");
+const constants = require("@config/constants");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- transaction-model`
+);
 
 const successResponse = {
   success: true,

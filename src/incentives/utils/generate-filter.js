@@ -2,7 +2,10 @@ const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const { logElement, logObject, logText } = require("./log");
 const log4js = require("log4js");
-const logger = log4js.getLogger("generate-filter-util");
+const constants = require("@config/constants");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- generate-filter-util`
+);
 
 const generateFilter = {
   hosts: (req) => {

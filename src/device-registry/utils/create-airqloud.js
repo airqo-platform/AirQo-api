@@ -502,14 +502,14 @@ const createAirqloud = {
   listCohortsAndGrids: async (request) => {
     try {
       const { params } = request;
-      const network_id = params.net_id;
+      const network = params.net_id;
       const { tenant, category } = request.query;
       return await commonUtil
-        .getDocumentsByNetworkId(tenant, network_id, category)
+        .getDocumentsByNetworkId(tenant, network, category)
         .then(({ cohorts, grids }) => {
           return {
             success: true,
-            message: `Successfully returned the AirQlouds for network ${network_id}`,
+            message: `Successfully returned the AirQlouds for network ${network}`,
             data: { cohorts, grids },
             status: httpStatus.OK,
           };

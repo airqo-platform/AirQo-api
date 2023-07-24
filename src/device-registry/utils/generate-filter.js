@@ -802,6 +802,7 @@ const generateFilter = {
       activity_type,
       activity_tags,
       maintenance_type,
+      recall_type,
       site_id,
       network,
       activity_codes,
@@ -813,6 +814,11 @@ const generateFilter = {
     if (maintenance_type) {
       filter["maintenanceType"] = maintenance_type;
     }
+
+    if (recall_type) {
+      filter["recallType"] = recall_type;
+    }
+
     if (activity_type) {
       filter["activityType"] = activity_type;
     }

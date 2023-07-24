@@ -16,11 +16,11 @@ const { logText, logObject } = require("@utils/log");
 
 const NetworkModel = (tenant) => {
   try {
-    const grids = mongoose.model("grids");
-    return grids;
+    const networks = mongoose.model("networks");
+    return networks;
   } catch (error) {
-    const grids = getModelByTenant(tenant, "grid", NetworkSchema);
-    return grids;
+    const networks = getModelByTenant(tenant, "network", NetworkSchema);
+    return networks;
   }
 };
 
@@ -44,9 +44,9 @@ const validAdminLevels = async () => {
 };
 
 const validateAdminLevels = async (value) => {
-  const networks = await validAdminLevels();
-  if (!networks.includes(value.toLowerCase())) {
-    throw new Error("Invalid network");
+  const levels = await validAdminLevels();
+  if (!levels.includes(value.toLowerCase())) {
+    throw new Error("Invalid level");
   }
 };
 
@@ -101,7 +101,9 @@ const validatePolygonCoordinates = (value) => {
     }
     if (polygon.length < 4) {
       logText("Each polygon must have at least four coordinates");
-      throw new Error("Each polygon must have at least four coordinates");
+      throw new Error(
+        "The coordinates you passed do not align with the Shape Type provided, plese crosscheck"
+      );
     }
     for (const coordinate of polygon) {
       validateCoordinate(coordinate);
@@ -117,7 +119,7 @@ const validateMultiPolygonCoordinates = (value) => {
   }
   if (value.length === 0) {
     logText("At least one multipolygon must be provided");
-    throw new Error("At least one multipolygon must be provided");
+    throw new Error("At least one Multipolygon must be provided");
   }
   for (const multipolygon of value) {
     validatePolygonCoordinates(multipolygon);
@@ -240,10 +242,14 @@ router.post(
       body("network")
         .trim()
         .exists()
-        .withMessage("the network must be provided")
+        .withMessage("the network is is missing in your request")
         .bail()
         .notEmpty()
-        .withMessage("the network should not be empty"),
+        .withMessage("the network should not be empty")
+        .bail()
+        .toLowerCase()
+        .custom(validateNetwork)
+        .withMessage("the network value is not among the expected ones"),
     ],
   ]),
   createGridController.create
@@ -379,78 +385,31 @@ router.put(
   ]),
   oneOf([
     [
-      body("net_email")
+      body("name")
         .optional()
         .notEmpty()
-        .withMessage("the email should not be empty if provided")
-        .bail()
-        .isEmail()
-        .withMessage("this is not a valid email address")
-        .trim(),
-      body("net_website")
+        .withMessage("the name should not be empty if provided"),
+      body("description")
         .optional()
         .notEmpty()
-        .withMessage("the net_website should not be empty if provided")
-        .bail()
-        .isURL()
-        .withMessage("the net_website is not a valid URL")
-        .trim(),
-      body("net_status")
+        .withMessage("the description should not be empty if provided"),
+      body("network")
         .optional()
         .notEmpty()
-        .withMessage("the net_status should not be empty if provided")
+        .withMessage("the description should not be empty if provided")
         .bail()
         .toLowerCase()
-        .isIn(["active", "inactive", "pending"])
+        .custom(validateNetwork)
+        .withMessage("the network value is not among the expected ones"),
+      body("admin_level")
+        .optional()
+        .notEmpty()
+        .withMessage("the admin_level should not be empty if provided")
+        .bail()
+        .custom(validateAdminLevels)
         .withMessage(
-          "the net_status value is not among the expected ones which include: active, inactive, pending"
-        )
-        .trim(),
-      body("net_phoneNumber")
-        .optional()
-        .notEmpty()
-        .withMessage("the phoneNumber should not be empty if provided")
-        .bail()
-        .isMobilePhone()
-        .withMessage("the phoneNumber is not a valid one")
-        .bail()
-        .trim(),
-      body("net_category")
-        .optional()
-        .notEmpty()
-        .withMessage("the net_category should not be empty if provided")
-        .bail()
-        .toLowerCase()
-        .isIn([
-          "business",
-          "research",
-          "policy",
-          "awareness",
-          "school",
-          "others",
-        ])
-        .withMessage(
-          "the status value is not among the expected ones which include: business, research, policy, awareness, school, others"
-        )
-        .trim(),
-      body("net_name")
-        .if(body("net_name").exists())
-        .notEmpty()
-        .withMessage("the net_name should not be empty")
-        .trim(),
-      body("net_sites")
-        .optional()
-        .custom((value) => {
-          return Array.isArray(value);
-        })
-        .withMessage("the net_sites should be an array")
-        .bail()
-        .notEmpty()
-        .withMessage("the net_sites should not be empty"),
-      body("net_sites.*")
-        .optional()
-        .isMongoId()
-        .withMessage("each use should be an object ID"),
+          "admin_level values include but not limited to: province, state, village, county, subcounty, village, parish, country, division and district"
+        ),
     ],
   ]),
 
