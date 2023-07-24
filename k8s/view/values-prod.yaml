@@ -4,7 +4,6 @@ namespace: production
 images:
   repositories:
     api: eu.gcr.io/airqo-250220/airqo-view-api
-    messageBroker: eu.gcr.io/airqo-250220/airqo-view-message-broker
   tag: prod-a4713257-1690183591
 api:
   name: airqo-view-api
@@ -19,20 +18,6 @@ api:
     requests:
       cpu: 10m
       memory: 500Mi
-messageBroker:
-  name: airqo-view-message-broker
-  label: view-msg-brokr
-  configmap: prod-view-message-broker-config
-  replicaCount: 2
-  podAnnotations:
-    sidecar.istio.io/inject: 'false'
-  resources:
-    limits:
-      cpu: 500m
-      memory: 800Mi
-    requests:
-      cpu: 50m
-      memory: 400Mi
 ingress:
   enabled: false
 service:
