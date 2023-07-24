@@ -696,7 +696,7 @@ jobs:
           kubectl create configmap --dry-run=client -o yaml --from-env-file=api.env env-predict-staging | kubectl replace -f - -n staging
           kubectl create configmap --dry-run=client -o yaml --from-env-file=predict_job.env env-predict-job-staging | kubectl replace -f - -n staging
           kubectl create configmap --dry-run=client -o yaml --from-env-file=train_job.env env-train-job-staging | kubectl replace -f - -n staging
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=predict_places_air_quality.env env-predict-places-air-quality | kubectl replace -f - -n staging
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=predict_places_air_quality.env env-predict-places-air-quality-staging | kubectl replace -f - -n staging
           echo "=============== Updating the respective credentials files ==============="
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json env-predict-staging-files | kubectl replace -f - -n staging
 
