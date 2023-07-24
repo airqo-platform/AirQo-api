@@ -83,8 +83,8 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: airqo-stage-notification-api
-  minReplicas: 0
-  maxReplicas: 0
+  minReplicas: 1
+  maxReplicas: 3
   metrics:
     - type: Resource
       resource:
