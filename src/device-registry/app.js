@@ -20,7 +20,6 @@ const MongoStore = require("connect-mongo")(session);
 const mongoose = require("mongoose");
 const morgan = require("morgan");
 const helmet = require("helmet");
-const passport = require("passport");
 const isDev = process.env.NODE_ENV === "development";
 const isProd = process.env.NODE_ENV === "production";
 const options = { mongooseConnection: mongoose.connection };
@@ -44,15 +43,6 @@ if (isProd) {
   app.use(compression());
 }
 
-app.use(passport.initialize());
-app.use(passport.session());
-app.use(bodyParser.json());
-app.use(
-  bodyParser.urlencoded({
-    extended: true,
-  })
-);
-
 // const moesifMiddleware = moesif({
 //   applicationId: constants.MOESIF_APPLICATION_ID,
 //   identifyUser: function(req, res) {
@@ -63,12 +53,12 @@ app.use(
 // app.use(moesifMiddleware);
 
 app.use(log4js.connectLogger(log4js.getLogger("http"), { level: "auto" }));
-app.use(bodyParser.json({ limit: "1gb" }));
+app.use(bodyParser.json({ limit: "500mb" }));
 app.use(express.json());
 app.use(
   bodyParser.urlencoded({
     extended: true,
-    limit: "1gb",
+    limit: "500mb",
     parameterLimit: 50000,
   })
 );
