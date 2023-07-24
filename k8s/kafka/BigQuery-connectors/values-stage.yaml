@@ -3,7 +3,7 @@ app:
   label: bigquery-connectors
   namespace: staging
   configmap: bigquery-connectors
-replicaCount: 2
+replicaCount: 0
 image:
   repository: eu.gcr.io/airqo-250220/stage-bigquery-connectors
   tag: stage-57e991d2-1689862096
@@ -27,6 +27,6 @@ volumes:
 ingress:
   enabled: false
 autoscaling:
-  minReplicas: 1
-  maxReplicas: 3
+  minReplicas: 0
+  maxReplicas: 0
   targetCPUUtilizationPercentage: 70
