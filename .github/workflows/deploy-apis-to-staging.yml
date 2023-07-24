@@ -387,6 +387,7 @@ jobs:
           gcloud secrets versions access latest --secret="sta-key-auth-service-firebase-admin-sdk" > firebase_admin_sdk.json
           kubectl create configmap --dry-run=client -o yaml --from-file=firebase_admin_sdk.json stage-auth-api-config-files | kubectl replace -f - -n staging
 
+  # TODO Disable the deployment
   #### Kafka Connectors ######
   kafka-connectors:
     name: build-push-deploy-kafka-connectors
@@ -1278,6 +1279,7 @@ jobs:
           target: staging
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-gp-model-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-gp-model-job:latest
 
+      # TODO Delete the consumer
       - name: Build and push broker consumer
         uses: docker/build-push-action@v4.0.0
         with:
@@ -1503,6 +1505,7 @@ jobs:
           target: api
           context: src/view
 
+      # TODO Delete the consumer
       - name: Build and push Message Broker
         uses: docker/build-push-action@v4.1.1
         with:
@@ -1617,6 +1620,7 @@ jobs:
           gcloud secrets versions access latest --secret="sta-key-calibrate-service-account" > google_application_credentials.json
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json stage-calibrate-api-config-files | kubectl replace -f - -n staging
 
+  # TODO Delete for good      
   ### events check ###
   events-check:
     name: build-push-events-check
@@ -1666,6 +1670,7 @@ jobs:
         run: |
           kubectl apply -f k8s/events-monitor/stage-events-notifs-cronjob.yaml
 
+  # TODO Disable this        
   #### notification ######
   notification:
     name: build-push-deploy-notification
