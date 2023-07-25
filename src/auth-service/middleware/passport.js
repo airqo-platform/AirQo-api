@@ -12,7 +12,7 @@ const AuthTokenStrategy = require("passport-auth-token");
 const jwt = require("jsonwebtoken");
 const accessCodeGenerator = require("generate-password");
 
-const { getModelByTenant } = require("@config/dbConnection");
+const { getModelByTenant } = require("@config/database");
 
 const UserModel = (tenant) => {
   return getModelByTenant(tenant, "user", UserSchema);

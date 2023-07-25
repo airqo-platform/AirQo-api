@@ -13,7 +13,7 @@ const mongoose = require("mongoose");
 const routes = require("@routes/index");
 const constants = require("@config/constants");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- app entry`);
-const { mongodb } = require("@config/dbConnection");
+const { mongodb } = require("@config/database");
 mongodb;
 const { logText, logObject } = require("@utils/log");
 require("@config/firebase-admin");
