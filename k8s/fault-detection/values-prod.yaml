@@ -7,15 +7,15 @@ initContainers:
   container1:
     image:
       repository: eu.gcr.io/airqo-250220/prod-train-catboost-model
-      tag: prod-539310e1-1690228276
+      tag: prod-bb708419-1690282143
   container2:
     image:
       repository: eu.gcr.io/airqo-250220/prod-train-lstm-model
-      tag: prod-539310e1-1690228276
+      tag: prod-bb708419-1690282143
 replicaCount: 1
 image:
   repository: eu.gcr.io/airqo-250220/prod-fault-detection-api
-  tag: prod-539310e1-1690228276
+  tag: prod-bb708419-1690282143
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
