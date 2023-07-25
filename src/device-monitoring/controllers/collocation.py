@@ -261,7 +261,7 @@ def reset_collocation_batch():
         "interCorrelationAdditionalParameters",
         batch.inter_correlation_additional_parameters,
     )
-
+    batch.validate()
     batch = collocation.reset_batch(batch)
 
     return (
