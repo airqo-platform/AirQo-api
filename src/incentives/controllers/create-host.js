@@ -58,6 +58,8 @@ const createHost = {
         });
       }
     } catch (error) {
+      logObject("error", error);
+      logger.error(`internal server error -- ${JSON.stringify(error)}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -115,6 +117,8 @@ const createHost = {
         });
       }
     } catch (error) {
+      logObject("error", error);
+      logger.error(`internal server error -- ${JSON.stringify(error)}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -227,6 +231,8 @@ const createHost = {
         });
       }
     } catch (error) {
+      logObject("error", error);
+      logger.error(`internal server error -- ${JSON.stringify(error)}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         message: "Internal Server Error",
         errors: { message: error.message },
