@@ -33,7 +33,7 @@ jobs:
   train:
     name: airqo-train-job
     configmap: env-train-job-production
-    schedule: 0 1 1 * *
+    schedule: 0 1 * * 1
     suspend: false
     resources:
       limits:

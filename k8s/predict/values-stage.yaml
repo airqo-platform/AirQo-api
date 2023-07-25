@@ -33,7 +33,7 @@ jobs:
   train:
     name: stage-airqo-train-job
     configmap: env-train-job-staging
-    schedule: 0 1 1 * *
+    schedule: 0 1 * * 1
     suspend: true
     resources:
       limits:
