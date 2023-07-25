@@ -47,8 +47,20 @@ const getFirstBearerToken = async () => {
     logObject("constants.XENTE_USERNAME", constants.XENTE_USERNAME);
     logObject("constants.XENTE_PASSWORD", constants.XENTE_PASSWORD);
     logObject("constants.XENTE_BASE_URL", constants.XENTE_BASE_URL);
+    if (isEmpty(constants.XENTE_BASE_URL)) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: {
+          message:
+            "Unable to retrieve a crucial transaction configuration detail",
+        },
+      };
+    }
     const url = `${constants.XENTE_BASE_URL}/auth/login`;
     logObject("url", url);
+
     return await axios
       .post(url, {
         email: constants.XENTE_USERNAME,
@@ -97,6 +109,17 @@ const getFirstBearerToken = async () => {
 };
 const getSecondBearerToken = async (firstBearerToken) => {
   try {
+    if (isEmpty(constants.XENTE_BASE_URL)) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: {
+          message:
+            "Unable to retrieve a crucial transaction configuration detail",
+        },
+      };
+    }
     return await axios
       .post(
         `${constants.XENTE_BASE_URL}/auth/accounts/${constants.XENTE_ACCOUNT_ID}/login`,
