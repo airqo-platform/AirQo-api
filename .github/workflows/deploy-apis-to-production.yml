@@ -49,7 +49,6 @@ jobs:
       run_view: ${{ steps.check_files.outputs.run_view }} # view
       run_calibrate: ${{ steps.check_files.outputs.run_calibrate }} # calibrate
       run_average_jobs: ${{ steps.check_files.outputs.run_average_jobs }} # average and calibration jobs
-      run_events_check: ${{ steps.check_files.outputs.run_events_check }} # event checks
       run_notifications: ${{ steps.check_files.outputs.run_notifications }} # notification
       run_kafka_cluster_operator: ${{ steps.check_files.outputs.run_kafka_cluster_operator }} # kafka cluster operator
       run_kafka_cluster: ${{ steps.check_files.outputs.run_kafka_cluster }} # kafka cluster
@@ -94,7 +93,6 @@ jobs:
           echo "run_view=false" >>$GITHUB_OUTPUT
           echo "run_calibrate=false" >>$GITHUB_OUTPUT 
           echo "run_average_jobs=false" >>$GITHUB_OUTPUT
-          echo "run_events_check=false" >>$GITHUB_OUTPUT
           echo "run_notifications=false" >>$GITHUB_OUTPUT
           echo "run_kafka_cluster_operator=false" >>$GITHUB_OUTPUT
           echo "run_kafka_cluster=false" >>$GITHUB_OUTPUT
@@ -227,10 +225,6 @@ jobs:
               echo "run_average_jobs=true" >>$GITHUB_OUTPUT
             fi
 
-            if [[ $file == src/data-mgt/python/events-monitor/* ]]; then
-              echo "run_events_check=true" >>$GITHUB_OUTPUT
-            fi
-
             if [[ $file == src/notifications/* ]]; then
               echo "run_notifications=true" >>$GITHUB_OUTPUT
             fi
@@ -301,7 +295,6 @@ jobs:
 
             if [[ $file == workflow-trigger ]]; then
               echo "run_notifications=true" >>$GITHUB_OUTPUT
-              echo "run_events_check=true" >>$GITHUB_OUTPUT
               echo "run_calibrate=true" >>$GITHUB_OUTPUT
               echo "run_average_jobs=true" >>$GITHUB_OUTPUT
               echo "run_meta_data=true" >>$GITHUB_OUTPUT
@@ -1180,14 +1173,6 @@ jobs:
           target: production
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-gp-model-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-gp-model-job:latest
 
-      - name: Build and push broker consumer
-        uses: docker/build-push-action@v4.0.0
-        with:
-          push: true
-          context: src/gp-model
-          target: message-broker-consumers
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-gp-model-broker-consumer:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-gp-model-broker-consumer:latest
-
       - name: Update corresponding helm values file(with retry)
         uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
@@ -1401,14 +1386,6 @@ jobs:
           target: api
           context: src/view
 
-      - name: Build and push Message Broker
-        uses: docker/build-push-action@v4.1.1
-        with:
-          push: true
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-view-message-broker:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-view-message-broker:latest
-          target: message-broker
-          context: src/view
-
       - name: Update corresponding helm values file(with retry)
         uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
         with:
@@ -1434,8 +1411,6 @@ jobs:
           cd src/view/
           gcloud secrets versions access latest --secret="prod-env-view-api" > api.env
           kubectl create configmap --dry-run=client -o yaml --from-env-file=api.env prod-view-api-config | kubectl replace -f - -n production
-          gcloud secrets versions access latest --secret="prod-env-view-message-broker" > message_broker.env
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=message_broker.env prod-view-message-broker-config | kubectl replace -f - -n production
           gcloud secrets versions access latest --secret="prod-key-view-api-google-credentials" > google_application_credentials.json
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json view-api-config-files | kubectl replace -f - -n production
 
@@ -1514,55 +1489,6 @@ jobs:
           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env prod-calibrate-api-config | kubectl replace -f - -n production
           gcloud secrets versions access latest --secret="prod-key-calibrate-service-account" > google_application_credentials.json
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json prod-calibrate-api-config-files | kubectl replace -f - -n production
-
-  ### events check ###
-  events-check:
-    name: build-push-events-check
-    needs: [check, image-tag]
-    if: needs.check.outputs.run_events_check == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3.5.3
-
-      ### run unit tests ###
-
-      - name: Login to GCR
-        uses: docker/login-action@v2.2.0
-        with:
-          registry: ${{ env.REGISTRY_URL }}
-          username: _json_key
-          password: ${{ secrets.GCR_CONFIG }}
-
-      - name: Login to K8S
-        uses: azure/k8s-set-context@v3.0
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
-
-      - name: Build and Push Docker Image
-        run: |
-          cd src/data-mgt/python/events-monitor/
-          docker build --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-events-notifs-job:latest .
-          docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-events-notifs-job:latest
-
-      - name: Login to GCP
-        uses: google-github-actions/auth@v1.1.1
-        with:
-          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
-
-      - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1.1.1
-
-      - name: Update the corresponding k8s configmap(s)
-        run: |
-          cd src/data-mgt/python/events-monitor/
-          gcloud secrets versions access latest --secret="prod-env-device-registry-events-monitor" > .env
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env prod-events-notifs-cronjob-config | kubectl replace -f - -n production
-
-      - name: Deploy to K8S
-        run: |
-          kubectl apply -f k8s/events-monitor/prod-events-notifs-cronjob.yaml -n production
 
   #### notification ######
   notification:
@@ -1712,7 +1638,7 @@ jobs:
           kubectl create configmap --dry-run=client -o yaml --from-env-file=api.env env-predict-production | kubectl replace -f - -n production
           kubectl create configmap --dry-run=client -o yaml --from-env-file=predict_job.env env-predict-job-production | kubectl replace -f - -n production
           kubectl create configmap --dry-run=client -o yaml --from-env-file=train_job.env env-train-job-production | kubectl replace -f - -n production
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=predict_places_air_quality.env env-predict-places-air-quality | kubectl replace -f - -n production
+          kubectl create configmap --dry-run=client -o yaml --from-env-file=predict_places_air_quality.env env-predict-places-air-quality-production | kubectl replace -f - -n production
           echo "=============== Updating the respective credentials files ==============="
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json env-predict-production-files | kubectl replace -f - -n production
 
