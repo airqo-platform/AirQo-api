@@ -259,7 +259,9 @@ const createTransaction = {
                   message:
                     "Response from EXT system, the status is outside of 2XX rangee",
                 },
-                status: error.response.status,
+                status: error.response.status
+                  ? error.response.status
+                  : httpStatus.INTERNAL_SERVER_ERROR,
               };
             } else if (error.request) {
               return {
