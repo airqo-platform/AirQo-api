@@ -4,7 +4,7 @@ const AccessTokenSchema = require("@models/AccessToken");
 const ClientSchema = require("@models/Client");
 const NetworkSchema = require("@models/Network");
 const RoleSchema = require("@models/Role");
-const { getModelByTenant } = require("@config/dbConnection");
+const { getModelByTenant } = require("@config/database");
 const { logObject, logElement, logText, logError } = require("./log");
 const mailer = require("./mailer");
 const bcrypt = require("bcrypt");
@@ -12,8 +12,12 @@ const mongoose = require("mongoose").set("debug", true);
 const ObjectId = mongoose.Types.ObjectId;
 const crypto = require("crypto");
 const isEmpty = require("is-empty");
-const { getAuth, sendSignInLinkToEmail } = require("firebase-admin/auth");
-const actionCodeSettings = require("@config/firebase-settings");
+const {
+  getAuth,
+  sendSignInLinkToEmail,
+  createUsercreateUser,
+} = require("firebase-admin/auth");
+const firebaseAdmin = require("firebase-admin/auth");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const mailchimp = require("@config/mailchimp");
@@ -130,7 +134,7 @@ function deleteQueryBatch(db, query, batchSize, resolve, reject) {
     .catch(reject);
 }
 
-const join = {
+const createUserModule = {
   listLogs: async (request) => {
     try {
       const { tenant, limit = 1000, skip = 0 } = request.query;
@@ -397,6 +401,179 @@ const join = {
     }
   },
 
+  createFirebaseUser: async (request, callback) => {
+    try {
+      const { body } = request;
+      const { email, password, phoneNumber } = body;
+      logText("createFirebaseUser util......");
+
+      // Check if either email or phoneNumber is provided
+      if (isEmpty(email) && isEmpty(phoneNumber)) {
+        callback({
+          success: false,
+          message: "Please provide either email or phoneNumber",
+          status: httpStatus.BAD_REQUEST,
+        });
+        return;
+      }
+
+      if (!isEmpty(email) && isEmpty(phoneNumber) && isEmpty(password)) {
+        callback({
+          success: false,
+          message: "Bad Request",
+          errors: { message: "password must be provided when using email" },
+          status: httpStatus.BAD_REQUEST,
+        });
+      }
+
+      // Create the user object with either email or phoneNumber
+      let userObject;
+      if (!isEmpty(email)) {
+        userObject = {
+          email,
+          password, // Password is required when creating a user with email
+        };
+      } else {
+        userObject = {
+          phoneNumber,
+        };
+      }
+
+      const auth = getAuth();
+
+      // Create the user using the createUser method from Firebase Auth
+      const userRecord = await createUser(userObject);
+
+      // Extract the user ID from the created user record
+      const { uid } = userRecord;
+
+      // You can add more data to the userRecord using the update method if needed
+      // For example, to set custom claims, use: await updateCustomClaims(getAuth(), uid, { isAdmin: true });
+
+      // Return the success response with the user ID
+      callback({
+        success: true,
+        message: "User created successfully",
+        status: httpStatus.CREATED,
+        data: { uid },
+      });
+    } catch (error) {
+      logger.error(`Internal Server Error ${JSON.stringify(error)}`);
+      callback({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      });
+    }
+  },
+
+  loginWithFirebase: async (request, callback) => {
+    try {
+      const { body } = request;
+      const { email, phoneNumber, firstName, lastName, userName, password } =
+        body;
+
+      // Step 1: Check if the user exists on Firebase using lookUpFirebaseUser function
+      lookUpFirebaseUser(request, async (firebaseUserResponse) => {
+        if (
+          firebaseUserResponse.success &&
+          firebaseUserResponse.data.length > 0
+        ) {
+          // Step 2: User exists on Firebase, update or create locally using UserModel
+          const firebaseUser = firebaseUserResponse.data[0];
+
+          // Check if user exists locally in your MongoDB using UserModel
+          const userExistsLocally =
+            await UserModel(/* provide tenant here if needed */).findOne({
+              $or: [
+                { email: firebaseUser.email },
+                { phoneNumber: firebaseUser.phoneNumber },
+              ],
+            });
+
+          if (userExistsLocally) {
+            // User exists locally, perform update operation
+            // Update the necessary fields in your UserModel using mongoose update function
+            const updatedUser =
+              await UserModel(/* provide tenant here if needed */).updateOne(
+                { _id: userExistsLocally._id },
+                { firstName, lastName, userName, password }
+              );
+
+            callback({
+              success: true,
+              message: "User updated successfully.",
+              status: httpStatus.OK,
+              data: updatedUser,
+            });
+          } else {
+            // User does not exist locally, perform create operation
+            // Create the user in your UserModel using mongoose create function
+            const newUser =
+              await UserModel(/* provide tenant here if needed */).create({
+                email: firebaseUser.email,
+                phoneNumber: firebaseUser.phoneNumber,
+                firstName,
+                lastName,
+                userName,
+                password,
+              });
+
+            callback({
+              success: true,
+              message: "User created successfully.",
+              status: httpStatus.CREATED,
+              data: newUser,
+            });
+          }
+        } else {
+          // Step 3: User does not exist on Firebase, create user on Firebase first
+          // Create the user on Firebase using createFirebaseUser function
+          createFirebaseUser(
+            { body: { email, phoneNumber, password } },
+            async (firebaseCreateResponse) => {
+              if (firebaseCreateResponse.success) {
+                // Step 4: Firebase user created successfully, proceed with local user creation
+                const newUser =
+                  await UserModel(/* provide tenant here if needed */).create({
+                    email,
+                    phoneNumber,
+                    firstName,
+                    lastName,
+                    userName: email, // Using email as userName in this case
+                    password,
+                  });
+
+                callback({
+                  success: true,
+                  message: "User created successfully.",
+                  status: httpStatus.CREATED,
+                  data: newUser,
+                });
+              } else {
+                callback({
+                  success: false,
+                  message: "Error creating user on Firebase.",
+                  status: httpStatus.INTERNAL_SERVER_ERROR,
+                  errors: { message: "Error creating user on Firebase." },
+                });
+              }
+            }
+          );
+        }
+      });
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+      callback({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      });
+    }
+  },
+
   generateSignInWithEmailLink: async (request, callback) => {
     try {
       const { body, query } = request;
@@ -404,7 +581,7 @@ const join = {
       const { purpose } = query;
 
       return getAuth()
-        .generateSignInWithEmailLink(email, actionCodeSettings)
+        .generateSignInWithEmailLink(email, constants.ACTION_CODE_SETTINGS)
         .then(async (link) => {
           let linkSegments = link.split("%").filter((segment) => segment);
           const indexBeforeCode = linkSegments.indexOf("26oobCode", 0);
@@ -795,7 +972,8 @@ const join = {
         };
       }
 
-      const responseFromGenerateResetToken = join.generateResetToken();
+      const responseFromGenerateResetToken =
+        createUserModule.generateResetToken();
       logObject(
         "responseFromGenerateResetToken",
         responseFromGenerateResetToken
@@ -861,10 +1039,11 @@ const join = {
       };
 
       logObject("isPasswordTokenValid FILTER", filter);
-      const responseFromCheckTokenValidity = await join.isPasswordTokenValid({
-        tenant,
-        filter,
-      });
+      const responseFromCheckTokenValidity =
+        await createUserModule.isPasswordTokenValid({
+          tenant,
+          filter,
+        });
 
       logObject(
         "responseFromCheckTokenValidity",
@@ -1237,4 +1416,4 @@ const join = {
   },
 };
 
-module.exports = join;
+module.exports = createUserModule;

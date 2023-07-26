@@ -1,3 +1,4 @@
+require("module-alias/register");
 process.env.NODE_ENV = "development";
 const chai = require("chai");
 const chaiHttp = require("chai-http");
@@ -7,7 +8,8 @@ const faker = require("faker");
 const sinon = require("sinon");
 chai.use(chaiHttp);
 const assert = require("assert");
-const joinController = require("../join");
+// const createUserController = require("@controllers/create-user");
+const createUserUtil = require("@utils/create-user");
 
 const stubValue = {
   _id: faker.datatype.uuid(),
@@ -38,14 +40,14 @@ const stubValue = {
 
 describe("join controller", function () {
   describe("register user", function () {
-    let status, json, res, joinController, joinUtil;
+    let status, json, res, createUserController, createUserUtil;
     beforeEach(async () => {
       status = sinon.stub();
       json = sinon.spy();
       res = { json, status };
       status.returns(res);
       const userModel = sinon.spy();
-      joinUtil = await joinUtil.register(userModel);
+      createUserUtil = await createUserUtil.register(userModel);
     });
 
     it("should register a user when all the required parameters are provided", async function () {
@@ -61,8 +63,8 @@ describe("join controller", function () {
         createdAt: faker.date.past(),
         updatedAt: faker.date.past(),
       };
-      const stub = sinon.stub(joinUtil, "create").returns(stubValue);
-      await joinController.create(req, res);
+      const stub = sinon.stub(createUserUtil, "create").returns(stubValue);
+      await createUserController.create(req, res);
       expect(stub.calledOnce).to.be.true;
       expect(status.calledOnce).to.be.true;
     });
@@ -72,7 +74,7 @@ describe("join controller", function () {
 describe("list users", function () {
   let req;
   let res;
-  let joinUtil;
+  let createUserUtil;
   beforeEach(() => {
     req = { params: { _id: faker.datatype.uuid() } };
     res = { json: function () {} };
@@ -87,9 +89,9 @@ describe("list users", function () {
     };
     const mock = sinon.mock(res);
     mock.expects("json").once().withExactArgs({ data: stubValue });
-    const stub = sinon.stub(joinUtil, "list users").returns(stubValue);
+    const stub = sinon.stub(createUserUtil, "list users").returns(stubValue);
     userController = new UserController(userService);
-    const join = await joinController.list(req, res);
+    const join = await createUserController.list(req, res);
     expect(stub.calledOnce).to.be.true;
     mock.verify();
   });

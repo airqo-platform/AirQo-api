@@ -3,7 +3,7 @@ const chai = require("chai");
 const expect = chai.expect;
 const sinon = require("sinon");
 const bcrypt = require("bcrypt");
-const generateFilter = require("@utils/generate-filter");
+// const generateFilter = require("@utils/generate-filter");
 const mailer = require("@utils/mailer");
 const moment = require("moment-timezone");
 const { ObjectId } = require("mongoose").Types;
@@ -11,6 +11,7 @@ const createUser = require("@utils/create-user");
 const mailchimp = require("@config/mailchimp");
 const crypto = require("crypto");
 const admin = require("firebase-admin");
+const { mockFirebaseAdmin } = require("@firebase/mocks");
 const {
   lookUpFirebaseUser,
   generateSignInWithEmailLink,
@@ -24,6 +25,8 @@ const {
   generateResetToken,
   isPasswordTokenValid,
   subscribeToNewsLetter,
+  createFirebaseUser,
+  loginWithFirebase,
 } = createUser;
 const { getAuth } = require("firebase-admin/auth");
 const constants = require("@config/constants");
@@ -37,6 +40,13 @@ const ClientModel = rewireCreateUser.__get__("ClientModel");
 const NetworkModel = rewireCreateUser.__get__("NetworkModel");
 const RoleModel = rewireCreateUser.__get__("RoleModel");
 const accessCodeGenerator = require("generate-password");
+
+// Mock the lookUpFirebaseUser and createFirebaseUser functions
+const mockLookUpFirebaseUser = sinon.stub();
+const mockCreateFirebaseUser = sinon.stub();
+
+// Stub the UserModel methods
+const mockUserModel = sinon.stub(UserModel);
 
 describe("create-user-util", function () {
   describe("listLogs", function () {
@@ -2126,5 +2136,263 @@ describe("create-user-util", function () {
         "Firebase Auth error"
       );
     });
+  });
+  describe("createFirebaseUser", () => {
+    beforeEach(() => {
+      // Restore all the Sinon stubs and mocks before each test case
+      sinon.restore();
+    });
+
+    it("should return error if neither email nor phoneNumber is provided", async () => {
+      const request = { body: {} };
+      const callback = sinon.spy();
+
+      await createFirebaseUser(request, callback);
+
+      expect(callback.calledOnce).to.be.true;
+      expect(callback.args[0][0]).to.deep.equal({
+        success: false,
+        message: "Please provide either email or phoneNumber",
+        status: 400,
+      });
+    });
+
+    it("should return error if password is not provided with email", async () => {
+      const request = { body: { email: "test@example.com" } };
+      const callback = sinon.spy();
+
+      await createFirebaseUser(request, callback);
+
+      expect(callback.calledOnce).to.be.true;
+      expect(callback.args[0][0]).to.deep.equal({
+        success: false,
+        message: "Bad Request",
+        errors: { message: "password must be provided when using email" },
+        status: 400,
+      });
+    });
+
+    it("should create a user with email and password", async () => {
+      const request = {
+        body: { email: "test@example.com", password: "testpassword" },
+      };
+      const userRecord = { uid: "testuserid" };
+      sinon.stub(getAuth(), "createUser").resolves(userRecord);
+
+      const callback = sinon.spy();
+      await createFirebaseUser(request, callback);
+
+      expect(callback.calledOnce).to.be.true;
+      expect(callback.args[0][0]).to.deep.equal({
+        success: true,
+        message: "User created successfully",
+        status: 201,
+        data: { uid: "testuserid" },
+      });
+    });
+
+    it("should create a user with phoneNumber", async () => {
+      const request = { body: { phoneNumber: "+1234567890" } };
+      const userRecord = { uid: "testuserid" };
+      sinon.stub(getAuth(), "createUser").resolves(userRecord);
+
+      const callback = sinon.spy();
+      await createFirebaseUser(request, callback);
+
+      expect(callback.calledOnce).to.be.true;
+      expect(callback.args[0][0]).to.deep.equal({
+        success: true,
+        message: "User created successfully",
+        status: 201,
+        data: { uid: "testuserid" },
+      });
+    });
+
+    // Add more test cases as needed
+  });
+  describe("loginWithFirebase", () => {
+    beforeEach(() => {
+      // Restore all the Sinon stubs and mocks before each test case
+      sinon.restore();
+    });
+
+    it("should create user locally when user exists on Firebase and not locally", async () => {
+      const request = {
+        body: {
+          email: "test@example.com",
+          phoneNumber: "+1234567890",
+          firstName: "John",
+          lastName: "Doe",
+          userName: "john.doe",
+          password: "testpassword",
+        },
+      };
+
+      // Mock the response from lookUpFirebaseUser to indicate that user exists on Firebase
+      mockLookUpFirebaseUser.callsArgWith(1, {
+        success: true,
+        data: [{ email: "test@example.com", phoneNumber: "+1234567890" }],
+      });
+
+      // Mock the response from UserModel to indicate that user does not exist locally
+      mockUserModel.findOne.resolves(null);
+
+      // Mock the response from UserModel.create to return the created user
+      const createdUser = {
+        _id: "user123",
+        email: "test@example.com",
+        phoneNumber: "+1234567890",
+        firstName: "John",
+        lastName: "Doe",
+        userName: "john.doe",
+        password: "testpassword",
+      };
+      mockUserModel.create.resolves(createdUser);
+
+      // Mock the callback function
+      const callback = sinon.spy();
+
+      // Call the loginWithFirebase function
+      await loginWithFirebase(request, callback);
+
+      // Verify that the necessary functions were called with the correct arguments
+      expect(mockLookUpFirebaseUser.calledOnce).to.be.true;
+      expect(mockCreateFirebaseUser.notCalled).to.be.true;
+      expect(mockUserModel.findOne.calledOnce).to.be.true;
+      expect(mockUserModel.create.calledOnce).to.be.true;
+
+      // Verify the response returned to the callback
+      expect(callback.calledOnce).to.be.true;
+      expect(callback.args[0][0]).to.deep.equal({
+        success: true,
+        message: "User created successfully.",
+        status: 201,
+        data: createdUser,
+      });
+    });
+
+    it("should update user locally when user exists on Firebase and locally", async () => {
+      const request = {
+        body: {
+          email: "test@example.com",
+          phoneNumber: "+1234567890",
+          firstName: "John",
+          lastName: "Doe",
+          userName: "john.doe",
+          password: "testpassword",
+        },
+      };
+
+      // Mock the response from lookUpFirebaseUser to indicate that user exists on Firebase
+      mockLookUpFirebaseUser.callsArgWith(1, {
+        success: true,
+        data: [{ email: "test@example.com", phoneNumber: "+1234567890" }],
+      });
+
+      // Mock the response from UserModel to indicate that user exists locally
+      const existingUser = {
+        _id: "user123",
+        email: "test@example.com",
+        phoneNumber: "+1234567890",
+        firstName: "Jane", // User with the same email but different first name
+        lastName: "Doe",
+        userName: "jane.doe",
+        password: "oldpassword",
+      };
+      mockUserModel.findOne.resolves(existingUser);
+
+      // Mock the response from UserModel.updateOne to return the updated user
+      const updatedUser = {
+        _id: "user123",
+        email: "test@example.com",
+        phoneNumber: "+1234567890",
+        firstName: "John",
+        lastName: "Doe",
+        userName: "john.doe",
+        password: "testpassword",
+      };
+      mockUserModel.updateOne.resolves(updatedUser);
+
+      // Mock the callback function
+      const callback = sinon.spy();
+
+      // Call the loginWithFirebase function
+      await loginWithFirebase(request, callback);
+
+      // Verify that the necessary functions were called with the correct arguments
+      expect(mockLookUpFirebaseUser.calledOnce).to.be.true;
+      expect(mockCreateFirebaseUser.notCalled).to.be.true;
+      expect(mockUserModel.findOne.calledOnce).to.be.true;
+      expect(mockUserModel.updateOne.calledOnce).to.be.true;
+
+      // Verify the response returned to the callback
+      expect(callback.calledOnce).to.be.true;
+      expect(callback.args[0][0]).to.deep.equal({
+        success: true,
+        message: "User updated successfully.",
+        status: 200,
+        data: updatedUser,
+      });
+    });
+
+    it("should create user on Firebase and locally when user does not exist on Firebase", async () => {
+      const request = {
+        body: {
+          email: "test@example.com",
+          phoneNumber: "+1234567890",
+          firstName: "John",
+          lastName: "Doe",
+          userName: "john.doe",
+          password: "testpassword",
+        },
+      };
+
+      // Mock the response from lookUpFirebaseUser to indicate that user does not exist on Firebase
+      mockLookUpFirebaseUser.callsArgWith(1, {
+        success: false,
+      });
+
+      // Mock the response from createFirebaseUser to return the created user on Firebase
+      const firebaseCreateResponse = {
+        success: true,
+        data: { uid: "firebaseUser123" },
+      };
+      mockCreateFirebaseUser.callsArgWith(1, firebaseCreateResponse);
+
+      // Mock the response from UserModel.create to return the created user locally
+      const newUser = {
+        _id: "user123",
+        email: "test@example.com",
+        phoneNumber: "+1234567890",
+        firstName: "John",
+        lastName: "Doe",
+        userName: "john.doe",
+        password: "testpassword",
+      };
+      mockUserModel.create.resolves(newUser);
+
+      // Mock the callback function
+      const callback = sinon.spy();
+
+      // Call the loginWithFirebase function
+      await loginWithFirebase(request, callback);
+
+      // Verify that the necessary functions were called with the correct arguments
+      expect(mockLookUpFirebaseUser.calledOnce).to.be.true;
+      expect(mockCreateFirebaseUser.calledOnce).to.be.true;
+      expect(mockUserModel.findOne.notCalled).to.be.true;
+      expect(mockUserModel.create.calledOnce).to.be.true;
+
+      // Verify the response returned to the callback
+      expect(callback.calledOnce).to.be.true;
+      expect(callback.args[0][0]).to.deep.equal({
+        success: true,
+        message: "User created successfully.",
+        status: 201,
+        data: newUser,
+      });
+    });
+
+    // Add more test cases as needed
   });
 });
