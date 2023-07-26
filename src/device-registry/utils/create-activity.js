@@ -484,6 +484,7 @@ const createActivity = {
       });
 
       if (!deviceExists) {
+        logger.error(`Maintain Device: Invalid request-- Device ${deviceName} not found`);
         return {
           success: false,
           message: "Device not found",

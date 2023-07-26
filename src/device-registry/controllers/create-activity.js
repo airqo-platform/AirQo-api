@@ -137,13 +137,12 @@ const activity = {
   maintain: async (req, res) => {
     try {
       const { query } = req;
-      let { tenant } = query;
+      let { tenant, } = query;
       if (isEmpty(tenant)) {
         tenant = "airqo";
       }
 
       let request = Object.assign({}, req);
-      request["query"] = {};
       request["query"]["tenant"] = tenant;
 
       const responseFromMaintainDevice = await createActivityUtil.maintain(
