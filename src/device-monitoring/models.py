@@ -333,6 +333,13 @@ class CollocationBatchResult:
         )
 
 
+class DeviceStatusSummaryType(Enum):
+    DATA_COMPLETENESS = "DATA_COMPLETENESS"
+    INTRA_SENSOR_CORRELATION = "INTRA_SENSOR_CORRELATION"
+    INTER_SENSOR_CORRELATION = "INTER_SENSOR_CORRELATION"
+    DIFFERENCES = "DIFFERENCES"
+
+
 @dataclass
 class DeviceStatusSummary:
     title: str
@@ -340,6 +347,7 @@ class DeviceStatusSummary:
     status: str
     action: str
     extra_message: str
+    type: str
 
 
 @dataclass
@@ -406,8 +414,8 @@ class CollocationBatch:
         ):
             errors.append("Inter correlation R2 threshold should range from 0 to 1")
 
-        if self.differences_threshold < 0 or self.differences_threshold > 1:
-            errors.append("Differences threshold should range from 0 to 1")
+        if self.differences_threshold < 0:
+            errors.append("Differences threshold should be greater than 0")
 
         if (
             not isinstance(self.expected_hourly_records, int)
@@ -561,6 +569,7 @@ class CollocationBatch:
                     extra_message="Meets recommended data completeness"
                     if device_result.passed
                     else "Doesn’t meet recommended completeness",
+                    type=DeviceStatusSummaryType.DATA_COMPLETENESS.value,
                 )
             )
 
@@ -576,6 +585,7 @@ class CollocationBatch:
                     extra_message="Meets recommended sensor correlation"
                     if device_result.passed
                     else "Doesn’t meet recommended sensor correlation",
+                    type=DeviceStatusSummaryType.INTRA_SENSOR_CORRELATION.value,
                 )
             )
 
@@ -587,6 +597,7 @@ class CollocationBatch:
                     status="PASSED",
                     action="All good",
                     extra_message="Meets recommended device to device correlation",
+                    type=DeviceStatusSummaryType.INTER_SENSOR_CORRELATION.value,
                 )
             )
 
@@ -598,6 +609,7 @@ class CollocationBatch:
                     status="PASSED",
                     action="All good",
                     extra_message="Meets recommended differences checks",
+                    type=DeviceStatusSummaryType.DIFFERENCES.value,
                 )
             )
 
@@ -619,6 +631,7 @@ class CollocationBatch:
                     status="FAILED",
                     action="Adjust Correlation threshold",
                     extra_message="Doesn’t meet recommended device to device correlation",
+                    type=DeviceStatusSummaryType.INTER_SENSOR_CORRELATION.value,
                 )
             )
 
@@ -630,6 +643,7 @@ class CollocationBatch:
                     status="PASSED",
                     action="Adjust differences threshold",
                     extra_message="Doesn’t meet recommended differences checks",
+                    type=DeviceStatusSummaryType.DIFFERENCES.value,
                 )
             )
 

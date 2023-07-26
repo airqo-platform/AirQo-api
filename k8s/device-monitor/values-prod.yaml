@@ -9,7 +9,7 @@ images:
     deviceMonitor: eu.gcr.io/airqo-250220/airqo-device-monitor-api
     celeryBeat: eu.gcr.io/airqo-250220/airqo-device-monitor-celery-beat
     celeryWorker: eu.gcr.io/airqo-250220/airqo-device-monitor-celery-worker
-  tag: prod-c0625d9a-1690286141
+  tag: prod-fff8f1eb-1690377683
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
