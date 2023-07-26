@@ -414,8 +414,8 @@ class CollocationBatch:
         ):
             errors.append("Inter correlation R2 threshold should range from 0 to 1")
 
-        if self.differences_threshold < 0 or self.differences_threshold > 1:
-            errors.append("Differences threshold should range from 0 to 1")
+        if self.differences_threshold < 0:
+            errors.append("Differences threshold should be greater than 0")
 
         if (
             not isinstance(self.expected_hourly_records, int)
