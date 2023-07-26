@@ -143,7 +143,6 @@ const activity = {
       }
 
       let request = Object.assign({}, req);
-      request["query"] = {};
       request["query"]["tenant"] = tenant;
 
       const responseFromMaintainDevice = await createActivityUtil.maintain(
