@@ -333,6 +333,13 @@ class CollocationBatchResult:
         )
 
 
+class DeviceStatusSummaryType(Enum):
+    DATA_COMPLETENESS = "DATA_COMPLETENESS"
+    INTRA_SENSOR_CORRELATION = "INTRA_SENSOR_CORRELATION"
+    INTER_SENSOR_CORRELATION = "INTER_SENSOR_CORRELATION"
+    DIFFERENCES = "DIFFERENCES"
+
+
 @dataclass
 class DeviceStatusSummary:
     title: str
@@ -340,6 +347,7 @@ class DeviceStatusSummary:
     status: str
     action: str
     extra_message: str
+    type: str
 
 
 @dataclass
@@ -380,19 +388,48 @@ class CollocationBatch:
         return data
 
     def validate(self, raise_exception=True) -> bool:
+        errors = []
+
         if self.end_date <= self.start_date:
-            if raise_exception:
-                raise CollocationError(
-                    message="start date cannot be greater or equal to end date"
-                )
-            else:
-                return False
+            errors.append("End date must be greater than the start date")
+
+        if self.data_completeness_threshold < 0 or self.data_completeness_threshold > 1:
+            errors.append("Data completeness threshold should range from 0 to 1")
+
+        if self.intra_correlation_threshold < 0 or self.intra_correlation_threshold > 1:
+            errors.append("Intra correlation threshold should range from 0 to 1")
+
+        if self.inter_correlation_threshold < 0 or self.inter_correlation_threshold > 1:
+            errors.append("Inter correlation threshold should range from 0 to 1")
+
+        if (
+            self.intra_correlation_r2_threshold < 0
+            or self.intra_correlation_r2_threshold > 1
+        ):
+            errors.append("Intra correlation R2 threshold should range from 0 to 1")
+
+        if (
+            self.inter_correlation_r2_threshold < 0
+            or self.inter_correlation_r2_threshold > 1
+        ):
+            errors.append("Inter correlation R2 threshold should range from 0 to 1")
+
+        if self.differences_threshold < 0 or self.differences_threshold > 1:
+            errors.append("Differences threshold should range from 0 to 1")
+
+        if (
+            not isinstance(self.expected_hourly_records, int)
+            or self.expected_hourly_records < 0
+        ):
+            errors.append("Expected records per hour should be a positive integer")
+
         if len(self.devices) < 1:
-            if raise_exception:
-                raise CollocationError(message="devices cannot be empty")
-            else:
-                return False
-        return True
+            errors.append("Devices cannot be empty")
+
+        if len(errors) != 0 and raise_exception:
+            raise CollocationError(", ".join(errors))
+
+        return len(errors) == 0
 
     def to_api_output(self):
         data = self.to_dict()
@@ -532,6 +569,7 @@ class CollocationBatch:
                     extra_message="Meets recommended data completeness"
                     if device_result.passed
                     else "Doesn’t meet recommended completeness",
+                    type=DeviceStatusSummaryType.DATA_COMPLETENESS.value,
                 )
             )
 
@@ -547,6 +585,7 @@ class CollocationBatch:
                     extra_message="Meets recommended sensor correlation"
                     if device_result.passed
                     else "Doesn’t meet recommended sensor correlation",
+                    type=DeviceStatusSummaryType.INTRA_SENSOR_CORRELATION.value,
                 )
             )
 
@@ -558,6 +597,7 @@ class CollocationBatch:
                     status="PASSED",
                     action="All good",
                     extra_message="Meets recommended device to device correlation",
+                    type=DeviceStatusSummaryType.INTER_SENSOR_CORRELATION.value,
                 )
             )
 
@@ -569,6 +609,7 @@ class CollocationBatch:
                     status="PASSED",
                     action="All good",
                     extra_message="Meets recommended differences checks",
+                    type=DeviceStatusSummaryType.DIFFERENCES.value,
                 )
             )
 
@@ -590,6 +631,7 @@ class CollocationBatch:
                     status="FAILED",
                     action="Adjust Correlation threshold",
                     extra_message="Doesn’t meet recommended device to device correlation",
+                    type=DeviceStatusSummaryType.INTER_SENSOR_CORRELATION.value,
                 )
             )
 
@@ -601,6 +643,7 @@ class CollocationBatch:
                     status="PASSED",
                     action="Adjust differences threshold",
                     extra_message="Doesn’t meet recommended differences checks",
+                    type=DeviceStatusSummaryType.DIFFERENCES.value,
                 )
             )
 
