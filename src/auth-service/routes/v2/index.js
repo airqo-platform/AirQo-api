@@ -9,6 +9,7 @@ const requests = require("@routes/v2/requests");
 const roles = require("@routes/v2/roles");
 const users = require("@routes/v2/users");
 const tokens = require("@routes/v2/tokens");
+const locationHistory = require("@routes/v2/locationHistory");
 
 module.exports = {
   defaults,
@@ -22,4 +23,5 @@ module.exports = {
   roles,
   users,
   tokens,
+  locationHistory,
 };
