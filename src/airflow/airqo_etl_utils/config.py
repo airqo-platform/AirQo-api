@@ -148,5 +148,7 @@ class Config:
     BUCKET_NAME_AIRQO = os.getenv("BUCKET_NAME")
     FILE_PATH_AIRQO = os.getenv("FILE_PATH_AIRQO")
 
-
+    #mongoDB
+    MONGO_URI = os.getenv("MONGO_GCE_URI")
+    MONGO_DATABASE_NAME= os.getenv("MONGO_DATABASE_NAME")
 configuration = Config()
