@@ -11,6 +11,7 @@ const users = require("@routes/v1/users");
 const tokens = require("@routes/v1/tokens");
 const clients = require("@routes/v1/clients");
 const scopes = require("@routes/v1/scopes");
+const locationHistory = require("@routes/v1/locationHistory");
 
 module.exports = {
   defaults,
@@ -26,4 +27,5 @@ module.exports = {
   scopes,
   clients,
   favorites,
+  locationHistory,
 };
