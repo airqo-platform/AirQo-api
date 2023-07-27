@@ -164,22 +164,6 @@ const locationHistories = {
                 return item;
             });
 
-            if (location_histories.length === 0) {
-                for (let location_history in unsynced_location_histories) {
-                    responseFromLocationHistories = await LocationHistoryModel(
-                        tenant.toLowerCase()
-                    ).remove({
-                        filter: unsynced_location_histories[location_history],
-                    });
-                }
-
-                return {
-                    success: true,
-                    message: "No Location History places to sync",
-                    data: [],
-                };
-            }
-
             const missing_location_histories = location_histories.filter((item) => {
                 const found = unsynced_location_histories.some((location_history) => {
                     return location_history.place_id === item.place_id && location_history.firebase_user_id === item.firebase_user_id;
@@ -200,50 +184,21 @@ const locationHistories = {
                 responseFromCreateLocationHistories = await LocationHistoryModel(
                     tenant.toLowerCase()
                 ).register(missing_location_histories[location_history]);
-                console.log("responseFromCreateLocationHistory", responseFromCreateLocationHistories)
 
             }
 
-            const extra_location_histories = unsynced_location_histories.filter((item) => {
-                const found = location_histories.some((location_history) => {
-                    return location_history.place_id === item.place_id && location_history.firebase_user_id === item.firebase_user_id;
-                });
-                return !found;
-            });
-
-            if (extra_location_histories.length === 0) {
-                responseFromLocationHistories = {
-                    success: true,
-                    message: "No extra Location History places",
-                    data: []
-
-                };
-            }
-
-            for (let location_history in extra_location_histories) {
-                let filter = {
-                    firebase_user_id: location_histories[0].firebase_user_id,
-                    place_id: extra_location_histories[location_history].place_id
-                }
-                responseFromLocationHistories = await LocationHistoryModel(
-                    tenant.toLowerCase()
-                ).remove({
-                    filter,
-                });
-            }
 
             let synchronizedLocationHistories = (await LocationHistoryModel(
                 tenant.toLowerCase()
             ).list({ filter })).data;
 
 
-            if (responseFromCreateLocationHistories.success === false && responseFromLocationHistories.success === false) {
+            if (responseFromCreateLocationHistories.success === false) {
                 return {
                     success: false,
                     message: "Error Synchronizing Location Histories",
                     errors: {
-                        message: `Response from Create Location History: ${responseFromCreateLocationHistories.errors.message}
-           + Response from Delete Location History: ${responseFromLocationHistories.errors.message}`
+                        message: `Response from Create Location History: ${responseFromCreateLocationHistories.errors.message}`
                     },
                     status: httpStatus.INTERNAL_SERVER_ERROR,
                 }
