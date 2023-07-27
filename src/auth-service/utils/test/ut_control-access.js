@@ -16,7 +16,7 @@ const ScopeModel = require("@models/Scope");
 const RoleModel = require("@models/Role");
 const NetworkModel = require("@models/Network");
 const PermissionModel = require("@models/Permission");
-const DepartmentModel = require("@modes/Department");
+const DepartmentModel = require("@models/Department");
 const GroupModel = require("@models/Group");
 
 describe("controlAccess", () => {
