@@ -1,13 +1,10 @@
-
 # Incentives API
 
-The Incentives API is a service that facilitates the payment of incentives to hosts and the loading of data bundles onto devices' SIM cards. It allows organizations to manage payments and data provisioning efficiently.
+The Incentives API is a service that facilitates the management of hosts' data and the loading of data bundles onto devices' SIM cards. It allows organizations to efficiently manage data provisioning.
 
 ## Use Cases
 
-- Sending money to hosts' mobile money accounts for incentives.
-- Adding funds to the organizational account for host payments.
-- Receiving money from hosts into the organizational account.
+- Adding and updating hosts' data.
 - Loading data bundles onto devices' SIM cards.
 - Checking the remaining balance on a device's SIM card.
 
@@ -16,7 +13,6 @@ The Incentives API is a service that facilitates the payment of incentives to ho
 The base URL for accessing the Incentives API is:
 https://staging-platform.airqo.net/api/v2/incentives
 
-
 ## Authentication
 
 The Incentives API requires authentication using an API token. Include the API token as a query parameter as follows:
@@ -24,6 +20,16 @@ The Incentives API requires authentication using an API token. Include the API t
 {BASE_URL}/{PATH}?token={TOKEN}
 
 ## Endpoints
+
+### Hosts' Data Management
+
+#### Add Host Data
+
+- Endpoint: `/hosts/{hostId}`
+- Method: POST
+- Description: Adds or updates hosts' data.
+- Request Body: Host Details
+- Response: Status
 
 ### Host Payments
 
@@ -86,3 +92,6 @@ The API handles sensitive data such as payment details and mobile money accounts
 ## Limitations and Fair Usage
 
 The API has usage limits and fair usage policies in place to prevent abuse and maintain a high-quality service.
+
+**Update:**
+The scope of the service is now shifting towards IoT sim card management as the main focus. 
