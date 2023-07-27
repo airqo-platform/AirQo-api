@@ -4,10 +4,10 @@ from datetime import datetime
 import pandas as pd
 from google.cloud import bigquery
 
-from config import configuration
-from constants import JobAction, ColumnDataType, Tenant, QueryType
-from date import date_to_str
-from utils import Utils
+from .config import configuration
+from .constants import JobAction, ColumnDataType, Tenant, QueryType
+from .date import date_to_str
+from .utils import Utils
 
 
 class BigQueryApi:
@@ -595,20 +595,23 @@ class BigQueryApi:
             .to_dataframe()
         )
 
+        # TODO: MultiIndex with 3 columns kind of buggy, need to fix, using 2 dfs as workaround
         dataframe['timestamp'] = pd.to_datetime(dataframe['timestamp'])
-        dataframe = dataframe.groupby(['airqloud_name', 'device_name', pd.Grouper(key='timestamp', freq='H')]).mean(
+        original_df = dataframe.copy()
+        dataframe = dataframe.groupby(['device_name', pd.Grouper(key='timestamp', freq='H')]).mean(
             numeric_only=True)
         dataframe = dataframe.reset_index()
-        dataframe.sort_values(by=['airqloud_name', 'device_name', 'timestamp'], inplace=True)
+        dataframe.sort_values(by=['device_name', 'timestamp'], inplace=True)
 
-        #includes rows with no data
-        new_index = pd.MultiIndex.from_product([dataframe['airqloud_name'].unique(), dataframe['device_name'].unique(),
+        # includes rows with no data
+        new_index = pd.MultiIndex.from_product([dataframe['device_name'].unique(),
                                                 pd.date_range(start=dataframe['timestamp'].min(),
                                                               end=dataframe['timestamp'].max(),
                                                               freq='H')],
-                                               names=['airqloud_name', 'device_name', 'timestamp'])
-        dataframe = dataframe.set_index(['airqloud_name', 'device_name', 'timestamp']).reindex(new_index).reset_index()
+                                               names=['device_name', 'timestamp'])
+        dataframe = dataframe.set_index(['device_name', 'timestamp']).reindex(new_index).reset_index()
+
+        dataframe['airqloud_name'] = dataframe.apply(lambda x: original_df.loc[
+            (original_df['device_name'] == x['device_name']), 'airqloud_name'].iloc[0], axis=1)
+
         return dataframe
-
-
-print(BigQueryApi().fetch_raw_readings())
