@@ -643,6 +643,35 @@ const filter = {
       };
     }
   },
+
+  location_histories: (req) => {
+    try {
+      const { query, params } = req;
+      const { id } = query;
+      const { firebase_user_id, location_history_id } = params;
+      let filter = {};
+
+      if (id) {
+        filter["_id"] = ObjectId(id);
+      }
+      if (location_history_id) {
+        filter["_id"] = ObjectId(location_history_id);
+      }
+      if (firebase_user_id) {
+        filter["firebase_user_id"] = firebase_user_id;
+      }
+
+      return filter;
+    } catch (e) {
+      logger.error(`internal server error, ${JSON.stringify(e)}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: e.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
 };
 
 module.exports = filter;

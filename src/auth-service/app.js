@@ -77,6 +77,7 @@ app.use("/api/v1/users/clients", routes.v1.clients);
 app.use("/api/v1/users/scopes", routes.v1.scopes);
 app.use("/api/v1/users/departments", routes.v1.departments);
 app.use("/api/v1/users/groups", routes.v1.groups);
+app.use("/api/v1/users/locationHistory", routes.v1.locationHistory);
 app.use("/api/v1/users", routes.v1.users);
 
 /****** the V2 endpoints ****************/
@@ -90,6 +91,7 @@ app.use("/api/v2/users/defaults", routes.v2.defaults);
 app.use("/api/v2/users/tokens", routes.v2.tokens);
 app.use("/api/v2/users/departments", routes.v2.departments);
 app.use("/api/v2/users/groups", routes.v2.groups);
+app.use("/api/v2/users/locationHistory", routes.v2.locationHistory);
 app.use("/api/v2/users", routes.v2.users);
 
 // catch 404 and forward to error handler

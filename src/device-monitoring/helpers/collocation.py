@@ -483,7 +483,6 @@ class Collocation(BaseModel):
                     status=result_summary.status.value,
                     date_added=batch.date_created,
                     batch_name=batch.batch_name,
-                    errors=batch.results.errors,
                     status_summary=devices_status_summary.get(result_summary.device),
                 )
                 for result_summary in batch.get_summary()
