@@ -492,7 +492,7 @@ class CollocationBatch:
                 "value": self.expected_hourly_records,
                 "minimum_value": 0,
                 "maximum_value": float("inf"),
-                "error_message": "Expected hourly records should be greater than 0",
+                "error_message": "Expected records per hour should be greater than 0",
             },
         ]
 
@@ -639,8 +639,8 @@ class CollocationBatch:
             description = (
                 f"Data completeness was {round(device_result.completeness * 100, 2)}%. "
                 f"Acceptable percentage was set to {self.data_completeness_threshold * 100}%. "
-                f"A minimum of {device_result.expected} hourly records are expected. "
-                f"Device sent {device_result.actual} hourly records. "
+                f"A minimum of {device_result.expected} records are expected. "
+                f"Device sent {device_result.actual} records. "
             )
             if device_result.passed:
                 title = "Meets recommended data completeness"
