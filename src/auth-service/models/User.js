@@ -122,7 +122,6 @@ const UserSchema = new Schema(
       type: String,
       default: "airqo",
     },
-    phoneNumber: { type: Number },
     phoneNumber: {
       type: Number,
       validate: {
