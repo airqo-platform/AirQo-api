@@ -2,7 +2,7 @@ const FavoriteSchema = require("@models/Favorite");
 const UserSchema = require("@models/User");
 const httpStatus = require("http-status");
 const mongoose = require("mongoose").set("debug", true);
-const { getModelByTenant } = require("@config/dbConnection");
+const { getModelByTenant } = require("@config/database");
 const { logObject, logElement, logText, winstonLogger } = require("@utils/log");
 const generateFilter = require("@utils/generate-filter");
 const isEmpty = require("is-empty");
@@ -132,7 +132,6 @@ const favorites = {
       /**
        * check for edge cases?
        */
-      
 
       const responseFromCreateFavorite = await FavoriteModel(
         tenant.toLowerCase()
@@ -150,10 +149,8 @@ const favorites = {
     }
   },
 
-  syncFavorites: async (request) => { 
-    
+  syncFavorites: async (request) => {
     try {
-   
       const { query, body, params } = request;
       const { tenant } = query;
       const { favorite_places } = body;
@@ -162,17 +159,17 @@ const favorites = {
       let responseFromCreateFavorite, responseFromDeleteFavorite;
       let filter = {
         firebase_user_id: firebase_user_id,
-      }
+      };
 
-      let unsynced_favorite_places =  (await FavoriteModel(
-        tenant.toLowerCase()
-      ).list({ filter })).data;
-     
+      let unsynced_favorite_places = (
+        await FavoriteModel(tenant.toLowerCase()).list({ filter })
+      ).data;
+
       unsynced_favorite_places = unsynced_favorite_places.map((item) => {
         delete item._id;
         return item;
       });
-     
+
       if (favorite_places.length === 0) {
         for (let favorite in unsynced_favorite_places) {
           responseFromDeleteFavorite = await FavoriteModel(
@@ -191,11 +188,14 @@ const favorites = {
 
       const missing_favorite_places = favorite_places.filter((item) => {
         const found = unsynced_favorite_places.some((favorite) => {
-          return favorite.place_id === item.place_id && favorite.firebase_user_id === item.firebase_user_id;
+          return (
+            favorite.place_id === item.place_id &&
+            favorite.firebase_user_id === item.firebase_user_id
+          );
         });
         return !found;
       });
-      
+
       if (missing_favorite_places.length === 0) {
         responseFromCreateFavorite = {
           success: true,
@@ -204,36 +204,36 @@ const favorites = {
         };
       }
 
-      for (let favorite in missing_favorite_places) { 
- 
+      for (let favorite in missing_favorite_places) {
         responseFromCreateFavorite = await FavoriteModel(
           tenant.toLowerCase()
         ).register(missing_favorite_places[favorite]);
-        console.log("responseFromCreateFavorite", responseFromCreateFavorite)
-
+        console.log("responseFromCreateFavorite", responseFromCreateFavorite);
       }
- 
+
       const extra_favorite_places = unsynced_favorite_places.filter((item) => {
         const found = favorite_places.some((favorite) => {
-          return favorite.place_id === item.place_id && favorite.firebase_user_id === item.firebase_user_id;
+          return (
+            favorite.place_id === item.place_id &&
+            favorite.firebase_user_id === item.firebase_user_id
+          );
         });
         return !found;
       });
-    
+
       if (extra_favorite_places.length === 0) {
         responseFromDeleteFavorite = {
           success: true,
           message: "No extra favorite places",
-          data: []
-
+          data: [],
         };
       }
 
       for (let favorite in extra_favorite_places) {
         let filter = {
           firebase_user_id: favorite_places[0].firebase_user_id,
-          place_id: extra_favorite_places[favorite].place_id
-        }
+          place_id: extra_favorite_places[favorite].place_id,
+        };
         responseFromDeleteFavorite = await FavoriteModel(
           tenant.toLowerCase()
         ).remove({
@@ -241,21 +241,23 @@ const favorites = {
         });
       }
 
-      let synchronizedFavorites = (await FavoriteModel(
-        tenant.toLowerCase()
-      ).list({ filter })).data;
+      let synchronizedFavorites = (
+        await FavoriteModel(tenant.toLowerCase()).list({ filter })
+      ).data;
 
-
-      if (responseFromCreateFavorite.success === false && responseFromDeleteFavorite.success === false) {
+      if (
+        responseFromCreateFavorite.success === false &&
+        responseFromDeleteFavorite.success === false
+      ) {
         return {
           success: false,
           message: "Error Synchronizing favorites",
           errors: {
             message: `Response from Create Favorite: ${responseFromCreateFavorite.errors.message}
-           + Response from Delete Favorite: ${responseFromDeleteFavorite.errors.message}`
+           + Response from Delete Favorite: ${responseFromDeleteFavorite.errors.message}`,
           },
           status: httpStatus.INTERNAL_SERVER_ERROR,
-        }
+        };
       }
 
       return {
@@ -263,10 +265,9 @@ const favorites = {
         message: "Favorites Synchronized",
         data: synchronizedFavorites,
         status: httpStatus.OK,
-      }
-      
+      };
     } catch (error) {
-       logger.error(`internal server error -- ${error.message}`);
+      logger.error(`internal server error -- ${error.message}`);
       logObject("error", error);
       return {
         success: false,

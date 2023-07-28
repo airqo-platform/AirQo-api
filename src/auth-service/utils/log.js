@@ -2,7 +2,7 @@ const winston = require("winston");
 const { combine, timestamp, printf } = winston.format;
 const MongoDB = require("winston-mongodb").MongoDB;
 const LogSchema = require("@models/log");
-const { getTenantDB, getModelByTenant } = require("@config/dbConnection");
+const { getTenantDB, getModelByTenant } = require("@config/database");
 
 const LogDB = (tenant) => {
   return getTenantDB(tenant, "log", LogSchema);

@@ -11,7 +11,7 @@ chai.use(chaiHttp);
 const UserSchema = require("../../models/User");
 const DefaultsSchema = require("../../models/Defaults");
 const requestUtil = require("../request");
-const { getModelByTenant } = require("@config/dbConnection");
+const { getModelByTenant } = require("@config/database");
 const { logObject, logElement, logText } = require("../log");
 
 const UserModel = (tenant) => {
