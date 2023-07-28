@@ -221,7 +221,7 @@ def delete_collocation_batch():
     "interCorrelationThreshold|optional:float",
     "intraCorrelationR2Threshold|optional:float",
     "interCorrelationR2Threshold|optional:float",
-    "differencesThreshold|required:int",
+    "differencesThreshold|optional:int",
     "interCorrelationParameter|optional:str",
     "intraCorrelationParameter|optional:str",
     "dataCompletenessParameter|optional:str",
