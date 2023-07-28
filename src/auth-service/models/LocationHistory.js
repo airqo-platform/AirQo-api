@@ -50,7 +50,7 @@ const LocationHistorySchema = new mongoose.Schema(
     { timestamps: true }
 );
 
-LocationHistorySchema.index({ firebase_user_id: 1, date_time: 1 }, { unique: true });
+LocationHistorySchema.index({ firebase_user_id: 1, place_id: 1 }, { unique: true });
 
 LocationHistorySchema.pre("save", function (next) {
     return next();
