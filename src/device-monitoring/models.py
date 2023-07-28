@@ -393,60 +393,120 @@ class CollocationBatch:
         if self.end_date <= self.start_date:
             errors.append("End date must be greater than the start date")
 
-        if (
-            not isinstance(self.data_completeness_threshold, float)
-            or self.data_completeness_threshold < 0
-            or self.data_completeness_threshold > 1
-        ):
-            errors.append("Data completeness threshold should range from 0 to 1")
+        try:
+            self.data_completeness_threshold = float(self.data_completeness_threshold)
+        except (ValueError, TypeError):
+            errors.append(
+                f"Data completeness: {self.data_completeness_threshold} is not a valid float."
+            )
 
-        if (
-            not isinstance(self.intra_correlation_threshold, float)
-            or self.intra_correlation_threshold < 0
-            or self.intra_correlation_threshold > 1
-        ):
-            errors.append("Intra correlation threshold should range from 0 to 1")
+        try:
+            self.intra_correlation_threshold = float(self.intra_correlation_threshold)
+        except (ValueError, TypeError):
+            errors.append(
+                f"Intra correlation threshold: {self.intra_correlation_threshold} is not a valid float."
+            )
 
-        if (
-            not isinstance(self.inter_correlation_threshold, float)
-            or self.inter_correlation_threshold < 0
-            or self.inter_correlation_threshold > 1
-        ):
-            errors.append("Inter correlation threshold should range from 0 to 1")
+        try:
+            self.inter_correlation_threshold = float(self.inter_correlation_threshold)
+        except (ValueError, TypeError):
+            errors.append(
+                f"Inter correlation threshold: {self.inter_correlation_threshold} is not a valid float."
+            )
 
-        if (
-            not isinstance(self.intra_correlation_r2_threshold, float)
-            or self.intra_correlation_r2_threshold < 0
-            or self.intra_correlation_r2_threshold > 1
-        ):
-            errors.append("Intra correlation R2 threshold should range from 0 to 1")
+        try:
+            self.intra_correlation_r2_threshold = float(
+                self.intra_correlation_r2_threshold
+            )
+        except (ValueError, TypeError):
+            errors.append(
+                f"Intra R2 correlation threshold: {self.intra_correlation_r2_threshold} is not a valid float."
+            )
 
-        if (
-            not isinstance(self.inter_correlation_r2_threshold, float)
-            or self.inter_correlation_r2_threshold < 0
-            or self.inter_correlation_r2_threshold > 1
-        ):
-            errors.append("Inter correlation R2 threshold should range from 0 to 1")
+        try:
+            self.inter_correlation_r2_threshold = float(
+                self.inter_correlation_r2_threshold
+            )
+        except (ValueError, TypeError):
+            errors.append(
+                f"Inter R2 correlation threshold: {self.inter_correlation_r2_threshold} is not a valid float."
+            )
 
-        if (
-            not isinstance(self.differences_threshold, int)
-            or self.differences_threshold < 0
-        ):
-            errors.append("Differences threshold should be greater than 0")
+        try:
+            self.differences_threshold = int(self.differences_threshold)
+        except (ValueError, TypeError):
+            errors.append(
+                f"Differences threshold: {self.differences_threshold} is not a valid integer."
+            )
 
-        if (
-            not isinstance(self.expected_hourly_records, int)
-            or self.expected_hourly_records < 0
-        ):
-            errors.append("Expected records per hour should be a positive integer")
+        try:
+            self.expected_hourly_records = int(self.expected_hourly_records)
+        except (ValueError, TypeError):
+            errors.append(
+                f"Expected hourly records: {self.expected_hourly_records} is not a valid integer."
+            )
+
+        if len(errors) != 0:
+            if raise_exception:
+                raise CollocationError(", ".join(errors))
+            return False
+
+        value_checks = [
+            {
+                "value": self.data_completeness_threshold,
+                "minimum_value": 0,
+                "maximum_value": 1,
+                "error_message": "Data completeness threshold should range from 0 to 1",
+            },
+            {
+                "value": self.intra_correlation_threshold,
+                "minimum_value": 0,
+                "maximum_value": 1,
+                "error_message": "Intra correlation threshold should range from 0 to 1",
+            },
+            {
+                "value": self.inter_correlation_threshold,
+                "minimum_value": 0,
+                "maximum_value": 1,
+                "error_message": "Inter correlation threshold should range from 0 to 1",
+            },
+            {
+                "value": self.intra_correlation_r2_threshold,
+                "minimum_value": 0,
+                "maximum_value": 1,
+                "error_message": "Intra R2 correlation threshold should range from 0 to 1",
+            },
+            {
+                "value": self.inter_correlation_r2_threshold,
+                "minimum_value": 0,
+                "maximum_value": 1,
+                "error_message": "Inter R2 correlation threshold should range from 0 to 1",
+            },
+            {
+                "value": self.differences_threshold,
+                "minimum_value": 0,
+                "maximum_value": float("inf"),
+                "error_message": "Differences threshold should be greater than 0",
+            },
+            {
+                "value": self.expected_hourly_records,
+                "minimum_value": 0,
+                "maximum_value": float("inf"),
+                "error_message": "Expected hourly records should be greater than 0",
+            },
+        ]
+
+        for check in value_checks:
+            if (
+                check["value"] < check["minimum_value"]
+                or check["value"] > check["maximum_value"]
+            ):
+                errors.append(check["error_message"])
 
         if len(self.devices) < 1:
             errors.append("Devices cannot be empty")
 
         if len(errors) != 0 and raise_exception:
-            raise CollocationError(", ".join(errors))
-
-        if len(errors) == 0:
             raise CollocationError(", ".join(errors))
 
         return len(errors) == 0
