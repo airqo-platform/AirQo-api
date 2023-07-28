@@ -929,22 +929,19 @@ class AirQoDataUtils:
     @staticmethod
     def flag_faults(data: pd.DataFrame):
         results = []
-        grouped = data.groupby(['airqloud_name', 'device_name'])
-        results_df = pd.DataFrame()
-        for (airqloud, device), group in grouped:
+        data['airqloud_name'] = data['airqloud_name'].apply(tuple)  # convert lists to tuples
+        grouped = data.groupby(['device_name', 'airqloud_name'])  # group by device and airqloud
+        for (device, airqlouds), group in grouped:
             corr = group['s1_pm2_5'].corr(group['s2_pm2_5'])
-            if corr < 0.9:
-                corelation_fault = 1
-            else:
-                corelation_fault = 0
+            corelation_fault = 1 if corr < 0.9 else 0
             missing = group[['s1_pm2_5', 's2_pm2_5']].isna().any(axis=1)
             if missing.sum() >= 3 and missing.diff().cumsum().max() >= 3:
                 missing_data_fault = 1
             else:
                 missing_data_fault = 0
-            if not device in results_df['device_name']:
-                results.append({'airqloud_name': airqloud, 'device_name': device, 'corelation_fault': corelation_fault,
-                                'missing_data_fault': missing_data_fault})
+            results.append(
+                {'airqloud_names': list(airqlouds), 'device_name': device, 'corelation_fault': corelation_fault,
+                 'missing_data_fault': missing_data_fault})
         results_df = pd.DataFrame(results)
         return results_df
 
@@ -953,5 +950,9 @@ class AirQoDataUtils:
         """Save faulty devices to MongoDB"""
         client = pm.MongoClient(configuration.MONGO_URI)
         db = client[configuration.MONGO_DATABASE_NAME]
-        db.faulty_devices.insert_many(data.to_dict('records'))
+        # Add a created_at field to each record with the current date and time
+        records = data.to_dict('records')
+        for record in records:
+            record['created_at'] = datetime.now()
+        db.faulty_devices.insert_many(records)
         print('Faulty devices saved to MongoDB')

@@ -594,24 +594,22 @@ class BigQueryApi:
             .result()
             .to_dataframe()
         )
-
-        # TODO: MultiIndex with 3 columns kind of buggy, need to fix, using 2 dfs as workaround
+        print('Data got from BigQuery')
         dataframe['timestamp'] = pd.to_datetime(dataframe['timestamp'])
-        original_df = dataframe.copy()
+        dataframe = dataframe.groupby(['device_name', 'timestamp', 's1_pm2_5', 's2_pm2_5'])['airqloud_name'].apply(
+            list).reset_index()
+        df2 = dataframe[['airqloud_name', 'device_name']].drop_duplicates(keep="first", subset=['device_name'])
+        dataframe.drop('airqloud_name', axis=1, inplace=True)
         dataframe = dataframe.groupby(['device_name', pd.Grouper(key='timestamp', freq='H')]).mean(
             numeric_only=True)
         dataframe = dataframe.reset_index()
         dataframe.sort_values(by=['device_name', 'timestamp'], inplace=True)
-
-        # includes rows with no data
         new_index = pd.MultiIndex.from_product([dataframe['device_name'].unique(),
                                                 pd.date_range(start=dataframe['timestamp'].min(),
                                                               end=dataframe['timestamp'].max(),
                                                               freq='H')],
                                                names=['device_name', 'timestamp'])
         dataframe = dataframe.set_index(['device_name', 'timestamp']).reindex(new_index).reset_index()
+        result_df = pd.merge(dataframe, df2, on='device_name', how='left')
 
-        dataframe['airqloud_name'] = dataframe.apply(lambda x: original_df.loc[
-            (original_df['device_name'] == x['device_name']), 'airqloud_name'].iloc[0], axis=1)
-
-        return dataframe
+        return result_df

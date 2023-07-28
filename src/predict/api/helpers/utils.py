@@ -60,14 +60,20 @@ def hourly_forecasts_cache_key():
     return f"hourly_{current_date}_{site_name}_{region}_{sub_county}_{county}_{district}_{parish}_{city}_{site_id}"
 
 
+def get_faults_cache_key():
+    args = request.args
+    airqloud = args.get("airqloud")
+    return f"faults_{airqloud}"
+
+
 def geo_coordinates_cache_key():
     key = (
-        "geo_coordinates:"
-        + str(round(float(request.args.get("latitude")), 6))
-        + ":"
-        + str(round(float(request.args.get("longitude")), 6))
-        + ":"
-        + str(request.args.get("distance_in_metres"))
+            "geo_coordinates:"
+            + str(round(float(request.args.get("latitude")), 6))
+            + ":"
+            + str(round(float(request.args.get("longitude")), 6))
+            + ":"
+            + str(request.args.get("distance_in_metres"))
     )
     return key
 
@@ -202,7 +208,7 @@ def get_health_tips() -> list[dict]:
 
 @cache.memoize(timeout=Config.CACHE_TIMEOUT)
 def get_predictions_by_geo_coordinates(
-    latitude: float, longitude: float, distance_in_metres: int
+        latitude: float, longitude: float, distance_in_metres: int
 ) -> dict:
     client = bigquery.Client()
 
@@ -229,10 +235,10 @@ def get_predictions_by_geo_coordinates(
 
 def geo_coordinates_cache_key_v2():
     key = (
-        "geo_coordinates:"
-        + str(round(float(request.args.get("latitude")), 6))
-        + ":"
-        + str(round(float(request.args.get("longitude")), 6))
+            "geo_coordinates:"
+            + str(round(float(request.args.get("latitude")), 6))
+            + ":"
+            + str(round(float(request.args.get("longitude")), 6))
     )
     return key
 
@@ -288,14 +294,14 @@ def get_predictions_by_geo_coordinates_v2(latitude: float, longitude: float) -> 
 
 @cache.memoize(timeout=Config.CACHE_TIMEOUT)
 def get_forecasts(
-    db_name,
-    site_id=None,
-    site_name=None,
-    parish=None,
-    county=None,
-    city=None,
-    district=None,
-    region=None,
+        db_name,
+        site_id=None,
+        site_name=None,
+        parish=None,
+        county=None,
+        city=None,
+        district=None,
+        region=None,
 ):
     db = connect_mongo()
     query = {}
@@ -318,9 +324,9 @@ def get_forecasts(
     results = []
     if site_forecasts:
         for time, pm2_5, health_tips in zip(
-            site_forecasts[0]["time"],
-            site_forecasts[0]["pm2_5"],
-            site_forecasts[0]["health_tips"],
+                site_forecasts[0]["time"],
+                site_forecasts[0]["pm2_5"],
+                site_forecasts[0]["health_tips"],
         ):
             result = {
                 key: value
@@ -331,3 +337,12 @@ def get_forecasts(
             results.append(result)
     formatted_results = {"forecasts": results}
     return formatted_results
+
+
+@cache.memoize(timeout=Config.CACHE_TIMEOUT)
+def get_latest_faults(query, db_name):
+    db = connect_mongo()
+    collection = db[db_name]
+    results = collection.find(query)
+    results = results.sort('created_at', -1)
+    return results[0]
