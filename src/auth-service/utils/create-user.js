@@ -16,6 +16,8 @@ const {
   getAuth,
   sendSignInLinkToEmail,
   createUsercreateUser,
+  createUser,
+  createUserWithEmailAndPassword,
 } = require("firebase-admin/auth");
 const firebaseAdmin = require("firebase-admin/auth");
 const httpStatus = require("http-status");
@@ -442,7 +444,7 @@ const createUserModule = {
       const auth = getAuth();
 
       // Create the user using the createUser method from Firebase Auth
-      const userRecord = await createUser(userObject);
+      const userRecord = await createUserWithEmailAndPassword(userObject);
 
       // Extract the user ID from the created user record
       const { uid } = userRecord;
