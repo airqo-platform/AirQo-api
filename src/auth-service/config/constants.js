@@ -544,6 +544,28 @@ const defaultConfig = {
     return projection;
   },
 
+  LOCATION_HISTORIES_INCLUSION_PROJECTION: {
+    _id: 1,
+    name: 1,
+    location: 1,
+    latitude: 1,
+    longitude: 1,
+    reference_site: 1,
+    place_id: 1,
+    firebase_user_id: 1,
+    date_time: 1,
+  },
+
+  LOCATION_HISTORIES_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = { nothing: 0 };
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign({}, {});
+    }
+
+    return projection;
+  },
+
   TOKENS_INCLUSION_PROJECTION: {
     _id: 1,
     user_id: 1,
