@@ -605,7 +605,7 @@ class CollocationBatch:
             status_summary[device].append(
                 DeviceStatusSummary(
                     title=f"Passed differences checks",
-                    description=f"Acceptable differences threshold was set to ≥ {self.differences_threshold}",
+                    description=f"Acceptable differences threshold was set to ≤ {self.differences_threshold}",
                     status="PASSED",
                     action="All good",
                     extra_message="Meets recommended differences checks",
@@ -674,5 +674,4 @@ class CollocationSummary:
     end_date: datetime
     status: str
     date_added: datetime
-    errors: list[str]  # deprecated
     status_summary: list[DeviceStatusSummary]
