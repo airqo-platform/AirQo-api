@@ -1,12 +1,20 @@
+const log4js = require("log4js");
+const log4jsConfiguration = require("@config/log4js");
+log4js.configure(log4jsConfiguration);
 const kafkaConsumer = require("./kafka-consumer");
-const sendEmail = require("@utils/mailer");
 const createServer = require("./server");
 
-const main = async () => {
-  // Start Kafka Consumer
-  kafkaConsumer();
+try {
+  require("fs").mkdirSync("./log");
+} catch (e) {
+  if (e.code != "EEXIST") {
+    console.error("Could not set up log directory, error was: ", e);
+    process.exit(1);
+  }
+}
 
-  // Set up and start the HTTP server
+const main = async () => {
+  kafkaConsumer();
   createServer();
 };
 
