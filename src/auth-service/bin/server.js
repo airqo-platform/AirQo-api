@@ -27,10 +27,14 @@ const logger = log4js.getLogger(
 );
 const { logText, logObject } = require("@utils/log");
 
+if (isEmpty(constants.SESSION_SECRET)) {
+  throw new Error("SESSION_SECRET environment variable not set");
+}
+
 // Express Middlewares
 app.use(
   session({
-    secret: process.env.SESSION_SECRET,
+    secret: constants.SESSION_SECRET,
     store: new MongoStore(options),
     resave: false,
     saveUninitialized: false,
