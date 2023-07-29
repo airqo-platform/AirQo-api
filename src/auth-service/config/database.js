@@ -75,8 +75,11 @@ function getTenantDB(tenantId, modelName, schema) {
   afterwards, we can be able to use this model to carry out any kinds of CRUD
    */
 function getModelByTenant(tenantId, modelName, schema) {
+  // console.log("tenantId: ", tenantId);
+  // console.log("modelName: ", modelName);
+  // console.log("schema: ", schema);
   const tenantDb = getTenantDB(tenantId, modelName, schema);
   return tenantDb.model(modelName);
 }
 
-module.exports = { getModelByTenant, getTenantDB, mongodb };
+module.exports = { getModelByTenant, getTenantDB, connectToMongoDB };
