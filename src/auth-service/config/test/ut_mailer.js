@@ -3,7 +3,7 @@ const chai = require("chai");
 const sinon = require("sinon");
 const { expect } = chai;
 const nodemailer = require("nodemailer");
-const transporter = require("@config/nodemailer");
+const transporter = require("@config/mailer");
 
 // Replace "path/to" with the actual path to the required modules and files.
 

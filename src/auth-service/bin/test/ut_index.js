@@ -1,11 +1,32 @@
 require("module-alias/register");
 const { expect } = require("chai");
 const sinon = require("sinon");
+const proxyquire = require("proxyquire");
 
 // Import the functions to be tested
-const kafkaConsumer = require("@bin/kafka-consumer");
-const createServer = require("@bin/server");
+// const kafkaConsumer = require("@bin/kafka-consumer");
+// const createServer = require("@bin/server");
 const main = require("@bin/index");
+
+const kafkaConsumer = proxyquire("@bin/kafka-consumer", {
+  // Replace the original module with a mock version
+  myModule: {
+    fetchData: () => {
+      // Mock implementation without relying on environmental variables
+      return "Mocked Data";
+    },
+  },
+});
+
+const createServer = proxyquire("@bin/server", {
+  // Replace the original module with a mock version
+  myModule: {
+    fetchData: () => {
+      // Mock implementation without relying on environmental variables
+      return "Mocked Data";
+    },
+  },
+});
 
 describe("Main Function", () => {
   let kafkaConsumerStub;

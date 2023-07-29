@@ -3,7 +3,7 @@ const chai = require("chai");
 const expect = chai.expect;
 const sinon = require("sinon");
 const mongoose = require("mongoose");
-const FavoriteSchema = require("@models/FavoriteSchema");
+const FavoriteSchema = require("@models/Favorite");
 
 // Replace this with the actual import path for your Favorite model if applicable
 const FavoriteModel = mongoose.model("Favorite", FavoriteSchema);
@@ -301,11 +301,9 @@ describe("FavoriteSchema statics", () => {
         "message",
         "Favorite does not exist, please crosscheck"
       );
-      expect(result)
-        .to.have.property("errors")
-        .that.deep.equals({
-          message: "Favorite does not exist, please crosscheck",
-        });
+      expect(result).to.have.property("errors").that.deep.equals({
+        message: "Favorite does not exist, please crosscheck",
+      });
       expect(result).to.have.property("status", httpStatus.BAD_REQUEST);
 
       // Restore the findOneAndRemove method to its original implementation

@@ -1,7 +1,7 @@
 require("module-alias/register");
 const chai = require("chai");
 const expect = chai.expect;
-const CandidateSchema = require("./path/to/CandidateSchema");
+const CandidateSchema = require("@models/Candidate");
 const mongoose = require("mongoose");
 
 describe("CandidateSchema - Statics", () => {

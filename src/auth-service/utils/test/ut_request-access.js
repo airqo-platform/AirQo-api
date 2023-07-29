@@ -700,7 +700,7 @@ describe("requestAccess", () => {
 
     // Add more tests for other scenarios...
   });
-  escribe("delete", () => {
+  describe("delete", () => {
     let fakeCandidateModel;
 
     beforeEach(() => {

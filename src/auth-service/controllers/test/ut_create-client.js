@@ -83,7 +83,7 @@ describe("createClient", () => {
   });
 
   // Add separate `describe` blocks for other functions (list, delete, update)
-  escribe("list()", () => {
+  describe("list()", () => {
     it("should list clients successfully", async () => {
       const controlAccessUtilStub = sinon
         .stub(controlAccessUtil, "listClient")

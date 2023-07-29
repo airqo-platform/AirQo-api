@@ -11,7 +11,7 @@ const createUser = require("@utils/create-user");
 const mailchimp = require("@config/mailchimp");
 const crypto = require("crypto");
 const admin = require("firebase-admin");
-const { mockFirebaseAdmin } = require("@firebase/mocks");
+// const { mockFirebaseAdmin } = require("@firebase/mocks");
 const {
   lookUpFirebaseUser,
   generateSignInWithEmailLink,

@@ -1,11 +1,11 @@
 // Mocking dependencies
 require("module-alias/register");
-const UserModel = sinon.stub();
-const AccessTokenModel = sinon.stub();
 const jwt = require("jsonwebtoken");
 const httpStatus = require("http-status");
 const { expect } = require("chai");
 const sinon = require("sinon");
+const UserModel = sinon.stub();
+const AccessTokenModel = sinon.stub();
 
 // Require the module to test
 const {
