@@ -17,6 +17,9 @@ from helpers.utils import (
     get_forecasts,
     hourly_forecasts_cache_key,
     daily_forecasts_cache_key,
+    get_faults_cache_key,
+    validate_params,
+    read_data
 )
 
 from routes import api
@@ -27,6 +30,32 @@ load_dotenv()
 _logger = logging.getLogger(__name__)
 
 ml_app = Blueprint("ml_app", __name__)
+
+
+@ml_app.route(api.route["fetch_faulty_devices"], methods=["GET"])
+@cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=get_faults_cache_key)
+def fetch_faulty_devices():
+    try:
+        params = request.args.to_dict()
+        valid, error = validate_params(params)
+        if not valid:
+            return jsonify({"error": error}), 400
+        query = {}
+        for param, value in params.items():
+            # If the parameter is airqloud_names, use $in operator to match any element in the array
+            if param == "airqloud_names":
+                query[param] = {"$in": [value]}
+            # Otherwise, use $eq operator to match the exact value
+            else:
+                query[param] = {"$eq": int(value) if param in ['corelation_fault', 'missing_data_fault'] else value}
+
+        # Read the data from the database using the helper function
+        result = read_data(query)
+        # Return the result as a JSON response
+        return jsonify(result), 200
+    except Exception as e:
+        # Handle any exceptions and return an error message
+        return jsonify({"error": str(e)}), 500
 
 
 @ml_app.route(api.route["next_24hr_forecasts"], methods=["GET"])
@@ -190,8 +219,8 @@ def search_predictions():
             data["health_tips"] = list(
                 filter(
                     lambda x: x["aqi_category"]["max"]
-                    >= pm2_5
-                    >= x["aqi_category"]["min"],
+                              >= pm2_5
+                              >= x["aqi_category"]["min"],
                     health_tips,
                 )
             )
