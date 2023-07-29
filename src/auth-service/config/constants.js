@@ -66,6 +66,7 @@ const stageConfig = {
 };
 
 const defaultConfig = {
+  SESSION_SECRET: process.env.SESSION_SECRET,
   ACTION_CODE_SETTINGS: {
     url: process.env.AIRQO_WEBSITE,
     handleCodeInApp: true,
