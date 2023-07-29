@@ -13,6 +13,7 @@ from sqlalchemy import func
 
 from app import cache
 from config.constants import connect_mongo, Config
+from bson.json_util import dumps
 
 load_dotenv()
 db = connect_mongo()
@@ -63,7 +64,11 @@ def hourly_forecasts_cache_key():
 def get_faults_cache_key():
     args = request.args
     airqloud = args.get("airqloud")
-    return f"faults_{airqloud}"
+    device_name = args.get("device_name")
+    corelation_fault = args.get("corelation_fault")
+    missing_data_fault = args.get("missing_data_fault")
+    created_at = args.get("created_at")
+    return f"{airqloud}_{device_name}_{corelation_fault}_{missing_data_fault}_{created_at}"
 
 
 def geo_coordinates_cache_key():
@@ -303,7 +308,6 @@ def get_forecasts(
         district=None,
         region=None,
 ):
-    db = connect_mongo()
     query = {}
     params = {
         "site_id": site_id,
@@ -339,10 +343,28 @@ def get_forecasts(
     return formatted_results
 
 
-@cache.memoize(timeout=Config.CACHE_TIMEOUT)
-def get_latest_faults(query, db_name):
-    db = connect_mongo()
-    collection = db[db_name]
-    results = collection.find(query)
-    results = results.sort('created_at', -1)
-    return results[0]
+def validate_params(params):
+    # Check if the params are valid
+    valid_params = ["airqloud_names", "device_name", "correlation_fault", "missing_fault"]
+    for param in params:
+        if param not in valid_params:
+            return False, f"Invalid parameter: {param}"
+        # Check if the fault params are 0 or 1
+        if param in ["correlation_fault", "missing_data_fault"]:
+            value = params[param]
+            if value not in ["0", "1"]:
+                return False, f"Invalid value for {param}: {value}"
+    return True, None
+
+
+def read_data(query):
+    # Find the documents that match the query and sort them by created_at in descending order
+    collection = db["faulty_devices"]
+    docs = collection.find(query).sort("created_at", -1)
+    # Convert the documents to a list of JSON objects
+    result = []
+    for doc in docs:
+        # Exclude the _id field from the output
+        doc.pop("_id")
+        result.append(doc)
+    return result

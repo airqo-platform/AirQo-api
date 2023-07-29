@@ -926,8 +926,7 @@ class AirQoDataUtils:
 
         return data
 
-    @staticmethod
-    def flag_faults(data: pd.DataFrame):
+    
         results = []
         data['airqloud_name'] = data['airqloud_name'].apply(tuple)  # convert lists to tuples
         grouped = data.groupby(['device_name', 'airqloud_name'])  # group by device and airqloud
@@ -940,7 +939,7 @@ class AirQoDataUtils:
             else:
                 missing_data_fault = 0
             results.append(
-                {'airqloud_names': list(airqlouds), 'device_name': device, 'corelation_fault': corelation_fault,
+                {'airqloud_names': list(airqlouds), 'device_name': device, 'correlation_fault': corelation_fault,
                  'missing_data_fault': missing_data_fault})
         results_df = pd.DataFrame(results)
         return results_df
