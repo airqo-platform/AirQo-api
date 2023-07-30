@@ -246,6 +246,34 @@ router.post(
   ]),
   createUserController.loginWithFirebase
 );
+router.post(
+  "/firebase/signup",
+  oneOf([
+    body("email")
+      .exists()
+      .withMessage(
+        "the user identifier is missing in request, consider using the email"
+      )
+      .bail()
+      .notEmpty()
+      .withMessage("the email must not be empty if provided")
+      .bail()
+      .isEmail()
+      .withMessage("this is not a valid email address"),
+    body("phoneNumber")
+      .exists()
+      .withMessage(
+        "the user identifier is missing in request, consider using the phoneNumber"
+      )
+      .bail()
+      .notEmpty()
+      .withMessage("the phoneNumber must not be empty if provided")
+      .bail()
+      .isMobilePhone()
+      .withMessage("the phoneNumber must be valid"),
+  ]),
+  createUserController.signUpWithFirebase
+);
 
 /**
  * version one of verification

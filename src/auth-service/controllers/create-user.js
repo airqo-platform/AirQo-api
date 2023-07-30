@@ -518,7 +518,7 @@ const createUser = {
     }
   },
 
-  loginWithFirebase: async (req, res) => {
+  signUpWithFirebase: async (req, res) => {
     try {
       const { email, phoneNumber, uid, providerId, providerUid } = req.body;
       const hasErrors = !validationResult(req).isEmpty();
@@ -538,8 +538,11 @@ const createUser = {
           convertErrorArrayToObject(nestedErrors)
         );
       }
-
+      let { tenant } = req.query;
       let request = Object.assign({}, req);
+      if (isEmpty(tenant)) {
+        request.query.tenant = "airqo";
+      }
 
       function cleanObject(obj) {
         for (key in obj) {
@@ -555,7 +558,7 @@ const createUser = {
         return obj;
       }
       cleanObject(request);
-      await createUserUtil.loginWithFirebase(request, (result) => {
+      await createUserUtil.signUpWithFirebasee(request, (result) => {
         if (result.success === true) {
           const status = result.status ? result.status : httpStatus.OK;
           return res.status(status).json({
@@ -576,6 +579,69 @@ const createUser = {
           return res.status(status).json({
             success: false,
             message: "Unable to signup with Firebase",
+            exists: false,
+            errors,
+          });
+        }
+      });
+    } catch (error) {
+      logger.error(`Internal Server Error ${JSON.stringify(error)}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        error: error.message,
+      });
+    }
+  },
+
+  loginWithFirebase: async (req, res) => {
+    try {
+      const { email, phoneNumber, uid, providerId, providerUid } = req.body;
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        logObject("hasErrors", hasErrors);
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+
+        logger.error(
+          `input validation errors ${JSON.stringify(
+            convertErrorArrayToObject(nestedErrors)
+          )}`
+        );
+
+        return badRequest(
+          res,
+          "Unable to signup with Firebase",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      let { tenant } = req.query;
+      let request = Object.assign({}, req);
+      if (isEmpty(tenant)) {
+        request.query.tenant = "airqo";
+      }
+
+      await createUserUtil.loginWithFirebase(request, (result) => {
+        if (result.success === true) {
+          const status = result.status ? result.status : httpStatus.OK;
+          return res.status(status).json({
+            success: true,
+            message: result.message,
+            user: result.data,
+            exists: true,
+            status: "exists",
+          });
+        } else if (result.success === false) {
+          const status = result.status
+            ? result.status
+            : httpStatus.INTERNAL_SERVER_ERROR;
+          const errors = result.errors
+            ? result.errors
+            : { message: "Internal Server Error" };
+
+          return res.status(status).json({
+            success: false,
+            message: "Unable to login with Firebase",
             exists: false,
             errors,
           });
