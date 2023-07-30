@@ -12,14 +12,7 @@ const mongoose = require("mongoose").set("debug", true);
 const ObjectId = mongoose.Types.ObjectId;
 const crypto = require("crypto");
 const isEmpty = require("is-empty");
-const {
-  getAuth,
-  sendSignInLinkToEmail,
-  createUsercreateUser,
-  createUser,
-  createUserWithEmailAndPassword,
-} = require("firebase-admin/auth");
-const firebaseAdmin = require("firebase-admin/auth");
+const { getAuth } = require("firebase-admin/auth");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const mailchimp = require("@config/mailchimp");
@@ -362,6 +355,7 @@ const createUserModule = {
               message: "Successfully fetched user data",
               status: httpStatus.OK,
               data: [],
+              userRecord,
             });
           });
 
@@ -441,10 +435,8 @@ const createUserModule = {
         };
       }
 
-      const auth = getAuth();
-
       // Create the user using the createUser method from Firebase Auth
-      const userRecord = await createUserWithEmailAndPassword(userObject);
+      const userRecord = await getAuth().createUser(userObject);
 
       // Extract the user ID from the created user record
       const { uid } = userRecord;
@@ -470,50 +462,53 @@ const createUserModule = {
     }
   },
 
-  loginWithFirebase: async (request, callback) => {
+  signUpWithFirebase: async (request, callback) => {
     try {
-      const { body } = request;
+      const { body, query } = request;
+      const { tenant } = query;
       const { email, phoneNumber, firstName, lastName, userName, password } =
         body;
 
       // Step 1: Check if the user exists on Firebase using lookUpFirebaseUser function
-      lookUpFirebaseUser(request, async (firebaseUserResponse) => {
-        if (
-          firebaseUserResponse.success &&
-          firebaseUserResponse.data.length > 0
-        ) {
-          // Step 2: User exists on Firebase, update or create locally using UserModel
-          const firebaseUser = firebaseUserResponse.data[0];
+      createUserModule.lookUpFirebaseUser(
+        request,
+        async (firebaseUserResponse) => {
+          if (
+            firebaseUserResponse.success &&
+            firebaseUserResponse.data.length > 0
+          ) {
+            // Step 2: User exists on Firebase, update or create locally using UserModel
+            const firebaseUser = firebaseUserResponse.data[0];
 
-          // Check if user exists locally in your MongoDB using UserModel
-          const userExistsLocally =
-            await UserModel(/* provide tenant here if needed */).findOne({
+            // Check if user exists locally in your MongoDB using UserModel
+            const userExistsLocally = await UserModel(tenant).findOne({
               $or: [
                 { email: firebaseUser.email },
                 { phoneNumber: firebaseUser.phoneNumber },
               ],
             });
 
-          if (userExistsLocally) {
-            // User exists locally, perform update operation
-            // Update the necessary fields in your UserModel using mongoose update function
-            const updatedUser =
-              await UserModel(/* provide tenant here if needed */).updateOne(
+            if (userExistsLocally) {
+              // User exists locally, perform update operation
+              const updatedUser = await UserModel(tenant).updateOne(
                 { _id: userExistsLocally._id },
-                { firstName, lastName, userName, password }
+                {
+                  firstName: firebaseUser.firstName,
+                  lastName: firebaseUser.lastName,
+                  userName: firebaseUser.userName,
+                }
               );
 
-            callback({
-              success: true,
-              message: "User updated successfully.",
-              status: httpStatus.OK,
-              data: updatedUser,
-            });
-          } else {
-            // User does not exist locally, perform create operation
-            // Create the user in your UserModel using mongoose create function
-            const newUser =
-              await UserModel(/* provide tenant here if needed */).create({
+              callback({
+                success: true,
+                message: "User updated successfully.",
+                status: httpStatus.OK,
+                data: updatedUser,
+              });
+            } else {
+              // User does not exist locally, perform create operation
+              // Create the user in your UserModel using mongoose create function
+              const newUser = await UserModel(tenant).create({
                 email: firebaseUser.email,
                 phoneNumber: firebaseUser.phoneNumber,
                 firstName,
@@ -522,23 +517,22 @@ const createUserModule = {
                 password,
               });
 
-            callback({
-              success: true,
-              message: "User created successfully.",
-              status: httpStatus.CREATED,
-              data: newUser,
-            });
-          }
-        } else {
-          // Step 3: User does not exist on Firebase, create user on Firebase first
-          // Create the user on Firebase using createFirebaseUser function
-          createFirebaseUser(
-            { body: { email, phoneNumber, password } },
-            async (firebaseCreateResponse) => {
-              if (firebaseCreateResponse.success) {
-                // Step 4: Firebase user created successfully, proceed with local user creation
-                const newUser =
-                  await UserModel(/* provide tenant here if needed */).create({
+              callback({
+                success: true,
+                message: "User created successfully.",
+                status: httpStatus.CREATED,
+                data: newUser,
+              });
+            }
+          } else {
+            // Step 3: User does not exist on Firebase, create user on Firebase first
+            // Create the user on Firebase using createFirebaseUser function
+            createUserModule.createFirebaseUser(
+              { body: { email, phoneNumber, password } },
+              async (firebaseCreateResponse) => {
+                if (firebaseCreateResponse.success) {
+                  // Step 4: Firebase user created successfully, proceed with local user creation
+                  const newUser = await UserModel(tenant).create({
                     email,
                     phoneNumber,
                     firstName,
@@ -547,24 +541,132 @@ const createUserModule = {
                     password,
                   });
 
-                callback({
-                  success: true,
-                  message: "User created successfully.",
-                  status: httpStatus.CREATED,
-                  data: newUser,
-                });
-              } else {
-                callback({
-                  success: false,
-                  message: "Error creating user on Firebase.",
-                  status: httpStatus.INTERNAL_SERVER_ERROR,
-                  errors: { message: "Error creating user on Firebase." },
-                });
+                  callback({
+                    success: true,
+                    message: "User created successfully.",
+                    status: httpStatus.CREATED,
+                    data: newUser,
+                  });
+                } else {
+                  callback({
+                    success: false,
+                    message: "Error creating user on Firebase.",
+                    status: httpStatus.INTERNAL_SERVER_ERROR,
+                    errors: { message: "Error creating user on Firebase." },
+                  });
+                }
               }
-            }
-          );
+            );
+          }
         }
+      );
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+      callback({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       });
+    }
+  },
+
+  loginWithFirebase: async (request, callback) => {
+    try {
+      const { body, query } = request;
+      const { tenant } = query;
+      const { email, phoneNumber, firstName, lastName, userName, password } =
+        body;
+
+      // Step 1: Check if the user exists on Firebase using lookUpFirebaseUser function
+      createUserModule.lookUpFirebaseUser(
+        request,
+        async (firebaseUserResponse) => {
+          logObject("firebaseUserResponse", firebaseUserResponse);
+          if (
+            firebaseUserResponse.success === true &&
+            !isEmpty(firebaseUserResponse.userRecord)
+          ) {
+            // Step 2: User exists on Firebase, update or create locally using UserModel
+            const firebaseUser = firebaseUserResponse.userRecord;
+            logObject("firebaseUser", firebaseUser);
+
+            // Check if user exists locally
+            const userExistsLocally = await UserModel(tenant)
+              .findOne({
+                $or: [
+                  { email: { $regex: new RegExp(firebaseUser.email, "i") } },
+                  { phoneNumber: firebaseUser.phoneNumber },
+                ],
+              })
+              .lean();
+            logObject("userExistsLocally", userExistsLocally);
+            if (userExistsLocally) {
+              // User exists locally, perform update operation
+              const updatedUser = await UserModel(tenant).updateOne(
+                { _id: userExistsLocally._id },
+                {
+                  firstName: firebaseUser.firstName,
+                  lastName: firebaseUser.lastName,
+                  userName: firebaseUser.userName,
+                }
+              );
+              logObject("updatedUser", updatedUser);
+              /**
+               * At this point, I should also send through the token in the response body
+               * {
+    "_id": "",
+    "userName": "",
+    "token": "",
+    "email": ""
+}
+               */
+
+              callback({
+                success: true,
+                message: "Successful login!",
+                status: httpStatus.OK,
+                data: updatedUser,
+              });
+            } else {
+              // User does not exist locally, perform create operation
+              logText("this user does not exist locally");
+              const newUser = await UserModel(tenant).create({
+                email: firebaseUser.email,
+                phoneNumber: firebaseUser.phoneNumber,
+                firstName: firebaseUser.firstName,
+                lastName: firebaseUser.lastName,
+                userName: firebaseUser.email,
+                password,
+              });
+
+              logObject("newUser", newUser);
+              /**,
+               * At this point, I should also send through the token in the response body
+               * {
+    "_id": "",
+    "userName": "",
+    "token": "",
+    "email": ""
+}
+               */
+              callback({
+                success: true,
+                message: "Successful login!",
+                status: httpStatus.CREATED,
+                data: newUser,
+              });
+            }
+          } else {
+            callback({
+              success: false,
+              message: "Unable to Login using Firebase, crosscheck details.",
+              status: httpStatus.BAD_REQUEST,
+              errors: { message: "User does not exist on Firebase" },
+            });
+          }
+        }
+      );
     } catch (error) {
       logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
       callback({
