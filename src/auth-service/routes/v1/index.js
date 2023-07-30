@@ -14,6 +14,7 @@ router.use("/scopes", require("@routes/v1/scopes"));
 router.use("/departments", require("@routes/v1/departments"));
 router.use("/groups", require("@routes/v1/groups"));
 router.use("/locationHistory", require("@routes/v1/locationHistory"));
+router.use("/searchHistory", require("@routes/v1/searchHistory"));
 router.use("/", require("@routes/v1/users"));
 
 module.exports = router;
