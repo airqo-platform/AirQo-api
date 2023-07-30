@@ -1291,6 +1291,34 @@ const defaultConfig = {
     }
     return projection;
   },
+  SITE_ACTIVITIES_INCLUSION_PROJECTION: {
+    _id: 1,
+    device: 1,
+    date: 1,
+    description: 1,
+    network: 1,
+    activityType: 1,
+    maintenanceType: 1,
+    recallType: 1,
+    nextMaintenance: 1,
+    createdAt: 1,
+    updatedAt: 1,
+    activity_codes: 1,
+    tags: 1,
+    site_id: 1,
+    firstName: 1,
+    lastName: 1,
+    userName: 1,
+    email: 1,
+  },
+  SITE_ACTIVITIES_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = { nothing: 0 };
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign({}, {});
+    }
+    return projection;
+  },
 };
 
 function generateDateFormatWithoutHrs(ISODate) {

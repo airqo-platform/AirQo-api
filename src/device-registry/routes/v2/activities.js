@@ -58,6 +58,28 @@ router.post(
         .toLowerCase()
         .isIn(constants.RECALL_TYPES)
         .withMessage("the recallType value is not among the expected ones"),
+      body("firstName")
+        .optional()
+        .notEmpty()
+        .withMessage("firstName should not be empty if provided")
+        .trim(),
+      body("lastName")
+        .optional()
+        .notEmpty()
+        .withMessage("lastName should not be empty if provided")
+        .trim(),
+      body("userName")
+        .optional()
+        .notEmpty()
+        .withMessage("userName should not be empty if provided")
+        .trim(),
+      body("email")
+        .optional()
+        .notEmpty()
+        .withMessage("email should not be empty if provided")
+        .bail()
+        .isEmail()
+        .withMessage("this is not a valid email address"),
     ],
   ]),
   activityController.recall
@@ -143,6 +165,28 @@ router.post(
         .toDate()
         .isISO8601({ strict: true, strictSeparator: true })
         .withMessage("date must be a valid datetime."),
+      body("firstName")
+        .optional()
+        .notEmpty()
+        .withMessage("firstName should not be empty if provided")
+        .trim(),
+      body("lastName")
+        .optional()
+        .notEmpty()
+        .withMessage("lastName should not be empty if provided")
+        .trim(),
+      body("userName")
+        .optional()
+        .notEmpty()
+        .withMessage("userName should not be empty if provided")
+        .trim(),
+      body("email")
+        .optional()
+        .notEmpty()
+        .withMessage("email should not be empty if provided")
+        .bail()
+        .isEmail()
+        .withMessage("this is not a valid email address"),
     ],
   ]),
   activityController.deploy
@@ -206,6 +250,28 @@ router.post(
         .toDate()
         .isISO8601({ strict: true, strictSeparator: true })
         .withMessage("date must be a valid datetime."),
+      body("firstName")
+        .optional()
+        .notEmpty()
+        .withMessage("firstName should not be empty if provided")
+        .trim(),
+      body("lastName")
+        .optional()
+        .notEmpty()
+        .withMessage("lastName should not be empty if provided")
+        .trim(),
+      body("userName")
+        .optional()
+        .notEmpty()
+        .withMessage("userName should not be empty if provided")
+        .trim(),
+      body("email")
+        .optional()
+        .notEmpty()
+        .withMessage("email should not be empty if provided")
+        .bail()
+        .isEmail()
+        .withMessage("this is not a valid email address"),
     ],
   ]),
   activityController.maintain
