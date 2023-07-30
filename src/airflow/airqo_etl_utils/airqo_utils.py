@@ -926,20 +926,18 @@ class AirQoDataUtils:
 
         return data
 
-    
+    @staticmethod
+    def flag_faults(data):
         results = []
-        data['airqloud_name'] = data['airqloud_name'].apply(tuple)  # convert lists to tuples
-        grouped = data.groupby(['device_name', 'airqloud_name'])  # group by device and airqloud
+        data['airqloud_name'] = data['airqloud_name'].apply(tuple)
+        grouped = data.groupby(['device_name', 'airqloud_name'])
         for (device, airqlouds), group in grouped:
             corr = group['s1_pm2_5'].corr(group['s2_pm2_5'])
-            corelation_fault = 1 if corr < 0.9 else 0
+            correlation_fault = 1 if corr < 0.9 else 0
             missing = group[['s1_pm2_5', 's2_pm2_5']].isna().any(axis=1)
-            if missing.sum() >= 3 and missing.diff().cumsum().max() >= 3:
-                missing_data_fault = 1
-            else:
-                missing_data_fault = 0
+            missing_data_fault = 1 if missing.sum() >= 3 and missing.diff().cumsum().max() >= 3 else 0
             results.append(
-                {'airqloud_names': list(airqlouds), 'device_name': device, 'correlation_fault': corelation_fault,
+                {'airqloud_names': list(airqlouds), 'device_name': device, 'correlation_fault': correlation_fault,
                  'missing_data_fault': missing_data_fault})
         results_df = pd.DataFrame(results)
         return results_df
@@ -949,7 +947,6 @@ class AirQoDataUtils:
         """Save faulty devices to MongoDB"""
         client = pm.MongoClient(configuration.MONGO_URI)
         db = client[configuration.MONGO_DATABASE_NAME]
-        # Add a created_at field to each record with the current date and time
         records = data.to_dict('records')
         for record in records:
             record['created_at'] = datetime.now()

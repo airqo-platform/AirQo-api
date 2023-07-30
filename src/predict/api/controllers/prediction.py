@@ -19,7 +19,7 @@ from helpers.utils import (
     daily_forecasts_cache_key,
     get_faults_cache_key,
     validate_params,
-    read_data
+    read_faulty_devices
 )
 
 from routes import api
@@ -42,20 +42,17 @@ def fetch_faulty_devices():
             return jsonify({"error": error}), 400
         query = {}
         for param, value in params.items():
-            # If the parameter is airqloud_names, use $in operator to match any element in the array
             if param == "airqloud_names":
                 query[param] = {"$in": [value]}
-            # Otherwise, use $eq operator to match the exact value
             else:
-                query[param] = {"$eq": int(value) if param in ['corelation_fault', 'missing_data_fault'] else value}
+                query[param] = {"$eq": int(value) if param in ['correlation_fault', 'missing_data_fault'] else value}
 
-        # Read the data from the database using the helper function
-        result = read_data(query)
-        # Return the result as a JSON response
+        result = read_faulty_devices(query)
         return jsonify(result), 200
     except Exception as e:
-        # Handle any exceptions and return an error message
-        return jsonify({"error": str(e)}), 500
+        #log the error
+        _logger.error(e)
+        return jsonify({"error": 'Failed to retreive faulty devices'}), 500
 
 
 @ml_app.route(api.route["next_24hr_forecasts"], methods=["GET"])
