@@ -4,8 +4,8 @@ metadata:
   name: nginx-config
   namespace: nginx-ingress
 data:
-  proxy-body-size:  "200m"
-  client-max-body-size: "200m"
+  proxy-body-size:  "350m"
+  client-max-body-size: "350m"
   location-snippets: "
     auth_request /auth;
     error_page 500 = @internal_server_error;

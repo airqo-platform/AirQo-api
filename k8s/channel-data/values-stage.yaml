@@ -4,7 +4,7 @@ app:
   configmap: env-update-channel-data-staging
 image:
   repository: eu.gcr.io/airqo-250220/airqo-stage-update-channel-data-job
-  tag: stage-fe759cbc-1688036255
+  tag: stage-57e991d2-1689862096
 nameOverride: ''
 fullnameOverride: ''
 resources:

@@ -73,6 +73,9 @@ const defaultConfig = {
         (value) => value.trim() !== ""
       )
     : [],
+  RECALL_TYPES: process.env.RECALL_TYPES
+    ? process.env.RECALL_TYPES.split(",").filter((value) => value.trim() !== "")
+    : [],
   AQI_CATEGORIES: "good,moderate,u4sg,unhealthy,very_unhealthy,hazardous".split(
     ","
   ),
@@ -708,6 +711,7 @@ const defaultConfig = {
     name: 1,
     latitude: 1,
     longitude: 1,
+    grids: 1,
     approximate_latitude: 1,
     approximate_longitude: 1,
     approximate_distance_in_km: 1,
@@ -911,6 +915,7 @@ const defaultConfig = {
     status: 1,
     network: 1,
     category: 1,
+    cohorts: 1,
     previous_sites: 1,
     site: { $arrayElemAt: ["$site", 0] },
   },
@@ -1007,6 +1012,7 @@ const defaultConfig = {
     title: 1,
     content: 1,
     image: 1,
+    task_position: 1,
     kya_lesson: {
       $arrayElemAt: ["$kyalessons", 0],
     },
@@ -1073,6 +1079,7 @@ const defaultConfig = {
       "sites.weather_stations": 0,
       "sites.site_codes": 0,
       "sites.network": 0,
+      "sites.grids": 0,
     };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {
@@ -1092,9 +1099,58 @@ const defaultConfig = {
     description: 1,
     cohort_tags: 1,
     cohort_codes: 1,
+    devices: "$devices",
+    numberOfDevices: {
+      $cond: {
+        if: { $isArray: "$devices" },
+        then: { $size: { $ifNull: ["$devices._id", []] } },
+        else: "NA",
+      },
+    },
   },
   COHORTS_EXCLUSION_PROJECTION: (category) => {
-    const initialProjection = { nothing: 0 };
+    const initialProjection = {
+      nothing: 0,
+      "devices.ISP": 0,
+      "devices.device_manufacturer": 0,
+      "devices.height": 0,
+      "devices.isActive": 0,
+      "devices.isPrimaryInLocation": 0,
+      "devices.latitude": 0,
+      "devices.locationName": 0,
+      "devices.longitude": 0,
+      "devices.mobility": 0,
+      "devices.mountType": 0,
+      "devices.nextMaintenance": 0,
+      "devices.owner": 0,
+      "devices.phoneNumber": 0,
+      "devices.powerType": 0,
+      "devices.product_name": 0,
+      "devices.siteName": 0,
+      "devices.isRetired": 0,
+      "devices.updatedAt": 0,
+      "devices.visibility": 0,
+      "devices.site_id": 0,
+      "devices.readKey": 0,
+      "devices.writeKey": 0,
+      "devices.deployment_date": 0,
+      "devices.isUsedForCollocation": 0,
+      "devices.recall_date": 0,
+      "devices.maintenance_date": 0,
+      "devices.status": 0,
+      "devices.device_codes": 0,
+      "devices.alias": 0,
+      "devices.cohorts": 0,
+      "devices.generation_version": 0,
+      "devices.generation_count": 0,
+      "devices.tags": 0,
+      "devices.category": 0,
+      "devices.pictures": 0,
+      "devices.__v": 0,
+      "devices.approximate_distance_in_km": 0,
+      "devices.bearing_in_radians": 0,
+      "devices.previous_sites": 0,
+    };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {
       projection = Object.assign({}, {});
@@ -1161,7 +1217,6 @@ const defaultConfig = {
     if (category === "summary") {
       projection = Object.assign(initialProjection, {
         location: 0,
-        admin_level: 0,
         isCustom: 0,
         metadata: 0,
         center_point: 0,
@@ -1182,6 +1237,8 @@ const defaultConfig = {
     completion_message: 1,
     image: 1,
     tasks: 1,
+    active_task: { $arrayElemAt: ["$kya_user_progress.active_task", 0] },
+    status: { $arrayElemAt: ["$kya_user_progress.status", 0] },
   },
   KYA_LESSONS_EXCLUSION_PROJECTION: (category) => {
     const initialProjection = { nothing: 0 };
@@ -1195,7 +1252,8 @@ const defaultConfig = {
   KYA_LESSONS_PROGRESS_INCLUSION_PROJECTION: {
     user_id: 1,
     lesson_id: 1,
-    progress: 1,
+    active_task: 1,
+    status: 1,
     completed: 1,
     _id: 1,
   },

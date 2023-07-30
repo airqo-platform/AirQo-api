@@ -126,78 +126,22 @@ router.put(
   ]),
   oneOf([
     [
-      body("net_email")
+      body("name")
         .optional()
         .notEmpty()
-        .withMessage("the email should not be empty if provided")
-        .bail()
-        .isEmail()
-        .withMessage("this is not a valid email address")
-        .trim(),
-      body("net_website")
+        .withMessage("the name should not be empty if provided"),
+      body("description")
         .optional()
         .notEmpty()
-        .withMessage("the net_website should not be empty if provided")
-        .bail()
-        .isURL()
-        .withMessage("the net_website is not a valid URL")
-        .trim(),
-      body("net_status")
+        .withMessage("the description should not be empty if provided"),
+      body("network")
         .optional()
         .notEmpty()
-        .withMessage("the net_status should not be empty if provided")
+        .withMessage("the description should not be empty if provided")
         .bail()
         .toLowerCase()
-        .isIn(["active", "inactive", "pending"])
-        .withMessage(
-          "the net_status value is not among the expected ones which include: active, inactive, pending"
-        )
-        .trim(),
-      body("net_phoneNumber")
-        .optional()
-        .notEmpty()
-        .withMessage("the phoneNumber should not be empty if provided")
-        .bail()
-        .isMobilePhone()
-        .withMessage("the phoneNumber is not a valid one")
-        .bail()
-        .trim(),
-      body("net_category")
-        .optional()
-        .notEmpty()
-        .withMessage("the net_category should not be empty if provided")
-        .bail()
-        .toLowerCase()
-        .isIn([
-          "business",
-          "research",
-          "policy",
-          "awareness",
-          "school",
-          "others",
-        ])
-        .withMessage(
-          "the status value is not among the expected ones which include: business, research, policy, awareness, school, others"
-        )
-        .trim(),
-      body("net_name")
-        .if(body("net_name").exists())
-        .notEmpty()
-        .withMessage("the net_name should not be empty")
-        .trim(),
-      body("net_devices")
-        .optional()
-        .custom((value) => {
-          return Array.isArray(value);
-        })
-        .withMessage("the net_devices should be an array")
-        .bail()
-        .notEmpty()
-        .withMessage("the net_devices should not be empty"),
-      body("net_devices.*")
-        .optional()
-        .isMongoId()
-        .withMessage("each use should be an object ID"),
+        .custom(validateNetwork)
+        .withMessage("the network value is not among the expected ones"),
     ],
   ]),
 
@@ -238,7 +182,11 @@ router.post(
         .withMessage("the network is is missing in your request")
         .bail()
         .notEmpty()
-        .withMessage("the network should not be empty"),
+        .withMessage("the network should not be empty")
+        .bail()
+        .toLowerCase()
+        .custom(validateNetwork)
+        .withMessage("the network value is not among the expected ones"),
     ],
   ]),
   createCohortController.create

@@ -226,7 +226,7 @@ gridSchema.statics.list = async function({
       .lookup({
         from: "sites",
         localField: "_id",
-        foreignField: "grid_id",
+        foreignField: "grids",
         as: "sites",
       })
       .sort({ createdAt: -1 })
@@ -273,6 +273,11 @@ gridSchema.statics.modify = async function({ filter = {}, update = {} } = {}) {
     const modifiedUpdateBody = { ...update };
     delete modifiedUpdateBody._id;
     delete modifiedUpdateBody.name;
+    delete modifiedUpdateBody.long_name;
+    delete modifiedUpdateBody.grid_codes;
+    delete modifiedUpdateBody.centers;
+    delete modifiedUpdateBody.shape;
+    delete modifiedUpdateBody.geoHash;
 
     const updatedGrid = await this.findOneAndUpdate(
       filter,

@@ -44,3 +44,6 @@ def data_summary():
     hourly_data = extract()
     summary = compute_summary(hourly_data)
     save_summary(summary)
+
+
+data_summary()

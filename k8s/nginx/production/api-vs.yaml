@@ -7,7 +7,7 @@ spec:
   host: api.airqo.net
   upstreams:
     - name: auth-service
-      service: airqo-stage-auth-api-svc
+      service: airqo-auth-api-svc
       port: 3000
     - name: device-registry
       service: airqo-device-registry-api-svc

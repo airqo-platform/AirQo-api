@@ -802,6 +802,7 @@ const generateFilter = {
       activity_type,
       activity_tags,
       maintenance_type,
+      recall_type,
       site_id,
       network,
       activity_codes,
@@ -813,6 +814,11 @@ const generateFilter = {
     if (maintenance_type) {
       filter["maintenanceType"] = maintenance_type;
     }
+
+    if (recall_type) {
+      filter["recallType"] = recall_type;
+    }
+
     if (activity_type) {
       filter["activityType"] = activity_type;
     }
@@ -981,7 +987,7 @@ const generateFilter = {
         filter["_id"] = ObjectId(progress_id);
       }
       if (user_id) {
-        filter["user_id"] = ObjectId(user_id);
+        filter["user_id"] = user_id;
       }
       if (lesson_id) {
         filter["lesson_id"] = ObjectId(lesson_id);

@@ -10,7 +10,7 @@ spec:
   selector:
     matchLabels:
       app: notification-api
-  replicas: 2
+  replicas: 0
   strategy:
     type: RollingUpdate
     rollingUpdate:

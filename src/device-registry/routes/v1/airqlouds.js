@@ -8,6 +8,28 @@ const ObjectId = mongoose.Types.ObjectId;
 const createAirQloudUtil = require("@utils/create-location");
 const { logElement, logText, logObject } = require("@utils/log");
 const isEmpty = require("is-empty");
+const NetworkSchema = require("@models/Network");
+
+const NetworkModel = (tenant) => {
+  try {
+    const networks = mongoose.model("networks");
+    return networks;
+  } catch (error) {
+    const networks = getModelByTenant(tenant, "network", NetworkSchema);
+    return networks;
+  }
+};
+
+const validNetworks = async () => {
+  const networks = await NetworkModel("airqo").distinct("name");
+  return networks.map((network) => network.toLowerCase());
+};
+const validateNetwork = async (value) => {
+  const networks = await validNetworks();
+  if (!networks.includes(value.toLowerCase())) {
+    throw new Error("Invalid network");
+  }
+};
 
 const headers = (req, res, next) => {
   // const allowedOrigins = constants.DOMAIN_WHITELIST;
@@ -717,13 +739,8 @@ router.get(
       .exists()
       .withMessage("the network ID param is missing in your request")
       .bail()
-      .trim()
-      .isMongoId()
-      .withMessage("network ID must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
+      .notEmpty()
+      .withMessage("the network ID cannot be empty"),
   ]),
   airqloudController.listCohortsAndGridsSummary
 );
@@ -738,21 +755,17 @@ router.get(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(constants.NETWORKS)
+      .custom(validateNetwork)
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
     param("net_id")
-      .exists()
-      .withMessage("the network ID param is missing in your request")
-      .bail()
       .trim()
-      .isMongoId()
-      .withMessage("network ID must be an object ID")
+      .exists()
+      .withMessage("the network is is missing in your request")
       .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
+      .notEmpty()
+      .withMessage("the network should not be empty"),
   ]),
   airqloudController.listCohortsAndGrids
 );

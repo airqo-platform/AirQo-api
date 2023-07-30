@@ -19,7 +19,7 @@ const createCohort = {
         try {
           logger.error(
             `input validation errors ${JSON.stringify(
-              errors.errors.convertErrorArrayToObject(nestedErrors)
+              errors.convertErrorArrayToObject(nestedErrors)
             )}`
           );
         } catch (e) {
@@ -28,7 +28,7 @@ const createCohort = {
         return errors.badRequest(
           res,
           "bad request errors",
-          errors.errors.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       const { query } = req;
@@ -88,7 +88,7 @@ const createCohort = {
         try {
           logger.error(
             `input validation errors ${JSON.stringify(
-              errors.errors.convertErrorArrayToObject(nestedErrors)
+              errors.convertErrorArrayToObject(nestedErrors)
             )}`
           );
         } catch (e) {
@@ -97,7 +97,7 @@ const createCohort = {
         return errors.badRequest(
           res,
           "bad request errors",
-          errors.errors.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       const { query } = req;
@@ -156,7 +156,7 @@ const createCohort = {
         try {
           logger.error(
             `input validation errors ${JSON.stringify(
-              errors.errors.convertErrorArrayToObject(nestedErrors)
+              errors.convertErrorArrayToObject(nestedErrors)
             )}`
           );
         } catch (e) {
@@ -165,7 +165,7 @@ const createCohort = {
         return errors.badRequest(
           res,
           "bad request errors",
-          errors.errors.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       const { query } = req;
@@ -222,7 +222,7 @@ const createCohort = {
         try {
           logger.error(
             `input validation errors ${JSON.stringify(
-              errors.errors.convertErrorArrayToObject(nestedErrors)
+              errors.convertErrorArrayToObject(nestedErrors)
             )}`
           );
         } catch (e) {
@@ -231,7 +231,7 @@ const createCohort = {
         return errors.badRequest(
           res,
           "bad request errors",
-          errors.errors.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       const { query } = req;
@@ -288,7 +288,7 @@ const createCohort = {
         try {
           logger.error(
             `input validation errors ${JSON.stringify(
-              errors.errors.convertErrorArrayToObject(nestedErrors)
+              errors.convertErrorArrayToObject(nestedErrors)
             )}`
           );
         } catch (e) {
@@ -297,7 +297,7 @@ const createCohort = {
         return errors.badRequest(
           res,
           "bad request errors",
-          errors.errors.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       const { query } = req;
@@ -354,7 +354,7 @@ const createCohort = {
         try {
           logger.error(
             `input validation errors ${JSON.stringify(
-              errors.errors.convertErrorArrayToObject(nestedErrors)
+              errors.convertErrorArrayToObject(nestedErrors)
             )}`
           );
         } catch (e) {
@@ -363,7 +363,7 @@ const createCohort = {
         return errors.badRequest(
           res,
           "bad request errors",
-          errors.errors.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       const { query } = req;
@@ -418,7 +418,7 @@ const createCohort = {
         try {
           logger.error(
             `input validation errors ${JSON.stringify(
-              errors.errors.convertErrorArrayToObject(nestedErrors)
+              errors.convertErrorArrayToObject(nestedErrors)
             )}`
           );
         } catch (e) {
@@ -427,7 +427,7 @@ const createCohort = {
         return errors.badRequest(
           res,
           "bad request errors",
-          errors.errors.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       const { query } = req;
@@ -481,7 +481,7 @@ const createCohort = {
         try {
           logger.error(
             `input validation errors ${JSON.stringify(
-              errors.errors.convertErrorArrayToObject(nestedErrors)
+              errors.convertErrorArrayToObject(nestedErrors)
             )}`
           );
         } catch (e) {
@@ -490,7 +490,7 @@ const createCohort = {
         return errors.badRequest(
           res,
           "bad request errors",
-          errors.errors.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       const { query } = req;
@@ -550,7 +550,7 @@ const createCohort = {
         try {
           logger.error(
             `input validation errors ${JSON.stringify(
-              errors.errors.convertErrorArrayToObject(nestedErrors)
+              errors.convertErrorArrayToObject(nestedErrors)
             )}`
           );
         } catch (e) {
@@ -559,7 +559,7 @@ const createCohort = {
         return errors.badRequest(
           res,
           "bad request errors",
-          errors.errors.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       const { query } = req;
@@ -617,7 +617,7 @@ const createCohort = {
         try {
           logger.error(
             `input validation errors ${JSON.stringify(
-              errors.errors.convertErrorArrayToObject(nestedErrors)
+              errors.convertErrorArrayToObject(nestedErrors)
             )}`
           );
         } catch (e) {
@@ -626,7 +626,7 @@ const createCohort = {
         return errors.badRequest(
           res,
           "bad request errors",
-          errors.errors.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       const { query } = req;
