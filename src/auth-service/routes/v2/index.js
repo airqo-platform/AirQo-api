@@ -1,25 +1,20 @@
-const defaults = require("@routes/v2/defaults");
-const departments = require("@routes/v2/departments");
-const groups = require("@routes/v2/groups");
-const inquiries = require("@routes/v2/inquiries");
-const networks = require("@routes/v2/networks");
-const permissions = require("@routes/v2/permissions");
-const favorites = require("@routes/v2/favorites");
-const requests = require("@routes/v2/requests");
-const roles = require("@routes/v2/roles");
-const users = require("@routes/v2/users");
-const tokens = require("@routes/v2/tokens");
+const express = require("express");
+const router = express.Router();
 
-module.exports = {
-  defaults,
-  departments,
-  favorites,
-  groups,
-  inquiries,
-  networks,
-  permissions,
-  requests,
-  roles,
-  users,
-  tokens,
-};
+router.use("/networks", require("@routes/v2/networks"));
+router.use("/permissions", require("@routes/v2/permissions"));
+router.use("/favorites", require("@routes/v2/favorites"));
+router.use("/roles", require("@routes/v2/roles"));
+router.use("/inquiries", require("@routes/v2/inquiries"));
+router.use("/candidates", require("@routes/v2/requests"));
+router.use("/defaults", require("@routes/v2/defaults"));
+router.use("/tokens", require("@routes/v2/tokens"));
+router.use("/clients", require("@routes/v2/clients"));
+router.use("/scopes", require("@routes/v2/scopes"));
+router.use("/departments", require("@routes/v2/departments"));
+router.use("/groups", require("@routes/v2/groups"));
+router.use("/locationHistory", require("@routes/v2/locationHistory"));
+router.use("/searchHistory", require("@routes/v2/searchHistory"));
+router.use("/", require("@routes/v2/users"));
+
+module.exports = router;

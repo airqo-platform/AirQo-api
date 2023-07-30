@@ -103,15 +103,18 @@ def save_collocation_batch():
     intra_correlation_threshold = json_data.get(
         "intraCorrelationThreshold", CollocationDefaults.IntraCorrelationThreshold
     )
+
     intra_correlation_r2_threshold = json_data.get(
-        "intraCorrelationR2Threshold", CollocationDefaults.IntraCorrelationR2Threshold
+        "intraCorrelationR2Threshold",
+        CollocationDefaults.IntraCorrelationR2Threshold,
     )
 
     inter_correlation_threshold = json_data.get(
         "interCorrelationThreshold", CollocationDefaults.InterCorrelationThreshold
     )
     inter_correlation_r2_threshold = json_data.get(
-        "interCorrelationR2Threshold", CollocationDefaults.InterCorrelationR2Threshold
+        "interCorrelationR2Threshold",
+        CollocationDefaults.InterCorrelationR2Threshold,
     )
 
     differences_threshold = json_data.get(
@@ -207,7 +210,7 @@ def delete_collocation_batch():
     "interCorrelationThreshold|optional:float",
     "intraCorrelationR2Threshold|optional:float",
     "interCorrelationR2Threshold|optional:float",
-    "differencesThreshold|optional:float",
+    "differencesThreshold|optional:int",
     "interCorrelationParameter|optional:str",
     "intraCorrelationParameter|optional:str",
     "dataCompletenessParameter|optional:str",
@@ -223,12 +226,15 @@ def reset_collocation_batch():
     batch.expected_hourly_records = json_data.get(
         "expectedRecordsPerHour", batch.expected_hourly_records
     )
+
     batch.data_completeness_threshold = json_data.get(
         "dataCompletenessThreshold", batch.data_completeness_threshold
     )
+
     batch.intra_correlation_threshold = json_data.get(
         "intraCorrelationThreshold", batch.intra_correlation_threshold
     )
+
     batch.intra_correlation_r2_threshold = json_data.get(
         "intraCorrelationR2Threshold", batch.intra_correlation_r2_threshold
     )
@@ -236,6 +242,7 @@ def reset_collocation_batch():
     batch.inter_correlation_threshold = json_data.get(
         "interCorrelationThreshold", batch.inter_correlation_threshold
     )
+
     batch.inter_correlation_r2_threshold = json_data.get(
         "interCorrelationR2Threshold", batch.inter_correlation_r2_threshold
     )
@@ -247,19 +254,24 @@ def reset_collocation_batch():
     batch.inter_correlation_parameter = json_data.get(
         "interCorrelationParameter", batch.inter_correlation_parameter
     )
+
     batch.intra_correlation_parameter = json_data.get(
         "intraCorrelationParameter", batch.intra_correlation_parameter
     )
+
     batch.data_completeness_parameter = json_data.get(
         "dataCompletenessParameter", batch.data_completeness_parameter
     )
+
     batch.differences_parameter = json_data.get(
         "differencesParameter", batch.differences_parameter
     )
 
-    batch.inter_correlation_additional_parameters = json_data.get(
-        "interCorrelationAdditionalParameters",
-        batch.inter_correlation_additional_parameters,
+    batch.inter_correlation_additional_parameters = list(
+        json_data.get(
+            "interCorrelationAdditionalParameters",
+            batch.inter_correlation_additional_parameters,
+        )
     )
     batch.validate()
     batch = collocation.reset_batch(batch)

@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
 const validator = require("validator");
 const ObjectId = mongoose.Schema.Types.ObjectId;
-const { logObject, logElement } = require("../utils/log");
+const { logObject, logElement } = require("@utils/log");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 
