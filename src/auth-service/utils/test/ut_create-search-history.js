@@ -3,7 +3,19 @@ const sinon = require("sinon");
 const chai = require("chai");
 const expect = chai.expect;
 const httpStatus = require("http-status");
-const SearchHistoryModel = require("@models/searchHistory");
+const SearchHistorySchema = require("@models/searchHistory");
+
+const { getModelByTenant } = require("@config/database");
+const SearchHistoryModel = (tenant) => {
+  try {
+    let users = mongoose.model("searchhistories");
+    return users;
+  } catch (error) {
+    let users = getModelByTenant(tenant, "searchhistory", SearchHistorySchema);
+    return users;
+  }
+};
+
 const UserModel = require("@models/User");
 const searchHistories = require("../create-search-history");
 
@@ -78,7 +90,7 @@ describe("Search Histories Util", () => {
     };
 
     // Mock the SearchHistoryModel.list function
-    const listStub = sinon.stub(SearchHistoryModel(exampleTenant), "list");
+    const listStub = sinon.stub(SearchHistoryModel("exampleTenant"), "list");
 
     // Restore the stub after all test cases are executed
     after(() => {
@@ -178,7 +190,10 @@ describe("Search Histories Util", () => {
     };
 
     // Mock the SearchHistoryModel.remove function
-    const removeStub = sinon.stub(SearchHistoryModel(exampleTenant), "remove");
+    const removeStub = sinon.stub(
+      SearchHistoryModel("exampleTenant"),
+      "remove"
+    );
 
     // Restore the stub after all test cases are executed
     after(() => {

@@ -14,7 +14,7 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-search-history-controller`
 );
 
-const createSearchHistory = require("./your-create-search-history-file");
+const createSearchHistory = require("@controllers/create-search-history");
 
 describe("createSearchHistory Controller", () => {
   describe("syncSearchHistory", () => {
