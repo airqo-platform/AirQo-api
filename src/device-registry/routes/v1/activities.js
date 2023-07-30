@@ -56,6 +56,28 @@ router.post(
         .toLowerCase()
         .isIn(constants.RECALL_TYPES)
         .withMessage("the recallType value is not among the expected ones"),
+      body("firstName")
+        .optional()
+        .notEmpty()
+        .withMessage("firstName should not be empty if provided")
+        .trim(),
+      body("lastName")
+        .optional()
+        .notEmpty()
+        .withMessage("lastName should not be empty if provided")
+        .trim(),
+      body("userName")
+        .optional()
+        .notEmpty()
+        .withMessage("userName should not be empty if provided")
+        .trim(),
+      body("email")
+        .optional()
+        .notEmpty()
+        .withMessage("email should not be empty if provided")
+        .bail()
+        .isEmail()
+        .withMessage("this is not a valid email address"),
     ],
   ]),
   activityController.recall
@@ -108,6 +130,28 @@ router.post(
         .withMessage(
           "the mountType value is not among the expected ones which include: pole, wall, faceboard, suspended and rooftop "
         ),
+      body("firstName")
+        .optional()
+        .notEmpty()
+        .withMessage("firstName should not be empty if provided")
+        .trim(),
+      body("lastName")
+        .optional()
+        .notEmpty()
+        .withMessage("lastName should not be empty if provided")
+        .trim(),
+      body("userName")
+        .optional()
+        .notEmpty()
+        .withMessage("userName should not be empty if provided")
+        .trim(),
+      body("email")
+        .optional()
+        .notEmpty()
+        .withMessage("email should not be empty if provided")
+        .bail()
+        .isEmail()
+        .withMessage("this is not a valid email address"),
       body("height")
         .exists()
         .withMessage("the height is is missing in your request")
@@ -184,6 +228,28 @@ router.post(
         .withMessage(
           "the maintenanceType value is not among the expected ones"
         ),
+      body("firstName")
+        .optional()
+        .notEmpty()
+        .withMessage("firstName should not be empty if provided")
+        .trim(),
+      body("lastName")
+        .optional()
+        .notEmpty()
+        .withMessage("lastName should not be empty if provided")
+        .trim(),
+      body("userName")
+        .optional()
+        .notEmpty()
+        .withMessage("userName should not be empty if provided")
+        .trim(),
+      body("email")
+        .optional()
+        .notEmpty()
+        .withMessage("email should not be empty if provided")
+        .bail()
+        .isEmail()
+        .withMessage("this is not a valid email address"),
       body("description")
         .exists()
         .withMessage("the description is missing in your request")
