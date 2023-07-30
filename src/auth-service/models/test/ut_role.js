@@ -5,7 +5,7 @@ const sinon = require("sinon");
 const httpStatus = require("http-status");
 const mongoose = require("mongoose");
 
-const RoleSchema = require("./path/to/RoleSchema");
+const RoleSchema = require("@models/Role");
 
 // Replace this with the actual import path for your Role model if applicable
 const RoleModel = mongoose.model("Role", RoleSchema);

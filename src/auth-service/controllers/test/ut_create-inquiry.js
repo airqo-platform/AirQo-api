@@ -12,7 +12,6 @@ const constants = require("@config/constants");
 const log4js = require("log4js");
 
 const inquire = require("@controllers/create-inquiry");
-const createInquiryUtil = require("@utils/create-inquiry");
 
 describe("inquire controller", () => {
   afterEach(() => {

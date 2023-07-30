@@ -4,7 +4,7 @@ const expect = chai.expect;
 const sinon = require("sinon");
 
 const locationHistories = require("@models/locationHistory");
-const LocationHistoryModel = require("@models/LocationHistoryModel");
+const LocationHistoryModel = require("@models/LocationHistory");
 
 describe("locationHistories", () => {
   describe("sample method", () => {

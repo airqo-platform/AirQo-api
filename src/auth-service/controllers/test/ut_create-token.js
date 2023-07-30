@@ -2,7 +2,7 @@ require("module-alias/register");
 const sinon = require("sinon");
 const { expect } = require("chai");
 const { validationResult } = require("express-validator");
-const createAccessToken = require("@utils/create-token");
+const createAccessToken = require("@utils/control-access");
 const controlAccessUtil = require("@utils/control-access");
 const { badRequest, convertErrorArrayToObject } = require("@utils/errors");
 const { logObject, logText, logElement } = require("@utils/log");
