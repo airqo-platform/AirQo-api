@@ -2340,4 +2340,130 @@ describe("createUserController", () => {
       subscribeToNewsLetter.subscribeToNewsLetter.restore();
     });
   });
+  describe("signUpWithFirebase", () => {
+    afterEach(() => {
+      sinon.restore();
+    });
+
+    it("should return 200 and success response when signup is successful", async () => {
+      const req = {
+        body: {
+          email: "test@example.com",
+          uid: "user-uid",
+          providerId: "provider-id",
+          providerUid: "provider-uid",
+        },
+        query: {},
+      };
+      const res = {
+        status: sinon.stub().returnsThis(),
+        json: sinon.stub(),
+      };
+
+      const signUpWithFirebaseStub = sinon.stub(
+        createUserUtil,
+        "signUpWithFirebasee"
+      );
+      signUpWithFirebaseStub.callsFake((request, callback) => {
+        callback({
+          success: true,
+          status: httpStatus.OK,
+          message: "Signup successful",
+          data: { user: "user-data" },
+        });
+      });
+
+      await signUpWithFirebase(req, res);
+
+      expect(res.status.calledOnceWith(httpStatus.OK)).to.be.true;
+      expect(
+        res.json.calledOnceWith({
+          success: true,
+          message: "Signup successful",
+          user: { user: "user-data" },
+          exists: true,
+          status: "exists",
+        })
+      ).to.be.true;
+    });
+
+    it("should return 500 and error response when signup fails", async () => {
+      const req = {
+        body: {
+          email: "test@example.com",
+          uid: "user-uid",
+          providerId: "provider-id",
+          providerUid: "provider-uid",
+        },
+        query: {},
+      };
+      const res = {
+        status: sinon.stub().returnsThis(),
+        json: sinon.stub(),
+      };
+
+      const signUpWithFirebaseStub = sinon.stub(
+        createUserUtil,
+        "signUpWithFirebasee"
+      );
+      signUpWithFirebaseStub.callsFake((request, callback) => {
+        callback({
+          success: false,
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "Some error occurred" },
+        });
+      });
+
+      await signUpWithFirebase(req, res);
+
+      expect(res.status.calledOnceWith(httpStatus.BAD_REQUEST)).to.be.true;
+      expect(
+        res.json.calledOnceWith({
+          success: false,
+          message: "Unable to signup with Firebase",
+          exists: false,
+          errors: { message: "Some error occurred" },
+        })
+      ).to.be.true;
+    });
+
+    it("should handle internal server error and return 500 with error response", async () => {
+      const req = {
+        body: {
+          email: "test@example.com",
+          uid: "user-uid",
+          providerId: "provider-id",
+          providerUid: "provider-uid",
+        },
+        query: {},
+      };
+      const res = {
+        status: sinon.stub().returnsThis(),
+        json: sinon.stub(),
+      };
+
+      const signUpWithFirebaseStub = sinon.stub(
+        createUserUtil,
+        "signUpWithFirebasee"
+      );
+      signUpWithFirebaseStub.callsFake(() => {
+        throw new Error("Some internal server error");
+      });
+
+      await signUpWithFirebase(req, res);
+
+      expect(res.status.calledOnceWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
+        .true;
+      expect(
+        res.json.calledOnceWith({
+          success: false,
+          message: "Internal Server Error",
+          errors: { message: "Some internal server error" },
+          error: "Some internal server error",
+        })
+      ).to.be.true;
+    });
+
+    // Add more test cases to cover other scenarios if needed
+  });
 });

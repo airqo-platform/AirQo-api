@@ -2395,4 +2395,209 @@ describe("create-user-util", function () {
 
     // Add more test cases as needed
   });
+  describe("signUpWithFirebase", () => {
+    afterEach(() => {
+      sinon.restore();
+    });
+
+    it("should update the existing local user when the user exists on Firebase", async () => {
+      const request = {
+        body: {
+          email: "test@example.com",
+          phoneNumber: "+1234567890",
+          firstName: "John",
+          lastName: "Doe",
+          userName: "johndoe",
+          password: "password",
+        },
+        query: {
+          tenant: "airqo",
+        },
+      };
+
+      const firebaseUserResponse = {
+        success: true,
+        data: [
+          {
+            email: "test@example.com",
+            phoneNumber: "+1234567890",
+            firstName: "John",
+            lastName: "Doe",
+            userName: "johndoe",
+          },
+        ],
+      };
+
+      sinon
+        .stub(createUserModule, "lookUpFirebaseUser")
+        .callsFake((req, callback) => {
+          callback(firebaseUserResponse);
+        });
+
+      const updateUserStub = sinon.stub().resolves({
+        // Simulate the updated user object returned by UserModel.updateOne
+        _id: "user-id",
+        firstName: "John",
+        lastName: "Doe",
+        userName: "johndoe",
+        email: "test@example.com",
+        phoneNumber: "+1234567890",
+      });
+
+      const createUserStub = sinon.stub(); // We won't use this in this test case
+
+      const callback = sinon.stub();
+      const expectedResponse = {
+        success: true,
+        message: "User updated successfully.",
+        status: httpStatus.OK,
+        data: {
+          _id: "user-id",
+          firstName: "John",
+          lastName: "Doe",
+          userName: "johndoe",
+          email: "test@example.com",
+          phoneNumber: "+1234567890",
+        },
+      };
+
+      await signUpWithFirebase(request, callback, {
+        updateUser: updateUserStub,
+        createUser: createUserStub,
+      });
+
+      expect(
+        updateUserStub.calledOnceWith(
+          { _id: "user-id" },
+          {
+            firstName: "John",
+            lastName: "Doe",
+            userName: "johndoe",
+          }
+        )
+      ).to.be.true;
+      expect(callback.calledOnceWith(expectedResponse)).to.be.true;
+    });
+
+    it("should create a new local user when the user does not exist on Firebase", async () => {
+      const request = {
+        body: {
+          email: "test@example.com",
+          phoneNumber: "+1234567890",
+          firstName: "John",
+          lastName: "Doe",
+          userName: "johndoe",
+          password: "password",
+        },
+        query: {
+          tenant: "airqo",
+        },
+      };
+
+      const firebaseUserResponse = {
+        success: false,
+      };
+
+      sinon
+        .stub(createUserModule, "lookUpFirebaseUser")
+        .callsFake((req, callback) => {
+          callback(firebaseUserResponse);
+        });
+
+      const createUserStub = sinon.stub().resolves({
+        // Simulate the newly created user object returned by UserModel.create
+        _id: "user-id",
+        firstName: "John",
+        lastName: "Doe",
+        userName: "johndoe",
+        email: "test@example.com",
+        phoneNumber: "+1234567890",
+      });
+
+      const updateUserStub = sinon.stub(); // We won't use this in this test case
+
+      const callback = sinon.stub();
+      const expectedResponse = {
+        success: true,
+        message: "User created successfully.",
+        status: httpStatus.CREATED,
+        data: {
+          _id: "user-id",
+          firstName: "John",
+          lastName: "Doe",
+          userName: "johndoe",
+          email: "test@example.com",
+          phoneNumber: "+1234567890",
+        },
+      };
+
+      await signUpWithFirebase(request, callback, {
+        updateUser: updateUserStub,
+        createUser: createUserStub,
+      });
+
+      expect(
+        createUserStub.calledOnceWith({
+          email: "test@example.com",
+          phoneNumber: "+1234567890",
+          firstName: "John",
+          lastName: "Doe",
+          userName: "johndoe",
+          password: "password",
+        })
+      ).to.be.true;
+      expect(callback.calledOnceWith(expectedResponse)).to.be.true;
+    });
+
+    it("should handle error when creating user on Firebase fails", async () => {
+      const request = {
+        body: {
+          email: "test@example.com",
+          phoneNumber: "+1234567890",
+          firstName: "John",
+          lastName: "Doe",
+          userName: "johndoe",
+          password: "password",
+        },
+        query: {
+          tenant: "airqo",
+        },
+      };
+
+      const firebaseUserResponse = {
+        success: false,
+      };
+
+      sinon
+        .stub(createUserModule, "lookUpFirebaseUser")
+        .callsFake((req, callback) => {
+          callback(firebaseUserResponse);
+        });
+
+      const createUserStub = sinon.stub().resolves({
+        // Simulate an error when creating the user on the database
+        error: "Error creating user on the database",
+      });
+
+      const updateUserStub = sinon.stub(); // We won't use this in this test case
+
+      const callback = sinon.stub();
+      const expectedResponse = {
+        success: false,
+        message: "Error creating user on Firebase.",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: "Error creating user on Firebase." },
+      };
+
+      await signUpWithFirebase(request, callback, {
+        updateUser: updateUserStub,
+        createUser: createUserStub,
+      });
+
+      expect(createUserStub.calledOnce).to.be.true;
+      expect(callback.calledOnceWith(expectedResponse)).to.be.true;
+    });
+
+    // Add more test cases to cover other scenarios if needed
+  });
 });
