@@ -19,6 +19,69 @@ const stubValue = {
 };
 
 describe("generate-filter util", function () {
+  describe("filter search_histories", () => {
+    it("should return an empty filter when no query or params provided", () => {
+      const req = {};
+      const result = generateFilterUtil.search_histories(req);
+
+      expect(result).to.deep.equal({});
+    });
+
+    it("should correctly filter by _id when id is provided in the query", () => {
+      const req = {
+        query: {
+          id: "1234567890abcdef12345678",
+        },
+      };
+      const result = generateFilterUtil.search_histories(req);
+
+      expect(result).to.deep.equal({
+        _id: "1234567890abcdef12345678",
+      });
+    });
+
+    it("should correctly filter by _id when search_history_id is provided in the params", () => {
+      const req = {
+        params: {
+          search_history_id: "abcdef123456789012345678",
+        },
+      };
+      const result = generateFilterUtil.search_histories(req);
+
+      expect(result).to.deep.equal({
+        _id: "abcdef123456789012345678",
+      });
+    });
+
+    it("should correctly filter by firebase_user_id when firebase_user_id is provided in the params", () => {
+      const req = {
+        params: {
+          firebase_user_id: "test_firebase_user_id",
+        },
+      };
+      const result = generateFilterUtil.search_histories(req);
+
+      expect(result).to.deep.equal({
+        firebase_user_id: "test_firebase_user_id",
+      });
+    });
+
+    it("should prioritize search_history_id over id when both are provided", () => {
+      const req = {
+        query: {
+          id: "1234567890abcdef12345678",
+        },
+        params: {
+          search_history_id: "abcdef123456789012345678",
+        },
+      };
+      const result = generateFilterUtil.search_histories(req);
+
+      expect(result).to.deep.equal({
+        _id: "abcdef123456789012345678",
+      });
+    });
+  });
   describe("filter candidates", function () {
     it("should filter candidates", async function () {
       const stub = sinon
