@@ -13,3 +13,5 @@ kafka-python
 numpy
 firebase-admin
 db_dtypes
+mlflow
+lightgbm

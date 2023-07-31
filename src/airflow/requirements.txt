@@ -7,3 +7,5 @@ kafka-python
 simplejson
 sentry-sdk
 geopy
+mlflow
+lightgbm
