@@ -193,6 +193,137 @@ module.exports = {
 `;
   },
 
+  mobileEmailVerification: ({
+    email = "",
+    firebase_uid = "",
+    token = "",
+  } = {}) => {
+    const url = `${constants.PLATFORM_BASE_URL}/api/v1/users/firebase/verify/${firebase_uid}/${token}`;
+    return `
+<!DOCTYPE html>
+<html>
+
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+
+    <body style="margin: 0; padding: 0; font-family:Arial, sans-serif;">
+
+        <div style="width: 90%; height: 100%; padding: 32px; background: #F3F6F8;">
+            <!-- Email content container with white background -->
+            <table style="width: 100%; max-width: 1024px; margin: 0 auto; background: white;">
+                <tr>
+                    <td style="padding: 24px;">
+                        <!-- Logo and title section -->
+                        <table style="width: 100%; padding-bottom: 24px;">
+                            <tr>
+                                <td style="display: flex; align-items: center;">
+                                    <img src="cid:AirQoEmailLogo" alt="logo" style="height: 50px; margin-right: 10px;">
+                                    <span
+                                        style="color: #135DFF; margin-left: auto; font-family: Inter; font-size: 20px; font-weight: 600; line-height: 24px; letter-spacing: 0em; text-align: right;">Breathe
+                                        Clean</span>
+                                </td>
+                            </tr>
+
+                        </table>
+
+                        <!-- Email content section -->
+                        <table style="width: 100%;">
+                        
+                            <tr>
+                                <td
+                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                                    Welcome to AirQo Analytics 🎉
+                                    <br />
+                                    Thanks for signing up; we can't wait for you to get started! Click the button to verify your email:
+                                    <br /><br />
+                                    <a href=${url} target="_blank">
+                                        <div
+                                            style="width: 20%; height: 100%; padding-left: 32px; padding-right: 32px; padding-top: 16px; padding-bottom: 16px; background: #135DFF; border-radius: 1px; justify-content: center; align-items: center; gap: 10px; display: inline-flex">
+                                            <div
+                                                style="text-align: center; color: white; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word">
+                                                Verify Email</div>
+                                        </div>
+                                    </a>
+                                    <br /><br />
+                                    Trouble logging in? Paste this URL into your browser:
+                                    </br>
+                                    <a href=${url} target="_blank">${url}</a>
+                                    <br /><br />
+                                    <div
+                                        style="width: 100%; opacity: 0.60; color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word">
+                                        You can set a permanent password anytime within your AirQo Analytics personal settings<br />Didn't make this
+                                        request? You can safely ignore and delete this email</div>
+                                    <br />
+                                    <br />
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style=" height: 8px; background: #EBF1FF;"></td>
+                            </tr>
+                        </table>
+
+                        <!-- Social media section -->
+                        <table style="width: 100%; text-align: center; padding-top: 32px; padding-bottom: 32px;">
+                            <tr>
+                                <td>
+                                    <a href="https://www.facebook.com/AirQo/" target="_blank"><img
+                                            src="cid:FacebookLogo" alt="FacebookLogo"
+                                            style="width: 24px; height: 24px; margin-right: 20px; border-radius: 50%;"></a>
+                                    <a href="https://www.youtube.com/@airqo7875" target="_blank"><img
+                                            src="cid:YoutubeLogo" alt="YoutubeLogo"
+                                            style="width: 24px; height: 24px; margin-right: 20px; border-radius: 50%;"></a>
+                                    <a href="https://www.linkedin.com/company/airqo/" target="_blank"><img
+                                            src="cid:LinkedInLogo" alt="LinkedInLogo"
+                                            style="width: 24px; height: 24px; margin-right: 20px; border-radius: 50%;"></a>
+                                    <a href="https://twitter.com/AirQoProject" target="_blank"><img src="cid:Twitter"
+                                            alt="Twitter"
+                                            style="width: 24px; height: 24px; margin-right: 20px; border-radius: 50%;"></a>
+                                </td>
+                            </tr>
+                        </table>
+
+                        <!-- Footer section -->
+                        <table style="width: 100%; text-align: center;">
+                            <tr>
+                                <td>
+                                    <span
+                                        style="color: #667085; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">This
+                                        email was sent to</span>
+                                    <span
+                                        style="color: #135DFF; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">${email}</span>
+                                    <span
+                                        style="color: #667085; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">.
+                                        If you'd rather not receive this kind of email, you can </span>
+                                    <span
+                                        style="color: #135DFF; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">unsubscribe</span>
+                                    <span
+                                        style="color: #667085; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">
+                                        or </span>
+                                    <span
+                                        style="color: #135DFF; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">manage
+                                        your email preferences.</span><br /><br />
+                                    <span
+                                        style="color: #667085; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">©
+                                        2023 AirQo<br /><br />
+                                        Makerere University, Software Systems Centre, Block B, Level 3, College of
+                                        Computing and
+                                        Information Sciences, Plot 56 University Pool Road</span>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
+        </div>
+
+    </body>
+
+</html>
+`;
+  },
+
   afterEmailVerification: (firstName, username, password) => {
     return `
 <h3>Dear ${firstName}</h3>
@@ -382,6 +513,6 @@ module.exports = {
     </body>
 
 </html>
-    `
+    `;
   },
 };

@@ -173,6 +173,16 @@ const defaultConfig = {
       excludeSimilarCharacters: true,
     };
   },
+
+  ACCESS_TOKEN_CONFIGURATION: (length) => {
+    return {
+      length: length,
+      numbers: true,
+      strict: true,
+      uppercase: true,
+      excludeSimilarCharacters: true,
+    };
+  },
   SALT_ROUNDS: 10,
   KICKBOX_API_KEY: process.env.KICKBOX_API_KEY,
   GOOGLE_APPLICATION_CREDENTIALS: process.env.GOOGLE_APPLICATION_CREDENTIALS,

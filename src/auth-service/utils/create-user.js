@@ -703,38 +703,21 @@ const createUserModule = {
             const firebaseUser = firebaseUserResponse.userRecord;
             logObject("firebaseUser", firebaseUser);
             logObject("firebaseUser.uid", firebaseUser.uid);
-            // Generate a custom token for the user
-            const customClaims = {
-              isAdmin: true,
-            };
+
             // Generate the custom token
-            /***
-             * I am just going to create my own personal token from here
-             * and then store it temporarily in memory (Redis) with an expire time
-             */
-            const token = await getAuth().createCustomToken(
-              firebaseUser.uid,
-              customClaims
+            const token = accessCodeGenerator.generate(
+              constants.ACCESS_TOKEN_CONFIGURATION(5)
             );
-
-            const generatedUserName =
-              firebaseUser.displayName || firebaseUser.email;
-            const generatedFirstName = firebaseUser.firstName || "Unknown";
-            const generatedLastName = firebaseUser.lastName || "Unknown";
-            const generatedPassword = accessCodeGenerator.generate(
-              constants.RANDOM_PASSWORD_CONFIGURATION(10)
-            );
-            const generatedProfilePicture = firebaseUser.photoURL || "";
-
-            /**
-             * now we send this token to the user via email or SMS
-             */
+            /*.
+            We are now going to save this new token in our Redis DB
+            After successful storage of this token, then we can be able to 
+            **/
             logObject("token", token);
-            const firstName = generatedFirstName;
-            const responseFromSendEmail = await mailer.verifyEmail({
+            const firebase_uid = firebaseUser.uid;
+            const responseFromSendEmail = await mailer.verifyMobileEmail({
               token,
               email,
-              firstName,
+              firebase_uid,
             });
 
             logObject("responseFromSendEmail", responseFromSendEmail);
