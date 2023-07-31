@@ -22,9 +22,48 @@ const generateFilter = require("./generate-filter");
 const moment = require("moment-timezone");
 const admin = require("firebase-admin");
 const { db } = require("@config/firebase-admin");
+const redis = require("@config/redis");
 
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- create-user-util`);
+
+async function storeDataInRedis(token, data) {
+  try {
+    // Store the data as a JSON string with the token as the key
+    await setAsync(token, JSON.stringify(data));
+
+    // Optionally, you can set an expiration time for the data (e.g., 1 hour)
+    // Here, we are setting the expiration time to 1 hour (3600 seconds)
+    await redis.expire(token, 3600);
+
+    // Return true to indicate successful storage
+    return true;
+  } catch (error) {
+    // Handle any errors that occur during the storage process
+    console.error("Error storing data in Redis:", error);
+    return false;
+  }
+}
+
+async function retrieveDataFromRedis(token) {
+  try {
+    // Retrieve the data stored in Redis using the token as the key
+    const rawData = await getAsync(token);
+
+    if (rawData) {
+      // If data exists, parse the JSON string to obtain the actual data object
+      const data = JSON.parse(rawData);
+      return data;
+    } else {
+      // If data doesn't exist (token not found), return null or handle accordingly
+      return null;
+    }
+  } catch (error) {
+    // Handle any errors that occur during the retrieval process
+    console.error("Error retrieving data from Redis:", error);
+    return null;
+  }
+}
 
 const UserModel = (tenant) => {
   try {
@@ -570,13 +609,86 @@ const createUserModule = {
       });
     }
   },
-
+  setCache: (data, request, callback) => {
+    try {
+      const cacheID = createUserModule.generateCacheID(request);
+      redis.set(
+        cacheID,
+        JSON.stringify({
+          isCache: true,
+          success: true,
+          message: `successfully retrieved the measurements`,
+          data,
+        })
+      );
+      redis.expire(cacheID, parseInt(100));
+      callback({
+        success: true,
+        message: "response stored in cache",
+        status: httpStatus.OK,
+      });
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      callback({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      });
+    }
+  },
+  getCache: (request, callback) => {
+    try {
+      const cacheID = createUserModule.generateCacheID(request);
+      redis.get(cacheID, async (err, result) => {
+        const resultJSON = JSON.parse(result);
+        if (result) {
+          callback({
+            success: true,
+            message: "utilising cache...",
+            data: resultJSON,
+            status: httpStatus.OK,
+          });
+        } else if (err) {
+          logger.error(`unable to get cache --- ${JSON.stringify(err)}`);
+          callback({
+            success: false,
+            message: "Internal Server Error",
+            errors: { message: err.message },
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+          });
+        } else {
+          callback({
+            success: false,
+            message: "no cache present",
+            errors: { message: "no cache present" },
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+          });
+        }
+      });
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      callback({
+        success: false,
+        errors: { message: error.message },
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      });
+    }
+  },
+  generateCacheID: (request) => {
+    const { tenant, skip, limit } = request.query;
+    const currentTime = new Date().toISOString();
+    const day = generateDateFormatWithoutHrs(currentTime);
+    return `list_events_${tenant}_${skip ? skip : 0}_${limit ? limit : 0}_${
+      day ? day : "noDay"
+    }`;
+  },
   loginWithFirebase: async (request, callback) => {
     try {
       const { body, query } = request;
       const { tenant } = query;
-      const { email, phoneNumber, firstName, lastName, userName, password } =
-        body;
+      const { email, phoneNumber, password } = body;
 
       // Step 1: Check if the user exists on Firebase using lookUpFirebaseUser function
       createUserModule.lookUpFirebaseUser(
@@ -590,72 +702,53 @@ const createUserModule = {
             // Step 2: User exists on Firebase, update or create locally using UserModel
             const firebaseUser = firebaseUserResponse.userRecord;
             logObject("firebaseUser", firebaseUser);
+            logObject("firebaseUser.uid", firebaseUser.uid);
+            // Generate a custom token for the user
+            const customClaims = {
+              isAdmin: true,
+            };
+            // Generate the custom token
+            /***
+             * I am just going to create my own personal token from here
+             * and then store it temporarily in memory (Redis) with an expire time
+             */
+            const token = await getAuth().createCustomToken(
+              firebaseUser.uid,
+              customClaims
+            );
 
-            // Check if user exists locally
-            const userExistsLocally = await UserModel(tenant)
-              .findOne({
-                $or: [
-                  { email: { $regex: new RegExp(firebaseUser.email, "i") } },
-                  { phoneNumber: firebaseUser.phoneNumber },
-                ],
-              })
-              .lean();
-            logObject("userExistsLocally", userExistsLocally);
-            if (userExistsLocally) {
-              // User exists locally, perform update operation
-              const updatedUser = await UserModel(tenant).updateOne(
-                { _id: userExistsLocally._id },
-                {
-                  firstName: firebaseUser.firstName,
-                  lastName: firebaseUser.lastName,
-                  userName: firebaseUser.userName,
-                }
-              );
-              logObject("updatedUser", updatedUser);
-              /**
-               * At this point, I should also send through the token in the response body
-               * {
-    "_id": "",
-    "userName": "",
-    "token": "",
-    "email": ""
-}
-               */
+            const generatedUserName =
+              firebaseUser.displayName || firebaseUser.email;
+            const generatedFirstName = firebaseUser.firstName || "Unknown";
+            const generatedLastName = firebaseUser.lastName || "Unknown";
+            const generatedPassword = accessCodeGenerator.generate(
+              constants.RANDOM_PASSWORD_CONFIGURATION(10)
+            );
+            const generatedProfilePicture = firebaseUser.photoURL || "";
 
+            /**
+             * now we send this token to the user via email or SMS
+             */
+            logObject("token", token);
+            const firstName = generatedFirstName;
+            const responseFromSendEmail = await mailer.verifyEmail({
+              token,
+              email,
+              firstName,
+            });
+
+            logObject("responseFromSendEmail", responseFromSendEmail);
+            if (responseFromSendEmail.success === true) {
               callback({
                 success: true,
-                message: "Successful login!",
-                status: httpStatus.OK,
-                data: updatedUser,
+                message: "An Email sent to your account, please verify",
+                data: firebaseUser,
+                status: responseFromSendEmail.status
+                  ? responseFromSendEmail.status
+                  : "",
               });
-            } else {
-              // User does not exist locally, perform create operation
-              logText("this user does not exist locally");
-              const newUser = await UserModel(tenant).create({
-                email: firebaseUser.email,
-                phoneNumber: firebaseUser.phoneNumber,
-                firstName: firebaseUser.firstName,
-                lastName: firebaseUser.lastName,
-                userName: firebaseUser.email,
-                password,
-              });
-
-              logObject("newUser", newUser);
-              /**,
-               * At this point, I should also send through the token in the response body
-               * {
-    "_id": "",
-    "userName": "",
-    "token": "",
-    "email": ""
-}
-               */
-              callback({
-                success: true,
-                message: "Successful login!",
-                status: httpStatus.CREATED,
-                data: newUser,
-              });
+            } else if (responseFromSendEmail.success === false) {
+              callback(responseFromSendEmail);
             }
           } else {
             callback({
@@ -677,7 +770,122 @@ const createUserModule = {
       });
     }
   },
+  verifyFirebaseCustomToken: async (request, callback) => {
+    try {
+      const { tenant } = request.query;
+      const { token } = request.params;
+      const decodedToken = await getAuth().verifyIdToken(token);
+      logObject("decodedToken", decodedToken);
 
+      if (!isEmpty(decodedToken.uid)) {
+        const firebaseUser = decodedToken;
+
+        if (!firebaseUser.email && !firebaseUser.phoneNumber) {
+          return callback({
+            success: false,
+            message: "Invalid request.",
+            status: httpStatus.BAD_REQUEST,
+            errors: { message: "Email or phoneNumber is required." },
+          });
+        }
+        let filter = {};
+        if (email) {
+          filter.email = email;
+        }
+        if (phoneNumber) {
+          filter.phoneNumber = phoneNumber;
+        }
+        // Check if user exists locally
+        const userExistsLocally = await UserModel(tenant)
+          .findOne(filter)
+          .exec();
+        logObject("userExistsLocally", userExistsLocally);
+        if (userExistsLocally) {
+          // User exists locally, perform update operation
+          const updatedFields = {};
+          if (firebaseUser.firstName !== null) {
+            updatedFields.firstName = firebaseUser.firstName;
+          }
+          if (firebaseUser.lastName !== null) {
+            updatedFields.lastName = firebaseUser.lastName;
+          }
+          if (firebaseUser.userName !== null) {
+            updatedFields.userName = firebaseUser.userName;
+          }
+
+          const updatedUser = await UserModel(tenant).updateOne(
+            { _id: userExistsLocally._id },
+            {
+              $set: updatedFields,
+            }
+          );
+
+          logObject("updatedUser", updatedUser);
+          /**
+          I am considering doing some 2FA at this point and perhaps creating separate
+          logic for verifying the user's received token for me to verify and then
+          I send them the following response from that separate logic
+          */
+          callback({
+            success: true,
+            message: "Successful login!",
+            status: httpStatus.OK,
+            data: userExistsLocally.toAuthJSON(),
+          });
+        } else {
+          // User does not exist locally, perform create operation
+          logText("this user does not exist locally");
+          const generatedUserName =
+            firebaseUser.displayName || firebaseUser.email;
+          const generatedFirstName = firebaseUser.firstName || "Unknown";
+          const generatedLastName = firebaseUser.lastName || "Unknown";
+          const generatedPassword = accessCodeGenerator.generate(
+            constants.RANDOM_PASSWORD_CONFIGURATION(10)
+          );
+          const generatedProfilePicture = firebaseUser.photoURL || "";
+          const newUser = await UserModel(tenant).create({
+            email: firebaseUser.email,
+            phoneNumber: firebaseUser.phoneNumber,
+            firstName: generatedFirstName,
+            lastName: generatedLastName,
+            userName: generatedUserName,
+            password: generatedPassword,
+            firebase_uid: firebaseUser.uid,
+            profilePicture: generatedProfilePicture,
+          });
+
+          logObject("newUser", newUser);
+          /**
+          I am considering doing some 2FA at this point and perhaps creating separate
+          logic for verifying the user's received token for me to verify and then
+          I send them the following response from that separate logic
+          */
+
+          callback({
+            success: true,
+            message: "Successful login!",
+            status: httpStatus.CREATED,
+            data: newUser.toAuthJSON(),
+          });
+        }
+      } else {
+        logger.error(`Invalid Custom Token Provided`);
+        callback({
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: "Invalid Token Provided" },
+          status: httpStatus.BAD_REQUEST,
+        });
+      }
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+      callback({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
   generateSignInWithEmailLink: async (request, callback) => {
     try {
       const { body, query } = request;
@@ -828,7 +1036,6 @@ const createUserModule = {
       };
     }
   },
-
   sendFeedback: async (request) => {
     try {
       const { body } = request;
@@ -860,7 +1067,6 @@ const createUserModule = {
       };
     }
   },
-
   create: async (request) => {
     try {
       const { tenant, firstName, email, network_id } = request;
@@ -976,7 +1182,6 @@ const createUserModule = {
       };
     }
   },
-
   register: async (request) => {
     try {
       const {
@@ -1049,7 +1254,6 @@ const createUserModule = {
       };
     }
   },
-
   forgotPassword: async (request) => {
     try {
       const { query } = request;
@@ -1129,7 +1333,6 @@ const createUserModule = {
       };
     }
   },
-
   updateForgottenPassword: async (request) => {
     try {
       const { resetPasswordToken, password } = request.body;
@@ -1199,7 +1402,6 @@ const createUserModule = {
       };
     }
   },
-
   updateKnownPassword: async (request) => {
     try {
       const { query, body } = request;
@@ -1302,7 +1504,6 @@ const createUserModule = {
       };
     }
   },
-
   generateResetToken: () => {
     try {
       const token = crypto.randomBytes(20).toString("hex");

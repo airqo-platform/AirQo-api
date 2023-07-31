@@ -275,6 +275,34 @@ router.post(
   createUserController.signUpWithFirebase
 );
 
+router.get(
+  "/firebase/verify/:token",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+
+  oneOf([
+    [
+      param("token")
+        .exists()
+        .withMessage("the token param is missing in the request")
+        .bail()
+        .trim(),
+    ],
+  ]),
+  createUserController.verifyFirebaseCustomToken
+);
+
 /**
  * version one of verification
  */
