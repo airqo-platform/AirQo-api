@@ -20,7 +20,6 @@ function oneMonthFromNow() {
   }
   return d;
 }
-// const passwordReg = /(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{6,}/;
 const passwordReg = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{6,}$/;
 
 const UserSchema = new Schema(
@@ -29,6 +28,7 @@ const UserSchema = new Schema(
     status: { type: String },
     address: { type: String },
     country: { type: String },
+    firebase_uid: { type: String },
     city: { type: String },
     department_id: {
       type: ObjectId,
@@ -83,7 +83,6 @@ const UserSchema = new Schema(
     },
     privilege: {
       type: String,
-      required: [true, "the privilege is required!"],
       default: "user",
     },
     isActive: { type: Boolean },
@@ -117,16 +116,21 @@ const UserSchema = new Schema(
     ],
     organization: {
       type: String,
-      required: [true, "the organization is required!"],
       default: "airqo",
     },
     long_organization: {
       type: String,
-      required: [true, "the long_organization is required!"],
       default: "airqo",
     },
-    phoneNumber: { type: Number },
-    locationCount: { type: Number, default: 5 },
+    phoneNumber: {
+      type: Number,
+      validate: {
+        validator(phoneNumber) {
+          return !!phoneNumber || this.email;
+        },
+        message: "Phone number or email is required!",
+      },
+    },
     resetPasswordToken: { type: String },
     resetPasswordExpires: { type: Date },
     jobTitle: {
@@ -154,6 +158,9 @@ const UserSchema = new Schema(
 UserSchema.pre("save", function (next) {
   if (this.isModified("password")) {
     this.password = bcrypt.hashSync(this.password, saltRounds);
+  }
+  if (!this.email && !this.phoneNumber) {
+    return next(new Error("Phone number or email is required!"));
   }
   return next();
 });
@@ -516,16 +523,15 @@ UserSchema.methods = {
     return jwt.sign(
       {
         _id: this._id,
-        locationCount: this.locationCount,
-        organization: this.organization,
-        long_organization: this.long_organization,
         firstName: this.firstName,
         lastName: this.lastName,
         userName: this.userName,
         email: this.email,
+        organization: this.organization,
+        long_organization: this.long_organization,
+        privilege: this.privilege,
         role: this.role,
         networks: this.networks,
-        privilege: this.privilege,
         country: this.country,
         profilePicture: this.profilePicture,
         phoneNumber: this.phoneNumber,
@@ -559,13 +565,12 @@ UserSchema.methods = {
       userName: this.userName,
       email: this.email,
       firstName: this.firstName,
-      lastName: this.lastName,
-      locationCount: this.locationCount,
-      privilege: this.privilege,
-      country: this.country,
-      website: this.website,
       organization: this.organization,
       long_organization: this.long_organization,
+      privilege: this.privilege,
+      lastName: this.lastName,
+      country: this.country,
+      website: this.website,
       category: this.category,
       jobTitle: this.jobTitle,
       profilePicture: this.profilePicture,

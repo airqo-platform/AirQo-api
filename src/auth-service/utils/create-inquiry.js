@@ -1,5 +1,5 @@
 const InquirySchema = require("@models/Inquiry");
-const { getModelByTenant } = require("@config/dbConnection");
+const { getModelByTenant } = require("@config/database");
 const { logObject, logElement, logText } = require("./log");
 const mailer = require("./mailer");
 const httpStatus = require("http-status");

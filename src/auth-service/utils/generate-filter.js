@@ -244,92 +244,6 @@ const filter = {
     }
   },
 
-  defaults_v2: (req) => {
-    try {
-      let { id, user, user_id, airqloud, airqloud_id, site, site_id } =
-        req.query;
-      let filter = {
-        site_ids: {},
-        sites: {},
-        airqloud_ids: {},
-        airqlouds: {},
-      };
-
-      /*** user id */
-      if (user) {
-        filter["user"] = ObjectId(user);
-      }
-      if (id) {
-        filter["_id"] = ObjectId(id);
-      }
-      if (user_id) {
-        filter["user_id"] = ObjectId(user_id);
-      }
-
-      /** airqloud_id */
-      if (airqloud_id) {
-        let airqloudIdArray = airqloud_id.split(",");
-        let modifiedAirQloudIdArray = airqloudIdArray.map((airqloud_id) => {
-          return ObjectId(airqloud_id);
-        });
-        filter["airqloud_ids"]["$in"] = modifiedAirQloudIdArray;
-      }
-
-      if (!airqloud_id) {
-        delete filter["airqloud_ids"];
-      }
-
-      /*** airqloud */
-      if (airqloud) {
-        filter["airqlouds"] = airqloud;
-      }
-      if (!airqloud) {
-        delete filter["airqlouds"];
-      }
-
-      /**
-       * site_id
-       */
-      if (site_id) {
-        let siteIdArray = site_id.split(",");
-        let modifiedSiteIdArray = siteIdArray.map((site_id) => {
-          return ObjectId(site_id);
-        });
-        filter["site_ids"]["$in"] = modifiedSiteIdArray;
-      }
-
-      if (!site_id) {
-        delete filter["site_ids"];
-      }
-
-      /** site */
-      if (site) {
-        let siteArray = site.split(",");
-        filter["sites"]["$in"] = siteArray;
-      }
-
-      if (!site) {
-        delete filter["sites"];
-      }
-
-      return {
-        success: true,
-        message: "successfully created the filter",
-        data: filter,
-        status: httpStatus.OK,
-      };
-    } catch (e) {
-      logger.error(`internal server error, ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "Internal Server Error",
-        error: e.message,
-        errors: { message: e.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      };
-    }
-  },
-
   roles: (req) => {
     try {
       const { query, params } = req;
@@ -707,12 +621,70 @@ const filter = {
       const { id } = query;
       const { firebase_user_id, favorite_id } = params;
       let filter = {};
-      
+
       if (id) {
         filter["_id"] = ObjectId(id);
       }
       if (favorite_id) {
         filter["_id"] = ObjectId(favorite_id);
+      }
+      if (firebase_user_id) {
+        filter["firebase_user_id"] = firebase_user_id;
+      }
+
+      return filter;
+    } catch (e) {
+      logger.error(`internal server error, ${JSON.stringify(e)}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: e.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  location_histories: (req) => {
+    try {
+      const { query, params } = req;
+      const { id } = query;
+      const { firebase_user_id, location_history_id } = params;
+      let filter = {};
+
+      if (id) {
+        filter["_id"] = ObjectId(id);
+      }
+      if (location_history_id) {
+        filter["_id"] = ObjectId(location_history_id);
+      }
+      if (firebase_user_id) {
+        filter["firebase_user_id"] = firebase_user_id;
+      }
+
+      return filter;
+    } catch (e) {
+      logger.error(`internal server error, ${JSON.stringify(e)}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: e.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  search_histories: (req) => {
+    try {
+      const { query, params } = req;
+      const { id } = query;
+      const { firebase_user_id, search_history_id } = params;
+      let filter = {};
+
+      if (id) {
+        filter["_id"] = ObjectId(id);
+      }
+      if (search_history_id) {
+        filter["_id"] = ObjectId(search_history_id);
       }
       if (firebase_user_id) {
         filter["firebase_user_id"] = firebase_user_id;
