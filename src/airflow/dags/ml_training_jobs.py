@@ -2,11 +2,11 @@ from airflow.decorators import dag, task
 
 from airqo_etl_utils.airflow_custom_utils import AirflowUtils
 from airqo_etl_utils.bigquery_api import BigQueryApi
-from airqo_etl_utils.ml_utils import ForecastTrainingUtils
+from airqo_etl_utils.ml_utils import ForecastUtils
 
 
 @dag(
-    '-Forecast-Models-Training-job',
+    'AirQo-forecast-models-training-job',
     schedule='0 1 * * 1',
     default_args=AirflowUtils.dag_default_configs(),
     catchup=False,
@@ -32,19 +32,19 @@ def train_forecasting_models():
 
     @task()
     def preprocess_data(hourly_df, daily_df):
-        return ForecastTrainingUtils.preprocess_data(hourly_df, daily_df)
+        return ForecastUtils.preprocess_training_data(hourly_df, daily_df)
 
     @task()
     def feature_selection(hourly_df, daily_df):
-        return ForecastTrainingUtils.feature_eng_df(hourly_df, daily_df)
+        return ForecastUtils.feature_eng_df(hourly_df, daily_df)
 
     @task()
     def train_models(hourly_df, daily_df):
-        return ForecastTrainingUtils.train_model(hourly_df, daily_df)
+        return ForecastUtils.train_model(hourly_df, daily_df)
 
     @task()
     def save_models(hourly_clf, daily_clf):
-        ForecastTrainingUtils.upload_trained_model_to_gcs(daily_clf, hourly_clf, configuration.GOOGLE_CLOUD_PROJECT_ID)
+        ForecastUtils.upload_trained_model_to_gcs(daily_clf, hourly_clf, configuration.GOOGLE_CLOUD_PROJECT_ID)
 
     hourly_df, daily_df = fetch_training_data()
     hourly_df, daily_df = preprocess_data(hourly_df, daily_df)

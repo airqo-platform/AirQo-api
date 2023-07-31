@@ -594,3 +594,55 @@ class BigQueryApi:
             dataframe_results[job_type] = df
 
         return dataframe_results['hourly'], dataframe_results['daily']
+
+    def fetch_forecast_data(hours=int(configuration.NUMBER_OF_HOURS), days=int(configuration.NUMBER_OF_DAYS)):
+        """gets data from the bigquery table"""
+
+        table_map = {
+            'hourly': f"{configuration.GOOGLE_CLOUD_PROJECT_ID}.averaged_data.hourly_device_measurements",
+            'daily': f"{configuration.BIGQUERY_HOURLY_TABLE}"
+        }
+        time_map = {
+            'hourly': datetime.datetime.utcnow() - datetime.timedelta(hours=hours),
+            'daily': datetime.datetime.utcnow() - datetime.timedelta(days=days)
+        }
+
+        # Create a dataframe dictionary to hold both hourly and daily dataframes
+        df_dict = {}
+
+        for freq in ['hourly', 'daily']:
+            start_date = date_to_str(time_map[freq], format='%Y-%m-%d')
+            query = f"""
+                    SELECT DISTINCT timestamp , site_id, device_number, pm2_5_calibrated_value 
+                    FROM `{table_map[freq]}` 
+                    WHERE DATE(timestamp) >= '{start_date}' AND device_number IS NOT NULL
+                    ORDER BY device_number, timestamp 
+            """
+            df = pd.read_gbq(query, project_id=configuration.GOOGLE_CLOUD_PROJECT_ID, credentials=credentials)
+            df.rename(columns={'timestamp': 'created_at', 'pm2_5_calibrated_value': 'pm2_5'}, inplace=True)
+            # Add dataframe to dictionary
+            df_dict[freq] = df
+
+        return df_dict['hourly'], df_dict['daily']
+
+    @staticmethod
+    def save_forecasts_to_bigquery(df_hourly, df_daily, hourly_table, daily_table):
+        """saves the dataframes to the bigquery tables"""
+
+        # Save the hourly dataframe
+        df_hourly.to_gbq(
+            destination_table=f"{configuration.GOOGLE_CLOUD_PROJECT_ID}.{configuration.BIGQUERY_DATASET}.{hourly_table}",
+            project_id=configuration.GOOGLE_CLOUD_PROJECT_ID,
+            if_exists='append',
+            credentials=credentials)
+
+        print("Hourly data saved to bigquery")
+
+        # Save the daily dataframe
+        df_daily.to_gbq(
+            destination_table=f"{configuration.GOOGLE_CLOUD_PROJECT_ID}.{configuration.BIGQUERY_DATASET}.{daily_table}",
+            project_id=configuration.GOOGLE_CLOUD_PROJECT_ID,
+            if_exists='append',
+            credentials=credentials)
+
+        print("Daily data saved to bigquery")
