@@ -1,27 +1,17 @@
-const activities = require("@routes/v1/activities");
-const airqlouds = require("@routes/v1/airqlouds");
-const sites = require("@routes/v1/sites");
-const devices = require("@routes/v1/devices");
-const events = require("@routes/v1/events");
-const locations = require("@routes/v1/locations");
-const photos = require("@routes/v1/photos");
-const tips = require("@routes/v1/tips");
-const kya = require("@routes/v1/kya");
-const sensors = require("@routes/v1/sensors");
-const cohorts = require("@routes/v1/cohorts");
-const grids = require("@routes/v1/grids");
+const express = require("express");
+const router = express.Router();
 
-module.exports = {
-  activities,
-  airqlouds,
-  devices,
-  events,
-  locations,
-  photos,
-  kya,
-  tips,
-  sensors,
-  sites,
-  cohorts,
-  grids,
-};
+router.use("/activities", require("@routes/v1/activities"));
+router.use("/airqlouds", require("@routes/v1/airqlouds"));
+router.use("/sites", require("@routes/v1/sites"));
+router.use("/devices", require("@routes/v1/devices"));
+router.use("/events", require("@routes/v1/events"));
+router.use("/locations", require("@routes/v1/locations"));
+router.use("/photos", require("@routes/v1/photos"));
+router.use("/tips", require("@routes/v1/tips"));
+router.use("/kya", require("@routes/v1/kya"));
+router.use("/sensors", require("@routes/v1/sensors"));
+router.use("/cohorts", require("@routes/v1/cohorts"));
+router.use("/grids", require("@routes/v1/grids"));
+
+module.exports = router;

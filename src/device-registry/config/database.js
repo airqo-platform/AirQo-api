@@ -80,4 +80,4 @@ function getModelByTenant(tenantId, modelName, schema) {
   return tenantDb.model(modelName);
 }
 
-module.exports = { getModelByTenant, getTenantDB, mongodb };
+module.exports = { getModelByTenant, getTenantDB, connectToMongoDB };

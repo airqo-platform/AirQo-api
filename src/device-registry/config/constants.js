@@ -65,6 +65,7 @@ const stageConfig = {
 };
 
 const defaultConfig = {
+  SESSION_SECRET: process.env.SESSION_SECRET,
   NETWORKS: process.env.NETWORKS
     ? process.env.NETWORKS.split(",").filter((value) => value.trim() !== "")
     : [],
