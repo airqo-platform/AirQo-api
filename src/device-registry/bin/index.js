@@ -21,7 +21,7 @@ try {
 }
 
 const main = async () => {
-  // kafkaConsumer();
+  kafkaConsumer();
   createServer();
 };
 
