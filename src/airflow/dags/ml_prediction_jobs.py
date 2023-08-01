@@ -38,5 +38,7 @@ def make_forecasts():
     def save_forecasts_to_bq(hourly_df, daily_df):
         BigQueryApi().save_forecasts_to_bigquery(hourly_df, daily_df)
 
-    @task()
-    def
+    # @task()
+    # def add_health_tips(hourly_df, daily_df):
+
+    # @task()

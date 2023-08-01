@@ -2,6 +2,7 @@ from airflow.decorators import dag, task
 
 from airqo_etl_utils.airflow_custom_utils import AirflowUtils
 from airqo_etl_utils.bigquery_api import BigQueryApi
+from airqo_etl_utils.config import configuration
 from airqo_etl_utils.ml_utils import ForecastUtils
 
 
@@ -13,18 +14,8 @@ from airqo_etl_utils.ml_utils import ForecastUtils
     tags=['airqo', 'hourly-forecast', 'daily-forecast', 'training-job']
 )
 def train_forecasting_models():
-    import warnings
-    import mlflow
-    import mlflow.sklearn
-    from lightgbm import LGBMRegressor, early_stopping
-    from config import configuration, environment
-
-    warnings.filterwarnings("ignore")
-
-    mlflow.set_tracking_uri(configuration.MLFLOW_TRACKING_URI)
-    mlflow.set_experiment(experiment_name=f"daily_forecast_{environment}")
-
-    print(f'mlflow server uri: {mlflow.get_tracking_uri()}')
+    project_id = configuration.GOOGLE_CLOUD_PROJECT_ID
+    bucket = configuration.BUCKET_NAME
 
     @task()
     def fetch_training_data():
@@ -36,20 +27,23 @@ def train_forecasting_models():
 
     @task()
     def feature_selection(hourly_df, daily_df):
-        return ForecastUtils.feature_eng_df(hourly_df, daily_df)
+        return ForecastUtils.feature_eng_training_data(hourly_df, daily_df)
 
     @task()
-    def train_models(hourly_df, daily_df):
-        return ForecastUtils.train_model(hourly_df, daily_df)
+    def train_models(hourly_train, daily_train):
+        return ForecastUtils.train_models(hourly_train, daily_train)
 
     @task()
-    def save_models(hourly_clf, daily_clf):
-        ForecastUtils.upload_trained_model_to_gcs(daily_clf, hourly_clf, configuration.GOOGLE_CLOUD_PROJECT_ID)
+    def save_models(hourly_model, daily_model):
+        ForecastUtils.upload_trained_model_to_gcs(hourly_model, daily_model, project_id, bucket,
+                                                  'hourly_forecast_model.pkl',
+                                                  'daily_forecast_model.pkl')
 
     hourly_df, daily_df = fetch_training_data()
     hourly_df, daily_df = preprocess_data(hourly_df, daily_df)
     hourly_df, daily_df = feature_selection(hourly_df, daily_df)
     hourly_clf, daily_clf = train_models(hourly_df, daily_df)
+
     save_models(hourly_clf, daily_clf)
 
 

@@ -363,7 +363,7 @@ class AirQoApi:
             handle_api_error(api_request)
             return None
 
-    def fetch_health_tips(self, ):
+    # def fetch_health_tips( ): TODO: Add health tips wagwis
 
 def handle_api_error(api_request):
     try:

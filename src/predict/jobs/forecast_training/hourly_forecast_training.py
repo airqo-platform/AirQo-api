@@ -16,15 +16,7 @@ mlflow.set_experiment(experiment_name=f"hourly_forecast_{environment}")
 print(f'mlflow server uri: {mlflow.get_tracking_uri()}')
 
 
-def preprocess_forecast_data():
-    print('preprocess_forecast_data started.....')
-    forecast_data = fetch_bigquery_data(job_type='hourly_forecast')
-    forecast_data['created_at'] = pd.to_datetime(forecast_data['created_at'])
-    forecast_data['pm2_5'] = forecast_data.groupby('device_number')['pm2_5'].transform(
-        lambda x: x.interpolate(method='linear', limit_direction='both'))
-    forecast_data = forecast_data.dropna(subset=['pm2_5'])
-    print('preprocess_forecast_data completed.....')
-    return forecast_data
+
 
 
 def initialise_training_constants():

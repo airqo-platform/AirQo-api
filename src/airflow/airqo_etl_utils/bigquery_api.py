@@ -3,6 +3,7 @@ from datetime import datetime
 
 import pandas as pd
 from google.cloud import bigquery
+from google.oauth2 import service_account
 
 from .config import configuration
 from .constants import JobAction, ColumnDataType, Tenant, QueryType
@@ -570,6 +571,7 @@ class BigQueryApi:
 
         for job_type in job_types:
             months = configuration.MONTHS_OF_DATA_HOURLY_JOB if job_type == 'hourly' else configuration.MONTHS_OF_DATA_DAILY_JOB
+            # TODO: issue with staging DB inform Noah
             query = f"""
             SELECT DISTINCT hourly_table.timestamp
                AS
@@ -577,9 +579,9 @@ class BigQueryApi:
                FROM
                `{self.hourly_measurements_table}` AS hourly_table
                WHERE
-               DATE(created_at) >= DATE_SUB(
+               DATE(timestamp) >= DATE_SUB(
                    CURRENT_DATE(), INTERVAL {months} MONTH) AND device_number IS NOT NULL
-                ORDER BY device_number, timestamp ASC
+                ORDER BY device_number, created_at ASC
                """
 
             job_config = bigquery.QueryJobConfig()
@@ -628,8 +630,8 @@ class BigQueryApi:
     @staticmethod
     def save_forecasts_to_bigquery(df_hourly, df_daily, hourly_table, daily_table):
         """saves the dataframes to the bigquery tables"""
-
-        # Save the hourly dataframe
+        credentials = service_account.Credentials.from_service_account_file(
+            configuration.GOOGLE_APPLICATION_CREDENTIALS)
         df_hourly.to_gbq(
             destination_table=f"{configuration.GOOGLE_CLOUD_PROJECT_ID}.{configuration.BIGQUERY_DATASET}.{hourly_table}",
             project_id=configuration.GOOGLE_CLOUD_PROJECT_ID,

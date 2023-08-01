@@ -61,6 +61,7 @@ class Config:
     AIRQO_BASE_URL_V2 = os.getenv("AIRQO_BASE_URL_V2")
     AIRQO_API_KEY = os.getenv("AIRQO_API_KEY")
     GOOGLE_APPLICATION_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+    GOOGLE_PROJECT_ID = os.getenv("GOOGLE_PROJECT_ID")
 
     # Tahmo
     TAHMO_BASE_URL = os.getenv("TAHMO_API_BASE_URL")
@@ -148,5 +149,12 @@ class Config:
     BUCKET_NAME_AIRQO = os.getenv("BUCKET_NAME")
     FILE_PATH_AIRQO = os.getenv("FILE_PATH_AIRQO")
 
+    # Forecast job
+    MONTHS_OF_DATA_HOURLY_JOB = os.getenv("MONTHS_OF_DATA_HOURLY_JOB")
+    MONTHS_OF_DATA_DAILY_JOB = os.getenv("MONTHS_OF_DATA_DAILY_JOB")
+    NUMBER_OF_HOURS = os.getenv("NUMBER_OF_HOURS")
+    NUMBER_OF_DAYS= os.getenv("NUMBER_OF_DAYS")
+    MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI")
+    FORECAST_MODELS_BUCKET = os.getenv("FORECAST_MODELS_BUCKET")
 
 configuration = Config()
