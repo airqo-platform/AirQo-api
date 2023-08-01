@@ -1033,6 +1033,7 @@ const defaultConfig = {
     long_name: 1,
     description: 1,
     grid_tags: 1,
+    visibility: 1,
     admin_level: 1,
     grid_codes: 1,
     centers: 1,
@@ -1099,6 +1100,7 @@ const defaultConfig = {
     name: 1,
     description: 1,
     cohort_tags: 1,
+    visibility: 1,
     cohort_codes: 1,
     devices: "$devices",
     numberOfDevices: {
