@@ -42,17 +42,17 @@ const operationFunction2 = async (messageData) => {
 
 const kafkaConsumer = async () => {
   const kafka = new Kafka({
-    clientId: "constants.KAFKA_CLIENT_ID",
-    brokers: "constants.KAFKA_BOOTSTRAP_SERVERS",
+    clientId: constants.KAFKA_CLIENT_ID,
+    brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
   });
 
   const consumer = kafka.consumer({
-    groupId: "constants.UNIQUE_CONSUMER_GROUP",
+    groupId: constants.UNIQUE_CONSUMER_GROUP,
   });
 
   // Define topic-to-operation function mapping
   const topicOperations = {
-    ["constants.NEW_MOBILE_APP_USER_TOPIC"]: operationFunction1,
+    ["constants.TOPIC_NAME"]: operationFunction1,
     topic2: operationFunction2,
     // Add more topics and their corresponding functions as needed
   };
