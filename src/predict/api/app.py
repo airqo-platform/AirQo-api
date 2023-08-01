@@ -3,13 +3,13 @@ import os
 
 from dotenv import load_dotenv
 from flask import Flask
+from flask_caching import Cache
 from flask_cors import CORS
 from flask_pymongo import PyMongo
+from flask_sqlalchemy import SQLAlchemy
 from geoalchemy2 import Geometry
 
 from config import constants
-from flask_caching import Cache
-from flask_sqlalchemy import SQLAlchemy
 
 app_configuration = constants.app_config.get(os.getenv("FLASK_ENV"))
 load_dotenv()

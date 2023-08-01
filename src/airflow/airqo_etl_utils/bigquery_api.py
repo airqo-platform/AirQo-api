@@ -43,8 +43,8 @@ class BigQueryApi:
         self.package_directory, _ = os.path.split(__file__)
 
     def get_devices_hourly_data(
-            self,
-            day: datetime,
+        self,
+        day: datetime,
     ) -> pd.DataFrame:
         query = (
             f" SELECT {self.hourly_measurements_table}.pm2_5_calibrated_value , "
@@ -70,8 +70,8 @@ class BigQueryApi:
         return dataframe
 
     def save_devices_summary_data(
-            self,
-            data: pd.DataFrame,
+        self,
+        data: pd.DataFrame,
     ):
         schema = [
             bigquery.SchemaField("device", "STRING"),
@@ -93,13 +93,13 @@ class BigQueryApi:
         job.result()
 
     def validate_data(
-            self,
-            dataframe: pd.DataFrame,
-            table: str,
-            raise_exception=True,
-            date_time_columns=None,
-            float_columns=None,
-            integer_columns=None,
+        self,
+        dataframe: pd.DataFrame,
+        table: str,
+        raise_exception=True,
+        date_time_columns=None,
+        float_columns=None,
+        integer_columns=None,
     ) -> pd.DataFrame:
         valid_cols = self.get_columns(table=table)
         dataframe_cols = dataframe.columns.to_list()
@@ -145,11 +145,11 @@ class BigQueryApi:
         return dataframe.drop_duplicates(keep="first")
 
     def get_columns(
-            self, table: str, column_type: ColumnDataType = ColumnDataType.NONE
+        self, table: str, column_type: ColumnDataType = ColumnDataType.NONE
     ) -> list:
         if (
-                table == self.hourly_measurements_table
-                or table == self.daily_measurements_table
+            table == self.hourly_measurements_table
+            or table == self.daily_measurements_table
         ):
             schema_file = "measurements.json"
         elif table == self.forecast_measurements_table:
@@ -176,8 +176,8 @@ class BigQueryApi:
         elif table == self.devices_table:
             schema_file = "devices.json"
         elif (
-                table == self.clean_mobile_raw_measurements_table
-                or table == self.unclean_mobile_raw_measurements_table
+            table == self.clean_mobile_raw_measurements_table
+            or table == self.unclean_mobile_raw_measurements_table
         ):
             schema_file = "mobile_measurements.json"
         elif table == self.airqo_mobile_measurements_table:
@@ -229,10 +229,10 @@ class BigQueryApi:
         return list(set(columns))
 
     def load_data(
-            self,
-            dataframe: pd.DataFrame,
-            table: str,
-            job_action: JobAction = JobAction.APPEND,
+        self,
+        dataframe: pd.DataFrame,
+        table: str,
+        job_action: JobAction = JobAction.APPEND,
     ) -> None:
         dataframe.reset_index(drop=True, inplace=True)
         dataframe = self.validate_data(dataframe=dataframe, table=table)
@@ -310,10 +310,10 @@ class BigQueryApi:
         )
 
     def update_sites_and_devices(
-            self,
-            dataframe: pd.DataFrame,
-            table: str,
-            component: str,
+        self,
+        dataframe: pd.DataFrame,
+        table: str,
+        component: str,
     ) -> None:
         dataframe.reset_index(drop=True, inplace=True)
         dataframe = self.validate_data(dataframe=dataframe, table=table)
@@ -388,9 +388,9 @@ class BigQueryApi:
         )
 
     def update_data(
-            self,
-            dataframe: pd.DataFrame,
-            table: str,
+        self,
+        dataframe: pd.DataFrame,
+        table: str,
     ) -> None:
         dataframe.reset_index(drop=True, inplace=True)
         dataframe = self.validate_data(dataframe=dataframe, table=table)
@@ -427,15 +427,15 @@ class BigQueryApi:
         )
 
     def compose_query(
-            self,
-            query_type: QueryType,
-            table: str,
-            start_date_time: str,
-            end_date_time: str,
-            tenant: Tenant,
-            where_fields: dict = None,
-            null_cols: list = None,
-            columns: list = None,
+        self,
+        query_type: QueryType,
+        table: str,
+        start_date_time: str,
+        end_date_time: str,
+        tenant: Tenant,
+        where_fields: dict = None,
+        null_cols: list = None,
+        columns: list = None,
     ) -> str:
         null_cols = [] if null_cols is None else null_cols
         where_fields = {} if where_fields is None else where_fields
@@ -479,14 +479,14 @@ class BigQueryApi:
         return query
 
     def reload_data(
-            self,
-            dataframe: pd.DataFrame,
-            table: str,
-            tenant: Tenant = Tenant.ALL,
-            start_date_time: str = None,
-            end_date_time: str = None,
-            where_fields: dict = None,
-            null_cols: list = None,
+        self,
+        dataframe: pd.DataFrame,
+        table: str,
+        tenant: Tenant = Tenant.ALL,
+        start_date_time: str = None,
+        end_date_time: str = None,
+        where_fields: dict = None,
+        null_cols: list = None,
     ) -> None:
         if start_date_time is None or end_date_time is None:
             data = dataframe.copy()
@@ -509,14 +509,14 @@ class BigQueryApi:
         self.load_data(dataframe=dataframe, table=table)
 
     def query_data(
-            self,
-            start_date_time: str,
-            end_date_time: str,
-            table: str,
-            tenant: Tenant,
-            columns: list = None,
-            where_fields: dict = None,
-            null_cols: list = None,
+        self,
+        start_date_time: str,
+        end_date_time: str,
+        table: str,
+        tenant: Tenant,
+        columns: list = None,
+        where_fields: dict = None,
+        null_cols: list = None,
     ) -> pd.DataFrame:
         query = self.compose_query(
             QueryType.GET,
@@ -568,17 +568,9 @@ class BigQueryApi:
         query = f"""
         SELECT DISTINCT raw_device_data_table.timestamp
            AS
-           timestamp, raw_device_data_table.device_id AS device_name, raw_device_data_table.s1_pm2_5 AS s1_pm2_5, raw_device_data_table.s2_pm2_5 AS s2_pm2_5, airqlouds_table.name AS airqloud_name
+           timestamp, raw_device_data_table.device_id AS device_name, raw_device_data_table.s1_pm2_5 AS s1_pm2_5, raw_device_data_table.s2_pm2_5 AS s2_pm2_5
            FROM
            `{self.raw_measurements_table}` AS raw_device_data_table
-           JOIN
-           `{self.airqlouds_sites_table}` AS airqloud_sites_table
-           ON
-           raw_device_data_table.site_id = airqloud_sites_table.site_id
-           JOIN
-           `{self.airqlouds_table}` AS airqlouds_table
-           ON
-           airqloud_sites_table.airqloud_id = airqlouds_table.id
            WHERE
            DATE(timestamp) >= DATE_SUB(
                CURRENT_DATE(), INTERVAL 7 DAY) 
@@ -589,27 +581,29 @@ class BigQueryApi:
         job_config.use_query_cache = True
 
         dataframe = (
-            bigquery.Client()
-            .query(f"{query}", job_config)
-            .result()
-            .to_dataframe()
+            bigquery.Client().query(f"{query}", job_config).result().to_dataframe()
         )
-        print('Data got from BigQuery')
-        dataframe['timestamp'] = pd.to_datetime(dataframe['timestamp'])
-        dataframe = dataframe.groupby(['device_name', 'timestamp', 's1_pm2_5', 's2_pm2_5'])['airqloud_name'].apply(
-            list).reset_index()
-        df2 = dataframe[['airqloud_name', 'device_name']].drop_duplicates(keep="first", subset=['device_name'])
-        dataframe.drop('airqloud_name', axis=1, inplace=True)
-        dataframe = dataframe.groupby(['device_name', pd.Grouper(key='timestamp', freq='H')]).mean(
-            numeric_only=True)
+        dataframe["timestamp"] = pd.to_datetime(dataframe["timestamp"])
+        dataframe = dataframe.groupby(
+            ["device_name", pd.Grouper(key="timestamp", freq="H")]
+        ).mean(numeric_only=True)
         dataframe = dataframe.reset_index()
-        dataframe.sort_values(by=['device_name', 'timestamp'], inplace=True)
-        new_index = pd.MultiIndex.from_product([dataframe['device_name'].unique(),
-                                                pd.date_range(start=dataframe['timestamp'].min(),
-                                                              end=dataframe['timestamp'].max(),
-                                                              freq='H')],
-                                               names=['device_name', 'timestamp'])
-        dataframe = dataframe.set_index(['device_name', 'timestamp']).reindex(new_index).reset_index()
-        result_df = pd.merge(dataframe, df2, on='device_name', how='left')
+        dataframe.sort_values(by=["device_name", "timestamp"], inplace=True)
+        new_index = pd.MultiIndex.from_product(
+            [
+                dataframe["device_name"].unique(),
+                pd.date_range(
+                    start=dataframe["timestamp"].min(),
+                    end=dataframe["timestamp"].max(),
+                    freq="H",
+                ),
+            ],
+            names=["device_name", "timestamp"],
+        )
+        dataframe = (
+            dataframe.set_index(["device_name", "timestamp"])
+            .reindex(new_index)
+            .reset_index()
+        )
 
-        return result_df
+        return dataframe

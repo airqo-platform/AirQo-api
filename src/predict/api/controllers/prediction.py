@@ -1,10 +1,11 @@
 import logging
 import traceback
-from app import cache
 
 from dotenv import load_dotenv
 from flask import Blueprint, request, jsonify
 
+from app import cache
+from config.constants import Config
 from helpers.utils import (
     get_predictions_by_geo_coordinates_v2,
     get_parish_predictions,
@@ -21,9 +22,7 @@ from helpers.utils import (
     validate_params,
     read_faulty_devices
 )
-
 from routes import api
-from config.constants import Config
 
 load_dotenv()
 
