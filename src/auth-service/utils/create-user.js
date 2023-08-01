@@ -23,9 +23,20 @@ const moment = require("moment-timezone");
 const admin = require("firebase-admin");
 const { db } = require("@config/firebase-admin");
 const redis = require("@config/redis");
+const { generateDateFormatWithoutHrs } = require("@utils/date");
 
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- create-user-util`);
+
+function generateNumericToken(length) {
+  const charset = "0123456789";
+  let token = "";
+  for (let i = 0; i < length; i++) {
+    const randomIndex = Math.floor(Math.random() * charset.length);
+    token += charset[randomIndex];
+  }
+  return token;
+}
 
 async function storeDataInRedis(token, data) {
   try {
@@ -609,9 +620,8 @@ const createUserModule = {
       });
     }
   },
-  setCache: (data, request, callback) => {
+  setCache: (cacheID, callback) => {
     try {
-      const cacheID = createUserModule.generateCacheID(request);
       redis.set(
         cacheID,
         JSON.stringify({
@@ -621,7 +631,7 @@ const createUserModule = {
           data,
         })
       );
-      redis.expire(cacheID, parseInt(100));
+      redis.expire(cacheID, 3600);
       callback({
         success: true,
         message: "response stored in cache",
@@ -678,9 +688,18 @@ const createUserModule = {
   },
   generateCacheID: (request) => {
     const { tenant, skip, limit } = request.query;
+    const { context } = request;
     const currentTime = new Date().toISOString();
+    if (isEmpty(context)) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: "the request is missing the context" },
+        status: httpStatus.BAD_REQUEST,
+      };
+    }
     const day = generateDateFormatWithoutHrs(currentTime);
-    return `list_events_${tenant}_${skip ? skip : 0}_${limit ? limit : 0}_${
+    return `${context}_${tenant}_${skip ? skip : 0}_${limit ? limit : 0}_${
       day ? day : "noDay"
     }`;
   },
@@ -703,36 +722,48 @@ const createUserModule = {
             const firebaseUser = firebaseUserResponse.userRecord;
             logObject("firebaseUser", firebaseUser);
             logObject("firebaseUser.uid", firebaseUser.uid);
+            const firebase_uid = firebaseUser.uid;
 
             // Generate the custom token
-            const token = accessCodeGenerator.generate(
-              constants.ACCESS_TOKEN_CONFIGURATION(5)
-            );
+            const token = generateNumericToken(5);
             /*.
             We are now going to save this new token in our Redis DB
             After successful storage of this token, then we can be able to 
             **/
-            logObject("token", token);
-            const firebase_uid = firebaseUser.uid;
-            const responseFromSendEmail = await mailer.verifyMobileEmail({
-              token,
-              email,
-              firebase_uid,
-            });
-
-            logObject("responseFromSendEmail", responseFromSendEmail);
-            if (responseFromSendEmail.success === true) {
-              callback({
-                success: true,
-                message: "An Email sent to your account, please verify",
-                data: firebaseUser,
-                status: responseFromSendEmail.status
-                  ? responseFromSendEmail.status
-                  : "",
-              });
-            } else if (responseFromSendEmail.success === false) {
-              callback(responseFromSendEmail);
+            let generateCacheRequest = Object.assign({}, request);
+            generateCacheRequest.context = firebase_uid;
+            const cacheID =
+              createUserModule.generateCacheID(generateCacheRequest);
+            if (cacheID.success && cacheID.success === false) {
+              callback(cacheID);
             }
+            return createUserModule.setCache(cacheID, async (result) => {
+              if (result.success === true) {
+                logObject("token", token);
+
+                const responseFromSendEmail = await mailer.verifyMobileEmail({
+                  token,
+                  email,
+                  firebase_uid,
+                });
+
+                logObject("responseFromSendEmail", responseFromSendEmail);
+                if (responseFromSendEmail.success === true) {
+                  callback({
+                    success: true,
+                    message: "An Email sent to your account, please verify",
+                    data: firebaseUser,
+                    status: responseFromSendEmail.status
+                      ? responseFromSendEmail.status
+                      : "",
+                  });
+                } else if (responseFromSendEmail.success === false) {
+                  callback(responseFromSendEmail);
+                }
+              } else if (result.success === false) {
+                callback(result);
+              }
+            });
           } else {
             callback({
               success: false,

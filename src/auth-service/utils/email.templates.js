@@ -251,6 +251,8 @@ module.exports = {
                                     </br>
                                     <a href=${url} target="_blank">${url}</a>
                                     <br /><br />
+                                    Alternatively, just enter the number in the Mobile App: ${token}
+                                    <br /><br />
                                     <div
                                         style="width: 100%; opacity: 0.60; color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word">
                                         You can set a permanent password anytime within your AirQo Analytics personal settings<br />Didn't make this
