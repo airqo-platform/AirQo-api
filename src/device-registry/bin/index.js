@@ -6,7 +6,6 @@ const kafkaConsumer = require("./kafka-consumer");
 const createServer = require("./server");
 const log4js = require("log4js");
 const constants = require("@config/constants");
-
 const log4jsConfiguration = require("@config/log4js");
 log4js.configure(log4jsConfiguration);
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- www-start-script`);
@@ -21,7 +20,9 @@ try {
 }
 
 const main = async () => {
-  kafkaConsumer();
+  if (constants.ENVIRONMENT === "STAGING ENVIRONMENT") {
+    kafkaConsumer();
+  }
   createServer();
 };
 
