@@ -1,17 +1,51 @@
-# node-js-sample
+# Data Management Microservice
 
-A mono-repo within a mono repo which contains multiple microservices that handle various tasks in the platform's pipeline.
-Tasks including: extracting data from various sources, transforming and loading it afterwards.
-Contains multiple microservices that use different technologies (java, python, nodejs and go);
+![Node.js](https://img.shields.io/badge/node-%3E%3D%2012.0.0-brightgreen.svg)
+![Docker](https://img.shields.io/docker/v/<your_docker_username>/iot-measurements-microservice)
 
-## Running Locally
+## Overview
 
-Just go inside each microservice to get the running instructions from the respective README file.
+This data management microservice is a Node.js-based application deployed using Docker. It retrieves measurements from another system related to devices and performs various transformations to enhance the data with more descriptive field names. Additionally, the microservice monitors faults in the device data and appropriately flags them.
 
-## Deployment
+## Features
 
-The microservices are deployed using Docker, Kubernetes cluster which is hosted using GCP
+- Fetches device measurements from external system
+- Transforms measurements into a new format with descriptive field names
+- Performs additional data transformations as needed
+- Monitors faults in device data and flags them for further analysis
 
-## Documentation
+## Installation
 
-The API documentation for the different microservices can be found here.
+1. Clone the repository.
+2. Install dependencies using `npm install`.
+
+## Usage
+
+1. Ensure Docker is installed on your system.
+2. Build the Docker image: `docker build -t data-mgt .`
+3. Run the Docker container: `docker run -p 3000:3000 data-mgt`
+
+## API Endpoints
+
+### GET /measurements
+
+Retrieves device measurements in the new format.
+
+## Configuration
+
+Environment variables:
+
+- `PORT` (default: 3000) - The port on which the microservice will run.
+
+## Contributing
+
+1. Fork the repository.
+2. Create a new branch: `git checkout -b feature/your-feature`.
+3. Commit your changes: `git commit -m 'Add some feature'`.
+4. Push to the branch: `git push origin feature/your-feature`.
+5. Submit a pull request.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
