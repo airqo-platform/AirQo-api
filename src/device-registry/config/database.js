@@ -31,24 +31,16 @@ const connectToMongoDB = () => {
   try {
     const db = connect();
     db.on("open", () => {});
-
-    db.on("error", (err) => {
-      // process.exit(0);
-    });
+    db.on("error", (err) => {});
 
     db.on("disconnection", (err) => {});
 
     process.on("unlimitedRejection", (reason, p) => {
       console.log("Unhandled Rejection at: Promise", p, "reason:", reason);
-      // process.exit(0);
-      // db.close(() => {
-      //   process.exit(0);
-      // });
     });
 
     process.on("uncaughtException", (err) => {
       console.error("There was an uncaught error", err);
-      // process.exit(1);
     });
 
     return db;
@@ -57,10 +49,6 @@ const connectToMongoDB = () => {
 
 const mongodb = connectToMongoDB();
 
-/****
- * creating a new mongoDB connection by switching tenant
- * using this to create a new connection based on tenant ID
- */
 function getTenantDB(tenantId, modelName, schema) {
   const dbName = `${constants.DB_NAME}_${tenantId}`;
   if (mongodb) {
@@ -70,14 +58,9 @@ function getTenantDB(tenantId, modelName, schema) {
   }
 }
 
-/****
-   * return model as per tenant
-  we shall use this to create the model
-  afterwards, we can be able to use this model to carry out any kinds of CRUD
-   */
 function getModelByTenant(tenantId, modelName, schema) {
   const tenantDb = getTenantDB(tenantId, modelName, schema);
   return tenantDb.model(modelName);
 }
 
-module.exports = { getModelByTenant, getTenantDB, mongodb };
+module.exports = { getModelByTenant, getTenantDB, connectToMongoDB };
