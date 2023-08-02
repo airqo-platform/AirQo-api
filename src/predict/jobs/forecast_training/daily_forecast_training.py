@@ -55,6 +55,8 @@ def train_model(train):
     """
     Perform the actual training
     """
+    import joblib
+
     print('feature selection started.....')
     features = [c for c in train.columns if c not in ["created_at", "pm2_5"]]
     print(features)

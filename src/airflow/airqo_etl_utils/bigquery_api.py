@@ -11,6 +11,9 @@ from .date import date_to_str
 from .utils import Utils
 
 
+# from datetime import datetime
+
+
 class BigQueryApi:
     def __init__(self):
         self.client = bigquery.Client()
@@ -44,8 +47,8 @@ class BigQueryApi:
         self.package_directory, _ = os.path.split(__file__)
 
     def get_devices_hourly_data(
-            self,
-            day: datetime,
+        self,
+        day: datetime,
     ) -> pd.DataFrame:
         query = (
             f" SELECT {self.hourly_measurements_table}.pm2_5_calibrated_value , "
@@ -71,8 +74,8 @@ class BigQueryApi:
         return dataframe
 
     def save_devices_summary_data(
-            self,
-            data: pd.DataFrame,
+        self,
+        data: pd.DataFrame,
     ):
         schema = [
             bigquery.SchemaField("device", "STRING"),
@@ -94,13 +97,13 @@ class BigQueryApi:
         job.result()
 
     def validate_data(
-            self,
-            dataframe: pd.DataFrame,
-            table: str,
-            raise_exception=True,
-            date_time_columns=None,
-            float_columns=None,
-            integer_columns=None,
+        self,
+        dataframe: pd.DataFrame,
+        table: str,
+        raise_exception=True,
+        date_time_columns=None,
+        float_columns=None,
+        integer_columns=None,
     ) -> pd.DataFrame:
         valid_cols = self.get_columns(table=table)
         dataframe_cols = dataframe.columns.to_list()
@@ -146,11 +149,11 @@ class BigQueryApi:
         return dataframe.drop_duplicates(keep="first")
 
     def get_columns(
-            self, table: str, column_type: ColumnDataType = ColumnDataType.NONE
+        self, table: str, column_type: ColumnDataType = ColumnDataType.NONE
     ) -> list:
         if (
-                table == self.hourly_measurements_table
-                or table == self.daily_measurements_table
+            table == self.hourly_measurements_table
+            or table == self.daily_measurements_table
         ):
             schema_file = "measurements.json"
         elif table == self.forecast_measurements_table:
@@ -177,8 +180,8 @@ class BigQueryApi:
         elif table == self.devices_table:
             schema_file = "devices.json"
         elif (
-                table == self.clean_mobile_raw_measurements_table
-                or table == self.unclean_mobile_raw_measurements_table
+            table == self.clean_mobile_raw_measurements_table
+            or table == self.unclean_mobile_raw_measurements_table
         ):
             schema_file = "mobile_measurements.json"
         elif table == self.airqo_mobile_measurements_table:
@@ -230,10 +233,10 @@ class BigQueryApi:
         return list(set(columns))
 
     def load_data(
-            self,
-            dataframe: pd.DataFrame,
-            table: str,
-            job_action: JobAction = JobAction.APPEND,
+        self,
+        dataframe: pd.DataFrame,
+        table: str,
+        job_action: JobAction = JobAction.APPEND,
     ) -> None:
         dataframe.reset_index(drop=True, inplace=True)
         dataframe = self.validate_data(dataframe=dataframe, table=table)
@@ -311,10 +314,10 @@ class BigQueryApi:
         )
 
     def update_sites_and_devices(
-            self,
-            dataframe: pd.DataFrame,
-            table: str,
-            component: str,
+        self,
+        dataframe: pd.DataFrame,
+        table: str,
+        component: str,
     ) -> None:
         dataframe.reset_index(drop=True, inplace=True)
         dataframe = self.validate_data(dataframe=dataframe, table=table)
@@ -389,9 +392,9 @@ class BigQueryApi:
         )
 
     def update_data(
-            self,
-            dataframe: pd.DataFrame,
-            table: str,
+        self,
+        dataframe: pd.DataFrame,
+        table: str,
     ) -> None:
         dataframe.reset_index(drop=True, inplace=True)
         dataframe = self.validate_data(dataframe=dataframe, table=table)
@@ -428,15 +431,15 @@ class BigQueryApi:
         )
 
     def compose_query(
-            self,
-            query_type: QueryType,
-            table: str,
-            start_date_time: str,
-            end_date_time: str,
-            tenant: Tenant,
-            where_fields: dict = None,
-            null_cols: list = None,
-            columns: list = None,
+        self,
+        query_type: QueryType,
+        table: str,
+        start_date_time: str,
+        end_date_time: str,
+        tenant: Tenant,
+        where_fields: dict = None,
+        null_cols: list = None,
+        columns: list = None,
     ) -> str:
         null_cols = [] if null_cols is None else null_cols
         where_fields = {} if where_fields is None else where_fields
@@ -480,14 +483,14 @@ class BigQueryApi:
         return query
 
     def reload_data(
-            self,
-            dataframe: pd.DataFrame,
-            table: str,
-            tenant: Tenant = Tenant.ALL,
-            start_date_time: str = None,
-            end_date_time: str = None,
-            where_fields: dict = None,
-            null_cols: list = None,
+        self,
+        dataframe: pd.DataFrame,
+        table: str,
+        tenant: Tenant = Tenant.ALL,
+        start_date_time: str = None,
+        end_date_time: str = None,
+        where_fields: dict = None,
+        null_cols: list = None,
     ) -> None:
         if start_date_time is None or end_date_time is None:
             data = dataframe.copy()
@@ -510,14 +513,14 @@ class BigQueryApi:
         self.load_data(dataframe=dataframe, table=table)
 
     def query_data(
-            self,
-            start_date_time: str,
-            end_date_time: str,
-            table: str,
-            tenant: Tenant,
-            columns: list = None,
-            where_fields: dict = None,
-            null_cols: list = None,
+        self,
+        start_date_time: str,
+        end_date_time: str,
+        table: str,
+        tenant: Tenant,
+        columns: list = None,
+        where_fields: dict = None,
+        null_cols: list = None,
     ) -> pd.DataFrame:
         query = self.compose_query(
             QueryType.GET,
@@ -565,78 +568,97 @@ class BigQueryApi:
         dataframe = self.client.query(query=query).result().to_dataframe()
         return dataframe.drop_duplicates(keep="first")
 
-    def fetch_forecast_training_data(self):
-        job_types = ['hourly', 'daily']
-        dataframe_results = {}
+    def fetch_hourly_forecast_training_data(self):
+        # TODO: issue with staging DB inform Noah
+        query = f"""
+        SELECT DISTINCT hourly_table.timestamp AS created_at, 
+        hourly_table.device_number AS device_number, 
+        hourly_table.pm2_5_calibrated_value AS pm2_5, 
+        FROM
+        `{self.hourly_measurements_table}` AS hourly_table
+        WHERE
+        DATE(timestamp) >= DATE_SUB(
+               CURRENT_DATE(), INTERVAL {configuration.MONTHS_OF_DATA_HOURLY_JOB} MONTH) AND device_number IS NOT NULL
+            ORDER BY device_number, created_at ASC
+           """
 
-        for job_type in job_types:
-            months = configuration.MONTHS_OF_DATA_HOURLY_JOB if job_type == 'hourly' else configuration.MONTHS_OF_DATA_DAILY_JOB
-            # TODO: issue with staging DB inform Noah
-            query = f"""
-            SELECT DISTINCT hourly_table.timestamp
-               AS
-               created_at, hourly_table.device_number AS device_number, hourly_table.pm2_5_calibrated_value AS pm2_5, 
-               FROM
-               `{self.hourly_measurements_table}` AS hourly_table
-               WHERE
-               DATE(timestamp) >= DATE_SUB(
-                   CURRENT_DATE(), INTERVAL {months} MONTH) AND device_number IS NOT NULL
-                ORDER BY device_number, created_at ASC
-               """
+        job_config = bigquery.QueryJobConfig()
+        job_config.use_query_cache = True
 
-            job_config = bigquery.QueryJobConfig()
-            job_config.use_query_cache = True
+        df = bigquery.Client().query(f"{query}", job_config).result().to_dataframe()
+        return df
 
-            df = (
-                bigquery.Client()
-                .query(f"{query}", job_config)
-                .result()
-                .to_dataframe()
-            )
-            dataframe_results[job_type] = df
+    def fetch_daily_forecast_training_data(self):
+        # TODO: issue with staging DB inform Noah
+        query = f"""
+        SELECT DISTINCT hourly_table.timestamp
+           AS
+           created_at, hourly_table.device_number AS device_number, hourly_table.pm2_5_calibrated_value AS pm2_5, 
+           FROM
+           `{self.hourly_measurements_table}` AS hourly_table
+           WHERE
+           DATE(timestamp) >= DATE_SUB(
+               CURRENT_DATE(), INTERVAL {configuration.MONTHS_OF_DATA_DAILY_JOB} MONTH) AND device_number IS NOT NULL
+            ORDER BY device_number, created_at ASC
+           """
 
-        return dataframe_results['hourly'], dataframe_results['daily']
+        job_config = bigquery.QueryJobConfig()
+        job_config.use_query_cache = True
 
-    def fetch_forecast_data(hours=int(configuration.NUMBER_OF_HOURS), days=int(configuration.NUMBER_OF_DAYS)):
+        df = bigquery.Client().query(f"{query}", job_config).result().to_dataframe()
+        return df
+
+    def fetch_forecast_data(
+        hours=int(configuration.NUMBER_OF_HOURS), days=int(configuration.NUMBER_OF_DAYS)
+    ):
         """gets data from the bigquery table"""
 
         table_map = {
-            'hourly': f"{configuration.GOOGLE_CLOUD_PROJECT_ID}.averaged_data.hourly_device_measurements",
-            'daily': f"{configuration.BIGQUERY_HOURLY_TABLE}"
+            "hourly": f"{configuration.GOOGLE_CLOUD_PROJECT_ID}.averaged_data.hourly_device_measurements",
+            "daily": f"{configuration.BIGQUERY_HOURLY_TABLE}",
         }
         time_map = {
-            'hourly': datetime.datetime.utcnow() - datetime.timedelta(hours=hours),
-            'daily': datetime.datetime.utcnow() - datetime.timedelta(days=days)
+            "hourly": datetime.datetime.utcnow() - datetime.timedelta(hours=hours),
+            "daily": datetime.datetime.utcnow() - datetime.timedelta(days=days),
         }
 
         # Create a dataframe dictionary to hold both hourly and daily dataframes
         df_dict = {}
 
-        for freq in ['hourly', 'daily']:
-            start_date = date_to_str(time_map[freq], format='%Y-%m-%d')
+        for freq in ["hourly", "daily"]:
+            start_date = date_to_str(time_map[freq], format="%Y-%m-%d")
             query = f"""
                     SELECT DISTINCT timestamp , site_id, device_number, pm2_5_calibrated_value 
                     FROM `{table_map[freq]}` 
                     WHERE DATE(timestamp) >= '{start_date}' AND device_number IS NOT NULL
                     ORDER BY device_number, timestamp 
             """
-            df = pd.read_gbq(query, project_id=configuration.GOOGLE_CLOUD_PROJECT_ID, credentials=credentials)
-            df.rename(columns={'timestamp': 'created_at', 'pm2_5_calibrated_value': 'pm2_5'}, inplace=True)
+            df = pd.read_gbq(
+                query,
+                project_id=configuration.GOOGLE_CLOUD_PROJECT_ID,
+                credentials=credentials,
+            )
+            df.rename(
+                columns={"timestamp": "created_at", "pm2_5_calibrated_value": "pm2_5"},
+                inplace=True,
+            )
             # Add dataframe to dictionary
             df_dict[freq] = df
 
-        return df_dict['hourly'], df_dict['daily']
+        return df_dict["hourly"], df_dict["daily"]
 
     @staticmethod
     def save_forecasts_to_bigquery(df_hourly, df_daily, hourly_table, daily_table):
         """saves the dataframes to the bigquery tables"""
         credentials = service_account.Credentials.from_service_account_file(
-            configuration.GOOGLE_APPLICATION_CREDENTIALS)
+            configuration.GOOGLE_APPLICATION_CREDENTIALS
+        )
         df_hourly.to_gbq(
             destination_table=f"{configuration.GOOGLE_CLOUD_PROJECT_ID}.{configuration.BIGQUERY_DATASET}.{hourly_table}",
             project_id=configuration.GOOGLE_CLOUD_PROJECT_ID,
-            if_exists='append',
-            credentials=credentials)
+            if_exists="append",
+            credentials=credentials,
+        )
 
         print("Hourly data saved to bigquery")
 
@@ -644,7 +666,9 @@ class BigQueryApi:
         df_daily.to_gbq(
             destination_table=f"{configuration.GOOGLE_CLOUD_PROJECT_ID}.{configuration.BIGQUERY_DATASET}.{daily_table}",
             project_id=configuration.GOOGLE_CLOUD_PROJECT_ID,
-            if_exists='append',
-            credentials=credentials)
+            if_exists="append",
+            credentials=credentials,
+        )
 
         print("Daily data saved to bigquery")
+
