@@ -92,7 +92,6 @@ const UserSchema = new Schema(
         {
           type: ObjectId,
           ref: "network",
-          unique: true,
         },
       ],
       default: [mongoose.Types.ObjectId(constants.DEFAULT_NETWORK)],
@@ -162,6 +161,17 @@ UserSchema.pre("save", function (next) {
   if (!this.email && !this.phoneNumber) {
     return next(new Error("Phone number or email is required!"));
   }
+
+  // Check for duplicate values in the networks array
+  const duplicateValues = this.networks.filter(
+    (value, index, self) => self.indexOf(value) !== index
+  );
+
+  if (duplicateValues.length > 0) {
+    const error = new Error("Duplicate values found in networks array.");
+    return next(error);
+  }
+
   return next();
 });
 
