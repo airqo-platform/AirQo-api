@@ -22,7 +22,6 @@ const siteSchema = new Schema(
         {
           type: ObjectId,
           ref: "grid",
-          unique: true,
         },
       ],
     },
@@ -333,6 +332,15 @@ siteSchema.pre("save", function(next) {
   }
   if (this.formatted_name) {
     this.site_codes.push(this.formatted_name);
+  }
+
+  // Check for duplicate values in the grids array
+  const duplicateValues = this.grids.filter(
+    (value, index, self) => self.indexOf(value) !== index
+  );
+  if (duplicateValues.length > 0) {
+    const error = new Error("Duplicate values found in grids array.");
+    return next(error);
   }
 
   return next();

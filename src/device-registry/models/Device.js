@@ -30,10 +30,8 @@ const deviceSchema = new mongoose.Schema(
         {
           type: ObjectId,
           ref: "cohort",
-          unique: true,
         },
       ],
-      default: [mongoose.Types.ObjectId(constants.DEFAULT_COHORT)],
     },
     latitude: {
       type: Number,
@@ -212,6 +210,15 @@ deviceSchema.pre("save", function(next) {
   }
   if (this.alias) {
     this.device_codes.push(this.alias);
+  }
+
+  // Check for duplicate values in the grids array
+  const duplicateValues = this.cohorts.filter(
+    (value, index, self) => self.indexOf(value) !== index
+  );
+  if (duplicateValues.length > 0) {
+    const error = new Error("Duplicate values found in cohorts array.");
+    return next(error);
   }
 
   return next();
