@@ -23,7 +23,8 @@
         "@config": "config",
         "@middleware": "middleware",
         "@scripts": "scripts",
-        "@routes": "routes"
+        "@routes": "routes",
+        "@bin": "bin"
     },
     "dependencies": {
         "@google-cloud/bigquery": "^5.5.0",
