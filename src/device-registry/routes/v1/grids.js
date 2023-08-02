@@ -213,31 +213,10 @@ router.post(
         .notEmpty()
         .withMessage("admin_level should not be empty")
         .bail()
+        .toLowerCase()
         .custom(validateAdminLevels)
-        // .isIn([
-        //   "village",
-        //   "district",
-        //   "parish",
-        //   "division",
-        //   "county",
-        //   "subcounty",
-        //   "country",
-        //   "state",
-        //   "province",
-        //   "region",
-        //   "municipality",
-        //   "city",
-        //   "town",
-        //   "ward",
-        //   "neighborhood",
-        //   "community",
-        //   "census tract",
-        //   "block",
-        //   "postal code",
-        //   "zip code",
-        // ])
         .withMessage(
-          "admin_level values include but not limited to: province, state, village, county, subcounty, village, parish, country, division and district"
+          "admin_level values include but not limited to: province, state, village, county, etc. Update your GLOBAL configs"
         ),
       body("network")
         .trim()
@@ -293,30 +272,8 @@ router.get(
         .bail()
         .toLowerCase()
         .custom(validateAdminLevels)
-        // .isIn([
-        //   "village",
-        //   "district",
-        //   "parish",
-        //   "division",
-        //   "county",
-        //   "subcounty",
-        //   "country",
-        //   "state",
-        //   "province",
-        //   "region",
-        //   "municipality",
-        //   "city",
-        //   "town",
-        //   "ward",
-        //   "neighborhood",
-        //   "community",
-        //   "census tract",
-        //   "block",
-        //   "postal code",
-        //   "zip code",
-        // ])
         .withMessage(
-          "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district"
+          "admin_level values include but not limited to: province, state, village, county, etc. Update your GLOBAL configs"
         ),
     ],
   ]),
@@ -406,9 +363,10 @@ router.put(
         .notEmpty()
         .withMessage("the admin_level should not be empty if provided")
         .bail()
+        .toLowerCase()
         .custom(validateAdminLevels)
         .withMessage(
-          "admin_level values include but not limited to: province, state, village, county, subcounty, village, parish, country, division and district"
+          "admin_level values include but not limited to: province, state, village, county, etc. Update your GLOBAL configs"
         ),
     ],
   ]),

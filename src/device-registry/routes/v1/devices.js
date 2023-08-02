@@ -9,6 +9,32 @@ const numeral = require("numeral");
 const { logElement, logText, logObject } = require("@utils/log");
 const phoneUtil = require("google-libphonenumber").PhoneNumberUtil.getInstance();
 const decimalPlaces = require("decimal-places");
+const { getModelByTenant } = require("@config/database");
+
+const NetworkSchema = require("@models/Network");
+const NetworkModel = (tenant) => {
+  try {
+    const networks = mongoose.model("networks");
+    return networks;
+  } catch (error) {
+    const networks = getModelByTenant(tenant, "network", NetworkSchema);
+    return networks;
+  }
+};
+
+const validNetworks = async () => {
+  const networks = await NetworkModel("airqo").distinct("name");
+  return networks.map((network) => network.toLowerCase());
+};
+
+const validateNetwork = async (value) => {
+  const networks = await validNetworks();
+  if (!networks.includes(value.toLowerCase())) {
+    throw new Error("Invalid network");
+  }
+};
+
+logObject("validateNetwork", validateNetwork);
 
 const headers = (req, res, next) => {
   // const allowedOrigins = constants.DOMAIN_WHITELIST;
@@ -37,7 +63,7 @@ router.put(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "usembassy", "nasa", "unep"])
+      .custom(validateNetwork)
       .withMessage("the network value is not among the expected ones"),
   ]),
   deviceController.bulkUpdate
@@ -51,7 +77,7 @@ router.post(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "usembassy", "nasa", "unep"])
+      .custom(validateNetwork)
       .withMessage("the network value is not among the expected ones"),
   ]),
   deviceController.bulkCreate
@@ -464,7 +490,7 @@ router.post(
         .withMessage("the network should not be empty if provided")
         .bail()
         .toLowerCase()
-        .isIn(constants.NETWORKS)
+        .custom(validateNetwork)
         .withMessage("the network value is not among the expected ones"),
       body("device_number")
         .optional()
@@ -1178,7 +1204,7 @@ router.post(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(constants.NETWORKS)
+        .custom(validateNetwork)
         .withMessage("the network value is not among the expected ones"),
       body("visibility")
         .optional()
