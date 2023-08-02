@@ -33,6 +33,7 @@ const deviceSchema = new mongoose.Schema(
           unique: true,
         },
       ],
+      default: [mongoose.Types.ObjectId(constants.DEFAULT_COHORT)],
     },
     latitude: {
       type: Number,

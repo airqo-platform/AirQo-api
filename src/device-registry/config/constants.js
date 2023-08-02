@@ -5,6 +5,7 @@ const { isEmpty } = require("underscore");
 const logger = log4js.getLogger(`${this.ENVIRONMENT} -- constants-config`);
 
 const devConfig = {
+  DEFAULT_COHORT: process.env.DEV_DEFAULT_COHORT,
   MONGO_URI: process.env.MONGO_URI_DEV,
   DB_NAME: process.env.MONGO_DEV,
   REDIS_SERVER: process.env.REDIS_SERVER_DEV,
@@ -24,6 +25,7 @@ const devConfig = {
   DATAWAREHOUSE_AVERAGED_DATA: process.env.DATAWAREHOUSE_AVERAGED_DATA_DEV,
 };
 const prodConfig = {
+  DEFAULT_COHORT: process.env.PROD_DEFAULT_COHORT,
   MONGO_URI: process.env.MONGO_URI_PROD,
   DB_NAME: process.env.MONGO_PROD,
   REDIS_SERVER: process.env.REDIS_SERVER,
@@ -42,8 +44,8 @@ const prodConfig = {
   DATAWAREHOUSE_METADATA: process.env.DATAWAREHOUSE_METADATA_PROD,
   DATAWAREHOUSE_AVERAGED_DATA: process.env.DATAWAREHOUSE_AVERAGED_DATA_PROD,
 };
-
 const stageConfig = {
+  DEFAULT_COHORT: process.env.STAGE_DEFAULT_COHORT,
   MONGO_URI: process.env.MONGO_URI_STAGE,
   DB_NAME: process.env.MONGO_STAGE,
   REDIS_SERVER: process.env.REDIS_SERVER,
