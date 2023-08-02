@@ -14,5 +14,6 @@ router.use("/kya", require("@routes/v2/kya"));
 router.use("/sensors", require("@routes/v2/sensors"));
 router.use("/cohorts", require("@routes/v2/cohorts"));
 router.use("/grids", require("@routes/v2/grids"));
+router.use("/", require("@routes/v2/devices"));
 
 module.exports = router;
