@@ -19,7 +19,6 @@ const activitySchema = new Schema(
     email: {
       type: String,
       unique: true,
-      required: [true, "Email is required"],
       trim: true,
       validate: {
         validator(email) {
