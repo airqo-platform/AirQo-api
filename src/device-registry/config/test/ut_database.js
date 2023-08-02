@@ -6,6 +6,7 @@ const proxyquire = require("proxyquire");
 // Stub the required modules
 const mongooseStub = {
   createConnection: sinon.stub(),
+  set: sinon.stub(),
 };
 const constantsStub = {
   MONGO_URI: "mongodb://localhost:27017/test-db",

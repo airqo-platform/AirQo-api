@@ -10,8 +10,8 @@ const constantsStub = {
   SLACK_USERNAME: "slack-username",
 };
 
-const log4jsModule = proxyquire("./log4jsModule", {
-  "./constants": constantsStub,
+const log4jsModule = proxyquire("@config/log4js", {
+  "@config/constants": constantsStub,
 });
 
 describe("Log4js Configuration", () => {

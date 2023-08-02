@@ -25,9 +25,6 @@ const env = {
 
 // Mock the module with proxyquire and stub the required log4js module
 const log4jsStub = { getLogger: sinon.stub().returns({}) };
-const configModule = proxyquire("./configModule", {
-  log4js: log4jsStub,
-});
 
 describe("Configuration Module", () => {
   let cloudinaryConfig;
