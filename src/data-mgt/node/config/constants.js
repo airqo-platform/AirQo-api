@@ -56,6 +56,9 @@ const prodConfig = {
   DECRYPT_DEVICE_KEY_URL: `${process.env.DEVICE_REGISTRY_BASE_URL_PROD}/decrypt`,
 };
 const defaultConfig = {
+  SLACK_TOKEN: process.env.SLACK_TOKEN,
+  SLACK_CHANNEL: process.env.SLACK_CHANNEL,
+  SLACK_USERNAME: process.env.SLACK_USERNAME,
   SESSION_SECRET: process.env.SESSION_SECRET,
   TS_TEST_CHANNEL: process.env.TS_TEST_CHANNEL,
   TS_API_KEY_TEST_DEVICE: process.env.TS_API_KEY_TEST_DEVICE,
