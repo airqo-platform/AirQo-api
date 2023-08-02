@@ -407,6 +407,7 @@ deviceSchema.statics = {
       };
     } catch (err) {
       logObject("the error in the Device Model", err);
+      logger.error(`Internal Server Error -- ${JSON.stringify(err)}`);
       let response = {};
       let message = "validation errors for some of the provided fields";
       let status = HTTPStatus.CONFLICT;
