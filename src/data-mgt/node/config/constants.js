@@ -3,11 +3,15 @@ const isEmpty = require("is-empty");
 const { logElement, logText, logObject } = require("../utils/log");
 
 const devConfig = {
+  KAFKA_BOOTSTRAP_SERVERS: process.env.DEV_KAFKA_BOOTSTRAP_SERVERS,
+  KAFKA_CLIENT_ID: process.env.DEV_KAFKA_CLIENT_ID,
+  KAFKA_CLIENT_GROUP: process.env.DEV_KAFKA_CLIENT_GROUP,
+  ENVIRONMENT: "DEVELOPMENT ENVIRONMENT",
   MONGO_URI: "mongodb://localhost/",
   JWT_SECRET: process.env.JWT_SECRET,
   DB_NAME: process.env.MONGO_DEV,
-  REDIS_SERVER: process.env.REDIS_SERVER_DEV,
-  REDIS_PORT: process.env.REDIS_PORT,
+  REDIS_SERVER: process.env.DEV_REDIS_SERVER,
+  REDIS_PORT: process.env.DEV_REDIS_PORT,
   GET_DEVICES_URL: ({ tenant = "airqo", channel } = {}) => {
     return `${
       process.env.DEVICE_REGISTRY_BASE_URL_DEV
@@ -16,12 +20,16 @@ const devConfig = {
   DECRYPT_DEVICE_KEY_URL: `${process.env.DEVICE_REGISTRY_BASE_URL_DEV}/decrypt`,
 };
 const stageConfig = {
+  KAFKA_BOOTSTRAP_SERVERS: process.env.STAGE_KAFKA_BOOTSTRAP_SERVERS,
+  KAFKA_CLIENT_ID: process.env.STAGE_KAFKA_CLIENT_ID,
+  KAFKA_CLIENT_GROUP: process.env.STAGE_KAFKA_CLIENT_GROUP,
+  ENVIRONMENT: "STAGING ENVIRONMENT",
   JWT_TOKEN: process.env.JWT_TOKEN_STAGING,
   MONGO_URI: process.env.MONGO_GCE_URI,
   JWT_SECRET: process.env.JWT_SECRET,
   DB_NAME: process.env.MONGO_STAGE,
-  REDIS_SERVER: process.env.REDIS_SERVER,
-  REDIS_PORT: process.env.REDIS_PORT,
+  REDIS_SERVER: process.env.STAGE_REDIS_SERVER,
+  REDIS_PORT: process.env.STAGE_REDIS_PORT,
   GET_DEVICES_URL: ({ tenant = "airqo", channel } = {}) => {
     return `${
       process.env.DEVICE_REGISTRY_BASE_URL_STAGE
@@ -30,12 +38,16 @@ const stageConfig = {
   DECRYPT_DEVICE_KEY_URL: `${process.env.DEVICE_REGISTRY_BASE_URL_STAGE}/decrypt`,
 };
 const prodConfig = {
+  KAFKA_BOOTSTRAP_SERVERS: process.env.PROD_KAFKA_BOOTSTRAP_SERVERS,
+  KAFKA_CLIENT_ID: process.env.PROD_KAFKA_CLIENT_ID,
+  KAFKA_CLIENT_GROUP: process.env.PROD_KAFKA_CLIENT_GROUP,
+  ENVIRONMENT: "PRODUCTION ENVIRONMENT",
   JWT_TOKEN: process.env.JWT_TOKEN_PRODUCTION,
   MONGO_URI: process.env.MONGO_GCE_URI,
   JWT_SECRET: process.env.JWT_SECRET,
   DB_NAME: process.env.MONGO_PROD,
-  REDIS_SERVER: process.env.REDIS_SERVER,
-  REDIS_PORT: process.env.REDIS_PORT,
+  REDIS_SERVER: process.env.PROD_REDIS_SERVER,
+  REDIS_PORT: process.env.PROD_REDIS_PORT,
   GET_DEVICES_URL: ({ tenant = "airqo", channel } = {}) => {
     return `${
       process.env.DEVICE_REGISTRY_BASE_URL_PROD
@@ -44,6 +56,7 @@ const prodConfig = {
   DECRYPT_DEVICE_KEY_URL: `${process.env.DEVICE_REGISTRY_BASE_URL_PROD}/decrypt`,
 };
 const defaultConfig = {
+  SESSION_SECRET: process.env.SESSION_SECRET,
   TS_TEST_CHANNEL: process.env.TS_TEST_CHANNEL,
   TS_API_KEY_TEST_DEVICE: process.env.TS_API_KEY_TEST_DEVICE,
   GET_CHANNELS_CACHE_EXPIRATION: process.env.GET_CHANNELS_CACHE_EXPIRATION,
