@@ -70,6 +70,11 @@ const gridSchema = new Schema(
       required: [true, "name is required!"],
       unique: true,
     },
+    visibility: {
+      type: Boolean,
+      trim: true,
+      default: false,
+    },
     grid_codes: [
       {
         type: String,
@@ -113,6 +118,7 @@ gridSchema.methods.toJSON = function() {
     name,
     long_name,
     network,
+    visibility,
     description,
     grid_tags,
     admin_level,
@@ -124,6 +130,7 @@ gridSchema.methods.toJSON = function() {
   return {
     _id,
     name,
+    visibility,
     long_name,
     description,
     grid_tags,

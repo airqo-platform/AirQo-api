@@ -1,45 +1,75 @@
 require("module-alias/register");
-("use-strict");
-const imageController = require("../Device");
+const { expect } = require("chai");
+const sinon = require("sinon");
+const mongoose = require("mongoose");
+const deviceSchema = require("@models/device"); // Replace with the actual path to your deviceSchema.js file
 
-let chai = require("chai"),
-  expect = chai.expect;
-chai.should();
+describe("Device Model", () => {
+  let Device;
+  let createStub;
+  let findOneAndUpdateStub;
+  let findOneAndRemoveStub;
 
-describe("create a device", function() {
-  beforeEach(function() {});
-  afterEach(function() {});
-  it("should have validation error for a duplicate compoment type name", function() {});
-});
+  beforeEach(() => {
+    // Create a mock Device model
+    Device = mongoose.model("Device", deviceSchema);
 
-describe("read device ", function() {
-  beforeEach(function() {});
-  afterEach(function() {});
-  it("should find the existing device ", function() {});
-});
+    // Stub the model methods
+    createStub = sinon.stub(Device, "create");
+    findOneAndUpdateStub = sinon.stub(Device, "findOneAndUpdate");
+    findOneAndRemoveStub = sinon.stub(Device, "findOneAndRemove");
+  });
 
-describe("deleting device ", function() {
-  beforeEach(function() {});
-  afterEach(function() {});
-  it("should delete a device using ID", function() {});
+  afterEach(() => {
+    // Restore the original model methods
+    createStub.restore();
+    findOneAndUpdateStub.restore();
+    findOneAndRemoveStub.restore();
+  });
 
-  it("should delete a device using the name", function() {});
+  describe("register", () => {
+    it("should register a new device with default network and sanitized name", async () => {
+      // Test implementation for the register method
+    });
 
-  it("should remove multiple device ", function() {});
+    it("should handle validation errors when registering a new device", async () => {
+      // Test implementation for handling validation errors in register method
+    });
 
-  it("should remove device using its instance", function() {});
-});
+    // Add more tests for the register method as needed
+  });
 
-describe("updating a device", function() {
-  beforeEach(function() {});
-  afterEach(function() {});
-  it("should set and saves a device using an instance", function() {});
+  describe("list", () => {
+    it("should list devices with filters and related site and cohort information", async () => {
+      // Test implementation for the list method
+    });
 
-  it("should update a device using its instance", function() {});
+    // Add more tests for the list method as needed
+  });
 
-  it("should update one device using the model", function() {});
+  describe("modify", () => {
+    it("should modify a device", async () => {
+      // Test implementation for the modify method
+    });
 
-  it("should update one device with ID using model", function() {});
+    // Add more tests for the modify method as needed
+  });
 
-  it("should return error is the update action fails", function() {});
+  describe("encryptKeys", () => {
+    it("should encrypt the writeKey and readKey of a device", async () => {
+      // Test implementation for the encryptKeys method
+    });
+
+    // Add more tests for the encryptKeys method as needed
+  });
+
+  describe("remove", () => {
+    it("should remove a device", async () => {
+      // Test implementation for the remove method
+    });
+
+    // Add more tests for the remove method as needed
+  });
+
+  // Add more describe blocks for other static methods if available
 });

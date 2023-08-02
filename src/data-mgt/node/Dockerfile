@@ -1,4 +1,4 @@
-FROM node:12
+FROM node:18 as base
 
 # Create app directory
 WORKDIR /usr/src/app
@@ -9,15 +9,22 @@ RUN chmod 777 /usr/src/app
 # where available (npm@5+)
 COPY package*.json ./
 
-
 RUN npm install
-# If you are building your code for production
-RUN npm ci --only=production
 
 # Bundle app source
 COPY . .
 
-RUN chmod 777 /usr/src/app/bin/www
+RUN chmod 777 /usr/src/app/bin
 
 EXPOSE 3000
-CMD [ "npm", "run","start" ] 
+
+FROM base as dev
+CMD [ "npm", "run", "dev-mac" ]
+
+FROM base as staging
+CMD [ "npm", "run", "stage" ]
+
+FROM base as production
+
+RUN npm ci --only=production
+CMD [ "npm", "start" ]

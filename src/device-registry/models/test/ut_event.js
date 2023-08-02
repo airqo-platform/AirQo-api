@@ -1,45 +1,96 @@
 require("module-alias/register");
-("use-strict");
-const eventController = require("../Event");
+const { expect } = require("chai");
+const { Schema } = require("mongoose");
+const eventSchema = require("@models/Event");
+// const valueSchema = require("");
 
-let chai = require("chai"),
-  expect = chai.expect;
-chai.should();
+// Helper function to create a new test value object
+const createTestValue = (overrides = {}) => {
+  return {
+    time: new Date(),
+    frequency: "test frequency",
+    is_test_data: true,
+    // ... Add other properties as needed
+    ...overrides,
+  };
+};
 
-describe("create a event", function() {
-  beforeEach(function() {});
-  afterEach(function() {});
-  it("should have validation error for a duplicate compoment type name", function() {});
+// Helper function to create a new test event object
+const createTestEvent = (overrides = {}) => {
+  return {
+    day: "test day",
+    device: "test device",
+    network: "test network",
+    tenant: "test tenant",
+    is_device_primary: true,
+    // ... Add other properties as needed
+    values: [createTestValue()],
+    ...overrides,
+  };
+};
+
+// Describe block for valueSchema
+describe("valueSchema", () => {
+  it("should be valid when all required fields are provided", () => {
+    const value = new Schema(valueSchema).validateSync(createTestValue());
+    expect(value).to.not.haveOwnProperty("errors");
+  });
+
+  it("should require 'time' field", () => {
+    const value = new Schema(valueSchema).validate(
+      createTestValue({ time: undefined })
+    );
+    expect(value.errors).to.haveOwnProperty("time");
+  });
+
+  it("should require 'frequency' field", () => {
+    const value = new Schema(valueSchema).validate(
+      createTestValue({ frequency: undefined })
+    );
+    expect(value.errors).to.haveOwnProperty("frequency");
+  });
+
+  // Add more test cases for other properties and validations in valueSchema
 });
 
-describe("read event", function() {
-  beforeEach(function() {});
-  afterEach(function() {});
-  it("should find the existing event", function() {});
+// Describe block for eventSchema
+describe("eventSchema", () => {
+  it("should be valid when all required fields are provided", () => {
+    const event = new Schema(eventSchema).validateSync(createTestEvent());
+    expect(event).to.not.haveOwnProperty("errors");
+  });
+
+  it("should require 'day' field", () => {
+    const event = new Schema(eventSchema).validate(
+      createTestEvent({ day: undefined })
+    );
+    expect(event.errors).to.haveOwnProperty("day");
+  });
+
+  it("should require 'values' field", () => {
+    const event = new Schema(eventSchema).validate(
+      createTestEvent({ values: undefined })
+    );
+    expect(event.errors).to.haveOwnProperty("values");
+  });
+
+  // Add more test cases for other properties and validations in eventSchema
 });
 
-describe("deleting event", function() {
-  beforeEach(function() {});
-  afterEach(function() {});
-  it("should delete a event using ID", function() {});
+describe("Custom methods", () => {
+  // Example for testing a custom method in eventSchema
+  it("createEvent should create a new Event document", async () => {
+    // Create test data
+    const eventData = createTestEvent();
 
-  it("should delete a event using the name", function() {});
+    // Call the custom method
+    const createdEvent = await eventSchema.statics.createEvent(eventData);
 
-  it("should remove multiple event", function() {});
+    // Verify that the createdEvent is saved to the database correctly
+    expect(createdEvent).to.be.an("object");
+    expect(createdEvent).to.haveOwnProperty("day", eventData.day);
+    // Add more assertions for other properties
+  });
 
-  it("should remove event using its instance", function() {});
-});
-
-describe("updating a event", function() {
-  beforeEach(function() {});
-  afterEach(function() {});
-  it("should set and saves a event using an instance", function() {});
-
-  it("should update a event using its instance", function() {});
-
-  it("should update one event using the model", function() {});
-
-  it("should update one event with ID using model", function() {});
-
-  it("should return error is the update action fails", function() {});
+  // Add more test cases for other custom methods, if any
 });
