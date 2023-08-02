@@ -11,7 +11,7 @@ const app = express();
 app.use(express.json());
 
 // Load the router configuration
-const activityRouter = require("./path/to/activityRouter"); // Replace with the correct path to the router configuration
+const activityRouter = require("@routes/v1/activities"); // Replace with the correct path to the router configuration
 app.use("/activity", activityRouter);
 
 // Test data (if needed)

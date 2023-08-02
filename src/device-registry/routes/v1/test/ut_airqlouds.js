@@ -1,116 +1,79 @@
 require("module-alias/register");
 const express = require("express");
-const chai = require("chai");
-const chaiHttp = require("chai-http");
+const request = require("supertest");
+const { expect } = require("chai");
 const sinon = require("sinon");
-const { expect } = chai;
-const app = express();
 
-// Import the controller and other dependencies here
+// Import the modules to be tested
 const airqloudController = require("@controllers/create-airqloud");
 const constants = require("@config/constants");
-// ... (Other dependencies)
+const mongoose = require("mongoose");
 
-chai.use(chaiHttp);
+// Import the Express Router to be tested
+const router = require("@routes/v1/airqlouds");
+// Test data (if needed)
+const testTenant = "test_tenant";
+const testId = "test_id";
+const testObjectId = new mongoose.Types.ObjectId();
 
-// Create a test suite for the airqloudController
-describe("airqloudController", () => {
-  // Test the headers middleware
-  describe("headers middleware", () => {
-    it("should set the appropriate Access-Control headers", () => {
-      const req = {};
-      const res = {
-        setHeader: sinon.stub(),
-        header: sinon.stub(),
-      };
-      const next = sinon.stub();
+describe("Airqloud Router", () => {
+  // Mock the headers middleware
+  const mockHeaders = (req, res, next) => {
+    next();
+  };
 
-      airqloudController.headers(req, res, next);
+  beforeEach(() => {
+    sinon.restore();
+  });
 
-      expect(res.setHeader.calledWith("Access-Control-Allow-Origin", "*")).to.be
-        .true;
-      expect(
-        res.setHeader.calledWith(
-          "Access-Control-Allow-Headers",
-          "Origin, X-Requested-With, Content-Type, Accept, Authorization"
-        )
-      ).to.be.true;
-      expect(
-        res.setHeader.calledWith(
-          "Access-Control-Allow-Methods",
-          "GET, POST, PUT, DELETE"
-        )
-      ).to.be.true;
-      expect(next.calledOnce).to.be.true;
+  describe("Middleware", () => {
+    it("should call the headers middleware", async () => {
+      sinon.stub(router, "use").callsFake(mockHeaders);
+      const app = express();
+      app.use("/", router);
+      await request(app).get("/");
+      expect(router.use.calledWith(mockHeaders)).to.be.true;
     });
   });
 
-  // Create test suites for other routes and middleware in the airqloudController
-  // For example, you can test the POST route:
-  describe("POST /airqlouds", () => {
-    it("should return a 200 response and call the register function", async () => {
-      // Mock the request and response objects
-      const req = {
-        body: {
-          /* mock request body data here */
-        },
-        query: {
-          /* mock query parameters here */
-        },
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      // Call the route handler
-      await airqloudController.register(req, res);
-
-      // Assert the response
-      expect(res.status.calledWith(200)).to.be.true;
-      expect(res.json.calledOnce).to.be.true;
-      // You can add more specific assertions based on the expected behavior
+  describe("POST /", () => {
+    it("should call airqloudController.register function", async () => {
+      const registerStub = sinon.stub(airqloudController, "register");
+      const app = express();
+      app.use("/", router);
+      await request(app).post("/");
+      expect(registerStub.calledOnce).to.be.true;
+      registerStub.restore();
     });
 
-    it("should return a 400 response for invalid input", async () => {
-      // Mock the request and response objects with invalid input
-      const req = {
-        body: {
-          /* invalid request body data here */
-        },
-        query: {
-          /* invalid query parameters here */
-        },
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-
-      // Call the route handler
-      await airqloudController.register(req, res);
-
-      // Assert the response
-      expect(res.status.calledWith(400)).to.be.true;
-      expect(res.json.calledOnce).to.be.true;
-      // You can add more specific assertions based on the expected behavior
-    });
+    // Add more tests for query parameters, request body, and error cases if needed
   });
 
-  // Add more test suites for other routes and middleware here
+  describe("PUT /refresh", () => {
+    it("should call airqloudController.refresh function", async () => {
+      const refreshStub = sinon.stub(airqloudController, "refresh");
+      const app = express();
+      app.use("/", router);
+      await request(app).put("/refresh");
+      expect(refreshStub.calledOnce).to.be.true;
+      refreshStub.restore();
+    });
+
+    // Add more tests for query parameters and error cases if needed
+  });
+
+  describe("GET /", () => {
+    it("should call airqloudController.list function", async () => {
+      const listStub = sinon.stub(airqloudController, "list");
+      const app = express();
+      app.use("/", router);
+      await request(app).get("/");
+      expect(listStub.calledOnce).to.be.true;
+      listStub.restore();
+    });
+
+    // Add more tests for query parameters and error cases if needed
+  });
+
+  // Add more describe blocks and tests for other endpoints such as "/summary", "/dashboard", and "/sites"
 });
-
-// Run the tests
-if (require.main === module) {
-  describe("Express App", () => {
-    it("should start the server without error", (done) => {
-      const server = app.listen(3000, () => {
-        server.close();
-        done();
-      });
-    });
-  });
-
-  // Run Mocha
-  run();
-}

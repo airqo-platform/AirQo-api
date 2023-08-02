@@ -3,7 +3,7 @@ const { expect } = require("chai");
 const sinon = require("sinon");
 const request = require("supertest");
 const express = require("express");
-const router = express.Router();
+const router = require("@routes/v1/cohorts");
 
 // Mocking the required modules
 const createCohortController = require("@controllers/create-cohort");
@@ -11,7 +11,7 @@ const mongoose = require("mongoose");
 const NetworkSchema = require("@models/Network");
 const { getModelByTenant } = require("@config/database");
 
-describe("Your Router", () => {
+describe("Cohort Router", () => {
   let app;
 
   before(() => {
