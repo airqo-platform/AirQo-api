@@ -52,6 +52,8 @@ const createSite = {
   },
   checkStringLength: (name) => {
     try {
+      //check if name has only white spaces
+      name = name.trim();
       let length = name.length;
       if (length >= 5 && length <= 50) {
         return true;
@@ -222,6 +224,13 @@ const createSite = {
           }
           if (isEmpty(responseJSON.data)) {
             logElement("unable to list stations");
+            return {
+              success: false,
+              message: "unable to list stations",
+              status: HTTPStatus.NOT_FOUND,
+              errors: { message: "unable to list stations" },
+              data: [],
+            };
           }
         })
         .catch((error) => {
@@ -873,6 +882,8 @@ const createSite = {
   },
   formatSiteName: (name) => {
     try {
+      let nameWithoutWhiteSpace = name.replace(/\s/g, "");
+      return nameWithoutWhiteSpace.toLowerCase();
     } catch (e) {
       logElement("server error", { message: e.message });
     }
