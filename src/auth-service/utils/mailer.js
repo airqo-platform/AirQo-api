@@ -97,34 +97,28 @@ const mailer = {
       let bcc = "";
       let html = "";
       if (tenant.toLowerCase() === "airqo") {
+        html = msgs.inquiry(fullName, email, category);
         switch (category) {
           case "partners":
             bcc = constants.PARTNERS_EMAILS;
-            html = msgTemplates.partnerInquiry(fullName);
             break;
           case "policy":
             bcc = constants.POLICY_EMAILS;
-            html = msgTemplates.policyInquiry(fullName);
             break;
           case "champions":
             bcc = constants.CHAMPIONS_EMAILS;
-            html = msgTemplates.championInquiry(fullName);
             break;
           case "researchers":
             bcc = constants.RESEARCHERS_EMAILS;
-            html = msgTemplates.researcherInquiry(fullName);
             break;
           case "developers":
             bcc = constants.DEVELOPERS_EMAILS;
-            html = msgTemplates.developerInquiry(fullName);
             break;
           case "general":
             bcc = constants.PARTNERS_EMAILS;
-            html = msgTemplates.partnerInquiry(fullName);
             break;
           default:
             bcc = constants.PARTNERS_EMAILS;
-            html = msgTemplates.partnerInquiry(fullName);
         }
       }
 
@@ -143,6 +137,7 @@ const mailer = {
         subject: `Welcome to AirQo`,
         html,
         bcc,
+        attachments,
       };
 
       let response = transporter.sendMail(mailOptionsForAirQo);
