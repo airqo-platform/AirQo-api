@@ -567,8 +567,8 @@ class BigQueryApi:
         dataframe = self.client.query(query=query).result().to_dataframe()
         return dataframe.drop_duplicates(keep="first")
 
-    def fetch_hourly_forecast_training_data(self):
-        # TODO: issue with staging DB inform Noah
+    def fetch_hourly_forecast_training_data(self, months_of_data=configuration.MONTHS_OF_DATA_HOURLY_JOB):
+        # TODO: issue with staging DB inform Noah and Benjamin
         query = f"""
         SELECT DISTINCT hourly_table.timestamp AS created_at, 
         hourly_table.device_number AS device_number, 
@@ -577,18 +577,22 @@ class BigQueryApi:
         `{self.hourly_measurements_table}` AS hourly_table
         WHERE
         DATE(timestamp) >= DATE_SUB(
-               CURRENT_DATE(), INTERVAL {configuration.MONTHS_OF_DATA_HOURLY_JOB} MONTH) AND device_number IS NOT NULL
+               CURRENT_DATE(), INTERVAL {months_of_data} MONTH) AND device_number IS NOT NULL
             ORDER BY device_number, created_at ASC
            """
 
         job_config = bigquery.QueryJobConfig()
         job_config.use_query_cache = True
 
-        df = bigquery.Client().query(f"{query}", job_config).result().to_dataframe()
-        return df
+        try:
+            df = bigquery.Client().query(f"{query}", job_config).result().to_dataframe()
+            if df["pm2_5"].isnull().all():
+                raise Exception("pm2_5 column cannot be null")
+            return df
+        except Exception as e:
+            raise e
 
-    def fetch_daily_forecast_training_data(self):
-        # TODO: issue with staging DB inform Noah
+    def fetch_daily_forecast_training_data(self, months_of_data=configuration.MONTHS_OF_DATA_DAILY_JOB):
         query = f"""
         SELECT DISTINCT hourly_table.timestamp
            AS
@@ -597,15 +601,20 @@ class BigQueryApi:
            `{self.hourly_measurements_table}` AS hourly_table
            WHERE
            DATE(timestamp) >= DATE_SUB(
-               CURRENT_DATE(), INTERVAL {configuration.MONTHS_OF_DATA_DAILY_JOB} MONTH) AND device_number IS NOT NULL
+               CURRENT_DATE(), INTERVAL {months_of_data} MONTH) AND device_number IS NOT NULL
             ORDER BY device_number, created_at ASC
            """
 
         job_config = bigquery.QueryJobConfig()
         job_config.use_query_cache = True
 
-        df = bigquery.Client().query(f"{query}", job_config).result().to_dataframe()
-        return df
+        try:
+            df = bigquery.Client().query(f"{query}", job_config).result().to_dataframe()
+            if df["pm2_5"].isnull().all():
+                raise Exception("pm2_5 column cannot be null")
+            return df
+        except Exception as e:
+            raise e
 
     def fetch_monthly_forecast_data(self):
         """gets data from the bigquery table"""
