@@ -16,7 +16,6 @@ from airqo_etl_utils.ml_utils import ForecastUtils
 def train_forecasting_models():
     project_id = configuration.GOOGLE_CLOUD_PROJECT_ID
     bucket = configuration.FORECAST_MODELS_BUCKET
-
     @task()
     def fetch_hourly_forecast_training_data():
         return BigQueryApi().fetch_hourly_forecast_training_data()

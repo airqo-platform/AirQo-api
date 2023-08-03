@@ -3,11 +3,10 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 
-from config import connect_mongo, configuration
+from config import configuration
 from models import Events
 from utils import get_trained_model_from_gcs
 
-db = connect_mongo()
 fixed_columns = ['site_id']
 
 

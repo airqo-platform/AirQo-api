@@ -16,3 +16,4 @@ db_dtypes
 mlflow
 lightgbm
 gcsfs
+pymongo

@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pandas as pd
 from google.cloud import bigquery
@@ -10,16 +10,15 @@ from .constants import JobAction, ColumnDataType, Tenant, QueryType
 from .date import date_to_str
 from .utils import Utils
 
-
 # from datetime import datetime
 
-
+credentials = service_account.Credentials.from_service_account_file(configuration.GOOGLE_APPLICATION_CREDENTIALS)
 class BigQueryApi:
     def __init__(self):
         self.client = bigquery.Client()
         self.hourly_measurements_table = configuration.BIGQUERY_HOURLY_EVENTS_TABLE
         self.daily_measurements_table = configuration.BIGQUERY_DAILY_EVENTS_TABLE
-        self.forecast_measurements_table = configuration.BIGQUERY_FORECAST_EVENTS_TABLE
+        self.hourly_forecasts_table = configuration.BIGQUERY_HOURLY_FORECAST_EVENTS_TABLE
         self.raw_measurements_table = configuration.BIGQUERY_RAW_EVENTS_TABLE
         self.latest_measurements_table = configuration.BIGQUERY_LATEST_EVENTS_TABLE
         self.bam_measurements_table = configuration.BIGQUERY_BAM_EVENTS_TABLE
@@ -608,67 +607,54 @@ class BigQueryApi:
         df = bigquery.Client().query(f"{query}", job_config).result().to_dataframe()
         return df
 
-    def fetch_forecast_data(
-        hours=int(configuration.NUMBER_OF_HOURS), days=int(configuration.NUMBER_OF_DAYS)
-    ):
+    def fetch_monthly_forecast_data(self):
         """gets data from the bigquery table"""
 
-        table_map = {
-            "hourly": f"{configuration.GOOGLE_CLOUD_PROJECT_ID}.averaged_data.hourly_device_measurements",
-            "daily": f"{configuration.BIGQUERY_HOURLY_TABLE}",
-        }
-        time_map = {
-            "hourly": datetime.datetime.utcnow() - datetime.timedelta(hours=hours),
-            "daily": datetime.datetime.utcnow() - datetime.timedelta(days=days),
-        }
+        start_date = datetime.utcnow() - timedelta(days=int(configuration.NUMBER_OF_DAYS))
 
-        # Create a dataframe dictionary to hold both hourly and daily dataframes
-        df_dict = {}
+        start_date = date_to_str(start_date, str_format='%Y-%m-%d')
 
-        for freq in ["hourly", "daily"]:
-            start_date = date_to_str(time_map[freq], format="%Y-%m-%d")
-            query = f"""
-                    SELECT DISTINCT timestamp , site_id, device_number, pm2_5_calibrated_value 
-                    FROM `{table_map[freq]}` 
-                    WHERE DATE(timestamp) >= '{start_date}' AND device_number IS NOT NULL
-                    ORDER BY device_number, timestamp 
-            """
-            df = pd.read_gbq(
-                query,
-                project_id=configuration.GOOGLE_CLOUD_PROJECT_ID,
-                credentials=credentials,
-            )
-            df.rename(
-                columns={"timestamp": "created_at", "pm2_5_calibrated_value": "pm2_5"},
-                inplace=True,
-            )
-            # Add dataframe to dictionary
-            df_dict[freq] = df
+        query = f"""
+                SELECT DISTINCT timestamp as created_at, site_id, device_number, pm2_5_calibrated_value as pm2_5
+                FROM `{configuration.BIGQUERY_HOURLY_EVENTS_TABLE}` 
+                WHERE DATE(timestamp) >= '{start_date}' AND device_number IS NOT NULL
+                ORDER BY created_at, device_number
+        """
+        job_config = bigquery.QueryJobConfig()
+        job_config.use_query_cache = True
 
-        return df_dict["hourly"], df_dict["daily"]
+        df = bigquery.Client().query(f"{query}", job_config).result().to_dataframe()
+        return df
+
+    def fetch_hourly_forecast_data(self):
+        """gets data from the bigquery table"""
+
+        start_date = datetime.utcnow() - timedelta(hours=int(configuration.NUMBER_OF_HOURS))
+        start_date = date_to_str(start_date, str_format='%Y-%m-%d')
+
+        query = f"""
+                SELECT DISTINCT timestamp as created_at , site_id, device_number,pm2_5_calibrated_value as pm2_5
+                FROM `{configuration.BIGQUERY_HOURLY_EVENTS_TABLE}` 
+                WHERE DATE(timestamp) >= '{start_date}' and device_number IS NOT NULL 
+                ORDER BY created_at, device_number 
+        """
+
+        job_config = bigquery.QueryJobConfig()
+        job_config.use_query_cache = True
+
+        df = bigquery.Client().query(f"{query}", job_config).result().to_dataframe()
+        return df
 
     @staticmethod
-    def save_forecasts_to_bigquery(df_hourly, df_daily, hourly_table, daily_table):
+    def save_forecasts_to_bigquery(df, table):
         """saves the dataframes to the bigquery tables"""
         credentials = service_account.Credentials.from_service_account_file(
             configuration.GOOGLE_APPLICATION_CREDENTIALS
         )
-        df_hourly.to_gbq(
-            destination_table=f"{configuration.GOOGLE_CLOUD_PROJECT_ID}.{configuration.BIGQUERY_DATASET}.{hourly_table}",
+        df.to_gbq(
+            destination_table=f"{table}",
             project_id=configuration.GOOGLE_CLOUD_PROJECT_ID,
             if_exists="append",
             credentials=credentials,
         )
-
         print("Hourly data saved to bigquery")
-
-        # Save the daily dataframe
-        df_daily.to_gbq(
-            destination_table=f"{configuration.GOOGLE_CLOUD_PROJECT_ID}.{configuration.BIGQUERY_DATASET}.{daily_table}",
-            project_id=configuration.GOOGLE_CLOUD_PROJECT_ID,
-            if_exists="append",
-            credentials=credentials,
-        )
-
-        print("Daily data saved to bigquery")
-

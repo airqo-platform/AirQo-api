@@ -100,7 +100,7 @@ def train_model(train):
             random_state=random_state)
 
         clf.fit(train_data[features], train_target, eval_set=[(test_data[features], test_target)],
-                callbacks=[early_stopping(stopping_rounds=150)], verbose=50,
+                callbacks=[early_stopping(stopping_rounds=150)],
                 eval_metric='rmse')
         print('Model training completed.....')
 

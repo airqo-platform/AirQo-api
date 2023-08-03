@@ -6,3 +6,4 @@ apache-airflow[sentry]
 lightgbm
 mlflow
 gcsfs
+pymongo
