@@ -5,6 +5,7 @@ const { isEmpty } = require("underscore");
 const logger = log4js.getLogger(`${this.ENVIRONMENT} -- constants-config`);
 
 const devConfig = {
+  DEFAULT_COHORT: process.env.DEV_DEFAULT_COHORT,
   MONGO_URI: process.env.MONGO_URI_DEV,
   DB_NAME: process.env.MONGO_DEV,
   REDIS_SERVER: process.env.REDIS_SERVER_DEV,
@@ -24,6 +25,7 @@ const devConfig = {
   DATAWAREHOUSE_AVERAGED_DATA: process.env.DATAWAREHOUSE_AVERAGED_DATA_DEV,
 };
 const prodConfig = {
+  DEFAULT_COHORT: process.env.PROD_DEFAULT_COHORT,
   MONGO_URI: process.env.MONGO_URI_PROD,
   DB_NAME: process.env.MONGO_PROD,
   REDIS_SERVER: process.env.REDIS_SERVER,
@@ -42,8 +44,8 @@ const prodConfig = {
   DATAWAREHOUSE_METADATA: process.env.DATAWAREHOUSE_METADATA_PROD,
   DATAWAREHOUSE_AVERAGED_DATA: process.env.DATAWAREHOUSE_AVERAGED_DATA_PROD,
 };
-
 const stageConfig = {
+  DEFAULT_COHORT: process.env.STAGE_DEFAULT_COHORT,
   MONGO_URI: process.env.MONGO_URI_STAGE,
   DB_NAME: process.env.MONGO_STAGE,
   REDIS_SERVER: process.env.REDIS_SERVER,
@@ -65,6 +67,7 @@ const stageConfig = {
 };
 
 const defaultConfig = {
+  SESSION_SECRET: process.env.SESSION_SECRET,
   NETWORKS: process.env.NETWORKS
     ? process.env.NETWORKS.split(",").filter((value) => value.trim() !== "")
     : [],
@@ -1032,6 +1035,7 @@ const defaultConfig = {
     long_name: 1,
     description: 1,
     grid_tags: 1,
+    visibility: 1,
     admin_level: 1,
     grid_codes: 1,
     centers: 1,
@@ -1098,6 +1102,7 @@ const defaultConfig = {
     name: 1,
     description: 1,
     cohort_tags: 1,
+    visibility: 1,
     cohort_codes: 1,
     devices: "$devices",
     numberOfDevices: {
@@ -1284,6 +1289,34 @@ const defaultConfig = {
     _id: 1,
   },
   NETWORK_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = { nothing: 0 };
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign({}, {});
+    }
+    return projection;
+  },
+  SITE_ACTIVITIES_INCLUSION_PROJECTION: {
+    _id: 1,
+    device: 1,
+    date: 1,
+    description: 1,
+    network: 1,
+    activityType: 1,
+    maintenanceType: 1,
+    recallType: 1,
+    nextMaintenance: 1,
+    createdAt: 1,
+    updatedAt: 1,
+    activity_codes: 1,
+    tags: 1,
+    site_id: 1,
+    firstName: 1,
+    lastName: 1,
+    userName: 1,
+    email: 1,
+  },
+  SITE_ACTIVITIES_EXCLUSION_PROJECTION: (category) => {
     const initialProjection = { nothing: 0 };
     let projection = Object.assign({}, initialProjection);
     if (category === "summary") {

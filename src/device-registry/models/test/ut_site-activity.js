@@ -1,45 +1,77 @@
 require("module-alias/register");
-("use-strict");
-const activityController = require("../SiteActivity");
+const { expect } = require("chai");
+const sinon = require("sinon");
+const { describe } = require("mocha");
+const mongoose = require("mongoose");
+const activitySchema = require("@models/SiteActivity");
 
-let chai = require("chai"),
-  expect = chai.expect;
-chai.should();
+describe("Activity Model Unit Tests", () => {
+  let Activity;
 
-describe("create a activity", function() {
-  beforeEach(function() {});
-  afterEach(function() {});
-  it("should have validation error for a duplicate compoment type name", function() {});
-});
+  before(async () => {
+    // Connect to the test database
+    await mongoose.connect("mongodb://localhost:27017/test-db", {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    });
+    Activity = mongoose.model("Activity", activitySchema);
+  });
 
-describe("read activity", function() {
-  beforeEach(function() {});
-  afterEach(function() {});
-  it("should find the existing activity", function() {});
-});
+  after(async () => {
+    // Close the database connection after all tests
+    await mongoose.connection.close();
+  });
 
-describe("deleting activity", function() {
-  beforeEach(function() {});
-  afterEach(function() {});
-  it("should delete a activity using ID", function() {});
+  describe("Schema Definition", () => {
+    it("Should be a valid Mongoose model", () => {
+      expect(Activity).to.be.a("function");
+    });
 
-  it("should delete a activity using the name", function() {});
+    it("Should have the required 'email' field", () => {
+      const emailField = Activity.schema.obj.email;
+      expect(emailField).to.exist;
+      expect(emailField.type).to.equal(String);
+      expect(emailField.required).to.be.true;
+    });
 
-  it("should remove multiple activity", function() {});
+    it("Should have a unique 'email' field", () => {
+      const emailField = Activity.schema.obj.email;
+      expect(emailField.unique).to.be.true;
+    });
 
-  it("should remove activity using its instance", function() {});
-});
+    it("Should validate the 'email' field as a valid email", () => {
+      const emailField = Activity.schema.obj.email;
+      const invalidEmail = "invalid-email";
+      const validEmail = "test@example.com";
 
-describe("updating a activity", function() {
-  beforeEach(function() {});
-  afterEach(function() {});
-  it("should set and saves a activity using an instance", function() {});
+      expect(emailField.validate.validator(invalidEmail)).to.be.false;
+      expect(emailField.validate.validator(validEmail)).to.be.true;
+    });
 
-  it("should update a activity using its instance", function() {});
+    // Add more tests for other fields in the schema if necessary
+  });
 
-  it("should update one activity using the model", function() {});
+  describe("Instance Methods", () => {
+    // Add your instance method tests here
+  });
 
-  it("should update one activity with ID using model", function() {});
+  describe("Static Methods", () => {
+    // Add your static method tests here
+  });
 
-  it("should return error is the update action fails", function() {});
+  describe("Static Method 'register'", () => {
+    // Add your 'register' method tests here
+  });
+
+  describe("Static Method 'list'", () => {
+    // Add your 'list' method tests here
+  });
+
+  describe("Static Method 'modify'", () => {
+    // Add your 'modify' method tests here
+  });
+
+  describe("Static Method 'remove'", () => {
+    // Add your 'remove' method tests here
+  });
 });

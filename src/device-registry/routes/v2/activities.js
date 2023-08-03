@@ -3,8 +3,35 @@ const router = express.Router();
 const constants = require("@config/constants");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
+const { logElement, logText, logObject } = require("@utils/log");
 const activityController = require("@controllers/create-activity");
 const { check, oneOf, query, body, param } = require("express-validator");
+const { getModelByTenant } = require("@config/database");
+
+const NetworkSchema = require("@models/Network");
+const NetworkModel = (tenant) => {
+  try {
+    const networks = mongoose.model("networks");
+    return networks;
+  } catch (error) {
+    const networks = getModelByTenant(tenant, "network", NetworkSchema);
+    return networks;
+  }
+};
+
+const validNetworks = async () => {
+  const networks = await NetworkModel("airqo").distinct("name");
+  return networks.map((network) => network.toLowerCase());
+};
+
+const validateNetwork = async (value) => {
+  const networks = await validNetworks();
+  if (!networks.includes(value.toLowerCase())) {
+    throw new Error("Invalid network");
+  }
+};
+
+logObject("validateNetwork", validateNetwork);
 
 const headers = (req, res, next) => {
   // const allowedOrigins = constants.DOMAIN_WHITELIST;
@@ -58,6 +85,28 @@ router.post(
         .toLowerCase()
         .isIn(constants.RECALL_TYPES)
         .withMessage("the recallType value is not among the expected ones"),
+      body("firstName")
+        .optional()
+        .notEmpty()
+        .withMessage("firstName should not be empty if provided")
+        .trim(),
+      body("lastName")
+        .optional()
+        .notEmpty()
+        .withMessage("lastName should not be empty if provided")
+        .trim(),
+      body("userName")
+        .optional()
+        .notEmpty()
+        .withMessage("userName should not be empty if provided")
+        .trim(),
+      body("email")
+        .optional()
+        .notEmpty()
+        .withMessage("email should not be empty if provided")
+        .bail()
+        .isEmail()
+        .withMessage("this is not a valid email address"),
     ],
   ]),
   activityController.recall
@@ -143,6 +192,28 @@ router.post(
         .toDate()
         .isISO8601({ strict: true, strictSeparator: true })
         .withMessage("date must be a valid datetime."),
+      body("firstName")
+        .optional()
+        .notEmpty()
+        .withMessage("firstName should not be empty if provided")
+        .trim(),
+      body("lastName")
+        .optional()
+        .notEmpty()
+        .withMessage("lastName should not be empty if provided")
+        .trim(),
+      body("userName")
+        .optional()
+        .notEmpty()
+        .withMessage("userName should not be empty if provided")
+        .trim(),
+      body("email")
+        .optional()
+        .notEmpty()
+        .withMessage("email should not be empty if provided")
+        .bail()
+        .isEmail()
+        .withMessage("this is not a valid email address"),
     ],
   ]),
   activityController.deploy
@@ -206,6 +277,28 @@ router.post(
         .toDate()
         .isISO8601({ strict: true, strictSeparator: true })
         .withMessage("date must be a valid datetime."),
+      body("firstName")
+        .optional()
+        .notEmpty()
+        .withMessage("firstName should not be empty if provided")
+        .trim(),
+      body("lastName")
+        .optional()
+        .notEmpty()
+        .withMessage("lastName should not be empty if provided")
+        .trim(),
+      body("userName")
+        .optional()
+        .notEmpty()
+        .withMessage("userName should not be empty if provided")
+        .trim(),
+      body("email")
+        .optional()
+        .notEmpty()
+        .withMessage("email should not be empty if provided")
+        .bail()
+        .isEmail()
+        .withMessage("this is not a valid email address"),
     ],
   ]),
   activityController.maintain
@@ -294,7 +387,10 @@ router.get(
         .notEmpty()
         .withMessage("network should not be empty IF provided")
         .bail()
-        .trim(),
+        .trim()
+        .toLowerCase()
+        .custom(validateNetwork)
+        .withMessage("the network value is not among the expected ones"),
       query("activity_codes")
         .optional()
         .notEmpty()

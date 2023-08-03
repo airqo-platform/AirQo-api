@@ -92,7 +92,6 @@ const UserSchema = new Schema(
         {
           type: ObjectId,
           ref: "network",
-          unique: true,
         },
       ],
       default: [mongoose.Types.ObjectId(constants.DEFAULT_NETWORK)],
@@ -162,6 +161,17 @@ UserSchema.pre("save", function (next) {
   if (!this.email && !this.phoneNumber) {
     return next(new Error("Phone number or email is required!"));
   }
+
+  // Check for duplicate values in the networks array
+  const duplicateValues = this.networks.filter(
+    (value, index, self) => self.indexOf(value) !== index
+  );
+
+  if (duplicateValues.length > 0) {
+    const error = new Error("Duplicate values found in networks array.");
+    return next(error);
+  }
+
   return next();
 });
 
@@ -527,6 +537,9 @@ UserSchema.methods = {
         lastName: this.lastName,
         userName: this.userName,
         email: this.email,
+        organization: this.organization,
+        long_organization: this.long_organization,
+        privilege: this.privilege,
         role: this.role,
         networks: this.networks,
         country: this.country,
@@ -562,6 +575,9 @@ UserSchema.methods = {
       userName: this.userName,
       email: this.email,
       firstName: this.firstName,
+      organization: this.organization,
+      long_organization: this.long_organization,
+      privilege: this.privilege,
       lastName: this.lastName,
       country: this.country,
       website: this.website,
