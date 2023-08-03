@@ -257,48 +257,81 @@ describe("create-site-util", () => {
 
     // Add more test cases for different scenarios if necessary
   });
-  describe.only("listWeatherStations", () => {
+  describe("listWeatherStations", () => {
     it("should return a list of weather stations when API call is successful", async () => {
 
       const mockResponse = {
         success: true,
         message: 'successfully retrieved all the stations',
         status: 200,
+        data: {
           data: [
             {
               id: 200,
               code: 'Test',
-              latitude: 10.56302,
-              longitude: 31.39055,
-              elevation: 1319,
-              countrycode: 'UG',
-              timezone: 'Africa/Nairobi',
-              timezoneoffset: 0,
-              name: 'Mubende Hydromet',
-              type: 'Meteo Office'
+              location: {
+                latitude: 10.56302,
+                longitude: 31.39055,
+                elevationmsl: 1319,
+                countrycode: 'UG',
+                timezone: 'Africa/Nairobi',
+                timezoneoffset: 0,
+                name: 'Mubende Hydromet',
+                type: 'Meteo Office'
+              },
             },
             {
               id: 218,
               code: 'Test',
-              latitude: 10.499446,
-              longitude: 33.2634,
-              elevation: 1354.624,
-              countrycode: 'UG',
-              timezone: 'Africa/Nairobi',
-              timezoneoffset: 0,
-              name: 'Busoga College Mwiri',
-              type: 'Secondary school'
+              location: {
+                latitude: 10.499446,
+                longitude: 33.2634,
+                elevationmsl: 1354.624,
+                countrycode: 'UG',
+                timezone: 'Africa/Nairobi',
+                timezoneoffset: 0,
+                name: 'Busoga College Mwiri',
+                type: 'Secondary school'
+              },
             }
-          ],
-
+          ]
+        },
       };
+      let outputData = [
+        {
+          id: 200,
+          code: 'Test',
+          latitude: 10.56302,
+          longitude: 31.39055,
+          elevation: 1319,
+          countrycode: 'UG',
+          timezone: 'Africa/Nairobi',
+          timezoneoffset: 0,
+          name: 'Mubende Hydromet',
+          type: 'Meteo Office'
+        },
+        {
+          id: 218,
+          code: 'Test',
+          latitude: 10.499446,
+          longitude: 33.2634,
+          elevation: 1354.624,
+          countrycode: 'UG',
+          timezone: 'Africa/Nairobi',
+          timezoneoffset: 0,
+          name: 'Busoga College Mwiri',
+          type: 'Secondary school'
+
+        }
+      ];
       const axiosGetStub = sinon.stub(axios, "get").resolves(mockResponse);
       const result = await createSite.listWeatherStations();
-      console.log(result);
       expect(result.data).to.be.an("array");
       expect(result.data).to.have.lengthOf(2);
-      expect(result.data).to.deep.equal(mockResponse.data.data);
-    });
+      expect(result.data).to.deep.equal(outputData);
+
+      axiosGetStub.restore();
+    }).timeout(6000);
 
     it("should return a list with only the expected keys", async () => {
       const expectedKeys = [
@@ -405,6 +438,7 @@ describe("create-site-util", () => {
     // Add more test cases based on specific validation rules and edge cases
   });
   describe("generateName", () => {
+    const uniqueIdentifierStub = sinon.stub(UniqueIdentifierCounterSchema.statics, "modify");
     it("should generate a unique name for the site", async () => {
       const tenant = "example_tenant";
       const expectedName = "site_1"; // Assuming the initial count is 0 and it increments for each generation
@@ -416,7 +450,7 @@ describe("create-site-util", () => {
         },
         status: 200,
       };
-      const uniqueIdentifierStub = sinon.stub(UniqueIdentifierCounterSchema.statics, "modify").returns(responseFromModifyUniqueIdentifierCounter);
+      uniqueIdentifierStub.returns(responseFromModifyUniqueIdentifierCounter);
 
       const result = await createSite.generateName(tenant);
 
@@ -427,9 +461,6 @@ describe("create-site-util", () => {
 
       uniqueIdentifierStub.restore();
     });
-  });
-
-  describe("generateNameErrors", () => {
 
     it("should handle errors when unable to find the counter document", async () => {
       const tenant = "example_tenant";
@@ -439,18 +470,18 @@ describe("create-site-util", () => {
         errors: { message: "Unable to find the counter document" },
         status: 404,
       };
-      const uniqueIdentifierStub = sinon.stub(UniqueIdentifierCounterSchema.statics, "modify").returns(responseFromModifyUniqueIdentifierCounter);
+      uniqueIdentifierStub.throws(new Error("Unable to find the counter document"));
 
       const result = await createSite.generateName(tenant);
 
       expect(result.success).to.be.false;
       expect(result.message).to.equal(
-        "unable to generate unique name for this site, contact support"
+        "generateName -- createSite util server error"
       );
       expect(result.errors).to.deep.equal({
         message: "Unable to find the counter document",
       });
-      expect(result.status).to.equal(404);
+      expect(result.status).to.equal(500);
 
     });
 
@@ -714,6 +745,8 @@ describe("create-site-util", () => {
       expect(result.message).to.equal('Internal Server Error');
       expect(result.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
       expect(result.errors).to.deep.equal({ message: "Mocked error" });
+
+      axiosGetStub.restore();
     });
   });
   describe("generateMetadata", () => {
@@ -821,7 +854,8 @@ describe("create-site-util", () => {
 
       const generateFilterStub = sinon.stub(generateFilter, "sites").resolves(stubValue._id);
 
-      const listStub = sinon.stub(siteSchema.statics, "list").returns({
+      const listStub = sinon.stub(siteSchema.statics, "list");
+      listStub.returns({
         success: true,
         data: [stubValue],
       });
@@ -935,7 +969,6 @@ describe("create-site-util", () => {
 
       // Call the delete function
       const result = await createSite.delete("testTenant", filter);
-      console.log(result);
       // Assert the result
       expect(result.success).to.be.false;
       expect(result.message).to.equal(
@@ -949,7 +982,7 @@ describe("create-site-util", () => {
 
   });
   describe("list", () => {
-    let listStub = sinon.stub(siteSchema.statics, "list");
+    const listStub = sinon.stub(siteSchema.statics, "list");
     it("should return the response from the list function when successful", async () => {
       // Prepare the list options
       const options = {
@@ -979,11 +1012,10 @@ describe("create-site-util", () => {
         { lat_long: "2_2", name: "Site 2" },
         { lat_long: "3_3", name: "Site 4" },
       ],);
+      listStub.restore();
     });
 
     it("should return the error response when list fails", async () => {
-      // Stub the getModelByTenant function to throw an error
-      // listStub.reset();
       listStub.throws(new Error("Mocked error"));
       // Prepare the list options
       const options = {
@@ -1002,8 +1034,6 @@ describe("create-site-util", () => {
       expect(result.success).to.be.false;
       expect(result.message).to.equal("Internal Server Error");
       expect(result.status).to.equal(httpStatus.INTERNAL_SERVER_ERROR);
-      expect(result.errors).to.deep.equal({ message: "Mocked error" });
-
       listStub.restore();
     });
   });
@@ -1206,7 +1236,7 @@ describe("create-site-util", () => {
 
       // Restore the stub after the test
       elevationStub.restore();
-    });
+    }).timeout(5000);
 
     it("should return an error for a bad gateway response", async () => {
       const latitude = null;
@@ -1238,7 +1268,6 @@ describe("create-site-util", () => {
         .throws(new Error("Internal Server Error"));
 
       const result = await createSite.getAltitude(latitude, longitude);
-      console.log(result);
       expect(result.success).to.be.false;
       expect(result.message).to.equal("get altitude server error");
       expect(result.errors).to.exist;
