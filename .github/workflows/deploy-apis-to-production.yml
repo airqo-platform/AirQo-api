@@ -1581,23 +1581,6 @@ jobs:
           context: src/predict/api
           target: production
           tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-prediction-api:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-prediction-api:latest
-
-      - name: Build and push predict Job Docker Image
-        uses: docker/build-push-action@v4.1.1
-        with:
-          push: true
-          context: src/predict/jobs/forecast
-          target: production
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-predict-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-predict-job:latest
-
-      - name: Build and push train Job Docker Image
-        uses: docker/build-push-action@v4.1.1
-        with:
-          push: true
-          context: src/predict/jobs/forecast_training
-          target: production
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-train-job:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-train-job:latest
-
       - name: Build and push predict places image
         uses: docker/build-push-action@v3
         with:
@@ -1630,14 +1613,10 @@ jobs:
           cd src/predict/    
           echo "=============== Creating the required secret files ==============="     
           gcloud secrets versions access latest --secret="prod-env-predict-api" > api.env
-          gcloud secrets versions access latest --secret="prod-env-predict-job" > predict_job.env
-          gcloud secrets versions access latest --secret="prod-env-predict-train-job" > train_job.env
           gcloud secrets versions access latest --secret="prod-env-predict-predict-places-air-quality" > predict_places_air_quality.env
           gcloud secrets versions access latest --secret="prod-key-predict-service-account" > google_application_credentials.json 
           echo "=============== Updating the respective .env files ==============="
           kubectl create configmap --dry-run=client -o yaml --from-env-file=api.env env-predict-production | kubectl replace -f - -n production
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=predict_job.env env-predict-job-production | kubectl replace -f - -n production
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=train_job.env env-train-job-production | kubectl replace -f - -n production
           kubectl create configmap --dry-run=client -o yaml --from-env-file=predict_places_air_quality.env env-predict-places-air-quality-production | kubectl replace -f - -n production
           echo "=============== Updating the respective credentials files ==============="
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json env-predict-production-files | kubectl replace -f - -n production
