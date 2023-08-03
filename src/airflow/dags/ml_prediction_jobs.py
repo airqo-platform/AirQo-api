@@ -94,6 +94,7 @@ def make_forecasts():
     lagged_daily_data = add_daily_lag_features(preprocessed_daily_data)
     time_features_daily_data = add_daily_time_features(lagged_daily_data)
     daily_forecasts = make_daily_forecasts(time_features_daily_data)
+    save_forecasts_to_bigquery(daily_forecasts)
     daily_forecasts_with_health_tips = add_health_tips(daily_forecasts)
     save_daily_forecasts(daily_forecasts_with_health_tips)
 
