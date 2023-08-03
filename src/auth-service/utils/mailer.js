@@ -60,8 +60,9 @@ const mailer = {
         },
         to: `${email}`,
         subject: "AirQo Analytics JOIN request",
-        text: msgs.joinRequest(firstName, lastName),
+        html: msgs.joinRequest(firstName, lastName, email),
         bcc,
+        attachments: attachments,
       };
 
       let response = transporter.sendMail(mailOptions);
@@ -416,38 +417,7 @@ const mailer = {
         to: `${email}`,
         subject: "Verify your email address!",
         html: msgs.join_by_email(email, token),
-        attachments: [
-          {
-            filename: "airqoLogo.png",
-            path: imagePath + "/airqoLogo.png",
-            cid: "AirQoEmailLogo",
-            contentDisposition: "inline",
-          },
-          {
-            filename: "faceBookLogo.png",
-            path: imagePath + "/facebookLogo.png",
-            cid: "FacebookLogo",
-            contentDisposition: "inline",
-          },
-          {
-            filename: "youtubeLogo.png",
-            path: imagePath + "/youtubeLogo.png",
-            cid: "YoutubeLogo",
-            contentDisposition: "inline",
-          },
-          {
-            filename: "twitterLogo.png",
-            path: imagePath + "/Twitter.png",
-            cid: "Twitter",
-            contentDisposition: "inline",
-          },
-          {
-            filename: "linkedInLogo.png",
-            path: imagePath + "/linkedInLogo.png",
-            cid: "LinkedInLogo",
-            contentDisposition: "inline",
-          },
-        ],
+        attachments: attachments,
       };
       let response = transporter.sendMail(mailOptions);
       let data = await response;
