@@ -14,15 +14,9 @@ const headers = (req, res, next) => {
 };
 router.use(headers);
 
-router.get("/channels", transformController.getChannels);
-// router.get("/feeds/:ch_id", transformController.getFeeds);
-router.get("/feeds/recent/:ch_id", transformController.getLastEntry);
-router.get("/hourly/feeds", transformController.hourly);
-router.get("/channels/age", transformController.getChannelLastEntryAge);
-router.get("/channels/fields/age", transformController.getLastFieldEntryAge);
-router.get("/channels/count", transformController.getDeviceCount);
+router.get("/recent/:ch_id", transformController.getLastEntry);
 router.get(
-  "/feeds/transform/recent",
+  "/transform/recent",
   oneOf([
     [
       query("channel")
@@ -60,9 +54,8 @@ router.get(
   ]),
   transformController.generateDescriptiveLastEntry
 );
-
 router.get(
-  "/feeds",
+  "/",
   oneOf([
     query("channel")
       .exists()
@@ -76,9 +69,8 @@ router.get(
   ]),
   transformController.readFeeds
 );
-
 router.get(
-  "/feeds/last",
+  "/last",
   oneOf([
     query("channel")
       .exists()

@@ -1,4 +1,4 @@
-const HTTPStatus = require("http-status");
+const httpStatus = require("http-status");
 const fetch = require("node-fetch");
 const axios = require("axios").default;
 const redis = require("../config/redis");
@@ -10,10 +10,32 @@ const { logObject, logElement, logText } = require("../utils/log");
 const errorsUtil = require("../utils/errors");
 const { validationResult } = require("express-validator");
 const cleanDeep = require("clean-deep");
+const log4js = require("log4js");
+const logger = log4js.getLogger(
+  `${constants.ENVIRONMENT} -- transform-controller`
+);
 
 const data = {
   getChannels: async (req, res) => {
     try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errorsUtil.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`Internal Server Error -- ${e.message}`);
+        }
+        return errorsUtil.badRequest(
+          res,
+          "bad request errors",
+          errorsUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
       let ts = Date.now();
       let day = await generateDateFormat(ts);
       let cacheID = `get_channels_${day}`;
@@ -21,10 +43,10 @@ const data = {
       redis.get(cacheID, (err, result) => {
         if (result) {
           const resultJSON = JSON.parse(result);
-          return res.status(HTTPStatus.OK).json(resultJSON);
+          return res.status(httpStatus.OK).json(resultJSON);
         } else if (err) {
           let message = err;
-          let statusCode = HTTPStatus.INTERNAL_SERVER_ERROR;
+          let statusCode = httpStatus.INTERNAL_SERVER_ERROR;
           let error = err;
           errorsUtil.errorResponse({ res, message, statusCode, error });
         } else {
@@ -42,7 +64,7 @@ const data = {
               );
               redis.expire(cacheID, constants.GET_CHANNELS_CACHE_EXPIRATION);
               return res
-                .status(HTTPStatus.OK)
+                .status(httpStatus.OK)
                 .json({ isCache: false, ...responseJSON });
             })
             .catch((err) => {
@@ -58,18 +80,36 @@ const data = {
                 ? err.response.data
                 : "Internal Server Error";
 
-              let statusCode = HTTPStatus.INTERNAL_SERVER_ERROR;
+              let statusCode = httpStatus.INTERNAL_SERVER_ERROR;
               errorsUtil.errorResponse({ res, message, statusCode, error });
             });
         }
       });
     } catch (error) {
       let message = error.message;
-      let statusCode = HTTPStatus.INTERNAL_SERVER_ERROR;
+      let statusCode = httpStatus.INTERNAL_SERVER_ERROR;
       errorsUtil.errorResponse({ res, message, statusCode, error });
     }
   },
   getFeeds: async (req, res) => {
+    const hasErrors = !validationResult(req).isEmpty();
+    if (hasErrors) {
+      let nestedErrors = validationResult(req).errors[0].nestedErrors;
+      try {
+        logger.error(
+          `input validation errors ${JSON.stringify(
+            errorsUtil.convertErrorArrayToObject(nestedErrors)
+          )}`
+        );
+      } catch (e) {
+        logger.error(`Internal Server Error -- ${e.message}`);
+      }
+      return errorsUtil.badRequest(
+        res,
+        "bad request errors",
+        errorsUtil.convertErrorArrayToObject(nestedErrors)
+      );
+    }
     logText("getting feeds..............  ");
     const fetch_response = await fetch(constants.GET_FEEDS(req.params.ch_id));
     const json = await fetch_response.json();
@@ -78,6 +118,24 @@ const data = {
 
   getLastEntry: async (req, res) => {
     try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errorsUtil.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`Internal Server Error -- ${e.message}`);
+        }
+        return errorsUtil.badRequest(
+          res,
+          "bad request errors",
+          errorsUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
       const { ch_id } = req.params;
       if (ch_id) {
         let ts = Date.now();
@@ -86,7 +144,7 @@ const data = {
         redis.get(cacheID, (err, result) => {
           if (result) {
             const resultJSON = JSON.parse(result);
-            return res.status(HTTPStatus.OK).json(resultJSON);
+            return res.status(httpStatus.OK).json(resultJSON);
           } else {
             let channel = ch_id;
             axios
@@ -112,7 +170,7 @@ const data = {
                   constants.GET_LAST_ENTRY_CACHE_EXPIRATION
                 );
 
-                return res.status(HTTPStatus.OK).json({
+                return res.status(httpStatus.OK).json({
                   isCache: false,
                   ...responseData,
                 });
@@ -130,7 +188,7 @@ const data = {
                   ? err.response.data
                   : "Internal Server Error";
 
-                let statusCode = HTTPStatus.INTERNAL_SERVER_ERROR;
+                let statusCode = httpStatus.INTERNAL_SERVER_ERROR;
                 errorsUtil.errorResponse(
                   ({ res, message, statusCode, error } = {})
                 );
@@ -139,13 +197,13 @@ const data = {
         });
       } else {
         let message = "missing some request parameters";
-        let statusCode = HTTPStatus.BAD_REQUEST;
+        let statusCode = httpStatus.BAD_REQUEST;
         let error = {};
         errorsUtil.errorResponse({ res, message, statusCode, error });
       }
     } catch (error) {
       let message = error.message;
-      let statusCode = HTTPStatus.INTERNAL_SERVER_ERROR;
+      let statusCode = httpStatus.INTERNAL_SERVER_ERROR;
       errorsUtil.errorResponse({ res, message, statusCode, error });
     }
   },
@@ -153,6 +211,24 @@ const data = {
   hourly: async (req, res) => {
     logText("getting hourly..............  ");
     try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errorsUtil.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`Internal Server Error -- ${e.message}`);
+        }
+        return errorsUtil.badRequest(
+          res,
+          "bad request errors",
+          errorsUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
       const { channel } = req.query;
 
       if (channel) {
@@ -163,10 +239,10 @@ const data = {
         redis.get(cacheID, (err, result) => {
           if (result) {
             const resultJSON = JSON.parse(result);
-            return res.status(HTTPStatus.OK).json(resultJSON);
+            return res.status(httpStatus.OK).json(resultJSON);
           } else if (err) {
             let message = err;
-            let statusCode = HTTPStatus.INTERNAL_SERVER_ERROR;
+            let statusCode = httpStatus.INTERNAL_SERVER_ERROR;
             let error = err;
             errorsUtil.errorResponse({ res, message, statusCode, error });
           } else {
@@ -184,7 +260,7 @@ const data = {
                 );
                 redis.expire(cacheID, constants.GET_HOURLY_CACHE_EXPIRATION);
                 return res
-                  .status(HTTPStatus.OK)
+                  .status(httpStatus.OK)
                   .json({ isCache: false, ...responseJSON });
               })
               .catch((err) => {
@@ -200,7 +276,7 @@ const data = {
                   ? err.response.data
                   : "Internal Server Error";
 
-                let statusCode = HTTPStatus.INTERNAL_SERVER_ERROR;
+                let statusCode = httpStatus.INTERNAL_SERVER_ERROR;
                 errorsUtil.errorResponse({ res, message, statusCode, error });
               });
           }
@@ -209,16 +285,16 @@ const data = {
         //   constants.GET_HOURLY_FEEDS(req.params.ch_id)
         // );
         // let json = await fetch_response.json();
-        // res.status(HTTPStatus.OK).send(json);
+        // res.status(httpStatus.OK).send(json);
       } else {
         let message = "missing some request parameters";
-        let statusCode = HTTPStatus.BAD_REQUEST;
+        let statusCode = httpStatus.BAD_REQUEST;
         let error = {};
         errorsUtil.errorResponse({ res, message, statusCode, error });
       }
     } catch (error) {
       let message = error.message;
-      let statusCode = HTTPStatus.INTERNAL_SERVER_ERROR;
+      let statusCode = httpStatus.INTERNAL_SERVER_ERROR;
       errorsUtil.errorResponse({ res, message, statusCode, error });
     }
   },
@@ -233,10 +309,20 @@ const data = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        let message = "bad request errors";
-        let statusCode = HTTPStatus.INTERNAL_SERVER_ERROR;
-        let error = errorsUtil.convertErrorArrayToObject(nestedErrors);
-        errorsUtil.errorResponse({ res, message, statusCode, error });
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errorsUtil.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`Internal Server Error -- ${e.message}`);
+        }
+        return errorsUtil.badRequest(
+          res,
+          "bad request errors",
+          errorsUtil.convertErrorArrayToObject(nestedErrors)
+        );
       }
       const { channel, device_number, start, end } = req.query;
       let api_key = "";
@@ -253,10 +339,10 @@ const data = {
           redis.get(cacheID, (err, result) => {
             if (result) {
               const resultJSON = JSON.parse(result);
-              return res.status(HTTPStatus.OK).json(resultJSON);
+              return res.status(httpStatus.OK).json(resultJSON);
             } else if (err) {
               return res
-                .status(HTTPStatus.INTERNAL_SERVER_ERROR)
+                .status(httpStatus.INTERNAL_SERVER_ERROR)
                 .json({ error: err, message: "Internal Server Error" });
             } else {
               let request = {};
@@ -317,7 +403,7 @@ const data = {
                     )
                   );
 
-                  return res.status(HTTPStatus.OK).json({
+                  return res.status(httpStatus.OK).json({
                     isCache: false,
                     success: true,
                     measurements: cleanDeep(measurements),
@@ -336,7 +422,7 @@ const data = {
                     ? err.response.data
                     : "Internal Server Error";
 
-                  let statusCode = HTTPStatus.INTERNAL_SERVER_ERROR;
+                  let statusCode = httpStatus.INTERNAL_SERVER_ERROR;
                   errorsUtil.errorResponse({ res, message, statusCode, error });
                 });
             }
@@ -348,7 +434,7 @@ const data = {
             : { message: "Internal Server Error" };
           const status = result.status
             ? result.status
-            : HTTPStatus.INTERNAL_SERVER_ERROR;
+            : httpStatus.INTERNAL_SERVER_ERROR;
           return res.status(status).json({
             message: result.message,
             errors,
@@ -358,7 +444,7 @@ const data = {
       });
     } catch (error) {
       logObject("Internal Server Error", error);
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -371,10 +457,20 @@ const data = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        let message = "bad request errors";
-        let statusCode = HTTPStatus.INTERNAL_SERVER_ERROR;
-        let error = errorsUtil.convertErrorArrayToObject(nestedErrors);
-        errorsUtil.errorResponse({ res, message, statusCode, error });
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errorsUtil.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`Internal Server Error -- ${e.message}`);
+        }
+        return errorsUtil.badRequest(
+          res,
+          "bad request errors",
+          errorsUtil.convertErrorArrayToObject(nestedErrors)
+        );
       }
       const { channel, device_number, start, end } = req.query;
       let api_key = "";
@@ -392,10 +488,10 @@ const data = {
           redis.get(cacheID, (err, result) => {
             if (result) {
               const resultJSON = JSON.parse(result);
-              return res.status(HTTPStatus.OK).json(resultJSON);
+              return res.status(httpStatus.OK).json(resultJSON);
             } else if (err) {
               return res
-                .status(HTTPStatus.INTERNAL_SERVER_ERROR)
+                .status(httpStatus.INTERNAL_SERVER_ERROR)
                 .json({ error: err, message: "Internal Server Error" });
             } else {
               let request = {};
@@ -465,7 +561,7 @@ const data = {
                     )
                   );
 
-                  return res.status(HTTPStatus.OK).json({
+                  return res.status(httpStatus.OK).json({
                     isCache: false,
                     success: true,
                     measurements: cleanDeep(measurements),
@@ -485,7 +581,7 @@ const data = {
                     ? err.response.data
                     : "Internal Server Error";
 
-                  let statusCode = HTTPStatus.INTERNAL_SERVER_ERROR;
+                  let statusCode = httpStatus.INTERNAL_SERVER_ERROR;
                   errorsUtil.errorResponse({
                     res,
                     message,
@@ -500,7 +596,7 @@ const data = {
           const errors = result.errors
             ? result.errors
             : { message: "Internal Server Error" };
-          return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+          return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
             message: result.message,
             errors,
             success: false,
@@ -508,7 +604,7 @@ const data = {
         }
       });
     } catch (error) {
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -521,6 +617,15 @@ const data = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errorsUtil.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`Internal Server Error -- ${e.message}`);
+        }
         return errorsUtil.badRequest(
           res,
           "bad request errors",
@@ -540,7 +645,7 @@ const data = {
           // redis.get(cacheID, (err, result) => {
           //   if (result) {
           //     const resultJSON = JSON.parse(result);
-          //     return res.status(HTTPStatus.OK).json(resultJSON);
+          //     return res.status(httpStatus.OK).json(resultJSON);
           //   } else {
           //   }
           // });
@@ -559,7 +664,7 @@ const data = {
               logObject("the response man", response);
               const readings = response.data;
               if (isEmpty(readings)) {
-                return res.status(HTTPStatus.NOT_FOUND).json({
+                return res.status(httpStatus.NOT_FOUND).json({
                   success: true,
                   message: "no recent measurements for this device",
                 });
@@ -570,7 +675,7 @@ const data = {
                   : null;
 
                 if (isEmpty(fieldOneValue)) {
-                  return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+                  return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
                     success: false,
                     message: "unable to categorise device",
                     errors: {
@@ -629,7 +734,7 @@ const data = {
                       const status =
                         responseFromConvertFromHectopascalsToKilopascals.status
                           ? responseFromConvertFromHectopascalsToKilopascals.status
-                          : HTTPStatus.INTERNAL_SERVER_ERROR;
+                          : httpStatus.INTERNAL_SERVER_ERROR;
                       return res
                         .status(status)
                         .json(responseFromConvertFromHectopascalsToKilopascals);
@@ -649,7 +754,7 @@ const data = {
                   //   constants.GET_DESCRPIPTIVE_LAST_ENTRY_CACHE_EXPIRATION
                   // );
 
-                  return res.status(HTTPStatus.OK).json({
+                  return res.status(httpStatus.OK).json({
                     isCache: false,
                     ...cleanedFinalTransformation,
                   });
@@ -672,13 +777,13 @@ const data = {
               let message = err.response
                 ? err.response.data
                 : "Internal Server Error";
-              let statusCode = HTTPStatus.INTERNAL_SERVER_ERROR;
+              let statusCode = httpStatus.INTERNAL_SERVER_ERROR;
               errorsUtil.errorResponse({ res, message, statusCode, error });
             });
         } else if (result.success === false) {
           const status = result.status
             ? result.status
-            : HTTPStatus.INTERNAL_SERVER_ERROR;
+            : httpStatus.INTERNAL_SERVER_ERROR;
           res.status(status).json({
             message: result.message ? result.message : "internal server error",
             errors: result.errors ? result.errors : { message: "" },
@@ -688,12 +793,30 @@ const data = {
       });
     } catch (error) {
       let message = error.message;
-      let statusCode = HTTPStatus.INTERNAL_SERVER_ERROR;
+      let statusCode = httpStatus.INTERNAL_SERVER_ERROR;
       errorsUtil.errorResponse({ res, message, statusCode, error });
     }
   },
   getChannelLastEntryAge: async (req, res) => {
     try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errorsUtil.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`Internal Server Error -- ${e.message}`);
+        }
+        return errorsUtil.badRequest(
+          res,
+          "bad request errors",
+          errorsUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
       const { channel } = req.query;
       logElement("the channel ID:", channel);
       let ts = Date.now();
@@ -703,7 +826,7 @@ const data = {
       return redis.get(cacheID, (err, result) => {
         if (result) {
           const resultJSON = JSON.parse(result);
-          return res.status(HTTPStatus.OK).json({
+          return res.status(httpStatus.OK).json({
             ...resultJSON,
           });
         } else {
@@ -727,7 +850,7 @@ const data = {
                 cacheID,
                 constants.GET_CHANNEL_LAST_ENTRY_AGE_CACHE_EXPIRATION
               );
-              return res.status(HTTPStatus.OK).json({
+              return res.status(httpStatus.OK).json({
                 isCache: false,
                 ...responseJSON,
               });
@@ -745,20 +868,38 @@ const data = {
                 ? err.response.data
                 : "Internal Server Error";
 
-              let statusCode = HTTPStatus.INTERNAL_SERVER_ERROR;
+              let statusCode = httpStatus.INTERNAL_SERVER_ERROR;
               errorsUtil.errorResponse({ res, message, statusCode, error });
             });
         }
       });
     } catch (e) {
       res
-        .status(HTTPStatus.BAD_GATEWAY)
+        .status(httpStatus.BAD_GATEWAY)
         .json({ error: e.message, message: "Server Error" });
     }
   },
 
   getLastFieldEntryAge: async (req, res) => {
     try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errorsUtil.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`Internal Server Error -- ${e.message}`);
+        }
+        return errorsUtil.badRequest(
+          res,
+          "bad request errors",
+          errorsUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
       const { channel, sensor } = req.query;
 
       if (channel && sensor) {
@@ -770,7 +911,7 @@ const data = {
         return redis.get(`${cacheID}`, (err, result) => {
           if (result) {
             const resultJSON = JSON.parse(result);
-            return res.status(HTTPStatus.OK).json({ ...resultJSON });
+            return res.status(httpStatus.OK).json({ ...resultJSON });
           } else {
             /**
              * we can trasform the field
@@ -793,7 +934,7 @@ const data = {
                   constants.GET_CHANNEL_LAST_ENTRY_AGE_CACHE_EXPIRATION
                 );
 
-                return res.status(HTTPStatus.OK).json({
+                return res.status(httpStatus.OK).json({
                   isCache: false,
                   ...responseJSON,
                 });
@@ -811,19 +952,19 @@ const data = {
                   ? err.response.data
                   : "Internal Server Error";
 
-                let statusCode = HTTPStatus.INTERNAL_SERVER_ERROR;
+                let statusCode = httpStatus.INTERNAL_SERVER_ERROR;
                 errorsUtil.errorResponse({ res, message, statusCode, error });
               });
           }
         });
       } else {
-        return res.status(HTTPStatus.BAD_REQUEST).json({
+        return res.status(httpStatus.BAD_REQUEST).json({
           message: "missing request parameters, please check documentation",
         });
       }
     } catch (e) {
       res
-        .status(HTTPStatus.BAD_GATEWAY)
+        .status(httpStatus.BAD_GATEWAY)
         .json({ error: e.message, message: "server error" });
     }
   },
@@ -831,6 +972,24 @@ const data = {
   getDeviceCount: async (req, res) => {
     logText(" getDeviceCount..............  ");
     try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        try {
+          logger.error(
+            `input validation errors ${JSON.stringify(
+              errorsUtil.convertErrorArrayToObject(nestedErrors)
+            )}`
+          );
+        } catch (e) {
+          logger.error(`Internal Server Error -- ${e.message}`);
+        }
+        return errorsUtil.badRequest(
+          res,
+          "bad request errors",
+          errorsUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
       let ts = Date.now();
       let day = await generateDateFormat(ts);
       let cacheID = `device_count_${day}`;
@@ -870,7 +1029,7 @@ const data = {
                 ? err.response.data
                 : "Internal Server Error";
 
-              let statusCode = HTTPStatus.INTERNAL_SERVER_ERROR;
+              let statusCode = httpStatus.INTERNAL_SERVER_ERROR;
               errorsUtil.errorResponse({ res, message, statusCode, error });
             });
         }
