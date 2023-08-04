@@ -455,10 +455,13 @@ const createKnowYourAir = {
 
           if (responseFromListProgress.data.length == 0) {
             let requestBody = {
+              query: {
+                tenant: tenant,
+              },
               body:
               {
                 user_id: user_id,
-                lesson_id: progress.lesson_id,
+                lesson_id: progress._id,
                 active_task: progress.active_task,
                 status: progress.status,
               },

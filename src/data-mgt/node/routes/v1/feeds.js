@@ -1,19 +1,22 @@
 const express = require("express");
 const router = express.Router();
-const transformController = require("../controllers/transform");
-const middlewareConfig = require("../config/router.middleware");
-middlewareConfig(router);
+const transformController = require("@controllers/transform");
 const { check, oneOf, query, body, param } = require("express-validator");
 
-router.get("/channels", transformController.getChannels);
-// router.get("/feeds/:ch_id", transformController.getFeeds);
-router.get("/feeds/recent/:ch_id", transformController.getLastEntry);
-router.get("/hourly/feeds", transformController.hourly);
-router.get("/channels/age", transformController.getChannelLastEntryAge);
-router.get("/channels/fields/age", transformController.getLastFieldEntryAge);
-router.get("/channels/count", transformController.getDeviceCount);
+const headers = (req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header(
+    "Access-Control-Allow-Headers",
+    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
+  );
+  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
+  next();
+};
+router.use(headers);
+
+router.get("/recent/:ch_id", transformController.getLastEntry);
 router.get(
-  "/feeds/transform/recent",
+  "/transform/recent",
   oneOf([
     [
       query("channel")
@@ -51,9 +54,8 @@ router.get(
   ]),
   transformController.generateDescriptiveLastEntry
 );
-
 router.get(
-  "/feeds",
+  "/",
   oneOf([
     query("channel")
       .exists()
@@ -67,9 +69,8 @@ router.get(
   ]),
   transformController.readFeeds
 );
-
 router.get(
-  "/feeds/last",
+  "/last",
   oneOf([
     query("channel")
       .exists()
