@@ -332,8 +332,7 @@ const mailer = {
           address: constants.EMAIL,
         },
         to: `${email}`,
-        subject:
-          "Action Required: Complete Your Two-Factor Authentication Setup",
+        subject: "Your Login Code for AirQo Mobile",
         html: msgTemplates.mobileEmailVerification({
           email,
           firebase_uid,

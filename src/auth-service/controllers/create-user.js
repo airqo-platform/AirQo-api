@@ -683,6 +683,7 @@ const createUser = {
       }
 
       await createUserUtil.verifyFirebaseCustomToken(request, (result) => {
+        logObject("the result from the verify request", result);
         if (result.success === true) {
           const status = result.status ? result.status : httpStatus.OK;
           return res.status(status).json({
@@ -694,15 +695,13 @@ const createUser = {
           const status = result.status
             ? result.status
             : httpStatus.INTERNAL_SERVER_ERROR;
-          const errors = result.errors
-            ? result.errors
-            : { message: "Internal Server Error" };
-
           return res.status(status).json({
             success: false,
             message: "Unable to login with Firebase",
             exists: false,
-            errors,
+            errors: result.errors
+              ? result.errors
+              : { message: "Internal Server Error" },
           });
         }
       });

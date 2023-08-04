@@ -275,8 +275,8 @@ router.post(
   createUserController.signUpWithFirebase
 );
 
-router.get(
-  "/firebase/verify/:token",
+router.post(
+  "/firebase/verify",
   oneOf([
     [
       query("tenant")
@@ -290,15 +290,40 @@ router.get(
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
-
   oneOf([
     [
-      param("token")
+      body("token")
         .exists()
-        .withMessage("the token param is missing in the request")
+        .withMessage("the token is missing in the request body")
         .bail()
+        .notEmpty()
+        .withMessage("the token should not be empty")
         .trim(),
     ],
+  ]),
+  oneOf([
+    body("email")
+      .exists()
+      .withMessage(
+        "a user identifier is missing in request, consider using email"
+      )
+      .bail()
+      .notEmpty()
+      .withMessage("the email should not be empty")
+      .bail()
+      .isEmail()
+      .withMessage("this is not a valid email address"),
+    body("phoneNumber")
+      .exists()
+      .withMessage(
+        "a user identifier is missing in request, consider using phoneNumber"
+      )
+      .bail()
+      .notEmpty()
+      .withMessage("the phoneNumber should not be empty")
+      .bail()
+      .isMobilePhone()
+      .withMessage("the phoneNumber must be valid"),
   ]),
   createUserController.verifyFirebaseCustomToken
 );

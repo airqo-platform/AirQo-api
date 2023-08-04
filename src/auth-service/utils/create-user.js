@@ -620,17 +620,10 @@ const createUserModule = {
       });
     }
   },
-  setCache: (cacheID, callback) => {
+  setCache: (data, cacheID, callback) => {
     try {
-      redis.set(
-        cacheID,
-        JSON.stringify({
-          isCache: true,
-          success: true,
-          message: `successfully retrieved the measurements`,
-          data,
-        })
-      );
+      logObject("cacheID supplied to setCache", cacheID);
+      redis.set(cacheID, JSON.stringify(data));
       redis.expire(cacheID, 3600);
       callback({
         success: true,
@@ -647,11 +640,14 @@ const createUserModule = {
       });
     }
   },
-  getCache: (request, callback) => {
+  getCache: (cacheID, callback) => {
     try {
-      const cacheID = createUserModule.generateCacheID(request);
-      redis.get(cacheID, async (err, result) => {
+      logText("we are getting the cache......");
+      logObject("cacheID supplied", cacheID);
+      redis.get(cacheID, (err, result) => {
         const resultJSON = JSON.parse(result);
+        logObject("cache result", result);
+        logObject("cache err", err);
         if (result) {
           callback({
             success: true,
@@ -687,21 +683,20 @@ const createUserModule = {
     }
   },
   generateCacheID: (request) => {
-    const { tenant, skip, limit } = request.query;
+    const { tenant } = request.query;
     const { context } = request;
-    const currentTime = new Date().toISOString();
-    if (isEmpty(context)) {
+    if (isEmpty(context) || isEmpty(tenant)) {
+      logger.error(`the request is either missing the context or the tenant`);
       return {
         success: false,
-        message: "Internal Server Error",
-        errors: { message: "the request is missing the context" },
+        message: "Bad Request Error",
+        errors: {
+          message: "the request is either missing the context or tenant",
+        },
         status: httpStatus.BAD_REQUEST,
       };
     }
-    const day = generateDateFormatWithoutHrs(currentTime);
-    return `${context}_${tenant}_${skip ? skip : 0}_${limit ? limit : 0}_${
-      day ? day : "noDay"
-    }`;
+    return `${context}_${tenant}`;
   },
   loginWithFirebase: async (request, callback) => {
     try {
@@ -726,18 +721,24 @@ const createUserModule = {
 
             // Generate the custom token
             const token = generateNumericToken(5);
-            /*.
-            We are now going to save this new token in our Redis DB
-            After successful storage of this token, then we can be able to 
-            **/
+
             let generateCacheRequest = Object.assign({}, request);
-            generateCacheRequest.context = firebase_uid;
+            const userIdentifier = firebaseUser.email
+              ? firebaseUser.email
+              : firebaseUser.phoneNumber;
+            generateCacheRequest.context = userIdentifier;
             const cacheID =
               createUserModule.generateCacheID(generateCacheRequest);
             if (cacheID.success && cacheID.success === false) {
               callback(cacheID);
             }
-            return createUserModule.setCache(cacheID, async (result) => {
+
+            const data = {
+              token,
+              ...firebaseUser,
+            };
+            return createUserModule.setCache(data, cacheID, async (result) => {
+              logObject("result from setCache", result);
               if (result.success === true) {
                 logObject("token", token);
 
@@ -786,112 +787,129 @@ const createUserModule = {
   },
   verifyFirebaseCustomToken: async (request, callback) => {
     try {
+      logText("we are in verifying things");
       const { tenant } = request.query;
-      const { token } = request.params;
-      const decodedToken = await getAuth().verifyIdToken(token);
-      logObject("decodedToken", decodedToken);
+      const { email, phoneNumber, token } = request.body;
 
-      if (!isEmpty(decodedToken.uid)) {
-        const firebaseUser = decodedToken;
+      let generateCacheRequest = Object.assign({}, request);
+      const userIdentifier = email ? email : phoneNumber;
+      generateCacheRequest.context = userIdentifier;
 
-        if (!firebaseUser.email && !firebaseUser.phoneNumber) {
-          return callback({
-            success: false,
-            message: "Invalid request.",
-            status: httpStatus.BAD_REQUEST,
-            errors: { message: "Email or phoneNumber is required." },
-          });
-        }
-        let filter = {};
-        if (email) {
-          filter.email = email;
-        }
-        if (phoneNumber) {
-          filter.phoneNumber = phoneNumber;
-        }
-        // Check if user exists locally
-        const userExistsLocally = await UserModel(tenant)
-          .findOne(filter)
-          .exec();
-        logObject("userExistsLocally", userExistsLocally);
-        if (userExistsLocally) {
-          // User exists locally, perform update operation
-          const updatedFields = {};
-          if (firebaseUser.firstName !== null) {
-            updatedFields.firstName = firebaseUser.firstName;
-          }
-          if (firebaseUser.lastName !== null) {
-            updatedFields.lastName = firebaseUser.lastName;
-          }
-          if (firebaseUser.userName !== null) {
-            updatedFields.userName = firebaseUser.userName;
-          }
+      const cacheID = createUserModule.generateCacheID(generateCacheRequest);
 
-          const updatedUser = await UserModel(tenant).updateOne(
-            { _id: userExistsLocally._id },
-            {
-              $set: updatedFields,
-            }
-          );
-
-          logObject("updatedUser", updatedUser);
-          /**
-          I am considering doing some 2FA at this point and perhaps creating separate
-          logic for verifying the user's received token for me to verify and then
-          I send them the following response from that separate logic
-          */
-          callback({
-            success: true,
-            message: "Successful login!",
-            status: httpStatus.OK,
-            data: userExistsLocally.toAuthJSON(),
-          });
-        } else {
-          // User does not exist locally, perform create operation
-          logText("this user does not exist locally");
-          const generatedUserName =
-            firebaseUser.displayName || firebaseUser.email;
-          const generatedFirstName = firebaseUser.firstName || "Unknown";
-          const generatedLastName = firebaseUser.lastName || "Unknown";
-          const generatedPassword = accessCodeGenerator.generate(
-            constants.RANDOM_PASSWORD_CONFIGURATION(10)
-          );
-          const generatedProfilePicture = firebaseUser.photoURL || "";
-          const newUser = await UserModel(tenant).create({
-            email: firebaseUser.email,
-            phoneNumber: firebaseUser.phoneNumber,
-            firstName: generatedFirstName,
-            lastName: generatedLastName,
-            userName: generatedUserName,
-            password: generatedPassword,
-            firebase_uid: firebaseUser.uid,
-            profilePicture: generatedProfilePicture,
-          });
-
-          logObject("newUser", newUser);
-          /**
-          I am considering doing some 2FA at this point and perhaps creating separate
-          logic for verifying the user's received token for me to verify and then
-          I send them the following response from that separate logic
-          */
-
-          callback({
-            success: true,
-            message: "Successful login!",
-            status: httpStatus.CREATED,
-            data: newUser.toAuthJSON(),
-          });
-        }
-      } else {
-        logger.error(`Invalid Custom Token Provided`);
-        callback({
-          success: false,
-          message: "Bad Request Error",
-          errors: { message: "Invalid Token Provided" },
-          status: httpStatus.BAD_REQUEST,
-        });
+      logObject("the cacheID search results", cacheID);
+      if (cacheID.success && cacheID.success === false) {
+        callback(cacheID);
       }
+
+      return createUserModule.getCache(cacheID, async (cacheResult) => {
+        logObject("the cacheResult", cacheResult);
+        if (cacheResult.success === true) {
+          const firebaseUser = cacheResult.data;
+
+          if (!firebaseUser.email && !firebaseUser.phoneNumber) {
+            return callback({
+              success: false,
+              message: "Invalid request.",
+              status: httpStatus.BAD_REQUEST,
+              errors: { message: "Email or phoneNumber is required." },
+            });
+          }
+          let filter = {};
+          if (email) {
+            filter.email = email;
+          }
+          if (phoneNumber) {
+            filter.phoneNumber = phoneNumber;
+          }
+          // Check if user exists locally
+          const userExistsLocally = await UserModel(tenant)
+            .findOne(filter)
+            .exec();
+
+          logObject("userExistsLocally", userExistsLocally);
+          if (userExistsLocally) {
+            // User exists locally, perform update operation
+            const updatedFields = {};
+            if (firebaseUser.firstName !== null) {
+              updatedFields.firstName = firebaseUser.firstName;
+            }
+            if (firebaseUser.lastName !== null) {
+              updatedFields.lastName = firebaseUser.lastName;
+            }
+            if (firebaseUser.userName !== null) {
+              updatedFields.userName = firebaseUser.userName;
+            }
+
+            const updatedUser = await UserModel(tenant).updateOne(
+              { _id: userExistsLocally._id },
+              {
+                $set: updatedFields,
+              }
+            );
+
+            logObject("updatedUser", updatedUser);
+            /**
+            I am considering doing some 2FA at this point and perhaps creating separate
+            logic for verifying the user's received token for me to verify and then
+            I send them the following response from that separate logic
+            */
+            callback({
+              success: true,
+              message: "Successful login!",
+              status: httpStatus.OK,
+              data: userExistsLocally.toAuthJSON(),
+            });
+          } else {
+            // User does not exist locally, perform create operation
+            logText("this user does not exist locally");
+            const generatedUserName =
+              firebaseUser.displayName || firebaseUser.email;
+            const generatedFirstName = firebaseUser.firstName || "Unknown";
+            const generatedLastName = firebaseUser.lastName || "Unknown";
+            const generatedPassword = accessCodeGenerator.generate(
+              constants.RANDOM_PASSWORD_CONFIGURATION(10)
+            );
+            const generatedProfilePicture = firebaseUser.photoURL || "";
+            const newUser = await UserModel(tenant).create({
+              email: firebaseUser.email,
+              phoneNumber: firebaseUser.phoneNumber,
+              firstName: generatedFirstName,
+              lastName: generatedLastName,
+              userName: generatedUserName,
+              password: generatedPassword,
+              firebase_uid: firebaseUser.uid,
+              profilePicture: generatedProfilePicture,
+            });
+
+            logObject("newUser", newUser);
+            /**
+            I am considering doing some 2FA at this point and perhaps creating separate
+            logic for verifying the user's received token for me to verify and then
+            I send them the following response from that separate logic
+            */
+
+            callback({
+              success: true,
+              message: "Successful login!",
+              status: httpStatus.CREATED,
+              data: newUser.toAuthJSON(),
+            });
+          }
+        } else {
+          logger.error(
+            `Internal Server Error -- Invalid Request, crosscheck token provided`
+          );
+          callback({
+            success: false,
+            message: "Bad Request Error",
+            errors: { message: "Invalid Request, crosscheck token provided" },
+            status: httpStatus.BAD_REQUEST,
+          });
+        }
+      });
     } catch (error) {
+      logObject("error", error);
       logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
       callback({
         success: false,
