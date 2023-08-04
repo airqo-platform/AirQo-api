@@ -11,7 +11,7 @@ from geoalchemy2 import Geometry
 
 import config
 
-app_configuration = constants.app_config.get(os.getenv("FLASK_ENV"))
+app_configuration = config.app_config.get(os.getenv("FLASK_ENV"))
 load_dotenv()
 
 _logger = logging.getLogger(__name__)
@@ -32,7 +32,7 @@ def create_app(environment):
     from prediction import ml_app
 
     app = Flask(__name__)
-    app.config.from_object(constants.app_config[environment])
+    app.config.from_object(config.app_config[environment])
     cache.init_app(app)
     mongo.init_app(app)
     app.config["SQLALCHEMY_DATABASE_URI"] = app_configuration.POSTGRES_CONNECTION_URL
