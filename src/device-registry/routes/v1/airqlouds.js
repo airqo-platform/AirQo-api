@@ -8,6 +8,7 @@ const ObjectId = mongoose.Types.ObjectId;
 const createAirQloudUtil = require("@utils/create-location");
 const { logElement, logText, logObject } = require("@utils/log");
 const isEmpty = require("is-empty");
+const { getModelByTenant } = require("@config/database");
 const NetworkSchema = require("@models/Network");
 
 const NetworkModel = (tenant) => {
@@ -28,6 +29,32 @@ const validateNetwork = async (value) => {
   const networks = await validNetworks();
   if (!networks.includes(value.toLowerCase())) {
     throw new Error("Invalid network");
+  }
+};
+
+const AdminLevelModel = (tenant) => {
+  try {
+    const adminlevels = mongoose.model("adminlevels");
+    return adminlevels;
+  } catch (error) {
+    const adminlevels = getModelByTenant(
+      tenant,
+      "adminlevel",
+      AdminLevelSchema
+    );
+    return adminlevels;
+  }
+};
+
+const validAdminLevels = async () => {
+  const levels = await AdminLevelModel("airqo").distinct("name");
+  return levels.map((level) => level.toLowerCase());
+};
+
+const validateAdminLevels = async (value) => {
+  const levels = await validAdminLevels();
+  if (!levels.includes(value.toLowerCase())) {
+    throw new Error("Invalid level");
   }
 };
 
@@ -145,19 +172,9 @@ router.post(
         .withMessage("admin_level is missing in your request")
         .bail()
         .toLowerCase()
-        .isIn([
-          "village",
-          "district",
-          "parish",
-          "division",
-          "county",
-          "subcounty",
-          "country",
-          "state",
-          "province",
-        ])
+        .custom(validateAdminLevels)
         .withMessage(
-          "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district"
+          "admin_level values include but not limited to: province, state, village, county, etc. Update your GLOBAL configs"
         ),
       body("airqloud_tags")
         .optional()
@@ -260,19 +277,9 @@ router.get(
         )
         .bail()
         .toLowerCase()
-        .isIn([
-          "village",
-          "district",
-          "parish",
-          "division",
-          "county",
-          "subcounty",
-          "country",
-          "state",
-          "province",
-        ])
+        .custom(validateAdminLevels)
         .withMessage(
-          "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district"
+          "admin_level values include but not limited to: province, state, village, county, etc. Update your GLOBAL configs"
         ),
     ],
   ]),
@@ -316,19 +323,9 @@ router.get(
         )
         .bail()
         .toLowerCase()
-        .isIn([
-          "village",
-          "district",
-          "parish",
-          "division",
-          "county",
-          "subcounty",
-          "country",
-          "state",
-          "province",
-        ])
+        .custom(validateAdminLevels)
         .withMessage(
-          "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district"
+          "admin_level values include but not limited to: province, state, village, county, etc. Update your GLOBAL configs"
         ),
     ],
   ]),
@@ -372,19 +369,9 @@ router.get(
         )
         .bail()
         .toLowerCase()
-        .isIn([
-          "village",
-          "district",
-          "parish",
-          "division",
-          "county",
-          "subcounty",
-          "country",
-          "state",
-          "province",
-        ])
+        .custom(validateAdminLevels)
         .withMessage(
-          "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district"
+          "admin_level values include but not limited to: province, state, village, county, etc. Update your GLOBAL configs"
         ),
     ],
   ]),
@@ -437,19 +424,9 @@ router.get(
       .withMessage("admin_level is empty, should not be if provided in request")
       .bail()
       .toLowerCase()
-      .isIn([
-        "village",
-        "district",
-        "parish",
-        "division",
-        "county",
-        "subcounty",
-        "country",
-        "state",
-        "province",
-      ])
+      .custom(validateAdminLevels)
       .withMessage(
-        "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district"
+        "admin_level values include but not limited to: province, state, village, county, etc. Update your GLOBAL configs"
       ),
   ]),
   airqloudController.findSites
@@ -507,19 +484,9 @@ router.put(
         )
         .bail()
         .toLowerCase()
-        .isIn([
-          "village",
-          "district",
-          "parish",
-          "division",
-          "county",
-          "subcounty",
-          "country",
-          "state",
-          "province",
-        ])
+        .custom(validateAdminLevels)
         .withMessage(
-          "admin_level values include:province, state, village, county, subcounty, village, parish, country, division and district"
+          "admin_level values include but not limited to: province, state, village, county, etc. Update your GLOBAL configs"
         ),
       body("description")
         .optional()
@@ -688,19 +655,9 @@ router.get(
       .withMessage("admin_level is empty, should not be if provided in request")
       .bail()
       .toLowerCase()
-      .isIn([
-        "village",
-        "district",
-        "parish",
-        "division",
-        "county",
-        "subcounty",
-        "country",
-        "state",
-        "province",
-      ])
+      .custom(validateAdminLevels)
       .withMessage(
-        "admin_level values include: province, state, village, county, subcounty, village, parish, country, division and district"
+        "admin_level values include but not limited to: province, state, village, county, etc. Update your GLOBAL configs"
       ),
   ]),
   airqloudController.calculateGeographicalCenter
@@ -715,7 +672,7 @@ router.post(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "usembassy", "nasa", "unep"])
+      .custom(validateNetwork)
       .withMessage("the network value is not among the expected ones"),
   ]),
   airqloudController.bulkCreate

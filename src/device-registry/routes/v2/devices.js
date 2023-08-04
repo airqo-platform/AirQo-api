@@ -9,6 +9,32 @@ const numeral = require("numeral");
 const { logElement, logText, logObject } = require("@utils/log");
 const phoneUtil = require("google-libphonenumber").PhoneNumberUtil.getInstance();
 const decimalPlaces = require("decimal-places");
+const { getModelByTenant } = require("@config/database");
+
+const NetworkSchema = require("@models/Network");
+const NetworkModel = (tenant) => {
+  try {
+    const networks = mongoose.model("networks");
+    return networks;
+  } catch (error) {
+    const networks = getModelByTenant(tenant, "network", NetworkSchema);
+    return networks;
+  }
+};
+
+const validNetworks = async () => {
+  const networks = await NetworkModel("airqo").distinct("name");
+  return networks.map((network) => network.toLowerCase());
+};
+
+const validateNetwork = async (value) => {
+  const networks = await validNetworks();
+  if (!networks.includes(value.toLowerCase())) {
+    throw new Error("Invalid network");
+  }
+};
+
+logObject("validateNetwork", validateNetwork);
 
 const headers = (req, res, next) => {
   // const allowedOrigins = constants.DOMAIN_WHITELIST;
@@ -946,18 +972,51 @@ router.get(
 router.post(
   "/soft",
   oneOf([
+    query("tenant")
+      .optional()
+      .notEmpty()
+      .withMessage("the tenant should not be empty if provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(constants.NETWORKS)
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    body("name")
+      .exists()
+      .withMessage(
+        "device identification details are missing in the request, consider using the name"
+      )
+      .bail()
+      .trim()
+      .notEmpty()
+      .withMessage("the name should not be empty if provided"),
+    body("long_name")
+      .exists()
+      .withMessage(
+        "device identification details are missing in the request, consider using the long_name"
+      )
+      .bail()
+      .trim()
+      .notEmpty()
+      .withMessage("the long_name should not be empty if provided"),
+  ]),
+  oneOf([
     [
-      query("tenant")
-        .exists()
-        .withMessage("tenant should be provided")
+      body("network")
+        .optional()
+        .notEmpty()
+        .withMessage("network should not be empty if provided")
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(constants.NETWORKS)
-        .withMessage("the tenant value is not among the expected ones"),
+        .custom(validateNetwork)
+        .withMessage("the network value is not among the expected ones"),
       body("visibility")
-        .exists()
-        .withMessage("visibility should be provided")
+        .optional()
+        .notEmpty()
+        .withMessage("the visibility should not be empty if provided")
         .bail()
         .trim()
         .isBoolean()
@@ -965,24 +1024,24 @@ router.post(
       body("device_number")
         .optional()
         .notEmpty()
+        .withMessage("the device_number should not be empty if provided")
+        .bail()
         .trim()
         .isInt()
         .withMessage("the device_number should be an integer value"),
-      body("long_name")
-        .exists()
-        .withMessage("the device long_name should be provided")
-        .trim(),
       body("generation_version")
-        .exists()
-        .withMessage("the generation_version number should be provided")
+        .optional()
+        .notEmpty()
+        .withMessage("the generation_version should not be empty if provided")
         .bail()
         .trim()
         .isInt()
         .withMessage("the generation_version should be an integer ")
         .toInt(),
       body("generation_count")
-        .exists()
-        .withMessage("the generation_count should be provided")
+        .optional()
+        .notEmpty()
+        .withMessage("the generation_count should not be empty if provided")
         .bail()
         .trim()
         .isInt()
@@ -991,15 +1050,30 @@ router.post(
       body("mountType")
         .optional()
         .notEmpty()
+        .withMessage("the mountType should not be empty if provided")
+        .bail()
         .trim()
         .toLowerCase()
         .isIn(["pole", "wall", "faceboard", "rooftop", "suspended"])
         .withMessage(
           "the mountType value is not among the expected ones which include: pole, wall, faceboard, suspended and rooftop "
         ),
+      body("category")
+        .optional()
+        .notEmpty()
+        .withMessage("the category should not be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["bam", "lowcost"])
+        .withMessage(
+          "the category value is not among the expected ones which include: LOWCOST and BAM"
+        ),
       body("powerType")
         .optional()
         .notEmpty()
+        .withMessage("the powerType should not be empty if provided")
+        .bail()
         .trim()
         .toLowerCase()
         .isIn(["solar", "mains", "alternator"])

@@ -30,7 +30,6 @@ const deviceSchema = new mongoose.Schema(
         {
           type: ObjectId,
           ref: "cohort",
-          unique: true,
         },
       ],
     },
@@ -211,6 +210,15 @@ deviceSchema.pre("save", function(next) {
   }
   if (this.alias) {
     this.device_codes.push(this.alias);
+  }
+
+  // Check for duplicate values in the grids array
+  const duplicateValues = this.cohorts.filter(
+    (value, index, self) => self.indexOf(value) !== index
+  );
+  if (duplicateValues.length > 0) {
+    const error = new Error("Duplicate values found in cohorts array.");
+    return next(error);
   }
 
   return next();
@@ -407,6 +415,7 @@ deviceSchema.statics = {
       };
     } catch (err) {
       logObject("the error in the Device Model", err);
+      logger.error(`Internal Server Error -- ${JSON.stringify(err)}`);
       let response = {};
       let message = "validation errors for some of the provided fields";
       let status = HTTPStatus.CONFLICT;
