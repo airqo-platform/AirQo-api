@@ -6,7 +6,7 @@ from flask import Blueprint, request, jsonify
 
 from app import cache
 from config import Config
-from utils import (
+from helpers import (
     get_predictions_by_geo_coordinates_v2,
     get_parish_predictions,
     get_predictions_by_geo_coordinates,
