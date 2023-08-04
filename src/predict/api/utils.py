@@ -12,7 +12,7 @@ from google.cloud import bigquery
 from sqlalchemy import func
 
 from app import cache
-from config.constants import connect_mongo, Config
+from config import connect_mongo, Config
 
 load_dotenv()
 db = connect_mongo()

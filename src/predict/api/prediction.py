@@ -5,8 +5,8 @@ from dotenv import load_dotenv
 from flask import Blueprint, request, jsonify
 
 from app import cache
-from config.constants import Config
-from helpers.utils import (
+from config import Config
+from utils import (
     get_predictions_by_geo_coordinates_v2,
     get_parish_predictions,
     get_predictions_by_geo_coordinates,
@@ -22,7 +22,7 @@ from helpers.utils import (
     validate_params,
     read_faulty_devices
 )
-from routes import api
+import routes
 
 load_dotenv()
 
@@ -31,7 +31,7 @@ _logger = logging.getLogger(__name__)
 ml_app = Blueprint("ml_app", __name__)
 
 
-@ml_app.route(api.route["fetch_faulty_devices"], methods=["GET"])
+@ml_app.route(routes.route["fetch_faulty_devices"], methods=["GET"])
 @cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=get_faults_cache_key)
 def fetch_faulty_devices():
     try:
@@ -49,12 +49,11 @@ def fetch_faulty_devices():
         result = read_faulty_devices(query)
         return jsonify(result), 200
     except Exception as e:
-        #log the error
         _logger.error(e)
-        return jsonify({"error": 'Failed to retreive faulty devices'}), 500
+        return jsonify({"error": 'Failed to retrieve faulty devices'}), 500
 
 
-@ml_app.route(api.route["next_24hr_forecasts"], methods=["GET"])
+@ml_app.route(routes.route["next_24hr_forecasts"], methods=["GET"])
 @cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=hourly_forecasts_cache_key)
 def get_next_24hr_forecasts():
     """
@@ -98,7 +97,7 @@ def get_next_24hr_forecasts():
     return data, 200
 
 
-@ml_app.route(api.route["next_1_week_forecasts"], methods=["GET"])
+@ml_app.route(routes.route["next_1_week_forecasts"], methods=["GET"])
 @cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=daily_forecasts_cache_key)
 def get_next_1_week_forecasts():
     """
@@ -138,7 +137,7 @@ def get_next_1_week_forecasts():
     return data, 200
 
 
-@ml_app.route(api.route["predict_for_heatmap"], methods=["GET"])
+@ml_app.route(routes.route["predict_for_heatmap"], methods=["GET"])
 @cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=heatmap_cache_key)
 def predictions_for_heatmap():
     """
@@ -190,7 +189,7 @@ def predictions_for_heatmap():
         return {"message": "No predictions available", "success": False}, 400
 
 
-@ml_app.route(api.route["search_predictions"], methods=["GET"])
+@ml_app.route(routes.route["search_predictions"], methods=["GET"])
 @cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=geo_coordinates_cache_key)
 def search_predictions():
     try:
@@ -229,7 +228,7 @@ def search_predictions():
         return {"message": "Please contact support", "success": False}, 500
 
 
-@ml_app.route(api.route["parish_predictions"], methods=["GET"])
+@ml_app.route(routes.route["parish_predictions"], methods=["GET"])
 def parish_predictions():
     try:
         page = int(request.args.get("page", 1, type=int))

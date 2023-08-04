@@ -9,7 +9,7 @@ from flask_pymongo import PyMongo
 from flask_sqlalchemy import SQLAlchemy
 from geoalchemy2 import Geometry
 
-from config import constants
+import config
 
 app_configuration = constants.app_config.get(os.getenv("FLASK_ENV"))
 load_dotenv()
@@ -29,7 +29,7 @@ cache = Cache(
 
 
 def create_app(environment):
-    from controllers.prediction import ml_app
+    from prediction import ml_app
 
     app = Flask(__name__)
     app.config.from_object(constants.app_config[environment])
