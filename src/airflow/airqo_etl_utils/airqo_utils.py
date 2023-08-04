@@ -941,13 +941,11 @@ class AirQoDataUtils:
         for device in df["device_name"].unique():
             device_df = df[df["device_name"] == device]
             corr = device_df["s1_pm2_5"].corr(device_df["s2_pm2_5"])
-            if pd.isna(corr):
-                raise ValueError("Correlation coefficient cannot be NaN")
             correlation_fault = 1 if corr < 0.9 else 0
             nan_count = (
                 device_df[["s1_pm2_5", "s2_pm2_5"]].isna().sum(axis=1).rolling(4).max()
             )
-            missing_data_fault = 1 if nan_count.max() > 3 else 0
+            missing_data_fault = 1 if nan_count.max() > 1 else 0
             temp = pd.DataFrame(
                 {
                     "device_name": [device],
