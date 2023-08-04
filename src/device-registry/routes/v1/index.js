@@ -5,7 +5,7 @@ router.use("/activities", require("@routes/v1/activities"));
 router.use("/airqlouds", require("@routes/v1/airqlouds"));
 router.use("/sites", require("@routes/v1/sites"));
 router.use("/devices", require("@routes/v1/devices"));
-router.use("/events", require("@routes/v1/events"));
+// router.use("/events", require("@routes/v1/events"));
 router.use("/locations", require("@routes/v1/locations"));
 router.use("/photos", require("@routes/v1/photos"));
 router.use("/tips", require("@routes/v1/tips"));
