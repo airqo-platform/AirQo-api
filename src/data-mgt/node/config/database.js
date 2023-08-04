@@ -42,6 +42,4 @@ const connectToMongoDB = () => {
   return db;
 };
 
-const mongodb = connectToMongoDB();
-
-module.exports = mongodb;
+module.exports = connectToMongoDB;

@@ -2,7 +2,6 @@
 
 const app = require("../app");
 const constants = require("@config/constants");
-const middlewareConfig = require("../config/app.middleware");
 const debug = require('debug')('log4js-example');
 const cluster = require('express-cluster');
 const http = require("http");
@@ -82,15 +81,6 @@ try {
     }
 }
 
-/****
- * pass the app instance to the middleware configuration
- */
-try {
-    middlewareConfig(app);
-} catch (e) {
-    logElement("middleware error", e.message)
-}
-
 // Set up the Kafka consumer
 const consumer = kafka.consumer({ groupId: constants.UNIQUE_CONSUMER_GROUP });
 
@@ -131,9 +121,38 @@ const run = async() => {
                         logObject("error.details[0].message", error.details[0].message)
                         logObject("error.details[0]", error.details[0])
                         logObject("error.details", error.details)
-                        logger.error(
-                            `KAFKA: ALL the input validation errors --- ${JSON.stringify(error.details)}`
-                        );
+                        const errorDetails = error.details.map(detail => {
+                            const event = detail.context.value;
+                            logObject("KAFKA: the event causing the error", event)
+                            const {
+                                device_number,
+                                device_id,
+                                timestamp,
+                                site_id,
+                                battery,
+                                network,
+                                device_latitude,
+                                device_longitude,
+                                site_latitude,
+                                site_longitude,
+                            } = value[detail.path[0]];
+                            return {
+                                message: detail.message,
+                                key: detail.context.key,
+                                value: detail.context.value,
+                                device_number: device_number ? device_number : undefined,
+                                timestamp: timestamp ? timestamp : undefined,
+                            };
+                        });
+                        logger.error(`KAFKA: Input validation formatted errors -- ${JSON.stringify(errorDetails)}`);
+
+                        // logger.error(
+                        //     `KAFKA: ALL the input validation errors --- ${JSON.stringify(error.details)}`
+                        // );
+
+                        // logger.info(
+                        //     `KAFKA: the VALUE for ALL the shared input validation errors --- ${JSON.stringify(value)}`
+                        // );
                     } else {
                         logObject("value", value)
                         logObject("cleanedMeasurements", cleanedMeasurements)
@@ -153,11 +172,11 @@ const run = async() => {
                             // )}`
                             //         );
                         } else if (responseFromInsertMeasurements.success === true) {
-                            logger.info(
-                                `KAFKA: successfully inserted the measurements --- ${JSON.stringify(responseFromInsertMeasurements.message ?
-                                responseFromInsertMeasurements.message :
-                                "")}`
-                            );
+                            // logger.info(
+                            //     `KAFKA: successfully inserted the measurements --- ${JSON.stringify(responseFromInsertMeasurements.message ?
+                            //     responseFromInsertMeasurements.message :
+                            //     "")}`
+                            // );
                         }
                     }
 

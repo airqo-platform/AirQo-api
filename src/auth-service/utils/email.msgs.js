@@ -17,10 +17,10 @@ module.exports = {
   joinRequest: (firstName, lastName) => {
     return (
       `Dear ${firstName + " " + lastName}, \n\n` +
-      "Your request to join the AirQo platform has been received, " +
+      "Your request to join AirQo Analytics has been received, " +
       "we shall get back to you as soon as possible. \n\n" +
       "Before utilising the AirQo data, your application record has to undergo " +
-      "the process of approval by the AirQo platform administration.\n" +
+      "the process of approval by AirQo Analytics administration.\n" +
       "Once your application is approved, you will receive a confirmation email\n\n" +
       "Please visit our website to learn more about us. \n" +
       `https://airqo.net/`
@@ -90,24 +90,6 @@ module.exports = {
     );
   },
 
-  mobileAppWelcome: () => {
-    return (
-      "We're thrilled to have you onboard and excited for you to experience all that our app has to offer. This is the first step to Know Your Air and Breathe Clean.\n" +
-      "With the AirQo app, you'll have access to:\n" +
-      "1. Air quality analytics - view air quality readings by day/week in different locations\n" +
-      "2. For You - personalized air quality recommendations based on what you share frequently and your favorite locations \n" +
-      "3. Search - find locations by location name or by navigating the map\n" +
-      "4. Know your air - a fun way of learning about air quality\n\n" +
-      "We've designed it to be easy to use and navigate, so you can find what you're looking for quickly." +
-      "Get air quality information like air quality lessons and tips on how to reduce air" +
-      "pollution that you can share with your pals through text or visual updates \n\n" +
-      "We're constantly updating and improving our app to make sure you have the best" +
-      "experience possible. " +
-      "If you have any questions or feedback, please don't hesitate to reach out to us through the app's support feature.\n\n" +
-      "Thank you for choosing our app, and we can't wait for you to see what it can do for you. Happy exploring!\n"
-    );
-  },
-
   welcome_kcca: (firstName, lastName, password, username) => {
     return (
       `Dear ${firstName + " " + lastName} \n\n` +
@@ -116,7 +98,7 @@ module.exports = {
       `Your password is: ${password}\n\n` +
       `You can always change your password in your account settings after login\n` +
       `Follow this link to access the dashboard right now: ${constants.LOGIN_PAGE}\n` +
-      "A guide to using the platform will be found under the Documentation section of the platform\n\n\n\n" +
+      "A guide to using AirQo Analytics will be found under the Documentation section of AirQo Analytics\n\n\n\n" +
       // `Demos for using our main features can be found on our Youtube channel here: ${constants.YOUTUBE_CHANNEL}\n\n\n\n` +
       "PLEASE DO NOT REPLY TO THIS EMAIL\n\n" +
       "For KCCA related questions, please contact:\n" +
@@ -127,34 +109,161 @@ module.exports = {
   welcome_general: (firstName, lastName, password, username) => {
     return (
       `Dear ${firstName + " " + lastName} \n\n` +
-      "Welcome to the AirQo air quality monitoring platform. \n\n" +
+      "Welcome to AirQo Analytics. Your login credentials are as follows: \n\n" +
       `YOUR USERNAME: ${username}\n` +
       `YOUR PASSWORD: ${password}\n\n` +
-      `Follow this link to access the dashboard right now: ${constants.LOGIN_PAGE}\n` +
-      `You can always change your password in your account settings after login\n\n` +
-      `You can also use your platform credentials to access the AirQo API\n` +
+      `To access the dashboard, please follow this link: ${constants.LOGIN_PAGE}\n` +
+      `After login, you can change your password in your account settings.\n\n` +
+      `You can also use your AirQo Analytics credentials to access the AirQo API\n` +
       `The AirQo API reference can be found here: https://docs.airqo.net/airqo-rest-api-documentation/ \n\n` +
-      `By actively utilising the platform, you automatically agree to the AirQo terms and conditions: https://docs.airqo.net/airqo-terms-and-conditions/HxYx3ysdA6k0ng6YJkU3/ \n\n\n\n` +
+      `By actively utilising AirQo Analytics, you automatically agree to the AirQo terms and conditions: https://docs.airqo.net/airqo-terms-and-conditions/HxYx3ysdA6k0ng6YJkU3/ \n\n` +
       /// `Demos for using our main features can be found on our Youtube channel here:  ${constants.YOUTUBE_CHANNEL}\n\n\n\n` +
-      "PLEASE DO NOT REPLY TO THIS EMAIL\n\n" +
-      "If you experience any technical challenges or wish to offer suggestions, please contact us at support@airqo.net"
+      "For any technical challenges or suggestions, please contact us at support@airqo.net. \n\n" +
+      "Please note that this is an automated message, so please do not reply to this email. \n\n" +
+      "To learn more about AirQo Analytics and its features, please refer to the user guide available here: https://docs.airqo.net/airqo-platform/ \n\n" +
+      "Best regards, \n\n" +
+      "AirQo Data Team"
     );
   },
-  user_updated: (firstName, lastName) => {
+  user_updated: (firstName, lastName, updatedData) => {
+    const updatedFields = Object.keys(updatedData)
+      .map((field) => `• ${field}`)
+      .join("\n");
+
     return (
-      `Dear ${firstName + " " + lastName} \n\n` +
-      "Your AirQo Platform account details have been updated. \n\n" +
-      "If this activity sounds suspicious to you, please reach out to your organisation's administrator \n\n" +
-      `Follow this link to access the platform right now: ${constants.LOGIN_PAGE}\n`
+      `Dear ${firstName} ${lastName},\n\n` +
+      "Your AirQo Analytics account details have been updated.\n\n" +
+      "The following fields have been updated:\n" +
+      `${updatedFields}\n\n` +
+      "If this activity sounds suspicious to you, please reach out to your organization's administrator.\n\n" +
+      `Follow this link to access AirQo Analytics right now: ${constants.LOGIN_PAGE}\n`
     );
   },
-  join_by_email: (token) => {
+
+  forgotten_password_updated: (firstName, lastName) => {
     return (
-      `Begin your journey to Knowing Your Air and Breathe Clean. \n\n` +
-      `First, we need to know that your email address is real.\n\n` +
-      `Enter the code below in the app to verify your email. \n\n` +
-      `The code: ${token}`
+      `Dear ${firstName} ${lastName},\n\n` +
+      "Your AirQo Analytics account password has been successfully reset.\n\n" +
+      "If you did not initiate this password reset, please reach out to your organization's administrator immediately.\n\n" +
+      `Follow this link to access AirQo Analytics: ${constants.LOGIN_PAGE}\n`
     );
+  },
+  known_password_updated: (firstName, lastName) => {
+    return (
+      `Dear ${firstName} ${lastName},\n\n` +
+      "Your AirQo Analytics account password has been successfully updated.\n\n" +
+      "If you did not initiate this password change, please reach out to your organization's administrator immediately.\n\n" +
+      `Follow this link to access AirQo Analytics: ${constants.LOGIN_PAGE}\n`
+    );
+  },
+  join_by_email: (email, token) => {
+    return `<!DOCTYPE html>
+<html>
+
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+
+    <body style="margin: 0; padding: 0; font-family:Arial, sans-serif;">
+
+        <div style="width: 90%; height: 100%; padding: 32px; background: #F3F6F8;">
+            <!-- Email content container with white background -->
+            <table style="width: 100%; max-width: 1024px; margin: 0 auto; background: white;">
+                <tr>
+                    <td style="padding: 24px;">
+                        <!-- Logo and title section -->
+                        <table style="width: 100%; padding-bottom: 24px;">
+                            <tr>
+                                <td style="display: flex; align-items: center;">
+                                    <img src="cid:AirQoEmailLogo" alt="logo" style="height: 50px; margin-right: 10px;">
+                                    <span
+                                        style="color: #135DFF; margin-left: auto; font-family: Inter; font-size: 20px; font-weight: 600; line-height: 24px; letter-spacing: 0em; text-align: right;">Breathe
+                                        Clean</span>
+                                </td>
+                            </tr>
+
+                        </table>
+
+                        <!-- Email content section -->
+                        <table style="width: 100%;">
+                        
+                            <tr>
+                                <td
+                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                                To get started with "Knowing Your Air" and Breathing Clean, we need to verify your email address.
+                                    <br /><br />
+                                    Please Enter the code: ${token}
+                                    <br /><br />
+                                    That's it! Once verified, you'll gain access to all the app's features. Enjoy tracking your air quality and making
+                                    informed decisions for a healthier life.
+
+                                    <br />
+                                    <br />
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style=" height: 8px; background: #EBF1FF;"></td>
+                            </tr>
+                        </table>
+
+                        <!-- Social media section -->
+                        <table style="width: 100%; text-align: center; padding-top: 32px; padding-bottom: 32px;">
+                            <tr>
+                                <td>
+                                    <a href="https://www.facebook.com/AirQo/" target="_blank"><img
+                                            src="cid:FacebookLogo" alt="FacebookLogo"
+                                            style="width: 24px; height: 24px; margin-right: 20px; border-radius: 50%;"></a>
+                                    <a href="https://www.youtube.com/@airqo7875" target="_blank"><img
+                                            src="cid:YoutubeLogo" alt="YoutubeLogo"
+                                            style="width: 24px; height: 24px; margin-right: 20px; border-radius: 50%;"></a>
+                                    <a href="https://www.linkedin.com/company/airqo/" target="_blank"><img
+                                            src="cid:LinkedInLogo" alt="LinkedInLogo"
+                                            style="width: 24px; height: 24px; margin-right: 20px; border-radius: 50%;"></a>
+                                    <a href="https://twitter.com/AirQoProject" target="_blank"><img src="cid:Twitter"
+                                            alt="Twitter"
+                                            style="width: 24px; height: 24px; margin-right: 20px; border-radius: 50%;"></a>
+                                </td>
+                            </tr>
+                        </table>
+
+                        <!-- Footer section -->
+                        <table style="width: 100%; text-align: center;">
+                            <tr>
+                                <td>
+                                    <span
+                                        style="color: #667085; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">This
+                                        email was sent to</span>
+                                    <span
+                                        style="color: #135DFF; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">${email}</span>
+                                    <span
+                                        style="color: #667085; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">.
+                                        If you'd rather not receive this kind of email, you can </span>
+                                    <span
+                                        style="color: #135DFF; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">unsubscribe</span>
+                                    <span
+                                        style="color: #667085; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">
+                                        or </span>
+                                    <span
+                                        style="color: #135DFF; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">manage
+                                        your email preferences.</span><br /><br />
+                                    <span
+                                        style="color: #667085; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">©
+                                        2023 AirQo<br /><br />
+                                        Makerere University, Software Systems Centre, Block B, Level 3, College of
+                                        Computing and
+                                        Information Sciences, Plot 56 University Pool Road</span>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
+        </div>
+
+    </body>
+
+</html>`;
   },
   authenticate_email: (token) => {
     return (

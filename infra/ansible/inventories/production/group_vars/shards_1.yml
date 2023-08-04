@@ -1,9 +1,0 @@
-cluster_role: "shard"
-
-cfg_server:
-  name: "cfgsvr"
-  group: "config_servers"
-
-replica_set:
-  name: "mongod-shard-1"
-  group: "shards_1"

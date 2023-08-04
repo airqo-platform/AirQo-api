@@ -161,7 +161,7 @@ AccessTokenSchema.statics = {
     }
   },
 
-  async list({ skip = 0, limit = 5, filter = {} } = {}) {
+  async list({ skip = 0, limit = 100, filter = {} } = {}) {
     try {
       logObject("filtering here", filter);
       /**
@@ -169,6 +169,10 @@ AccessTokenSchema.statics = {
        * then just use hashcompare from here accordinglys
        * or just hash it the same way in order to make the comparisons
        */
+      const inclusionProjection = constants.TOKENS_INCLUSION_PROJECTION;
+      const exclusionProjection = constants.TOKENS_EXCLUSION_PROJECTION(
+        filter.category ? filter.category : ""
+      );
 
       const response = await this.aggregate()
         .match(filter)
@@ -191,39 +195,10 @@ AccessTokenSchema.statics = {
           as: "scopes",
         })
         .sort({ createdAt: -1 })
-        .project({
-          _id: 1,
-          user_id: 1,
-          name: 1,
-          token: 1,
-          network_id: 1,
-          last_used_at: 1,
-          expires: 1,
-          last_ip_address: 1,
-          user: { $arrayElemAt: ["$users", 0] },
-        })
-        .project({
-          "user._id": 0,
-          "user.notifications": 0,
-          "user.verified": 0,
-          "user.networks": 0,
-          "user.groups": 0,
-          "user.roles": 0,
-          "user.permissions": 0,
-          "user.locationCount": 0,
-          "user.userName": 0,
-          "user.password": 0,
-          "user.long_organization": 0,
-          "user.privilege": 0,
-          "user.duration": 0,
-          "user.createdAt": 0,
-          "user.updatedAt": 0,
-          "user.__v": 0,
-          "user.resetPasswordExpires": 0,
-          "user.resetPasswordToken": 0,
-        })
+        .project(inclusionProjection)
+        .project(exclusionProjection)
         .skip(skip ? skip : 0)
-        .limit(limit ? limit : 100)
+        .limit(limit ? limit : 300)
         .allowDiskUse(true);
 
       logObject("the response", response);
@@ -263,7 +238,7 @@ AccessTokenSchema.statics = {
       //     saltRounds
       //   );
       // }
-      let updatedToken = await this.findOneAndUpdate(
+      const updatedToken = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,
         options
@@ -277,19 +252,19 @@ AccessTokenSchema.statics = {
         };
       } else if (isEmpty(updatedToken)) {
         return {
-          success: true,
+          success: false,
           message: "Token does not exist, please crosscheck",
-          status: httpStatus.NOT_FOUND,
-          data: [],
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "Token does not exist, please crosscheck" },
         };
       }
     } catch (error) {
       return {
         success: false,
-        message: "internal server error",
+        message: "Internal Server Error",
         error: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: "internal server error" },
+        errors: { message: error.message },
       };
     }
   },
@@ -318,17 +293,17 @@ AccessTokenSchema.statics = {
         };
       } else if (isEmpty(removedToken)) {
         return {
-          success: true,
+          success: false,
           message: "Token does not exist, please crosscheck",
-          status: httpStatus.NOT_FOUND,
-          data: [],
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "Token does not exist, please crosscheck" },
         };
       }
     } catch (error) {
       return {
         success: false,
         message: "internal server error",
-        errors: { message: "internal server error", error: error.message },
+        errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }

@@ -16,10 +16,12 @@ def airqo_bam_historical_measurements():
     @task()
     def extract_bam_data(**kwargs):
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
-        from airqo_etl_utils.utils import Utils
         from airqo_etl_utils.constants import DeviceCategory
+        from airqo_etl_utils.date import DateUtils
 
-        start_date_time, end_date_time = Utils.get_dag_date_time_config(**kwargs)
+        start_date_time, end_date_time = DateUtils.get_dag_date_time_values(
+            historical=True, **kwargs
+        )
 
         return AirQoDataUtils.extract_devices_data(
             start_date_time=start_date_time,
@@ -130,17 +132,6 @@ def airqo_bam_realtime_measurements():
         )
 
     @task()
-    def update_latest_data_table(data: pd.DataFrame):
-        from airqo_etl_utils.airqo_utils import AirQoDataUtils
-        from airqo_etl_utils.data_warehouse_utils import DataWarehouseUtils
-        from airqo_etl_utils.constants import Tenant, DeviceCategory
-
-        data = AirQoDataUtils.process_latest_data(
-            data=data, device_category=DeviceCategory.BAM
-        )
-        DataWarehouseUtils.update_latest_measurements(data=data, tenant=Tenant.AIRQO)
-
-    @task()
     def update_latest_data_topic(data: pd.DataFrame):
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
         from airqo_etl_utils.message_broker_utils import MessageBrokerUtils
@@ -155,7 +146,6 @@ def airqo_bam_realtime_measurements():
     save_unclean_data(unclean_data)
     measurements = clean_bam_data(unclean_data)
     save_clean_bam_data(measurements)
-    update_latest_data_table(measurements)
     update_latest_data_topic(measurements)
 
 

@@ -9,6 +9,14 @@ const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- generate-filter-util`
 );
 
+const {
+  addMonthsToProvideDateTime,
+  monthsInfront,
+  isTimeEmpty,
+  getDifferenceInMonths,
+  addDays,
+} = require("./date");
+
 const filter = {
   users: (req) => {
     try {
@@ -65,8 +73,9 @@ const filter = {
       logger.error(`internal server error, ${JSON.stringify(e)}`);
       return {
         success: false,
-        message: "filter util server error",
+        message: "Internal Server Error",
         error: e.message,
+        errors: { message: e.message },
       };
     }
   },
@@ -80,6 +89,7 @@ const filter = {
         net_phoneNumber,
         net_website,
         net_acronym,
+        category,
       } = req.query;
 
       const { net_id } = req.params;
@@ -88,6 +98,10 @@ const filter = {
       if (net_email) {
         filter["net_email"] = net_email;
       }
+      if (category) {
+        filter["category"] = category;
+      }
+
       if (net_category) {
         filter["net_category"] = net_category;
       }
@@ -121,8 +135,9 @@ const filter = {
       logger.error(`internal server error, ${JSON.stringify(err)}`);
       return {
         success: false,
-        message: "filter util server error",
+        message: "Internal Server Error",
         errors: { message: err.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -147,13 +162,16 @@ const filter = {
         success: true,
         message: "successfully created the filter",
         data: filter,
+        status: httpStatus.OK,
       };
     } catch (e) {
-      logger.error(`internal server error, ${JSON.stringify(e)}`);
+      logger.error(`Internal Server Error, ${JSON.stringify(e)}`);
       return {
         success: false,
-        message: "filter util server error",
+        message: "Internal Server Error",
         error: e.message,
+        errors: { message: e.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -180,13 +198,16 @@ const filter = {
         success: true,
         message: "successfully created the filter",
         data: filter,
+        status: httpStatus.OK,
       };
     } catch (e) {
       logger.error(`internal server error, ${JSON.stringify(e)}`);
       return {
         success: false,
-        message: "filter util server error",
+        message: "Internal Server Error",
         error: e.message,
+        errors: { message: e.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -209,96 +230,16 @@ const filter = {
         success: true,
         message: "successfully created the filter",
         data: filter,
+        status: httpStatus.OK,
       };
     } catch (e) {
       logger.error(`internal server error, ${JSON.stringify(e)}`);
       return {
         success: false,
-        message: "filter util server error",
+        message: "Internal Server Error",
         error: e.message,
-      };
-    }
-  },
-
-  defaults_v2: (req) => {
-    try {
-      let { id, user, user_id, airqloud, airqloud_id, site, site_id } =
-        req.query;
-      let filter = {
-        site_ids: {},
-        sites: {},
-        airqloud_ids: {},
-        airqlouds: {},
-      };
-
-      /*** user id */
-      if (user) {
-        filter["user"] = ObjectId(user);
-      }
-      if (id) {
-        filter["_id"] = ObjectId(id);
-      }
-      if (user_id) {
-        filter["user_id"] = ObjectId(user_id);
-      }
-
-      /** airqloud_id */
-      if (airqloud_id) {
-        let airqloudIdArray = airqloud_id.split(",");
-        let modifiedAirQloudIdArray = airqloudIdArray.map((airqloud_id) => {
-          return ObjectId(airqloud_id);
-        });
-        filter["airqloud_ids"]["$in"] = modifiedAirQloudIdArray;
-      }
-
-      if (!airqloud_id) {
-        delete filter["airqloud_ids"];
-      }
-
-      /*** airqloud */
-      if (airqloud) {
-        filter["airqlouds"] = airqloud;
-      }
-      if (!airqloud) {
-        delete filter["airqlouds"];
-      }
-
-      /**
-       * site_id
-       */
-      if (site_id) {
-        let siteIdArray = site_id.split(",");
-        let modifiedSiteIdArray = siteIdArray.map((site_id) => {
-          return ObjectId(site_id);
-        });
-        filter["site_ids"]["$in"] = modifiedSiteIdArray;
-      }
-
-      if (!site_id) {
-        delete filter["site_ids"];
-      }
-
-      /** site */
-      if (site) {
-        let siteArray = site.split(",");
-        filter["sites"]["$in"] = siteArray;
-      }
-
-      if (!site) {
-        delete filter["sites"];
-      }
-
-      return {
-        success: true,
-        message: "successfully created the filter",
-        data: filter,
-      };
-    } catch (e) {
-      logger.error(`internal server error, ${JSON.stringify(e)}`);
-      return {
-        success: false,
-        message: "filter util server error",
-        error: e.message,
+        errors: { message: e.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -306,7 +247,8 @@ const filter = {
   roles: (req) => {
     try {
       const { query, params } = req;
-      const { id, role_name, role_code, network, role_status } = query;
+      const { id, role_name, role_code, network_id, role_status, category } =
+        query;
       const { role_id } = params;
       let filter = {};
 
@@ -316,9 +258,14 @@ const filter = {
       if (role_id) {
         filter["_id"] = ObjectId(role_id);
       }
-      if (network) {
-        filter["network_id"] = network;
+      if (network_id) {
+        filter["network_id"] = ObjectId(network_id);
       }
+
+      if (category) {
+        filter["category"] = category;
+      }
+
       if (role_name) {
         filter["role_name"] = role_name;
       }
@@ -335,6 +282,7 @@ const filter = {
         success: false,
         message: "Internal Server Error",
         errors: { message: e.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -373,6 +321,7 @@ const filter = {
         success: false,
         message: "Internal Server Error",
         errors: { message: e.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -589,6 +538,165 @@ const filter = {
         success: false,
         message: "internal server error",
         errors: { message: err.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  logs: (req) => {
+    try {
+      const { service, startTime, endTime, email } = req.query;
+      const today = monthsInfront(0);
+      const oneWeekBack = addDays(-7);
+
+      let filter = {
+        timestamp: {
+          $gte: oneWeekBack,
+          $lte: today,
+        },
+      };
+
+      if (service) {
+        logText("service present ");
+        filter["meta.service"] = service;
+      }
+
+      if (startTime && isEmpty(endTime)) {
+        logText("startTime present and endTime is missing");
+        if (isTimeEmpty(startTime) === false) {
+          filter["timestamp"]["$gte"] = addMonthsToProvideDateTime(
+            startTime,
+            1
+          );
+        } else {
+          delete filter["timestamp"];
+        }
+      }
+
+      if (endTime && isEmpty(startTime)) {
+        logText("startTime absent and endTime is present");
+        if (isTimeEmpty(endTime) === false) {
+          filter["timestamp"]["$lte"] = addMonthsToProvideDateTime(endTime, -1);
+        } else {
+          delete filter["timestamp"];
+        }
+      }
+
+      if (endTime && startTime) {
+        logText("startTime present and endTime is also present");
+        let months = getDifferenceInMonths(startTime, endTime);
+        logElement("the number of months", months);
+        if (months > 1) {
+          if (isTimeEmpty(endTime) === false) {
+            filter["timestamp"]["$lte"] = addMonthsToProvideDateTime(
+              endTime,
+              -1
+            );
+          } else {
+            delete filter["timestamp"];
+          }
+        }
+      }
+
+      if (email) {
+        logText("email present ");
+        filter["meta.email"] = email;
+      }
+
+      return filter;
+    } catch (error) {
+      logObject("error", error);
+      logger.error(`Internal Server Error`, error.message);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  favorites: (req) => {
+    try {
+      const { query, params } = req;
+      const { id } = query;
+      const { firebase_user_id, favorite_id } = params;
+      let filter = {};
+
+      if (id) {
+        filter["_id"] = ObjectId(id);
+      }
+      if (favorite_id) {
+        filter["_id"] = ObjectId(favorite_id);
+      }
+      if (firebase_user_id) {
+        filter["firebase_user_id"] = firebase_user_id;
+      }
+
+      return filter;
+    } catch (e) {
+      logger.error(`internal server error, ${JSON.stringify(e)}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: e.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  location_histories: (req) => {
+    try {
+      const { query, params } = req;
+      const { id } = query;
+      const { firebase_user_id, location_history_id } = params;
+      let filter = {};
+
+      if (id) {
+        filter["_id"] = ObjectId(id);
+      }
+      if (location_history_id) {
+        filter["_id"] = ObjectId(location_history_id);
+      }
+      if (firebase_user_id) {
+        filter["firebase_user_id"] = firebase_user_id;
+      }
+
+      return filter;
+    } catch (e) {
+      logger.error(`internal server error, ${JSON.stringify(e)}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: e.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  search_histories: (req) => {
+    try {
+      const { query, params } = req;
+      const { id } = query;
+      const { firebase_user_id, search_history_id } = params;
+      let filter = {};
+
+      if (id) {
+        filter["_id"] = ObjectId(id);
+      }
+      if (search_history_id) {
+        filter["_id"] = ObjectId(search_history_id);
+      }
+      if (firebase_user_id) {
+        filter["firebase_user_id"] = firebase_user_id;
+      }
+
+      return filter;
+    } catch (e) {
+      logger.error(`internal server error, ${JSON.stringify(e)}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: e.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }

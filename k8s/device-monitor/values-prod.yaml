@@ -9,16 +9,16 @@ images:
     deviceMonitor: eu.gcr.io/airqo-250220/airqo-device-monitor-api
     celeryBeat: eu.gcr.io/airqo-250220/airqo-device-monitor-celery-beat
     celeryWorker: eu.gcr.io/airqo-250220/airqo-device-monitor-celery-worker
-  tag: prod-1fe5d1b9-1680209362
+  tag: prod-c03262cd-1690962276
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
 resources:
   limits:
     cpu: 500m
-    memory: 800Mi
+    memory: 1000Mi
   requests:
-    cpu: 5m
+    cpu: 10m
     memory: 50Mi
 volumeMounts:
   - name: config-volume

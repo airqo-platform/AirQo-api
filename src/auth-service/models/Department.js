@@ -138,7 +138,7 @@ DepartmentSchema.statics = {
       };
     }
   },
-  async list({ skip = 0, limit = 5, filter = {} } = {}) {
+  async list({ skip = 0, limit = 100, filter = {} } = {}) {
     try {
       const response = await this.aggregate()
         .match(filter)

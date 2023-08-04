@@ -2,16 +2,17 @@ const UserSchema = require("@models/User");
 const LogSchema = require("@models/log");
 const AccessTokenSchema = require("@models/AccessToken");
 const ClientSchema = require("@models/Client");
-const { getModelByTenant } = require("@config/dbConnection");
-const { logObject, logElement, logText } = require("./log");
+const NetworkSchema = require("@models/Network");
+const RoleSchema = require("@models/Role");
+const { getModelByTenant } = require("@config/database");
+const { logObject, logElement, logText, logError } = require("./log");
 const mailer = require("./mailer");
 const bcrypt = require("bcrypt");
 const mongoose = require("mongoose").set("debug", true);
 const ObjectId = mongoose.Types.ObjectId;
 const crypto = require("crypto");
 const isEmpty = require("is-empty");
-const { getAuth, sendSignInLinkToEmail } = require("firebase-admin/auth");
-const actionCodeSettings = require("@config/firebase-settings");
+const { getAuth } = require("firebase-admin/auth");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
 const mailchimp = require("@config/mailchimp");
@@ -19,9 +20,11 @@ const md5 = require("md5");
 const accessCodeGenerator = require("generate-password");
 const generateFilter = require("./generate-filter");
 const moment = require("moment-timezone");
+const admin = require("firebase-admin");
+const { db } = require("@config/firebase-admin");
 
 const log4js = require("log4js");
-const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- join-util`);
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- create-user-util`);
 
 const UserModel = (tenant) => {
   try {
@@ -63,10 +66,86 @@ const ClientModel = (tenant) => {
   }
 };
 
-const join = {
-  listLogs: async (tenant) => {
+const NetworkModel = (tenant) => {
+  try {
+    const networks = mongoose.model("networks");
+    return networks;
+  } catch (error) {
+    const networks = getModelByTenant(tenant, "network", NetworkSchema);
+    return networks;
+  }
+};
+
+const RoleModel = (tenant) => {
+  try {
+    let roles = mongoose.model("roles");
+    return roles;
+  } catch (error) {
+    let roles = getModelByTenant(tenant, "role", RoleSchema);
+    return roles;
+  }
+};
+
+async function deleteCollection(db, collectionPath, batchSize) {
+  const collectionRef = db.collection(collectionPath);
+  const query = collectionRef.orderBy("__name__").limit(batchSize);
+
+  return new Promise((resolve, reject) => {
+    deleteQueryBatch(db, query, batchSize, resolve, reject);
+  });
+}
+
+function deleteQueryBatch(db, query, batchSize, resolve, reject) {
+  query
+    .get()
+    .then((snapshot) => {
+      // When there are no documents left, we are done
+      if (snapshot.size === 0) {
+        return 0;
+      }
+
+      // Delete documents in a batch
+      const batch = db.batch();
+      snapshot.docs.forEach((doc) => {
+        batch.delete(doc.ref);
+      });
+
+      return batch.commit().then(() => {
+        return snapshot.size;
+      });
+    })
+    .then((numDeleted) => {
+      if (numDeleted === 0) {
+        resolve();
+        return;
+      }
+
+      // Recurse on the next process tick, to avoid
+      // exploding the stack.
+      process.nextTick(() => {
+        deleteQueryBatch(db, query, batchSize, resolve, reject);
+      });
+    })
+    .catch(reject);
+}
+
+const createUserModule = {
+  listLogs: async (request) => {
     try {
-      const responseFromListLogs = await LogModel(tenant).list(tenant);
+      const { tenant, limit = 1000, skip = 0 } = request.query;
+      let filter = {};
+      const responseFromFilter = generateFilter.logs(request);
+      if (responseFromFilter.success === false) {
+        return responseFromFilter;
+      } else {
+        filter = responseFromFilter;
+      }
+      logObject("filter", filter);
+      const responseFromListLogs = await LogModel(tenant).list({
+        filter,
+        limit,
+        skip,
+      });
       if (responseFromListLogs.success === true) {
         return {
           success: true,
@@ -90,6 +169,7 @@ const join = {
       }
     } catch (e) {
       logElement("list users util", e.message);
+      logger.error(`Internal Server Error ${e.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -125,6 +205,7 @@ const join = {
       }
     } catch (e) {
       logElement("list users util", e.message);
+      logger.error(`Internal Server Error ${e.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -133,40 +214,34 @@ const join = {
     }
   },
 
-  list: async (tenant, filter, limit, skip) => {
+  list: async (request) => {
     try {
+      const { query } = request;
+      const { tenant } = query;
+
+      const limit = parseInt(request.query.limit, 0);
+      const skip = parseInt(request.query.skip, 0);
+
+      const responseFromFilter = generateFilter.users(request);
+      if (responseFromFilter.success === false) {
+        return responseFromFilter;
+      }
+      const filter = responseFromFilter.data;
       const responseFromListUser = await UserModel(tenant).list({
         filter,
         limit,
         skip,
       });
-      if (responseFromListUser.success === true) {
-        return {
-          success: true,
-          message: responseFromListUser.message,
-          data: responseFromListUser.data,
-          status: responseFromListUser.status
-            ? responseFromListUser.status
-            : httpStatus.OK,
-        };
-      } else if (responseFromListUser.success === false) {
-        return {
-          success: false,
-          message: responseFromListUser.message,
-          errors: responseFromListUser.errors
-            ? responseFromListUser.errors
-            : { message: "Internal Server Error" },
-          status: responseFromListUser.status
-            ? responseFromListUser.status
-            : httpStatus.INTERNAL_SERVER_ERROR,
-        };
-      }
+
+      return responseFromListUser;
     } catch (e) {
       logElement("list users util", e.message);
+      logger.error(`Internal Server Error ${e.message}`);
       return {
         success: false,
         message: "Internal Server Error",
         errors: { message: e.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -193,6 +268,20 @@ const join = {
         return responseFromGenerateFilter;
       }
 
+      const user = await UserModel(tenant).find(filter).lean();
+      logObject("the user details with lean(", user);
+      if (isEmpty(user)) {
+        logger.error(`the provided User does not exist in the System`);
+        return {
+          message: "Bad Request Error",
+          success: false,
+          errors: {
+            message: "the provided User does not exist in the System",
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
       const responseFromModifyUser = await UserModel(
         tenant.toLowerCase()
       ).modify({
@@ -201,30 +290,44 @@ const join = {
       });
 
       if (responseFromModifyUser.success === true) {
-        const user = responseFromModifyUser.data;
-        const responseFromSendEmail = await mailer.update(
-          user.email,
-          user.firstName,
-          user.lastName
-        );
-
-        if (responseFromSendEmail.success === true) {
+        const { _id, ...updatedUserDetails } = responseFromModifyUser.data;
+        logObject("updatedUserDetails", updatedUserDetails);
+        if (process.env.NODE_ENV && process.env.NODE_ENV !== "production") {
           return {
             success: true,
             message: responseFromModifyUser.message,
             data: responseFromModifyUser.data,
           };
-        } else if (responseFromSendEmail.success === false) {
-          return responseFromSendEmail;
+        } else {
+          logObject("user Object", user);
+          const responseFromSendEmail = await mailer.update(
+            user[0].email,
+            user[0].firstName,
+            user[0].lastName,
+            updatedUserDetails
+          );
+
+          if (responseFromSendEmail.success === true) {
+            return {
+              success: true,
+              message: responseFromModifyUser.message,
+              data: responseFromModifyUser.data,
+            };
+          } else if (responseFromSendEmail.success === false) {
+            return responseFromSendEmail;
+          }
         }
       } else if (responseFromModifyUser.success === false) {
         return responseFromModifyUser;
       }
     } catch (e) {
+      logObject("e", e);
+      logger.error(`Internal Server Error ${e.message}`);
       return {
         success: false,
         message: "Internal Server Error",
         errors: { message: e.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -252,6 +355,7 @@ const join = {
               message: "Successfully fetched user data",
               status: httpStatus.OK,
               data: [],
+              userRecord,
             });
           });
 
@@ -281,6 +385,7 @@ const join = {
           });
         });
     } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
       callback({
         success: false,
         message: "Internal Server Error",
@@ -292,6 +397,287 @@ const join = {
     }
   },
 
+  createFirebaseUser: async (request, callback) => {
+    try {
+      const { body } = request;
+      const { email, password, phoneNumber } = body;
+      logText("createFirebaseUser util......");
+
+      // Check if either email or phoneNumber is provided
+      if (isEmpty(email) && isEmpty(phoneNumber)) {
+        callback({
+          success: false,
+          message: "Please provide either email or phoneNumber",
+          status: httpStatus.BAD_REQUEST,
+        });
+        return;
+      }
+
+      if (!isEmpty(email) && isEmpty(phoneNumber) && isEmpty(password)) {
+        callback({
+          success: false,
+          message: "Bad Request",
+          errors: { message: "password must be provided when using email" },
+          status: httpStatus.BAD_REQUEST,
+        });
+      }
+
+      // Create the user object with either email or phoneNumber
+      let userObject;
+      if (!isEmpty(email)) {
+        userObject = {
+          email,
+          password, // Password is required when creating a user with email
+        };
+      } else {
+        userObject = {
+          phoneNumber,
+        };
+      }
+
+      // Create the user using the createUser method from Firebase Auth
+      const userRecord = await getAuth().createUser(userObject);
+
+      // Extract the user ID from the created user record
+      const { uid } = userRecord;
+
+      // You can add more data to the userRecord using the update method if needed
+      // For example, to set custom claims, use: await updateCustomClaims(getAuth(), uid, { isAdmin: true });
+
+      // Return the success response with the user ID
+      callback({
+        success: true,
+        message: "User created successfully",
+        status: httpStatus.CREATED,
+        data: { uid },
+      });
+    } catch (error) {
+      logger.error(`Internal Server Error ${JSON.stringify(error)}`);
+      callback({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      });
+    }
+  },
+
+  signUpWithFirebase: async (request, callback) => {
+    try {
+      const { body, query } = request;
+      const { tenant } = query;
+      const { email, phoneNumber, firstName, lastName, userName, password } =
+        body;
+
+      // Step 1: Check if the user exists on Firebase using lookUpFirebaseUser function
+      createUserModule.lookUpFirebaseUser(
+        request,
+        async (firebaseUserResponse) => {
+          if (
+            firebaseUserResponse.success &&
+            firebaseUserResponse.data.length > 0
+          ) {
+            // Step 2: User exists on Firebase, update or create locally using UserModel
+            const firebaseUser = firebaseUserResponse.data[0];
+
+            // Check if user exists locally in your MongoDB using UserModel
+            const userExistsLocally = await UserModel(tenant).findOne({
+              $or: [
+                { email: firebaseUser.email },
+                { phoneNumber: firebaseUser.phoneNumber },
+              ],
+            });
+
+            if (userExistsLocally) {
+              // User exists locally, perform update operation
+              const updatedUser = await UserModel(tenant).updateOne(
+                { _id: userExistsLocally._id },
+                {
+                  firstName: firebaseUser.firstName,
+                  lastName: firebaseUser.lastName,
+                  userName: firebaseUser.userName,
+                }
+              );
+
+              callback({
+                success: true,
+                message: "User updated successfully.",
+                status: httpStatus.OK,
+                data: updatedUser,
+              });
+            } else {
+              // User does not exist locally, perform create operation
+              // Create the user in your UserModel using mongoose create function
+              const newUser = await UserModel(tenant).create({
+                email: firebaseUser.email,
+                phoneNumber: firebaseUser.phoneNumber,
+                firstName,
+                lastName,
+                userName,
+                password,
+              });
+
+              callback({
+                success: true,
+                message: "User created successfully.",
+                status: httpStatus.CREATED,
+                data: newUser,
+              });
+            }
+          } else {
+            // Step 3: User does not exist on Firebase, create user on Firebase first
+            // Create the user on Firebase using createFirebaseUser function
+            createUserModule.createFirebaseUser(
+              { body: { email, phoneNumber, password } },
+              async (firebaseCreateResponse) => {
+                if (firebaseCreateResponse.success) {
+                  // Step 4: Firebase user created successfully, proceed with local user creation
+                  const newUser = await UserModel(tenant).create({
+                    email,
+                    phoneNumber,
+                    firstName,
+                    lastName,
+                    userName: email, // Using email as userName in this case
+                    password,
+                  });
+
+                  callback({
+                    success: true,
+                    message: "User created successfully.",
+                    status: httpStatus.CREATED,
+                    data: newUser,
+                  });
+                } else {
+                  callback({
+                    success: false,
+                    message: "Error creating user on Firebase.",
+                    status: httpStatus.INTERNAL_SERVER_ERROR,
+                    errors: { message: "Error creating user on Firebase." },
+                  });
+                }
+              }
+            );
+          }
+        }
+      );
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+      callback({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      });
+    }
+  },
+
+  loginWithFirebase: async (request, callback) => {
+    try {
+      const { body, query } = request;
+      const { tenant } = query;
+      const { email, phoneNumber, firstName, lastName, userName, password } =
+        body;
+
+      // Step 1: Check if the user exists on Firebase using lookUpFirebaseUser function
+      createUserModule.lookUpFirebaseUser(
+        request,
+        async (firebaseUserResponse) => {
+          logObject("firebaseUserResponse", firebaseUserResponse);
+          if (
+            firebaseUserResponse.success === true &&
+            !isEmpty(firebaseUserResponse.userRecord)
+          ) {
+            // Step 2: User exists on Firebase, update or create locally using UserModel
+            const firebaseUser = firebaseUserResponse.userRecord;
+            logObject("firebaseUser", firebaseUser);
+
+            // Check if user exists locally
+            const userExistsLocally = await UserModel(tenant)
+              .findOne({
+                $or: [
+                  { email: { $regex: new RegExp(firebaseUser.email, "i") } },
+                  { phoneNumber: firebaseUser.phoneNumber },
+                ],
+              })
+              .lean();
+            logObject("userExistsLocally", userExistsLocally);
+            if (userExistsLocally) {
+              // User exists locally, perform update operation
+              const updatedUser = await UserModel(tenant).updateOne(
+                { _id: userExistsLocally._id },
+                {
+                  firstName: firebaseUser.firstName,
+                  lastName: firebaseUser.lastName,
+                  userName: firebaseUser.userName,
+                }
+              );
+              logObject("updatedUser", updatedUser);
+              /**
+               * At this point, I should also send through the token in the response body
+               * {
+    "_id": "",
+    "userName": "",
+    "token": "",
+    "email": ""
+}
+               */
+
+              callback({
+                success: true,
+                message: "Successful login!",
+                status: httpStatus.OK,
+                data: updatedUser,
+              });
+            } else {
+              // User does not exist locally, perform create operation
+              logText("this user does not exist locally");
+              const newUser = await UserModel(tenant).create({
+                email: firebaseUser.email,
+                phoneNumber: firebaseUser.phoneNumber,
+                firstName: firebaseUser.firstName,
+                lastName: firebaseUser.lastName,
+                userName: firebaseUser.email,
+                password,
+              });
+
+              logObject("newUser", newUser);
+              /**,
+               * At this point, I should also send through the token in the response body
+               * {
+    "_id": "",
+    "userName": "",
+    "token": "",
+    "email": ""
+}
+               */
+              callback({
+                success: true,
+                message: "Successful login!",
+                status: httpStatus.CREATED,
+                data: newUser,
+              });
+            }
+          } else {
+            callback({
+              success: false,
+              message: "Unable to Login using Firebase, crosscheck details.",
+              status: httpStatus.BAD_REQUEST,
+              errors: { message: "User does not exist on Firebase" },
+            });
+          }
+        }
+      );
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+      callback({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      });
+    }
+  },
+
   generateSignInWithEmailLink: async (request, callback) => {
     try {
       const { body, query } = request;
@@ -299,7 +685,7 @@ const join = {
       const { purpose } = query;
 
       return getAuth()
-        .generateSignInWithEmailLink(email, actionCodeSettings)
+        .generateSignInWithEmailLink(email, constants.ACTION_CODE_SETTINGS)
         .then(async (link) => {
           let linkSegments = link.split("%").filter((segment) => segment);
           const indexBeforeCode = linkSegments.indexOf("26oobCode", 0);
@@ -310,6 +696,12 @@ const join = {
           let token = 100000;
           if (email !== constants.EMAIL) {
             token = Math.floor(Math.random() * (999999 - 100000) + 100000);
+          }
+          if (purpose === "mobileAccountDelete") {
+            responseFromSendEmail = await mailer.deleteMobileAccountEmail(
+              email,
+              token
+            );
           }
           if (purpose === "auth") {
             responseFromSendEmail = await mailer.authenticateEmail(
@@ -337,6 +729,7 @@ const join = {
               },
             });
           } else if (responseFromSendEmail.success === false) {
+            logger.error(`email sending process unsuccessful`);
             callback({
               success: false,
               message: "email sending process unsuccessful",
@@ -352,6 +745,7 @@ const join = {
           if (error.code === "auth/invalid-email") {
             status = httpStatus.BAD_REQUEST;
           }
+          logger.error(`unable to sign in using email link`);
           callback({
             success: false,
             message: "unable to sign in using email link",
@@ -362,6 +756,7 @@ const join = {
           });
         });
     } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
       callback({
         success: false,
         message: "Internal Server Error",
@@ -372,67 +767,72 @@ const join = {
       });
     }
   },
-  delete: async (tenant, filter) => {
+  delete: async (request) => {
     try {
-      let responseFromRemoveUser = await UserModel(tenant.toLowerCase()).remove(
+      const { query } = request;
+      const { tenant } = query;
+      const responseFromFilter = generateFilter.users(request);
+      logObject("responseFromFilter", responseFromFilter);
+      if (responseFromFilter.success === false) {
+        return responseFromFilter;
+      }
+      const filter = responseFromFilter.data;
+
+      const updatedRole = await RoleModel(tenant).updateMany(
+        { role_users: filter._id },
+        { $pull: { role_users: filter._id } }
+      );
+
+      if (!isEmpty(updatedRole.err)) {
+        logger.error(
+          `error while attempting to delete User from the corresponding Role ${JSON.stringify(
+            updatedRole.err
+          )}`
+        );
+      }
+
+      const updatedNetwork = await NetworkModel(tenant).updateMany(
+        { net_users: filter._id },
         {
-          filter,
+          $pull: { net_users: filter._id },
+          $cond: {
+            if: { $eq: ["$net_manager", filter._id] },
+            then: { $set: { net_manager: null } },
+            else: {},
+          },
         }
       );
 
-      /**
-       * cascase delete of user details...
-       */
-      // let responseFromRemoveUser = await UserModel(
-      //   tenant.toLowerCase()
-      // ).v2_remove({
-      //   filter,
-      // });
-
-      if (responseFromRemoveUser.success == true) {
-        return {
-          success: true,
-          message: responseFromRemoveUser.message,
-          data: responseFromRemoveUser.data,
-          status: responseFromRemoveUser.status
-            ? responseFromRemoveUser.status
-            : "",
-        };
-      } else if (responseFromRemoveUser.success == false) {
-        if (responseFromRemoveUser.error) {
-          return {
-            success: false,
-            message: responseFromRemoveUser.message,
-            error: responseFromRemoveUser.error
-              ? responseFromRemoveUser.error
-              : "",
-            status: responseFromRemoveUser.status
-              ? responseFromRemoveUser.status
-              : "",
-          };
-        } else {
-          return {
-            success: false,
-            message: responseFromRemoveUser.message,
-            status: responseFromRemoveUser.status
-              ? responseFromRemoveUser.status
-              : "",
-          };
-        }
+      if (!isEmpty(updatedNetwork.err)) {
+        logger.error(
+          `error while attempting to delete User from the corresponding Network ${JSON.stringify(
+            updatedNetwork.err
+          )}`
+        );
       }
-    } catch (e) {
-      logElement("delete users util", e.message);
+
+      const responseFromRemoveUser = await UserModel(
+        tenant.toLowerCase()
+      ).remove({
+        filter,
+      });
+
+      return responseFromRemoveUser;
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
       return {
         success: false,
-        message: "util server error",
-        error: e.message,
+        message: "Internal Server Error",
+        errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
 
-  sendFeedback: async ({ email, message, subject }) => {
+  sendFeedback: async (request) => {
     try {
+      const { body } = request;
+      const { email, message, subject } = body;
       const responseFromSendEmail = await mailer.feedback({
         email,
         message,
@@ -445,15 +845,18 @@ const join = {
         return {
           success: true,
           message: "email successfully sent",
+          status: httpStatus.OK,
         };
       } else if (responseFromSendEmail.success === false) {
         return responseFromSendEmail;
       }
     } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -461,9 +864,23 @@ const join = {
   create: async (request) => {
     try {
       const { tenant, firstName, email, network_id } = request;
-      const password = accessCodeGenerator.generate(
-        constants.RANDOM_PASSWORD_CONFIGURATION(10)
-      );
+      let { password } = request;
+
+      const user = await UserModel(tenant).findOne({ email });
+      if (!isEmpty(user)) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: { message: "User is already part of the AirQo platform" },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      password = password
+        ? password
+        : accessCodeGenerator.generate(
+            constants.RANDOM_PASSWORD_CONFIGURATION(10)
+          );
 
       const newRequest = Object.assign({ userName: email, password }, request);
 
@@ -550,6 +967,7 @@ const join = {
       }
     } catch (e) {
       logObject("e", e);
+      logger.error(`Internal Server Error ${e.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -561,8 +979,7 @@ const join = {
 
   register: async (request) => {
     try {
-      let {
-        tenant,
+      const {
         firstName,
         lastName,
         email,
@@ -570,7 +987,9 @@ const join = {
         long_organization,
         privilege,
         network_id,
-      } = request;
+      } = request.body;
+
+      const { tenant } = request.query;
 
       const password = accessCodeGenerator.generate(
         constants.RANDOM_PASSWORD_CONFIGURATION(10)
@@ -620,6 +1039,7 @@ const join = {
         return responseFromCreateUser;
       }
     } catch (e) {
+      logger.error(`Internal Server Error ${e.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -630,58 +1050,34 @@ const join = {
     }
   },
 
-  confirmEmail: (tenant, filter) => {
+  forgotPassword: async (request) => {
     try {
-      let responseFromListUser = join.list({ filter });
-      if (responseFromListUser.success == true) {
-        let responseFromUpdateUser = this.update(tenant, filter, update);
-        if (responseFromUpdateUser.success == true) {
-          return {
-            success: true,
-            message: "remail successfully confirmed",
-            data: responseFromUpdateUser.data,
-          };
-        } else if (responseFromUpdateUser.success == false) {
-          if (responseFromUpdateUser.error) {
-            return {
-              success: false,
-              message: responseFromUpdateUser.message,
-              error: responseFromUpdateUser.error,
-            };
-          } else {
-            return {
-              success: false,
-              message: responseFromUpdateUser.message,
-            };
-          }
-        }
-      } else if (responseFromListUser.success == false) {
-        if (responseFromListUser.error) {
-          return {
-            success: false,
-            message: responseFromListUser.message,
-            error: responseFromListUser.error,
-          };
-        } else {
-          return {
-            success: false,
-            message: responseFromListUser.message,
-          };
-        }
-      }
-    } catch (error) {
-      logElement("confirm email util", error.message);
-      return {
-        success: false,
-        message: "join util server error",
-        error: error.message,
-      };
-    }
-  },
+      const { query } = request;
+      const { tenant } = query;
 
-  forgotPassword: async (tenant, filter) => {
-    try {
-      const responseFromGenerateResetToken = join.generateResetToken();
+      const responseFromFilter = generateFilter.users(request);
+      logObject("responseFromFilter", responseFromFilter);
+      if (responseFromFilter.success === false) {
+        return responseFromFilter;
+      }
+      const filter = responseFromFilter.data;
+
+      const userExists = await UserModel(tenant).exists(filter);
+
+      if (!userExists) {
+        return {
+          success: false,
+          message: "Bad Request Error",
+          errors: {
+            message:
+              "Sorry, the provided email or username does not belong to a registered user. Please make sure you have entered the correct information or sign up for a new account.",
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const responseFromGenerateResetToken =
+        createUserModule.generateResetToken();
       logObject(
         "responseFromGenerateResetToken",
         responseFromGenerateResetToken
@@ -723,6 +1119,7 @@ const join = {
       }
     } catch (e) {
       logElement("forgot password util", e.message);
+      logger.error(`Internal Server Error ${e.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -735,8 +1132,8 @@ const join = {
 
   updateForgottenPassword: async (request) => {
     try {
-      const { tenant, body } = request;
-      const { resetPasswordToken } = body;
+      const { resetPasswordToken, password } = request.body;
+      const { tenant } = request.query;
       const timeZone = moment.tz.guess();
       let filter = {
         resetPasswordToken,
@@ -746,10 +1143,11 @@ const join = {
       };
 
       logObject("isPasswordTokenValid FILTER", filter);
-      const responseFromCheckTokenValidity = await join.isPasswordTokenValid({
-        tenant,
-        filter,
-      });
+      const responseFromCheckTokenValidity =
+        await createUserModule.isPasswordTokenValid({
+          tenant,
+          filter,
+        });
 
       logObject(
         "responseFromCheckTokenValidity",
@@ -760,20 +1158,39 @@ const join = {
         const update = {
           resetPasswordToken: null,
           resetPasswordExpires: null,
+          password,
         };
         const userDetails = responseFromCheckTokenValidity.data;
+        logObject("userDetails", userDetails);
         filter = { _id: ObjectId(userDetails._id) };
         logObject("updateForgottenPassword FILTER", filter);
         const responseFromModifyUser = await UserModel(tenant).modify({
           filter,
           update,
         });
-        return responseFromModifyUser;
+
+        if (responseFromModifyUser.success === true) {
+          const { email, firstName, lastName } = userDetails;
+          const responseFromSendEmail = await mailer.updateForgottenPassword(
+            email,
+            firstName,
+            lastName
+          );
+
+          if (responseFromSendEmail.success === true) {
+            return responseFromModifyUser;
+          } else if (responseFromSendEmail.success === false) {
+            return responseFromSendEmail;
+          }
+        } else if (responseFromModifyUser.success === false) {
+          return responseFromModifyUser;
+        }
       } else if (responseFromCheckTokenValidity.success === false) {
         return responseFromCheckTokenValidity;
       }
     } catch (error) {
       logObject("error updateForgottenPassword UTIL", error);
+      logger.error(`Internal Server Error ${error.message}`);
       return {
         success: false,
         message: "util server error",
@@ -783,103 +1200,109 @@ const join = {
     }
   },
 
-  updateKnownPassword: async (tenant, new_pwd, old_pwd, filter) => {
+  updateKnownPassword: async (request) => {
     try {
-      logElement("the tenant", tenant);
-      logElement("the old password", old_pwd);
-      logElement("the new password ", new_pwd);
-      logObject("the filter", filter);
-      let responseFromComparePassword = await join.comparePasswords(
-        filter,
-        tenant,
-        old_pwd
-      );
-      logObject("responseFromComparePassword", responseFromComparePassword);
-      if (responseFromComparePassword.success == true) {
-        let update = {
-          password: new_pwd,
-        };
+      const { query, body } = request;
+      const { tenant } = query;
+      const { password, old_password } = body;
 
-        let responseFromUpdateUser = await join.update(tenant, filter, update);
-        logObject("responseFromUpdateUser", responseFromUpdateUser);
-        if (responseFromUpdateUser.success == true) {
-          return {
-            success: true,
-            message: responseFromUpdateUser.message,
-            data: responseFromUpdateUser.data,
-          };
-        } else if (responseFromUpdateUser.success == false) {
-          if (responseFromUpdateUser.error) {
-            return {
-              success: false,
-              message: responseFromUpdateUser.message,
-              error: responseFromUpdateUser.error,
-            };
-          } else {
-            return {
-              success: false,
-              message: responseFromUpdateUser.message,
-            };
-          }
-        }
-      } else if (responseFromComparePassword.success == false) {
-        if (responseFromComparePassword.error) {
-          return {
-            success: false,
-            message: responseFromComparePassword.message,
-            error: responseFromComparePassword.error,
-          };
-        } else {
-          return {
-            success: false,
-            message: responseFromComparePassword.message,
-          };
-        }
+      const responseFromFilter = generateFilter.users(request);
+      logObject("responseFromFilter", responseFromFilter);
+      if (responseFromFilter.success === false) {
+        return responseFromFilter;
       }
-    } catch (e) {
-      logElement("update known password", e.message);
-      return {
-        success: false,
-        message: "update known password util server error",
-        error: e.message,
-      };
-    }
-  },
-  comparePasswords: async (filter, tenant, old_pwd) => {
-    try {
-      let user = await UserModel(tenant).findOne(filter).exec();
-      if (!isEmpty(user)) {
-        let responseFromBcrypt = await bcrypt.compare(
-          old_pwd,
-          user._doc.password
+      const filter = responseFromFilter.data;
+
+      logObject("the found filter", filter);
+
+      const user = await UserModel(tenant).find(filter).lean();
+
+      logObject("the user details with lean(", user);
+
+      if (isEmpty(user)) {
+        logger.error(
+          ` ${user[0].email} --- either your old password is incorrect or the provided user does not exist`
         );
-        if (responseFromBcrypt == true) {
-          return {
-            success: true,
-            message: "the passwords match",
-          };
-        } else if (responseFromBcrypt == false) {
-          return {
+        return {
+          message: "Bad Request Error",
+          success: false,
+          errors: {
             message:
               "either your old password is incorrect or the provided user does not exist",
-            success: false,
-          };
-        }
-      } else {
-        return {
-          success: false,
-          message: "unable to find this user",
+          },
+          status: httpStatus.BAD_REQUEST,
         };
       }
-    } catch (error) {
-      logElement("compare passwords util server error", error.message);
+
+      if (isEmpty(user[0].password)) {
+        logger.error(` ${user[0].email} --- unable to do password lookup`);
+        return {
+          success: false,
+          errors: { message: "unable to do password lookup" },
+          message: "Internal Server Error",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+
+      const responseFromBcrypt = await bcrypt.compare(
+        old_password,
+        user[0].password
+      );
+
+      if (responseFromBcrypt === false) {
+        logger.error(
+          ` ${user[0].email} --- either your old password is incorrect or the provided user does not exist`
+        );
+        return {
+          message: "Bad Request Error",
+          success: false,
+          errors: {
+            message:
+              "either your old password is incorrect or the provided user does not exist",
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+
+      const update = {
+        password: password,
+      };
+      const responseFromUpdateUser = await UserModel(
+        tenant.toLowerCase()
+      ).modify({
+        filter,
+        update,
+      });
+
+      if (responseFromUpdateUser.success === true) {
+        const { email, firstName, lastName } = user[0];
+        const responseFromSendEmail = await mailer.updateKnownPassword(
+          email,
+          firstName,
+          lastName
+        );
+
+        if (responseFromSendEmail.success === true) {
+          return responseFromUpdateUser;
+        } else if (responseFromSendEmail.success === false) {
+          return responseFromSendEmail;
+        }
+      } else if (responseFromUpdateUser.success === false) {
+        return responseFromUpdateUser;
+      }
+    } catch (e) {
+      logObject("the error when updating known password", e);
+      logger.error(`Internal Server Error ${e.message}`);
       return {
         success: false,
-        message: "compare passwords utils server error",
-        error: error.message,
+        message: "Internal Server Error",
+        error: e.message,
+        errors: { message: e.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
+
   generateResetToken: () => {
     try {
       const token = crypto.randomBytes(20).toString("hex");
@@ -890,6 +1313,7 @@ const join = {
       };
     } catch (error) {
       logElement("generate reset token util", error.message);
+      logger.error(`Internal Server Error ${error.message}`);
       return {
         success: false,
         message: "util server error",
@@ -929,6 +1353,7 @@ const join = {
         return responseFromListUser;
       }
     } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
       return {
         status: httpStatus.INTERNAL_SERVER_ERROR,
         success: false,
@@ -990,6 +1415,7 @@ const join = {
         };
       }
     } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
       const errorResponse = error.response ? error.response : {};
       const text = errorResponse ? errorResponse.text : "";
       const status = errorResponse
@@ -1003,6 +1429,95 @@ const join = {
       };
     }
   },
+
+  deleteMobileUserData: async (request) => {
+    try {
+      const { userId, token } = request.params;
+
+      const userRecord = await admin.auth().getUser(userId);
+
+      let creationTime = userRecord.metadata.creationTime;
+      creationTime = creationTime.replace(/\D/g, "");
+
+      const tokenString = `${userId}+${creationTime}`;
+
+      const verificationToken = crypto
+        .createHash("sha256")
+        .update(tokenString)
+        .digest("hex");
+
+      if (token !== verificationToken) {
+        return {
+          success: false,
+          message: "Invalid token",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "Invalid token" },
+        };
+      }
+
+      try {
+        await getAuth().deleteUser(userId);
+        const collectionList = [
+          constants.FIREBASE_COLLECTION_KYA,
+          constants.FIREBASE_COLLECTION_ANALYTICS,
+          constants.FIREBASE_COLLECTION_NOTIFICATIONS,
+          constants.FIREBASE_COLLECTION_FAVORITE_PLACES,
+        ];
+        let collectionRef = db.collection(
+          `${constants.FIREBASE_COLLECTION_USERS}`
+        );
+        let docRef = collectionRef.doc(userId);
+
+        docRef
+          .delete()
+          .then(async () => {
+            for (var collection of collectionList) {
+              await deleteCollection(
+                db,
+                `${collection}/${userId}/${userId}`,
+                100
+              );
+              collectionRef = db.collection(`${collection}`);
+              docRef = collectionRef.doc(userId);
+              docRef.delete();
+            }
+            logText("Document successfully deleted!");
+          })
+          .catch((error) => {
+            logError("Error deleting document:", error);
+            logger.error(`Internal Server Error -- ${error.message}`);
+            return {
+              success: false,
+              message: "Error deleting Firestore documents",
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+              errors: { message: error.message },
+            };
+          });
+
+        return {
+          success: true,
+          message: "User account has been deleted.",
+          status: httpStatus.OK,
+        };
+      } catch (error) {
+        logError("Error deleting user:", error);
+        logger.error(`Internal Server Error -- ${error.message}`);
+        return {
+          success: false,
+          message: "Error deleting user",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: { message: error.message },
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      };
+    }
+  },
 };
 
-module.exports = join;
+module.exports = createUserModule;

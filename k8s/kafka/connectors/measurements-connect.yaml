@@ -8,7 +8,7 @@ metadata:
 spec:
   version: 3.2.1
   image: {{MEASUREMENTS_CONNECT_IMAGE}}
-  replicas: 2
+  replicas: 0
   bootstrapServers: {{KAFKA_CLUSTER}}
   config:
     group.id: measurements-connect

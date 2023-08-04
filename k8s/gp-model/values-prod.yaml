@@ -1,13 +1,29 @@
 app:
   name: prod-gpmodel
+  cronJobName: prod-gpmodel-cron-job
+  brokerConsumerName: prod-gpmodel-broker-consumer
+  label: gpmodel
   namespace: production
-  configmap: env-gp-model-production
-image:
-  repository: eu.gcr.io/airqo-250220/airqo-gp-model-job
-  tag: prod-1fe5d1b9-1680209362
+  configMap: env-gp-model-production
+images:
+  tag: prod-c03262cd-1690962276
+  repositories:
+    cronJob: eu.gcr.io/airqo-250220/airqo-gp-model-job
+    brokerConsumer: eu.gcr.io/airqo-250220/airqo-gp-model-broker-consumer
 nameOverride: ''
 fullnameOverride: ''
+podAnnotations: {}
 resources:
   limits:
     cpu: 2000m
     memory: 4000Mi
+  requests:
+    cpu: 50m
+    memory: 100Mi
+volumeMounts:
+  - name: config-volume
+    mountPath: /etc/config
+volumes:
+  - name: config-volume
+    configMap:
+      name: gp-model-job-config-files

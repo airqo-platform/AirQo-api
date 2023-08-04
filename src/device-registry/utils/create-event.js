@@ -1,12 +1,12 @@
 const EventModel = require("@models/Event");
-const AirQloudSchema = require("@models/Airqloud");
-const { getModelByTenant } = require("./multitenancy");
-const MeasurementModel = require("@models/Measurement");
+const DeviceSchema = require("@models/Device");
+const { getModelByTenant } = require("@config/database");
 const { logObject, logElement, logText } = require("./log");
 const constants = require("@config/constants");
 const generateFilter = require("./generate-filter");
 const errors = require("./errors");
 const isEmpty = require("is-empty");
+const cryptoJS = require("crypto-js");
 const log4js = require("log4js");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- create-event-util`
@@ -14,12 +14,8 @@ const logger = log4js.getLogger(
 const { transform } = require("node-json-transform");
 const Dot = require("dot-object");
 const cleanDeep = require("clean-deep");
-const { getDevicesCount, list, decryptKey } = require("./create-monitor");
-const HTTPStatus = require("http-status");
 const redis = require("@config/redis");
 const axios = require("axios");
-const mongoose = require("mongoose");
-const ObjectId = mongoose.Types.ObjectId;
 const { BigQuery } = require("@google-cloud/bigquery");
 const bigquery = new BigQuery();
 const {
@@ -27,98 +23,155 @@ const {
   addMonthsToProvideDateTime,
   formatDate,
 } = require("./date");
-
-const createSiteUtil = require("./create-site");
-
 const { Parser } = require("json2csv");
-
 const httpStatus = require("http-status");
-const createAirqloudUtil = require("./create-airqloud");
+const devicesModel = (tenant) => {
+  return getModelByTenant(tenant, "device", DeviceSchema);
+};
+
+const listDevices = async (request) => {
+  try {
+    let { tenant } = request.query;
+    const limit = parseInt(request.query.limit, 0);
+    const skip = parseInt(request.query.skip, 0);
+    let filter = {};
+    logObject("the request for the filter", request);
+    let responseFromFilter = generateFilter.devices(request);
+    // logger.info(`responseFromFilter -- ${responseFromFilter}`);
+
+    if (responseFromFilter.success === true) {
+      filter = responseFromFilter.data;
+      logObject("the filter being used", filter);
+      // logger.info(`the filter in list -- ${filter}`);
+    } else if (responseFromFilter.success === false) {
+      let errors = responseFromFilter.errors
+        ? responseFromFilter.errors
+        : { message: "" };
+      let status = responseFromFilter.status ? responseFromFilter.status : "";
+      try {
+        let errorsString = errors ? JSON.stringify(errors) : "";
+        logger.error(`the error from filter in list -- ${errorsString}`);
+      } catch (error) {
+        logger.error(`internal server error -- ${error.message}`);
+      }
+      return {
+        success: false,
+        message: responseFromFilter.message,
+        errors,
+        status,
+      };
+    }
+
+    let responseFromListDevice = await getModelByTenant(
+      tenant,
+      "device",
+      DeviceSchema
+    ).list({
+      filter,
+      limit,
+      skip,
+    });
+
+    // logger.info(
+    //   `the responseFromListDevice in list -- ${responseFromListDevice} `
+    // );
+
+    if (responseFromListDevice.success === false) {
+      let errors = responseFromListDevice.errors
+        ? responseFromListDevice.errors
+        : { message: "" };
+      try {
+        let errorsString = errors ? JSON.stringify(errors) : "";
+        logger.error(
+          `responseFromListDevice was not a success -- ${responseFromListDevice.message} -- ${errorsString}`
+        );
+      } catch (error) {
+        logger.error(`internal server error -- ${error.message}`);
+      }
+      return responseFromListDevice;
+    } else if (responseFromListDevice.success === true) {
+      let data = responseFromListDevice.data;
+      // logger.info(`responseFromListDevice was a success -- ${data}`);
+      return responseFromListDevice;
+    }
+  } catch (e) {
+    logger.error(`error for list devices util -- ${e.message}`);
+    return {
+      success: false,
+      message: "list devices util - server error",
+      errors: { message: e.message },
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+    };
+  }
+};
+
+const getDevicesCount = async (request, callback) => {
+  try {
+    const { query } = request;
+    const { tenant } = query;
+
+    await devicesModel(tenant).countDocuments({}, (err, count) => {
+      if (count) {
+        callback({
+          success: true,
+          message: "retrieved the number of devices",
+          status: httpStatus.OK,
+          data: count,
+        });
+      }
+      if (err) {
+        callback({
+          success: false,
+          message: "Internal Server Error",
+          errors: { message: err.message },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        });
+      }
+    });
+  } catch (error) {
+    logger.error(`internal server error -- ${error.message}`);
+    callback({
+      success: false,
+      message: "Internal Server Error",
+      errors: { message: error.message },
+    });
+  }
+};
+
+const decryptKey = async (encryptedKey) => {
+  try {
+    let bytes = cryptoJS.AES.decrypt(
+      encryptedKey,
+      constants.KEY_ENCRYPTION_KEY
+    );
+    let originalText = bytes.toString(cryptoJS.enc.Utf8);
+    let isKeyUnknown = isEmpty(originalText);
+    if (isKeyUnknown) {
+      return {
+        success: true,
+        status: httpStatus.NOT_FOUND,
+        message: "the provided encrypted key is not recognizable",
+      };
+    } else {
+      return {
+        success: true,
+        message: "successfully decrypted the text",
+        data: originalText,
+        status: httpStatus.OK,
+      };
+    }
+  } catch (err) {
+    logger.error(`internal server error -- ${err.message}`);
+    return {
+      success: false,
+      message: "unable to decrypt the key",
+      errors: { message: err.message },
+      status: httpStatus.INTERNAL_SERVER_ERROR,
+    };
+  }
+};
 
 const createEvent = {
-  sample_kafka_message_v1: [
-    {
-      time: "2022-03-18T13:00:00Z",
-      tenant: "kcca",
-      site_id: "60d2b7e27e9018a1a8d38c28",
-      device_id: "6228c43567c2db20bffaa0cb",
-      device_number: 0,
-      device: "A0WN66FH",
-      latitude: "0.2857506",
-      longitude: "32.5783253",
-      pm2_5: 45.11,
-      pm10: 39.16,
-      s1_pm2_5: 26.4,
-      s1_pm10: 39.16,
-      s2_pm2_5: null,
-      s2_pm10: null,
-      pm2_5_calibrated_value: 45.11,
-      pm10_calibrated_value: null,
-      altitude: null,
-      wind_speed: null,
-      external_temperature: 27.82,
-      external_humidity: 56.76,
-    },
-    {
-      time: "2022-03-19T13:00:00Z",
-      tenant: "airqo",
-      frequency: "minute",
-      site_id: "60d2b7e27e9018a1a8d38c28",
-      device_id: "6228c43567c2db20bffaa0cb",
-      device_number: 0,
-      device: "aq_613_97",
-      latitude: "0.2857506",
-      longitude: "32.5783253",
-      pm2_5: 45.11,
-      pm10: 39.16,
-      s1_pm2_5: 26.4,
-      s1_pm10: 39.16,
-      s2_pm2_5: null,
-      s2_pm10: null,
-      pm2_5_calibrated_value: 45.11,
-      pm10_calibrated_value: null,
-      altitude: null,
-      wind_speed: null,
-      external_temperature: 27.82,
-      external_humidity: 56.76,
-    },
-  ],
-  sample_kafka_message_v2: [
-    {
-      s2_pm2_5: 15.18219512195122,
-      s2_pm10: 16.105365853658537,
-      longitude: 33.620239,
-      satellites: 12.0,
-      hdop: 74.0,
-      altitude: 1147.2,
-      s1_pm2_5: 17.0790243902439,
-      battery: 3.9943902439024392,
-      device_humidity: "nan",
-      s1_pm10: 18.03731707317073,
-      device_temperature: "nan",
-      latitude: 1.715389,
-      pm2_5_raw_value: 16.130609756097563,
-      pm2_5: 15.10890000000004,
-      pm10_raw_value: 17.071341463414633,
-      pm10: 21.457795987757237,
-      timestamp: "2023-03-04 13:00:00+00:00",
-      device_id: "aq_20",
-      site_id: "60d058c8048305120d2d6140",
-      device_number: 689749,
-      atmospheric_pressure: 88.65900115966797,
-      humidity: 39.030000269412994,
-      temperature: 32.90999984741211,
-      wind_direction: 231.2,
-      wind_gusts: 2.980999994277954,
-      radiation: 479.4,
-      wind_speed: 1.5710000216960909,
-      vapor_pressure: 0.0,
-      precipitation: 0.0,
-      station_code: "TA00230",
-      pm2_5_calibrated_value: 15.10890000000004,
-      pm10_calibrated_value: 21.457795987757237,
-    },
-  ],
   getMeasurementsFromBigQuery: async (req) => {
     try {
       const { query } = req;
@@ -142,7 +195,7 @@ const createEvent = {
         access_code,
       } = query;
 
-      const responseFromGetDeviceDetails = await list(req);
+      const responseFromGetDeviceDetails = await listDevices(req);
       let deviceDetails = {};
 
       if (responseFromGetDeviceDetails.success === true) {
@@ -469,9 +522,23 @@ const createEvent = {
       };
     }
   },
-
   list: async (request, callback) => {
     try {
+      /**
+       * When listing events, some of the big considerations
+       * include:
+       * 1. Find the corresponding Sites if given the Airqlouds.
+       * 2. Find the corresponding Sites if given the Lat and Long Values.
+       *
+       *
+       * And then generate filter object
+       *
+       * For the function that we use to get the sites given some values,
+       * I should use the common.js module where I can export the function
+       * and call it in the respetive util file.
+       *
+       *
+       */
       let missingDataMessage = "";
       const { query } = request;
       let { recent, tenant, device, site_id } = query;
@@ -480,92 +547,7 @@ const createEvent = {
       let skip = parseInt(query.skip);
       let filter = {};
 
-      let airqloudSites = site_id ? site_id : "";
-
-      if (query.airqloud_id) {
-        let filter = generateFilter.airqlouds(request);
-        let responseFromListAirQloud = await getModelByTenant(
-          tenant.toLowerCase(),
-          "airqloud",
-          AirQloudSchema
-        ).list({
-          filter,
-          limit,
-          skip,
-        });
-        if (responseFromListAirQloud.success === true) {
-          filter = {};
-          if (responseFromListAirQloud.data.length > 1) {
-            missingDataMessage = "No distinct AirQloud found in this search";
-          } else if (isEmpty(responseFromListAirQloud.data[0])) {
-            missingDataMessage = "No distinct AirQloud found in this search";
-          } else {
-            let sites = responseFromListAirQloud.data[0]
-              ? responseFromListAirQloud.data[0].sites
-              : [];
-            if (sites && Array.isArray(sites) && sites.length > 0) {
-              let sitesFromAirQloud = [];
-              for (const site of sites) {
-                sitesFromAirQloud.push(site._id.toString());
-              }
-              airqloudSites = sitesFromAirQloud.join(",");
-            }
-            if (isEmpty(airqloudSites)) {
-              missingDataMessage = `Unable to find any sites associated with the provided AirQloud ID`;
-            } else {
-              request.query.site_id = airqloudSites;
-            }
-          }
-        } else if (responseFromListAirQloud.success === false) {
-          missingDataMessage = responseFromListAirQloud.message;
-        }
-      }
-
-      if (query.lat_long) {
-        const arrayOfCoordinates = query.lat_long.split(",");
-        let latitude = parseInt(arrayOfCoordinates[0]);
-        let longitude = parseInt(arrayOfCoordinates[1]);
-
-        let requestBodyForFindingNearestSite = {};
-        requestBodyForFindingNearestSite["latitude"] = latitude;
-        requestBodyForFindingNearestSite["longitude"] = longitude;
-        requestBodyForFindingNearestSite["tenant"] = query.tenant
-          ? query.tenant
-          : "airqo";
-        requestBodyForFindingNearestSite["radius"] = query.radius
-          ? query.radius
-          : constants.DEFAULT_NEAREST_SITE_RADIUS;
-
-        const responseFromFindNearestSiteByCoordinates = await createSiteUtil.findNearestSitesByCoordinates(
-          requestBodyForFindingNearestSite
-        );
-
-        if (responseFromFindNearestSiteByCoordinates.success === true) {
-          if (
-            Array.isArray(responseFromFindNearestSiteByCoordinates.data) &&
-            responseFromFindNearestSiteByCoordinates.data.length > 0
-          ) {
-            const stringifySiteObjects = [];
-            responseFromFindNearestSiteByCoordinates.data.forEach((element) => {
-              stringifySiteObjects.push(element._id.toString());
-            });
-            request.query.site_id = stringifySiteObjects.join(",");
-          } else {
-            missingDataMessage = `No Site is within a ${constants.DEFAULT_NEAREST_SITE_RADIUS} KM radius to the provided coordinates`;
-            logger.error(
-              `no Site is within a ${constants.DEFAULT_NEAREST_SITE_RADIUS} KM radius to the provided coordinates`
-            );
-          }
-        } else if (responseFromFindNearestSiteByCoordinates.success === false) {
-          missingDataMessage = responseFromFindNearestSiteByCoordinates.message;
-          logger.error(
-            `unable to find the nearest Site -- ${JSON.stringify(
-              responseFromFindNearestSiteByCoordinates.errors
-            )}`
-          );
-        }
-      }
-      const responseFromFilter = generateFilter.events_v2(request);
+      const responseFromFilter = generateFilter.events(request);
       if (responseFromFilter.success === true) {
         filter = responseFromFilter.data;
       } else if (responseFromFilter.success === false) {
@@ -669,16 +651,18 @@ const createEvent = {
                 `unable to retrieve events --- ${JSON.stringify(result)}`
               );
               logText(result.message);
+              callback(result);
             }
           });
         }
       });
     } catch (error) {
+      logObject("error", error);
       logger.error(`internal server error -- ${error.message}`);
       callback({
         success: false,
         errors: { message: error.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
         message: "Internal Server Error",
       });
     }
@@ -770,21 +754,21 @@ const createEvent = {
         if (errors.length > 0 && nAdded === 0) {
           return {
             success: false,
-            status: HTTPStatus.CONFLICT,
+            status: httpStatus.CONFLICT,
             message: "all operations failed with conflicts",
             errors,
           };
         } else if (errors.length > 0 && nAdded > 0) {
           return {
             success: true,
-            status: HTTPStatus.OK,
+            status: httpStatus.OK,
             message: "finished the operation with some conflicts",
             errors,
           };
         } else if (errors.length === 0 && nAdded > 0) {
           return {
             success: true,
-            status: HTTPStatus.OK,
+            status: httpStatus.OK,
             message: "successfully added all the events",
           };
         }
@@ -797,7 +781,7 @@ const createEvent = {
       return {
         success: false,
         errors: { message: error.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -917,7 +901,7 @@ const createEvent = {
   transmitMultipleSensorValues: async (request) => {
     try {
       let requestBody = {};
-      const responseFromListDevice = await list(request);
+      const responseFromListDevice = await listDevices(request);
       let deviceDetail = {};
       if (responseFromListDevice.success === true) {
         if (responseFromListDevice.data.length === 1) {
@@ -951,7 +935,7 @@ const createEvent = {
             : { message: "" },
           status: responseFromListDevice.status
             ? responseFromListDevice.status
-            : HTTPStatus.INTERNAL_SERVER_ERROR,
+            : httpStatus.INTERNAL_SERVER_ERROR,
         };
       }
 
@@ -994,7 +978,7 @@ const createEvent = {
             return {
               success: false,
               message: "successful operation but no data sent",
-              status: HTTPStatus.CONFLICT,
+              status: httpStatus.CONFLICT,
               data: resp,
               errors: {
                 message: "likely a duplicate value or system conflict",
@@ -1031,7 +1015,7 @@ const createEvent = {
             },
             status: error.response
               ? error.response.data.status
-              : HTTPStatus.INTERNAL_SERVER_ERROR,
+              : httpStatus.INTERNAL_SERVER_ERROR,
           };
         });
     } catch (error) {
@@ -1051,7 +1035,7 @@ const createEvent = {
       const { name, chid, device_number, tenant } = request.query;
       const { body } = request;
 
-      const responseFromListDevice = await list(request);
+      const responseFromListDevice = await listDevices(request);
 
       let deviceDetail = {};
 
@@ -1114,7 +1098,7 @@ const createEvent = {
             return {
               success: false,
               message: "successful operation but no data sent",
-              status: HTTPStatus.CONFLICT,
+              status: httpStatus.CONFLICT,
               errors: {
                 message: "likely duplicate values or system conflicts",
               },
@@ -1125,7 +1109,7 @@ const createEvent = {
               message: "successfully transmitted the data",
               success: true,
               data: output,
-              status: HTTPStatus.OK,
+              status: httpStatus.OK,
             };
           }
         })
@@ -1149,7 +1133,7 @@ const createEvent = {
             },
             status: error.response
               ? error.response.data.status
-              : HTTPStatus.INTERNAL_SERVER_ERROR,
+              : httpStatus.INTERNAL_SERVER_ERROR,
           };
         });
     } catch (error) {
@@ -1185,6 +1169,9 @@ const createEvent = {
       index,
       running,
       brief,
+      latitude,
+      longitude,
+      network,
     } = request.query;
     const currentTime = new Date().toISOString();
     const day = generateDateFormatWithoutHrs(currentTime);
@@ -1204,7 +1191,11 @@ const createEvent = {
       airqloud_id ? airqloud_id : "noAirQloudID"
     }_${lat_long ? lat_long : "noLatLong"}_${page ? page : "noPage"}_${
       running ? running : "noRunning"
-    }_${index ? index : "noIndex"}_${brief ? brief : "noBrief"}`;
+    }_${index ? index : "noIndex"}_${brief ? brief : "noBrief"}_${
+      latitude ? latitude : "noLatitude"
+    }_${longitude ? longitude : "noLongitude"}__${
+      network ? network : "noNetwork"
+    }`;
   },
   getEventsCount: async (request) => {},
   setCache: (data, request, callback) => {
@@ -1223,6 +1214,7 @@ const createEvent = {
       callback({
         success: true,
         message: "response stored in cache",
+        status: httpStatus.OK,
       });
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
@@ -1230,6 +1222,7 @@ const createEvent = {
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       });
     }
   },
@@ -1243,6 +1236,7 @@ const createEvent = {
             success: true,
             message: "utilising cache...",
             data: resultJSON,
+            status: httpStatus.OK,
           });
         } else if (err) {
           logger.error(`unable to get cache --- ${JSON.stringify(err)}`);
@@ -1250,22 +1244,25 @@ const createEvent = {
             success: false,
             message: "Internal Server Error",
             errors: { message: err.message },
+            status: httpStatus.INTERNAL_SERVER_ERROR,
           });
         } else {
           callback({
             success: false,
             message: "no cache present",
             errors: { message: "no cache present" },
+            status: httpStatus.INTERNAL_SERVER_ERROR,
           });
         }
       });
     } catch (error) {
       logger.error(`internal server error -- ${error.message}`);
-      return {
+      callback({
         success: false,
         errors: { message: error.message },
         message: "Internal Server Error",
-      };
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      });
     }
   },
 
@@ -1349,7 +1346,7 @@ const createEvent = {
       request["query"]["device"] = transformedEvent.filter.device;
       request["query"]["tenant"] = transformedEvent.tenant;
 
-      const responseFromGetDeviceDetails = await list(request);
+      const responseFromGetDeviceDetails = await listDevices(request);
       // logger.info(
       //   `responseFromGetDeviceDetails ${JSON.stringify(
       //     responseFromGetDeviceDetails
@@ -1372,7 +1369,7 @@ const createEvent = {
           return {
             success: false,
             message: "unable to find one device matching provided details",
-            status: HTTPStatus.BAD_REQUEST,
+            status: httpStatus.BAD_REQUEST,
           };
         }
       } else if (responseFromGetDeviceDetails.success === false) {
@@ -1581,7 +1578,7 @@ const createEvent = {
             let insertion = {
               msg: "successfuly added the event",
               event_details: filter,
-              status: HTTPStatus.CREATED,
+              status: httpStatus.CREATED,
             };
             data.push(insertion);
           }
@@ -1590,7 +1587,7 @@ const createEvent = {
             let errMsg = {
               msg: "unable to add the event",
               event_details: filter,
-              status: HTTPStatus.NOT_MODIFIED,
+              status: httpStatus.NOT_MODIFIED,
             };
             errors.push(errMsg);
             // logger.info(
@@ -1605,7 +1602,7 @@ const createEvent = {
           let errMsg = {
             msg: "duplicate event",
             event_details: filter,
-            status: HTTPStatus.FORBIDDEN,
+            status: httpStatus.FORBIDDEN,
           };
           errors.push(errMsg);
         }
@@ -1636,53 +1633,6 @@ const createEvent = {
       };
     }
   },
-  viewEvents: async (request) => {
-    let { tenant } = request.query;
-    const dot = new Dot("-");
-    const limit = parseInt(request.query.limit, 0);
-    const skip = parseInt(request.query.skip, 0);
-
-    let responseFromFilter = generateFilter.events_v2(request);
-    let filter = {};
-    if (responseFromFilter.success === true) {
-      filter = responseFromFilter.data;
-    } else if (responseFromFilter.success === false) {
-      let errors = responseFromFilter.errors
-        ? responseFromFilter.errors
-        : { message: "" };
-      return {
-        success: false,
-        message: responseFromFilter.message,
-        errors,
-      };
-    }
-    let _limit = limit ? limit : 100;
-    let _skip = skip ? skip : 0;
-    let responseFromListEvents = await EventModel(tenant).view({
-      _skip,
-      _limit,
-      filter,
-    });
-
-    if (responseFromListEvents.success === true) {
-      let eventsArray = responseFromListEvents.data;
-      let dottedEventsArray = eventsArray.map((object) => dot.object(object));
-      return {
-        success: true,
-        message: responseFromListEvents.message,
-        data: dottedEventsArray,
-      };
-    } else if (responseFromListEvents.success === false) {
-      let errors = responseFromListEvents.errors
-        ? responseFromListEvents.errors
-        : { message: "" };
-      return {
-        success: false,
-        message: responseFromListEvents.message,
-        errors,
-      };
-    }
-  },
   clearEventsOnClarity: (request) => {
     return {
       success: false,
@@ -1694,7 +1644,7 @@ const createEvent = {
       const { device, name, id, device_number, tenant } = request.query;
 
       let filter = {};
-      let responseFromFilter = generateFilter.events_v2(request);
+      let responseFromFilter = generateFilter.events(request);
 
       if (responseFromFilter.success == true) {
         filter = responseFromFilter.data;
@@ -1867,13 +1817,13 @@ const createEvent = {
         success: false,
         message: "finished the operation with some errors",
         errors,
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     } else {
       return {
         success: true,
         message: "successfully added all the events",
-        status: HTTPStatus.OK,
+        status: httpStatus.OK,
       };
     }
   },
@@ -2011,11 +1961,10 @@ const createEvent = {
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
-
   deleteValuesOnThingspeak: async (req, res) => {
     try {
       const { device, tenant, chid, name, device_number } = req.query;
@@ -2026,7 +1975,7 @@ const createEvent = {
       request["query"]["tenant"] = tenant;
       request["query"]["device_number"] = chid || device_number;
 
-      const responseFromListDevice = await list(request);
+      const responseFromListDevice = await listDevices(request);
 
       let deviceDetail = {};
 

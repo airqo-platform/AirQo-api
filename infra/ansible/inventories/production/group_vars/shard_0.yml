@@ -1,0 +1,9 @@
+cluster_role: "shard"
+
+cfg_server:
+  name: "cfgsvr"
+  group: "config_servers"
+
+replica_set:
+  name: "shard-0"
+  group: "shard_0"

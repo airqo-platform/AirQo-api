@@ -4,8 +4,8 @@ metadata:
   name: nginx-config
   namespace: nginx-ingress
 data:
-  proxy-body-size:  "200m"
-  client-max-body-size: "200m"
+  proxy-body-size:  "350m"
+  client-max-body-size: "350m"
   location-snippets: "
     auth_request /auth;
     error_page 500 = @internal_server_error;
@@ -29,6 +29,8 @@ data:
       if ($request_uri ~ '(/api/v1/users/forgotPassword)|(/api/v2/users/forgotPassword)') { return 200; }
       if ($request_uri ~ '(/api/v1/users/candidates/register)|(/api/v2/users/candidates/register)') { return 200; }
       if ($request_uri ~ '(/api/v1/users/verify)|(/api/v2/users/verify)') { return 200; }
+      if ($request_uri ~ '(/api/v1/users/auth/google)|(/api/v2/users/auth/google)') { return 200; }
+      if ($request_uri ~ '(/api/v1/users/auth/google/callback)|(/api/v2/users/auth/google/callback)') { return 200; }
       if ($request_uri ~ '/airflow/api/v') { return 200; }    
       if ($request_uri ~ '/argocd') { return 200; }    
       if ($request_uri !~ '/api/v') { return 200; } # None API requests 

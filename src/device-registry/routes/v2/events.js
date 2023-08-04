@@ -5,6 +5,33 @@ const { check, oneOf, query, body, param } = require("express-validator");
 const constants = require("@config/constants");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
+const { getModelByTenant } = require("@config/database");
+const { logElement, logText, logObject } = require("@utils/log");
+
+const NetworkSchema = require("@models/Network");
+const NetworkModel = (tenant) => {
+  try {
+    const networks = mongoose.model("networks");
+    return networks;
+  } catch (error) {
+    const networks = getModelByTenant(tenant, "network", NetworkSchema);
+    return networks;
+  }
+};
+
+const validNetworks = async () => {
+  const networks = await NetworkModel("airqo").distinct("name");
+  return networks.map((network) => network.toLowerCase());
+};
+
+const validateNetwork = async (value) => {
+  const networks = await validNetworks();
+  if (!networks.includes(value.toLowerCase())) {
+    throw new Error("Invalid network");
+  }
+};
+
+logObject("validateNetwork", validateNetwork);
 
 const headers = (req, res, next) => {
   // const allowedOrigins = constants.DOMAIN_WHITELIST;
@@ -32,7 +59,7 @@ router.get(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
+      .isIn(constants.NETWORKS)
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -154,7 +181,7 @@ router.get(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
+      .isIn(constants.NETWORKS)
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -276,7 +303,7 @@ router.get(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
+      .isIn(constants.NETWORKS)
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -398,7 +425,7 @@ router.get(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
+      .isIn(constants.NETWORKS)
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -520,7 +547,7 @@ router.get(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
+      .isIn(constants.NETWORKS)
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -642,7 +669,7 @@ router.get(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
+      .isIn(constants.NETWORKS)
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
@@ -764,7 +791,7 @@ router.get(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "us_embassy", "nasa", "cross"])
+      .isIn(constants.NETWORKS)
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([

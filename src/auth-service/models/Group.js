@@ -5,7 +5,7 @@ const validator = require("validator");
 var uniqueValidator = require("mongoose-unique-validator");
 const { logObject, logElement, logText } = require("@utils/log");
 const isEmpty = require("is-empty");
-const { getModelByTenant } = require("@config/dbConnection");
+const { getModelByTenant } = require("@config/database");
 const httpStatus = require("http-status");
 
 const GroupSchema = new Schema(
@@ -125,7 +125,7 @@ GroupSchema.statics = {
       };
     }
   },
-  async list({ skip = 0, limit = 5, filter = {} } = {}) {
+  async list({ skip = 0, limit = 100, filter = {} } = {}) {
     try {
       const response = await this.aggregate()
         .match(filter)

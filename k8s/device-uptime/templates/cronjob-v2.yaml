@@ -1,0 +1,50 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: "{{ .Values.app.name }}-v2"
+  namespace: {{ .Values.app.namespace }}
+spec:
+  concurrencyPolicy: Allow
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  schedule: "0 2 * * *"
+  suspend: false
+  jobTemplate:
+    metadata:
+      name: "{{ .Values.app.name }}-v2"
+    spec:
+      template:
+        spec:
+          dnsPolicy: ClusterFirst
+          restartPolicy: OnFailure
+          schedulerName: default-scheduler
+          terminationGracePeriodSeconds: 30
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - weight: 10
+                  preference:
+                    matchExpressions:
+                      - key: node-type
+                        operator: In
+                        values:
+                          - compute
+          containers:
+            - name: "{{ .Values.app.name }}-v2"
+              image: "{{ .Values.image.repository }}-v2:{{ .Values.image.tag }}"
+              imagePullPolicy: IfNotPresent
+              terminationMessagePath: /dev/termination-log
+              terminationMessagePolicy: File
+              envFrom:
+                - configMapRef:
+                    name: {{ .Values.app.configmap }} 
+              resources:
+                {{- toYaml .Values.resources | nindent 16 }}
+              {{- with .Values.volumeMounts }}
+              volumeMounts:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+          {{- with .Values.volumes }}
+          volumes:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}

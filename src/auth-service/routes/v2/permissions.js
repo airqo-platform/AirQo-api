@@ -54,6 +54,46 @@ router.post(
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
+  oneOf([
+    [
+      body("permission")
+        .exists()
+        .withMessage("permission is missing in your request")
+        .bail()
+        .notEmpty()
+        .withMessage("the permission must not be empty")
+        .bail()
+        .trim()
+        .escape()
+        .customSanitizer((value) => {
+          const sanitizedValue = value.replace(/[^a-zA-Z]/g, " ");
+          const processedValue = sanitizedValue
+            .toUpperCase()
+            .replace(/ /g, "_");
+
+          return processedValue;
+        }),
+      body("network_id")
+        .optional()
+        .notEmpty()
+        .withMessage("network_id should not be empty if provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("network_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("description")
+        .exists()
+        .withMessage("description is missing in your request")
+        .bail()
+        .notEmpty()
+        .withMessage("the description must not be empty")
+        .trim(),
+    ],
+  ]),
   setJWTAuth,
   authJWT,
   createPermissionController.create
@@ -61,6 +101,12 @@ router.post(
 
 router.put(
   "/:permission_id",
+  (req, res, next) => {
+    if (!Object.keys(req.body).length) {
+      return res.status(400).json({ errors: "request body is empty" });
+    }
+    next();
+  },
   oneOf([
     [
       query("tenant")

@@ -6,7 +6,7 @@ services:
     env_file:
       - .env
     volumes:
-      - .:/app-dir
+      - .:/app
     build:
       context: .
       target: development

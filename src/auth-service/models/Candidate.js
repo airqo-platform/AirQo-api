@@ -6,6 +6,9 @@ const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const constants = require("@config/constants");
 
+const log4js = require("log4js");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- candidate-model`);
+
 const CandidateSchema = new mongoose.Schema(
   {
     email: {
@@ -56,23 +59,34 @@ const CandidateSchema = new mongoose.Schema(
 );
 
 CandidateSchema.statics = {
-  register(args) {
+  async register(args) {
     try {
       let newArgs = Object.assign({}, args);
-
       if (isEmpty(newArgs.network_id)) {
         newArgs.network_id = constants.DEFAULT_NETWORK;
         logObject("newArgs.network_id", newArgs.network_id);
       }
-      return {
-        success: true,
-        data: this.create({
-          ...newArgs,
-        }),
-        message: "candidate created",
-        status: httpStatus.OK,
-      };
+      const data = await this.create({
+        ...newArgs,
+      });
+      if (!isEmpty(data)) {
+        return {
+          success: true,
+          data,
+          message: "candidate created",
+          status: httpStatus.OK,
+        };
+      } else if (isEmpty(data)) {
+        return {
+          success: true,
+          data: [],
+          message:
+            "operation successful but candidate NOT successfully created",
+          status: httpStatus.OK,
+        };
+      }
     } catch (error) {
+      logger.error(`${JSON.stringify(error)}`);
       return {
         errors: { message: error.message },
         message: "unable to create candidate",
@@ -81,27 +95,14 @@ CandidateSchema.statics = {
       };
     }
   },
-  async list({ skip = 0, limit = 5, filter = {} } = {}) {
+  async list({ skip = 0, limit = 100, filter = {} } = {}) {
     try {
-      const project = {
-        _id: 1,
-        firstName: 1,
-        lastName: 1,
-        email: 1,
-        description: 1,
-        category: 1,
-        long_organization: 1,
-        jobTitle: 1,
-        website: 1,
-        status: 1,
-        createdAt: 1,
-        updatedAt: 1,
-        country: 1,
-        existing_user: { $arrayElemAt: ["$user", 0] },
-        network: { $arrayElemAt: ["$network", 0] },
-      };
-
+      const inclusionProjection = constants.CANDIDATES_INCLUSION_PROJECTION;
+      const exclusionProjection = constants.CANDIDATES_EXCLUSION_PROJECTION(
+        filter.category ? filter.category : "none"
+      );
       const data = await this.aggregate()
+
         .match(filter)
         .lookup({
           from: "users",
@@ -116,26 +117,8 @@ CandidateSchema.statics = {
           as: "network",
         })
         .sort({ createdAt: -1 })
-        .project(project)
-        .project({
-          "existing_user.locationCount": 0,
-          "existing_user.privilege": 0,
-          "existing_user.website": 0,
-          "existing_user.organization": 0,
-          "existing_user.long_organization": 0,
-          "existing_user.category": 0,
-          "existing_user.jobTitle": 0,
-          "existing_user.profilePicture": 0,
-          "existing_user. phoneNumber": 0,
-          "existing_user.description": 0,
-          "existing_user.createdAt": 0,
-          "existing_user.updatedAt": 0,
-          "existing_user.notifications": 0,
-          "existing_user.emailConfirmed": 0,
-          "existing_user.password": 0,
-          "existing_user.__v": 0,
-          "existing_user.duration": 0,
-        })
+        .project(inclusionProjection)
+        .project(exclusionProjection)
         .skip(skip ? skip : 0)
         .limit(limit ? limit : parseInt(constants.DEFAULT_LIMIT))
         .allowDiskUse(true);
@@ -151,76 +134,90 @@ CandidateSchema.statics = {
         return {
           success: true,
           message: "no candidates exist",
-          data,
+          data: [],
           status: httpStatus.OK,
         };
       }
     } catch (error) {
+      logger.error(`${JSON.stringify(error)}`);
       return {
         success: false,
         message: "unable to list the candidates",
         error: error.message,
+        errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
   async modify({ filter = {}, update = {} } = {}) {
     try {
-      let options = { new: true };
-      let updatedCandidate = await this.findOneAndUpdate(
+      const options = { new: true };
+      const updatedCandidate = await this.findOneAndUpdate(
         filter,
         update,
         options
       ).exec();
 
       if (!isEmpty(updatedCandidate)) {
-        let data = updatedCandidate._doc;
         return {
           success: true,
           message: "successfully modified the candidate",
-          data,
+          data: updatedCandidate._doc,
+          status: httpStatus.OK,
         };
-      } else {
+      } else if (isEmpty(updatedCandidate)) {
         return {
           success: false,
           message: "candidate does not exist, please crosscheck",
+          errors: { message: "candidate does not exist, please crosscheck" },
+          status: httpStatus.BAD_REQUEST,
         };
       }
     } catch (error) {
+      logger.error(`${JSON.stringify(error)}`);
       return {
         success: false,
-        message: "model server error",
+        message: "Internal Server Error",
         error: error.message,
+        errors: {
+          message: error.message,
+        },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
   async remove({ filter = {} } = {}) {
     try {
-      let options = {
+      const options = {
         projection: { _id: 0, email: 1, firstName: 1, lastName: 1 },
       };
-      let removedCandidate = await this.findOneAndRemove(
+      const removedCandidate = await this.findOneAndRemove(
         filter,
         options
       ).exec();
       if (!isEmpty(removedCandidate)) {
-        let data = removedCandidate._doc;
         return {
           success: true,
           message: "successfully removed the candidate",
-          data,
+          data: removedCandidate._doc,
+          status: httpStatus.OK,
         };
-      } else {
+      } else if (isEmpty(removedCandidate)) {
         return {
           success: false,
           message: "candidate does not exist, please crosscheck",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "candidate does not exist, please crosscheck" },
         };
       }
     } catch (error) {
+      logger.error(`${JSON.stringify(error)}`);
       return {
         success: false,
-        message: "model server error",
+        message: "Internal Server Error",
         error: error.message,
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },

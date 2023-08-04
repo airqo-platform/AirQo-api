@@ -9,6 +9,32 @@ const numeral = require("numeral");
 const { logElement, logText, logObject } = require("@utils/log");
 const phoneUtil = require("google-libphonenumber").PhoneNumberUtil.getInstance();
 const decimalPlaces = require("decimal-places");
+const { getModelByTenant } = require("@config/database");
+
+const NetworkSchema = require("@models/Network");
+const NetworkModel = (tenant) => {
+  try {
+    const networks = mongoose.model("networks");
+    return networks;
+  } catch (error) {
+    const networks = getModelByTenant(tenant, "network", NetworkSchema);
+    return networks;
+  }
+};
+
+const validNetworks = async () => {
+  const networks = await NetworkModel("airqo").distinct("name");
+  return networks.map((network) => network.toLowerCase());
+};
+
+const validateNetwork = async (value) => {
+  const networks = await validNetworks();
+  if (!networks.includes(value.toLowerCase())) {
+    throw new Error("Invalid network");
+  }
+};
+
+logObject("validateNetwork", validateNetwork);
 
 const headers = (req, res, next) => {
   // const allowedOrigins = constants.DOMAIN_WHITELIST;
@@ -37,7 +63,7 @@ router.put(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "usembassy", "nasa", "unep"])
+      .custom(validateNetwork)
       .withMessage("the network value is not among the expected ones"),
   ]),
   deviceController.bulkUpdate
@@ -51,7 +77,7 @@ router.post(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo", "urban_better", "usembassy", "nasa", "unep"])
+      .custom(validateNetwork)
       .withMessage("the network value is not among the expected ones"),
   ]),
   deviceController.bulkCreate
@@ -442,6 +468,7 @@ router.post(
         "device identification details are missing in the request, consider using the name"
       )
       .bail()
+      .trim()
       .notEmpty()
       .withMessage("the name should not be empty if provided"),
     body("long_name")
@@ -450,6 +477,7 @@ router.post(
         "device identification details are missing in the request, consider using the long_name"
       )
       .bail()
+      .trim()
       .notEmpty()
       .withMessage("the long_name should not be empty if provided"),
   ]),
@@ -462,7 +490,7 @@ router.post(
         .withMessage("the network should not be empty if provided")
         .bail()
         .toLowerCase()
-        .isIn(constants.NETWORKS)
+        .custom(validateNetwork)
         .withMessage("the network value is not among the expected ones"),
       body("device_number")
         .optional()
@@ -826,9 +854,6 @@ router.put(
         .optional()
         .notEmpty()
         .withMessage("long_name should not be empty IF provided")
-        .bail()
-        .matches(/^[a-zA-Z0-9]+$/)
-        .withMessage("long_name should only contain alphanumeric characters.")
         .trim(),
       body("mountType")
         .optional()
@@ -1079,6 +1104,58 @@ router.put(
   ]),
   deviceController.update
 );
+
+router.put(
+  "/refresh",
+  oneOf([
+    query("tenant")
+      .optional()
+      .notEmpty()
+      .withMessage("tenant should not be empty if provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(constants.NETWORKS)
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    query("device_number")
+      .exists()
+      .withMessage(
+        "the device identifier is missing in request, consider using the device_number"
+      )
+      .bail()
+      .trim()
+      .isInt()
+      .withMessage("the device_number should be an integer value"),
+    query("id")
+      .exists()
+      .withMessage(
+        "the device identifier is missing in request, consider using the device_id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+    query("name")
+      .exists()
+      .withMessage(
+        "the device identifier is missing in request, consider using the name"
+      )
+      .bail()
+      .trim()
+      .isLowercase()
+      .withMessage("device name should be lower case")
+      .bail()
+      .matches(constants.WHITE_SPACES_REGEX, "i")
+      .withMessage("the device names do not have spaces in them"),
+  ]),
+  deviceController.refresh
+);
 /** return nearest coordinates */
 router.get(
   "/by/nearest-coordinates",
@@ -1105,6 +1182,7 @@ router.post(
         "device identification details are missing in the request, consider using the name"
       )
       .bail()
+      .trim()
       .notEmpty()
       .withMessage("the name should not be empty if provided"),
     body("long_name")
@@ -1113,6 +1191,7 @@ router.post(
         "device identification details are missing in the request, consider using the long_name"
       )
       .bail()
+      .trim()
       .notEmpty()
       .withMessage("the long_name should not be empty if provided"),
   ]),
@@ -1125,7 +1204,7 @@ router.post(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(constants.NETWORKS)
+        .custom(validateNetwork)
         .withMessage("the network value is not among the expected ones"),
       body("visibility")
         .optional()
@@ -1313,9 +1392,6 @@ router.put(
         .optional()
         .notEmpty()
         .withMessage("long_name should not be empty IF provided")
-        .bail()
-        .matches(/^[a-zA-Z0-9]+$/)
-        .withMessage("long_name should only contain alphanumeric characters.")
         .trim(),
       body("mountType")
         .optional()

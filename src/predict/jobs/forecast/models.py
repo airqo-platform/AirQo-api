@@ -1,73 +1,83 @@
-import concurrent.futures
-from datetime import datetime, timedelta
+import datetime
 
 import pandas as pd
 import requests
+from google.oauth2 import service_account
 
 from config import configuration
+from utils import date_to_str
+
+credentials = service_account.Credentials.from_service_account_file(configuration.CREDENTIALS)
 
 
 class Events:
     def __init__(self):
         super().__init__()
 
-    events_url = f"{configuration.AIRQO_API_BASE_URL}devices/events"
+    events_tips_url = f"{configuration.AIRQO_API_BASE_URL}devices/tips/"
 
     @staticmethod
-    def fetch_data_from_events_api():
-        """gets data from the events api in batches"""
-        start_date = datetime.now() - timedelta(days=30)
-        end_date = datetime.now()
-        batch_size = timedelta(hours=5)
-        data = []
-        batches = []
-        while start_date < end_date:
-            batch_start = start_date.strftime('%Y-%m-%d')
-            batch_end = (start_date + batch_size).strftime('%Y-%m-%d')
-            batches.append((batch_start, batch_end))
-            start_date += batch_size
-
-        def fetch_batch(batch):
-            start, end = batch
-            params = {
-                'tenant': configuration.TENANT,
-                'startTime': start,
-                'endTime': end
-            }
-            response = requests.get(Events.events_url, params=params)
-            if response.status_code != 200:
-                raise Exception(f'Error fetching data from events api: {response.text}')
-            else:
-                return response.json()
-
-        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-            futures = [executor.submit(fetch_batch, batch) for batch in batches]
-            for future in concurrent.futures.as_completed(futures):
-                data.append(future.result())
-        return data
-
-    @staticmethod
-    def get_forecast_data():
-        """transforms the events json data to a pandas dataframe"""
-        data = Events.fetch_data_from_events_api()
-        final_df = pd.DataFrame()
-        for batch in data:
-            df = pd.DataFrame(batch['measurements'], columns=['time', 'site_id', 'pm2_5', 'deviceDetails'])
-            df['deviceDetails'] = df['deviceDetails'].apply(lambda x: list(x.values())[-2][0])
-            df['pm2_5'] = df['pm2_5'].apply(lambda x: list(x.values())[1])
-            df.rename(columns={'time': 'created_at', 'deviceDetails': 'device_number'}, inplace=True)
-            final_df = pd.concat([final_df, df], ignore_index=True)
-        return final_df
-
-    # TODO: Remove this and use Events API only
-    @staticmethod
-    def fetch_bigquery_data():
+    def fetch_monthly_bigquery_data():
         """gets data from the bigquery table"""
 
-        # Use a persistent user-defined function to cache the results of the query
+        start_date = datetime.datetime.utcnow() - datetime.timedelta(days=int(configuration.NUMBER_OF_DAYS))
+        start_date = date_to_str(start_date, format='%Y-%m-%d')
+
         query = f"""
-        SELECT DISTINCT timestamp, site_id, device_number,pm2_5_calibrated_value FROM `{configuration.GOOGLE_CLOUD_PROJECT_ID}.averaged_data.hourly_device_measurements` where DATE(timestamp) >= DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH) and tenant = 'airqo' ORDER BY timestamp 
+                SELECT DISTINCT timestamp , site_id, device_number, pm2_5_calibrated_value 
+                FROM `{configuration.BIGQUERY_HOURLY_TABLE}` 
+                WHERE DATE(timestamp) >= '{start_date}' AND device_number IS NOT NULL
+                ORDER BY device_number, timestamp 
         """
-        df = pd.read_gbq(query, project_id=configuration.GOOGLE_CLOUD_PROJECT_ID)
+
+        df = pd.read_gbq(query, project_id=configuration.GOOGLE_CLOUD_PROJECT_ID, credentials=credentials)
         df.rename(columns={'timestamp': 'created_at', 'pm2_5_calibrated_value': 'pm2_5'}, inplace=True)
         return df
+
+    @staticmethod
+    def fetch_hourly_bigquery_data():
+        """gets data from the bigquery table"""
+
+        start_date = datetime.datetime.utcnow() - datetime.timedelta(hours=int(configuration.NUMBER_OF_HOURS))
+        start_date = date_to_str(start_date, format='%Y-%m-%d')
+
+        query = f"""
+                SELECT DISTINCT timestamp , site_id, device_number,pm2_5_calibrated_value 
+                FROM `{configuration.GOOGLE_CLOUD_PROJECT_ID}.averaged_data.hourly_device_measurements` 
+                WHERE DATE(timestamp) >= '{start_date}' and device_number IS NOT NULL 
+                ORDER BY device_number, timestamp 
+        """
+
+        df = pd.read_gbq(query, project_id=configuration.GOOGLE_CLOUD_PROJECT_ID, credentials=credentials)
+        df.rename(columns={'timestamp': 'created_at', 'pm2_5_calibrated_value': 'pm2_5'}, inplace=True)
+        return df
+
+    @staticmethod
+    def fetch_health_tips():
+        """fetch health tips from the api"""
+        response = requests.get(Events.events_tips_url, params={"token": configuration.AIRQO_API_AUTH_TOKEN})
+        if response.status_code == 200:
+            result = response.json()
+        return result["tips"]
+
+    @staticmethod
+    def save_hourly_forecasts_to_bigquery(df):
+        """saves the dataframe to the bigquery table"""
+        df.to_gbq(
+            destination_table=f"{configuration.GOOGLE_CLOUD_PROJECT_ID}.{configuration.BIGQUERY_DATASET}.daily_24_hour_forecasts",
+            project_id=configuration.GOOGLE_CLOUD_PROJECT_ID,
+            if_exists='append',
+            credentials=credentials)
+
+        print("Data saved to bigquery")
+
+    @staticmethod
+    def save_daily_forecasts_to_bigquery(df):
+        """saves the dataframe to the bigquery table"""
+        df.to_gbq(
+            destination_table=f"{configuration.GOOGLE_CLOUD_PROJECT_ID}.{configuration.BIGQUERY_DATASET}.daily_1_week_forecasts",
+            project_id=configuration.GOOGLE_CLOUD_PROJECT_ID,
+            if_exists='append',
+            credentials=credentials)
+
+        print("Data saved to bigquery")
