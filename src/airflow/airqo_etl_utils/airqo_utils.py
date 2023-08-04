@@ -928,12 +928,21 @@ class AirQoDataUtils:
 
     @staticmethod
     def flag_faults(df):
+        if not isinstance(df, pd.DataFrame):
+            raise ValueError("Input must be a dataframe")
+        
+        required_columns = ["device_name", "s1_pm2_5", "s2_pm2_5"]
+        if not all(col in df.columns for col in required_columns):
+            raise ValueError(f"Input must have the following columns: {required_columns}")
+
         result = pd.DataFrame(
             columns=["device_name", "correlation_fault", "missing_data_fault"]
         )
         for device in df["device_name"].unique():
             device_df = df[df["device_name"] == device]
             corr = device_df["s1_pm2_5"].corr(device_df["s2_pm2_5"])
+            if pd.isna(corr):
+                raise ValueError("Correlation coefficient cannot be NaN")
             correlation_fault = 1 if corr < 0.9 else 0
             nan_count = (
                 device_df[["s1_pm2_5", "s2_pm2_5"]].isna().sum(axis=1).rolling(4).max()
@@ -950,8 +959,9 @@ class AirQoDataUtils:
             result = result[
                 (result["correlation_fault"] == 1) | (result["missing_data_fault"] == 1)
             ]
-            result['created_at'] = datetime.now().isoformat()
+            result["created_at"] = datetime.now().isoformat(timespec="seconds")
         return result
+
     
     @staticmethod
     def save_faulty_devices(data: pd.DataFrame):
