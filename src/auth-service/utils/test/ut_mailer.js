@@ -5,20 +5,15 @@ const mailer = require("@utils/mailer");
 const msgTemplates = require("@utils/email.templates");
 const constants = require("@config/constants");
 const msgs = require("@utils/email.msgs");
+const transporter = require("@config/mailer");
 
 describe("mailer", () => {
   describe("candidate", () => {
-    let fakeTransporter;
     let sendMailStub;
 
     before(() => {
-      // Create a fake transporter object for mocking the sendMail function
-      fakeTransporter = {
-        sendMail: () => {},
-      };
-
       // Create a stub for the sendMail function to simulate sending emails
-      sendMailStub = sinon.stub(fakeTransporter, "sendMail");
+      sendMailStub = sinon.stub(transporter, "sendMail");
     });
 
     afterEach(() => {
@@ -38,7 +33,6 @@ describe("mailer", () => {
       const email = "john.doe@example.com";
       const tenant = "airqo";
 
-      // Set up the response from the fake transporter
       const response = {
         accepted: [email],
         rejected: [],
@@ -60,16 +54,15 @@ describe("mailer", () => {
 
       // Assert that the sendMail function was called with the correct parameters
       expect(sendMailStub.calledOnce).to.be.true;
-      expect(sendMailStub.firstCall.args[0]).to.deep.equal({
-        from: {
-          name: "Your Email Name",
-          address: "your.email@example.com",
-        },
-        to: email,
-        subject: "AirQo Analytics JOIN request",
-        text: "Join request email content with first name: John and last name: Doe",
-        bcc: constants.REQUEST_ACCESS_EMAILS, // Replace this with the correct value from constants
+      expect(sendMailStub.firstCall.args[0].from).to.deep.equal({
+        name: constants.EMAIL_NAME,
+        address: constants.EMAIL,
       });
+      expect(sendMailStub.firstCall.args[0].to).to.equal(email);
+      expect(sendMailStub.firstCall.args[0].subject).to.equal("AirQo Analytics JOIN request");
+      expect(sendMailStub.firstCall.args[0].html).to.equal(msgs.joinRequest(firstName, lastName, email));
+      expect(sendMailStub.firstCall.args[0].bcc).to.equal(constants.REQUEST_ACCESS_EMAILS);
+      expect(sendMailStub.firstCall.args[0].to).to.equal(email);
     });
 
     it("should handle email not sent scenario and return error response", async () => {
@@ -101,16 +94,14 @@ describe("mailer", () => {
 
       // Assert that the sendMail function was called with the correct parameters
       expect(sendMailStub.calledOnce).to.be.true;
-      expect(sendMailStub.firstCall.args[0]).to.deep.equal({
-        from: {
-          name: "Your Email Name",
-          address: "your.email@example.com",
-        },
-        to: email,
-        subject: "AirQo Analytics JOIN request",
-        text: "Join request email content with first name: Jane and last name: Smith",
-        bcc: "", // BCC should be an empty string for another-tenant
+      expect(sendMailStub.firstCall.args[0].from).to.deep.equal({
+        name: constants.EMAIL_NAME,
+        address: constants.EMAIL,
       });
+      expect(sendMailStub.firstCall.args[0].to).to.equal(email);
+      expect(sendMailStub.firstCall.args[0].subject).to.equal("AirQo Analytics JOIN request");
+      expect(sendMailStub.firstCall.args[0].html).to.equal(msgs.joinRequest(firstName, lastName, email));
+      expect(sendMailStub.firstCall.args[0].to).to.equal(email);
     });
 
     it("should handle internal server error and return error response", async () => {
@@ -137,16 +128,14 @@ describe("mailer", () => {
 
       // Assert that the sendMail function was called with the correct parameters
       expect(sendMailStub.calledOnce).to.be.true;
-      expect(sendMailStub.firstCall.args[0]).to.deep.equal({
-        from: {
-          name: "Your Email Name",
-          address: "your.email@example.com",
-        },
-        to: email,
-        subject: "AirQo Analytics JOIN request",
-        text: "Join request email content with first name: Error and last name: Test",
-        bcc: constants.REQUEST_ACCESS_EMAILS, // Replace this with the correct value from constants
+      expect(sendMailStub.firstCall.args[0].from).to.deep.equal({
+        name: constants.EMAIL_NAME,
+        address: constants.EMAIL,
       });
+      expect(sendMailStub.firstCall.args[0].to).to.equal(email);
+      expect(sendMailStub.firstCall.args[0].subject).to.equal("AirQo Analytics JOIN request");
+      expect(sendMailStub.firstCall.args[0].html).to.equal(msgs.joinRequest(firstName, lastName, email));
+      expect(sendMailStub.firstCall.args[0].to).to.equal(email);
     });
   });
   describe("inquiry", () => {
