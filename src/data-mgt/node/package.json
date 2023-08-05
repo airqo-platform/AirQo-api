@@ -1,5 +1,5 @@
 {
-    "name": "forecast-service",
+    "name": "data-mgt-service",
     "version": "0.0.0",
     "private": true,
     "main": "./bin",
