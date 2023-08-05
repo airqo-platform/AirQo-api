@@ -409,7 +409,7 @@ jobs:
             --cpu=1000m \
             --memory=256Mi \
             --update-secrets=/etc/env/.env=sta-env-data-mgt-nodejs:latest \
-            --command="/bin/sh","-c","cat /etc/env/.env >> /usr/src/app/.env; npm run start" \
+            --command="/bin/sh","-c","cat /etc/env/.env >> /usr/src/app/.env; npm run stage" \
             --allow-unauthenticated
 
       - name: Get preview service url
