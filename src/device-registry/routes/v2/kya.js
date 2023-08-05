@@ -7,6 +7,32 @@ const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const { logElement, logText, logObject } = require("@utils/log");
 const isEmpty = require("is-empty");
+const { getModelByTenant } = require("@config/database");
+
+const NetworkSchema = require("@models/Network");
+const NetworkModel = (tenant) => {
+  try {
+    const networks = mongoose.model("networks");
+    return networks;
+  } catch (error) {
+    const networks = getModelByTenant(tenant, "network", NetworkSchema);
+    return networks;
+  }
+};
+
+const validNetworks = async () => {
+  const networks = await NetworkModel("airqo").distinct("name");
+  return networks.map((network) => network.toLowerCase());
+};
+
+const validateNetwork = async (value) => {
+  const networks = await validNetworks();
+  if (!networks.includes(value.toLowerCase())) {
+    throw new Error("Invalid network");
+  }
+};
+
+logObject("validateNetwork", validateNetwork);
 
 const headers = (req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -488,9 +514,12 @@ router.put(
         .withMessage("the status is missing in request")
         .bail()
         .isIn(["TODO", "IN_PROGRESS", "PENDING_COMPLETION", "COMPLETE"])
-        .withMessage("the status must be one of the following: TODO, IN_PROGRESS, PENDING_COMPLETION, COMPLETE")
+        .withMessage(
+          "the status must be one of the following: TODO, IN_PROGRESS, PENDING_COMPLETION, COMPLETE"
+        )
         .bail()
-        .trim(), ,
+        .trim(),
+      ,
     ],
   ]),
   knowYourAirController.updateUserLessonProgress
@@ -552,14 +581,15 @@ router.post(
         .withMessage("the status is missing in request")
         .bail()
         .isIn(["TODO", "IN_PROGRESS", "PENDING_COMPLETION", "COMPLETE"])
-        .withMessage("the status must be one of the following: TODO, IN_PROGRESS, PENDING_COMPLETION, COMPLETE")
+        .withMessage(
+          "the status must be one of the following: TODO, IN_PROGRESS, PENDING_COMPLETION, COMPLETE"
+        )
         .bail()
         .trim(),
     ],
   ]),
   knowYourAirController.createUserLessonProgress
 );
-
 
 router.post(
   "/progress/sync/:user_id",
@@ -602,7 +632,9 @@ router.post(
         .custom((value) => {
           return Array.isArray(value);
         })
-        .withMessage("Invalid request body format. The kya_user_progress should be an array"),
+        .withMessage(
+          "Invalid request body format. The kya_user_progress should be an array"
+        ),
       body("kya_user_progress.*")
         .optional()
         .isObject()
@@ -620,7 +652,9 @@ router.post(
         .withMessage("status is missing in the kya user progress object")
         .bail()
         .isIn(["TODO", "IN_PROGRESS", "PENDING_COMPLETION", "COMPLETE"])
-        .withMessage("the status must be one of the following: TODO, IN_PROGRESS, PENDING_COMPLETION, COMPLETE")
+        .withMessage(
+          "the status must be one of the following: TODO, IN_PROGRESS, PENDING_COMPLETION, COMPLETE"
+        )
         .bail()
         .trim(),
 

@@ -26,6 +26,11 @@ const cohortSchema = new Schema(
       type: String,
       trim: true,
     },
+    visibility: {
+      type: Boolean,
+      trim: true,
+      default: false,
+    },
     cohort_tags: {
       type: Array,
       default: [],
@@ -64,10 +69,19 @@ cohortSchema.plugin(uniqueValidator, {
 cohortSchema.index({ geoHash: 1 });
 
 cohortSchema.methods.toJSON = function() {
-  const { _id, name, description, cohort_tags, cohort_codes, network } = this;
+  const {
+    _id,
+    name,
+    description,
+    cohort_tags,
+    cohort_codes,
+    network,
+    visibility,
+  } = this;
   return {
     _id,
     name,
+    visibility,
     description,
     cohort_tags,
     cohort_codes,

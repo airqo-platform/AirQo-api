@@ -8,6 +8,32 @@ const ObjectId = mongoose.Types.ObjectId;
 const createAirQloudUtil = require("@utils/create-location");
 const { logElement, logText, logObject } = require("@utils/log");
 const isEmpty = require("is-empty");
+const { getModelByTenant } = require("@config/database");
+
+const NetworkSchema = require("@models/Network");
+const NetworkModel = (tenant) => {
+  try {
+    const networks = mongoose.model("networks");
+    return networks;
+  } catch (error) {
+    const networks = getModelByTenant(tenant, "network", NetworkSchema);
+    return networks;
+  }
+};
+
+const validNetworks = async () => {
+  const networks = await NetworkModel("airqo").distinct("name");
+  return networks.map((network) => network.toLowerCase());
+};
+
+const validateNetwork = async (value) => {
+  const networks = await validNetworks();
+  if (!networks.includes(value.toLowerCase())) {
+    throw new Error("Invalid network");
+  }
+};
+
+logObject("validateNetwork", validateNetwork);
 
 const headers = (req, res, next) => {
   // const allowedOrigins = constants.DOMAIN_WHITELIST;
