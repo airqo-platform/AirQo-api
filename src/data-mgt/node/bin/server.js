@@ -203,6 +203,9 @@ const createServer = () => {
 
   server.on("listening", () => {
     logText(`server is running on port: ${constants.PORT}`);
+    console.log(
+      `The current value for process.env.NODE_ENV is ${process.env.NODE_ENV}`
+    );
     console.log(`The server is running on the ${ENV} environment`);
     var addr = server.address();
     var bind = typeof addr === "string" ? "pipe " + addr : "port " + addr.port;
