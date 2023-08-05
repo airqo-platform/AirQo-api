@@ -1,8 +1,10 @@
 const redis = require("redis");
 const constants = require("@config/constants");
-const { logElement } = require("@utils/log");
+const { logElement, logObject } = require("@utils/log");
 const REDIS_SERVER = constants.REDIS_SERVER;
 const REDIS_PORT = constants.REDIS_PORT;
+logObject("REDIS_SERVER", REDIS_SERVER);
+logObject("REDIS_PORT", REDIS_PORT);
 logElement("redis URL", REDIS_SERVER.concat(":", REDIS_PORT));
 
 const client = redis.createClient({
