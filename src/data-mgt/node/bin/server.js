@@ -18,13 +18,13 @@ const isProd = process.env.NODE_ENV === "production";
 const log4js = require("log4js");
 const debug = require("debug")("auth-service:server");
 const isEmpty = require("is-empty");
-const responseTime = require("response-time");
+// const responseTime = require("response-time");
 const logger = log4js.getLogger(
   `${constants.ENVIRONMENT} -- server start script`
 );
 const { logText, logObject } = require("@utils/log");
 
-const options = { mongooseConnection: mongoose.connection };
+// const options = { mongooseConnection: mongoose.connection };
 
 if (isEmpty(constants.SESSION_SECRET)) {
   throw new Error("SESSION_SECRET environment variable not set");
@@ -67,7 +67,7 @@ app.use(express.static(path.join(__dirname, "public")));
 app.use("/api/v1/data", require("@routes/v1"));
 app.use("/api/v2/data", require("@routes/v2"));
 
-app.use(responseTime);
+// app.use(responseTime);
 
 // Error handling middleware
 // catch 404 and forward to error handler
@@ -203,6 +203,9 @@ const createServer = () => {
 
   server.on("listening", () => {
     logText(`server is running on port: ${constants.PORT}`);
+    console.log(
+      `The current value for process.env.NODE_ENV is ${process.env.NODE_ENV}`
+    );
     console.log(`The server is running on the ${ENV} environment`);
     var addr = server.address();
     var bind = typeof addr === "string" ? "pipe " + addr : "port " + addr.port;
