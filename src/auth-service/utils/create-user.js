@@ -874,7 +874,7 @@ const createUserModule = {
       };
     }
   },
-  generateSignInWithEmailLink: async (request, callback) => {
+  generateSignInWithEmailLink_v1: async (request, callback) => {
     try {
       const { body, query } = request;
       const { email } = body;
@@ -963,6 +963,74 @@ const createUserModule = {
       });
     }
   },
+  generateSignInWithEmailLink: async (request) => {
+    try {
+      const { body, query } = request;
+      const { email } = body;
+      const { purpose } = query;
+
+      const link = await getAuth().generateSignInWithEmailLink(
+        email,
+        constants.ACTION_CODE_SETTINGS
+      );
+
+      let linkSegments = link.split("%").filter((segment) => segment);
+      const indexBeforeCode = linkSegments.indexOf("26oobCode", 0);
+      const indexOfCode = indexBeforeCode + 1;
+      let emailLinkCode = linkSegments[indexOfCode].substring(2);
+
+      let responseFromSendEmail = {};
+      let token = 100000;
+      if (email !== constants.EMAIL) {
+        token = Math.floor(Math.random() * (999999 - 100000) + 100000);
+      }
+      if (purpose === "mobileAccountDelete") {
+        responseFromSendEmail = await mailer.deleteMobileAccountEmail(
+          email,
+          token
+        );
+      }
+      if (purpose === "auth") {
+        responseFromSendEmail = await mailer.authenticateEmail(email, token);
+      }
+      if (purpose === "login") {
+        responseFromSendEmail = await mailer.signInWithEmailLink(email, token);
+      }
+
+      if (responseFromSendEmail.success === true) {
+        return {
+          success: true,
+          message: "process successful, check your email for token",
+          status: httpStatus.OK,
+          data: {
+            link,
+            token,
+            email,
+            emailLinkCode,
+          },
+        };
+      } else if (responseFromSendEmail.success === false) {
+        logger.error(`email sending process unsuccessful`);
+        return {
+          success: false,
+          message: "email sending process unsuccessful",
+          errors: responseFromSendEmail.errors,
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+    } catch (error) {
+      logger.error(`Internal Server Error ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: {
+          message: error.message,
+        },
+      };
+    }
+  },
+
   delete: async (request) => {
     try {
       const { query } = request;

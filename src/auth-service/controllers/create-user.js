@@ -461,7 +461,7 @@ const createUser = {
       let request = Object.assign({}, req);
       let { tenant } = req.query;
       if (!isEmpty(tenant)) {
-        tenant = "airqo";
+        request.query.tenant = "airqo";
       }
 
       const result = await createUserUtil.lookUpFirebaseUser(request);
@@ -1222,38 +1222,36 @@ const createUser = {
           convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { body, query } = req;
-      let request = {};
-      request["body"] = body;
-      request["query"] = query;
+      let { tenant } = req.query;
+      let request = Object.assign({}, req);
       request["query"]["purpose"] = "login";
-      await createUserUtil.generateSignInWithEmailLink(request, (value) => {
-        if (value.success === true) {
-          const status = value.status ? value.status : httpStatus.OK;
-          return res.status(status).json({
-            success: true,
-            message: value.message,
-            login_link: value.data.link,
-            token: value.data.token,
-            email: value.data.email,
-            emailLinkCode: value.data.emailLinkCode,
-          });
-        }
+      if (!isEmpty(tenant)) {
+        request.query.tenant = "airqo";
+      }
 
-        if (value.success === false) {
-          const status = value.status
-            ? value.status
-            : httpStatus.INTERNAL_SERVER_ERROR;
-          const errors = value.errors
+      const value = await createUserUtil.generateSignInWithEmailLink(request);
+      if (value.success === true) {
+        const status = value.status ? value.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: value.message,
+          login_link: value.data.link,
+          token: value.data.token,
+          email: value.data.email,
+          emailLinkCode: value.data.emailLinkCode,
+        });
+      } else if (value.success === false) {
+        const status = value.status
+          ? value.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: value.message,
+          errors: value.errors
             ? value.errors
-            : { message: "Internal Server Error" };
-          return res.status(status).json({
-            success: false,
-            message: value.message,
-            errors,
-          });
-        }
-      });
+            : { message: "Internal Server Error" },
+        });
+      }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
@@ -1283,40 +1281,39 @@ const createUser = {
         );
       }
       const { body, query, params } = req;
-      let request = {};
-      request["body"] = body;
-      request["query"] = query;
+      let { tenant } = req.query;
+      let request = Object.assign({}, req);
       request["query"]["purpose"] = "auth";
       if (params.purpose) {
         request["query"]["purpose"] = params.purpose;
       }
-      await createUserUtil.generateSignInWithEmailLink(request, (value) => {
-        if (value.success === true) {
-          const status = value.status ? value.status : httpStatus.OK;
-          return res.status(status).json({
-            success: true,
-            message: value.message,
-            token: value.data.token,
-            auth_link: value.data.link,
-            auth_code: value.data.emailLinkCode,
-            email: value.data.email,
-          });
-        }
+      if (!isEmpty(tenant)) {
+        request.query.tenant = "airqo";
+      }
 
-        if (value.success === false) {
-          const status = value.status
-            ? value.status
-            : httpStatus.INTERNAL_SERVER_ERROR;
-          const errors = value.errors
+      const value = await createUserUtil.generateSignInWithEmailLink(request);
+      if (value.success === true) {
+        const status = value.status ? value.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: value.message,
+          token: value.data.token,
+          auth_link: value.data.link,
+          auth_code: value.data.emailLinkCode,
+          email: value.data.email,
+        });
+      } else if (value.success === false) {
+        const status = value.status
+          ? value.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: value.message,
+          errors: value.errors
             ? value.errors
-            : { message: "Internal Server Error" };
-          return res.status(status).json({
-            success: false,
-            message: value.message,
-            errors,
-          });
-        }
-      });
+            : { message: "Internal Server Error" },
+        });
+      }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
