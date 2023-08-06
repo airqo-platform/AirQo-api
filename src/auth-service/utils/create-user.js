@@ -30,10 +30,18 @@ const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- create-user-util`);
 function generateNumericToken(length) {
   const charset = "0123456789";
   let token = "";
-  for (let i = 0; i < length; i++) {
-    const randomIndex = Math.floor(Math.random() * charset.length);
-    token += charset[randomIndex];
+
+  const byteLength = Math.ceil(length * 0.5); // Each byte can represent two characters from the charset
+
+  while (token.length < length) {
+    const randomBytes = crypto.randomBytes(byteLength);
+
+    for (let i = 0; i < randomBytes.length && token.length < length; i++) {
+      const randomIndex = randomBytes[i] % charset.length;
+      token += charset[randomIndex];
+    }
   }
+
   return token;
 }
 const UserModel = (tenant) => {

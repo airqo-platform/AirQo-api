@@ -2395,11 +2395,22 @@ describe("create-user-util", function () {
       });
     });
   });
-  describe("generateNumericToken", function () {
-    it("Should return a string of number of length equal to the argument passed", function () {
-      const length = 5;
-      const result = generateNumericToken(length);
-      expect(result).to.have.lengthOf(length);
+  describe("generateNumericToken", () => {
+    it("should generate a numeric token of the specified length", () => {
+      const length = 6;
+      const expectedToken = "123456";
+
+      // Stub the crypto.randomBytes method to return a predetermined buffer
+      const randomBytesStub = sinon
+        .stub(crypto, "randomBytes")
+        .returns(Buffer.from([1, 2, 3, 4, 5, 6]));
+
+      const token = createUser.generateNumericToken(length);
+
+      expect(token).to.equal(expectedToken);
+      expect(randomBytesStub.calledOnceWithExactly(3)).to.be.true;
+
+      randomBytesStub.restore();
     });
   });
   describe("verifyFirebaseCustomToken()", () => {
@@ -2634,8 +2645,8 @@ describe("create-user-util", function () {
 
     it("should generate a different token each time", () => {
       const length = 6;
-      const result1 = generateNumericToken(length);
-      const result2 = generateNumericToken(length);
+      const result1 = createUser.generateNumericToken(length);
+      const result2 = createUser.generateNumericToken(length);
 
       expect(result1).to.not.equal(result2);
     });
