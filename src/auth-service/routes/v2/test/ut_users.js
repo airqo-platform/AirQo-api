@@ -8,7 +8,8 @@ const app = express();
 const proxyquire = require("proxyquire");
 const router = require("@routes/v2/users");
 const { ObjectId } = require("mongoose").Types;
-
+chai.use(require("sinon-chai"));
+const { body, query } = require("express-validator");
 app.use(express.json());
 app.use("/", route);
 app.use((error, req, res, next) => {
@@ -36,6 +37,22 @@ const verifyEmailPayload = {
 };
 
 describe("User API Routes", () => {
+  let req, res;
+
+  beforeEach(() => {
+    req = {
+      body: {},
+      query: {},
+    };
+    res = {
+      status: sinon.stub().returnsThis(),
+      json: sinon.stub(),
+    };
+  });
+
+  afterEach(() => {
+    sinon.restore();
+  });
   describe("Middleware", () => {
     // Tests for the 'headers' middleware function
     it("should set appropriate headers for CORS", () => {
@@ -62,180 +79,6 @@ describe("User API Routes", () => {
       // Use Sinon to mock any database operations if necessary
       // Make a request to the route and check the response
       // Ensure the correct controller function is called with the right parameters
-    });
-  });
-
-  describe("POST /firebase/signup", () => {
-    afterEach(() => {
-      sinon.restore();
-    });
-
-    it("should return 200 and call createUserController.signUpWithFirebase when email provided", (done) => {
-      const signUpWithFirebaseStub = sinon.stub(
-        createUserController,
-        "signUpWithFirebase"
-      );
-      signUpWithFirebaseStub.resolves({ success: true });
-
-      const user = { email: "test@example.com" };
-
-      request(router)
-        .post("/firebase/signup")
-        .send(user)
-        .expect(200)
-        .end((err, res) => {
-          if (err) return done(err);
-          expect(signUpWithFirebaseStub.calledOnce).to.be.true;
-          expect(res.body).to.deep.equal({ success: true });
-          done();
-        });
-    });
-
-    it("should return 200 and call createUserController.signUpWithFirebase when phoneNumber provided", (done) => {
-      const signUpWithFirebaseStub = sinon.stub(
-        createUserController,
-        "signUpWithFirebase"
-      );
-      signUpWithFirebaseStub.resolves({ success: true });
-
-      const user = { phoneNumber: "+1234567890" };
-
-      request(router)
-        .post("/firebase/signup")
-        .send(user)
-        .expect(200)
-        .end((err, res) => {
-          if (err) return done(err);
-          expect(signUpWithFirebaseStub.calledOnce).to.be.true;
-          expect(res.body).to.deep.equal({ success: true });
-          done();
-        });
-    });
-
-    it("should return 422 when email and phoneNumber are missing", (done) => {
-      request(router)
-        .post("/firebase/signup")
-        .send({})
-        .expect(422)
-        .end((err, res) => {
-          if (err) return done(err);
-          expect(res.body.errors).to.have.lengthOf(1);
-          expect(res.body.errors[0].msg).to.equal(
-            "the user identifier is missing in request, consider using the email"
-          );
-          done();
-        });
-    });
-
-    it("should return 422 when both email and phoneNumber are provided", (done) => {
-      const user = { email: "test@example.com", phoneNumber: "+1234567890" };
-
-      request(router)
-        .post("/firebase/signup")
-        .send(user)
-        .expect(422)
-        .end((err, res) => {
-          if (err) return done(err);
-          expect(res.body.errors).to.have.lengthOf(1);
-          expect(res.body.errors[0].msg).to.equal(
-            "the user identifier is missing in request, consider using the email"
-          );
-          done();
-        });
-    });
-
-    it("should return 422 when email is invalid", (done) => {
-      const user = { email: "invalid-email" };
-
-      request(router)
-        .post("/firebase/signup")
-        .send(user)
-        .expect(422)
-        .end((err, res) => {
-          if (err) return done(err);
-          expect(res.body.errors).to.have.lengthOf(1);
-          expect(res.body.errors[0].msg).to.equal(
-            "this is not a valid email address"
-          );
-          done();
-        });
-    });
-
-    it("should return 422 when phoneNumber is invalid", (done) => {
-      const user = { phoneNumber: "invalid-phone-number" };
-
-      request(router)
-        .post("/firebase/signup")
-        .send(user)
-        .expect(422)
-        .end((err, res) => {
-          if (err) return done(err);
-          expect(res.body.errors).to.have.lengthOf(1);
-          expect(res.body.errors[0].msg).to.equal(
-            "the phoneNumber must be valid"
-          );
-          done();
-        });
-    });
-  });
-
-  describe("/firebase/verify POST endpoint", function () {
-    it("should successfully verify email", function (done) {
-      createUserControllerStub.verifyFirebaseCustomToken = function (req, res) {
-        res.sendStatus(200);
-      };
-
-      request(app)
-        .post("/firebase/verify")
-        .send(verifyEmailPayload)
-        .expect(200, done);
-    });
-
-    it("should return validation error if token and email are not provided", function (done) {
-      const payload = {};
-      createUserControllerStub.verifyFirebaseCustomToken = function (req, res) {
-        res.sendStatus(200);
-      };
-
-      request(app)
-        .post("/firebase/verify")
-        .send(payload)
-        .expect(400)
-        .end(function (err, res) {
-          if (err) return done(err);
-          expect(res.body.errors[0]).to.have.property(
-            "msg",
-            "the token is missing in the request body"
-          );
-          expect(res.body.errors[1]).to.have.property(
-            "msg",
-            "a user identifier is missing in request, consider using email"
-          );
-          done();
-        });
-    });
-
-    it("should return validation error if email is not valid", function (done) {
-      const payload = {
-        token: "test_token",
-        email: "test_user",
-      };
-      createUserControllerStub.verifyFirebaseCustomToken = function (req, res) {
-        res.sendStatus(200);
-      };
-
-      request(app)
-        .post("/firebase/verify")
-        .send(payload)
-        .expect(400)
-        .end(function (err, res) {
-          if (err) return done(err);
-          expect(res.body.errors[0]).to.have.property(
-            "msg",
-            "this is not a valid email address"
-          );
-          done();
-        });
     });
   });
 
@@ -309,6 +152,354 @@ describe("User API Routes", () => {
           );
           done();
         });
+    });
+  });
+
+  describe("POST /firebase/create", () => {
+    it("should create Firebase user with email", async () => {
+      const validationResultStub = sinon.stub().returns({
+        isEmpty: sinon.stub().returns(true),
+      });
+
+      req.body.email = "example@example.com";
+
+      const createFirebaseUserStub = sinon
+        .stub(createUserController, "createFirebaseUser")
+        .resolves({
+          success: true,
+          message: "User created",
+        });
+
+      await createUserController.createFirebaseUser(req, res);
+
+      expect(validationResultStub).to.have.been.calledOnceWith(req);
+      expect(createFirebaseUserStub).to.have.been.calledOnceWith(req);
+      expect(res.status).to.have.been.calledWith(200);
+      expect(res.json).to.have.been.calledWith({
+        success: true,
+        message: "User created",
+      });
+    });
+
+    it("should create Firebase user with phoneNumber", async () => {
+      const validationResultStub = sinon.stub().returns({
+        isEmpty: sinon.stub().returns(true),
+      });
+
+      req.body.phoneNumber = "1234567890";
+
+      const createFirebaseUserStub = sinon
+        .stub(createUserController, "createFirebaseUser")
+        .resolves({
+          success: true,
+          message: "User created",
+        });
+
+      await createUserController.createFirebaseUser(req, res);
+
+      expect(validationResultStub).to.have.been.calledOnceWith(req);
+      expect(createFirebaseUserStub).to.have.been.calledOnceWith(req);
+      expect(res.status).to.have.been.calledWith(200);
+      expect(res.json).to.have.been.calledWith({
+        success: true,
+        message: "User created",
+      });
+    });
+
+    it("should handle validation errors", async () => {
+      const validationResultStub = sinon.stub().returns({
+        isEmpty: sinon.stub().returns(false),
+        errors: [
+          {
+            param: "email",
+            msg: "Invalid email",
+          },
+        ],
+      });
+
+      const badRequestStub = sinon.stub().returnsThis();
+
+      await createUserController.createFirebaseUser(req, res);
+
+      expect(validationResultStub).to.have.been.calledOnceWith(req);
+      expect(badRequestStub).to.have.been.calledOnceWith(
+        res,
+        "Validation error",
+        { email: "Invalid email" }
+      );
+    });
+  });
+
+  describe("POST /firebase/login", () => {
+    let req, res;
+
+    beforeEach(() => {
+      req = {
+        body: {},
+      };
+      res = {
+        status: sinon.stub().returnsThis(),
+        json: sinon.stub(),
+      };
+    });
+
+    afterEach(() => {
+      sinon.restore();
+    });
+
+    it("should login with Firebase using email", async () => {
+      const validationResultStub = sinon.stub().returns({
+        isEmpty: sinon.stub().returns(true),
+      });
+
+      req.body.email = "example@example.com";
+
+      const loginWithFirebaseStub = sinon
+        .stub(createUserController, "loginWithFirebase")
+        .resolves({
+          success: true,
+          message: "Login successful",
+        });
+
+      await createUserController.loginWithFirebase(req, res);
+
+      expect(validationResultStub).to.have.been.calledOnceWith(req);
+      expect(loginWithFirebaseStub).to.have.been.calledOnceWith(req);
+      expect(res.status).to.have.been.calledWith(200);
+      expect(res.json).to.have.been.calledWith({
+        success: true,
+        message: "Login successful",
+      });
+    });
+
+    it("should login with Firebase using phoneNumber", async () => {
+      const validationResultStub = sinon.stub().returns({
+        isEmpty: sinon.stub().returns(true),
+      });
+
+      req.body.phoneNumber = "1234567890";
+
+      const loginWithFirebaseStub = sinon
+        .stub(createUserController, "loginWithFirebase")
+        .resolves({
+          success: true,
+          message: "Login successful",
+        });
+
+      await createUserController.loginWithFirebase(req, res);
+
+      expect(validationResultStub).to.have.been.calledOnceWith(req);
+      expect(loginWithFirebaseStub).to.have.been.calledOnceWith(req);
+      expect(res.status).to.have.been.calledWith(200);
+      expect(res.json).to.have.been.calledWith({
+        success: true,
+        message: "Login successful",
+      });
+    });
+
+    it("should handle validation errors", async () => {
+      const validationResultStub = sinon.stub().returns({
+        isEmpty: sinon.stub().returns(false),
+        errors: [
+          {
+            param: "phoneNumber",
+            msg: "Invalid phoneNumber",
+          },
+        ],
+      });
+
+      const badRequestStub = sinon.stub().returnsThis();
+
+      await createUserController.loginWithFirebase(req, res);
+
+      expect(validationResultStub).to.have.been.calledOnceWith(req);
+      expect(badRequestStub).to.have.been.calledOnceWith(
+        res,
+        "Validation error",
+        { phoneNumber: "Invalid phoneNumber" }
+      );
+    });
+  });
+
+  describe("POST /firebase/signup", () => {
+    let req, res;
+
+    beforeEach(() => {
+      req = {
+        body: {},
+      };
+      res = {
+        status: sinon.stub().returnsThis(),
+        json: sinon.stub(),
+      };
+    });
+
+    afterEach(() => {
+      sinon.restore();
+    });
+
+    it("should sign up with Firebase using email", async () => {
+      const validationResultStub = sinon.stub().returns({
+        isEmpty: sinon.stub().returns(true),
+      });
+
+      req.body.email = "example@example.com";
+
+      const signUpWithFirebaseStub = sinon
+        .stub(createUserController, "signUpWithFirebase")
+        .resolves({
+          success: true,
+          message: "Sign up successful",
+        });
+
+      await createUserController.signUpWithFirebase(req, res);
+
+      expect(validationResultStub).to.have.been.calledOnceWith(req);
+      expect(signUpWithFirebaseStub).to.have.been.calledOnceWith(req);
+      expect(res.status).to.have.been.calledWith(200);
+      expect(res.json).to.have.been.calledWith({
+        success: true,
+        message: "Sign up successful",
+      });
+    });
+
+    it("should sign up with Firebase using phoneNumber", async () => {
+      const validationResultStub = sinon.stub().returns({
+        isEmpty: sinon.stub().returns(true),
+      });
+
+      req.body.phoneNumber = "1234567890";
+
+      const signUpWithFirebaseStub = sinon
+        .stub(createUserController, "signUpWithFirebase")
+        .resolves({
+          success: true,
+          message: "Sign up successful",
+        });
+
+      await createUserController.signUpWithFirebase(req, res);
+
+      expect(validationResultStub).to.have.been.calledOnceWith(req);
+      expect(signUpWithFirebaseStub).to.have.been.calledOnceWith(req);
+      expect(res.status).to.have.been.calledWith(200);
+      expect(res.json).to.have.been.calledWith({
+        success: true,
+        message: "Sign up successful",
+      });
+    });
+
+    it("should handle validation errors", async () => {
+      const validationResultStub = sinon.stub().returns({
+        isEmpty: sinon.stub().returns(false),
+        errors: [
+          {
+            param: "phoneNumber",
+            msg: "Invalid phoneNumber",
+          },
+        ],
+      });
+
+      const badRequestStub = sinon.stub().returnsThis();
+
+      await createUserController.signUpWithFirebase(req, res);
+
+      expect(validationResultStub).to.have.been.calledOnceWith(req);
+      expect(badRequestStub).to.have.been.calledOnceWith(
+        res,
+        "Validation error",
+        { phoneNumber: "Invalid phoneNumber" }
+      );
+    });
+  });
+
+  describe("POST /firebase/verify", () => {
+    let req, res;
+
+    beforeEach(() => {
+      req = {
+        body: {},
+      };
+      res = {
+        status: sinon.stub().returnsThis(),
+        json: sinon.stub(),
+      };
+    });
+
+    afterEach(() => {
+      sinon.restore();
+    });
+
+    it("should verify Firebase user with email", async () => {
+      const validationResultStub = sinon.stub().returns({
+        isEmpty: sinon.stub().returns(true),
+      });
+
+      req.body.email = "example@example.com";
+
+      const verifyFirebaseUserStub = sinon
+        .stub(createUserController, "verifyFirebaseUser")
+        .resolves({
+          success: true,
+          message: "User verified",
+        });
+
+      await createUserController.verifyFirebaseUser(req, res);
+
+      expect(validationResultStub).to.have.been.calledOnceWith(req);
+      expect(verifyFirebaseUserStub).to.have.been.calledOnceWith(req);
+      expect(res.status).to.have.been.calledWith(200);
+      expect(res.json).to.have.been.calledWith({
+        success: true,
+        message: "User verified",
+      });
+    });
+
+    it("should verify Firebase user with phoneNumber", async () => {
+      const validationResultStub = sinon.stub().returns({
+        isEmpty: sinon.stub().returns(true),
+      });
+
+      req.body.phoneNumber = "1234567890";
+
+      const verifyFirebaseUserStub = sinon
+        .stub(createUserController, "verifyFirebaseUser")
+        .resolves({
+          success: true,
+          message: "User verified",
+        });
+
+      await createUserController.verifyFirebaseUser(req, res);
+
+      expect(validationResultStub).to.have.been.calledOnceWith(req);
+      expect(verifyFirebaseUserStub).to.have.been.calledOnceWith(req);
+      expect(res.status).to.have.been.calledWith(200);
+      expect(res.json).to.have.been.calledWith({
+        success: true,
+        message: "User verified",
+      });
+    });
+
+    it("should handle validation errors", async () => {
+      const validationResultStub = sinon.stub().returns({
+        isEmpty: sinon.stub().returns(false),
+        errors: [
+          {
+            param: "email",
+            msg: "Invalid email",
+          },
+        ],
+      });
+
+      const badRequestStub = sinon.stub().returnsThis();
+
+      await createUserController.verifyFirebaseUser(req, res);
+
+      expect(validationResultStub).to.have.been.calledOnceWith(req);
+      expect(badRequestStub).to.have.been.calledOnceWith(
+        res,
+        "Validation error",
+        { email: "Invalid email" }
+      );
     });
   });
 });

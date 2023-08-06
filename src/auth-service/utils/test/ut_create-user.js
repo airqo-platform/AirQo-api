@@ -5,6 +5,7 @@ const sinon = require("sinon");
 const bcrypt = require("bcrypt");
 // const generateFilter = require("@utils/generate-filter");
 const mailer = require("@utils/mailer");
+const redis = require("redis");
 const moment = require("moment-timezone");
 const { ObjectId } = require("mongoose").Types;
 const createUser = require("@utils/create-user");
@@ -41,7 +42,7 @@ const NetworkModel = rewireCreateUser.__get__("NetworkModel");
 const RoleModel = rewireCreateUser.__get__("RoleModel");
 const accessCodeGenerator = require("generate-password");
 
-// Mock the lookUpFirebaseUser and createFirebaseUser functions
+// Mock the createUser.lookUpFirebaseUser and createUser.createFirebaseUser functions
 const mockLookUpFirebaseUser = sinon.stub();
 const mockCreateFirebaseUser = sinon.stub();
 
@@ -839,477 +840,275 @@ describe("create-user-util", function () {
       mailerUpdateStub.restore();
     });
   });
-  describe("lookUpFirebaseUser", () => {
+  describe("lookUpFirebaseUser()", () => {
+    let getAuthStub;
+
+    beforeEach(() => {
+      getAuthStub = sinon.stub().returns({
+        getUsers: sinon.stub().resolves({
+          users: [
+            {
+              uid: "user1",
+              email: "test1@example.com",
+              phoneNumber: "+1234567890",
+            },
+            {
+              uid: "user2",
+              email: "test2@example.com",
+              phoneNumber: "+9876543210",
+            },
+          ],
+          notFound: [],
+        }),
+      });
+    });
+
     afterEach(() => {
-      // Restore any stubbed functions after each test
       sinon.restore();
     });
 
-    it("should fetch user data with email", async () => {
-      // Mock the request object with the email parameter
-      const request = {
-        body: {
-          email: "user@example.com",
-        },
-      };
-
-      // Sample response from getAuth().getUsers with user data
-      const sampleGetUsersResult = {
-        users: [
-          {
-            uid: "user_uid_1",
-            email: "user@example.com",
-            displayName: "John Doe",
-          },
-        ],
-        notFound: [],
-      };
-
-      // Stub the getAuth().getUsers function to return the sample response
-      const getUsersStub = sinon
-        .stub(getAuth(), "getUsers")
-        .resolves(sampleGetUsersResult);
-
-      // Call the lookUpFirebaseUser function with the mocked request object
-      const callback = sinon.spy();
-      await lookUpFirebaseUser(request, callback);
-
-      // Assert the expected callback calls
-      expect(callback.calledOnce).to.be.true;
-      expect(callback.args[0][0].success).to.be.true;
-      expect(callback.args[0][0].message).to.equal(
-        "Successfully fetched user data"
-      );
-      expect(callback.args[0][0].status).to.equal(httpStatus.OK);
-      expect(callback.args[0][0].data).to.deep.equal(
-        sampleGetUsersResult.users
-      );
-
-      // Restore the stubbed function
-      getUsersStub.restore();
-    });
-
-    it("should fetch user data with phone number", async () => {
-      // Mock the request object with the phoneNumber parameter
+    it("should fetch user data by phone number", async () => {
       const request = {
         body: {
           phoneNumber: "+1234567890",
         },
       };
 
-      // Sample response from getAuth().getUsers with user data
-      const sampleGetUsersResult = {
-        users: [
-          {
-            uid: "user_uid_2",
-            phoneNumber: "+1234567890",
-            displayName: "Jane Smith",
-          },
-        ],
-        notFound: [],
-      };
+      const result = await createUser.lookUpFirebaseUser(request);
 
-      // Stub the getAuth().getUsers function to return the sample response
-      const getUsersStub = sinon
-        .stub(getAuth(), "getUsers")
-        .resolves(sampleGetUsersResult);
-
-      // Call the lookUpFirebaseUser function with the mocked request object
-      const callback = sinon.spy();
-      await lookUpFirebaseUser(request, callback);
-
-      // Assert the expected callback calls
-      expect(callback.calledOnce).to.be.true;
-      expect(callback.args[0][0].success).to.be.true;
-      expect(callback.args[0][0].message).to.equal(
-        "Successfully fetched user data"
-      );
-      expect(callback.args[0][0].status).to.equal(httpStatus.OK);
-      expect(callback.args[0][0].data).to.deep.equal(
-        sampleGetUsersResult.users
-      );
-
-      // Restore the stubbed function
-      getUsersStub.restore();
+      expect(getAuthStub.calledOnce).to.be.true;
+      expect(result).to.be.an("array");
+      expect(result).to.have.lengthOf(1);
+      expect(result[0]).to.deep.equal({
+        success: true,
+        message: "Successfully fetched user data",
+        status: httpStatus.OK,
+        data: [],
+        userRecord: {
+          uid: "user1",
+          email: "test1@example.com",
+          phoneNumber: "+1234567890",
+        },
+      });
     });
 
-    it("should fetch user data with both email and phone number", async () => {
-      // Mock the request object with both email and phoneNumber parameters
+    it("should fetch user data by email", async () => {
       const request = {
         body: {
-          email: "user@example.com",
+          email: "test2@example.com",
+        },
+      };
+
+      const result = await createUser.lookUpFirebaseUser(request);
+
+      expect(getAuthStub.calledOnce).to.be.true;
+      expect(result).to.be.an("array");
+      expect(result).to.have.lengthOf(1);
+      expect(result[0]).to.deep.equal({
+        success: true,
+        message: "Successfully fetched user data",
+        status: httpStatus.OK,
+        data: [],
+        userRecord: {
+          uid: "user2",
+          email: "test2@example.com",
+          phoneNumber: "+9876543210",
+        },
+      });
+    });
+
+    it("should fetch user data by both phone number and email", async () => {
+      const request = {
+        body: {
+          phoneNumber: "+1234567890",
+          email: "test2@example.com",
+        },
+      };
+
+      const result = await createUser.lookUpFirebaseUser(request);
+
+      expect(getAuthStub.calledOnce).to.be.true;
+      expect(result).to.be.an("array");
+      expect(result).to.have.lengthOf(2);
+      expect(result[0]).to.deep.equal({
+        success: true,
+        message: "Successfully fetched user data",
+        status: httpStatus.OK,
+        data: [],
+        userRecord: {
+          uid: "user1",
+          email: "test1@example.com",
+          phoneNumber: "+1234567890",
+        },
+      });
+      expect(result[1]).to.deep.equal({
+        success: true,
+        message: "Successfully fetched user data",
+        status: httpStatus.OK,
+        data: [],
+        userRecord: {
+          uid: "user2",
+          email: "test2@example.com",
+          phoneNumber: "+9876543210",
+        },
+      });
+    });
+
+    it("should handle internal server errors", async () => {
+      const request = {
+        body: {
           phoneNumber: "+1234567890",
         },
       };
 
-      // Sample response from getAuth().getUsers with user data
-      const sampleGetUsersResult = {
-        users: [
-          {
-            uid: "user_uid_3",
-            email: "user@example.com",
-            phoneNumber: "+1234567890",
-            displayName: "Bob Johnson",
-          },
-        ],
-        notFound: [],
-      };
+      getAuthStub.throws(new Error("Internal Server Error"));
 
-      // Stub the getAuth().getUsers function to return the sample response
-      const getUsersStub = sinon
-        .stub(getAuth(), "getUsers")
-        .resolves(sampleGetUsersResult);
+      const result = await createUser.lookUpFirebaseUser(request);
 
-      // Call the lookUpFirebaseUser function with the mocked request object
-      const callback = sinon.spy();
-      await lookUpFirebaseUser(request, callback);
-
-      // Assert the expected callback calls
-      expect(callback.calledOnce).to.be.true;
-      expect(callback.args[0][0].success).to.be.true;
-      expect(callback.args[0][0].message).to.equal(
-        "Successfully fetched user data"
-      );
-      expect(callback.args[0][0].status).to.equal(httpStatus.OK);
-      expect(callback.args[0][0].data).to.deep.equal(
-        sampleGetUsersResult.users
-      );
-
-      // Restore the stubbed function
-      getUsersStub.restore();
+      expect(getAuthStub.calledOnce).to.be.true;
+      expect(result).to.be.an("array");
+      expect(result).to.have.lengthOf(1);
+      expect(result[0]).to.deep.equal({
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: "Internal Server Error" },
+      });
     });
 
-    it("should handle user not found", async () => {
-      // Mock the request object with the email parameter
+    it("should handle not found users", async () => {
       const request = {
         body: {
-          email: "non_existent_user@example.com",
+          phoneNumber: "+9876543210",
         },
       };
 
-      // Sample response from getAuth().getUsers with not found user
-      const sampleGetUsersResult = {
-        users: [],
-        notFound: ["non_existent_user@example.com"],
-      };
+      getAuthStub.returns({
+        getUsers: sinon.stub().resolves({
+          users: [],
+          notFound: [{ phoneNumber: "+9876543210" }],
+        }),
+      });
 
-      // Stub the getAuth().getUsers function to return the sample response
-      const getUsersStub = sinon
-        .stub(getAuth(), "getUsers")
-        .resolves(sampleGetUsersResult);
+      const result = await createUser.lookUpFirebaseUser(request);
 
-      // Call the lookUpFirebaseUser function with the mocked request object
-      const callback = sinon.spy();
-      await lookUpFirebaseUser(request, callback);
-
-      // Assert the expected callback calls
-      expect(callback.calledOnce).to.be.true;
-      expect(callback.args[0][0].success).to.be.false;
-      expect(callback.args[0][0].message).to.equal(
-        "Unable to find users corresponding to these identifiers"
-      );
-      expect(callback.args[0][0].status).to.equal(httpStatus.NOT_FOUND);
-      expect(callback.args[0][0].data).to.deep.equal(
-        sampleGetUsersResult.notFound
-      );
-
-      // Restore the stubbed function
-      getUsersStub.restore();
-    });
-
-    it("should handle invalid email error", async () => {
-      // Mock the request object with an invalid email
-      const request = {
-        body: {
-          email: "invalid_email",
-        },
-      };
-
-      // Sample error response from getAuth().getUsers with an invalid email
-      const sampleGetUsersError = {
-        code: "auth/invalid-email",
-      };
-
-      // Stub the getAuth().getUsers function to throw an error
-      const getUsersStub = sinon
-        .stub(getAuth(), "getUsers")
-        .throws(sampleGetUsersError);
-
-      // Call the lookUpFirebaseUser function with the mocked request object
-      const callback = sinon.spy();
-      await lookUpFirebaseUser(request, callback);
-
-      // Assert the expected callback calls
-      expect(callback.calledOnce).to.be.true;
-      expect(callback.args[0][0].success).to.be.false;
-      expect(callback.args[0][0].message).to.equal("internal server error");
-      expect(callback.args[0][0].status).to.equal(httpStatus.BAD_REQUEST);
-      expect(callback.args[0][0].errors.message).to.equal(sampleGetUsersError);
-
-      // Restore the stubbed function
-      getUsersStub.restore();
-    });
-
-    it("should handle internal server error", async () => {
-      // Mock the request object with the email parameter
-      const request = {
-        body: {
-          email: "user@example.com",
-        },
-      };
-
-      // Sample error response from getAuth().getUsers with an internal server error
-      const sampleGetUsersError = new Error("Internal server error");
-
-      // Stub the getAuth().getUsers function to throw an error
-      const getUsersStub = sinon
-        .stub(getAuth(), "getUsers")
-        .throws(sampleGetUsersError);
-
-      // Call the lookUpFirebaseUser function with the mocked request object
-      const callback = sinon.spy();
-      await lookUpFirebaseUser(request, callback);
-
-      // Assert the expected callback calls
-      expect(callback.calledOnce).to.be.true;
-      expect(callback.args[0][0].success).to.be.false;
-      expect(callback.args[0][0].message).to.equal("internal server error");
-      expect(callback.args[0][0].status).to.equal(
-        httpStatus.INTERNAL_SERVER_ERROR
-      );
-      expect(callback.args[0][0].errors.message).to.equal(
-        sampleGetUsersError.message
-      );
-
-      // Restore the stubbed function
-      getUsersStub.restore();
+      expect(getAuthStub.calledOnce).to.be.true;
+      expect(result).to.be.an("array");
+      expect(result).to.have.lengthOf(1);
+      expect(result[0]).to.deep.equal({
+        success: false,
+        message: "Unable to find users corresponding to these identifiers",
+        status: httpStatus.NOT_FOUND,
+        data: { phoneNumber: "+9876543210" },
+      });
     });
   });
-  describe("generateSignInWithEmailLink", () => {
+  describe("generateSignInWithEmailLink()", () => {
+    const constants = {
+      ACTION_CODE_SETTINGS: "your-action-code-settings",
+      EMAIL: "your-email-constant",
+    };
+
+    const sampleRequest = {
+      body: {
+        email: "test@example.com",
+      },
+      query: {
+        purpose: "auth",
+      },
+    };
+
     afterEach(() => {
-      // Restore any stubbed functions after each test
+      // Restore the original behavior of the mocked functions and objects
       sinon.restore();
     });
 
-    it("should generate sign-in email link for valid email and purpose 'mobileAccountDelete'", async () => {
-      // Mock the request object with the email and purpose parameters
-      const request = {
-        body: {
-          email: "user@example.com",
-        },
-        query: {
-          purpose: "mobileAccountDelete",
-        },
-      };
+    it("should generate the sign-in link with email correctly and send email for authentication", async () => {
+      // Stub the getAuth function to return a mock object
+      const getAuthStub = sinon.stub().returns({
+        generateSignInWithEmailLink: sinon
+          .stub()
+          .resolves("your-generated-link"),
+      });
+      sinon.replace("./auth", { getAuth: getAuthStub });
 
-      // Sample link generated by getAuth().generateSignInWithEmailLink
-      const sampleGeneratedLink = "https://example.com/sign-in-link";
-
-      // Stub the getAuth().generateSignInWithEmailLink function to return the sample link
-      const generateSignInWithEmailLinkStub = sinon
-        .stub(getAuth(), "generateSignInWithEmailLink")
-        .resolves(sampleGeneratedLink);
-
-      // Stub the mailer.deleteMobileAccountEmail function to return a success response
-      const sendEmailStub = sinon
-        .stub(mailer, "deleteMobileAccountEmail")
-        .resolves({
-          success: true,
-          message: "Email sent successfully",
-        });
-
-      // Call the generateSignInWithEmailLink function with the mocked request object
-      const callback = sinon.spy();
-      await generateSignInWithEmailLink(request, callback);
-
-      // Assert the expected callback calls
-      expect(callback.calledOnce).to.be.true;
-      expect(callback.args[0][0].success).to.be.true;
-      expect(callback.args[0][0].message).to.equal(
-        "process successful, check your email for token"
-      );
-      expect(callback.args[0][0].status).to.equal(httpStatus.OK);
-      expect(callback.args[0][0].data.link).to.equal(sampleGeneratedLink);
-      expect(callback.args[0][0].data.token).to.be.a("number");
-      expect(callback.args[0][0].data.email).to.equal("user@example.com");
-      expect(callback.args[0][0].data.emailLinkCode).to.be.a("string");
-
-      // Restore the stubbed functions
-      generateSignInWithEmailLinkStub.restore();
-      sendEmailStub.restore();
-    });
-
-    it("should generate sign-in email link for valid email and purpose 'auth'", async () => {
-      // Mock the request object with the email and purpose parameters
-      const request = {
-        body: {
-          email: "user@example.com",
-        },
-        query: {
-          purpose: "auth",
-        },
-      };
-
-      // Sample link generated by getAuth().generateSignInWithEmailLink
-      const sampleGeneratedLink = "https://example.com/sign-in-link";
-
-      // Stub the getAuth().generateSignInWithEmailLink function to return the sample link
-      const generateSignInWithEmailLinkStub = sinon
-        .stub(getAuth(), "generateSignInWithEmailLink")
-        .resolves(sampleGeneratedLink);
-
-      // Stub the mailer.authenticateEmail function to return a success response
-      const sendEmailStub = sinon.stub(mailer, "authenticateEmail").resolves({
+      // Mock the authenticateEmail function of the mailer object
+      const authenticateEmailStub = sinon.stub(mailer, "authenticateEmail");
+      authenticateEmailStub.resolves({
         success: true,
-        message: "Email sent successfully",
       });
 
-      // Call the generateSignInWithEmailLink function with the mocked request object
-      const callback = sinon.spy();
-      await generateSignInWithEmailLink(request, callback);
-
-      // Assert the expected callback calls
-      expect(callback.calledOnce).to.be.true;
-      expect(callback.args[0][0].success).to.be.true;
-      expect(callback.args[0][0].message).to.equal(
-        "process successful, check your email for token"
-      );
-      expect(callback.args[0][0].status).to.equal(httpStatus.OK);
-      expect(callback.args[0][0].data.link).to.equal(sampleGeneratedLink);
-      expect(callback.args[0][0].data.token).to.be.a("number");
-      expect(callback.args[0][0].data.email).to.equal("user@example.com");
-      expect(callback.args[0][0].data.emailLinkCode).to.be.a("string");
-
-      // Restore the stubbed functions
-      generateSignInWithEmailLinkStub.restore();
-      sendEmailStub.restore();
-    });
-
-    it("should generate sign-in email link for valid email and purpose 'login'", async () => {
-      // Mock the request object with the email and purpose parameters
-      const request = {
-        body: {
-          email: "user@example.com",
-        },
-        query: {
-          purpose: "login",
-        },
-      };
-
-      // Sample link generated by getAuth().generateSignInWithEmailLink
-      const sampleGeneratedLink = "https://example.com/sign-in-link";
-
-      // Stub the getAuth().generateSignInWithEmailLink function to return the sample link
-      const generateSignInWithEmailLinkStub = sinon
-        .stub(getAuth(), "generateSignInWithEmailLink")
-        .resolves(sampleGeneratedLink);
-
-      // Stub the mailer.signInWithEmailLink function to return a success response
-      const sendEmailStub = sinon.stub(mailer, "signInWithEmailLink").resolves({
+      const expectedResult = {
         success: true,
-        message: "Email sent successfully",
+        message: "process successful, check your email for token",
+        status: httpStatus.OK,
+        data: {
+          link: "your-generated-link",
+          token: 100000,
+          email: "test@example.com",
+          emailLinkCode: "your-email-link-code",
+        },
+      };
+
+      // Call the createUser.generateSignInWithEmailLink function with the sample request
+      const result = await createUser.generateSignInWithEmailLink(
+        sampleRequest
+      );
+
+      // Check the expected result against the actual result
+      expect(result).to.deep.equal(expectedResult);
+
+      // Ensure that the createUser.generateSignInWithEmailLink function is called with the correct arguments
+      expect(
+        getAuthStub().generateSignInWithEmailLink
+      ).to.have.been.calledOnceWith(
+        "test@example.com",
+        "your-action-code-settings"
+      );
+
+      // Ensure that the authenticateEmail function is called with the correct arguments
+      expect(authenticateEmailStub).to.have.been.calledOnceWith(
+        "test@example.com",
+        100000
+      );
+    });
+
+    it("should handle errors and return an error response", async () => {
+      // Stub the getAuth function to return a mock object
+      const getAuthStub = sinon.stub().returns({
+        generateSignInWithEmailLink: sinon
+          .stub()
+          .rejects(new Error("Some error")),
       });
+      sinon.replace("./auth", { getAuth: getAuthStub });
 
-      // Call the generateSignInWithEmailLink function with the mocked request object
-      const callback = sinon.spy();
-      await generateSignInWithEmailLink(request, callback);
-
-      // Assert the expected callback calls
-      expect(callback.calledOnce).to.be.true;
-      expect(callback.args[0][0].success).to.be.true;
-      expect(callback.args[0][0].message).to.equal(
-        "process successful, check your email for token"
-      );
-      expect(callback.args[0][0].status).to.equal(httpStatus.OK);
-      expect(callback.args[0][0].data.link).to.equal(sampleGeneratedLink);
-      expect(callback.args[0][0].data.token).to.be.a("number");
-      expect(callback.args[0][0].data.email).to.equal("user@example.com");
-      expect(callback.args[0][0].data.emailLinkCode).to.be.a("string");
-
-      // Restore the stubbed functions
-      generateSignInWithEmailLinkStub.restore();
-      sendEmailStub.restore();
-    });
-
-    it("should handle invalid email error", async () => {
-      // Mock the request object with an invalid email
-      const request = {
-        body: {
-          email: "invalid_email",
-        },
-        query: {
-          purpose: "login",
+      const expectedResponse = {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: {
+          message: "Some error",
         },
       };
 
-      // Sample error response from getAuth().generateSignInWithEmailLink with an invalid email
-      const sampleGenerateSignInError = {
-        code: "auth/invalid-email",
-      };
-
-      // Stub the getAuth().generateSignInWithEmailLink function to throw an error
-      const generateSignInWithEmailLinkStub = sinon
-        .stub(getAuth(), "generateSignInWithEmailLink")
-        .throws(sampleGenerateSignInError);
-
-      // Call the generateSignInWithEmailLink function with the mocked request object
-      const callback = sinon.spy();
-      await generateSignInWithEmailLink(request, callback);
-
-      // Assert the expected callback calls
-      expect(callback.calledOnce).to.be.true;
-      expect(callback.args[0][0].success).to.be.false;
-      expect(callback.args[0][0].message).to.equal(
-        "unable to sign in using email link"
-      );
-      expect(callback.args[0][0].status).to.equal(httpStatus.BAD_REQUEST);
-      expect(callback.args[0][0].errors.message).to.equal(
-        sampleGenerateSignInError
+      // Call the createUser.generateSignInWithEmailLink function with the sample request
+      const result = await createUser.generateSignInWithEmailLink(
+        sampleRequest
       );
 
-      // Restore the stubbed function
-      generateSignInWithEmailLinkStub.restore();
-    });
+      // Check the expected response against the actual result
+      expect(result).to.deep.equal(expectedResponse);
 
-    it("should handle internal server error", async () => {
-      // Mock the request object with the email and purpose parameters
-      const request = {
-        body: {
-          email: "user@example.com",
-        },
-        query: {
-          purpose: "login",
-        },
-      };
-
-      // Sample error response from getAuth().generateSignInWithEmailLink with an internal server error
-      const sampleGenerateSignInError = new Error("Internal server error");
-
-      // Stub the getAuth().generateSignInWithEmailLink function to throw an error
-      const generateSignInWithEmailLinkStub = sinon
-        .stub(getAuth(), "generateSignInWithEmailLink")
-        .throws(sampleGenerateSignInError);
-
-      // Call the generateSignInWithEmailLink function with the mocked request object
-      const callback = sinon.spy();
-      await generateSignInWithEmailLink(request, callback);
-
-      // Assert the expected callback calls
-      expect(callback.calledOnce).to.be.true;
-      expect(callback.args[0][0].success).to.be.false;
-      expect(callback.args[0][0].message).to.equal("Internal Server Error");
-      expect(callback.args[0][0].status).to.equal(
-        httpStatus.INTERNAL_SERVER_ERROR
+      // Ensure that the createUser.generateSignInWithEmailLink function is called with the correct arguments
+      expect(
+        getAuthStub().generateSignInWithEmailLink
+      ).to.have.been.calledOnceWith(
+        "test@example.com",
+        "your-action-code-settings"
       );
-      expect(callback.args[0][0].errors.message).to.equal(
-        sampleGenerateSignInError.message
-      );
-
-      // Restore the stubbed function
-      generateSignInWithEmailLinkStub.restore();
     });
   });
-  describe("delete", () => {
+  describe("delete()", () => {
     afterEach(() => {
       // Restore any stubbed functions after each test
       sinon.restore();
@@ -2137,78 +1936,144 @@ describe("create-user-util", function () {
       );
     });
   });
-  describe("createFirebaseUser", () => {
+  describe("createFirebaseUser()", () => {
+    let getAuthStub;
+
     beforeEach(() => {
-      // Restore all the Sinon stubs and mocks before each test case
+      getAuthStub = sinon.stub().returns({
+        createUser: sinon.stub().resolves({ uid: "user1" }),
+      });
+    });
+
+    afterEach(() => {
       sinon.restore();
     });
 
-    it("should return error if neither email nor phoneNumber is provided", async () => {
-      const request = { body: {} };
-      const callback = sinon.spy();
+    it("should create user with email and password", async () => {
+      const request = {
+        body: {
+          email: "test@example.com",
+          password: "password123",
+        },
+      };
 
-      await createFirebaseUser(request, callback);
+      const result = await createUser.createFirebaseUser(request);
 
-      expect(callback.calledOnce).to.be.true;
-      expect(callback.args[0][0]).to.deep.equal({
-        success: false,
-        message: "Please provide either email or phoneNumber",
-        status: 400,
+      expect(getAuthStub.calledOnce).to.be.true;
+      expect(result).to.be.an("array");
+      expect(result).to.have.lengthOf(1);
+      expect(result[0]).to.deep.equal({
+        success: true,
+        message: "User created successfully",
+        status: httpStatus.CREATED,
+        data: { uid: "user1" },
       });
     });
 
-    it("should return error if password is not provided with email", async () => {
-      const request = { body: { email: "test@example.com" } };
-      const callback = sinon.spy();
+    it("should create user with phone number", async () => {
+      const request = {
+        body: {
+          phoneNumber: "+1234567890",
+        },
+      };
 
-      await createFirebaseUser(request, callback);
+      const result = await createUser.createFirebaseUser(request);
 
-      expect(callback.calledOnce).to.be.true;
-      expect(callback.args[0][0]).to.deep.equal({
+      expect(getAuthStub.calledOnce).to.be.true;
+      expect(result).to.be.an("array");
+      expect(result).to.have.lengthOf(1);
+      expect(result[0]).to.deep.equal({
+        success: true,
+        message: "User created successfully",
+        status: httpStatus.CREATED,
+        data: { uid: "user1" },
+      });
+    });
+
+    it("should handle missing email and phoneNumber", async () => {
+      const request = {
+        body: {},
+      };
+
+      const result = await createUser.createFirebaseUser(request);
+
+      expect(getAuthStub.called).to.be.false;
+      expect(result).to.be.an("array");
+      expect(result).to.have.lengthOf(1);
+      expect(result[0]).to.deep.equal({
+        success: false,
+        message: "Please provide either email or phoneNumber",
+        status: httpStatus.BAD_REQUEST,
+      });
+    });
+
+    it("should handle missing password when using email", async () => {
+      const request = {
+        body: {
+          email: "test@example.com",
+        },
+      };
+
+      const result = await createUser.createFirebaseUser(request);
+
+      expect(getAuthStub.called).to.be.false;
+      expect(result).to.be.an("array");
+      expect(result).to.have.lengthOf(1);
+      expect(result[0]).to.deep.equal({
         success: false,
         message: "Bad Request",
         errors: { message: "password must be provided when using email" },
-        status: 400,
+        status: httpStatus.BAD_REQUEST,
       });
     });
 
-    it("should create a user with email and password", async () => {
+    it("should handle internal server errors", async () => {
       const request = {
-        body: { email: "test@example.com", password: "testpassword" },
+        body: {
+          email: "test@example.com",
+          password: "password123",
+        },
       };
-      const userRecord = { uid: "testuserid" };
-      sinon.stub(getAuth(), "createUser").resolves(userRecord);
 
-      const callback = sinon.spy();
-      await createFirebaseUser(request, callback);
+      getAuthStub.throws(new Error("Internal Server Error"));
 
-      expect(callback.calledOnce).to.be.true;
-      expect(callback.args[0][0]).to.deep.equal({
-        success: true,
-        message: "User created successfully",
-        status: 201,
-        data: { uid: "testuserid" },
+      const result = await createUser.createFirebaseUser(request);
+
+      expect(getAuthStub.calledOnce).to.be.true;
+      expect(result).to.be.an("array");
+      expect(result).to.have.lengthOf(1);
+      expect(result[0]).to.deep.equal({
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: "Internal Server Error" },
       });
     });
 
-    it("should create a user with phoneNumber", async () => {
-      const request = { body: { phoneNumber: "+1234567890" } };
-      const userRecord = { uid: "testuserid" };
-      sinon.stub(getAuth(), "createUser").resolves(userRecord);
+    it("should handle email already exists error", async () => {
+      const request = {
+        body: {
+          email: "test@example.com",
+          password: "password123",
+        },
+      };
 
-      const callback = sinon.spy();
-      await createFirebaseUser(request, callback);
+      const error = new Error("Email already exists");
+      error.code = "auth/email-already-exists";
+      getAuthStub.throws(error);
 
-      expect(callback.calledOnce).to.be.true;
-      expect(callback.args[0][0]).to.deep.equal({
-        success: true,
-        message: "User created successfully",
-        status: 201,
-        data: { uid: "testuserid" },
+      const result = await createUser.createFirebaseUser(request);
+
+      expect(getAuthStub.calledOnce).to.be.true;
+      expect(result).to.be.an("array");
+      expect(result).to.have.lengthOf(1);
+      expect(result[0]).to.deep.equal({
+        success: false,
+        message: "Bad Request Error",
+        errors: { message: "Email already exists" },
+        status: httpStatus.BAD_REQUEST,
       });
     });
-
-    // Add more test cases as needed
   });
   describe("loginWithFirebase()", () => {
     afterEach(() => {
@@ -2260,91 +2125,59 @@ describe("create-user-util", function () {
       });
     });
   });
-  describe("signUpWithFirebase", () => {
+  describe("signUpWithFirebase()", () => {
+    let lookUpFirebaseUserStub;
+    let createFirebaseUserStub;
+    let UserModelStub;
+
+    beforeEach(() => {
+      lookUpFirebaseUserStub = sinon
+        .stub()
+        .resolves([{ success: true, data: [] }]);
+      createFirebaseUserStub = sinon.stub().resolves([{ success: true }]);
+      UserModelStub = sinon.stub().returns({
+        findOne: sinon.stub().resolves(null),
+        create: sinon.stub().resolves({ _id: "user1" }),
+      });
+    });
+
     afterEach(() => {
       sinon.restore();
     });
 
-    it("should update the existing local user when the user exists on Firebase", async () => {
+    it("should handle user already exists on Firebase", async () => {
       const request = {
         body: {
           email: "test@example.com",
           phoneNumber: "+1234567890",
-          firstName: "John",
-          lastName: "Doe",
-          userName: "johndoe",
-          password: "password",
         },
         query: {
-          tenant: "airqo",
+          tenant: "tenant1",
         },
       };
 
-      const firebaseUserResponse = {
-        success: true,
-        data: [
-          {
-            email: "test@example.com",
-            phoneNumber: "+1234567890",
-            firstName: "John",
-            lastName: "Doe",
-            userName: "johndoe",
-          },
-        ],
-      };
+      lookUpFirebaseUserStub.resolves([
+        { success: true, data: [{ foo: "bar" }] },
+      ]);
 
-      sinon
-        .stub(createUser, "lookUpFirebaseUser")
-        .callsFake((req, callback) => {
-          callback(firebaseUserResponse);
-        });
+      const result = await createUser.signUpWithFirebase(request);
 
-      const updateUserStub = sinon.stub().resolves({
-        // Simulate the updated user object returned by UserModel.updateOne
-        _id: "user-id",
-        firstName: "John",
-        lastName: "Doe",
-        userName: "johndoe",
-        email: "test@example.com",
-        phoneNumber: "+1234567890",
-      });
-
-      const createUserStub = sinon.stub(); // We won't use this in this test case
-
-      const callback = sinon.stub();
-      const expectedResponse = {
-        success: true,
-        message: "User updated successfully.",
-        status: httpStatus.OK,
-        data: {
-          _id: "user-id",
-          firstName: "John",
-          lastName: "Doe",
-          userName: "johndoe",
-          email: "test@example.com",
-          phoneNumber: "+1234567890",
+      expect(lookUpFirebaseUserStub.calledOnceWith(request)).to.be.true;
+      expect(createFirebaseUserStub.called).to.be.false;
+      expect(UserModelStub.called).to.be.false;
+      expect(result).to.deep.equal({
+        success: false,
+        message:
+          "User already exists on Firebase. Please login using Firebase.",
+        status: httpStatus.BAD_REQUEST,
+        errors: {
+          message:
+            "User already exists on Firebase. Please login using Firebase.",
         },
-      };
-
-      await signUpWithFirebase(request, callback, {
-        updateUser: updateUserStub,
-        createUser: createUserStub,
       });
-
-      expect(
-        updateUserStub.calledOnceWith(
-          { _id: "user-id" },
-          {
-            firstName: "John",
-            lastName: "Doe",
-            userName: "johndoe",
-          }
-        )
-      ).to.be.true;
-      expect(callback.calledOnceWith(expectedResponse)).to.be.true;
     });
 
-    it("should create a new local user when the user does not exist on Firebase", async () => {
+    it("should create user on Firebase and locally", async () => {
       const request = {
         body: {
           email: "test@example.com",
@@ -2352,69 +2185,53 @@ describe("create-user-util", function () {
           firstName: "John",
           lastName: "Doe",
           userName: "johndoe",
-          password: "password",
+          password: "password123",
         },
         query: {
-          tenant: "airqo",
+          tenant: "tenant1",
         },
       };
 
-      const firebaseUserResponse = {
-        success: false,
-      };
+      const result = await createUser.signUpWithFirebase(request);
 
-      sinon
-        .stub(createUser, "lookUpFirebaseUser")
-        .callsFake((req, callback) => {
-          callback(firebaseUserResponse);
-        });
+      expect(lookUpFirebaseUserStub.calledOnceWith(request)).to.be.true;
+      expect(
+        createFirebaseUserStub.calledOnceWith({
+          body: {
+            email: "test@example.com",
+            phoneNumber: "+1234567890",
+            password: "password123",
+          },
+        })
+      ).to.be.true;
 
-      const createUserStub = sinon.stub().resolves({
-        // Simulate the newly created user object returned by UserModel.create
-        _id: "user-id",
-        firstName: "John",
-        lastName: "Doe",
-        userName: "johndoe",
-        email: "test@example.com",
-        phoneNumber: "+1234567890",
-      });
+      expect(UserModelStub.calledWith("tenant1")).to.be.true;
 
-      const updateUserStub = sinon.stub(); // We won't use this in this test case
+      expect(
+        UserModelStub().findOne.calledOnceWith({
+          $or: [{ email: "test@example.com" }, { phoneNumber: "+1234567890" }],
+        })
+      ).to.be.true;
 
-      const callback = sinon.stub();
-      const expectedResponse = {
+      expect(
+        UserModelStub().create.calledOnceWith({
+          phoneNumber: "+1234567890",
+          userName: "johndoe",
+          firstName: "John",
+          lastName: "Doe",
+          password: "generated_password",
+        })
+      ).to.be.true;
+
+      expect(result).to.deep.equal({
         success: true,
         message: "User created successfully.",
         status: httpStatus.CREATED,
-        data: {
-          _id: "user-id",
-          firstName: "John",
-          lastName: "Doe",
-          userName: "johndoe",
-          email: "test@example.com",
-          phoneNumber: "+1234567890",
-        },
-      };
-
-      await signUpWithFirebase(request, callback, {
-        updateUser: updateUserStub,
-        createUser: createUserStub,
+        data: { _id: "user1" },
       });
-
-      expect(
-        createUserStub.calledOnceWith({
-          email: "test@example.com",
-          phoneNumber: "+1234567890",
-          firstName: "John",
-          lastName: "Doe",
-          userName: "johndoe",
-          password: "password",
-        })
-      ).to.be.true;
-      expect(callback.calledOnceWith(expectedResponse)).to.be.true;
     });
 
-    it("should handle error when creating user on Firebase fails", async () => {
+    it("should handle internal server errors", async () => {
       const request = {
         body: {
           email: "test@example.com",
@@ -2422,135 +2239,159 @@ describe("create-user-util", function () {
           firstName: "John",
           lastName: "Doe",
           userName: "johndoe",
-          password: "password",
+          password: "password123",
         },
         query: {
-          tenant: "airqo",
+          tenant: "tenant1",
         },
       };
 
-      const firebaseUserResponse = {
+      createFirebaseUserStub.throws(new Error("Internal Server Error"));
+
+      const result = await createUser.signUpWithFirebase(request);
+
+      expect(lookUpFirebaseUserStub.calledOnceWith(request)).to.be.true;
+      expect(
+        createFirebaseUserStub.calledOnceWith({
+          body: {
+            email: "test@example.com",
+            phoneNumber: "+1234567890",
+            password: "password123",
+          },
+        })
+      ).to.be.true;
+
+      expect(UserModelStub.calledWith("tenant1")).to.be.true;
+
+      expect(
+        UserModelStub().findOne.calledOnceWith({
+          $or: [{ email: "test@example.com" }, { phoneNumber: "+1234567890" }],
+        })
+      ).to.be.false;
+
+      expect(UserModelStub().create.called).to.be.false;
+
+      expect(result).to.deep.equal({
         success: false,
-      };
-
-      sinon
-        .stub(createUser, "lookUpFirebaseUser")
-        .callsFake((req, callback) => {
-          callback(firebaseUserResponse);
-        });
-
-      const createUserStub = sinon.stub().resolves({
-        // Simulate an error when creating the user on the database
-        error: "Error creating user on the database",
-      });
-
-      const updateUserStub = sinon.stub(); // We won't use this in this test case
-
-      const callback = sinon.stub();
-      const expectedResponse = {
-        success: false,
-        message: "Error creating user on Firebase.",
+        message: "Internal Server Error",
         status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: "Error creating user on Firebase." },
-      };
-
-      await signUpWithFirebase(request, callback, {
-        updateUser: updateUserStub,
-        createUser: createUserStub,
+        errors: { message: "Internal Server Error" },
       });
-
-      expect(createUserStub.calledOnce).to.be.true;
-      expect(callback.calledOnceWith(expectedResponse)).to.be.true;
     });
-
-    // Add more test cases to cover other scenarios if needed
   });
-  describe("generateCacheID", () => {
-    it("should return the cache ID when both context and tenant are provided", () => {
-      // Mock the request object
+  describe("generateCacheID (Success case)", () => {
+    it("should return the generated cache ID when both context and tenant are provided", () => {
       const request = {
         query: {
-          tenant: "example_tenant",
+          tenant: "example-tenant",
         },
-        context: "example_context",
+        context: "example-context",
       };
 
-      // Call the generateCacheID function
-      const cacheID = createUser.generateCacheID(request);
+      const result = createUser.generateCacheID(request);
 
-      // Assert the result
-      expect(cacheID).to.equal("example_context_example_tenant");
+      expect(result).to.equal("example-context_example-tenant");
+    });
+  });
+  describe("generateCacheID (Error case)", () => {
+    let loggerErrorStub; // The stub for the logger.error method
+
+    beforeEach(() => {
+      loggerErrorStub = sinon.stub(logger, "error"); // Assuming the logger module is already imported
     });
 
-    it("should return an error response when context is missing", () => {
-      // Mock the request object with missing context
+    afterEach(() => {
+      loggerErrorStub.restore(); // Restore the original behavior of the logger
+    });
+
+    it("should handle the error case when either context or tenant is missing", () => {
       const request = {
         query: {
-          tenant: "example_tenant",
+          tenant: "",
         },
         context: "",
       };
 
-      // Call the generateCacheID function
       const result = createUser.generateCacheID(request);
 
-      // Assert the error response
-      expect(result.success).to.be.false;
-      expect(result.message).to.equal("Bad Request Error");
-      expect(result.errors.message).to.equal(
-        "the request is either missing the context or tenant"
-      );
-      expect(result.status).to.equal(httpStatus.BAD_REQUEST);
-    });
-
-    it("should return an error response when tenant is missing", () => {
-      // Mock the request object with missing tenant
-      const request = {
-        query: {},
-        context: "example_context",
-      };
-
-      // Call the generateCacheID function
-      const result = createUser.generateCacheID(request);
-
-      // Assert the error response
-      expect(result.success).to.be.false;
-      expect(result.message).to.equal("Bad Request Error");
-      expect(result.errors.message).to.equal(
-        "the request is either missing the context or tenant"
-      );
-      expect(result.status).to.equal(httpStatus.BAD_REQUEST);
-    });
-
-    // Add more test cases for other scenarios if needed
-  });
-  describe("setCache", function () {
-    let setSpy, expireSpy, callbackSpy;
-
-    beforeEach(function () {
-      setSpy = sinon.spy();
-      expireSpy = sinon.spy();
-      callbackSpy = sinon.spy();
-      createUser.__set__({
-        "redis.set": setSpy,
-        "redis.expire": expireSpy,
+      expect(
+        loggerErrorStub.calledOnceWith(
+          "the request is either missing the context or the tenant"
+        )
+      ).to.be.true;
+      expect(result).to.deep.equal({
+        success: false,
+        message: "Bad Request Error",
+        errors: {
+          message: "the request is either missing the context or tenant",
+        },
+        status: httpStatus.BAD_REQUEST,
       });
-      createUser.setCache("data", "cacheID", callbackSpy);
+    });
+  });
+  describe("setCache (Success case)", () => {
+    let redisStub; // The stub for the 'redis' module
+
+    beforeEach(() => {
+      redisStub = sinon.stub(redis, "set"); // Stub the 'redis.set' method
     });
 
-    it("Should call redis.set with the correct arguments", function () {
-      sinon.assert.calledWith(setSpy, "cacheID", JSON.stringify("data"));
+    afterEach(() => {
+      redisStub.restore(); // Restore the original behavior of the stubbed method
     });
 
-    it("Should call redis.expire with the correct arguments", function () {
-      sinon.assert.calledWith(expireSpy, "cacheID", 3600);
+    it("should set the cache in Redis with the correct data and cacheID", async () => {
+      const testData = { key: "value" };
+      const cacheID = "test-cache";
+
+      // Stub Redis set method to return a successful result
+      redisStub.resolves("OK");
+
+      const result = await createUser.setCache(testData, cacheID);
+
+      expect(
+        redisStub.calledOnceWith(cacheID, JSON.stringify(testData), "EX", 3600)
+      ).to.be.true;
+      expect(result).to.equal("OK");
+    });
+  });
+  describe("setCache (Error case)", () => {
+    let redisStub; // The stub for the 'redis' module
+    let loggerErrorStub; // The stub for the logger.error method
+
+    beforeEach(() => {
+      redisStub = sinon.stub(redis, "set"); // Stub the 'redis.set' method
+      loggerErrorStub = sinon.stub(logger, "error"); // Assuming the logger module is already imported
     });
 
-    it("Should call callback with the correct arguments", function () {
-      sinon.assert.calledWith(callbackSpy, {
-        success: true,
-        message: "response stored in cache",
-        status: 200,
+    afterEach(() => {
+      redisStub.restore(); // Restore the original behavior of the stubbed method
+      loggerErrorStub.restore(); // Restore the original behavior of the logger
+    });
+
+    it("should handle internal server errors and return the appropriate response", async () => {
+      const testData = { key: "value" };
+      const cacheID = "test-cache";
+      const errorMessage = "Something went wrong";
+
+      // Stub Redis set method to throw an error
+      redisStub.rejects(new Error(errorMessage));
+
+      const result = await createUser.setCache(testData, cacheID);
+
+      expect(
+        redisStub.calledOnceWith(cacheID, JSON.stringify(testData), "EX", 3600)
+      ).to.be.true;
+      expect(
+        loggerErrorStub.calledOnceWith(
+          `internal server error -- ${errorMessage}`
+        )
+      ).to.be.true;
+      expect(result).to.deep.equal({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: errorMessage },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       });
     });
   });
@@ -2619,90 +2460,88 @@ describe("create-user-util", function () {
       });
     });
   });
-  describe("getCache()", () => {
-    const cacheID = "unique-cache-id";
-    const data = { key: "value" };
-    let redisGetStub, logTextStub, logObjectStub;
+  describe("getCache (Success case)", () => {
+    let redisStub; // The stub for the 'redis' module
 
     beforeEach(() => {
-      redisGetStub = sinon.stub();
-      logTextStub = sinon.stub();
-      logObjectStub = sinon.stub();
-
-      // Replace dependencies with stubs
-      myModuleFile.__set__("redis.get", redisGetStub);
-      myModuleFile.__set__("logText", logTextStub);
-      myModuleFile.__set__("logObject", logObjectStub);
+      redisStub = sinon.stub(redis, "get"); // Stub the 'redis.get' method
     });
 
     afterEach(() => {
-      sinon.restore();
+      redisStub.restore(); // Restore the original behavior of the stubbed method
     });
 
-    it("should return cache when present", (done) => {
-      redisGetStub.yields(null, JSON.stringify(data));
+    it("should return the cached data if it exists", async () => {
+      const cacheID = "test-cache";
+      const testData = { key: "value" };
 
-      createUser.getCache(cacheID, (result) => {
-        expect(result).to.deep.equal({
-          success: true,
-          message: "utilising cache...",
-          data: data,
-          status: httpStatus.OK,
-        });
-        sinon.assert.calledOnceWithExactly(redisGetStub, cacheID);
-        done();
-      });
+      // Stub Redis get method to return the test data
+      redisStub.resolves(JSON.stringify(testData));
+
+      const result = await createUser.getCache(cacheID);
+
+      expect(redisStub.calledOnceWith(cacheID)).to.be.true;
+      expect(result).to.deep.equal(testData);
     });
 
-    it("should return error when cannot get cache due to internal error", (done) => {
-      const error = new Error("Unable to get cache");
-      redisGetStub.yields(error, null);
+    it("should return an error response if the cache is empty", async () => {
+      const cacheID = "test-cache";
 
-      createUser.getCache(cacheID, (result) => {
-        expect(result).to.deep.equal({
-          success: false,
-          message: "Internal Server Error",
-          errors: { message: error.message },
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-        });
-        sinon.assert.calledOnceWithExactly(redisGetStub, cacheID);
-        done();
-      });
-    });
+      // Stub Redis get method to return an empty result
+      redisStub.resolves(null);
 
-    it("should return an error when cache is not present", (done) => {
-      redisGetStub.yields(null, null);
+      const result = await createUser.getCache(cacheID);
 
-      createUser.getCache(cacheID, (result) => {
-        expect(result).to.deep.equal({
-          success: false,
-          message: "no cache present",
-          errors: { message: "no cache present" },
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-        });
-        sinon.assert.calledOnceWithExactly(redisGetStub, cacheID);
-        done();
-      });
-    });
-
-    it("should handle exception", (done) => {
-      const error = new Error("Exception");
-      myModuleFile.__set__("redis.get", () => {
-        throw error;
-      });
-
-      createUser.getCache(cacheID, (result) => {
-        expect(result).to.deep.equal({
-          success: false,
-          message: "Internal Server Error",
-          errors: { message: error.message },
-          status: httpStatus.INTERNAL_SERVER_ERROR,
-        });
-        done();
+      expect(redisStub.calledOnceWith(cacheID)).to.be.true;
+      expect(result).to.deep.equal({
+        success: false,
+        message: "Invalid Request",
+        errors: {
+          message:
+            "Invalid Request -- Either Token or Email provided is invalid",
+        },
+        status: httpStatus.BAD_REQUEST,
       });
     });
   });
-  describe("verifyMobileEmail()", function () {
+  describe("getCache (Error case)", () => {
+    let redisStub; // The stub for the 'redis' module
+    let loggerErrorStub; // The stub for the logger.error method
+
+    beforeEach(() => {
+      redisStub = sinon.stub(redis, "get"); // Stub the 'redis.get' method
+      loggerErrorStub = sinon.stub(logger, "error"); // Assuming the logger module is already imported
+    });
+
+    afterEach(() => {
+      redisStub.restore(); // Restore the original behavior of the stubbed method
+      loggerErrorStub.restore(); // Restore the original behavior of the logger
+    });
+
+    it("should handle internal server errors and return the appropriate response", async () => {
+      const cacheID = "test-cache";
+      const errorMessage = "Something went wrong";
+
+      // Stub Redis get method to throw an error
+      redisStub.rejects(new Error(errorMessage));
+
+      const result = await createUser.getCache(cacheID);
+
+      expect(redisStub.calledOnceWith(cacheID)).to.be.true;
+      expect(
+        loggerErrorStub.calledOnceWith(
+          `internal server error -- ${errorMessage}`
+        )
+      ).to.be.true;
+      expect(result).to.deep.equal({
+        success: false,
+        errors: { message: errorMessage },
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      });
+    });
+  });
+  describe("verifyMobileEmail()", () => {
     let transporter;
     const fakeData = {
       firebase_uid: "fake_firebase_uid",
@@ -2730,7 +2569,7 @@ describe("create-user-util", function () {
         })
       );
 
-      const result = awaitcreateUser.verifyMobileEmail(fakeData);
+      const result = await createUser.verifyMobileEmail(fakeData);
 
       expect(result).to.be.deep.equal({
         success: true,
@@ -2781,6 +2620,257 @@ describe("create-user-util", function () {
         status: httpStatus.INTERNAL_SERVER_ERROR,
       });
       sinon.assert.calledOnce(transporter.sendMail);
+    });
+  });
+  describe("generateNumericToken()", () => {
+    it("should generate a numeric token of the specified length", () => {
+      const length = 6;
+      const result = createUser.generateNumericToken(length);
+
+      expect(result).to.be.a("string");
+      expect(result).to.have.lengthOf(length);
+      expect(result).to.match(/^\d+$/);
+    });
+
+    it("should generate a different token each time", () => {
+      const length = 6;
+      const result1 = generateNumericToken(length);
+      const result2 = generateNumericToken(length);
+
+      expect(result1).to.not.equal(result2);
+    });
+  });
+  describe("deleteCachedItem (Success case)", () => {
+    let redisStub; // The stub for the 'redis' module
+
+    beforeEach(() => {
+      redisStub = sinon.stub(redis, "del"); // Stub the 'redis.del' method
+    });
+
+    afterEach(() => {
+      redisStub.restore(); // Restore the original behavior of the stubbed method
+    });
+
+    it("should delete the cached item and return the success response", async () => {
+      const cacheID = "test-cache";
+      const numberOfDeletedKeys = 1;
+
+      // Stub Redis del method to return the number of deleted keys
+      redisStub.resolves(numberOfDeletedKeys);
+
+      const result = await createUser.deleteCachedItem(cacheID);
+
+      expect(redisStub.calledOnceWith(cacheID)).to.be.true;
+      expect(result).to.deep.equal({
+        success: true,
+        data: { numberOfDeletedKeys },
+        message: "successfully deleted the cached item",
+        status: httpStatus.OK,
+      });
+    });
+  });
+  describe("deleteCachedItem (Error case)", () => {
+    let redisStub; // The stub for the 'redis' module
+    let loggerErrorStub; // The stub for the logger.error method
+
+    beforeEach(() => {
+      redisStub = sinon.stub(redis, "del"); // Stub the 'redis.del' method
+      loggerErrorStub = sinon.stub(logger, "error"); // Assuming the logger module is already imported
+    });
+
+    afterEach(() => {
+      redisStub.restore(); // Restore the original behavior of the stubbed method
+      loggerErrorStub.restore(); // Restore the original behavior of the logger
+    });
+
+    it("should handle internal server errors and return the appropriate response", async () => {
+      const cacheID = "test-cache";
+      const errorMessage = "Something went wrong";
+
+      // Stub Redis del method to throw an error
+      redisStub.rejects(new Error(errorMessage));
+
+      const result = await createUser.deleteCachedItem(cacheID);
+
+      expect(redisStub.calledOnceWith(cacheID)).to.be.true;
+      expect(
+        loggerErrorStub.calledOnceWith(
+          `Internal Server Error -- ${JSON.stringify(error)}`
+        )
+      ).to.be.true;
+      expect(result).to.deep.equal({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: JSON.stringify(error) },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      });
+    });
+  });
+  describe("verifyFirebaseCustomToken", () => {
+    let logTextStub;
+    let logObjectStub;
+    let generateCacheIDStub;
+    let getCacheStub;
+    let deleteCachedItemStub;
+    let UserModelCreateStub;
+    let UserModelUpdateOneStub;
+
+    beforeEach(() => {
+      logTextStub = sinon.stub(console, "log");
+      logObjectStub = sinon.stub(console, "log");
+      generateCacheIDStub = sinon.stub(createUserModule, "generateCacheID");
+      getCacheStub = sinon.stub(createUserModule, "getCache");
+      deleteCachedItemStub = sinon.stub(createUserModule, "deleteCachedItem");
+      UserModelCreateStub = sinon.stub(UserModel, "create");
+      UserModelUpdateOneStub = sinon.stub(UserModel, "updateOne");
+    });
+
+    afterEach(() => {
+      logTextStub.restore();
+      logObjectStub.restore();
+      generateCacheIDStub.restore();
+      getCacheStub.restore();
+      deleteCachedItemStub.restore();
+      UserModelCreateStub.restore();
+      UserModelUpdateOneStub.restore();
+    });
+
+    // 1. Test case for when the cache ID generation fails
+    it("should return an error response when cache ID generation fails", async () => {
+      generateCacheIDStub.throws(new Error("Cache ID generation failed"));
+
+      // Act
+      const result = await verifyFirebaseCustomToken();
+
+      // Assert
+      expect(result).toEqual({
+        success: false,
+        message: "Cache ID generation failed",
+      });
+    });
+
+    // 2. Test case for when the cache retrieval fails
+    it("should return an error response when cache retrieval fails", async () => {
+      // Arrange
+      getCacheStub.throws(new Error("Cache retrieval failed"));
+
+      // Act
+      const result = await verifyFirebaseCustomToken();
+
+      // Assert
+      expect(result).toEqual({
+        success: false,
+        message: "Cache retrieval failed",
+      });
+    });
+
+    // 3. Test case for when the cache retrieval returns a falsy value
+    it("should return an error response when cache retrieval returns falsy value", async () => {
+      getCacheStub.returns(null);
+
+      // Act
+      const result = await verifyFirebaseCustomToken();
+
+      // Assert
+      expect(result).toEqual({
+        success: false,
+        message: "Cache retrieval returned falsy value",
+      });
+    });
+
+    // 4. Test case for when the cached token is invalid
+    it("should return an error response when the cached token is invalid", async () => {
+      const invalidToken = "invalid_token";
+      getCacheStub.returns(invalidToken);
+
+      // Act
+      const result = await verifyFirebaseCustomToken();
+
+      // Assert
+      expect(result).toEqual({
+        success: false,
+        message: "Invalid token",
+      });
+    });
+
+    // 5. Test case for when the user exists locally
+    it("should update the user and return the expected success response", async () => {
+      const validToken = "valid_token";
+      getCacheStub.returns(validToken);
+      UserModelUpdateOneStub.resolves({ nModified: 1 });
+
+      // Act
+      const result = await verifyFirebaseCustomToken();
+
+      // Assert
+      expect(UserModelUpdateOneStub.calledOnceWith({ token: validToken })).toBe(
+        true
+      );
+      expect(result).toEqual({
+        success: true,
+        message: "User updated successfully",
+      });
+    });
+
+    // 6. Test case for when the user does not exist locally
+    it("should create a new user and return the expected success response", async () => {
+      const validToken = "valid_token";
+      getCacheStub.returns(validToken);
+      UserModelCreateStub.resolves({ _id: "new_user_id" });
+
+      // Act
+      const result = await verifyFirebaseCustomToken();
+
+      // Assert
+      expect(UserModelCreateStub.calledOnceWith({ token: validToken })).toBe(
+        true
+      );
+      expect(result).toEqual({
+        success: true,
+        message: "New user created successfully",
+      });
+    });
+
+    // 7. Test case for when deleting the cached item fails after updating an existing user
+    it("should return an error response when deleting the cached item fails after updating an existing user", async () => {
+      const validToken = "valid_token";
+      getCacheStub.returns(validToken);
+      UserModelUpdateOneStub.resolves({ nModified: 1 });
+      deleteCachedItemStub.throws(new Error("Failed to delete cached item"));
+
+      // Act
+      const result = await verifyFirebaseCustomToken();
+
+      // Assert
+      expect(UserModelUpdateOneStub.calledOnceWith({ token: validToken })).toBe(
+        true
+      );
+      expect(deleteCachedItemStub.calledOnceWith(validToken)).toBe(true);
+      expect(result).toEqual({
+        success: false,
+        message: "Failed to delete cached item",
+      });
+    });
+
+    // 8. Test case for when deleting the cached item fails after creating a new user
+    it("should return an error response when deleting the cached item fails after creating a new user", async () => {
+      const validToken = "valid_token";
+      getCacheStub.returns(validToken);
+      UserModelCreateStub.resolves({ _id: "new_user_id" });
+      deleteCachedItemStub.throws(new Error("Failed to delete cached item"));
+
+      // Act
+      const result = await verifyFirebaseCustomToken();
+
+      // Assert
+      expect(UserModelCreateStub.calledOnceWith({ token: validToken })).toBe(
+        true
+      );
+      expect(deleteCachedItemStub.calledOnceWith(validToken)).toBe(true);
+      expect(result).toEqual({
+        success: false,
+        message: "Failed to delete cached item",
+      });
     });
   });
 });

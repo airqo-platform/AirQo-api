@@ -372,57 +372,6 @@ router.get(
   createUserController.verifyEmail
 );
 
-/**
- * version two of verification
- */
-router.post(
-  "/verification/generate",
-  setJWTAuth,
-  authJWT,
-  createUserController.generateVerificationToken
-);
-
-router.post(
-  "/verification/verify",
-  setJWTAuth,
-  authJWT,
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant should not be empty if provided")
-        .trim()
-        .toLowerCase()
-        .bail()
-        .isIn(["kcca", "airqo"])
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-
-  oneOf([
-    [
-      body("email")
-        .exists()
-        .withMessage("the email must be provided")
-        .bail()
-        .notEmpty()
-        .withMessage("the email must not be empty if provided")
-        .bail()
-        .isEmail()
-        .withMessage("this is not a valid email address"),
-      body("token")
-        .exists()
-        .withMessage("the token is missing in the request")
-        .bail()
-        .trim()
-        .isInt()
-        .withMessage("token must be an integer"),
-    ],
-  ]),
-  createUserController.verifyVerificationToken
-);
-
 router.get(
   "/auth/google/callback",
   setGoogleAuth,
