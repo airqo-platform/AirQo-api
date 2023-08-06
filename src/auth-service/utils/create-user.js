@@ -480,7 +480,7 @@ const createUserModule = {
       const firebaseUserResponse = await createUserModule.lookUpFirebaseUser(
         request
       );
-      console.log("firebaseUserResponse[0]:", firebaseUserResponse[0]);
+      logObject("firebaseUserResponse[0]:", firebaseUserResponse[0]);
 
       if (
         firebaseUserResponse[0].success === true &&
@@ -504,7 +504,7 @@ const createUserModule = {
           await createUserModule.createFirebaseUser({
             body: { email, phoneNumber, password },
           });
-        console.log("firebaseCreateResponse[0]:", firebaseCreateResponse[0]);
+        logObject("firebaseCreateResponse[0]:", firebaseCreateResponse[0]);
 
         if (firebaseCreateResponse[0].success === false) {
           return firebaseCreateResponse[0];
@@ -527,7 +527,7 @@ const createUserModule = {
               constants.RANDOM_PASSWORD_CONFIGURATION(10)
             );
 
-            console.log("newAnalyticsUserDetails:", newAnalyticsUserDetails);
+            logObject("newAnalyticsUserDetails:", newAnalyticsUserDetails);
             const newUser = await UserModel(tenant).create(
               newAnalyticsUserDetails
             );
