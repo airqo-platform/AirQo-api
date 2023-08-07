@@ -27,10 +27,9 @@ from api.utils.dates import str_to_date, date_to_str
 from api.utils.exceptions import ExportRequestNotFound
 from api.utils.http import create_response, Status
 from api.utils.request_validators import validate_request_json, validate_request_params
-from main import rest_api_v1, rest_api_v2
+from main import rest_api_v2
 
 
-@rest_api_v1.errorhandler(ExportRequestNotFound)
 @rest_api_v2.errorhandler(ExportRequestNotFound)
 def batch_not_found_exception(error):
     return (
@@ -43,7 +42,6 @@ def batch_not_found_exception(error):
     )
 
 
-@rest_api_v1.route("/data-download")
 @rest_api_v2.route("/data-download")
 class DataExportResource(Resource):
     @swag_from("/api/docs/dashboard/download_custom_data_post.yml")
@@ -380,7 +378,6 @@ class DataExportV2Resource(Resource):
             )
 
 
-@rest_api_v1.route("/data/summary")
 @rest_api_v2.route("/data/summary")
 class DataSummaryResource(Resource):
     @validate_request_json(
