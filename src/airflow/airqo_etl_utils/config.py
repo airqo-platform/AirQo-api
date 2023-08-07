@@ -56,7 +56,6 @@ class Config:
     # AirQo
     POST_EVENTS_BODY_SIZE = os.getenv("POST_EVENTS_BODY_SIZE", 10)
     POST_WEATHER_BODY_SIZE = os.getenv("POST_EVENTS_BODY_SIZE", 10)
-    AIRQO_BASE_URL = os.getenv("AIRQO_BASE_URL")
     CALIBRATION_BASE_URL = os.getenv("CALIBRATION_BASE_URL")
     AIRQO_BASE_URL_V2 = os.getenv("AIRQO_BASE_URL_V2")
     AIRQO_API_KEY = os.getenv("AIRQO_API_KEY")

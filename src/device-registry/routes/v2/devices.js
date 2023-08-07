@@ -64,6 +64,38 @@ router.post(
   deviceController.decryptKey
 );
 
+router.post(
+  "/decrypt/bulk",
+  oneOf([
+    body()
+      .isArray()
+      .withMessage("the request body should be an array"),
+  ]),
+  oneOf([
+    [
+      body("*.encrypted_key")
+        .exists()
+        .trim()
+        .withMessage("encrypted_key is missing")
+        .bail()
+        .notEmpty()
+        .withMessage(
+          "the encrypted_key should not be empty for all provided entries"
+        ),
+      body("*.device_number")
+        .exists()
+        .trim()
+        .withMessage("device_number is missing in one of the inputs")
+        .bail()
+        .isInt()
+        .withMessage(
+          "the device_number in some of the inputs should be an integer value"
+        ),
+    ],
+  ]),
+  deviceController.decryptManyKeys
+);
+
 router.put(
   "/encrypt",
   oneOf([

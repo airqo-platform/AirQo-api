@@ -60,8 +60,9 @@ const mailer = {
         },
         to: `${email}`,
         subject: "AirQo Analytics JOIN request",
-        text: msgs.joinRequest(firstName, lastName),
+        html: msgs.joinRequest(firstName, lastName, email),
         bcc,
+        attachments: attachments,
       };
 
       let response = transporter.sendMail(mailOptions);
@@ -317,6 +318,89 @@ const mailer = {
     }
   },
 
+  verifyMobileEmail: async ({
+    firebase_uid = "",
+    token = "",
+    email = "",
+  } = {}) => {
+    try {
+      const imagePath = path.join(__dirname, "../config/images");
+      let bcc = constants.REQUEST_ACCESS_EMAILS;
+      let mailOptions = {};
+      mailOptions = {
+        from: {
+          name: constants.EMAIL_NAME,
+          address: constants.EMAIL,
+        },
+        to: `${email}`,
+        subject: "Your Login Code for AirQo Mobile",
+        html: msgTemplates.mobileEmailVerification({
+          email,
+          firebase_uid,
+          token,
+        }),
+        bcc,
+        attachments: [
+          {
+            filename: "airqoLogo.png",
+            path: imagePath + "/airqoLogo.png",
+            cid: "AirQoEmailLogo",
+            contentDisposition: "inline",
+          },
+          {
+            filename: "faceBookLogo.png",
+            path: imagePath + "/facebookLogo.png",
+            cid: "FacebookLogo",
+            contentDisposition: "inline",
+          },
+          {
+            filename: "youtubeLogo.png",
+            path: imagePath + "/youtubeLogo.png",
+            cid: "YoutubeLogo",
+            contentDisposition: "inline",
+          },
+          {
+            filename: "twitterLogo.png",
+            path: imagePath + "/Twitter.png",
+            cid: "Twitter",
+            contentDisposition: "inline",
+          },
+          {
+            filename: "linkedInLogo.png",
+            path: imagePath + "/linkedInLogo.png",
+            cid: "LinkedInLogo",
+            contentDisposition: "inline",
+          },
+        ],
+      };
+
+      let response = transporter.sendMail(mailOptions);
+      let data = await response;
+      if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
+        return {
+          success: true,
+          message: "email successfully sent",
+          data,
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: false,
+          message: "email not sent",
+          errors: { message: data },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
   afterEmailVerification: async ({
     firstName = "",
     username = "",
@@ -416,38 +500,7 @@ const mailer = {
         to: `${email}`,
         subject: "Verify your email address!",
         html: msgs.join_by_email(email, token),
-        attachments: [
-          {
-            filename: "airqoLogo.png",
-            path: imagePath + "/airqoLogo.png",
-            cid: "AirQoEmailLogo",
-            contentDisposition: "inline",
-          },
-          {
-            filename: "faceBookLogo.png",
-            path: imagePath + "/facebookLogo.png",
-            cid: "FacebookLogo",
-            contentDisposition: "inline",
-          },
-          {
-            filename: "youtubeLogo.png",
-            path: imagePath + "/youtubeLogo.png",
-            cid: "YoutubeLogo",
-            contentDisposition: "inline",
-          },
-          {
-            filename: "twitterLogo.png",
-            path: imagePath + "/Twitter.png",
-            cid: "Twitter",
-            contentDisposition: "inline",
-          },
-          {
-            filename: "linkedInLogo.png",
-            path: imagePath + "/linkedInLogo.png",
-            cid: "LinkedInLogo",
-            contentDisposition: "inline",
-          },
-        ],
+        attachments: attachments,
       };
       let response = transporter.sendMail(mailOptions);
       let data = await response;

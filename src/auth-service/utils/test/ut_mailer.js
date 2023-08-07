@@ -5,20 +5,15 @@ const mailer = require("@utils/mailer");
 const msgTemplates = require("@utils/email.templates");
 const constants = require("@config/constants");
 const msgs = require("@utils/email.msgs");
+const transporter = require("@config/mailer");
 
 describe("mailer", () => {
   describe("candidate", () => {
-    let fakeTransporter;
     let sendMailStub;
 
     before(() => {
-      // Create a fake transporter object for mocking the sendMail function
-      fakeTransporter = {
-        sendMail: () => {},
-      };
-
       // Create a stub for the sendMail function to simulate sending emails
-      sendMailStub = sinon.stub(fakeTransporter, "sendMail");
+      sendMailStub = sinon.stub(transporter, "sendMail");
     });
 
     afterEach(() => {
@@ -38,7 +33,6 @@ describe("mailer", () => {
       const email = "john.doe@example.com";
       const tenant = "airqo";
 
-      // Set up the response from the fake transporter
       const response = {
         accepted: [email],
         rejected: [],
@@ -60,16 +54,21 @@ describe("mailer", () => {
 
       // Assert that the sendMail function was called with the correct parameters
       expect(sendMailStub.calledOnce).to.be.true;
-      expect(sendMailStub.firstCall.args[0]).to.deep.equal({
-        from: {
-          name: "Your Email Name",
-          address: "your.email@example.com",
-        },
-        to: email,
-        subject: "AirQo Analytics JOIN request",
-        text: "Join request email content with first name: John and last name: Doe",
-        bcc: constants.REQUEST_ACCESS_EMAILS, // Replace this with the correct value from constants
+      expect(sendMailStub.firstCall.args[0].from).to.deep.equal({
+        name: constants.EMAIL_NAME,
+        address: constants.EMAIL,
       });
+      expect(sendMailStub.firstCall.args[0].to).to.equal(email);
+      expect(sendMailStub.firstCall.args[0].subject).to.equal(
+        "AirQo Analytics JOIN request"
+      );
+      expect(sendMailStub.firstCall.args[0].html).to.equal(
+        msgs.joinRequest(firstName, lastName, email)
+      );
+      expect(sendMailStub.firstCall.args[0].bcc).to.equal(
+        constants.REQUEST_ACCESS_EMAILS
+      );
+      expect(sendMailStub.firstCall.args[0].to).to.equal(email);
     });
 
     it("should handle email not sent scenario and return error response", async () => {
@@ -101,16 +100,18 @@ describe("mailer", () => {
 
       // Assert that the sendMail function was called with the correct parameters
       expect(sendMailStub.calledOnce).to.be.true;
-      expect(sendMailStub.firstCall.args[0]).to.deep.equal({
-        from: {
-          name: "Your Email Name",
-          address: "your.email@example.com",
-        },
-        to: email,
-        subject: "AirQo Analytics JOIN request",
-        text: "Join request email content with first name: Jane and last name: Smith",
-        bcc: "", // BCC should be an empty string for another-tenant
+      expect(sendMailStub.firstCall.args[0].from).to.deep.equal({
+        name: constants.EMAIL_NAME,
+        address: constants.EMAIL,
       });
+      expect(sendMailStub.firstCall.args[0].to).to.equal(email);
+      expect(sendMailStub.firstCall.args[0].subject).to.equal(
+        "AirQo Analytics JOIN request"
+      );
+      expect(sendMailStub.firstCall.args[0].html).to.equal(
+        msgs.joinRequest(firstName, lastName, email)
+      );
+      expect(sendMailStub.firstCall.args[0].to).to.equal(email);
     });
 
     it("should handle internal server error and return error response", async () => {
@@ -137,16 +138,18 @@ describe("mailer", () => {
 
       // Assert that the sendMail function was called with the correct parameters
       expect(sendMailStub.calledOnce).to.be.true;
-      expect(sendMailStub.firstCall.args[0]).to.deep.equal({
-        from: {
-          name: "Your Email Name",
-          address: "your.email@example.com",
-        },
-        to: email,
-        subject: "AirQo Analytics JOIN request",
-        text: "Join request email content with first name: Error and last name: Test",
-        bcc: constants.REQUEST_ACCESS_EMAILS, // Replace this with the correct value from constants
+      expect(sendMailStub.firstCall.args[0].from).to.deep.equal({
+        name: constants.EMAIL_NAME,
+        address: constants.EMAIL,
       });
+      expect(sendMailStub.firstCall.args[0].to).to.equal(email);
+      expect(sendMailStub.firstCall.args[0].subject).to.equal(
+        "AirQo Analytics JOIN request"
+      );
+      expect(sendMailStub.firstCall.args[0].html).to.equal(
+        msgs.joinRequest(firstName, lastName, email)
+      );
+      expect(sendMailStub.firstCall.args[0].to).to.equal(email);
     });
   });
   describe("inquiry", () => {
@@ -1590,6 +1593,95 @@ describe("mailer", () => {
     });
 
     // Add more tests for other cases...
+  });
+  describe("verifyMobileEmail()", () => {
+    let transporterStub;
+
+    beforeEach(() => {
+      transporterStub = sinon
+        .stub()
+        .resolves({ accepted: ["test@example.com"], rejected: [] });
+    });
+
+    afterEach(() => {
+      sinon.restore();
+    });
+
+    it("should send email successfully", async () => {
+      sinon.stub(transporter, "sendMail").callsFake(transporterStub);
+
+      const result = await mailer.verifyMobileEmail({
+        firebase_uid: "firebase_uid",
+        token: "token",
+        email: "test@example.com",
+      });
+
+      expect(result).to.deep.equal({
+        success: true,
+        message: "email successfully sent",
+        data: { accepted: ["test@example.com"], rejected: [] },
+        status: httpStatus.OK,
+      });
+      expect(transporter.sendMail.calledOnce).to.be.true;
+    });
+
+    it("should handle email sending failure", async () => {
+      transporterStub.rejects(new Error("Email sending failed"));
+
+      sinon.stub(transporter, "sendMail").callsFake(transporterStub);
+
+      const result = await mailer.verifyMobileEmail({
+        firebase_uid: "firebase_uid",
+        token: "token",
+        email: "test@example.com",
+      });
+
+      expect(result).to.deep.equal({
+        success: false,
+        message: "email not sent",
+        errors: { message: new Error("Email sending failed") },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      });
+      expect(transporter.sendMail.calledOnce).to.be.true;
+    });
+
+    it("should handle internal server error", async () => {
+      sinon
+        .stub(transporter, "sendMail")
+        .throws(new Error("Internal Server Error"));
+
+      const result = await mailer.verifyMobileEmail({
+        firebase_uid: "firebase_uid",
+        token: "token",
+        email: "test@example.com",
+      });
+
+      expect(result).to.deep.equal({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: new Error("Internal Server Error") },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      });
+      expect(transporter.sendMail.calledOnce).to.be.true;
+    });
+  });
+  describe("mobileEmailVerification()", () => {
+    it("should generate the email HTML content correctly", () => {
+      const result = mobileEmailVerification({
+        email: "test@example.com",
+        firebase_uid: "firebase_uid",
+        token: "12345",
+      });
+
+      expect(result).to.be.a("string");
+      expect(result).to.contain("Welcome to AirQo Analytics");
+      expect(result).to.contain("Thank you for choosing AirQo Mobile!");
+      expect(result).to.contain("Your Login Code for AirQo Mobile");
+      expect(result).to.contain("12345");
+      expect(result).to.contain(
+        "You can set a permanent password anytime within your AirQo Analytics personal settings"
+      );
+    });
   });
 
   // Add more describe blocks for other mailer functions if needed...

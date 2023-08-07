@@ -1087,6 +1087,8 @@ const createNetwork = {
               category: 1,
               country: 1,
               description: 1,
+              "role.role_name": 1,
+              "role._id": 1,
             },
           },
         ])
