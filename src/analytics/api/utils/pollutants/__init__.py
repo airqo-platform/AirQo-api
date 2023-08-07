@@ -5,6 +5,6 @@ from .pm_25 import (
     PM_COLOR_CATEGORY,
     categorise_pm25_values,
     set_pm25_category_background,
-    get_pollutant_category
+    get_pollutant_category,
 )
 from .units import POLLUTANT_MEASUREMENT_UNITS

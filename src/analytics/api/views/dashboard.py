@@ -22,6 +22,7 @@ from api.utils.pollutants import (
 from api.utils.request_validators import validate_request_json
 from main import rest_api_v2
 
+
 @rest_api_v2.route("/dashboard/chart/data")
 class ChartDataResource(Resource):
     @swag_from("/api/docs/dashboard/customised_chart_post.yml")

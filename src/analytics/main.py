@@ -14,11 +14,12 @@ from marshmallow import ValidationError as MarshmallowValidationError
 # middlewares
 from api.middlewares import middleware_blueprint
 from api.middlewares.base_validator import ValidationError
+
 # Config
 from config import CONFIGURATIONS, API_V2_BASE_URL
 
 rest_api = Api(doc=False)
-rest_api_v2 = Namespace(name='v2', description='API version 2', path=API_V2_BASE_URL)
+rest_api_v2 = Namespace(name="v2", description="API version 2", path=API_V2_BASE_URL)
 rest_api.add_namespace(rest_api_v2)
 cache = Cache()
 
@@ -52,9 +53,9 @@ def handle_marshmallow_exception(error):
     """Error handler called when a marshmallow ValidationError is raised"""
 
     error_message = {
-        'message': 'An error occurred',
-        'status': 'error',
-        'errors': error.messages
+        "message": "An error occurred",
+        "status": "error",
+        "errors": error.messages,
     }
     return jsonify(error_message), 400
 

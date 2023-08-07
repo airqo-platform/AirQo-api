@@ -158,7 +158,6 @@ def get_pollutant_category(value, pollutant):
         raise Exception(f"Unknown category {pollutant}")
 
     for key, (min_value, max_value) in category_mapper.items():
-
         if min_value < value <= max_value:
             return key
 

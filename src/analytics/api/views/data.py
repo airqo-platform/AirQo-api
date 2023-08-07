@@ -33,11 +33,7 @@ from main import rest_api_v2
 @rest_api_v2.errorhandler(ExportRequestNotFound)
 def batch_not_found_exception(error):
     return (
-        create_response(
-            error.message,
-            data={},
-            success=False
-        ),
+        create_response(error.message, data={}, success=False),
         Status.HTTP_400_BAD_REQUEST,
     )
 
@@ -357,9 +353,7 @@ class DataExportV2Resource(Resource):
         export_request = data_export_model.get_request_by_id(request_id)
         export_request.status = DataExportStatus.SCHEDULED
         export_request.retries = 3
-        success = data_export_model.update_request_status_and_retries(
-            export_request
-        )
+        success = data_export_model.update_request_status_and_retries(export_request)
         if success:
             return (
                 create_response(
