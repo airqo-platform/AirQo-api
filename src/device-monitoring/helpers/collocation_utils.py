@@ -564,12 +564,17 @@ def compute_data_completeness_using_hourly_records(
         try:
             device_data = data.get(device, pd.DataFrame())
             device_data.dropna(subset=[collocation_batch.data_completeness_parameter], inplace=True)
-            device_data = device_data.resample("1H", on="timestamp").mean(numeric_only=True)
-            device_data.dropna(subset=list(set(device_data.columns.to_list()).difference(["timestamp"])), inplace=True)
-            device_completeness = round(len(device_data.index) / expected_records, 2)
-            device_completeness = 1 if device_completeness > 1 else device_completeness
-            missing = round(1 - device_completeness, 2)
 
+            if len(device_data.index) == 0:
+                device_completeness = 0.0
+
+            else:
+                device_data = device_data.resample("1H", on="timestamp").mean(numeric_only=True)
+                device_data.dropna(subset=list(set(device_data.columns.to_list()).difference(["timestamp"])), inplace=True)
+                device_completeness = round(len(device_data.index) / expected_records, 2)
+                device_completeness = 1 if device_completeness > 1 else device_completeness
+
+            missing = round(1 - device_completeness, 2)
             completeness.append(
                 DataCompleteness(
                     device_name=device,

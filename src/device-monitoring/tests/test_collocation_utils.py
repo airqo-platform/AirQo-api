@@ -26,7 +26,7 @@ def collocation_batch():
     return CollocationBatch(
         batch_id="",
         batch_name=str(str(uuid.uuid4()).replace("-", "")[:8]).upper(),
-        devices=["x", "y"],
+        devices=["x", "y", "z"],
         base_device="",
         start_date=start_date,
         end_date=end_date,
@@ -78,25 +78,33 @@ def generate_dumpy_data(device_name: str, num_rows, start_time, end_time):
 def test_compute_data_completeness_using_hourly_data(collocation_batch):
     no_of_hours = (collocation_batch.end_date - collocation_batch.start_date).days * 24
 
-    num_of_y_device_rows = int(
-        no_of_hours * collocation_batch.data_completeness_threshold
-    )
-    num_of_x_device_rows = no_of_hours - num_of_y_device_rows
-
+    data_rows = {
+        "y": int(no_of_hours * collocation_batch.data_completeness_threshold),
+        "z": 0,
+    }
+    data_rows["x"] = no_of_hours - data_rows["y"]
     data = {
         "x": generate_dumpy_data(
             "x",
-            num_of_x_device_rows,
+            data_rows["x"],
             start_time=collocation_batch.start_date,
             end_time=collocation_batch.end_date,
         ),
         "y": generate_dumpy_data(
             "y",
-            num_of_y_device_rows,
+            data_rows["y"],
+            start_time=collocation_batch.start_date,
+            end_time=collocation_batch.end_date,
+        ),
+        "z": generate_dumpy_data(
+            "z",
+            data_rows["z"],
             start_time=collocation_batch.start_date,
             end_time=collocation_batch.end_date,
         ),
     }
+
+    assert list(data.keys()) == collocation_batch.devices
 
     result = compute_data_completeness_using_hourly_records(
         collocation_batch=collocation_batch,
@@ -104,14 +112,12 @@ def test_compute_data_completeness_using_hourly_data(collocation_batch):
     )
     assert isinstance(result, DataCompletenessResult)
     assert result.passed_devices == ["y"]
-    assert result.failed_devices == ["x"]
+    assert result.failed_devices == ["x", "z"]
     assert result.error_devices == []
-    assert len(result.results) == 2
+    assert len(result.results) == 3
 
     for result in result.results:
-        num_of_device_rows = (
-            num_of_x_device_rows if result.device_name == "x" else num_of_y_device_rows
-        )
+        num_of_device_rows = data_rows[result.device_name]
         assert round(num_of_device_rows / no_of_hours, 2) >= result.completeness
         assert (
             round((no_of_hours - num_of_device_rows) / no_of_hours, 2) >= result.missing
