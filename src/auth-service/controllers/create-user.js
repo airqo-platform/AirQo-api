@@ -218,123 +218,6 @@ const createUser = {
       });
     }
   },
-  generateVerificationToken: async (req, res) => {
-    try {
-      const { query, body } = req;
-      let { tenant } = query;
-      logText("We are generating the verification code.....");
-      const hasErrors = !validationResult(req).isEmpty();
-
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
-        );
-      }
-      let request = Object.assign({}, req);
-      if (isEmpty(tenant)) {
-        request.query.tenant = "airqo";
-      }
-
-      const responseFromGenerateVerificationToken =
-        await controlAccessUtil.generateVerificationToken(request);
-
-      logObject(
-        "responseFromGenerateVerificationToken",
-        responseFromGenerateVerificationToken
-      );
-
-      if (responseFromGenerateVerificationToken.success === true) {
-        const status = responseFromGenerateVerificationToken.status
-          ? responseFromGenerateVerificationToken.status
-          : httpStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: "Token generated and sent to user's email address",
-          token: responseFromGenerateVerificationToken.token,
-        });
-      } else if (responseFromGenerateVerificationToken.success === false) {
-        const status = responseFromGenerateVerificationToken.status
-          ? responseFromGenerateVerificationToken.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: responseFromGenerateVerificationToken.message,
-          errors: responseFromGenerateVerificationToken.errors
-            ? responseFromGenerateVerificationToken.errors
-            : { message: "internal server errors" },
-        });
-      }
-    } catch (error) {
-      logObject("error", error);
-      logger.error(`Internal Server Error ${error.message}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "internal server error",
-        errors: { message: error.message },
-      });
-    }
-  },
-  verifyVerificationToken: async (req, res) => {
-    try {
-      const { query, body } = req;
-      let { tenant } = query;
-      logText("we are verifying the email.....");
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          convertErrorArrayToObject(nestedErrors)
-        );
-      }
-      let request = Object.assign({}, req);
-      if (isEmpty(tenant)) {
-        request.query.tenant = "airqo";
-      }
-
-      const responseFromVerifyVerificationToken =
-        await controlAccessUtil.verifyVerificationToken(request);
-
-      logObject(
-        "responseFromVerifyVerificationToken",
-        responseFromVerifyVerificationToken
-      );
-
-      if (responseFromVerifyVerificationToken.success === true) {
-        const status = responseFromVerifyVerificationToken.status
-          ? responseFromVerifyVerificationToken.status
-          : httpStatus.OK;
-        res.status(status).json({
-          success: true,
-          message: "token verified sucessfully",
-          sign_in_link: responseFromVerifyVerificationToken.data,
-        });
-      } else if (responseFromVerifyVerificationToken.success === false) {
-        const status = responseFromVerifyVerificationToken.status
-          ? responseFromVerifyVerificationToken.status
-          : httpStatus.INTERNAL_SERVER_ERROR;
-        return res.status(status).json({
-          success: false,
-          message: responseFromVerifyVerificationToken.message,
-          errors: responseFromVerifyVerificationToken.errors
-            ? responseFromVerifyVerificationToken.errors
-            : { message: "internal server errors" },
-        });
-      }
-    } catch (error) {
-      logObject("error", error);
-      logger.error(`Internal Server Error ${error.message}`);
-      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "internal server error",
-        errors: { message: error.message },
-      });
-    }
-  },
 
   verify: (req, res) => {
     return res.status(httpStatus.OK).json({
@@ -440,7 +323,6 @@ const createUser = {
 
   lookUpFirebaseUser: async (req, res) => {
     try {
-      const { email, phoneNumber, uid, providerId, providerUid } = req.body;
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         logObject("hasErrors", hasErrors);
@@ -459,54 +341,36 @@ const createUser = {
         );
       }
 
-      let request = {};
-      request["body"] = {};
-      request["body"]["email"] = email;
-      request["body"]["phoneNumber"] = phoneNumber;
-      request["body"]["uid"] = uid;
-      request["body"]["providerId"] = providerId;
-      request["body"]["providerUid"] = providerUid;
-
-      function cleanObject(obj) {
-        for (key in obj) {
-          if (typeof obj[key] === "object") {
-            cleanObject(obj[key]);
-          } else if (
-            typeof obj[key] === "undefined" ||
-            typeof obj[key] === null
-          ) {
-            delete obj[key];
-          }
-        }
-        return obj;
+      let request = Object.assign({}, req);
+      let { tenant } = req.query;
+      if (!isEmpty(tenant)) {
+        request.query.tenant = "airqo";
       }
-      cleanObject(request);
-      await createUserUtil.lookUpFirebaseUser(request, (result) => {
-        if (result.success === true) {
-          const status = result.status ? result.status : httpStatus.OK;
-          return res.status(status).json({
-            success: true,
-            message: result.message,
-            user: result.data,
-            exists: true,
-            status: "exists",
-          });
-        } else if (result.success === false) {
-          const status = result.status
-            ? result.status
-            : httpStatus.INTERNAL_SERVER_ERROR;
-          const errors = result.errors
-            ? result.errors
-            : { message: "Internal Server Error" };
 
-          return res.status(status).json({
-            success: false,
-            message: "User does not exist",
-            exists: false,
-            errors,
-          });
-        }
-      });
+      const result = await createUserUtil.lookUpFirebaseUser(request);
+      if (result[0].success === true) {
+        const status = result[0].status ? result[0].status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: result[0].message,
+          user: result[0].data,
+          exists: true,
+          status: "exists",
+        });
+      } else if (result[0].success === false) {
+        const status = result[0].status
+          ? result[0].status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+
+        return res.status(status).json({
+          success: false,
+          message: "User does not exist",
+          exists: false,
+          errors: result[0].errors
+            ? result[0].errors
+            : { message: "Internal Server Error" },
+        });
+      }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
@@ -520,7 +384,6 @@ const createUser = {
 
   signUpWithFirebase: async (req, res) => {
     try {
-      const { email, phoneNumber, uid, providerId, providerUid } = req.body;
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         logObject("hasErrors", hasErrors);
@@ -544,46 +407,29 @@ const createUser = {
         request.query.tenant = "airqo";
       }
 
-      function cleanObject(obj) {
-        for (key in obj) {
-          if (typeof obj[key] === "object") {
-            cleanObject(obj[key]);
-          } else if (
-            typeof obj[key] === "undefined" ||
-            typeof obj[key] === null
-          ) {
-            delete obj[key];
-          }
-        }
-        return obj;
-      }
-      cleanObject(request);
-      await createUserUtil.signUpWithFirebasee(request, (result) => {
-        if (result.success === true) {
-          const status = result.status ? result.status : httpStatus.OK;
-          return res.status(status).json({
-            success: true,
-            message: result.message,
-            user: result.data,
-            exists: true,
-            status: "exists",
-          });
-        } else if (result.success === false) {
-          const status = result.status
-            ? result.status
-            : httpStatus.INTERNAL_SERVER_ERROR;
-          const errors = result.errors
+      const result = await createUserUtil.signUpWithFirebase(request);
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: result.message,
+          user: result.data,
+          exists: true,
+          status: "exists",
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: "Unable to signup with Firebase",
+          exists: false,
+          errors: result.errors
             ? result.errors
-            : { message: "Internal Server Error" };
-
-          return res.status(status).json({
-            success: false,
-            message: "Unable to signup with Firebase",
-            exists: false,
-            errors,
-          });
-        }
-      });
+            : { message: "Internal Server Error" },
+        });
+      }
     } catch (error) {
       logger.error(`Internal Server Error ${JSON.stringify(error)}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
@@ -621,32 +467,31 @@ const createUser = {
         request.query.tenant = "airqo";
       }
 
-      await createUserUtil.loginWithFirebase(request, (result) => {
-        if (result.success === true) {
-          const status = result.status ? result.status : httpStatus.OK;
-          return res.status(status).json({
-            success: true,
-            message: result.message,
-            user: result.data,
-            exists: true,
-            status: "exists",
-          });
-        } else if (result.success === false) {
-          const status = result.status
-            ? result.status
-            : httpStatus.INTERNAL_SERVER_ERROR;
-          const errors = result.errors
-            ? result.errors
-            : { message: "Internal Server Error" };
+      const result = await createUserUtil.loginWithFirebase(request);
+      logObject("result", result);
 
-          return res.status(status).json({
-            success: false,
-            message: "Unable to login with Firebase",
-            exists: false,
-            errors,
-          });
-        }
-      });
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: result.message,
+          ...result.data,
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        const errors = result.errors
+          ? result.errors
+          : { message: "Internal Server Error" };
+
+        return res.status(status).json({
+          success: false,
+          message: "Unable to login with Firebase",
+          exists: false,
+          errors,
+        });
+      }
     } catch (error) {
       logger.error(`Internal Server Error ${JSON.stringify(error)}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
@@ -654,6 +499,63 @@ const createUser = {
         message: "Internal Server Error",
         errors: { message: error.message },
         error: error.message,
+      });
+    }
+  },
+
+  verifyFirebaseCustomToken: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        logObject("hasErrors", hasErrors);
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+
+        logger.error(
+          `input validation errors ${JSON.stringify(
+            convertErrorArrayToObject(nestedErrors)
+          )}`
+        );
+
+        return badRequest(
+          res,
+          "Unable to signup with Firebase",
+          convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      let { tenant } = req.query;
+      let request = Object.assign({}, req);
+      if (isEmpty(tenant)) {
+        request.query.tenant = "airqo";
+      }
+
+      const result = await createUserUtil.verifyFirebaseCustomToken(request);
+      logObject("the result from the verify request", result);
+      if (result.success === true) {
+        const status = result.status ? result.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: result.message,
+          ...result.data,
+        });
+      } else if (result.success === false) {
+        const status = result.status
+          ? result.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: "Unable to login with Firebase",
+          exists: false,
+          errors: result.errors
+            ? result.errors
+            : { message: "Internal Server Error" },
+        });
+      }
+    } catch (error) {
+      logger.error(`Internal Server Error ${JSON.stringify(error)}`);
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
       });
     }
   },
@@ -680,50 +582,32 @@ const createUser = {
 
       logText("createFirebaseUser controller......");
 
-      function cleanObject(obj, visited = new Set()) {
-        visited.add(obj);
-
-        for (const key in obj) {
-          if (typeof obj[key] === "object" && obj[key] !== null) {
-            if (!visited.has(obj[key])) {
-              cleanObject(obj[key], visited);
-            }
-          } else if (typeof obj[key] === "undefined" || obj[key] === null) {
-            delete obj[key];
-          }
-        }
-
-        return obj;
-      }
-
       let request = Object.assign({}, req);
-      // cleanObject(request);
-      await createUserUtil.createFirebaseUser(request, (result) => {
-        if (result.success === true) {
-          const status = result.status ? result.status : httpStatus.OK;
-          return res.status(status).json({
-            success: true,
-            message: result.message,
-            user: result.data,
-            exists: true,
-            status: "exists",
-          });
-        } else if (result.success === false) {
-          const status = result.status
-            ? result.status
-            : httpStatus.INTERNAL_SERVER_ERROR;
-          const errors = result.errors
-            ? result.errors
-            : { message: "Internal Server Error" };
 
-          return res.status(status).json({
-            success: false,
-            message: "Unable to create user",
-            exists: false,
-            errors,
-          });
-        }
-      });
+      const result = await createUserUtil.createFirebaseUser(request);
+      logObject("result", result[0]);
+      if (result[0].success === true) {
+        const status = result[0].status ? result[0].status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: result[0].message,
+          user: result[0].data[0],
+          exists: true,
+          status: "exists",
+        });
+      } else if (result[0].success === false) {
+        logText("we are falsing here..");
+        const status = result[0].status
+          ? result[0].status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: result[0].message,
+          errors: result[0].errors
+            ? result[0].errors
+            : { message: "Internal Server Error" },
+        });
+      }
     } catch (error) {
       logObject("error", error);
       logger.error(`Internal Server Error ${JSON.stringify(error)}`);
@@ -1221,38 +1105,36 @@ const createUser = {
           convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { body, query } = req;
-      let request = {};
-      request["body"] = body;
-      request["query"] = query;
+      let { tenant } = req.query;
+      let request = Object.assign({}, req);
       request["query"]["purpose"] = "login";
-      await createUserUtil.generateSignInWithEmailLink(request, (value) => {
-        if (value.success === true) {
-          const status = value.status ? value.status : httpStatus.OK;
-          return res.status(status).json({
-            success: true,
-            message: value.message,
-            login_link: value.data.link,
-            token: value.data.token,
-            email: value.data.email,
-            emailLinkCode: value.data.emailLinkCode,
-          });
-        }
+      if (!isEmpty(tenant)) {
+        request.query.tenant = "airqo";
+      }
 
-        if (value.success === false) {
-          const status = value.status
-            ? value.status
-            : httpStatus.INTERNAL_SERVER_ERROR;
-          const errors = value.errors
+      const value = await createUserUtil.generateSignInWithEmailLink(request);
+      if (value.success === true) {
+        const status = value.status ? value.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: value.message,
+          login_link: value.data.link,
+          token: value.data.token,
+          email: value.data.email,
+          emailLinkCode: value.data.emailLinkCode,
+        });
+      } else if (value.success === false) {
+        const status = value.status
+          ? value.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: value.message,
+          errors: value.errors
             ? value.errors
-            : { message: "Internal Server Error" };
-          return res.status(status).json({
-            success: false,
-            message: value.message,
-            errors,
-          });
-        }
-      });
+            : { message: "Internal Server Error" },
+        });
+      }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
@@ -1282,40 +1164,39 @@ const createUser = {
         );
       }
       const { body, query, params } = req;
-      let request = {};
-      request["body"] = body;
-      request["query"] = query;
+      let { tenant } = req.query;
+      let request = Object.assign({}, req);
       request["query"]["purpose"] = "auth";
       if (params.purpose) {
         request["query"]["purpose"] = params.purpose;
       }
-      await createUserUtil.generateSignInWithEmailLink(request, (value) => {
-        if (value.success === true) {
-          const status = value.status ? value.status : httpStatus.OK;
-          return res.status(status).json({
-            success: true,
-            message: value.message,
-            token: value.data.token,
-            auth_link: value.data.link,
-            auth_code: value.data.emailLinkCode,
-            email: value.data.email,
-          });
-        }
+      if (!isEmpty(tenant)) {
+        request.query.tenant = "airqo";
+      }
 
-        if (value.success === false) {
-          const status = value.status
-            ? value.status
-            : httpStatus.INTERNAL_SERVER_ERROR;
-          const errors = value.errors
+      const value = await createUserUtil.generateSignInWithEmailLink(request);
+      if (value.success === true) {
+        const status = value.status ? value.status : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: value.message,
+          token: value.data.token,
+          auth_link: value.data.link,
+          auth_code: value.data.emailLinkCode,
+          email: value.data.email,
+        });
+      } else if (value.success === false) {
+        const status = value.status
+          ? value.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: value.message,
+          errors: value.errors
             ? value.errors
-            : { message: "Internal Server Error" };
-          return res.status(status).json({
-            success: false,
-            message: value.message,
-            errors,
-          });
-        }
-      });
+            : { message: "Internal Server Error" },
+        });
+      }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
       return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
