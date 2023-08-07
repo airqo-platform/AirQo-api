@@ -1,4 +1,12 @@
-module.exports = {
+const emailConstants = {
+    greetings: (name) => {
+        return `<tr>
+                                <td
+                                    style="padding-bottom: 24px; color: #344054; font-size: 16px; font-family: Inter; font-weight: 600; line-height: 24px; word-wrap: break-word;">
+                                    Dear ${name},
+                                </td>
+                            </tr>`
+    },
     headerTemplate: () => {
         return `
 <table style="width: 100%; padding-bottom: 24px;">
@@ -66,4 +74,52 @@ module.exports = {
                         </table>
 `;
     },
+
+    fullBody: (email, content, name) => {
+        const footerTemplate = emailConstants.footerTemplate(email);
+        const headerTemplate = emailConstants.headerTemplate();
+        let greetings = emailConstants.greetings(name);
+        if (!name) {
+            greetings = ``;
+        }
+        return `<!DOCTYPE html>
+<html>
+
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+
+    <body style="margin: 0; padding: 0;font-family:Arial, sans-serif;">
+
+        <div style="width: 90%; height: 100%; padding: 32px; background: #F3F6F8;">
+            <!-- Email content container with white background -->
+            <table style="width: 100%; max-width: 1024px; margin: 0 auto; background: white;">
+                <tr>
+                    <td style="padding: 24px;">
+                        <!-- Logo and title section -->
+                         ${headerTemplate}
+
+                        <!-- Email content section -->
+                        <table style="width: 100%;">
+                           ${greetings}
+                            ${content}
+                            <tr>
+                                <td style=" height: 8px; background: #EBF1FF;"></td>
+                            </tr>
+                        </table>
+
+                        <!-- Social media section -->
+                        ${footerTemplate}
+                    </td>
+                </tr>
+            </table>
+        </div>
+
+    </body>
+
+</html>`
+    },
 }
+
+module.exports = emailConstants;

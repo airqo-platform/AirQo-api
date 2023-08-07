@@ -3,6 +3,7 @@ const { expect } = require("chai");
 const sinon = require("sinon");
 const constants = require("@config/constants");
 const msgs = require("../email.msgs");
+const emailConstants = require("@config/emailConstants");
 
 describe("email.msgs", () => {
 
@@ -25,42 +26,8 @@ describe("email.msgs", () => {
       const firstName = "John";
       const lastName = "Doe";
       const email = "john.doe@example.com";
-      const expectedMessage = `<!DOCTYPE html>
-<html>
-
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    </head>
-
-    <body style="margin: 0; padding: 0;font-family:Arial, sans-serif;">
-
-        <div style="width: 90%; height: 100%; padding: 32px; background: #F3F6F8;">
-            <!-- Email content container with white background -->
-            <table style="width: 100%; max-width: 1024px; margin: 0 auto; background: white;">
-                <tr>
-                    <td style="padding: 24px;">
-                        <!-- Logo and title section -->
-                        <table style="width: 100%; padding-bottom: 24px;">
-                            <tr>
-                                <td style="display: flex; align-items: center;">
-                                    <img src="cid:AirQoEmailLogo" alt="logo" style="height: 50px; margin-right: 10px;">
-                                    <span
-                                        style="color: #135DFF; margin-left: auto; font-family: Inter; font-size: 20px; font-weight: 600; line-height: 24px; letter-spacing: 0em; text-align: right;">Breathe
-                                        Clean</span>
-                                </td>
-                            </tr>
-                        </table>
-
-                        <!-- Email content section -->
-                        <table style="width: 100%;">
-                            <tr>
-                                <td
-                                    style="padding-bottom: 24px; color: #344054; font-size: 16px; font-family: Inter; font-weight: 600; line-height: 24px; word-wrap: break-word;">
-                                    Dear ${firstName + " " + lastName},
-                                </td>
-                            </tr>
-                            <tr>
+      const name = firstName + " " + lastName;
+      const content = ` <tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
                                     Your request to join AirQo Analytics has been received, we shall get back to you as soon as possible.
@@ -73,162 +40,105 @@ describe("email.msgs", () => {
                                     <br />Please visit our website to learn more about us. <a href="https://airqo.net/">AirQo</a>
                                     <br />
                                 </td>
-                            </tr>
-                            <tr>
-                                <td style=" height: 8px; background: #EBF1FF;"></td>
-                            </tr>
-                        </table>
-
-                        <!-- Social media section -->
-                        <table style="width: 100%; text-align: center; padding-top: 32px; padding-bottom: 32px;">
-                            <tr>
-                                <td>
-                                    <a href="https://www.facebook.com/AirQo/" target="_blank"><img
-                                            src="cid:FacebookLogo" alt="FacebookLogo"
-                                            style="width: 24px; height: 24px; margin-right: 20px; border-radius: 50%;"></a>
-                                    <a href="https://www.youtube.com/@airqo7875" target="_blank"><img
-                                            src="cid:YoutubeLogo" alt="YoutubeLogo"
-                                            style="width: 24px; height: 24px; margin-right: 20px; border-radius: 50%;"></a>
-                                    <a href="https://www.linkedin.com/company/airqo/" target="_blank"><img
-                                            src="cid:LinkedInLogo" alt="LinkedInLogo"
-                                            style="width: 24px; height: 24px; margin-right: 20px; border-radius: 50%;"></a>
-                                    <a href="https://twitter.com/AirQoProject" target="_blank"><img src="cid:Twitter"
-                                            alt="Twitter"
-                                            style="width: 24px; height: 24px; margin-right: 20px; border-radius: 50%;"></a>
-                                </td>
-                            </tr>
-                        </table>
-
-                        <!-- Footer section -->
-                        <table style="width: 100%; text-align: center;">
-                            <tr>
-                                <td>
-                                    <span
-                                        style="color: #667085; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">This
-                                        email was sent to</span>
-                                    <span
-                                        style="color: #135DFF; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">${email}</span>
-                                    <span
-                                        style="color: #667085; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">.
-                                        If you'd rather not receive this kind of email, you can </span>
-                                    <span
-                                        style="color: #135DFF; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">unsubscribe</span>
-                                    <span
-                                        style="color: #667085; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">
-                                        or </span>
-                                    <span
-                                        style="color: #135DFF; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">manage
-                                        your email preferences.</span><br /><br />
-                                    <span
-                                        style="color: #667085; font-size: 14px; font-family: Inter; font-weight: 400; line-height: 20px; word-wrap: break-word;">©
-                                        2023 AirQo<br /><br />
-                                        Makerere University, Software Systems Centre, Block B, Level 3, College of
-                                        Computing and
-                                        Information Sciences, Plot 56 University Pool Road</span>
-                                </td>
-                            </tr>
-                        </table>
-                    </td>
-                </tr>
-            </table>
-        </div>
-
-    </body>
-
-</html>`;
+                            </tr>`;
+      const expectedMessage = emailConstants.fullBody(email, content, name);
       const joinRequestSpy = sinon.spy(msgs, "joinRequest");
 
       const result = msgs.joinRequest(firstName, lastName, email);
       expect(result).to.equal(expectedMessage);
       expect(joinRequestSpy.calledOnceWith(firstName, lastName, email)).to.be.true;
-
+      joinRequestSpy.restore();
     });
   });
   describe("inquiry", () => {
-    it("should return the correct inquiry message with valid full name", () => {
-      const fullName = "John Doe";
-      const expectedMessage =
-        `Hi John Doe, \n\n` +
-        "We are excited to welcome you to AirQo and we are even more excited \n" +
-        "about what we have got planned. You are already on your way to creating \n" +
-        "beautiful visual products. \n\n" +
-        "Whether you are here for your brand, for a cause, or just for fun---,welcome! \n" +
-        "If there is anything you need, we will be here every step of the way. \n\n" +
-        "Thank you for signing up. If you have any questions, send us a message at\n" +
-        "info@airqo.net or on Twitter. We would love to hear from you.\n\n" +
-        "The AirQo team.";
-      const result = constants.inquiry(fullName);
-      expect(result).to.equal(expectedMessage);
+    it("should return the correct inquiry message with valid full name depending on the category", () => {
+      const name = "John";
+      const email = "john.doe@example.com";
+      const categories = ["policy", "partners", "general", "researchers", "developers", "champions"];
+      for (let category of categories) {
+        let content;
+        switch (category) {
+          case "policy":
+            content = ` <tr>
+                                <td
+                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                                Thank you for getting in touch with us and for your interest in our work.
+                                    <br />
+                                    Kindly let us know how you would like to partner with us and we will get back to you.
+                                    <br />
+                                    Alternatively, you can get in touch with our Policy Engagement Officer Angela Nshimye at angela@airqo.net who will be of
+                                    further support.
+                                    <br />
+                                </td>
+                            </tr>`;
+            break;
+          case "champions":
+            content = ` <tr>
+                                <td
+                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                                Thank you for getting in touch with us and for your interest in being an air quality champion in your community.
+                                    <br />
+                                As an air quality champion, you are key in advocating for clean air practices in your community and urging community
+                                members to take action against air pollution.
+                                    <br />
+                                    Please get in touch with our Marketing and Communications Lead at maclina@airqo.net for further support.
+                                    <br />
+                                </td>
+                            </tr>`;
+            break;
+          case "researchers":
+            content = ` <tr>
+                                <td
+                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                                Thank you for your interest in accessing our air quality data to further research in air quality monitoring and
+                                management,
+                                    <br />
+                            You can visit our website at airqo.net and navigate to <a href="https://airqo.net/explore-data">Explore Data</a> or
+                            click <a href="https://airqo.net/explore-data">here</a> to access data.
+                                    <br />
+                                    If you still need further support, please contact our Data Scientists Richard Sserujogi at Richard@airqo.net or Wabinyai
+                                    Fidel Raja at raja@airqo.net for further support.
+                                    <br />
+                                </td>
+                            </tr>`;
+            break;
+          case "developers":
+            content = `<tr>
+                                <td
+                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                                Thank you for your interest in our work.
+                                    <br />
+                            Please get in touch with our Software Engineering Lead Martin Bbaale at martin@airqo.net for further support.
+                                    <br />
+                                </td>
+                            </tr>`;
+            break;
+          case "general":
+          case "partners":
+          default:
+            content = `<tr>
+                                <td
+                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                                Thank you for getting in touch with us and for your interest in supporting our work in closing the air quality data gaps
+                                in African Cities. We are happy to foster partnerships to advance air quality monitoring and management in African
+                                Cities.
+                                    <br />
+                                    <br />
+                                    Please get in touch with our project lead Professor Engineer at baino@airqo.net or Programme Manager Deo Okure at
+                                    deo@airqo.net for further support.
+                                    <br />
+                                </td>
+                            </tr>`;
+            break;
+        }
+        const expectedMessage = emailConstants.fullBody(email, content, name);
+        const result = msgs.inquiry(name, email, category);
+        expect(result).to.equal(expectedMessage);
+
+      }
     });
   });
-  describe("partner_inquiry", () => {
-    it("should return the correct partner inquiry message with valid full name", () => {
-      const fullName = "Jane Smith";
-      const expectedMessage =
-        `Hi Jane Smith, \n\n` +
-        "Thank you for getting in touch with us and for your interest in \n" +
-        "supporting our work in closing the air quality data gaps in \n" +
-        "African Cities. We are happy to foster partnerships to advance \n" +
-        "air quality monitoring and management in African Cities. \n\n" +
-        "Please get in touch with our project lead Professor Engineer at baino@airqo.net\n" +
-        "or Programme Manager Deo Okure at deo@airqo.net for further support";
-      const result = constants.partner_inquiry(fullName);
-      expect(result).to.equal(expectedMessage);
-    });
-  });
-  describe("policy_inquiry", () => {
-    it("should return the correct policy inquiry message with valid full name", () => {
-      const fullName = "John Doe";
-      const expectedMessage =
-        `Hi John Doe, \n\n` +
-        "Thank you for getting in touch with us and for your interest in our work. \n" +
-        "Kindly let us know how you would like to partner with us and we will get back to you.\n" +
-        "alternatively, you can get in touch with our Policy Engagement Officer \n" +
-        "Angela Nshimye at angela@airqo.net who will be of further support";
-      const result = constants.policy_inquiry(fullName);
-      expect(result).to.equal(expectedMessage);
-    });
-  });
-  describe("community_inquiry", () => {
-    it("should return the correct community inquiry message with valid full name", () => {
-      const fullName = "Jane Smith";
-      const expectedMessage =
-        `Hi Jane Smith, \n\n` +
-        "Thank you for getting in touch with us and for your interest in being an air quality champion in your community. \n" +
-        "As an air quality champion, you are key in advocating for clean air \n" +
-        "practices in your community and urging community members to take action against air pollution \n" +
-        "Please get in touch with our Marketing and Communications Lead at maclina@airqo.net for further support. ";
-      const result = constants.community_inquiry(fullName);
-      expect(result).to.equal(expectedMessage);
-    });
-  });
-  describe("researcher_inquiry", () => {
-    it("should return the correct researcher inquiry message with valid full name", () => {
-      const fullName = "John Doe";
-      const expectedMessage =
-        `Hi John Doe, \n\n` +
-        "Thank you for your interest in accessing our air quality data to  \n" +
-        "further research in air quality monitoring and management.\n" +
-        "You can visit our website at airqo.net and navigate to \n" +
-        "https://airqo.net/explore-data or click here to access data. If \n" +
-        "you still need further support, please contact our Data Scientists  \n" +
-        "Richard Sserujogi at Richard@airqo.net or Wabinyai Fidel Raja at raja@airqo.net for further support.";
-      const result = constants.researcher_inquiry(fullName);
-      expect(result).to.equal(expectedMessage);
-    });
-  });
-  describe("developer_inquiry", () => {
-    it("should return the correct developer inquiry message with valid full name", () => {
-      const fullName = "Jane Smith";
-      const expectedMessage =
-        `Hi Jane Smith, \n\n` +
-        "Thank you for your interest in our work. Please get in touch \n" +
-        "with our Software Engineering Lead \n" +
-        "Martin Bbaale at martin@airqo.net for further support";
-      const result = constants.developer_inquiry(fullName);
-      expect(result).to.equal(expectedMessage);
-    });
-  });
+
   describe("welcome_kcca", () => {
     it("should return the correct welcome message for KCCA with valid inputs", () => {
       const firstName = "John";
@@ -353,12 +263,27 @@ describe("email.msgs", () => {
     it("should return the correct join_by_email message with valid inputs", () => {
       const email = "john.doe@example.com";
       const token = "ABC123";
-      const expectedMessage = `<!DOCTYPE html>
-<html>
-    <!-- The expected HTML content -->
-</html>`;
-      const result = constants.join_by_email(email, token);
+      const content = `<tr>
+                                <td
+                                    style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
+                                To get started with "Knowing Your Air" and Breathing Clean, we need to verify your email address.
+                                    <br /><br />
+                                    Please Enter the code: ${token}
+                                    <br /><br />
+                                    That's it! Once verified, you'll gain access to all the app's features. Enjoy tracking your air quality and making
+                                    informed decisions for a healthier life.
+
+                                    <br />
+                                    <br />
+                                </td>
+                            </tr>`;
+      const expectedMessage = emailConstants.fullBody(email, content);
+      const joinRequestSpy = sinon.spy(msgs, "join_by_email");
+
+      const result = msgs.join_by_email(email, token);
       expect(result).to.equal(expectedMessage);
+      expect(joinRequestSpy.calledOnceWith(email, token)).to.be.true;
+      joinRequestSpy.restore();
     });
   });
   describe("authenticate_email", () => {
