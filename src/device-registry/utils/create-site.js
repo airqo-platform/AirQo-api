@@ -223,10 +223,10 @@ const createSite = {
             };
           }
           if (isEmpty(responseJSON.data)) {
-            logElement("unable to list stations");
+            logElement("Unable to list stations, List of stations is empty.");
             return {
               success: false,
-              message: "unable to list stations",
+              message: "List of stations is empty",
               status: HTTPStatus.NOT_FOUND,
               errors: { message: "unable to list stations" },
               data: [],
