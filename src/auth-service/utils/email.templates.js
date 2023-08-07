@@ -1,5 +1,4 @@
 const constants = require("../config/constants");
-const emailConstants = require("../config/emailConstants");
 module.exports = {
   confirm: (id) => ({
     subject: "AirQo Analytics JOIN request",
@@ -68,31 +67,7 @@ module.exports = {
 
   v2_emailVerification: (email, firstName, user_id, token) => {
       const url = `${constants.PLATFORM_BASE_URL}/api/v1/users/verify/${user_id}/${token}`;
-      const headerTemplate = emailConstants.headerTemplate();
-      const footerTemplate = emailConstants.footerTemplate(email);
-    return `
-<!DOCTYPE html>
-<html>
-
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    </head>
-
-    <body style="margin: 0; padding: 0; font-family:Arial, sans-serif;">
-
-        <div style="width: 90%; height: 100%; padding: 32px; background: #F3F6F8;">
-            <!-- Email content container with white background -->
-            <table style="width: 100%; max-width: 1024px; margin: 0 auto; background: white;">
-                <tr>
-                    <td style="padding: 24px;">
-                        <!-- Logo and title section -->
-                       ${headerTemplate()}
-
-                        <!-- Email content section -->
-                        <table style="width: 100%;">
-                        
-                            <tr>
+    const content = `<tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
                                     Welcome to AirQo Analytics 🎉
@@ -119,23 +94,8 @@ module.exports = {
                                     <br />
                                     <br />
                                 </td>
-                            </tr>
-                            <tr>
-                                <td style=" height: 8px; background: #EBF1FF;"></td>
-                            </tr>
-                        </table>
-
-                        <!-- Social media section -->
-                        ${footerTemplate(email)}
-                    </td>
-                </tr>
-            </table>
-        </div>
-
-    </body>
-
-</html>
-`;
+                            </tr>`;
+    return constants.EMAIL_BODY(email, content);
   },
 
   afterEmailVerification: (firstName, username, password) => {
@@ -207,36 +167,7 @@ module.exports = {
   },
 
     deleteMobileAccountEmail: (email, token) => {
-        const headerTemplate = emailConstants.headerTemplate();
-        const footerTemplate = emailConstants.footerTemplate(email);
-    return `
-    <!DOCTYPE html>
-<html>
-
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    </head>
-
-    <body style="margin: 0; padding: 0;font-family:Arial, sans-serif;">
-
-        <div style="width: 90%; height: 100%; padding: 32px; background: #F3F6F8;">
-            <!-- Email content container with white background -->
-            <table style="width: 100%; max-width: 1024px; margin: 0 auto; background: white;">
-                <tr>
-                    <td style="padding: 24px;">
-                        <!-- Logo and title section -->
-                        ${headerTemplate()}
-
-                        <!-- Email content section -->
-                        <table style="width: 100%;">
-                            <tr>
-                                <td
-                                    style="padding-bottom: 24px; color: #344054; font-size: 16px; font-family: Inter; font-weight: 600; line-height: 24px; word-wrap: break-word;">
-                                    Hello,
-                                </td>
-                            </tr>
-                            <tr>
+      const content = ` <tr>
                                 <td
                                     style="color: #344054; font-size: 16px; font-family: Inter; font-weight: 400; line-height: 24px; word-wrap: break-word;">
                                     We received your request to delete your AirQo account. Before we proceed, we need to verify your identity. Please follow
@@ -256,22 +187,7 @@ module.exports = {
 
                                     <br />
                                 </td>
-                            </tr>
-                            <tr>
-                                <td style=" height: 8px; background: #EBF1FF;"></td>
-                            </tr>
-                        </table>
-
-                        <!-- Social media section -->
-                        ${footerTemplate(email)}
-                    </td>
-                </tr>
-            </table>
-        </div>
-
-    </body>
-
-</html>
-    `
+                            </tr>`;
+      return constants.EMAIL_BODY(email, content);
   },
 };

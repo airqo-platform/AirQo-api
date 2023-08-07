@@ -3,7 +3,6 @@ const { expect } = require("chai");
 const sinon = require("sinon");
 const constants = require("@config/constants");
 const msgs = require("../email.msgs");
-const emailConstants = require("@config/emailConstants");
 
 describe("email.msgs", () => {
 
@@ -41,7 +40,7 @@ describe("email.msgs", () => {
                                     <br />
                                 </td>
                             </tr>`;
-      const expectedMessage = emailConstants.fullBody(email, content, name);
+      const expectedMessage = constants.EMAIL_BODY(email, content, name);
       const joinRequestSpy = sinon.spy(msgs, "joinRequest");
 
       const result = msgs.joinRequest(firstName, lastName, email);
@@ -131,7 +130,7 @@ describe("email.msgs", () => {
                             </tr>`;
             break;
         }
-        const expectedMessage = emailConstants.fullBody(email, content, name);
+        const expectedMessage = constants.EMAIL_BODY(email, content, name);
         const result = msgs.inquiry(name, email, category);
         expect(result).to.equal(expectedMessage);
 
@@ -277,7 +276,7 @@ describe("email.msgs", () => {
                                     <br />
                                 </td>
                             </tr>`;
-      const expectedMessage = emailConstants.fullBody(email, content);
+      const expectedMessage = constants.EMAIL_BODY(email, content);
       const joinRequestSpy = sinon.spy(msgs, "join_by_email");
 
       const result = msgs.join_by_email(email, token);

@@ -1,5 +1,4 @@
 const constants = require("../config/constants");
-const emailConstants = require("../config/emailConstants");
 
 module.exports = {
   confirm: "Email sent, please check your inbox to confirm",
@@ -31,7 +30,7 @@ module.exports = {
                                     <br />
                                 </td>
                             </tr>`;
-        return emailConstants.fullBody(email, content, name);
+      return constants.EMAIL_BODY(email, content, name);
   },
     inquiry: (fullName, email, category) => {
     let content;
@@ -109,7 +108,7 @@ module.exports = {
                             </tr>`;
         break;
     }
-        return emailConstants.fullBody(email, content, fullName);
+      return constants.EMAIL_BODY(email, content, fullName);
   },
 
 
@@ -194,7 +193,7 @@ module.exports = {
                                     <br />
                                 </td>
                             </tr>`;
-        return emailConstants.fullBody(email, content);
+      return constants.EMAIL_BODY(email, content);
   },
   authenticate_email: (token) => {
     return (
