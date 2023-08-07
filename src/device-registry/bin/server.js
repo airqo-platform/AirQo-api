@@ -62,7 +62,7 @@ app.use(
 // Static file serving
 app.use(express.static(path.join(__dirname, "public")));
 
-app.use("/api/v1/devices", require("@routes/v1"));
+// app.use("/api/v1/devices", require("@routes/v1"));
 app.use("/api/v2/devices", require("@routes/v2"));
 
 // Error handling middleware
