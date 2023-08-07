@@ -116,6 +116,7 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
     authenticateWithEmailOptions,
     async (email, password, done) => {
       try {
+        logObject("req", req);
         const service = req.headers["service"];
         logObject("Service", service);
         const user = await UserModel(tenant.toLowerCase())
