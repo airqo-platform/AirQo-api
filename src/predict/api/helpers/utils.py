@@ -238,18 +238,24 @@ def geo_coordinates_cache_key_v2():
 
 
 @cache.memoize(timeout=Config.CACHE_TIMEOUT)
-def get_parish_predictions(parish_name: str, page_size: int, offset: int) -> []:
+def get_parish_predictions(
+    parish: str, district: str, page_size: int, offset: int
+) -> []:
     from app import postgres_db, Predictions
 
     query = postgres_db.session.query(
         func.ST_AsGeoJSON(Predictions.geometry).label("geometry"),
         Predictions.parish.label("parish"),
+        Predictions.district.label("district"),
         Predictions.timestamp.label("timestamp"),
         Predictions.pm2_5.label("pm2_5"),
     )
 
-    if parish_name:
-        query = query.filter(Predictions.parish.ilike(f"%{parish_name}%"))
+    if parish:
+        query = query.filter(Predictions.parish.ilike(f"%{parish}%"))
+
+    if district:
+        query = query.filter(Predictions.district.ilike(f"%{district}%"))
 
     parishes = query.limit(page_size).offset(offset).all()
 
@@ -281,6 +287,7 @@ def get_predictions_by_geo_coordinates_v2(latitude: float, longitude: float) -> 
         return {}
     return {
         "parish": point.parish,
+        "district": point.pm2_5,
         "pm2_5": point.pm2_5,
         "timestamp": point.timestamp,
     }

@@ -49,6 +49,7 @@ postgres_db = SQLAlchemy(application)
 
 class Predictions(postgres_db.Model):
     parish = postgres_db.Column(postgres_db.String(100), primary_key=True)
+    district = postgres_db.Column(postgres_db.String(100), primary_key=True)
     pm2_5 = postgres_db.Column(postgres_db.Float())
     geometry = postgres_db.Column(Geometry("POLYGON"))
     timestamp = postgres_db.Column(postgres_db.DateTime())

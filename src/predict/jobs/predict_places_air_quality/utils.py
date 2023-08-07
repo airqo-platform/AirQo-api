@@ -115,7 +115,7 @@ def get_shapefiles_gdf_from_mongo() -> gpd.GeoDataFrame:
 
 def predict_air_quality(data: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     df = pd.DataFrame(
-        data[["parish", "pm2_5", "square_kilometres", "population_density", "geometry"]]
+        data[["parish", "pm2_5", "district", "square_kilometres", "population_density", "geometry"]]
     )
 
     train_data = df[df["pm2_5"].notna()]
