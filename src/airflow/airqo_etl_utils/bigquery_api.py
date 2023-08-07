@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pandas as pd
 from google.cloud import bigquery
@@ -592,22 +592,21 @@ class BigQueryApi:
             ).mean(numeric_only=True)
             dataframe = dataframe.reset_index()
             dataframe.sort_values(by=["device_name", "timestamp"], inplace=True)
-            new_index = pd.MultiIndex.from_product(
-                [
-                    dataframe["device_name"].unique(),
-                    pd.date_range(
-                        start=dataframe["timestamp"].min(),
-                        end=dataframe["timestamp"].max(),
-                        freq="H",
-                    ),
-                ],
-                names=["device_name", "timestamp"],
+            today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+            last_week = today - timedelta(days=7)
+            hourly_timestamps = pd.DataFrame(
+                pd.date_range(
+                    start=last_week, end=today, freq="H", name="timestamp", tz="UTC"
+                )
             )
-            dataframe = (
-                dataframe.set_index(["device_name", "timestamp"])
-                .reindex(new_index)
-                .reset_index()
-            )
+            final_df = pd.DataFrame()
+            for device in dataframe["device_name"].unique():
+                device_df = dataframe[dataframe["device_name"] == device]
+                device_df = device_df.merge(
+                    hourly_timestamps, on="timestamp", how="right"
+                )
+                device_df = device_df.sort_values(by=["timestamp"])
+                final_df = pd.concat([final_df, device_df])
 
             return dataframe
 

@@ -932,7 +932,7 @@ class AirQoDataUtils:
             raise ValueError("Input must be a dataframe")
 
         required_columns = ["device_name", "s1_pm2_5", "s2_pm2_5"]
-        if not all(col in df.columns for col in required_columns):
+        if not set(required_columns).issubset(set(df.columns.to_list())):
             raise ValueError(
                 f"Input must have the following columns: {required_columns}"
             )
@@ -956,10 +956,10 @@ class AirQoDataUtils:
                 }
             )
             result = pd.concat([result, temp], ignore_index=True)
-            result = result[
-                (result["correlation_fault"] == 1) | (result["missing_data_fault"] == 1)
-            ]
-            result["created_at"] = datetime.now().isoformat(timespec="seconds")
+        result = result[
+            (result["correlation_fault"] == 1) | (result["missing_data_fault"] == 1)
+        ]
+        result["created_at"] = datetime.now().isoformat(timespec="seconds")
         return result
 
     @staticmethod

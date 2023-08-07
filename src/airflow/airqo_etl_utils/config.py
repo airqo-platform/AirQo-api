@@ -148,7 +148,7 @@ class Config:
     FILE_PATH_AIRQO = os.getenv("FILE_PATH_AIRQO")
 
     # mongoDB
-    MONGO_URI = os.getenv("MONGO_GCE_URI")
+    MONGO_URI = os.getenv("MONGO_URI")
     MONGO_DATABASE_NAME = os.getenv("MONGO_DATABASE_NAME")
 
 
