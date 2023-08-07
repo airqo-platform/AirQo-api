@@ -2,11 +2,14 @@ import pytest
 import pandas as pd
 from datetime import datetime
 
-#create a fixture called mongo_fixture that caters for the mongo client, uri, and database name
+
+# create a fixture called mongo_fixture that caters for the mongo client, uri, and database name
 @pytest.fixture(scope="session")
 def mongo_fixture():
     from airqo_etl_utils.mongo_client import MongoClient
+
     return MongoClient(uri="mongodb://localhost:27017", db_name="test_db")
+
 
 class FaultDetectionFixtures:
     @classmethod
@@ -30,7 +33,6 @@ class FaultDetectionFixtures:
                 "s2_pm2_5": [9, 10, 11, 12, 19, 20, 21, 22],
             }
         )
-
 
     @classmethod
     @pytest.fixture(scope="session")
@@ -72,6 +74,6 @@ class FaultDetectionFixtures:
                 "device_name": ["B"],
                 "correlation_fault": [1],
                 "missing_data_fault": [0],
-                "created_at": [datetime.now().isoformat(timespec='seconds')]
+                "created_at": [datetime.now().isoformat(timespec="seconds")],
             }
         )

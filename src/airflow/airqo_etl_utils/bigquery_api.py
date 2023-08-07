@@ -576,10 +576,10 @@ class BigQueryApi:
                CURRENT_DATE(), INTERVAL 7 DAY) 
             ORDER BY device_id, timestamp ASC
            """
-    
+
         job_config = bigquery.QueryJobConfig()
         job_config.use_query_cache = True
-    
+
         try:
             dataframe = (
                 self.client.query(f"{query}", job_config).result().to_dataframe()
@@ -608,10 +608,8 @@ class BigQueryApi:
                 .reindex(new_index)
                 .reset_index()
             )
-    
+
             return dataframe
-    
+
         except Exception as e:
             raise e
-
-

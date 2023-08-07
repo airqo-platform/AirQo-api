@@ -35,7 +35,7 @@ class AirQoDataUtils:
 
     @staticmethod
     def extract_data_from_bigquery(
-            start_date_time, end_date_time, frequency: Frequency
+        start_date_time, end_date_time, frequency: Frequency
     ) -> pd.DataFrame:
         bigquery_api = BigQueryApi()
         if frequency == Frequency.RAW:
@@ -152,7 +152,7 @@ class AirQoDataUtils:
 
     @staticmethod
     def extract_mobile_low_cost_sensors_data(
-            meta_data: list,
+        meta_data: list,
     ) -> pd.DataFrame:
         data = pd.DataFrame()
 
@@ -174,11 +174,11 @@ class AirQoDataUtils:
 
     @staticmethod
     def extract_aggregated_mobile_devices_weather_data(
-            data: pd.DataFrame,
+        data: pd.DataFrame,
     ) -> pd.DataFrame:
         weather_data = pd.DataFrame()
         for _, station_data in data.groupby(
-                by=["station_code", "start_date_time", "end_date_time"]
+            by=["station_code", "start_date_time", "end_date_time"]
         ):
             raw_data = WeatherDataUtils.query_raw_data_from_tahmo(
                 start_date_time=station_data.iloc[0]["start_date_time"],
@@ -222,7 +222,7 @@ class AirQoDataUtils:
 
     @staticmethod
     def merge_aggregated_mobile_devices_data_and_weather_data(
-            measurements: pd.DataFrame, weather_data: pd.DataFrame
+        measurements: pd.DataFrame, weather_data: pd.DataFrame
     ) -> pd.DataFrame:
         airqo_data_cols = list(measurements.columns)
         weather_data_cols = list(weather_data.columns)
@@ -270,11 +270,11 @@ class AirQoDataUtils:
 
     @staticmethod
     def extract_devices_data(
-            start_date_time: str,
-            end_date_time: str,
-            device_category: DeviceCategory,
-            device_numbers: list = None,
-            remove_outliers: bool = True,
+        start_date_time: str,
+        end_date_time: str,
+        device_category: DeviceCategory,
+        device_numbers: list = None,
+        remove_outliers: bool = True,
     ) -> pd.DataFrame:
         """
         Returns a dataframe of AiQo sensors measurements.
@@ -463,7 +463,7 @@ class AirQoDataUtils:
 
     @staticmethod
     def format_data_for_bigquery(
-            data: pd.DataFrame, data_type: DataType
+        data: pd.DataFrame, data_type: DataType
     ) -> pd.DataFrame:
         data.loc[:, "timestamp"] = data["timestamp"].apply(pd.to_datetime)
         data.loc[:, "tenant"] = str(Tenant.AIRQO)
@@ -504,7 +504,7 @@ class AirQoDataUtils:
 
     @staticmethod
     def process_latest_data(
-            data: pd.DataFrame, device_category: DeviceCategory
+        data: pd.DataFrame, device_category: DeviceCategory
     ) -> pd.DataFrame:
         cols = data.columns.to_list()
         if device_category == DeviceCategory.BAM:
@@ -624,14 +624,14 @@ class AirQoDataUtils:
 
     @staticmethod
     def process_data_for_message_broker(
-            data: pd.DataFrame, frequency: Frequency
+        data: pd.DataFrame, frequency: Frequency
     ) -> list:
         data["frequency"] = frequency
         return data.to_dict("records")
 
     @staticmethod
     def merge_aggregated_weather_data(
-            airqo_data: pd.DataFrame, weather_data: pd.DataFrame
+        airqo_data: pd.DataFrame, weather_data: pd.DataFrame
     ) -> pd.DataFrame:
         if weather_data.empty:
             return airqo_data
@@ -778,10 +778,10 @@ class AirQoDataUtils:
                     input_variables["s1_pm2_5"] - input_variables["s2_pm2_5"]
                 )
                 input_variables["pm2_5_pm10"] = (
-                        input_variables["avg_pm2_5"] - input_variables["avg_pm10"]
+                    input_variables["avg_pm2_5"] - input_variables["avg_pm10"]
                 )
                 input_variables["pm2_5_pm10_mod"] = (
-                        input_variables["pm2_5_pm10"] / input_variables["avg_pm10"]
+                    input_variables["pm2_5_pm10"] / input_variables["avg_pm10"]
                 )
                 input_variables = input_variables.drop(
                     ["s1_pm2_5", "s2_pm2_5", "s1_pm10", "s2_pm10"], axis=1
@@ -880,7 +880,7 @@ class AirQoDataUtils:
 
     @staticmethod
     def map_site_ids_to_historical_data(
-            data: pd.DataFrame, deployment_logs: pd.DataFrame
+        data: pd.DataFrame, deployment_logs: pd.DataFrame
     ) -> pd.DataFrame:
         if deployment_logs.empty or data.empty:
             return data
@@ -899,7 +899,7 @@ class AirQoDataUtils:
                 (data["timestamp"] >= device_log["start_date_time"])
                 & (data["timestamp"] <= device_log["end_date_time"])
                 & (data["device_number"] == device_log["device_number"])
-                ]
+            ]
             if device_data.empty:
                 continue
 
@@ -917,7 +917,7 @@ class AirQoDataUtils:
             )
             non_device_data = non_device_data.loc[
                 non_device_data["_merge"] == "left_only"
-                ].drop("_merge", axis=1)
+            ].drop("_merge", axis=1)
 
             non_device_data = non_device_data[list(device_data.columns)]
 
@@ -930,10 +930,12 @@ class AirQoDataUtils:
     def flag_faults(df):
         if not isinstance(df, pd.DataFrame):
             raise ValueError("Input must be a dataframe")
-        
+
         required_columns = ["device_name", "s1_pm2_5", "s2_pm2_5"]
         if not all(col in df.columns for col in required_columns):
-            raise ValueError(f"Input must have the following columns: {required_columns}")
+            raise ValueError(
+                f"Input must have the following columns: {required_columns}"
+            )
 
         result = pd.DataFrame(
             columns=["device_name", "correlation_fault", "missing_data_fault"]
@@ -960,12 +962,11 @@ class AirQoDataUtils:
             result["created_at"] = datetime.now().isoformat(timespec="seconds")
         return result
 
-    
     @staticmethod
     def save_faulty_devices(data: pd.DataFrame):
         """Save faulty devices to MongoDB"""
         client = pm.MongoClient(configuration.MONGO_URI)
         db = client[configuration.MONGO_DATABASE_NAME]
-        records = data.to_dict('records')
+        records = data.to_dict("records")
         db.faulty_devices.insert_many(records)
-        print('Faulty devices saved to MongoDB')
+        print("Faulty devices saved to MongoDB")

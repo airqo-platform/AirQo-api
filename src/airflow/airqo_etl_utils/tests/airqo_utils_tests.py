@@ -27,7 +27,7 @@ class TestFaultDetector(FaultDetectionFixtures):
         assert output["missing_data_fault"].dtype == int
         assert output["created_at"].dtype == "datetime64[ns]"
 
-    def test_output_values(self,  df_valid, expected_output):
+    def test_output_values(self, df_valid, expected_output):
         output = AirQoDataUtils.flag_faults(df_valid)
         assert len(output) == 1
         assert output.iloc[0]["device_name"] == "B"
@@ -42,14 +42,12 @@ class TestFaultDetector(FaultDetectionFixtures):
 
     def test_output_timestamp(self, df_valid):
         output = AirQoDataUtils.flag_faults(df_valid)
-        assert output.iloc[0]["created_at"] == datetime.now().isoformat(timespec="seconds")
+        assert output.iloc[0]["created_at"] == datetime.now().isoformat(
+            timespec="seconds"
+        )
 
-    def test_input_errors(self,  df_invalid_type, df_invalid_columns, df_invalid_empty):
+    def test_input_errors(self, df_invalid_type, df_invalid_columns, df_invalid_empty):
         with pytest.raises(ValueError):
             AirQoDataUtils.flag_faults(df_invalid_type)
             AirQoDataUtils.flag_faults(df_invalid_columns)
             AirQoDataUtils.flag_faults(df_invalid_empty)
-
-            
-
-

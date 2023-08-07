@@ -13,11 +13,13 @@ def airqo_fault_detection_dag():
     @task()
     def fetch_raw_data():
         from airqo_etl_utils.bigquery_api import BigQueryApi
+
         return BigQueryApi().fetch_raw_readings()
 
     @task()
     def flag_faults(data):
         from airqo_etl_utils.airqo_utils import AirQoDataUtils
+
         return AirQoDataUtils().flag_faults(data)
 
     @task()
