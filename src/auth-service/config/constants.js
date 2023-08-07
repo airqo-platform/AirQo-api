@@ -18,6 +18,8 @@ const devConfig = {
   KAFKA_CLIENT_ID: process.env.KAFKA_CLIENT_ID_DEV,
   KAFKA_CLIENT_GROUP: process.env.KAFKA_CLIENT_GROUP_DEV,
   DEFAULT_ROLE: process.env.DEFAULT_ROLE_DEV,
+  REDIS_SERVER: process.env.DEV_REDIS_SERVER,
+  REDIS_PORT: process.env.DEV_REDIS_PORT,
 };
 
 const prodConfig = {
@@ -40,6 +42,8 @@ const prodConfig = {
   KAFKA_CLIENT_ID: process.env.KAFKA_CLIENT_ID_PROD,
   KAFKA_CLIENT_GROUP: process.env.KAFKA_CLIENT_GROUP_PROD,
   DEFAULT_ROLE: process.env.DEFAULT_ROLE_PROD,
+  REDIS_SERVER: process.env.PROD_REDIS_SERVER,
+  REDIS_PORT: process.env.PROD_REDIS_PORT,
 };
 
 const stageConfig = {
@@ -63,6 +67,8 @@ const stageConfig = {
   KAFKA_CLIENT_ID: process.env.KAFKA_CLIENT_ID_STAGE,
   KAFKA_CLIENT_GROUP: process.env.KAFKA_CLIENT_GROUP_STAGE,
   DEFAULT_ROLE: process.env.DEFAULT_ROLE_STAGE,
+  REDIS_SERVER: process.env.STAGE_REDIS_SERVER,
+  REDIS_PORT: process.env.STAGE_REDIS_PORT,
 };
 
 const defaultConfig = {

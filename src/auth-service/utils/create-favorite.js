@@ -208,7 +208,7 @@ const favorites = {
         responseFromCreateFavorite = await FavoriteModel(
           tenant.toLowerCase()
         ).register(missing_favorite_places[favorite]);
-        console.log("responseFromCreateFavorite", responseFromCreateFavorite);
+        logObject("responseFromCreateFavorite", responseFromCreateFavorite);
       }
 
       const extra_favorite_places = unsynced_favorite_places.filter((item) => {

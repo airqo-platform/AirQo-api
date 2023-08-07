@@ -275,6 +275,59 @@ router.post(
   createUserController.signUpWithFirebase
 );
 
+router.post(
+  "/firebase/verify",
+  oneOf([
+    [
+      query("tenant")
+        .optional()
+        .notEmpty()
+        .withMessage("tenant should not be empty if provided")
+        .trim()
+        .toLowerCase()
+        .bail()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      body("token")
+        .exists()
+        .withMessage("the token is missing in the request body")
+        .bail()
+        .notEmpty()
+        .withMessage("the token should not be empty")
+        .trim(),
+    ],
+  ]),
+  oneOf([
+    body("email")
+      .exists()
+      .withMessage(
+        "a user identifier is missing in request, consider using email"
+      )
+      .bail()
+      .notEmpty()
+      .withMessage("the email should not be empty")
+      .bail()
+      .isEmail()
+      .withMessage("this is not a valid email address"),
+    body("phoneNumber")
+      .exists()
+      .withMessage(
+        "a user identifier is missing in request, consider using phoneNumber"
+      )
+      .bail()
+      .notEmpty()
+      .withMessage("the phoneNumber should not be empty")
+      .bail()
+      .isMobilePhone()
+      .withMessage("the phoneNumber must be valid"),
+  ]),
+  createUserController.verifyFirebaseCustomToken
+);
+
 /**
  * version one of verification
  */
@@ -317,57 +370,6 @@ router.get(
     ],
   ]),
   createUserController.verifyEmail
-);
-
-/**
- * version two of verification
- */
-router.post(
-  "/verification/generate",
-  setJWTAuth,
-  authJWT,
-  createUserController.generateVerificationToken
-);
-
-router.post(
-  "/verification/verify",
-  setJWTAuth,
-  authJWT,
-  oneOf([
-    [
-      query("tenant")
-        .optional()
-        .notEmpty()
-        .withMessage("tenant should not be empty if provided")
-        .trim()
-        .toLowerCase()
-        .bail()
-        .isIn(["kcca", "airqo"])
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-
-  oneOf([
-    [
-      body("email")
-        .exists()
-        .withMessage("the email must be provided")
-        .bail()
-        .notEmpty()
-        .withMessage("the email must not be empty if provided")
-        .bail()
-        .isEmail()
-        .withMessage("this is not a valid email address"),
-      body("token")
-        .exists()
-        .withMessage("the token is missing in the request")
-        .bail()
-        .trim()
-        .isInt()
-        .withMessage("token must be an integer"),
-    ],
-  ]),
-  createUserController.verifyVerificationToken
 );
 
 router.get(
