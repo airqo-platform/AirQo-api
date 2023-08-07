@@ -50,7 +50,7 @@ def collocation_batch():
     )
 
 
-def generate_dumpy_data(device_name: str, num_rows, start_time, end_time):
+def generate_test_data(device_name: str, num_rows, start_time, end_time):
     data = {
         "pm2_5": np.random.uniform(20, 100, num_rows),
         "pm10": np.random.uniform(20, 100, num_rows),
@@ -78,27 +78,47 @@ def generate_dumpy_data(device_name: str, num_rows, start_time, end_time):
 def test_compute_data_completeness_using_hourly_data(collocation_batch):
     no_of_hours = (collocation_batch.end_date - collocation_batch.start_date).days * 24
 
-    data_rows = {
-        "y": int(no_of_hours * collocation_batch.data_completeness_threshold),
-        "z": 0,
+    meta_data = {
+        "x": {},
+        "y": {
+            "record_count": int(
+                no_of_hours * collocation_batch.data_completeness_threshold
+            ),
+        },
+        "z": {"record_count": 0},
     }
-    data_rows["x"] = no_of_hours - data_rows["y"]
+    meta_data["x"]["record_count"] = no_of_hours - meta_data["y"]["record_count"]
+
+    meta_data["x"]["completeness"] = round(
+        meta_data["x"]["record_count"] / no_of_hours, 2
+    )
+    meta_data["y"]["completeness"] = round(
+        meta_data["y"]["record_count"] / no_of_hours, 2
+    )
+    meta_data["z"]["completeness"] = round(
+        meta_data["z"]["record_count"] / no_of_hours, 2
+    )
+
+    meta_data["x"]["missing"] = round(1 - meta_data["x"]["completeness"], 2)
+    meta_data["y"]["missing"] = round(1 - meta_data["y"]["completeness"], 2)
+    meta_data["z"]["missing"] = round(1 - meta_data["z"]["completeness"], 2)
+
     data = {
-        "x": generate_dumpy_data(
+        "x": generate_test_data(
             "x",
-            data_rows["x"],
+            meta_data["x"]["record_count"],
             start_time=collocation_batch.start_date,
             end_time=collocation_batch.end_date,
         ),
-        "y": generate_dumpy_data(
+        "y": generate_test_data(
             "y",
-            data_rows["y"],
+            meta_data["y"]["record_count"],
             start_time=collocation_batch.start_date,
             end_time=collocation_batch.end_date,
         ),
-        "z": generate_dumpy_data(
+        "z": generate_test_data(
             "z",
-            data_rows["z"],
+            meta_data["z"]["record_count"],
             start_time=collocation_batch.start_date,
             end_time=collocation_batch.end_date,
         ),
@@ -117,15 +137,13 @@ def test_compute_data_completeness_using_hourly_data(collocation_batch):
     assert len(result.results) == 3
 
     for result in result.results:
-        num_of_device_rows = data_rows[result.device_name]
-        assert round(num_of_device_rows / no_of_hours, 2) >= result.completeness
-        assert (
-            round((no_of_hours - num_of_device_rows) / no_of_hours, 2) >= result.missing
-        )
-        assert result.actual == num_of_device_rows
+        assert meta_data[result.device_name]["completeness"] == result.completeness
+        assert meta_data[result.device_name]["missing"] == result.missing
+        assert result.actual == meta_data[result.device_name]["record_count"]
         assert result.expected == no_of_hours
-
-        if result.completeness >= collocation_batch.data_completeness_threshold:
-            assert result.passed is True
-        else:
-            assert result.passed is False
+        passed = (
+            True
+            if result.completeness >= collocation_batch.data_completeness_threshold
+            else False
+        )
+        assert result.passed is passed
