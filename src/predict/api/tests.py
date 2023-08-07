@@ -12,11 +12,28 @@ def test_client():
     flask_app = create_app("testing")
     testing_client = flask_app.test_client()
     mock_db = MongoClient().db
-    mock_db.faulty_devices.insert_many([
-        {"airqloud_names": "airqloud1", "device_name": "device1", "correlation_fault": 1, "missing_data_fault": 0},
-        {"airqloud_names": "airqloud2", "device_name": "device2", "correlation_fault": 0, "missing_data_fault": 1},
-        {"airqloud_names": "airqloud3", "device_name": "device3", "correlation_fault": 1, "missing_data_fault": 1}
-    ])
+    mock_db.faulty_devices.insert_many(
+        [
+            {
+                "airqloud_names": "airqloud1",
+                "device_name": "device1",
+                "correlation_fault": 1,
+                "missing_data_fault": 0,
+            },
+            {
+                "airqloud_names": "airqloud2",
+                "device_name": "device2",
+                "correlation_fault": 0,
+                "missing_data_fault": 1,
+            },
+            {
+                "airqloud_names": "airqloud3",
+                "device_name": "device3",
+                "correlation_fault": 1,
+                "missing_data_fault": 1,
+            },
+        ]
+    )
     ctx = flask_app.app_context()
     ctx.push()
 
@@ -58,4 +75,7 @@ def test_fetch_faulty_devices(test_client):
         # Test the endpoint with invalid value for correlation_fault parameter
         response = test_client.get("/fetch_faulty_devices?correlation_fault=2")
         assert response.status_code == 400
-        assert json.loads(response.data)["error"] == "Invalid value for correlation_fault: 2"
+        assert (
+            json.loads(response.data)["error"]
+            == "Invalid value for correlation_fault: 2"
+        )

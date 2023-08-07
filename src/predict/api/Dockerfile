@@ -5,7 +5,7 @@ COPY . /app/
 WORKDIR /app/
 
 RUN pip install --upgrade pip --no-cache-dir
-RUN pip install -r prod-requirements.txt --no-cache-dir
+RUN pip install -r requirements.txt --no-cache-dir
 
 ENV PYTHONDONWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1

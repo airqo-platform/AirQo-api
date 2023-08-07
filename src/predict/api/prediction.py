@@ -20,7 +20,7 @@ from helpers import (
     daily_forecasts_cache_key,
     get_faults_cache_key,
     validate_params,
-    read_faulty_devices
+    read_faulty_devices,
 )
 import routes
 
@@ -44,13 +44,17 @@ def fetch_faulty_devices():
             if param == "airqloud_names":
                 query[param] = {"$in": [value]}
             else:
-                query[param] = {"$eq": int(value) if param in ['correlation_fault', 'missing_data_fault'] else value}
+                query[param] = {
+                    "$eq": int(value)
+                    if param in ["correlation_fault", "missing_data_fault"]
+                    else value
+                }
 
         result = read_faulty_devices(query)
         return jsonify(result), 200
     except Exception as e:
         _logger.error(e)
-        return jsonify({"error": 'Failed to retrieve faulty devices'}), 500
+        return jsonify({"error": "Failed to retrieve faulty devices"}), 500
 
 
 @ml_app.route(routes.route["next_24hr_forecasts"], methods=["GET"])
@@ -214,8 +218,8 @@ def search_predictions():
             data["health_tips"] = list(
                 filter(
                     lambda x: x["aqi_category"]["max"]
-                              >= pm2_5
-                              >= x["aqi_category"]["min"],
+                    >= pm2_5
+                    >= x["aqi_category"]["min"],
                     health_tips,
                 )
             )
