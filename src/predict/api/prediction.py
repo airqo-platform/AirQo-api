@@ -4,20 +4,25 @@ import traceback
 from dotenv import load_dotenv
 from flask import Blueprint, request, jsonify
 
+import routes
 from app import cache
 from config import Config
 from helpers import (
-    get_predictions_by_geo_coordinates_v2,
     get_parish_predictions,
     convert_to_geojson,
     get_forecasts,
     hourly_forecasts_cache_key,
     daily_forecasts_cache_key,
     get_faults_cache_key,
+    get_predictions_by_geo_coordinates_v2,
+    get_predictions_by_geo_coordinates,
+    get_health_tips,
+    geo_coordinates_cache_key,
     validate_params,
     read_faulty_devices,
+    read_predictions_from_db,
+    heatmap_cache_key,
 )
-import routes
 
 load_dotenv()
 
@@ -151,28 +156,22 @@ def predictions_for_heatmap():
 
     try:
         values, total = read_predictions_from_db(airqloud, page, limit)
-
-    if len(geojson_data["features"]) > 0:
-        if page > pages:
-            return {
-                "message": "Page number is greater than total pages",
-                "success": False,
-            }, 400
-
-        return {
-            "data": geojson_data["features"],
-            "airqloud": airqloud,
-            "airqloud_id": airqloud_id,
-            "created_at": created_at,
-            "success": True,
-            "page": page,
-            "limit": limit,
-            "total": total_count,
-            "pages": pages,
-        }, 200
-
-    else:
-        return {"message": "No predictions available", "success": False}, 400
+        if values:
+            response["predictions"] = convert_to_geojson(values)
+            response["total"] = total
+            response["pages"] = (total // limit) + (1 if total % limit else 0)
+            response["page"] = page
+            if airqloud:
+                response["airqloud"] = airqloud
+            status_code = 200
+        else:
+            response["error"] = "No data found."
+            status_code = 404
+    except Exception as e:
+        response["error"] = f"Unfortunately an error occured"
+        status_code = 500
+    finally:
+        return jsonify(response), status_code
 
 
 @ml_app.route(routes.route["search_predictions"], methods=["GET"])
@@ -189,15 +188,29 @@ def search_predictions():
                 longitude=longitude,
             )
         else:
-            response["error"] = "No data found."
-            status_code = 404
+            data = get_predictions_by_geo_coordinates(
+                latitude=latitude,
+                longitude=longitude,
+                distance_in_metres=distance_in_metres,
+            )
+        if data:
+            health_tips = get_health_tips()
+            pm2_5 = data["pm2_5"]
+            data["health_tips"] = list(
+                filter(
+                    lambda x: x["aqi_category"]["max"]
+                    >= pm2_5
+                    >= x["aqi_category"]["min"],
+                    health_tips,
+                )
+            )
 
-    except Exception as e:
-        response["error"] = f"Unfortunately an error occured"
-        status_code = 500
+        return {"success": True, "data": data}, 200
 
-    finally:
-        return jsonify(response), status_code
+    except Exception as ex:
+        print(ex)
+        traceback.print_exc()
+        return {"message": "Please contact support", "success": False}, 500
 
 
 @ml_app.route(routes.route["parish_predictions"], methods=["GET"])
@@ -228,41 +241,5 @@ def parish_predictions():
         return {"message": "Please contact support", "success": False}, 500
 
 
-@ml_app.route(api.route["search_predictions"], methods=["GET"])
-@cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=geo_coordinates_cache_key)
-def search_predictions():
-    try:
-        latitude = float(request.args.get("latitude"))
-        longitude = float(request.args.get("longitude"))
-        source = str(request.args.get("source", "parishes")).lower()
-        distance_in_metres = int(request.args.get("distance", 100))
-        if source == "parishes":
-            data = get_predictions_by_geo_coordinates_v2(
-                latitude=latitude,
-                longitude=longitude,
-            )
-        else:
-            data = get_predictions_by_geo_coordinates(
-                latitude=latitude,
-                longitude=longitude,
-                distance_in_metres=distance_in_metres,
-            )
-
-        if data:
-            health_tips = get_health_tips()
-            pm2_5 = data["pm2_5"]
-            data["health_tips"] = list(
-                filter(
-                    lambda x: x["aqi_category"]["max"]
-                              >= pm2_5
-                              >= x["aqi_category"]["min"],
-                    health_tips,
-                )
-            )
-
-        return {"success": True, "data": data}, 200
-
-    except Exception as ex:
-        print(ex)
-    traceback.print_exc()
-    return {"message": "Please contact support", "success": False}, 500
+if __name__ == "__main__":
+    print(predictions_for_heatmap())

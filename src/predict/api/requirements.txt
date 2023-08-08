@@ -6,11 +6,12 @@ flask-pymongo~=2.3.0
 flask-caching~=2.0.2
 redis==4.6.0
 gunicorn==21.2.0
-pandas
+pandas~=2.0.3
 google-cloud-bigquery==3.11.4
 Flask-SQLAlchemy
 psycopg2-binary
-GeoAlchemy2
+GeoAlchemy2~=0.14.1
 geojson
-pytest
-mongomock
+pytest~=7.4.0
+mongomock~=4.1.2
+requests~=2.31.0

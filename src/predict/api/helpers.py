@@ -271,11 +271,8 @@ def read_predictions_from_db(airqloud=None, page_number=1, limit=1000):
 
 @cache.memoize(timeout=Config.CACHE_TIMEOUT)
 def convert_to_geojson(values):
-    # Create an empty GeoJSON feature collection
     geojson = {"type": "FeatureCollection", "features": []}
-    # Loop through the values list
     for value in values:
-        # Create a GeoJSON feature for each value
         feature = {
             "type": "Feature",
             "geometry": {
@@ -290,10 +287,10 @@ def convert_to_geojson(values):
                 "longitude": value["longitude"],
             },
         }
-        # Append the feature to the feature collection
         geojson["features"].append(feature)
-    # Return the GeoJSON feature collection
     return geojson
+
+
 def validate_params(params):
     valid_params = [
         "airqloud_names",
