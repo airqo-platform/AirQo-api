@@ -386,12 +386,14 @@ const controlAccess = {
             );
 
             if (
-              request.headers["x-original-uri"].includes(
-                "/api/v2/devices/events"
-              ) ||
-              request.headers["x-original-uri"].includes(
-                "/api/v1/devices/events"
-              )
+              (request.headers["x-original-uri"] &&
+                request.headers["x-original-uri"].includes(
+                  "/api/v2/devices/events"
+                )) ||
+              (request.headers["x-original-uri"] &&
+                request.headers["x-original-uri"].includes(
+                  "/api/v1/devices/events"
+                ))
             ) {
               service = "api";
               /**
@@ -402,162 +404,226 @@ const controlAccess = {
                */
             }
             if (
-              (request.headers["x-original-method"] === "POST" ||
-                request.headers["x-original-method"] === "PUT" ||
-                request.headers["x-original-method"] === "DELETE") &&
-              (request.headers["x-original-uri"].endsWith(
-                "/api/v2/devices/sites"
-              ) ||
+              ((request.headers["x-original-method"] &&
+                request.headers["x-original-method"] === "POST") ||
+                (request.headers["x-original-method"] &&
+                  request.headers["x-original-method"] === "PUT") ||
+                (request.headers["x-original-method"] &&
+                  request.headers["x-original-method"] === "DELETE")) &&
+              ((request.headers["x-original-uri"] &&
                 request.headers["x-original-uri"].endsWith(
-                  "/api/v1/devices/sites"
-                ))
+                  "/api/v2/devices/sites"
+                )) ||
+                (request.headers["x-original-uri"] &&
+                  request.headers["x-original-uri"].endsWith(
+                    "/api/v1/devices/sites"
+                  )))
             ) {
               service = "site-registry";
             }
 
             if (
-              (request.headers["x-original-method"] === "POST" ||
-                request.headers["x-original-method"] === "PUT" ||
-                request.headers["x-original-method"] === "DELETE") &&
-              (request.headers["x-original-uri"].endsWith("/api/v2/devices") ||
-                request.headers["x-original-uri"].endsWith("/api/v1/devices") ||
+              ((request.headers["x-original-method"] &&
+                request.headers["x-original-method"] === "POST") ||
+                (request.headers["x-original-method"] &&
+                  request.headers["x-original-method"] === "PUT") ||
+                (request.headers["x-original-method"] &&
+                  request.headers["x-original-method"] === "DELETE")) &&
+              ((request.headers["x-original-uri"] &&
                 request.headers["x-original-uri"].endsWith(
-                  "/api/v1/devices/soft"
-                ) ||
-                request.headers["x-original-uri"].endsWith(
-                  "/api/v2/devices/soft"
-                ))
+                  "/api/v2/devices"
+                )) ||
+                (request.headers["x-original-uri"] &&
+                  request.headers["x-original-uri"].endsWith(
+                    "/api/v1/devices"
+                  )) ||
+                (request.headers["x-original-uri"] &&
+                  request.headers["x-original-uri"].endsWith(
+                    "/api/v1/devices/soft"
+                  )) ||
+                (request.headers["x-original-uri"] &&
+                  request.headers["x-original-uri"].endsWith(
+                    "/api/v2/devices/soft"
+                  )))
             ) {
               service = "device-registry";
             }
 
             if (
-              (request.headers["x-original-method"] === "POST" ||
-                request.headers["x-original-method"] === "PUT" ||
-                request.headers["x-original-method"] === "DELETE") &&
-              (request.headers["x-original-uri"].endsWith(
-                "/api/v2/devices/airqlouds"
-              ) ||
+              ((request.headers["x-original-method"] &&
+                request.headers["x-original-method"] === "POST") ||
+                (request.headers["x-original-method"] &&
+                  request.headers["x-original-method"] === "PUT") ||
+                (request.headers["x-original-method"] &&
+                  request.headers["x-original-method"] === "DELETE")) &&
+              ((request.headers["x-original-uri"] &&
                 request.headers["x-original-uri"].endsWith(
-                  "/api/v1/devices/airqlouds"
-                ))
+                  "/api/v2/devices/airqlouds"
+                )) ||
+                (request.headers["x-original-uri"] &&
+                  request.headers["x-original-uri"].endsWith(
+                    "/api/v1/devices/airqlouds"
+                  )))
             ) {
               service = "airqlouds-registry";
             }
 
             if (
-              (request.headers["x-original-method"] === "POST" ||
-                request.headers["x-original-method"] === "PUT" ||
-                request.headers["x-original-method"] === "DELETE") &&
-              (request.headers["x-original-uri"].endsWith(
-                "/api/v2/devices/activities/maintain"
-              ) ||
+              ((request.headers["x-original-method"] &&
+                request.headers["x-original-method"] === "POST") ||
+                (request.headers["x-original-method"] &&
+                  request.headers["x-original-method"] === "PUT") ||
+                (request.headers["x-original-method"] &&
+                  request.headers["x-original-method"] === "DELETE")) &&
+              ((request.headers["x-original-uri"] &&
                 request.headers["x-original-uri"].endsWith(
-                  "/api/v1/devices/activities/maintain"
-                ))
+                  "/api/v2/devices/activities/maintain"
+                )) ||
+                (request.headers["x-original-uri"] &&
+                  request.headers["x-original-uri"].endsWith(
+                    "/api/v1/devices/activities/maintain"
+                  )))
             ) {
               service = "device-maintenance";
             }
 
             if (
-              (request.headers["x-original-method"] === "POST" ||
-                request.headers["x-original-method"] === "PUT" ||
-                request.headers["x-original-method"] === "DELETE") &&
-              (request.headers["x-original-uri"].endsWith(
-                "/api/v2/devices/activities/deploy"
-              ) ||
+              ((request.headers["x-original-method"] &&
+                request.headers["x-original-method"] === "POST") ||
+                (request.headers["x-original-method"] &&
+                  request.headers["x-original-method"] === "PUT") ||
+                (request.headers["x-original-method"] &&
+                  request.headers["x-original-method"] === "DELETE")) &&
+              ((request.headers["x-original-uri"] &&
                 request.headers["x-original-uri"].endsWith(
-                  "/api/v1/devices/activities/deploy"
-                ))
+                  "/api/v2/devices/activities/deploy"
+                )) ||
+                (request.headers["x-original-uri"] &&
+                  request.headers["x-original-uri"].endsWith(
+                    "/api/v1/devices/activities/deploy"
+                  )))
             ) {
               service = "device-deployment";
             }
 
             if (
-              (request.headers["x-original-method"] === "POST" ||
-                request.headers["x-original-method"] === "PUT" ||
-                request.headers["x-original-method"] === "DELETE") &&
-              (request.headers["x-original-uri"].endsWith(
-                "/api/v2/devices/activities/recall"
-              ) ||
+              ((request.headers["x-original-method"] &&
+                request.headers["x-original-method"] === "POST") ||
+                (request.headers["x-original-method"] &&
+                  request.headers["x-original-method"] === "PUT") ||
+                (request.headers["x-original-method"] &&
+                  request.headers["x-original-method"] === "DELETE")) &&
+              ((request.headers["x-original-uri"] &&
                 request.headers["x-original-uri"].endsWith(
-                  "/api/v1/devices/activities/recall"
-                ))
+                  "/api/v2/devices/activities/recall"
+                )) ||
+                (request.headers["x-original-uri"] &&
+                  request.headers["x-original-uri"].endsWith(
+                    "/api/v1/devices/activities/recall"
+                  )))
             ) {
               service = "device-recall";
             }
 
             if (
-              (request.headers["x-original-method"] === "POST" ||
-                request.headers["x-original-method"] === "PUT" ||
-                request.headers["x-original-method"] === "DELETE") &&
-              (request.headers["x-original-uri"].endsWith("/api/v2/users") ||
-                request.headers["x-original-uri"].endsWith("/api/v1/users"))
+              ((request.headers["x-original-method"] &&
+                request.headers["x-original-method"] === "POST") ||
+                (request.headers["x-original-method"] &&
+                  request.headers["x-original-method"] === "PUT") ||
+                (request.headers["x-original-method"] &&
+                  request.headers["x-original-method"] === "DELETE")) &&
+              ((request.headers["x-original-uri"] &&
+                request.headers["x-original-uri"].endsWith("/api/v2/users")) ||
+                (request.headers["x-original-uri"] &&
+                  request.headers["x-original-uri"].endsWith("/api/v1/users")))
             ) {
               service = "auth";
             }
             if (
-              (request.headers["x-original-method"] === "POST" ||
-                request.headers["x-original-method"] === "PUT" ||
-                request.headers["x-original-method"] === "DELETE") &&
-              (request.headers["x-original-uri"].includes(
-                "/api/v2/incentives"
-              ) ||
+              ((request.headers["x-original-method"] &&
+                request.headers["x-original-method"] === "POST") ||
+                (request.headers["x-original-method"] &&
+                  request.headers["x-original-method"] === "PUT") ||
+                (request.headers["x-original-method"] &&
+                  request.headers["x-original-method"] === "DELETE")) &&
+              ((request.headers["x-original-uri"] &&
                 request.headers["x-original-uri"].includes(
-                  "/api/v1/incentives"
-                ))
+                  "/api/v2/incentives"
+                )) ||
+                (request.headers["x-original-uri"] &&
+                  request.headers["x-original-uri"].includes(
+                    "/api/v1/incentives"
+                  )))
             ) {
               service = "incentives";
             }
             if (
-              request.headers["x-original-uri"].includes("/api/v2/calibrate") ||
-              request.headers["x-original-uri"].includes("/api/v1/calibrate")
+              (request.headers["x-original-uri"] &&
+                request.headers["x-original-uri"].includes(
+                  "/api/v2/calibrate"
+                )) ||
+              (request.headers["x-original-uri"] &&
+                request.headers["x-original-uri"].includes("/api/v1/calibrate"))
             ) {
               service = "calibrate";
             }
 
             if (
-              request.headers["x-original-uri"].includes("/api/v2/locate") ||
-              request.headers["x-original-uri"].includes("/api/v1/locate")
+              (request.headers["x-original-uri"] &&
+                request.headers["x-original-uri"].includes("/api/v2/locate")) ||
+              (request.headers["x-original-uri"] &&
+                request.headers["x-original-uri"].includes("/api/v1/locate"))
             ) {
               service = "locate";
             }
 
             if (
-              request.headers["x-original-uri"].includes(
-                "/api/v2/predict-faults"
-              ) ||
-              request.headers["x-original-uri"].includes(
-                "/api/v1/predict-faults"
-              )
+              (request.headers["x-original-uri"] &&
+                request.headers["x-original-uri"].includes(
+                  "/api/v2/predict-faults"
+                )) ||
+              (request.headers["x-original-uri"] &&
+                request.headers["x-original-uri"].includes(
+                  "/api/v1/predict-faults"
+                ))
             ) {
               service = "fault-detection";
             }
 
             if (
-              (request.headers["x-original-method"] === "POST" ||
-                request.headers["x-original-method"] === "PUT" ||
-                request.headers["x-original-method"] === "DELETE") &&
-              (request.headers["x-original-uri"].includes(
-                "/api/v2/analytics/data/download"
-              ) ||
+              ((request.headers["x-original-method"] &&
+                request.headers["x-original-method"] === "POST") ||
+                (request.headers["x-original-method"] &&
+                  request.headers["x-original-method"] === "PUT") ||
+                (request.headers["x-original-method"] &&
+                  request.headers["x-original-method"] === "DELETE")) &&
+              ((request.headers["x-original-uri"] &&
                 request.headers["x-original-uri"].includes(
-                  "/api/v1/analytics/data/download"
-                ))
+                  "/api/v2/analytics/data/download"
+                )) ||
+                (request.headers["x-original-uri"] &&
+                  request.headers["x-original-uri"].includes(
+                    "/api/v1/analytics/data/download"
+                  )))
             ) {
               service = "data-export-download";
             }
 
             if (
-              (request.headers["x-original-method"] === "POST" ||
-                request.headers["x-original-method"] === "PUT" ||
-                request.headers["x-original-method"] === "DELETE") &&
-              (request.headers["x-original-uri"].includes(
-                "/api/v2/analytics/data-export"
-              ) ||
+              ((request.headers["x-original-method"] &&
+                request.headers["x-original-method"] === "POST") ||
+                (request.headers["x-original-method"] &&
+                  request.headers["x-original-method"] === "PUT") ||
+                (request.headers["x-original-method"] &&
+                  request.headers["x-original-method"] === "DELETE")) &&
+              ((request.headers["x-original-uri"] &&
                 request.headers["x-original-uri"].includes(
-                  "/api/v1/analytics/data-export"
-                ))
+                  "/api/v2/analytics/data-export"
+                )) ||
+                (request.headers["x-original-uri"] &&
+                  request.headers["x-original-uri"].includes(
+                    "/api/v1/analytics/data-export"
+                  )))
             ) {
               service = "data-export-scheduling";
             }

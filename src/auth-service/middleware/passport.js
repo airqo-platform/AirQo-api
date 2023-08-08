@@ -265,20 +265,28 @@ const useGoogleStrategy = (tenant, req, res, next) =>
 const useJWTStrategy = (tenant, req, res, next) =>
   new JwtStrategy(jwtOpts, async (payload, done) => {
     try {
-      logObject("the baseURL accessing API", req.headers["x-original-uri"]);
+      logObject(
+        "the baseURL accessing API",
+        req.headers["x-original-uri"] && req.headers["x-original-uri"]
+      );
       logObject("the req object accessing our system using JWTs", req);
       logObject("req.headers", req.headers);
-      logObject("req.headers[x-original-uri]", req.headers["x-original-uri"]);
+      logObject(
+        "req.headers[x-original-uri]",
+        req.headers["x-original-uri"] && req.headers["x-original-uri"]
+      );
       logObject(
         "req.headers[x-original-method]",
-        req.headers["x-original-method"]
+        req.headers["x-original-method"] && req.headers["x-original-method"]
       );
 
       let service = req.headers["service"];
 
       if (
-        req.headers["x-original-uri"].includes("/api/v2/devices/events") ||
-        req.headers["x-original-uri"].includes("/api/v1/devices/events")
+        (req.headers["x-original-uri"] &&
+          req.headers["x-original-uri"].includes("/api/v2/devices/events")) ||
+        (req.headers["x-original-uri"] &&
+          req.headers["x-original-uri"].includes("/api/v1/devices/events"))
       ) {
         service = "api";
         return done(null, false);
@@ -291,143 +299,205 @@ const useJWTStrategy = (tenant, req, res, next) =>
       }
 
       if (
-        (req.headers["x-original-method"] === "POST" ||
-          req.headers["x-original-method"] === "PUT" ||
-          req.headers["x-original-method"] === "DELETE") &&
-        (req.headers["x-original-uri"].endsWith("/api/v2/devices/sites") ||
-          req.headers["x-original-uri"].endsWith("/api/v1/devices/sites"))
+        ((req.headers["x-original-method"] &&
+          req.headers["x-original-method"] === "POST") ||
+          (req.headers["x-original-method"] &&
+            req.headers["x-original-method"] === "PUT") ||
+          (req.headers["x-original-method"] &&
+            req.headers["x-original-method"] === "DELETE")) &&
+        ((req.headers["x-original-uri"] &&
+          req.headers["x-original-uri"].endsWith("/api/v2/devices/sites")) ||
+          (req.headers["x-original-uri"] &&
+            req.headers["x-original-uri"].endsWith("/api/v1/devices/sites")))
       ) {
         service = "site-registry";
       }
 
       if (
-        (req.headers["x-original-method"] === "POST" ||
-          req.headers["x-original-method"] === "PUT" ||
-          req.headers["x-original-method"] === "DELETE") &&
-        (req.headers["x-original-uri"].endsWith("/api/v2/devices") ||
-          req.headers["x-original-uri"].endsWith("/api/v1/devices") ||
-          req.headers["x-original-uri"].endsWith("/api/v1/devices/soft") ||
-          req.headers["x-original-uri"].endsWith("/api/v2/devices/soft"))
+        ((req.headers["x-original-method"] &&
+          req.headers["x-original-method"] === "POST") ||
+          (req.headers["x-original-method"] &&
+            req.headers["x-original-method"] === "PUT") ||
+          (req.headers["x-original-method"] &&
+            req.headers["x-original-method"] === "DELETE")) &&
+        ((req.headers["x-original-uri"] &&
+          req.headers["x-original-uri"].endsWith("/api/v2/devices")) ||
+          (req.headers["x-original-uri"] &&
+            req.headers["x-original-uri"].endsWith("/api/v1/devices")) ||
+          (req.headers["x-original-uri"] &&
+            req.headers["x-original-uri"].endsWith("/api/v1/devices/soft")) ||
+          (req.headers["x-original-uri"] &&
+            req.headers["x-original-uri"].endsWith("/api/v2/devices/soft")))
       ) {
         service = "device-registry";
       }
 
       if (
-        (req.headers["x-original-method"] === "POST" ||
-          req.headers["x-original-method"] === "PUT" ||
-          req.headers["x-original-method"] === "DELETE") &&
-        (req.headers["x-original-uri"].endsWith("/api/v2/devices/airqlouds") ||
-          req.headers["x-original-uri"].endsWith("/api/v1/devices/airqlouds"))
+        ((req.headers["x-original-method"] &&
+          req.headers["x-original-method"] === "POST") ||
+          (req.headers["x-original-method"] &&
+            req.headers["x-original-method"] === "PUT") ||
+          (req.headers["x-original-method"] &&
+            req.headers["x-original-method"] === "DELETE")) &&
+        ((req.headers["x-original-uri"] &&
+          req.headers["x-original-uri"].endsWith(
+            "/api/v2/devices/airqlouds"
+          )) ||
+          (req.headers["x-original-uri"] &&
+            req.headers["x-original-uri"].endsWith(
+              "/api/v1/devices/airqlouds"
+            )))
       ) {
         service = "airqlouds-registry";
       }
 
       if (
-        (req.headers["x-original-method"] === "POST" ||
-          req.headers["x-original-method"] === "PUT" ||
-          req.headers["x-original-method"] === "DELETE") &&
-        (req.headers["x-original-uri"].endsWith(
-          "/api/v2/devices/activities/maintain"
-        ) ||
+        ((req.headers["x-original-method"] &&
+          req.headers["x-original-method"] === "POST") ||
+          (req.headers["x-original-method"] &&
+            req.headers["x-original-method"] === "PUT") ||
+          (req.headers["x-original-method"] &&
+            req.headers["x-original-method"] === "DELETE")) &&
+        ((req.headers["x-original-uri"] &&
           req.headers["x-original-uri"].endsWith(
-            "/api/v1/devices/activities/maintain"
-          ))
+            "/api/v2/devices/activities/maintain"
+          )) ||
+          (req.headers["x-original-uri"] &&
+            req.headers["x-original-uri"].endsWith(
+              "/api/v1/devices/activities/maintain"
+            )))
       ) {
         service = "device-maintenance";
       }
 
       if (
-        (req.headers["x-original-method"] === "POST" ||
-          req.headers["x-original-method"] === "PUT" ||
-          req.headers["x-original-method"] === "DELETE") &&
-        (req.headers["x-original-uri"].endsWith(
-          "/api/v2/devices/activities/deploy"
-        ) ||
+        ((req.headers["x-original-method"] &&
+          req.headers["x-original-method"] === "POST") ||
+          (req.headers["x-original-method"] &&
+            req.headers["x-original-method"] === "PUT") ||
+          (req.headers["x-original-method"] &&
+            req.headers["x-original-method"] === "DELETE")) &&
+        ((req.headers["x-original-uri"] &&
           req.headers["x-original-uri"].endsWith(
-            "/api/v1/devices/activities/deploy"
-          ))
+            "/api/v2/devices/activities/deploy"
+          )) ||
+          (req.headers["x-original-uri"] &&
+            req.headers["x-original-uri"].endsWith(
+              "/api/v1/devices/activities/deploy"
+            )))
       ) {
         service = "device-deployment";
       }
 
       if (
-        (req.headers["x-original-method"] === "POST" ||
-          req.headers["x-original-method"] === "PUT" ||
-          req.headers["x-original-method"] === "DELETE") &&
-        (req.headers["x-original-uri"].endsWith(
-          "/api/v2/devices/activities/recall"
-        ) ||
+        ((req.headers["x-original-method"] &&
+          req.headers["x-original-method"] === "POST") ||
+          (req.headers["x-original-method"] &&
+            req.headers["x-original-method"] === "PUT") ||
+          (req.headers["x-original-method"] &&
+            req.headers["x-original-method"] === "DELETE")) &&
+        ((req.headers["x-original-uri"] &&
           req.headers["x-original-uri"].endsWith(
-            "/api/v1/devices/activities/recall"
-          ))
+            "/api/v2/devices/activities/recall"
+          )) ||
+          (req.headers["x-original-uri"] &&
+            req.headers["x-original-uri"].endsWith(
+              "/api/v1/devices/activities/recall"
+            )))
       ) {
         service = "device-recall";
       }
 
       if (
-        (req.headers["x-original-method"] === "POST" ||
-          req.headers["x-original-method"] === "PUT" ||
-          req.headers["x-original-method"] === "DELETE") &&
-        (req.headers["x-original-uri"].endsWith("/api/v2/users") ||
-          req.headers["x-original-uri"].endsWith("/api/v1/users"))
+        ((req.headers["x-original-method"] &&
+          req.headers["x-original-method"] === "POST") ||
+          (req.headers["x-original-method"] &&
+            req.headers["x-original-method"] === "PUT") ||
+          (req.headers["x-original-method"] &&
+            req.headers["x-original-method"] === "DELETE")) &&
+        ((req.headers["x-original-uri"] &&
+          req.headers["x-original-uri"].endsWith("/api/v2/users")) ||
+          (req.headers["x-original-uri"] &&
+            req.headers["x-original-uri"].endsWith("/api/v1/users")))
       ) {
         service = "auth";
       }
       if (
-        (req.headers["x-original-method"] === "POST" ||
-          req.headers["x-original-method"] === "PUT" ||
-          req.headers["x-original-method"] === "DELETE") &&
-        (req.headers["x-original-uri"].includes("/api/v2/incentives") ||
-          req.headers["x-original-uri"].includes("/api/v1/incentives"))
+        ((req.headers["x-original-method"] &&
+          req.headers["x-original-method"] === "POST") ||
+          (req.headers["x-original-method"] &&
+            req.headers["x-original-method"] === "PUT") ||
+          (req.headers["x-original-method"] &&
+            req.headers["x-original-method"] === "DELETE")) &&
+        ((req.headers["x-original-uri"] &&
+          req.headers["x-original-uri"].includes("/api/v2/incentives")) ||
+          (req.headers["x-original-uri"] &&
+            req.headers["x-original-uri"].includes("/api/v1/incentives")))
       ) {
         service = "incentives";
       }
       if (
-        req.headers["x-original-uri"].includes("/api/v2/calibrate") ||
-        req.headers["x-original-uri"].includes("/api/v1/calibrate")
+        (req.headers["x-original-uri"] &&
+          req.headers["x-original-uri"].includes("/api/v2/calibrate")) ||
+        (req.headers["x-original-uri"] &&
+          req.headers["x-original-uri"].includes("/api/v1/calibrate"))
       ) {
         service = "calibrate";
       }
 
       if (
-        req.headers["x-original-uri"].includes("/api/v2/locate") ||
-        req.headers["x-original-uri"].includes("/api/v1/locate")
+        (req.headers["x-original-uri"] &&
+          req.headers["x-original-uri"].includes("/api/v2/locate")) ||
+        (req.headers["x-original-uri"] &&
+          req.headers["x-original-uri"].includes("/api/v1/locate"))
       ) {
         service = "locate";
       }
 
       if (
-        req.headers["x-original-uri"].includes("/api/v2/predict-faults") ||
-        req.headers["x-original-uri"].includes("/api/v1/predict-faults")
+        (req.headers["x-original-uri"] &&
+          req.headers["x-original-uri"].includes("/api/v2/predict-faults")) ||
+        (req.headers["x-original-uri"] &&
+          req.headers["x-original-uri"].includes("/api/v1/predict-faults"))
       ) {
         service = "fault-detection";
       }
 
       if (
-        (req.headers["x-original-method"] === "POST" ||
-          req.headers["x-original-method"] === "PUT" ||
-          req.headers["x-original-method"] === "DELETE") &&
-        (req.headers["x-original-uri"].includes(
-          "/api/v2/analytics/data/download"
-        ) ||
+        ((req.headers["x-original-method"] &&
+          req.headers["x-original-method"] === "POST") ||
+          (req.headers["x-original-method"] &&
+            req.headers["x-original-method"] === "PUT") ||
+          (req.headers["x-original-method"] &&
+            req.headers["x-original-method"] === "DELETE")) &&
+        ((req.headers["x-original-uri"] &&
           req.headers["x-original-uri"].includes(
-            "/api/v1/analytics/data/download"
-          ))
+            "/api/v2/analytics/data/download"
+          )) ||
+          (req.headers["x-original-uri"] &&
+            req.headers["x-original-uri"].includes(
+              "/api/v1/analytics/data/download"
+            )))
       ) {
         service = "data-export-download";
         return done(null, false);
       }
 
       if (
-        (req.headers["x-original-method"] === "POST" ||
-          req.headers["x-original-method"] === "PUT" ||
-          req.headers["x-original-method"] === "DELETE") &&
-        (req.headers["x-original-uri"].includes(
-          "/api/v2/analytics/data-export"
-        ) ||
+        ((req.headers["x-original-method"] &&
+          req.headers["x-original-method"] === "POST") ||
+          (req.headers["x-original-method"] &&
+            req.headers["x-original-method"] === "PUT") ||
+          (req.headers["x-original-method"] &&
+            req.headers["x-original-method"] === "DELETE")) &&
+        ((req.headers["x-original-uri"] &&
           req.headers["x-original-uri"].includes(
-            "/api/v1/analytics/data-export"
-          ))
+            "/api/v2/analytics/data-export"
+          )) ||
+          (req.headers["x-original-uri"] &&
+            req.headers["x-original-uri"].includes(
+              "/api/v1/analytics/data-export"
+            )))
       ) {
         service = "data-export-scheduling";
         return done(null, false);
