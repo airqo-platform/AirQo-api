@@ -52,5 +52,4 @@ data:
       proxy_pass_request_body on;
       proxy_set_header        Content-Length '';
       proxy_set_header        X-Original-URI $request_uri;
-      proxy_set_header        X-Original-Method $request_method;
     }"
