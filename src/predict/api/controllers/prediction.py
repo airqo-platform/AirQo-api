@@ -12,7 +12,8 @@ from helpers.utils import (
     get_forecasts,
     hourly_forecasts_cache_key,
     daily_forecasts_cache_key,
-    read_predictions_from_db,
+    read_predictions_from_db, get_predictions_by_geo_coordinates_v2, get_predictions_by_geo_coordinates,
+    get_health_tips, geo_coordinates_cache_key,
 )
 from routes import api
 
@@ -165,3 +166,43 @@ def parish_predictions():
         print(ex)
         traceback.print_exc()
         return {"message": "Please contact support", "success": False}, 500
+
+
+@ml_app.route(api.route["search_predictions"], methods=["GET"])
+@cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=geo_coordinates_cache_key)
+def search_predictions():
+    try:
+        latitude = float(request.args.get("latitude"))
+        longitude = float(request.args.get("longitude"))
+        source = str(request.args.get("source", "parishes")).lower()
+        distance_in_metres = int(request.args.get("distance", 100))
+        if source == "parishes":
+            data = get_predictions_by_geo_coordinates_v2(
+                latitude=latitude,
+                longitude=longitude,
+            )
+        else:
+            data = get_predictions_by_geo_coordinates(
+                latitude=latitude,
+                longitude=longitude,
+                distance_in_metres=distance_in_metres,
+            )
+
+        if data:
+            health_tips = get_health_tips()
+            pm2_5 = data["pm2_5"]
+            data["health_tips"] = list(
+                filter(
+                    lambda x: x["aqi_category"]["max"]
+                              >= pm2_5
+                              >= x["aqi_category"]["min"],
+                    health_tips,
+                )
+            )
+
+        return {"success": True, "data": data}, 200
+
+    except Exception as ex:
+        print(ex)
+    traceback.print_exc()
+    return {"message": "Please contact support", "success": False}, 500
