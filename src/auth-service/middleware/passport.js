@@ -383,6 +383,26 @@ const useJWTStrategy = (tenant, req, res, next) =>
         service = "fault-detection";
       }
 
+      if (
+        (req.method === "POST" ||
+          req.method === "PUT" ||
+          req.method === "DELETE") &&
+        (req.baseUrl.includes("/api/v2/analytics/data/download") ||
+          req.baseUrl.includes("/api/v1/analytics/data/download"))
+      ) {
+        service = "data-export-download";
+      }
+
+      if (
+        (req.method === "POST" ||
+          req.method === "PUT" ||
+          req.method === "DELETE") &&
+        (req.baseUrl.includes("/api/v2/analytics/data-export") ||
+          req.baseUrl.includes("/api/v1/analytics/data-export"))
+      ) {
+        service = "data-export-scheduling";
+      }
+
       logObject("Service", service);
       const user = await UserModel(tenant.toLowerCase())
         .findOne({ _id: payload._id })
