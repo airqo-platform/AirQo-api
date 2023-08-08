@@ -1,9 +1,12 @@
 const mongoose = require("mongoose").set("debug", true);
 const Schema = mongoose.Schema;
+const constants = require("@config/constants");
 const { logObject, logElement, logText } = require("@utils/log");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
+const log4js = require("log4js");
+const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- clients-model`);
 
 const ClientSchema = new Schema(
   {
@@ -89,6 +92,7 @@ ClientSchema.statics = {
       }
     } catch (err) {
       logObject("the error", err);
+      logger.error(`internal server error -- ${JSON.stringify(err)}`);
       let response = {};
       if (err.keyValue) {
         Object.entries(err.keyValue).forEach(([key, value]) => {
@@ -116,18 +120,13 @@ ClientSchema.statics = {
   },
   async list({ skip = 0, limit = 100, filter = {} } = {}) {
     try {
-      logText("we are inside the model/collection....");
-      const projectAll = {
-        _id: 1,
-        client_id: 1,
-        client_secret: 1,
-        redirect_uri: 1,
-        name: 1,
-        description: 1,
-        networks: "$networks",
-      };
-
-      const projectSummary = {};
+      const inclusionProjection = constants.CLIENTS_INCLUSION_PROJECTION;
+      const exclusionProjection = constants.CLIENTS_EXCLUSION_PROJECTION(
+        filter.category ? filter.category : "none"
+      );
+      if (!isEmpty(filter.category)) {
+        delete filter.category;
+      }
 
       const response = await this.aggregate()
         .match(filter)
@@ -138,24 +137,8 @@ ClientSchema.statics = {
           as: "networks",
         })
         .sort({ createdAt: -1 })
-        .project(projectAll)
-        .project({
-          "networks.__v": 0,
-          "networks.net_status": 0,
-          "networks.net_acronym": 0,
-          "networks.createdAt": 0,
-          "networks.updatedAt": 0,
-          "networks.net_clients": 0,
-          "networks.net_roles": 0,
-          "networks.net_groups": 0,
-          "networks.net_description": 0,
-          "networks.net_departments": 0,
-          "networks.net_permissions": 0,
-          "networks.net_email": 0,
-          "networks.net_category": 0,
-          "networks.net_phoneNumber": 0,
-          "networks.net_manager": 0,
-        })
+        .project(inclusionProjection)
+        .project(exclusionProjection)
         .skip(skip ? skip : 0)
         .limit(limit ? limit : 100)
         .allowDiskUse(true);
@@ -177,6 +160,7 @@ ClientSchema.statics = {
       }
     } catch (error) {
       logObject("error", error);
+      logger.error(`internal server error -- ${JSON.stringify(error)}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -221,11 +205,13 @@ ClientSchema.statics = {
         };
       }
     } catch (error) {
+      logObject("error", error);
+      logger.error(`internal server error -- ${JSON.stringify(error)}`);
       return {
         success: false,
         message: "INTERNAL SERVER ERROR",
         error: error.message,
-        errors: { message: "internal server error", error: error.message },
+        errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -253,6 +239,8 @@ ClientSchema.statics = {
         };
       }
     } catch (error) {
+      logObject("error", error);
+      logger.error(`internal server error -- ${JSON.stringify(error)}`);
       return {
         success: false,
         message: "internal server errors",
