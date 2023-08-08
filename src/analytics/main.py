@@ -44,6 +44,8 @@ def create_app(rest_api, config=CONFIGURATIONS):
 
     initialize_blueprints(app)
 
+    import api.views
+
     return app
 
 
