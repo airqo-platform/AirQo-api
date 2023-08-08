@@ -608,7 +608,7 @@ class BigQueryApi:
                 device_df = device_df.sort_values(by=["timestamp"])
                 final_df = pd.concat([final_df, device_df])
 
-            return dataframe
+            return final_df
 
         except Exception as e:
             raise e
