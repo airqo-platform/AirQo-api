@@ -59,9 +59,15 @@ describe("mailer", () => {
         address: constants.EMAIL,
       });
       expect(sendMailStub.firstCall.args[0].to).to.equal(email);
-      expect(sendMailStub.firstCall.args[0].subject).to.equal("AirQo Analytics JOIN request");
-      expect(sendMailStub.firstCall.args[0].html).to.equal(msgs.joinRequest(firstName, lastName, email));
-      expect(sendMailStub.firstCall.args[0].bcc).to.equal(constants.REQUEST_ACCESS_EMAILS);
+      expect(sendMailStub.firstCall.args[0].subject).to.equal(
+        "AirQo Analytics JOIN request"
+      );
+      expect(sendMailStub.firstCall.args[0].html).to.equal(
+        msgs.joinRequest(firstName, lastName, email)
+      );
+      expect(sendMailStub.firstCall.args[0].bcc).to.equal(
+        constants.REQUEST_ACCESS_EMAILS
+      );
       expect(sendMailStub.firstCall.args[0].to).to.equal(email);
     });
 
@@ -99,8 +105,12 @@ describe("mailer", () => {
         address: constants.EMAIL,
       });
       expect(sendMailStub.firstCall.args[0].to).to.equal(email);
-      expect(sendMailStub.firstCall.args[0].subject).to.equal("AirQo Analytics JOIN request");
-      expect(sendMailStub.firstCall.args[0].html).to.equal(msgs.joinRequest(firstName, lastName, email));
+      expect(sendMailStub.firstCall.args[0].subject).to.equal(
+        "AirQo Analytics JOIN request"
+      );
+      expect(sendMailStub.firstCall.args[0].html).to.equal(
+        msgs.joinRequest(firstName, lastName, email)
+      );
       expect(sendMailStub.firstCall.args[0].to).to.equal(email);
     });
 
@@ -133,8 +143,12 @@ describe("mailer", () => {
         address: constants.EMAIL,
       });
       expect(sendMailStub.firstCall.args[0].to).to.equal(email);
-      expect(sendMailStub.firstCall.args[0].subject).to.equal("AirQo Analytics JOIN request");
-      expect(sendMailStub.firstCall.args[0].html).to.equal(msgs.joinRequest(firstName, lastName, email));
+      expect(sendMailStub.firstCall.args[0].subject).to.equal(
+        "AirQo Analytics JOIN request"
+      );
+      expect(sendMailStub.firstCall.args[0].html).to.equal(
+        msgs.joinRequest(firstName, lastName, email)
+      );
       expect(sendMailStub.firstCall.args[0].to).to.equal(email);
     });
   });
@@ -1595,6 +1609,95 @@ describe("mailer", () => {
     });
 
     // Add more tests for other cases...
+  });
+  describe("verifyMobileEmail()", () => {
+    let transporterStub;
+
+    beforeEach(() => {
+      transporterStub = sinon
+        .stub()
+        .resolves({ accepted: ["test@example.com"], rejected: [] });
+    });
+
+    afterEach(() => {
+      sinon.restore();
+    });
+
+    it("should send email successfully", async () => {
+      sinon.stub(transporter, "sendMail").callsFake(transporterStub);
+
+      const result = await mailer.verifyMobileEmail({
+        firebase_uid: "firebase_uid",
+        token: "token",
+        email: "test@example.com",
+      });
+
+      expect(result).to.deep.equal({
+        success: true,
+        message: "email successfully sent",
+        data: { accepted: ["test@example.com"], rejected: [] },
+        status: httpStatus.OK,
+      });
+      expect(transporter.sendMail.calledOnce).to.be.true;
+    });
+
+    it("should handle email sending failure", async () => {
+      transporterStub.rejects(new Error("Email sending failed"));
+
+      sinon.stub(transporter, "sendMail").callsFake(transporterStub);
+
+      const result = await mailer.verifyMobileEmail({
+        firebase_uid: "firebase_uid",
+        token: "token",
+        email: "test@example.com",
+      });
+
+      expect(result).to.deep.equal({
+        success: false,
+        message: "email not sent",
+        errors: { message: new Error("Email sending failed") },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      });
+      expect(transporter.sendMail.calledOnce).to.be.true;
+    });
+
+    it("should handle internal server error", async () => {
+      sinon
+        .stub(transporter, "sendMail")
+        .throws(new Error("Internal Server Error"));
+
+      const result = await mailer.verifyMobileEmail({
+        firebase_uid: "firebase_uid",
+        token: "token",
+        email: "test@example.com",
+      });
+
+      expect(result).to.deep.equal({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: new Error("Internal Server Error") },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      });
+      expect(transporter.sendMail.calledOnce).to.be.true;
+    });
+  });
+  describe("mobileEmailVerification()", () => {
+    it("should generate the email HTML content correctly", () => {
+      const result = mobileEmailVerification({
+        email: "test@example.com",
+        firebase_uid: "firebase_uid",
+        token: "12345",
+      });
+
+      expect(result).to.be.a("string");
+      expect(result).to.contain("Welcome to AirQo Analytics");
+      expect(result).to.contain("Thank you for choosing AirQo Mobile!");
+      expect(result).to.contain("Your Login Code for AirQo Mobile");
+      expect(result).to.contain("12345");
+      expect(result).to.contain(
+        "You can set a permanent password anytime within your AirQo Analytics personal settings"
+      );
+    });
   });
 
   // Add more describe blocks for other mailer functions if needed...

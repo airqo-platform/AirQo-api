@@ -22,10 +22,28 @@ const generateFilter = require("./generate-filter");
 const moment = require("moment-timezone");
 const admin = require("firebase-admin");
 const { db } = require("@config/firebase-admin");
-
+const { client1 } = require("@config/redis");
+const redis = client1;
 const log4js = require("log4js");
 const logger = log4js.getLogger(`${constants.ENVIRONMENT} -- create-user-util`);
 
+function generateNumericToken(length) {
+  const charset = "0123456789";
+  let token = "";
+
+  const byteLength = Math.ceil(length * 0.5); // Each byte can represent two characters from the charset
+
+  while (token.length < length) {
+    const randomBytes = crypto.randomBytes(byteLength);
+
+    for (let i = 0; i < randomBytes.length && token.length < length; i++) {
+      const randomIndex = randomBytes[i] % charset.length;
+      token += charset[randomIndex];
+    }
+  }
+
+  return token;
+}
 const UserModel = (tenant) => {
   try {
     let users = mongoose.model("users");
@@ -35,7 +53,6 @@ const UserModel = (tenant) => {
     return users;
   }
 };
-
 const LogModel = (tenant) => {
   try {
     const logs = mongoose.model("logs");
@@ -45,7 +62,6 @@ const LogModel = (tenant) => {
     return logs;
   }
 };
-
 const AccessTokenModel = (tenant) => {
   try {
     let tokens = mongoose.model("access_tokens");
@@ -55,7 +71,6 @@ const AccessTokenModel = (tenant) => {
     return tokens;
   }
 };
-
 const ClientModel = (tenant) => {
   try {
     let clients = mongoose.model("clients");
@@ -65,7 +80,6 @@ const ClientModel = (tenant) => {
     return clients;
   }
 };
-
 const NetworkModel = (tenant) => {
   try {
     const networks = mongoose.model("networks");
@@ -75,7 +89,6 @@ const NetworkModel = (tenant) => {
     return networks;
   }
 };
-
 const RoleModel = (tenant) => {
   try {
     let roles = mongoose.model("roles");
@@ -85,7 +98,6 @@ const RoleModel = (tenant) => {
     return roles;
   }
 };
-
 async function deleteCollection(db, collectionPath, batchSize) {
   const collectionRef = db.collection(collectionPath);
   const query = collectionRef.orderBy("__name__").limit(batchSize);
@@ -94,7 +106,6 @@ async function deleteCollection(db, collectionPath, batchSize) {
     deleteQueryBatch(db, query, batchSize, resolve, reject);
   });
 }
-
 function deleteQueryBatch(db, query, batchSize, resolve, reject) {
   query
     .get()
@@ -213,7 +224,6 @@ const createUserModule = {
       };
     }
   },
-
   list: async (request) => {
     try {
       const { query } = request;
@@ -331,73 +341,53 @@ const createUserModule = {
       };
     }
   },
-
-  lookUpFirebaseUser: async (request, callback) => {
+  lookUpFirebaseUser: async (request) => {
     try {
       const { body } = request;
       const { email, phoneNumber, providerId, providerUid } = body;
-      let userIndetificationArray = [];
+      let userIdentificationArray = [];
+
       if (isEmpty(email) && !isEmpty(phoneNumber)) {
-        userIndetificationArray.push({ phoneNumber });
+        userIdentificationArray.push({ phoneNumber });
       } else if (!isEmpty(email) && isEmpty(phoneNumber)) {
-        userIndetificationArray.push({ email });
+        userIdentificationArray.push({ email });
       } else {
-        userIndetificationArray.push({ phoneNumber });
-        userIndetificationArray.push({ email });
+        userIdentificationArray.push({ phoneNumber });
+        userIdentificationArray.push({ email });
       }
-      return getAuth()
-        .getUsers(userIndetificationArray)
-        .then(async (getUsersResult) => {
-          logObject("getUsersResult", getUsersResult);
-          getUsersResult.users.forEach((userRecord) => {
-            callback({
-              success: true,
-              message: "Successfully fetched user data",
-              status: httpStatus.OK,
-              data: [],
-              userRecord,
-            });
-          });
 
-          getUsersResult.notFound.forEach((user_identifier) => {
-            callback({
-              success: false,
-              message:
-                "Unable to find users corresponding to these identifiers",
-              status: httpStatus.NOT_FOUND,
-              data: user_identifier,
-            });
-          });
-        })
-        .catch((error) => {
-          let status = httpStatus.INTERNAL_SERVER_ERROR;
+      const getUsersResult = await getAuth().getUsers(userIdentificationArray);
+      logObject("getUsersResult", getUsersResult);
 
-          if (error.code === "auth/invalid-email") {
-            status = httpStatus.BAD_REQUEST;
-          }
-          callback({
-            success: false,
-            message: "internal server error",
-            status,
-            errors: {
-              message: error,
-            },
-          });
-        });
-    } catch (error) {
-      logger.error(`Internal Server Error ${error.message}`);
-      callback({
+      const successResponses = getUsersResult.users.map((userRecord) => ({
+        success: true,
+        message: "Successfully fetched user data",
+        status: httpStatus.OK,
+        data: [],
+        userRecord,
+      }));
+
+      const errorResponses = getUsersResult.notFound.map((user_identifier) => ({
         success: false,
-        message: "Internal Server Error",
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: {
-          message: error.message,
+        message: "Unable to find users corresponding to these identifiers",
+        status: httpStatus.NOT_FOUND,
+        data: user_identifier,
+      }));
+
+      return [...successResponses, ...errorResponses];
+    } catch (error) {
+      logObject("Internal Server Error", error);
+      return [
+        {
+          success: false,
+          message: "Internal Server Error",
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          errors: { message: error.message },
         },
-      });
+      ];
     }
   },
-
-  createFirebaseUser: async (request, callback) => {
+  createFirebaseUser: async (request) => {
     try {
       const { body } = request;
       const { email, password, phoneNumber } = body;
@@ -405,21 +395,24 @@ const createUserModule = {
 
       // Check if either email or phoneNumber is provided
       if (isEmpty(email) && isEmpty(phoneNumber)) {
-        callback({
-          success: false,
-          message: "Please provide either email or phoneNumber",
-          status: httpStatus.BAD_REQUEST,
-        });
-        return;
+        return [
+          {
+            success: false,
+            message: "Please provide either email or phoneNumber",
+            status: httpStatus.BAD_REQUEST,
+          },
+        ];
       }
 
       if (!isEmpty(email) && isEmpty(phoneNumber) && isEmpty(password)) {
-        callback({
-          success: false,
-          message: "Bad Request",
-          errors: { message: "password must be provided when using email" },
-          status: httpStatus.BAD_REQUEST,
-        });
+        return [
+          {
+            success: false,
+            message: "Bad Request",
+            errors: { message: "password must be provided when using email" },
+            status: httpStatus.BAD_REQUEST,
+          },
+        ];
       }
 
       // Create the user object with either email or phoneNumber
@@ -445,24 +438,38 @@ const createUserModule = {
       // For example, to set custom claims, use: await updateCustomClaims(getAuth(), uid, { isAdmin: true });
 
       // Return the success response with the user ID
-      callback({
-        success: true,
-        message: "User created successfully",
-        status: httpStatus.CREATED,
-        data: { uid },
-      });
+      return [
+        {
+          success: true,
+          message: "User created successfully",
+          status: httpStatus.CREATED,
+          data: { uid },
+        },
+      ];
     } catch (error) {
-      logger.error(`Internal Server Error ${JSON.stringify(error)}`);
-      callback({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-      });
+      logObject("Internal Server Error:", error);
+      logObject("error.code", error.code);
+      if (error.code && error.code === "auth/email-already-exists") {
+        return [
+          {
+            success: false,
+            message: "Bad Request Error",
+            errors: { message: error.message },
+            status: httpStatus.BAD_REQUEST,
+          },
+        ];
+      }
+      return [
+        {
+          success: false,
+          message: "Internal Server Error",
+          errors: { message: error.message },
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        },
+      ];
     }
   },
-
-  signUpWithFirebase: async (request, callback) => {
+  signUpWithFirebase: async (request) => {
     try {
       const { body, query } = request;
       const { tenant } = query;
@@ -470,303 +477,479 @@ const createUserModule = {
         body;
 
       // Step 1: Check if the user exists on Firebase using lookUpFirebaseUser function
-      createUserModule.lookUpFirebaseUser(
-        request,
-        async (firebaseUserResponse) => {
-          if (
-            firebaseUserResponse.success &&
-            firebaseUserResponse.data.length > 0
-          ) {
-            // Step 2: User exists on Firebase, update or create locally using UserModel
-            const firebaseUser = firebaseUserResponse.data[0];
+      const firebaseUserResponse = await createUserModule.lookUpFirebaseUser(
+        request
+      );
+      logObject("firebaseUserResponse[0]:", firebaseUserResponse[0]);
 
-            // Check if user exists locally in your MongoDB using UserModel
-            const userExistsLocally = await UserModel(tenant).findOne({
-              $or: [
-                { email: firebaseUser.email },
-                { phoneNumber: firebaseUser.phoneNumber },
-              ],
-            });
+      if (
+        firebaseUserResponse[0].success === true &&
+        firebaseUserResponse[0].data.length > 0
+      ) {
+        // Step 2: User exists on Firebase, send error message
+        return {
+          success: false,
+          message:
+            "User already exists on Firebase. Please login using Firebase.",
+          status: httpStatus.BAD_REQUEST,
+          errors: {
+            message:
+              "User already exists on Firebase. Please login using Firebase.",
+          },
+        };
+      } else {
+        // Step 3: User does not exist on Firebase, create user on Firebase first
+        // Create the user on Firebase using createFirebaseUser function
+        const firebaseCreateResponse =
+          await createUserModule.createFirebaseUser({
+            body: { email, phoneNumber, password },
+          });
+        logObject("firebaseCreateResponse[0]:", firebaseCreateResponse[0]);
 
-            if (userExistsLocally) {
-              // User exists locally, perform update operation
-              const updatedUser = await UserModel(tenant).updateOne(
-                { _id: userExistsLocally._id },
-                {
-                  firstName: firebaseUser.firstName,
-                  lastName: firebaseUser.lastName,
-                  userName: firebaseUser.userName,
-                }
-              );
+        if (firebaseCreateResponse[0].success === false) {
+          return firebaseCreateResponse[0];
+        } else if (firebaseCreateResponse[0].success === true) {
+          // Step 4: Firebase user created successfully, proceed with local user creation
+          // Check if user exists locally in your MongoDB using UserModel
+          const userExistsLocally = await UserModel(tenant).findOne({
+            $or: [{ email }, { phoneNumber }],
+          });
 
-              callback({
-                success: true,
-                message: "User updated successfully.",
-                status: httpStatus.OK,
-                data: updatedUser,
-              });
-            } else {
-              // User does not exist locally, perform create operation
-              // Create the user in your UserModel using mongoose create function
-              const newUser = await UserModel(tenant).create({
-                email: firebaseUser.email,
-                phoneNumber: firebaseUser.phoneNumber,
-                firstName,
-                lastName,
-                userName,
-                password,
-              });
-
-              callback({
-                success: true,
-                message: "User created successfully.",
-                status: httpStatus.CREATED,
-                data: newUser,
-              });
-            }
-          } else {
-            // Step 3: User does not exist on Firebase, create user on Firebase first
-            // Create the user on Firebase using createFirebaseUser function
-            createUserModule.createFirebaseUser(
-              { body: { email, phoneNumber, password } },
-              async (firebaseCreateResponse) => {
-                if (firebaseCreateResponse.success) {
-                  // Step 4: Firebase user created successfully, proceed with local user creation
-                  const newUser = await UserModel(tenant).create({
-                    email,
-                    phoneNumber,
-                    firstName,
-                    lastName,
-                    userName: email, // Using email as userName in this case
-                    password,
-                  });
-
-                  callback({
-                    success: true,
-                    message: "User created successfully.",
-                    status: httpStatus.CREATED,
-                    data: newUser,
-                  });
-                } else {
-                  callback({
-                    success: false,
-                    message: "Error creating user on Firebase.",
-                    status: httpStatus.INTERNAL_SERVER_ERROR,
-                    errors: { message: "Error creating user on Firebase." },
-                  });
-                }
-              }
+          if (!userExistsLocally) {
+            // User does not exist locally, perform create operation
+            let newAnalyticsUserDetails = {
+              ...(!isEmpty(phoneNumber) && { phoneNumber }),
+            };
+            newAnalyticsUserDetails.userName = userName || email;
+            newAnalyticsUserDetails.firstName = firstName || "Unknown";
+            newAnalyticsUserDetails.lastName = lastName || "Unknown";
+            newAnalyticsUserDetails.password = accessCodeGenerator.generate(
+              constants.RANDOM_PASSWORD_CONFIGURATION(10)
             );
+
+            logObject("newAnalyticsUserDetails:", newAnalyticsUserDetails);
+            const newUser = await UserModel(tenant).create(
+              newAnalyticsUserDetails
+            );
+            return {
+              success: true,
+              message: "User created successfully.",
+              status: httpStatus.CREATED,
+              data: newUser,
+            };
           }
         }
-      );
+      }
     } catch (error) {
-      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      callback({
+      console.error("Internal Server Error:", error);
+      return {
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
-      });
+      };
     }
   },
-
-  loginWithFirebase: async (request, callback) => {
+  setCache: async (data, cacheID) => {
     try {
-      const { body, query } = request;
-      const { tenant } = query;
-      const { email, phoneNumber, firstName, lastName, userName, password } =
-        body;
+      logObject("cacheID supplied to setCache", cacheID);
+      const result = await redis.set(cacheID, JSON.stringify(data), "EX", 3600);
+      return result;
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  getCache: async (cacheID) => {
+    try {
+      logText("we are getting the cache......");
+      logObject("cacheID supplied", cacheID);
+
+      const result = await redis.get(cacheID);
+      logObject("ze result....", result);
+      if (isEmpty(result)) {
+        return {
+          success: false,
+          message: "Invalid Request",
+          errors: {
+            message:
+              "Invalid Request -- Either Token or Email provided is invalid",
+          },
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
+      return JSON.parse(result);
+    } catch (error) {
+      logger.error(`internal server error -- ${error.message}`);
+      return {
+        success: false,
+        errors: { message: error.message },
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  deleteCachedItem: async (cacheID) => {
+    try {
+      const result = await redis.del(cacheID);
+      return {
+        success: true,
+        data: { numberOfDeletedKeys: result },
+        message: "successfully deleted the cached item",
+        status: httpStatus.OK,
+      };
+    } catch (error) {
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: JSON.stringify(error) },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  generateCacheID: (request) => {
+    const { tenant } = request.query;
+    const { context } = request;
+    if (isEmpty(context) || isEmpty(tenant)) {
+      logger.error(`the request is either missing the context or the tenant`);
+      return {
+        success: false,
+        message: "Bad Request Error",
+        errors: {
+          message: "the request is either missing the context or tenant",
+        },
+        status: httpStatus.BAD_REQUEST,
+      };
+    }
+    return `${context}_${tenant}`;
+  },
+  loginWithFirebase: async (request) => {
+    try {
+      const { body } = request;
+      const { email } = body;
 
       // Step 1: Check if the user exists on Firebase using lookUpFirebaseUser function
-      createUserModule.lookUpFirebaseUser(
-        request,
-        async (firebaseUserResponse) => {
-          logObject("firebaseUserResponse", firebaseUserResponse);
+      const firebaseUserResponse = await createUserModule.lookUpFirebaseUser(
+        request
+      );
+      logObject("firebaseUserResponse[0]...", firebaseUserResponse[0]);
+      if (
+        firebaseUserResponse &&
+        firebaseUserResponse.length > 0 &&
+        firebaseUserResponse[0].success === true &&
+        !isEmpty(firebaseUserResponse[0].userRecord)
+      ) {
+        // Step 2: User exists on Firebase, update or create locally using UserModel
+        const firebaseUser = firebaseUserResponse[0].userRecord;
+        logObject("firebaseUser", firebaseUser);
+        logObject("firebaseUser.uid", firebaseUser.uid);
+        const firebase_uid = firebaseUser.uid;
+
+        // Generate the custom token
+        const token = generateNumericToken(5);
+
+        let generateCacheRequest = Object.assign({}, request);
+        const userIdentifier = firebaseUser.email
+          ? firebaseUser.email
+          : firebaseUser.phoneNumber;
+        generateCacheRequest.context = userIdentifier;
+        const cacheID = createUserModule.generateCacheID(generateCacheRequest);
+        logObject("cacheID", cacheID);
+        if (cacheID.success && cacheID.success === false) {
+          return cacheID;
+        } else {
+          const data = {
+            token,
+            ...firebaseUser,
+          };
+
+          const responseFromSettingCache = await createUserModule.setCache(
+            data,
+            cacheID
+          );
           if (
-            firebaseUserResponse.success === true &&
-            !isEmpty(firebaseUserResponse.userRecord)
+            responseFromSettingCache.success &&
+            responseFromSettingCache.success === false
           ) {
-            // Step 2: User exists on Firebase, update or create locally using UserModel
-            const firebaseUser = firebaseUserResponse.userRecord;
-            logObject("firebaseUser", firebaseUser);
-
-            // Check if user exists locally
-            const userExistsLocally = await UserModel(tenant)
-              .findOne({
-                $or: [
-                  { email: { $regex: new RegExp(firebaseUser.email, "i") } },
-                  { phoneNumber: firebaseUser.phoneNumber },
-                ],
-              })
-              .lean();
-            logObject("userExistsLocally", userExistsLocally);
-            if (userExistsLocally) {
-              // User exists locally, perform update operation
-              const updatedUser = await UserModel(tenant).updateOne(
-                { _id: userExistsLocally._id },
-                {
-                  firstName: firebaseUser.firstName,
-                  lastName: firebaseUser.lastName,
-                  userName: firebaseUser.userName,
-                }
-              );
-              logObject("updatedUser", updatedUser);
-              /**
-               * At this point, I should also send through the token in the response body
-               * {
-    "_id": "",
-    "userName": "",
-    "token": "",
-    "email": ""
-}
-               */
-
-              callback({
-                success: true,
-                message: "Successful login!",
-                status: httpStatus.OK,
-                data: updatedUser,
-              });
-            } else {
-              // User does not exist locally, perform create operation
-              logText("this user does not exist locally");
-              const newUser = await UserModel(tenant).create({
-                email: firebaseUser.email,
-                phoneNumber: firebaseUser.phoneNumber,
-                firstName: firebaseUser.firstName,
-                lastName: firebaseUser.lastName,
-                userName: firebaseUser.email,
-                password,
-              });
-
-              logObject("newUser", newUser);
-              /**,
-               * At this point, I should also send through the token in the response body
-               * {
-    "_id": "",
-    "userName": "",
-    "token": "",
-    "email": ""
-}
-               */
-              callback({
-                success: true,
-                message: "Successful login!",
-                status: httpStatus.CREATED,
-                data: newUser,
-              });
-            }
+            return responseFromSettingCache;
           } else {
-            callback({
-              success: false,
-              message: "Unable to Login using Firebase, crosscheck details.",
-              status: httpStatus.BAD_REQUEST,
-              errors: { message: "User does not exist on Firebase" },
+            logObject("Cache set successfully", responseFromSettingCache);
+            logObject("token", token);
+
+            const responseFromSendEmail = await mailer.verifyMobileEmail({
+              token,
+              email,
+              firebase_uid,
             });
+
+            logObject("responseFromSendEmail", responseFromSendEmail);
+            if (responseFromSendEmail.success === true) {
+              return {
+                success: true,
+                message: "An Email sent to your account, please verify",
+                data: firebaseUser,
+                status: responseFromSendEmail.status
+                  ? responseFromSendEmail.status
+                  : "",
+              };
+            } else if (responseFromSendEmail.success === false) {
+              return responseFromSendEmail;
+            }
           }
         }
-      );
+      } else {
+        return {
+          success: false,
+          message: "Unable to Login using Firebase, crosscheck details.",
+          status: httpStatus.BAD_REQUEST,
+          errors: { message: "User does not exist on Firebase" },
+        };
+      }
     } catch (error) {
       logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
-      callback({
+      return {
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
-      });
+      };
     }
   },
+  verifyFirebaseCustomToken: async (request) => {
+    try {
+      logText("we are in verifying things");
+      const { tenant } = request.query;
+      const { email, phoneNumber, token } = request.body;
 
-  generateSignInWithEmailLink: async (request, callback) => {
+      let generateCacheRequest = Object.assign({}, request);
+      const userIdentifier = email ? email : phoneNumber;
+      generateCacheRequest.context = userIdentifier;
+
+      const cacheID = createUserModule.generateCacheID(generateCacheRequest);
+      logObject("the cacheID search results", cacheID);
+
+      if (cacheID.success && cacheID.success === false) {
+        return cacheID;
+      }
+
+      const cachedData = await createUserModule.getCache(cacheID);
+      logObject("cachedData", cachedData);
+
+      if (cachedData.success === false) {
+        return cachedData;
+      } else {
+        logObject("the cachedData", cachedData);
+
+        if (!isEmpty(cachedData.token) && cachedData.token !== token) {
+          return {
+            success: false,
+            message: "Invalid Request",
+            errors: { message: "Either Token or Email are Incorrect" },
+            status: httpStatus.BAD_REQUEST,
+          };
+        }
+
+        const firebaseUser = cachedData;
+
+        if (!firebaseUser.email && !firebaseUser.phoneNumber) {
+          return {
+            success: false,
+            message: "Invalid request.",
+            status: httpStatus.BAD_REQUEST,
+            errors: { message: "Email or phoneNumber is required." },
+          };
+        }
+
+        let filter = {};
+        if (email) {
+          filter.email = email;
+        }
+        if (phoneNumber) {
+          filter.phoneNumber = phoneNumber;
+        }
+        const userExistsLocally = await UserModel(tenant)
+          .findOne(filter)
+          .exec();
+
+        logObject("userExistsLocally", userExistsLocally);
+
+        if (userExistsLocally) {
+          const updatedFields = {};
+          if (firebaseUser.firstName !== null) {
+            updatedFields.firstName = firebaseUser.firstName;
+          }
+          if (firebaseUser.lastName !== null) {
+            updatedFields.lastName = firebaseUser.lastName;
+          }
+          const updatedUser = await UserModel(tenant).updateOne(
+            { _id: userExistsLocally._id },
+            {
+              $set: updatedFields,
+            }
+          );
+          logObject("updatedUser", updatedUser);
+          const responseFromDeleteCachedItem =
+            await createUserModule.deleteCachedItem(cacheID);
+          logObject(
+            "responseFromDeleteCachedItem after updating existing user",
+            responseFromDeleteCachedItem
+          );
+          if (
+            responseFromDeleteCachedItem.success &&
+            responseFromDeleteCachedItem.success === true
+          ) {
+            return {
+              success: true,
+              message: "Successful login!",
+              status: httpStatus.CREATED,
+              data: userExistsLocally.toAuthJSON(),
+            };
+          } else {
+            return {
+              success: false,
+              message: "Internal Sever Error",
+              errors: {
+                message:
+                  "Unable to delete the token after successful operation",
+              },
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+            };
+          }
+        } else {
+          // User does not exist locally, perform create operation
+          logText("this user does not exist locally");
+          const generatedUserName =
+            firebaseUser.displayName || firebaseUser.email;
+          const generatedFirstName = firebaseUser.firstName || "Unknown";
+          const generatedLastName = firebaseUser.lastName || "Unknown";
+          const generatedPassword = accessCodeGenerator.generate(
+            constants.RANDOM_PASSWORD_CONFIGURATION(10)
+          );
+          const generatedProfilePicture = firebaseUser.photoURL || "";
+          const newUser = await UserModel(tenant).create({
+            email: firebaseUser.email,
+            phoneNumber: firebaseUser.phoneNumber,
+            firstName: generatedFirstName,
+            lastName: generatedLastName,
+            userName: generatedUserName,
+            password: generatedPassword,
+            firebase_uid: firebaseUser.uid,
+            profilePicture: generatedProfilePicture,
+          });
+          logObject("newUser", newUser);
+          const responseFromDeleteCachedItem =
+            await createUserModule.deleteCachedItem(cacheID);
+          logObject(
+            "responseFromDeleteCachedItem after creating new user",
+            responseFromDeleteCachedItem
+          );
+          if (
+            responseFromDeleteCachedItem.success &&
+            responseFromDeleteCachedItem.success === true
+          ) {
+            return {
+              success: true,
+              message: "Successful login!",
+              status: httpStatus.CREATED,
+              data: newUser.toAuthJSON(),
+            };
+          } else {
+            return {
+              success: false,
+              message: "Internal Sever Error",
+              errors: {
+                message:
+                  "Unable to delete the token after successful operation",
+              },
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+            };
+          }
+        }
+      }
+    } catch (error) {
+      logObject("error", error);
+      logger.error(`Internal Server Error -- ${JSON.stringify(error)}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      };
+    }
+  },
+  generateSignInWithEmailLink: async (request) => {
     try {
       const { body, query } = request;
       const { email } = body;
       const { purpose } = query;
 
-      return getAuth()
-        .generateSignInWithEmailLink(email, constants.ACTION_CODE_SETTINGS)
-        .then(async (link) => {
-          let linkSegments = link.split("%").filter((segment) => segment);
-          const indexBeforeCode = linkSegments.indexOf("26oobCode", 0);
-          const indexOfCode = indexBeforeCode + 1;
-          let emailLinkCode = linkSegments[indexOfCode].substring(2);
+      const link = await getAuth().generateSignInWithEmailLink(
+        email,
+        constants.ACTION_CODE_SETTINGS
+      );
 
-          let responseFromSendEmail = {};
-          let token = 100000;
-          if (email !== constants.EMAIL) {
-            token = Math.floor(Math.random() * (999999 - 100000) + 100000);
-          }
-          if (purpose === "mobileAccountDelete") {
-            responseFromSendEmail = await mailer.deleteMobileAccountEmail(
-              email,
-              token
-            );
-          }
-          if (purpose === "auth") {
-            responseFromSendEmail = await mailer.authenticateEmail(
-              email,
-              token
-            );
-          }
-          if (purpose === "login") {
-            responseFromSendEmail = await mailer.signInWithEmailLink(
-              email,
-              token
-            );
-          }
+      let linkSegments = link.split("%").filter((segment) => segment);
+      const indexBeforeCode = linkSegments.indexOf("26oobCode", 0);
+      const indexOfCode = indexBeforeCode + 1;
+      let emailLinkCode = linkSegments[indexOfCode].substring(2);
 
-          if (responseFromSendEmail.success === true) {
-            callback({
-              success: true,
-              message: "process successful, check your email for token",
-              status: httpStatus.OK,
-              data: {
-                link,
-                token,
-                email,
-                emailLinkCode,
-              },
-            });
-          } else if (responseFromSendEmail.success === false) {
-            logger.error(`email sending process unsuccessful`);
-            callback({
-              success: false,
-              message: "email sending process unsuccessful",
-              errors: responseFromSendEmail.errors,
-              status: httpStatus.INTERNAL_SERVER_ERROR,
-            });
-          }
-        })
-        .catch((error) => {
-          logObject("the error", error);
-          let status = httpStatus.INTERNAL_SERVER_ERROR;
+      let responseFromSendEmail = {};
+      let token = 100000;
+      if (email !== constants.EMAIL) {
+        token = Math.floor(Math.random() * (999999 - 100000) + 100000);
+      }
+      if (purpose === "mobileAccountDelete") {
+        responseFromSendEmail = await mailer.deleteMobileAccountEmail(
+          email,
+          token
+        );
+      }
+      if (purpose === "auth") {
+        responseFromSendEmail = await mailer.authenticateEmail(email, token);
+      }
+      if (purpose === "login") {
+        responseFromSendEmail = await mailer.signInWithEmailLink(email, token);
+      }
 
-          if (error.code === "auth/invalid-email") {
-            status = httpStatus.BAD_REQUEST;
-          }
-          logger.error(`unable to sign in using email link`);
-          callback({
-            success: false,
-            message: "unable to sign in using email link",
-            status,
-            errors: {
-              message: error,
-            },
-          });
-        });
+      if (responseFromSendEmail.success === true) {
+        return {
+          success: true,
+          message: "process successful, check your email for token",
+          status: httpStatus.OK,
+          data: {
+            link,
+            token,
+            email,
+            emailLinkCode,
+          },
+        };
+      } else if (responseFromSendEmail.success === false) {
+        logger.error(`email sending process unsuccessful`);
+        return {
+          success: false,
+          message: "email sending process unsuccessful",
+          errors: responseFromSendEmail.errors,
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
     } catch (error) {
       logger.error(`Internal Server Error ${error.message}`);
-      callback({
+      return {
         success: false,
         message: "Internal Server Error",
         status: httpStatus.INTERNAL_SERVER_ERROR,
         errors: {
           message: error.message,
         },
-      });
+      };
     }
   },
+
   delete: async (request) => {
     try {
       const { query } = request;
@@ -828,7 +1011,6 @@ const createUserModule = {
       };
     }
   },
-
   sendFeedback: async (request) => {
     try {
       const { body } = request;
@@ -860,7 +1042,6 @@ const createUserModule = {
       };
     }
   },
-
   create: async (request) => {
     try {
       const { tenant, firstName, email, network_id } = request;
@@ -976,7 +1157,6 @@ const createUserModule = {
       };
     }
   },
-
   register: async (request) => {
     try {
       const {
@@ -1049,7 +1229,6 @@ const createUserModule = {
       };
     }
   },
-
   forgotPassword: async (request) => {
     try {
       const { query } = request;
@@ -1129,7 +1308,6 @@ const createUserModule = {
       };
     }
   },
-
   updateForgottenPassword: async (request) => {
     try {
       const { resetPasswordToken, password } = request.body;
@@ -1199,7 +1377,6 @@ const createUserModule = {
       };
     }
   },
-
   updateKnownPassword: async (request) => {
     try {
       const { query, body } = request;
@@ -1302,7 +1479,6 @@ const createUserModule = {
       };
     }
   },
-
   generateResetToken: () => {
     try {
       const token = crypto.randomBytes(20).toString("hex");
@@ -1321,7 +1497,6 @@ const createUserModule = {
       };
     }
   },
-
   isPasswordTokenValid: async ({ tenant = "airqo", filter = {} } = {}) => {
     try {
       const responseFromListUser = await UserModel(tenant.toLowerCase()).list({
@@ -1362,7 +1537,6 @@ const createUserModule = {
       };
     }
   },
-
   subscribeToNewsLetter: async (request) => {
     try {
       const { email, tags } = request.body;
@@ -1429,7 +1603,6 @@ const createUserModule = {
       };
     }
   },
-
   deleteMobileUserData: async (request) => {
     try {
       const { userId, token } = request.params;

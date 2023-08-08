@@ -18,6 +18,8 @@ const devConfig = {
   KAFKA_CLIENT_ID: process.env.KAFKA_CLIENT_ID_DEV,
   KAFKA_CLIENT_GROUP: process.env.KAFKA_CLIENT_GROUP_DEV,
   DEFAULT_ROLE: process.env.DEFAULT_ROLE_DEV,
+  REDIS_SERVER: process.env.DEV_REDIS_SERVER,
+  REDIS_PORT: process.env.DEV_REDIS_PORT,
 };
 
 const prodConfig = {
@@ -40,6 +42,8 @@ const prodConfig = {
   KAFKA_CLIENT_ID: process.env.KAFKA_CLIENT_ID_PROD,
   KAFKA_CLIENT_GROUP: process.env.KAFKA_CLIENT_GROUP_PROD,
   DEFAULT_ROLE: process.env.DEFAULT_ROLE_PROD,
+  REDIS_SERVER: process.env.PROD_REDIS_SERVER,
+  REDIS_PORT: process.env.PROD_REDIS_PORT,
 };
 
 const stageConfig = {
@@ -63,6 +67,8 @@ const stageConfig = {
   KAFKA_CLIENT_ID: process.env.KAFKA_CLIENT_ID_STAGE,
   KAFKA_CLIENT_GROUP: process.env.KAFKA_CLIENT_GROUP_STAGE,
   DEFAULT_ROLE: process.env.DEFAULT_ROLE_STAGE,
+  REDIS_SERVER: process.env.STAGE_REDIS_SERVER,
+  REDIS_PORT: process.env.STAGE_REDIS_PORT,
 };
 
 const defaultConfig = {
@@ -780,6 +786,40 @@ const defaultConfig = {
       projection = Object.assign({}, {});
     }
 
+    return projection;
+  },
+
+  CLIENTS_INCLUSION_PROJECTION: {
+    _id: 1,
+    client_id: 1,
+    client_secret: 1,
+    redirect_uri: 1,
+    name: 1,
+    description: 1,
+    networks: "$networks",
+  },
+  CLIENTS_EXCLUSION_PROJECTION: (category) => {
+    const initialProjection = {
+      "networks.__v": 0,
+      "networks.net_status": 0,
+      "networks.net_acronym": 0,
+      "networks.createdAt": 0,
+      "networks.updatedAt": 0,
+      "networks.net_clients": 0,
+      "networks.net_roles": 0,
+      "networks.net_groups": 0,
+      "networks.net_description": 0,
+      "networks.net_departments": 0,
+      "networks.net_permissions": 0,
+      "networks.net_email": 0,
+      "networks.net_category": 0,
+      "networks.net_phoneNumber": 0,
+      "networks.net_manager": 0,
+    };
+    let projection = Object.assign({}, initialProjection);
+    if (category === "summary") {
+      projection = Object.assign({}, {});
+    }
     return projection;
   },
 };
