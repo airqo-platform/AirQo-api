@@ -380,11 +380,6 @@ const controlAccess = {
               ? request.headers["service"]
               : "unknown";
 
-            logObject(
-              "the req object accessing our system using ACCESS TOKENS",
-              req
-            );
-
             if (
               (request.headers["x-original-uri"] &&
                 request.headers["x-original-uri"].includes(
