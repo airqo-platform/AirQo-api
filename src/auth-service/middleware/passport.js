@@ -266,6 +266,8 @@ const useJWTStrategy = (tenant, req, res, next) =>
   new JwtStrategy(jwtOpts, async (payload, done) => {
     try {
       logObject("the baseURL accessing API", req.baseUrl);
+      logObject("the req object accessing our system using JWTs", req);
+
       let service = req.headers["service"];
 
       if (
@@ -381,6 +383,26 @@ const useJWTStrategy = (tenant, req, res, next) =>
         req.baseUrl.includes("/api/v1/predict-faults")
       ) {
         service = "fault-detection";
+      }
+
+      if (
+        (req.method === "POST" ||
+          req.method === "PUT" ||
+          req.method === "DELETE") &&
+        (req.baseUrl.includes("/api/v2/analytics/data/download") ||
+          req.baseUrl.includes("/api/v1/analytics/data/download"))
+      ) {
+        service = "data-export-download";
+      }
+
+      if (
+        (req.method === "POST" ||
+          req.method === "PUT" ||
+          req.method === "DELETE") &&
+        (req.baseUrl.includes("/api/v2/analytics/data-export") ||
+          req.baseUrl.includes("/api/v1/analytics/data-export"))
+      ) {
+        service = "data-export-scheduling";
       }
 
       logObject("Service", service);

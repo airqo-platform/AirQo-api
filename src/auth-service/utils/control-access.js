@@ -380,6 +380,11 @@ const controlAccess = {
               ? request.headers["service"]
               : "unknown";
 
+            logObject(
+              "the req object accessing our system using ACCESS TOKENS",
+              req
+            );
+
             if (
               request.baseUrl.includes("/api/v2/devices/events") ||
               request.baseUrl.includes("/api/v1/devices/events")
@@ -494,6 +499,27 @@ const controlAccess = {
             ) {
               service = "fault-detection";
             }
+
+            if (
+              (request.method === "POST" ||
+                request.method === "PUT" ||
+                request.method === "DELETE") &&
+              (request.baseUrl.includes("/api/v2/analytics/data/download") ||
+                request.baseUrl.includes("/api/v1/analytics/data/download"))
+            ) {
+              service = "data-export-download";
+            }
+
+            if (
+              (request.method === "POST" ||
+                request.method === "PUT" ||
+                request.method === "DELETE") &&
+              (request.baseUrl.includes("/api/v2/analytics/data-export") ||
+                request.baseUrl.includes("/api/v1/analytics/data-export"))
+            ) {
+              service = "data-export-scheduling";
+            }
+
             const user = newResponse.data.user;
             winstonLogger.info(`successful login through ${service} service`, {
               username: user.email,
