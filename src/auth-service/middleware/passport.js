@@ -265,19 +265,12 @@ const useGoogleStrategy = (tenant, req, res, next) =>
 const useJWTStrategy = (tenant, req, res, next) =>
   new JwtStrategy(jwtOpts, async (payload, done) => {
     try {
-      logObject(
-        "the baseURL accessing API",
-        req.headers["x-original-uri"] && req.headers["x-original-uri"]
-      );
-      logObject("the req object accessing our system using JWTs", req);
+      logObject("the req object when using JWTs", req);
       logObject("req.headers", req.headers);
-      logObject(
-        "req.headers[x-original-uri]",
-        req.headers["x-original-uri"] && req.headers["x-original-uri"]
-      );
+      logObject("req.headers[x-original-uri]", req.headers["x-original-uri"]);
       logObject(
         "req.headers[x-original-method]",
-        req.headers["x-original-method"] && req.headers["x-original-method"]
+        req.headers["x-original-method"]
       );
 
       let service = req.headers["service"];
