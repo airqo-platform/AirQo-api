@@ -12,6 +12,7 @@ const { Strategy: JwtStrategy, ExtractJwt } = require("passport-jwt");
 const AuthTokenStrategy = require("passport-auth-token");
 const jwt = require("jsonwebtoken");
 const accessCodeGenerator = require("generate-password");
+//
 
 const { getModelByTenant } = require("@config/database");
 
@@ -267,12 +268,14 @@ const useJWTStrategy = (tenant, req, res, next) =>
     try {
       logObject("the baseURL accessing API", req.baseUrl);
       logObject("the req object accessing our system using JWTs", req);
+      logObject("req.headers", req.headers);
+      logObject("req.headers[x-original-uri]", req.headers["x-original-uri"]);
 
       let service = req.headers["service"];
 
       if (
-        req.baseUrl.includes("/api/v2/devices/events") ||
-        req.baseUrl.includes("/api/v1/devices/events")
+        req.headers["x-original-uri"].includes("/api/v2/devices/events") ||
+        req.headers["x-original-uri"].includes("/api/v1/devices/events")
       ) {
         service = "api";
         return done(null, false);
