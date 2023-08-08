@@ -12,7 +12,7 @@ from helpers.convert_dates import str_to_date
 from helpers.exceptions import CollocationBatchNotFound, CollocationError
 from helpers.request_validators import validate_request_json, validate_request_params
 from helpers.utils import decode_user_token
-from models import (
+from models.collocation import (
     CollocationBatch,
     CollocationBatchStatus,
     CollocationBatchResult,

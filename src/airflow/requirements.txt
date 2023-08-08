@@ -6,4 +6,5 @@ pyarrow
 kafka-python
 simplejson
 sentry-sdk
+pymongo
 geopy

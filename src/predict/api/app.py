@@ -3,15 +3,15 @@ import os
 
 from dotenv import load_dotenv
 from flask import Flask
+from flask_caching import Cache
 from flask_cors import CORS
 from flask_pymongo import PyMongo
+from flask_sqlalchemy import SQLAlchemy
 from geoalchemy2 import Geometry
 
-from config import constants
-from flask_caching import Cache
-from flask_sqlalchemy import SQLAlchemy
+import config
 
-app_configuration = constants.app_config.get(os.getenv("FLASK_ENV"))
+app_configuration = config.app_config.get(os.getenv("FLASK_ENV"))
 load_dotenv()
 
 _logger = logging.getLogger(__name__)
@@ -29,10 +29,10 @@ cache = Cache(
 
 
 def create_app(environment):
-    from controllers.prediction import ml_app
+    from prediction import ml_app
 
     app = Flask(__name__)
-    app.config.from_object(constants.app_config[environment])
+    app.config.from_object(config.app_config[environment])
     cache.init_app(app)
     mongo.init_app(app)
     app.config["SQLALCHEMY_DATABASE_URI"] = app_configuration.POSTGRES_CONNECTION_URL
