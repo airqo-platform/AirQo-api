@@ -12,7 +12,6 @@ const { Strategy: JwtStrategy, ExtractJwt } = require("passport-jwt");
 const AuthTokenStrategy = require("passport-auth-token");
 const jwt = require("jsonwebtoken");
 const accessCodeGenerator = require("generate-password");
-//
 
 const { getModelByTenant } = require("@config/database");
 
