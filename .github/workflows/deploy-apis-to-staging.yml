@@ -58,7 +58,6 @@ jobs:
       run_incentives: ${{ steps.check_files.outputs.run_incentives }} # incentives
       run_channel_data: ${{ steps.check_files.outputs.run_channel_data }} # channel data job
       run_kafka_connectors: ${{ steps.check_files.outputs.run_kafka_connectors }} # kafka connectors
-      run_fault_detection: ${{ steps.check_files.outputs.run_fault_detection }} # fault detection
       run_nginx: ${{ steps.check_files.outputs.run_nginx }} # nginx ingress
 
     runs-on: ubuntu-latest
@@ -102,7 +101,6 @@ jobs:
           echo "run_incentives=false" >>$GITHUB_OUTPUT
           echo "run_channel_data=false" >>$GITHUB_OUTPUT
           echo "run_kafka_connectors=false" >>$GITHUB_OUTPUT
-          echo "run_fault_detection=false" >>$GITHUB_OUTPUT
           echo "run_nginx=false" >>$GITHUB_OUTPUT
 
           while IFS= read -r file
@@ -281,14 +279,6 @@ jobs:
               echo "run_channel_data=true" >>$GITHUB_OUTPUT
             fi
 
-            if [[ $file == src/fault-detection/* ]]; then
-              echo "run_fault_detection=true" >>$GITHUB_OUTPUT
-            fi
-
-            if [[ $file == k8s/fault-detection/* ]]; then
-              echo "run_fault_detection=true" >>$GITHUB_OUTPUT
-            fi
-
             if [[ $file == k8s/nginx/staging/* ]]; then
               echo "run_nginx=true" >>$GITHUB_OUTPUT
             fi
@@ -313,7 +303,6 @@ jobs:
               echo "run_network_uptime=true" >>$GITHUB_OUTPUT
               echo "run_incentives=true" >>$GITHUB_OUTPUT
               echo "run_channel_data=true" >>$GITHUB_OUTPUT
-              echo "run_fault_detection=true" >>$GITHUB_OUTPUT
               echo "run_view=true" >>$GITHUB_OUTPUT
               echo "run_kafka_connectors=true" >>$GITHUB_OUTPUT
               echo "run_nginx=true" >>$GITHUB_OUTPUT
@@ -448,89 +437,6 @@ jobs:
           kubectl create configmap --dry-run=client -o yaml --from-env-file=.env bigquery-connectors | kubectl replace -f - -n staging
           gcloud secrets versions access latest --secret="sta-key-kafka-bigquery-connectors" > google_application_credentials.json
           kubectl create configmap --dry-run=client -o yaml --from-file=google_application_credentials.json bigquery-connectors-files | kubectl replace -f - -n staging
-
-  #### Fault Detection ######
-  fault-detection:
-    name: build-push-deploy-fault-detection
-    needs: [check, image-tag]
-    if: needs.check.outputs.run_fault_detection == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3.5.3
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2.2.0
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2.7.0
-
-      - name: Login to GCR
-        uses: docker/login-action@v2.2.0
-        with:
-          registry: ${{ env.REGISTRY_URL }}
-          username: _json_key
-          password: ${{ secrets.GCR_CONFIG }}
-
-      - name: Build and push train catboost model
-        uses: docker/build-push-action@v4.1.1
-        with:
-          push: true
-          context: src/fault-detection
-          target: train-catboost-model
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-train-catboost-model:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-train-catboost-model:latest
-
-      - name: Build and push train lstm model
-        uses: docker/build-push-action@v4.1.1
-        with:
-          push: true
-          context: src/fault-detection
-          target: train-lstm-model
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-train-lstm-model:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-train-lstm-model:latest
-
-      - name: Build and push fault detection API
-        uses: docker/build-push-action@v4.1.1
-        with:
-          push: true
-          context: src/fault-detection
-          target: staging
-          tags: ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-fault-detection-api:${{ needs.image-tag.outputs.build_id }},${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/stage-fault-detection-api:latest
-
-      - name: Update corresponding helm values file(with retry)
-        uses: Wandalen/wretry.action@v1.0.36 # Retries action on fail
-        with:
-          action: fjogeleit/yaml-update-action@main # Action to retry
-          with: |
-            valueFile: "k8s/fault-detection/values-stage.yaml"
-            branch: ${{ env.DEPLOY_BRANCH }}
-            token: ${{ secrets.YAML_UPDATER_TOKEN }}
-            message: "Update fault detection staging tags to ${{ needs.image-tag.outputs.build_id }}"
-            changes: |
-              {
-                "image.tag": "${{ needs.image-tag.outputs.build_id }}",
-                "initContainers.container1.image.tag": "${{ needs.image-tag.outputs.build_id }}",
-                "initContainers.container2.image.tag": "${{ needs.image-tag.outputs.build_id }}"
-              }
-
-      - name: Login to k8s cluster
-        uses: azure/k8s-set-context@v3.0
-        with:
-          method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
-
-      - name: Login to GCP
-        uses: google-github-actions/auth@v1.1.1
-        with:
-          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
-
-      - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1.1.1
-
-      - name: Update the corresponding k8s configmap(s)
-        run: |
-          cd src/fault-detection/
-          gcloud secrets versions access latest --secret="sta-env-fault-detection" > .env
-          kubectl create configmap --dry-run=client -o yaml --from-env-file=.env stage-fault-detection-api-config | kubectl replace -f - -n staging
 
   ### airflow ###
   airflow:
@@ -907,7 +813,7 @@ jobs:
       - name: Build and Push Docker Image
         run: |
           cd src/data-mgt/node/
-          docker build --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-data-mgt-api:${{ needs.image-tag.outputs.build_id }} -f Dockerfile .
+          docker build --target=staging --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-data-mgt-api:${{ needs.image-tag.outputs.build_id }} .
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-data-mgt-api:${{ needs.image-tag.outputs.build_id }}
           docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-data-mgt-api:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-data-mgt-api:latest
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-stage-data-mgt-api:latest

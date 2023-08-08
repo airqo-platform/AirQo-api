@@ -18,7 +18,7 @@ This data management microservice is a Node.js-based application deployed using 
 
 1. Clone the repository.
 2. Install dependencies using `npm install`.
-3. `npm run dev-mac` or `npm run dev-pc`
+3. `npm run dev-mac` or `npm run dev-pc` to run the microservice
 
 ## Usage
 
@@ -49,4 +49,3 @@ Environment variables:
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-

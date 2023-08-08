@@ -88,7 +88,7 @@ celery = make_celery(app)
 def collocation_periodic_task():
     celery_logger.info("Collocation periodic task running")
     from helpers.collocation import Collocation
-    from models import CollocationBatch
+    from models.collocation import CollocationBatch
 
     collocation = Collocation()
     collocation.update_batches_statues()

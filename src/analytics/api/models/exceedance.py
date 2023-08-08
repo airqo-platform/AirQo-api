@@ -8,7 +8,7 @@ class ExceedanceModel(BasePyMongoModel):
         super().__init__(tenant, collection_name="exceedances")
 
     def group_by_pollutant(self, pollutant, standard):
-        if str(standard).lower() == 'who':
+        if str(standard).lower() == "who":
             return self.group(
                 _id="$site_id",
                 site={"$first": "$site"},
@@ -29,7 +29,7 @@ class ExceedanceModel(BasePyMongoModel):
         )
 
     def add_fields_by_pollutant(self, pollutant, standard):
-        if str(standard).lower() == 'who':
+        if str(standard).lower() == "who":
             return self.add_fields(
                 total={"$round": "$totalRaw"},
                 exceedance={"$round": f"${pollutant}"},
@@ -48,51 +48,57 @@ class ExceedanceModel(BasePyMongoModel):
         )
 
     def project_by_standard(self, standard):
-        if str(standard).lower() == 'who':
+        if str(standard).lower() == "who":
             return self.project(site_id={"$toObjectId": "$site_id"}, who=1)
         return self.project(site_id={"$toObjectId": "$site_id"}, aqi=1)
 
     @cache.memoize()
     def get_exceedances(self, start_date, end_date, pollutant, standard, sites=None):
         if sites:
-            return self.get_exceedances_by_sites(start_date, end_date, pollutant, standard, sites)
+            return self.get_exceedances_by_sites(
+                start_date, end_date, pollutant, standard, sites
+            )
         return (
-            self
-                .date_range("exceedances.time", start_date=start_date, end_date=end_date)
-                .unwind("exceedances")
-                .replace_root("exceedances")
-                .project_by_standard(standard)
-                .lookup("sites", local_field="site_id", foreign_field="_id", col_as="site")
-                .group_by_pollutant(pollutant, standard)
-                .add_fields_by_pollutant(pollutant, standard)
-                .unwind("site")
-                .project(
-                    _id=0,
-                    total=1,
-                    exceedance=1,
-                    site={"name": 1, "description": 1, "generated_name": 1},
-                )
-                .exec()
-        )
-
-    def get_exceedances_by_sites(self, start_date, end_date, pollutant, standard, sites):
-        print("running the unique")
-        return (
-            self
-                .date_range("exceedances.time", start_date=start_date, end_date=end_date)
-                .unwind("exceedances")
-                .replace_root("exceedances")
-                .project_by_standard(standard)
-                .match_in(site_id=self.to_object_ids(sites))
-                .lookup("sites", local_field="site_id", foreign_field="_id", col_as="site")
-                .group_by_pollutant(pollutant, standard)
-                .add_fields_by_pollutant(pollutant, standard)
-                .unwind("site")
-                .project(
+            self.date_range(
+                "exceedances.time", start_date=start_date, end_date=end_date
+            )
+            .unwind("exceedances")
+            .replace_root("exceedances")
+            .project_by_standard(standard)
+            .lookup("sites", local_field="site_id", foreign_field="_id", col_as="site")
+            .group_by_pollutant(pollutant, standard)
+            .add_fields_by_pollutant(pollutant, standard)
+            .unwind("site")
+            .project(
                 _id=0,
                 total=1,
                 exceedance=1,
                 site={"name": 1, "description": 1, "generated_name": 1},
             )
-                .exec()
+            .exec()
+        )
+
+    def get_exceedances_by_sites(
+        self, start_date, end_date, pollutant, standard, sites
+    ):
+        print("running the unique")
+        return (
+            self.date_range(
+                "exceedances.time", start_date=start_date, end_date=end_date
+            )
+            .unwind("exceedances")
+            .replace_root("exceedances")
+            .project_by_standard(standard)
+            .match_in(site_id=self.to_object_ids(sites))
+            .lookup("sites", local_field="site_id", foreign_field="_id", col_as="site")
+            .group_by_pollutant(pollutant, standard)
+            .add_fields_by_pollutant(pollutant, standard)
+            .unwind("site")
+            .project(
+                _id=0,
+                total=1,
+                exceedance=1,
+                site={"name": 1, "description": 1, "generated_name": 1},
+            )
+            .exec()
         )

@@ -81,7 +81,7 @@ def create_response(message, data=None, success=True):
     response = {
         "status": "success" if success else "error",
         "message": message,
-        "data": data
+        "data": data,
     }
 
     return response

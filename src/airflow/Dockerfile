@@ -27,7 +27,7 @@ ENTRYPOINT ["/usr/local/bin/db-setup.sh"]
 
 FROM base-builder as scheduler
 USER airflow
-CMD ["airflow", "scheduler"]
+CMD  [ "airflow",  "scheduler"]
 
 FROM base-builder as webserver
 USER airflow

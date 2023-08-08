@@ -5,6 +5,8 @@ const httpStatus = require("http-status");
 const createUserUtil = require("@utils/create-user");
 const controlAccessUtil = require("@utils/control-access");
 const createUser = require("@controllers/create-user");
+const chai = require("chai");
+chai.use(require("sinon-chai"));
 
 describe("createUserController", () => {
   describe("listStatistics", () => {
@@ -720,331 +722,342 @@ describe("createUserController", () => {
     });
   });
   describe("lookUpFirebaseUser", () => {
-    it("should return a successful response when user exists", async () => {
-      // Mock the request and response objects
-      const req = {
-        body: {
-          email: "test@example.com",
-          phoneNumber: "1234567890",
-          uid: "test-uid",
-          providerId: "test-providerId",
-          providerUid: "test-providerUid",
-        },
-      };
-      const res = {
+    let req, res;
+
+    beforeEach(() => {
+      req = {};
+      res = {
         status: sinon.stub().returnsThis(),
         json: sinon.stub(),
       };
+    });
 
-      // Mock the createUserUtil.lookUpFirebaseUser function to return a success response
-      sinon
+    afterEach(() => {
+      sinon.restore();
+    });
+
+    it("should return the existing user when request is valid", async () => {
+      req.query = {};
+      req.query.tenant = "example_tenant";
+
+      const createUserUtilStub = sinon
         .stub(createUserUtil, "lookUpFirebaseUser")
-        .callsFake((request, callback) => {
-          const result = {
+        .resolves([
+          {
             success: true,
             status: httpStatus.OK,
             message: "User found",
-            data: {
-              // Mock user data
-              name: "John Doe",
-              email: "test@example.com",
-              phoneNumber: "1234567890",
-              uid: "test-uid",
-              providerId: "test-providerId",
-              providerUid: "test-providerUid",
-            },
-          };
-          callback(result);
-        });
+            data: { name: "John Doe" },
+          },
+        ]);
 
-      // Call the controller function
       await createUser.lookUpFirebaseUser(req, res);
 
-      // Assert that the response is as expected
-      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledWith({
-          success: true,
-          message: "User found",
-          user: {
-            name: "John Doe",
-            email: "test@example.com",
-            phoneNumber: "1234567890",
-            uid: "test-uid",
-            providerId: "test-providerId",
-            providerUid: "test-providerUid",
-          },
-          exists: true,
-          status: "exists",
-        })
-      ).to.be.true;
-
-      // Restore the stubbed function to its original implementation
-      createUserUtil.lookUpFirebaseUser.restore();
+      expect(createUserUtilStub).to.have.been.calledOnce;
+      expect(res.status).to.have.been.calledWith(httpStatus.OK);
+      expect(res.json).to.have.been.calledWith({
+        success: true,
+        message: "User found",
+        user: { name: "John Doe" },
+        exists: true,
+        status: "exists",
+      });
     });
 
-    it("should return an error response when user does not exist", async () => {
-      // Mock the request and response objects
-      const req = {
-        body: {
-          email: "nonexistent@example.com",
-          phoneNumber: "9876543210",
-          uid: "nonexistent-uid",
-          providerId: "nonexistent-providerId",
-          providerUid: "nonexistent-providerUid",
-        },
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
+    it("should handle errors when user does not exist", async () => {
+      req.query = {};
+      req.query.tenant = "example_tenant";
 
-      // Mock the createUserUtil.lookUpFirebaseUser function to return an error response
-      sinon
+      const createUserUtilStub = sinon
         .stub(createUserUtil, "lookUpFirebaseUser")
-        .callsFake((request, callback) => {
-          const result = {
+        .resolves([
+          {
             success: false,
             status: httpStatus.NOT_FOUND,
-            message: "User does not exist",
-            errors: {
-              someError: "User not found",
-            },
-          };
-          callback(result);
-        });
+            message: "User not found",
+            errors: { message: "User not found" },
+          },
+        ]);
 
-      // Call the controller function
       await createUser.lookUpFirebaseUser(req, res);
 
-      // Assert that the response is as expected
-      expect(res.status.calledWith(httpStatus.NOT_FOUND)).to.be.true;
-      expect(
-        res.json.calledWith({
-          success: false,
-          message: "User does not exist",
-          exists: false,
-          errors: {
-            someError: "User not found",
-          },
-        })
-      ).to.be.true;
+      expect(createUserUtilStub).to.have.been.calledOnce;
+      expect(res.status).to.have.been.calledWith(httpStatus.NOT_FOUND);
+      expect(res.json).to.have.been.calledWith({
+        success: false,
+        message: "User not found",
+        exists: false,
+        errors: { message: "User not found" },
+      });
+    });
 
-      // Restore the stubbed function to its original implementation
-      createUserUtil.lookUpFirebaseUser.restore();
+    it("should handle internal server errors", async () => {
+      req.query = {};
+      req.query.tenant = "example_tenant";
+
+      const createUserUtilStub = sinon
+        .stub(createUserUtil, "lookUpFirebaseUser")
+        .rejects(new Error("Internal Server Error"));
+
+      await createUser.lookUpFirebaseUser(req, res);
+
+      expect(createUserUtilStub).to.have.been.calledOnce;
+      expect(res.status).to.have.been.calledWith(
+        httpStatus.INTERNAL_SERVER_ERROR
+      );
+      expect(res.json).to.have.been.calledWith({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: "Internal Server Error" },
+        error: "Internal Server Error",
+      });
     });
   });
-  describe("loginWithFirebase", () => {
-    it("should return a successful response when login with Firebase is successful", async () => {
-      // Mock the request and response objects
-      const req = {
-        body: {
-          email: "test@example.com",
-          phoneNumber: "1234567890",
-          uid: "test-uid",
-          providerId: "test-providerId",
-          providerUid: "test-providerUid",
-        },
+  describe("loginWithFirebase()", () => {
+    let req, res;
+
+    beforeEach(() => {
+      req = {
+        body: {},
+        query: {},
       };
-      const res = {
+      res = {
         status: sinon.stub().returnsThis(),
         json: sinon.stub(),
       };
-
-      // Mock the createUserUtil.loginWithFirebase function to return a success response
-      sinon
-        .stub(createUserUtil, "loginWithFirebase")
-        .callsFake((request, callback) => {
-          const result = {
-            success: true,
-            status: httpStatus.OK,
-            message: "Logged in with Firebase",
-            data: {
-              // Mock user data
-              name: "John Doe",
-              email: "test@example.com",
-              phoneNumber: "1234567890",
-              uid: "test-uid",
-              providerId: "test-providerId",
-              providerUid: "test-providerUid",
-            },
-          };
-          callback(result);
-        });
-
-      // Call the controller function
-      await createUser.loginWithFirebase(req, res);
-
-      // Assert that the response is as expected
-      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledWith({
-          success: true,
-          message: "Logged in with Firebase",
-          user: {
-            name: "John Doe",
-            email: "test@example.com",
-            phoneNumber: "1234567890",
-            uid: "test-uid",
-            providerId: "test-providerId",
-            providerUid: "test-providerUid",
-          },
-          exists: true,
-          status: "exists",
-        })
-      ).to.be.true;
-
-      // Restore the stubbed function to its original implementation
-      createUserUtil.loginWithFirebase.restore();
     });
 
-    it("should return an error response when login with Firebase fails", async () => {
-      // Mock the request and response objects
-      const req = {
-        body: {
-          email: "test@example.com",
-          phoneNumber: "1234567890",
-          uid: "test-uid",
-          providerId: "test-providerId",
-          providerUid: "test-providerUid",
-        },
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
+    afterEach(() => {
+      sinon.restore();
+    });
+
+    it("should successfully login with Firebase when request is valid", async () => {
+      req.body = {
+        email: "example@example.com",
+        phoneNumber: "1234567890",
+        uid: "example_uid",
+        providerId: "example_providerId",
+        providerUid: "example_providerUid",
       };
 
-      // Mock the createUserUtil.loginWithFirebase function to return an error response
-      sinon
+      const validationResultStub = sinon.stub().returns({
+        isEmpty: sinon.stub().returns(true),
+      });
+
+      const createUserUtilStub = sinon
         .stub(createUserUtil, "loginWithFirebase")
-        .callsFake((request, callback) => {
-          const result = {
-            success: false,
-            status: httpStatus.UNAUTHORIZED,
-            message: "Unable to login with Firebase",
-            errors: {
-              someError: "Invalid credentials",
-            },
-          };
-          callback(result);
+        .resolves({
+          success: true,
+          status: httpStatus.OK,
+          message: "Login successful",
+          data: { name: "John Doe", token: "example_token" },
         });
 
-      // Call the controller function
       await createUser.loginWithFirebase(req, res);
 
-      // Assert that the response is as expected
-      expect(res.status.calledWith(httpStatus.UNAUTHORIZED)).to.be.true;
-      expect(
-        res.json.calledWith({
-          success: false,
-          message: "Unable to login with Firebase",
-          exists: false,
-          errors: {
-            someError: "Invalid credentials",
-          },
-        })
-      ).to.be.true;
+      expect(validationResultStub).to.have.been.calledOnceWith(req);
+      expect(createUserUtilStub).to.have.been.calledOnceWith(req);
+      expect(res.status).to.have.been.calledWith(httpStatus.OK);
+      expect(res.json).to.have.been.calledWith({
+        success: true,
+        message: "Login successful",
+        name: "John Doe",
+        token: "example_token",
+      });
+    });
 
-      // Restore the stubbed function to its original implementation
-      createUserUtil.loginWithFirebase.restore();
+    it("should handle validation errors", async () => {
+      req.body = {
+        email: "example@example.com",
+        phoneNumber: "1234567890",
+        uid: "example_uid",
+        providerId: "example_providerId",
+        providerUid: "example_providerUid",
+      };
+
+      const validationResultStub = sinon.stub().returns({
+        isEmpty: sinon.stub().returns(false),
+        errors: [
+          {
+            nestedErrors: [
+              { param: "email", message: "Invalid email" },
+              { param: "phoneNumber", message: "Invalid phone number" },
+            ],
+          },
+        ],
+      });
+
+      const badRequestStub = sinon.stub().returnsThis();
+      const convertErrorArrayToObjectStub = sinon.stub().returns({
+        email: "Invalid email",
+        phoneNumber: "Invalid phone number",
+      });
+
+      await createUser.loginWithFirebase(req, res);
+
+      expect(validationResultStub).to.have.been.calledOnceWith(req);
+      expect(badRequestStub).to.have.been.calledOnceWith(
+        res,
+        "Unable to signup with Firebase",
+        {
+          email: "Invalid email",
+          phoneNumber: "Invalid phone number",
+        }
+      );
+    });
+
+    it("should handle login failure", async () => {
+      req.body = {
+        email: "example@example.com",
+        phoneNumber: "1234567890",
+        uid: "example_uid",
+        providerId: "example_providerId",
+        providerUid: "example_providerUid",
+      };
+
+      const validationResultStub = sinon.stub().returns({
+        isEmpty: sinon.stub().returns(true),
+      });
+
+      const createUserUtilStub = sinon
+        .stub(createUserUtil, "loginWithFirebase")
+        .resolves({
+          success: false,
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          message: "Login failed",
+          errors: { message: "Internal Server Error" },
+        });
+
+      await createUser.loginWithFirebase(req, res);
+
+      expect(validationResultStub).to.have.been.calledOnceWith(req);
+      expect(createUserUtilStub).to.have.been.calledOnceWith(req);
+      expect(res.status).to.have.been.calledWith(
+        httpStatus.INTERNAL_SERVER_ERROR
+      );
+      expect(res.json).to.have.been.calledWith({
+        success: false,
+        message: "Unable to login with Firebase",
+        exists: false,
+        errors: { message: "Internal Server Error" },
+      });
+    });
+
+    it("should handle internal server errors", async () => {
+      req.body = {
+        email: "example@example.com",
+        phoneNumber: "1234567890",
+        uid: "example_uid",
+        providerId: "example_providerId",
+        providerUid: "example_providerUid",
+      };
+
+      const validationResultStub = sinon
+        .stub()
+        .throws(new Error("Validation error"));
+
+      const internalServerErrorStub = sinon.stub();
+
+      await createUser.loginWithFirebase(req, res);
+
+      expect(validationResultStub).to.have.been.calledOnceWith(req);
+      expect(internalServerErrorStub).to.have.been.calledOnceWith(res, {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: "Validation error" },
+        error: "Validation error",
+      });
     });
   });
   describe("createFirebaseUser", () => {
-    it("should return a successful response when creating a Firebase user is successful", async () => {
-      // Mock the request and response objects
-      const req = {
-        // Add the required properties of the request object for creating a Firebase user
-      };
-      const res = {
+    let req, res;
+
+    beforeEach(() => {
+      req = {};
+      res = {
         status: sinon.stub().returnsThis(),
         json: sinon.stub(),
       };
-
-      // Mock the createUserUtil.createFirebaseUser function to return a success response
-      sinon
-        .stub(createUserUtil, "createFirebaseUser")
-        .callsFake((request, callback) => {
-          const result = {
-            success: true,
-            status: httpStatus.OK,
-            message: "User created on Firebase",
-            data: {
-              // Mock user data returned from the util function
-              uid: "test-uid",
-              email: "test@example.com",
-              displayName: "John Doe",
-            },
-          };
-          callback(result);
-        });
-
-      // Call the controller function
-      await createUser.createFirebaseUser(req, res);
-
-      // Assert that the response is as expected
-      expect(res.status.calledWith(httpStatus.OK)).to.be.true;
-      expect(
-        res.json.calledWith({
-          success: true,
-          message: "User created on Firebase",
-          user: {
-            uid: "test-uid",
-            email: "test@example.com",
-            displayName: "John Doe",
-          },
-          exists: true,
-          status: "exists",
-        })
-      ).to.be.true;
-
-      // Restore the stubbed function to its original implementation
-      createUserUtil.createFirebaseUser.restore();
     });
 
-    it("should return an error response when creating a Firebase user fails", async () => {
-      // Mock the request and response objects
-      const req = {
-        // Add the required properties of the request object for creating a Firebase user
-      };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
+    afterEach(() => {
+      sinon.restore();
+    });
 
-      // Mock the createUserUtil.createFirebaseUser function to return an error response
-      sinon
+    it("should successfully create a Firebase user when request is valid", async () => {
+      req.query = {};
+      req.query.tenant = "example_tenant";
+
+      const createUserUtilStub = sinon
         .stub(createUserUtil, "createFirebaseUser")
-        .callsFake((request, callback) => {
-          const result = {
-            success: false,
-            status: httpStatus.INTERNAL_SERVER_ERROR,
-            message: "Unable to create user on Firebase",
-            errors: {
-              someError: "Some error message",
-            },
-          };
-          callback(result);
-        });
+        .resolves([
+          {
+            success: true,
+            status: httpStatus.OK,
+            message: "User created successfully",
+            data: [{ name: "John Doe" }],
+          },
+        ]);
 
-      // Call the controller function
       await createUser.createFirebaseUser(req, res);
 
-      // Assert that the response is as expected
-      expect(res.status.calledWith(httpStatus.INTERNAL_SERVER_ERROR)).to.be
-        .true;
-      expect(
-        res.json.calledWith({
-          success: false,
-          message: "Unable to create user on Firebase",
-          exists: false,
-          errors: {
-            someError: "Some error message",
-          },
-        })
-      ).to.be.true;
+      expect(createUserUtilStub).to.have.been.calledOnce;
+      expect(res.status).to.have.been.calledWith(httpStatus.OK);
+      expect(res.json).to.have.been.calledWith({
+        success: true,
+        message: "User created successfully",
+        user: { name: "John Doe" },
+        exists: true,
+        status: "exists",
+      });
+    });
 
-      // Restore the stubbed function to its original implementation
-      createUserUtil.createFirebaseUser.restore();
+    it("should handle errors when user creation fails", async () => {
+      req.query = {};
+      req.query.tenant = "example_tenant";
+
+      const createUserUtilStub = sinon
+        .stub(createUserUtil, "createFirebaseUser")
+        .resolves([
+          {
+            success: false,
+            status: httpStatus.BAD_REQUEST,
+            message: "User creation failed",
+            errors: { message: "Invalid request" },
+          },
+        ]);
+
+      await createUser.createFirebaseUser(req, res);
+
+      expect(createUserUtilStub).to.have.been.calledOnce;
+      expect(res.status).to.have.been.calledWith(httpStatus.BAD_REQUEST);
+      expect(res.json).to.have.been.calledWith({
+        success: false,
+        message: "User creation failed",
+        errors: { message: "Invalid request" },
+      });
+    });
+
+    it("should handle internal server errors", async () => {
+      req.query = {};
+      req.query.tenant = "example_tenant";
+
+      const createUserUtilStub = sinon
+        .stub(createUserUtil, "createFirebaseUser")
+        .rejects(new Error("Internal Server Error"));
+
+      await createUser.createFirebaseUser(req, res);
+
+      expect(createUserUtilStub).to.have.been.calledOnce;
+      expect(res.status).to.have.been.calledWith(
+        httpStatus.INTERNAL_SERVER_ERROR
+      );
+      expect(res.json).to.have.been.calledWith({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: "Internal Server Error" },
+        error: "Internal Server Error",
+      });
     });
   });
   describe("sendFeedback", () => {
@@ -2338,6 +2351,222 @@ describe("createUserController", () => {
 
       // Restore the stubbed function
       subscribeToNewsLetter.subscribeToNewsLetter.restore();
+    });
+  });
+  describe("signUpWithFirebase", () => {
+    let req, res;
+
+    beforeEach(() => {
+      req = {};
+      res = {
+        status: sinon.stub().returnsThis(),
+        json: sinon.stub(),
+      };
+    });
+
+    afterEach(() => {
+      sinon.restore();
+    });
+
+    it("should successfully sign up with Firebase when request is valid", async () => {
+      req.query = {};
+      req.query.tenant = "example_tenant";
+
+      const createUserUtilStub = sinon
+        .stub(createUserUtil, "signUpWithFirebase")
+        .resolves({
+          success: true,
+          status: httpStatus.OK,
+          message: "Sign up successful",
+          data: { name: "John Doe" },
+        });
+
+      await createUser.signUpWithFirebase(req, res);
+
+      expect(createUserUtilStub).to.have.been.calledOnce;
+      expect(res.status).to.have.been.calledWith(httpStatus.OK);
+      expect(res.json).to.have.been.calledWith({
+        success: true,
+        message: "Sign up successful",
+        user: { name: "John Doe" },
+        exists: true,
+        status: "exists",
+      });
+    });
+
+    it("should handle errors when sign up fails", async () => {
+      req.query = {};
+      req.query.tenant = "example_tenant";
+
+      const createUserUtilStub = sinon
+        .stub(createUserUtil, "signUpWithFirebase")
+        .resolves({
+          success: false,
+          status: httpStatus.BAD_REQUEST,
+          message: "Sign up failed",
+          errors: { message: "Invalid request" },
+        });
+
+      await createUser.signUpWithFirebase(req, res);
+
+      expect(createUserUtilStub).to.have.been.calledOnce;
+      expect(res.status).to.have.been.calledWith(httpStatus.BAD_REQUEST);
+      expect(res.json).to.have.been.calledWith({
+        success: false,
+        message: "Sign up failed",
+        exists: false,
+        errors: { message: "Invalid request" },
+      });
+    });
+
+    it("should handle internal server errors", async () => {
+      req.query = {};
+      req.query.tenant = "example_tenant";
+
+      const createUserUtilStub = sinon
+        .stub(createUserUtil, "signUpWithFirebase")
+        .rejects(new Error("Internal Server Error"));
+
+      await createUser.signUpWithFirebase(req, res);
+
+      expect(createUserUtilStub).to.have.been.calledOnce;
+      expect(res.status).to.have.been.calledWith(
+        httpStatus.INTERNAL_SERVER_ERROR
+      );
+      expect(res.json).to.have.been.calledWith({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: "Internal Server Error" },
+        error: "Internal Server Error",
+      });
+    });
+  });
+  describe("verifyFirebaseCustomToken", () => {
+    let req, res;
+
+    beforeEach(() => {
+      req = {
+        body: {},
+        query: {},
+      };
+      res = {
+        status: sinon.stub().returnsThis(),
+        json: sinon.stub(),
+      };
+    });
+
+    afterEach(() => {
+      sinon.restore();
+    });
+
+    it("should successfully verify Firebase custom token when request is valid", async () => {
+      const validationResultStub = sinon.stub().returns({
+        isEmpty: sinon.stub().returns(true),
+      });
+
+      req.query = {
+        tenant: "example_tenant",
+      };
+      const expectedRequest = Object.assign({}, req);
+      expectedRequest.query = {
+        tenant: "example_tenant",
+      };
+
+      const verifyFirebaseCustomTokenStub = sinon
+        .stub(createUserUtil, "verifyFirebaseCustomToken")
+        .resolves({
+          success: true,
+          status: httpStatus.OK,
+          message: "Verification successful",
+          data: { name: "John Doe", email: "example@example.com" },
+        });
+
+      await createUser.verifyFirebaseCustomToken(req, res);
+
+      expect(validationResultStub).to.have.been.calledOnceWith(req);
+      expect(verifyFirebaseCustomTokenStub).to.have.been.calledOnceWith(
+        expectedRequest
+      );
+      expect(res.status).to.have.been.calledWith(httpStatus.OK);
+      expect(res.json).to.have.been.calledWith({
+        success: true,
+        message: "Verification successful",
+        name: "John Doe",
+        email: "example@example.com",
+      });
+    });
+
+    it("should handle validation errors", async () => {
+      const validationResultStub = sinon.stub().returns({
+        isEmpty: sinon.stub().returns(false),
+        errors: [
+          {
+            nestedErrors: [{ param: "tenant", message: "Invalid tenant" }],
+          },
+        ],
+      });
+
+      const badRequestStub = sinon.stub().returnsThis();
+      const convertErrorArrayToObjectStub = sinon.stub().returns({
+        tenant: "Invalid tenant",
+      });
+
+      await createUser.verifyFirebaseCustomToken(req, res);
+
+      expect(validationResultStub).to.have.been.calledOnceWith(req);
+      expect(badRequestStub).to.have.been.calledOnceWith(
+        res,
+        "Unable to signup with Firebase",
+        {
+          tenant: "Invalid tenant",
+        }
+      );
+    });
+
+    it("should handle verification failure", async () => {
+      const validationResultStub = sinon.stub().returns({
+        isEmpty: sinon.stub().returns(true),
+      });
+
+      const verifyFirebaseCustomTokenStub = sinon
+        .stub(createUserUtil, "verifyFirebaseCustomToken")
+        .resolves({
+          success: false,
+          status: httpStatus.INTERNAL_SERVER_ERROR,
+          message: "Verification failed",
+          errors: { message: "Internal Server Error" },
+        });
+
+      await createUser.verifyFirebaseCustomToken(req, res);
+
+      expect(validationResultStub).to.have.been.calledOnceWith(req);
+      expect(verifyFirebaseCustomTokenStub).to.have.been.calledOnceWith(req);
+      expect(res.status).to.have.been.calledWith(
+        httpStatus.INTERNAL_SERVER_ERROR
+      );
+      expect(res.json).to.have.been.calledWith({
+        success: false,
+        message: "Unable to login with Firebase",
+        exists: false,
+        errors: { message: "Internal Server Error" },
+      });
+    });
+
+    it("should handle internal server errors", async () => {
+      const validationResultStub = sinon
+        .stub()
+        .throws(new Error("Validation error"));
+
+      const internalServerErrorStub = sinon.stub();
+
+      await createUser.verifyFirebaseCustomToken(req, res);
+
+      expect(validationResultStub).to.have.been.calledOnceWith(req);
+      expect(internalServerErrorStub).to.have.been.calledOnceWith(res, {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: "Validation error" },
+      });
     });
   });
 });

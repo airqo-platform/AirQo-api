@@ -602,19 +602,12 @@ class BigQueryApi:
            WHERE
            DATE(timestamp) >= DATE_SUB(
                CURRENT_DATE(), INTERVAL {months_of_data} MONTH) AND device_number IS NOT NULL
-            ORDER BY device_number, created_at ASC
-           """
+            ORDER BY device_number, created_at ASC"""
 
-        job_config = bigquery.QueryJobConfig()
-        job_config.use_query_cache = True
-
-        try:
             df = bigquery.Client().query(f"{query}", job_config).result().to_dataframe()
             if df["pm2_5"].isnull().all():
                 raise Exception("pm2_5 column cannot be null")
             return df
-        except Exception as e:
-            raise e
 
     def fetch_monthly_forecast_data(self):
         """gets data from the bigquery table"""
@@ -667,3 +660,54 @@ class BigQueryApi:
             credentials=credentials,
         )
         print("Hourly data saved to bigquery")
+
+           
+           
+    def fetch_raw_readings(self) -> pd.DataFrame:
+        query = f"""
+        SELECT DISTINCT raw_device_data_table.timestamp
+           AS
+           timestamp, raw_device_data_table.device_id AS device_name, raw_device_data_table.s1_pm2_5 AS s1_pm2_5, raw_device_data_table.s2_pm2_5 AS s2_pm2_5
+           FROM
+           `{self.raw_measurements_table}` AS raw_device_data_table
+           WHERE
+           DATE(timestamp) >= DATE_SUB(
+               CURRENT_DATE(), INTERVAL 7 DAY) 
+            ORDER BY device_id, timestamp ASC
+           """
+
+        job_config = bigquery.QueryJobConfig()
+        job_config.use_query_cache = True
+
+        dataframe = (
+                self.client.query(f"{query}", job_config).result().to_dataframe()
+            )
+        try:
+             if dataframe.empty:
+                raise Exception("No data found from bigquery")
+            dataframe["timestamp"] = pd.to_datetime(dataframe["timestamp"])
+            dataframe = dataframe.groupby(
+                ["device_name", pd.Grouper(key="timestamp", freq="H")]
+            ).mean(numeric_only=True)
+            dataframe = dataframe.reset_index()
+            dataframe.sort_values(by=["device_name", "timestamp"], inplace=True)
+            today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+            last_week = today - timedelta(days=7)
+            hourly_timestamps = pd.DataFrame(
+                pd.date_range(
+                    start=last_week, end=today, freq="H", name="timestamp", tz="UTC"
+                )
+            )
+            final_df = pd.DataFrame()
+            for device in dataframe["device_name"].unique():
+                device_df = dataframe[dataframe["device_name"] == device]
+                device_df = device_df.merge(
+                    hourly_timestamps, on="timestamp", how="right"
+                )
+                device_df = device_df.sort_values(by=["timestamp"])
+                final_df = pd.concat([final_df, device_df])
+
+            return final_df
+
+        except Exception as e:
+            raise e

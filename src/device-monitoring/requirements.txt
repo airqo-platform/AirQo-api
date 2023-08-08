@@ -9,5 +9,8 @@ google-cloud-bigquery[pandas]
 db-dtypes
 gunicorn
 celery
+pytest
+pandas
+numpy
 # Ports for stable python 3 functionality
 dataclasses # for py < 3.7

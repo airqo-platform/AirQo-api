@@ -156,8 +156,8 @@ def predict_model(m, tenant, airqloud, aq_id, poly, x1, x2, y1, y2):
         .strftime("%Y-%m-%dT%H:%M:%SZ")
     )
 
-    longitudes = np.linspace(x1, x2, 100)
-    latitudes = np.linspace(y1, y2, 100)
+    longitudes = np.linspace(x1, x2, 10)
+    latitudes = np.linspace(y1, y2, 10)
     locations = np.meshgrid(longitudes, latitudes)
     locations_flat = np.c_[locations[0].flatten(), locations[1].flatten()]
 

@@ -10,8 +10,8 @@ def snake_to_camel(snake_str):
     Returns:
         (string): the string converted to title case
     """
-    title_str = snake_str.split('_')
-    return ' '.join(title_str).title()
+    title_str = snake_str.split("_")
+    return " ".join(title_str).title()
 
 
 def camel_to_snake(name):
@@ -23,5 +23,5 @@ def camel_to_snake(name):
     Returns: the string converted to snake_case
 
     """
-    name = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
-    return re.sub('([a-z0-9])([A-Z])', r'\1_\2', name).lower()
+    name = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", name)
+    return re.sub("([a-z0-9])([A-Z])", r"\1_\2", name).lower()

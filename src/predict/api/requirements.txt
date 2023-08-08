@@ -12,3 +12,5 @@ Flask-SQLAlchemy
 psycopg2-binary
 GeoAlchemy2
 geojson
+pytest
+mongomock

@@ -117,7 +117,6 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
     async (email, password, done) => {
       try {
         const service = req.headers["service"];
-        logObject("Service", service);
         const user = await UserModel(tenant.toLowerCase())
           .findOne({ email })
           .exec();
@@ -141,10 +140,7 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
             service: service ? service : "none",
           }
         );
-        // logger.info(`successful login`, {
-        //   username: user.userName,
-        //   email: user.email,
-        // });
+
         return done(null, user);
       } catch (e) {
         req.auth = {};
@@ -186,10 +182,6 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
             service: service ? service : "none",
           }
         );
-        // logger.info(`successful login`, {
-        //   username: user.userName,
-        //   email: user.email,
-        // });
         return done(null, user);
       } catch (e) {
         req.auth = {};
@@ -217,10 +209,9 @@ const useGoogleStrategy = (tenant, req, res, next) =>
             email: profile._json.email,
           })
           .exec();
-        // let user = result.toJSON();
+
         req.auth = {};
         if (user) {
-          // logObject("the user", user);
           req.auth.success = true;
           req.auth.message = "successful login";
 
@@ -234,7 +225,6 @@ const useGoogleStrategy = (tenant, req, res, next) =>
           );
           cb(null, user);
           return next();
-          // return cb(null, user);
         } else {
           const responseFromRegisterUser = await UserModel(tenant).register({
             google_id: profile._json.sub,
@@ -275,7 +265,237 @@ const useGoogleStrategy = (tenant, req, res, next) =>
 const useJWTStrategy = (tenant, req, res, next) =>
   new JwtStrategy(jwtOpts, async (payload, done) => {
     try {
-      const service = req.headers["service"];
+      logObject("the req object when using JWTs", req);
+      logObject("req.headers", req.headers);
+      logObject("req.headers[x-original-uri]", req.headers["x-original-uri"]);
+      logObject(
+        "req.headers[x-original-method]",
+        req.headers["x-original-method"]
+      );
+
+      let service = req.headers["service"];
+
+      if (
+        (req.headers["x-original-uri"] &&
+          req.headers["x-original-uri"].includes("/api/v2/devices/events")) ||
+        (req.headers["x-original-uri"] &&
+          req.headers["x-original-uri"].includes("/api/v1/devices/events"))
+      ) {
+        service = "api";
+        return done(null, false);
+        /**
+         * NEXT VERSION:
+         * We shall crosscheck the CLIENT_SECRET, CLIENT_ID and TOKEN_ID
+         * of the user if they ALL exist and are valid.
+         * We shall be using the Client's connection
+         */
+      }
+
+      if (
+        ((req.headers["x-original-method"] &&
+          req.headers["x-original-method"] === "POST") ||
+          (req.headers["x-original-method"] &&
+            req.headers["x-original-method"] === "PUT") ||
+          (req.headers["x-original-method"] &&
+            req.headers["x-original-method"] === "DELETE")) &&
+        ((req.headers["x-original-uri"] &&
+          req.headers["x-original-uri"].endsWith("/api/v2/devices/sites")) ||
+          (req.headers["x-original-uri"] &&
+            req.headers["x-original-uri"].endsWith("/api/v1/devices/sites")))
+      ) {
+        service = "site-registry";
+      }
+
+      if (
+        ((req.headers["x-original-method"] &&
+          req.headers["x-original-method"] === "POST") ||
+          (req.headers["x-original-method"] &&
+            req.headers["x-original-method"] === "PUT") ||
+          (req.headers["x-original-method"] &&
+            req.headers["x-original-method"] === "DELETE")) &&
+        ((req.headers["x-original-uri"] &&
+          req.headers["x-original-uri"].endsWith("/api/v2/devices")) ||
+          (req.headers["x-original-uri"] &&
+            req.headers["x-original-uri"].endsWith("/api/v1/devices")) ||
+          (req.headers["x-original-uri"] &&
+            req.headers["x-original-uri"].endsWith("/api/v1/devices/soft")) ||
+          (req.headers["x-original-uri"] &&
+            req.headers["x-original-uri"].endsWith("/api/v2/devices/soft")))
+      ) {
+        service = "device-registry";
+      }
+
+      if (
+        ((req.headers["x-original-method"] &&
+          req.headers["x-original-method"] === "POST") ||
+          (req.headers["x-original-method"] &&
+            req.headers["x-original-method"] === "PUT") ||
+          (req.headers["x-original-method"] &&
+            req.headers["x-original-method"] === "DELETE")) &&
+        ((req.headers["x-original-uri"] &&
+          req.headers["x-original-uri"].endsWith(
+            "/api/v2/devices/airqlouds"
+          )) ||
+          (req.headers["x-original-uri"] &&
+            req.headers["x-original-uri"].endsWith(
+              "/api/v1/devices/airqlouds"
+            )))
+      ) {
+        service = "airqlouds-registry";
+      }
+
+      if (
+        ((req.headers["x-original-method"] &&
+          req.headers["x-original-method"] === "POST") ||
+          (req.headers["x-original-method"] &&
+            req.headers["x-original-method"] === "PUT") ||
+          (req.headers["x-original-method"] &&
+            req.headers["x-original-method"] === "DELETE")) &&
+        ((req.headers["x-original-uri"] &&
+          req.headers["x-original-uri"].endsWith(
+            "/api/v2/devices/activities/maintain"
+          )) ||
+          (req.headers["x-original-uri"] &&
+            req.headers["x-original-uri"].endsWith(
+              "/api/v1/devices/activities/maintain"
+            )))
+      ) {
+        service = "device-maintenance";
+      }
+
+      if (
+        ((req.headers["x-original-method"] &&
+          req.headers["x-original-method"] === "POST") ||
+          (req.headers["x-original-method"] &&
+            req.headers["x-original-method"] === "PUT") ||
+          (req.headers["x-original-method"] &&
+            req.headers["x-original-method"] === "DELETE")) &&
+        ((req.headers["x-original-uri"] &&
+          req.headers["x-original-uri"].endsWith(
+            "/api/v2/devices/activities/deploy"
+          )) ||
+          (req.headers["x-original-uri"] &&
+            req.headers["x-original-uri"].endsWith(
+              "/api/v1/devices/activities/deploy"
+            )))
+      ) {
+        service = "device-deployment";
+      }
+
+      if (
+        ((req.headers["x-original-method"] &&
+          req.headers["x-original-method"] === "POST") ||
+          (req.headers["x-original-method"] &&
+            req.headers["x-original-method"] === "PUT") ||
+          (req.headers["x-original-method"] &&
+            req.headers["x-original-method"] === "DELETE")) &&
+        ((req.headers["x-original-uri"] &&
+          req.headers["x-original-uri"].endsWith(
+            "/api/v2/devices/activities/recall"
+          )) ||
+          (req.headers["x-original-uri"] &&
+            req.headers["x-original-uri"].endsWith(
+              "/api/v1/devices/activities/recall"
+            )))
+      ) {
+        service = "device-recall";
+      }
+
+      if (
+        ((req.headers["x-original-method"] &&
+          req.headers["x-original-method"] === "POST") ||
+          (req.headers["x-original-method"] &&
+            req.headers["x-original-method"] === "PUT") ||
+          (req.headers["x-original-method"] &&
+            req.headers["x-original-method"] === "DELETE")) &&
+        ((req.headers["x-original-uri"] &&
+          req.headers["x-original-uri"].endsWith("/api/v2/users")) ||
+          (req.headers["x-original-uri"] &&
+            req.headers["x-original-uri"].endsWith("/api/v1/users")))
+      ) {
+        service = "auth";
+      }
+      if (
+        ((req.headers["x-original-method"] &&
+          req.headers["x-original-method"] === "POST") ||
+          (req.headers["x-original-method"] &&
+            req.headers["x-original-method"] === "PUT") ||
+          (req.headers["x-original-method"] &&
+            req.headers["x-original-method"] === "DELETE")) &&
+        ((req.headers["x-original-uri"] &&
+          req.headers["x-original-uri"].includes("/api/v2/incentives")) ||
+          (req.headers["x-original-uri"] &&
+            req.headers["x-original-uri"].includes("/api/v1/incentives")))
+      ) {
+        service = "incentives";
+      }
+      if (
+        (req.headers["x-original-uri"] &&
+          req.headers["x-original-uri"].includes("/api/v2/calibrate")) ||
+        (req.headers["x-original-uri"] &&
+          req.headers["x-original-uri"].includes("/api/v1/calibrate"))
+      ) {
+        service = "calibrate";
+      }
+
+      if (
+        (req.headers["x-original-uri"] &&
+          req.headers["x-original-uri"].includes("/api/v2/locate")) ||
+        (req.headers["x-original-uri"] &&
+          req.headers["x-original-uri"].includes("/api/v1/locate"))
+      ) {
+        service = "locate";
+      }
+
+      if (
+        (req.headers["x-original-uri"] &&
+          req.headers["x-original-uri"].includes("/api/v2/predict-faults")) ||
+        (req.headers["x-original-uri"] &&
+          req.headers["x-original-uri"].includes("/api/v1/predict-faults"))
+      ) {
+        service = "fault-detection";
+      }
+
+      if (
+        ((req.headers["x-original-method"] &&
+          req.headers["x-original-method"] === "POST") ||
+          (req.headers["x-original-method"] &&
+            req.headers["x-original-method"] === "PUT") ||
+          (req.headers["x-original-method"] &&
+            req.headers["x-original-method"] === "DELETE")) &&
+        ((req.headers["x-original-uri"] &&
+          req.headers["x-original-uri"].includes(
+            "/api/v2/analytics/data/download"
+          )) ||
+          (req.headers["x-original-uri"] &&
+            req.headers["x-original-uri"].includes(
+              "/api/v1/analytics/data/download"
+            )))
+      ) {
+        service = "data-export-download";
+        return done(null, false);
+      }
+
+      if (
+        ((req.headers["x-original-method"] &&
+          req.headers["x-original-method"] === "POST") ||
+          (req.headers["x-original-method"] &&
+            req.headers["x-original-method"] === "PUT") ||
+          (req.headers["x-original-method"] &&
+            req.headers["x-original-method"] === "DELETE")) &&
+        ((req.headers["x-original-uri"] &&
+          req.headers["x-original-uri"].includes(
+            "/api/v2/analytics/data-export"
+          )) ||
+          (req.headers["x-original-uri"] &&
+            req.headers["x-original-uri"].includes(
+              "/api/v1/analytics/data-export"
+            )))
+      ) {
+        service = "data-export-scheduling";
+        return done(null, false);
+      }
+
       logObject("Service", service);
       const user = await UserModel(tenant.toLowerCase())
         .findOne({ _id: payload._id })
@@ -294,6 +514,7 @@ const useJWTStrategy = (tenant, req, res, next) =>
       );
       return done(null, user);
     } catch (e) {
+      logger.error(`Internal Server Error -- ${JSON.stringify(e)}`);
       return done(e, false);
     }
   });

@@ -6,13 +6,13 @@ import numpy as np
 import pandas as pd
 
 from helpers.convert_dates import format_date
-from models import (
+from models.collocation import (
     DataCompleteness,
     IntraSensorCorrelation,
     BaseResult,
     DataCompletenessResult,
     IntraSensorCorrelationResult,
-    IntraSensorData,
+    IntraSensorData, CollocationBatch,
 )
 
 
@@ -484,7 +484,7 @@ def compute_statistics(data: dict[str, pd.DataFrame]) -> list[dict]:
     return statistics_df.to_dict("records")
 
 
-def compute_data_completeness(
+def compute_data_completeness_using_raw_records(
     data: dict[str, pd.DataFrame],
     devices: list[str],
     expected_hourly_records: int,
@@ -525,6 +525,75 @@ def compute_data_completeness(
     failed_devices = [x.device_name for x in failed_devices]
     error_devices = list(
         set(devices).difference(set(passed_devices)).difference(set(failed_devices))
+    )
+
+    errors = []
+    if error_devices:
+        errors.append(
+            f"Failed to compute data completeness for devices {', '.join(error_devices) }"
+        )
+
+    if failed_devices:
+        errors.append(f"{', '.join(failed_devices) } failed data completeness.")
+
+    return DataCompletenessResult(
+        results=completeness,
+        passed_devices=passed_devices,
+        failed_devices=failed_devices,
+        errors=errors,
+        error_devices=error_devices,
+    )
+
+
+def compute_data_completeness_using_hourly_records(
+    data: dict[str, pd.DataFrame],
+    collocation_batch: CollocationBatch,
+) -> DataCompletenessResult:
+
+    now = datetime.utcnow()
+    end_date_time = (
+        now if now < collocation_batch.end_date else collocation_batch.end_date
+    )
+
+    data = data.copy()
+    expected_records = (end_date_time - collocation_batch.start_date).days * 24
+
+    completeness: list[DataCompleteness] = []
+
+    for device in collocation_batch.devices:
+        try:
+            device_data = data.get(device, pd.DataFrame())
+            device_data.dropna(subset=[collocation_batch.data_completeness_parameter], inplace=True)
+
+            if len(device_data.index) == 0:
+                device_completeness = 0.0
+
+            else:
+                device_data = device_data.resample("1H", on="timestamp").mean(numeric_only=True)
+                device_data.dropna(subset=list(set(device_data.columns.to_list()).difference(["timestamp"])), inplace=True)
+                device_completeness = round(len(device_data.index) / expected_records, 2)
+                device_completeness = 1 if device_completeness > 1 else device_completeness
+
+            missing = round(1 - device_completeness, 2)
+            completeness.append(
+                DataCompleteness(
+                    device_name=device,
+                    actual=len(device_data.index),
+                    expected=expected_records,
+                    completeness=device_completeness,
+                    missing=missing,
+                    passed=device_completeness >= collocation_batch.data_completeness_threshold,
+                )
+            )
+        except Exception as ex:
+            print(f"Data completeness computation error: {ex}")
+
+    passed_devices = list(filter(lambda x: x.passed is True, completeness))
+    passed_devices = [x.device_name for x in passed_devices]
+    failed_devices = list(filter(lambda x: x.passed is False, completeness))
+    failed_devices = [x.device_name for x in failed_devices]
+    error_devices = list(
+        set(collocation_batch.devices).difference(set(passed_devices)).difference(set(failed_devices))
     )
 
     errors = []

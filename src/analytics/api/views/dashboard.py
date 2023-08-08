@@ -20,10 +20,9 @@ from api.utils.pollutants import (
     set_pm25_category_background,
 )
 from api.utils.request_validators import validate_request_json
-from main import rest_api_v1, rest_api_v2
+from main import rest_api_v2
 
 
-@rest_api_v1.route("/dashboard/chart/data")
 @rest_api_v2.route("/dashboard/chart/data")
 class ChartDataResource(Resource):
     @swag_from("/api/docs/dashboard/customised_chart_post.yml")
@@ -128,7 +127,6 @@ class ChartDataResource(Resource):
         )
 
 
-@rest_api_v1.route("/dashboard/chart/d3/data")
 @rest_api_v2.route("/dashboard/chart/d3/data")
 class D3ChartDataResource(Resource):
     @swag_from("/api/docs/dashboard/d3_chart_data_post.yml")
@@ -166,7 +164,6 @@ class D3ChartDataResource(Resource):
         )
 
 
-@rest_api_v1.route("/dashboard/sites")
 @rest_api_v2.route("/dashboard/sites")
 class MonitoringSiteResource(Resource):
     @swag_from("/api/docs/dashboard/monitoring_site_get.yml")
@@ -183,7 +180,6 @@ class MonitoringSiteResource(Resource):
         )
 
 
-@rest_api_v1.route("/dashboard/historical/daily-averages")
 @rest_api_v2.route("/dashboard/historical/daily-averages")
 class DailyAveragesResource(Resource):
     @swag_from("/api/docs/dashboard/device_daily_measurements_get.yml")
@@ -246,7 +242,6 @@ class DailyAveragesResource(Resource):
         )
 
 
-@rest_api_v1.route("/dashboard/exceedances")
 @rest_api_v2.route("/dashboard/exceedances")
 class ExceedancesResource(Resource):
     @swag_from("/api/docs/dashboard/exceedances_post.yml")

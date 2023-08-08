@@ -12,9 +12,6 @@ from .utils import Utils
 class AirQoApi:
     def __init__(self):
         self.CALIBRATION_BASE_URL = configuration.CALIBRATION_BASE_URL
-        self.AIRQO_BASE_URL = Utils.remove_suffix(
-            configuration.AIRQO_BASE_URL, suffix="/"
-        )
         self.AIRQO_BASE_URL_V2 = Utils.remove_suffix(
             configuration.AIRQO_BASE_URL_V2, suffix="/"
         )
@@ -22,10 +19,7 @@ class AirQoApi:
 
     def save_events(self, measurements: list) -> None:
         #  Temporarily disabling usage of the API to store measurements.
-        if (
-            "staging" in self.AIRQO_BASE_URL.lower()
-            or "staging" in self.AIRQO_BASE_URL_V2.lower()
-        ):
+        if "staging" in self.AIRQO_BASE_URL_V2.lower():
             return
 
         for i in range(0, len(measurements), int(configuration.POST_EVENTS_BODY_SIZE)):
@@ -86,7 +80,7 @@ class AirQoApi:
         base_url = (
             self.CALIBRATION_BASE_URL
             if self.CALIBRATION_BASE_URL
-            else self.AIRQO_BASE_URL
+            else self.AIRQO_BASE_URL_V2
         )
 
         try:
@@ -179,9 +173,7 @@ class AirQoApi:
 
     def get_forecast(self, timestamp, channel_id) -> list:
         endpoint = f"predict/{channel_id}/{timestamp}"
-        response = self.__request(
-            endpoint=endpoint, params={}, method="get", version="v2"
-        )
+        response = self.__request(endpoint=endpoint, params={}, method="get")
 
         if response is not None and "predictions" in response:
             return response["predictions"]
@@ -236,7 +228,7 @@ class AirQoApi:
 
         try:
             response = requests.put(
-                url=f"{self.AIRQO_BASE_URL}/devices/airqlouds/refresh",
+                url=f"{self.AIRQO_BASE_URL_V2}/devices/airqlouds/refresh",
                 params=query_params,
             )
 
@@ -315,15 +307,9 @@ class AirQoApi:
             if network.get("net_data_source") == str(data_source)
         ]
 
-    def __request(
-        self, endpoint, params=None, body=None, method=None, version="v1", base_url=None
-    ):
+    def __request(self, endpoint, params=None, body=None, method=None, base_url=None):
         if base_url is None:
-            base_url = (
-                self.AIRQO_BASE_URL_V2
-                if version.lower() == "v2"
-                else self.AIRQO_BASE_URL
-            )
+            base_url = self.AIRQO_BASE_URL_V2
 
         headers = {"Authorization": self.AIRQO_API_KEY}
         if method is None or method == "get":

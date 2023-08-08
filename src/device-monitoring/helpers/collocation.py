@@ -15,7 +15,6 @@ from bson import json_util
 from app import cache
 from config.constants import Config
 from helpers.collocation_utils import (
-    compute_data_completeness,
     compute_intra_sensor_correlation,
     compute_statistics,
     compute_inter_sensor_correlation,
@@ -23,9 +22,11 @@ from helpers.collocation_utils import (
     populate_missing_columns,
     map_data_to_api_format,
     compute_hourly_intra_sensor_correlation,
+    compute_data_completeness_using_hourly_records,
 )
 from helpers.exceptions import CollocationBatchNotFound
-from models import (
+from models.base import BaseModel
+from models.collocation import (
     CollocationBatchStatus,
     CollocationBatch,
     CollocationBatchResult,
@@ -36,7 +37,6 @@ from models import (
     IntraSensorCorrelationResult,
     IntraSensorCorrelation,
     BaseResult,
-    BaseModel,
     DeviceStatusSummary,
 )
 
@@ -172,19 +172,9 @@ class Collocation(BaseModel):
             end_date_time=collocation_batch.end_date,
         )
 
-        now = datetime.utcnow()
-        end_date_time = (
-            now if now < collocation_batch.end_date else collocation_batch.end_date
-        )
-
-        data_completeness = compute_data_completeness(
+        data_completeness = compute_data_completeness_using_hourly_records(
             data=data,
-            devices=collocation_batch.devices,
-            expected_hourly_records=collocation_batch.expected_hourly_records,
-            parameter=collocation_batch.data_completeness_parameter,
-            start_date_time=collocation_batch.start_date,
-            end_date_time=end_date_time,
-            threshold=collocation_batch.data_completeness_threshold,
+            collocation_batch=collocation_batch,
         )
 
         intra_sensor_correlation = compute_intra_sensor_correlation(
