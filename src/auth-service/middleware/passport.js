@@ -116,9 +116,7 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
     authenticateWithEmailOptions,
     async (email, password, done) => {
       try {
-        logObject("request Body in Use Email with Local strategy", req);
         const service = req.headers["service"];
-        logObject("Service", service);
         const user = await UserModel(tenant.toLowerCase())
           .findOne({ email })
           .exec();
@@ -142,10 +140,7 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
             service: service ? service : "none",
           }
         );
-        // logger.info(`successful login`, {
-        //   username: user.userName,
-        //   email: user.email,
-        // });
+
         return done(null, user);
       } catch (e) {
         req.auth = {};
@@ -161,7 +156,6 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
     authenticateWithUsernameOptions,
     async (userName, password, done) => {
       try {
-        logObject("request Body in Use Username with Local strategy", req);
         const service = req.headers["service"];
         logObject("Service", service);
         const user = await UserModel(tenant.toLowerCase())
@@ -188,10 +182,6 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
             service: service ? service : "none",
           }
         );
-        // logger.info(`successful login`, {
-        //   username: user.userName,
-        //   email: user.email,
-        // });
         return done(null, user);
       } catch (e) {
         req.auth = {};
@@ -219,10 +209,9 @@ const useGoogleStrategy = (tenant, req, res, next) =>
             email: profile._json.email,
           })
           .exec();
-        // let user = result.toJSON();
+
         req.auth = {};
         if (user) {
-          // logObject("the user", user);
           req.auth.success = true;
           req.auth.message = "successful login";
 
@@ -236,7 +225,6 @@ const useGoogleStrategy = (tenant, req, res, next) =>
           );
           cb(null, user);
           return next();
-          // return cb(null, user);
         } else {
           const responseFromRegisterUser = await UserModel(tenant).register({
             google_id: profile._json.sub,
@@ -277,7 +265,146 @@ const useGoogleStrategy = (tenant, req, res, next) =>
 const useJWTStrategy = (tenant, req, res, next) =>
   new JwtStrategy(jwtOpts, async (payload, done) => {
     try {
-      const service = req.headers["service"];
+      logObject("the baseURL accessing API", req.baseUrl);
+      logObject("the req object accessing our system using JWTs", req);
+
+      let service = req.headers["service"];
+
+      if (
+        req.baseUrl.includes("/api/v2/devices/events") ||
+        req.baseUrl.includes("/api/v1/devices/events")
+      ) {
+        service = "api";
+        return done(null, false);
+        /**
+         * NEXT VERSION:
+         * We shall crosscheck the CLIENT_SECRET, CLIENT_ID and TOKEN_ID
+         * of the user if they ALL exist and are valid.
+         * We shall be using the Client's connection
+         */
+      }
+
+      if (
+        (req.method === "POST" ||
+          req.method === "PUT" ||
+          req.method === "DELETE") &&
+        (req.baseUrl.endsWith("/api/v2/devices/sites") ||
+          req.baseUrl.endsWith("/api/v1/devices/sites"))
+      ) {
+        service = "site-registry";
+      }
+
+      if (
+        (req.method === "POST" ||
+          req.method === "PUT" ||
+          req.method === "DELETE") &&
+        (req.baseUrl.endsWith("/api/v2/devices") ||
+          req.baseUrl.endsWith("/api/v1/devices") ||
+          req.baseUrl.endsWith("/api/v1/devices/soft") ||
+          req.baseUrl.endsWith("/api/v2/devices/soft"))
+      ) {
+        service = "device-registry";
+      }
+
+      if (
+        (req.method === "POST" ||
+          req.method === "PUT" ||
+          req.method === "DELETE") &&
+        (req.baseUrl.endsWith("/api/v2/devices/airqlouds") ||
+          req.baseUrl.endsWith("/api/v1/devices/airqlouds"))
+      ) {
+        service = "airqlouds-registry";
+      }
+
+      if (
+        (req.method === "POST" ||
+          req.method === "PUT" ||
+          req.method === "DELETE") &&
+        (req.baseUrl.endsWith("/api/v2/devices/activities/maintain") ||
+          req.baseUrl.endsWith("/api/v1/devices/activities/maintain"))
+      ) {
+        service = "device-maintenance";
+      }
+
+      if (
+        (req.method === "POST" ||
+          req.method === "PUT" ||
+          req.method === "DELETE") &&
+        (req.baseUrl.endsWith("/api/v2/devices/activities/deploy") ||
+          req.baseUrl.endsWith("/api/v1/devices/activities/deploy"))
+      ) {
+        service = "device-deployment";
+      }
+
+      if (
+        (req.method === "POST" ||
+          req.method === "PUT" ||
+          req.method === "DELETE") &&
+        (req.baseUrl.endsWith("/api/v2/devices/activities/recall") ||
+          req.baseUrl.endsWith("/api/v1/devices/activities/recall"))
+      ) {
+        service = "device-recall";
+      }
+
+      if (
+        (req.method === "POST" ||
+          req.method === "PUT" ||
+          req.method === "DELETE") &&
+        (req.baseUrl.endsWith("/api/v2/users") ||
+          req.baseUrl.endsWith("/api/v1/users"))
+      ) {
+        service = "auth";
+      }
+      if (
+        (req.method === "POST" ||
+          req.method === "PUT" ||
+          req.method === "DELETE") &&
+        (req.baseUrl.includes("/api/v2/incentives") ||
+          req.baseUrl.includes("/api/v1/incentives"))
+      ) {
+        service = "incentives";
+      }
+      if (
+        req.baseUrl.includes("/api/v2/calibrate") ||
+        req.baseUrl.includes("/api/v1/calibrate")
+      ) {
+        service = "calibrate";
+      }
+
+      if (
+        req.baseUrl.includes("/api/v2/locate") ||
+        req.baseUrl.includes("/api/v1/locate")
+      ) {
+        service = "locate";
+      }
+
+      if (
+        req.baseUrl.includes("/api/v2/predict-faults") ||
+        req.baseUrl.includes("/api/v1/predict-faults")
+      ) {
+        service = "fault-detection";
+      }
+
+      if (
+        (req.method === "POST" ||
+          req.method === "PUT" ||
+          req.method === "DELETE") &&
+        (req.baseUrl.includes("/api/v2/analytics/data/download") ||
+          req.baseUrl.includes("/api/v1/analytics/data/download"))
+      ) {
+        service = "data-export-download";
+      }
+
+      if (
+        (req.method === "POST" ||
+          req.method === "PUT" ||
+          req.method === "DELETE") &&
+        (req.baseUrl.includes("/api/v2/analytics/data-export") ||
+          req.baseUrl.includes("/api/v1/analytics/data-export"))
+      ) {
+        service = "data-export-scheduling";
+      }
+
       logObject("Service", service);
       const user = await UserModel(tenant.toLowerCase())
         .findOne({ _id: payload._id })
@@ -296,6 +423,7 @@ const useJWTStrategy = (tenant, req, res, next) =>
       );
       return done(null, user);
     } catch (e) {
+      logger.error(`Internal Server Error -- ${JSON.stringify(e)}`);
       return done(e, false);
     }
   });

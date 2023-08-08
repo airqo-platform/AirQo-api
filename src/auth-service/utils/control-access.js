@@ -376,9 +376,150 @@ const controlAccess = {
           newResponse.message = "the token is valid";
           newResponse.data = newResponse.data[0];
           try {
-            const service = request.headers
+            let service = request.headers
               ? request.headers["service"]
               : "unknown";
+
+            logObject(
+              "the req object accessing our system using ACCESS TOKENS",
+              req
+            );
+
+            if (
+              request.baseUrl.includes("/api/v2/devices/events") ||
+              request.baseUrl.includes("/api/v1/devices/events")
+            ) {
+              service = "api";
+              /**
+               * NEXT VERSION:
+               * We shall crosscheck the CLIENT_SECRET, CLIENT_ID and TOKEN_ID
+               * of the user if they ALL exist and are valid.
+               * We shall be using the Client's connection
+               */
+            }
+            if (
+              (request.method === "POST" ||
+                request.method === "PUT" ||
+                request.method === "DELETE") &&
+              (request.baseUrl.endsWith("/api/v2/devices/sites") ||
+                request.baseUrl.endsWith("/api/v1/devices/sites"))
+            ) {
+              service = "site-registry";
+            }
+
+            if (
+              (request.method === "POST" ||
+                request.method === "PUT" ||
+                request.method === "DELETE") &&
+              (request.baseUrl.endsWith("/api/v2/devices") ||
+                request.baseUrl.endsWith("/api/v1/devices") ||
+                request.baseUrl.endsWith("/api/v1/devices/soft") ||
+                request.baseUrl.endsWith("/api/v2/devices/soft"))
+            ) {
+              service = "device-registry";
+            }
+
+            if (
+              (request.method === "POST" ||
+                request.method === "PUT" ||
+                request.method === "DELETE") &&
+              (request.baseUrl.endsWith("/api/v2/devices/airqlouds") ||
+                request.baseUrl.endsWith("/api/v1/devices/airqlouds"))
+            ) {
+              service = "airqlouds-registry";
+            }
+
+            if (
+              (request.method === "POST" ||
+                request.method === "PUT" ||
+                request.method === "DELETE") &&
+              (request.baseUrl.endsWith(
+                "/api/v2/devices/activities/maintain"
+              ) ||
+                request.baseUrl.endsWith("/api/v1/devices/activities/maintain"))
+            ) {
+              service = "device-maintenance";
+            }
+
+            if (
+              (request.method === "POST" ||
+                request.method === "PUT" ||
+                request.method === "DELETE") &&
+              (request.baseUrl.endsWith("/api/v2/devices/activities/deploy") ||
+                request.baseUrl.endsWith("/api/v1/devices/activities/deploy"))
+            ) {
+              service = "device-deployment";
+            }
+
+            if (
+              (request.method === "POST" ||
+                request.method === "PUT" ||
+                request.method === "DELETE") &&
+              (request.baseUrl.endsWith("/api/v2/devices/activities/recall") ||
+                request.baseUrl.endsWith("/api/v1/devices/activities/recall"))
+            ) {
+              service = "device-recall";
+            }
+
+            if (
+              (request.method === "POST" ||
+                request.method === "PUT" ||
+                request.method === "DELETE") &&
+              (request.baseUrl.endsWith("/api/v2/users") ||
+                request.baseUrl.endsWith("/api/v1/users"))
+            ) {
+              service = "auth";
+            }
+            if (
+              (request.method === "POST" ||
+                request.method === "PUT" ||
+                request.method === "DELETE") &&
+              (request.baseUrl.includes("/api/v2/incentives") ||
+                request.baseUrl.includes("/api/v1/incentives"))
+            ) {
+              service = "incentives";
+            }
+            if (
+              request.baseUrl.includes("/api/v2/calibrate") ||
+              request.baseUrl.includes("/api/v1/calibrate")
+            ) {
+              service = "calibrate";
+            }
+
+            if (
+              request.baseUrl.includes("/api/v2/locate") ||
+              request.baseUrl.includes("/api/v1/locate")
+            ) {
+              service = "locate";
+            }
+
+            if (
+              request.baseUrl.includes("/api/v2/predict-faults") ||
+              request.baseUrl.includes("/api/v1/predict-faults")
+            ) {
+              service = "fault-detection";
+            }
+
+            if (
+              (request.method === "POST" ||
+                request.method === "PUT" ||
+                request.method === "DELETE") &&
+              (request.baseUrl.includes("/api/v2/analytics/data/download") ||
+                request.baseUrl.includes("/api/v1/analytics/data/download"))
+            ) {
+              service = "data-export-download";
+            }
+
+            if (
+              (request.method === "POST" ||
+                request.method === "PUT" ||
+                request.method === "DELETE") &&
+              (request.baseUrl.includes("/api/v2/analytics/data-export") ||
+                request.baseUrl.includes("/api/v1/analytics/data-export"))
+            ) {
+              service = "data-export-scheduling";
+            }
+
             const user = newResponse.data.user;
             winstonLogger.info(`successful login through ${service} service`, {
               username: user.email,
@@ -387,7 +528,7 @@ const controlAccess = {
             });
           } catch (error) {
             logObject("error", error);
-            logger.error(`internal server error -- ${error.message}`);
+            logger.error(`Internal Server Error -- ${error.message}`);
           }
           return newResponse;
         }

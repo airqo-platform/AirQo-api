@@ -11,7 +11,7 @@ from google.cloud import bigquery
 from sqlalchemy import func
 
 from app import cache
-from config.constants import connect_mongo, Config
+from config import connect_mongo, Config
 
 load_dotenv()
 db = connect_mongo()
@@ -57,6 +57,16 @@ def hourly_forecasts_cache_key():
     site_id = args.get("site_id")
 
     return f"hourly_{current_date}_{site_name}_{region}_{sub_county}_{county}_{district}_{parish}_{city}_{site_id}"
+
+
+def get_faults_cache_key():
+    args = request.args
+    airqloud = args.get("airqloud")
+    device_name = args.get("device_name")
+    correlation_fault = args.get("correlation_fault")
+    missing_data_fault = args.get("missing_data_fault")
+    created_at = args.get("created_at")
+    return f"{airqloud}_{device_name}_{correlation_fault}_{missing_data_fault}_{created_at}"
 
 
 def geo_coordinates_cache_key():
@@ -184,7 +194,6 @@ def get_forecasts(
     district=None,
     region=None,
 ):
-    db = connect_mongo()
     query = {}
     params = {
         "site_id": site_id,
@@ -285,3 +294,28 @@ def convert_to_geojson(values):
         geojson["features"].append(feature)
     # Return the GeoJSON feature collection
     return geojson
+def validate_params(params):
+    valid_params = [
+        "airqloud_names",
+        "device_name",
+        "correlation_fault",
+        "missing_fault",
+    ]
+    for param in params:
+        if param not in valid_params:
+            return False, f"Invalid parameter: {param}"
+        if param in ["correlation_fault", "missing_data_fault"]:
+            value = params[param]
+            if value not in ["0", "1"]:
+                return False, f"Invalid value for {param}: {value}"
+    return True, None
+
+
+def read_faulty_devices(query):
+    collection = db["faulty_devices"]
+    docs = collection.find(query).sort("created_at", -1)
+    result = []
+    for doc in docs:
+        doc.pop("_id")
+        result.append(doc)
+    return result

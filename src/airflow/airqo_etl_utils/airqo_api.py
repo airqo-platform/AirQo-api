@@ -173,9 +173,7 @@ class AirQoApi:
 
     def get_forecast(self, timestamp, channel_id) -> list:
         endpoint = f"predict/{channel_id}/{timestamp}"
-        response = self.__request(
-            endpoint=endpoint, params={}, method="get"
-        )
+        response = self.__request(endpoint=endpoint, params={}, method="get")
 
         if response is not None and "predictions" in response:
             return response["predictions"]
@@ -309,9 +307,7 @@ class AirQoApi:
             if network.get("net_data_source") == str(data_source)
         ]
 
-    def __request(
-        self, endpoint, params=None, body=None, method=None, base_url=None
-    ):
+    def __request(self, endpoint, params=None, body=None, method=None, base_url=None):
         if base_url is None:
             base_url = self.AIRQO_BASE_URL_V2
 

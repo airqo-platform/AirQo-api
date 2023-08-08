@@ -4,8 +4,8 @@ WORKDIR airqo_etl_utils
 COPY airqo_etl_utils/* airqo_etl_utils/
 RUN python airqo_etl_utils/setup.py bdist_wheel
 
-FROM apache/airflow:2.4.1 as base-builder
-ENV AIRFLOW_VERSION=2.4.1
+FROM apache/airflow:2.6.3-python3.10 as base-builder
+ENV AIRFLOW_VERSION=2.6.3
 USER root
 RUN apt-get update -y && apt-get install python3-distutils -y && apt-get install python3-apt -y
 USER airflow
@@ -26,7 +26,7 @@ ENTRYPOINT ["/usr/local/bin/db-setup.sh"]
 
 FROM base-builder as scheduler
 USER airflow
-CMD ["airflow", "scheduler"]
+CMD [ "airflow", "db", "upgrade", "&&", "airflow", "scheduler"]
 
 FROM base-builder as webserver
 USER airflow
