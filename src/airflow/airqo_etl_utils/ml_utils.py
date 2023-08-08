@@ -61,7 +61,6 @@ class ForecastUtils:
         daily_df["device_number"] = daily_df["device_number"].astype(int)
         return daily_df
 
-
     @staticmethod
     def feature_eng_daily_training_data(
         data, target_column
@@ -157,10 +156,6 @@ class ForecastUtils:
         print(features)
         target_col = "pm2_5"
         train_data, test_data = pd.DataFrame(), pd.DataFrame()
-
-
-        def model_to_bytes(model):
-            return joblib.dump(model, "hourly_model.pkl")
         for device_number in train["device_number"].unique():
             device_df = train[train["device_number"] == device_number]
             device_df = device_df.sort_values(by="created_at")
