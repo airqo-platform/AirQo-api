@@ -3,7 +3,6 @@ import math
 import traceback
 from datetime import datetime
 
-import geojson
 import pandas as pd
 import requests
 from dotenv import load_dotenv
@@ -70,118 +69,6 @@ def geo_coordinates_cache_key():
         + str(request.args.get("distance_in_metres"))
     )
     return key
-
-
-@cache.memoize(timeout=Config.CACHE_TIMEOUT)
-def convert_to_geojson(data):
-    """
-    converts a list of predictions to geojson format
-    """
-    features = []
-    for record in data:
-        point = geojson.Point(
-            (record["values"]["longitude"], record["values"]["latitude"])
-        )
-        feature = geojson.Feature(
-            geometry=point,
-            properties={
-                "latitude": record["values"]["latitude"],
-                "longitude": record["values"]["longitude"],
-                "predicted_value": record["values"]["predicted_value"],
-                "variance": record["values"]["variance"],
-                "interval": record["values"]["interval"],
-            },
-        )
-        features.append(feature)
-
-    return geojson.FeatureCollection(features)
-
-
-@cache.memoize(timeout=Config.CACHE_TIMEOUT)
-def get_gp_predictions(airqloud=None, page=1, limit=1000):
-    """Returns PM 2.5 predictions for a particular airqloud name or id or all airqlouds."""
-
-    pipeline = [
-        {"$sort": {"created_at": -1}},
-        {
-            "$project": {
-                "_id": 0,
-                "airqloud_id": 1,
-                "airqloud": 1,
-                "created_at": 1,
-                "values": 1,
-            }
-        },
-        {"$unwind": "$values"},
-    ]
-    if airqloud:
-        pipeline.insert(0, {"$match": {"airqloud": airqloud.lower()}})
-        pipeline.insert(
-            3,
-            {
-                "$group": {
-                    "_id": {"airqloud_id": "$airqloud_id", "airqloud": "$airqloud"},
-                    "doc": {"$first": "$$ROOT"},
-                }
-            },
-        )
-        pipeline.insert(4, {"$replaceRoot": {"newRoot": "$doc"}})
-        pipeline.extend(
-            [
-                {
-                    "$setWindowFields": {
-                        "partitionBy": {
-                            "airqloud_id": "$airqloud_id",
-                            "airqloud": "$airqloud",
-                        }
-                        if airqloud
-                        else None,
-                        "sortBy": {"created_at": 1},
-                        "output": {
-                            "total": {
-                                "$sum": 1,
-                                "window": {"documents": ["unbounded", "unbounded"]},
-                            }
-                        },
-                    }
-                },
-                {"$replaceRoot": {"newRoot": "$doc"}},
-                {
-                    "$project": {
-                        "_id": 0,
-                        "airqloud_id": 1,
-                        "airqloud": 1,
-                        "created_at": 1,
-                        "values": 1,
-                    }
-                },
-                {"$unwind": "$values"},
-                {
-                    "$setWindowFields": {
-                        "partitionBy": {
-                            "airqloud_id": "$airqloud_id",
-                            "airqloud": "$airqloud",
-                        },
-                        "sortBy": {"created_at": 1},
-                        "output": {
-                            "total": {
-                                "$sum": 1,
-                                "window": {"documents": ["unbounded", "unbounded"]},
-                            }
-                        },
-                    }
-                },
-                {"$skip": (page - 1) * limit},
-                {"$limit": limit},
-            ]
-        )
-    predictions = db.gp_predictions.aggregate(pipeline)
-    predictions = list(predictions)
-    created_at = predictions[0]["created_at"]
-    total_count = predictions[0]["total"]
-    pages = math.ceil(total_count / limit)
-    airqloud_id = predictions[0]["airqloud_id"]
-    return airqloud_id, created_at, predictions, total_count, pages
 
 
 @cache.memoize(timeout=Config.CACHE_TIMEOUT)
@@ -331,3 +218,70 @@ def get_forecasts(
             results.append(result)
     formatted_results = {"forecasts": results}
     return formatted_results
+
+
+@cache.memoize(timeout=Config.CACHE_TIMEOUT)
+def read_predictions_from_db(airqloud=None, page_number=1, limit=1000):
+    collection = db.gp_predictions
+
+    pipeline = []
+
+    if airqloud:
+        pipeline.append({"$match": {"airqloud": airqloud}})
+
+    pipeline.extend(
+        [
+            {"$unwind": "$values"},
+            {
+                "$group": {
+                    "_id": None,
+                    "total": {"$sum": 1},
+                    "values": {"$push": "$values"},
+                }
+            },
+            {
+                "$project": {
+                    "total": 1,
+                    "values": {"$slice": ["$values", (page_number - 1) * limit, limit]},
+                }
+            },
+        ]
+    )
+
+    result = collection.aggregate(pipeline)
+
+    total = 0
+    values = []
+
+    for document in result:
+        total = document["total"]
+        values = document.get("values", [])
+
+    return values, total
+
+
+@cache.memoize(timeout=Config.CACHE_TIMEOUT)
+def convert_to_geojson(values):
+    # Create an empty GeoJSON feature collection
+    geojson = {"type": "FeatureCollection", "features": []}
+    # Loop through the values list
+    for value in values:
+        # Create a GeoJSON feature for each value
+        feature = {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [value["longitude"], value["latitude"]],
+            },
+            "properties": {
+                "pm2_5": value["predicted_value"],
+                "variance": value["variance"],
+                "interval": value["interval"],
+                "latitude": value["latitude"],
+                "longitude": value["longitude"],
+            },
+        }
+        # Append the feature to the feature collection
+        geojson["features"].append(feature)
+    # Return the GeoJSON feature collection
+    return geojson
