@@ -380,6 +380,11 @@ const controlAccess = {
               ? request.headers["service"]
               : "unknown";
 
+            logObject(
+              "the req object accessing our system using ACCESS TOKENS",
+              req
+            );
+
             if (
               request.baseUrl.includes("/api/v2/devices/events") ||
               request.baseUrl.includes("/api/v1/devices/events")

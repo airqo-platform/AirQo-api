@@ -266,6 +266,8 @@ const useJWTStrategy = (tenant, req, res, next) =>
   new JwtStrategy(jwtOpts, async (payload, done) => {
     try {
       logObject("the baseURL accessing API", req.baseUrl);
+      logObject("the req object accessing our system using JWTs", req);
+
       let service = req.headers["service"];
 
       if (
