@@ -6,7 +6,7 @@ import routes
 from helpers.convert_dates import validate_datetime
 from helpers.convert_object_ids import convert_model_ids
 from helpers.request_validators import validate_request_params
-from models import DeviceStatus, NetworkUptime, DeviceUptime, DeviceBattery
+from models.uptime import DeviceStatus, NetworkUptime, DeviceUptime, DeviceBattery
 
 _logger = logging.getLogger(__name__)
 
