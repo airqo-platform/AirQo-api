@@ -609,7 +609,7 @@ class BigQueryApi:
         except Exception as e:
             raise e
 
-    def fetch_hourly_forecast_training_data(self, months_of_data=configuration.MONTHS_OF_DATA_HOURLY_JOB):
+    def fetch_training_data_forecast_model(self, months_of_data) -> pd.DataFrame:
         # TODO: issue with staging DB inform Noah and Benjamin
         query = f"""
         SELECT DISTINCT hourly_table.timestamp AS created_at, 
@@ -633,25 +633,6 @@ class BigQueryApi:
             return df
         except Exception as e:
             raise e
-
-    def fetch_daily_forecast_training_data(self, months_of_data=configuration.MONTHS_OF_DATA_DAILY_JOB):
-        query = f"""
-        SELECT DISTINCT hourly_table.timestamp
-           AS
-           created_at, hourly_table.device_number AS device_number, hourly_table.pm2_5_calibrated_value AS pm2_5, 
-           FROM
-           `{self.hourly_measurements_table}` AS hourly_table
-           WHERE
-           DATE(timestamp) >= DATE_SUB(
-               CURRENT_DATE(), INTERVAL {months_of_data} MONTH) AND device_number IS NOT NULL
-            ORDER BY device_number, created_at"""
-
-        job_config = bigquery.QueryJobConfig()
-        job_config.use_query_cache = True
-        df = bigquery.Client().query(f"{query}", job_config).result().to_dataframe()
-        if df["pm2_5"].isnull().all():
-            raise Exception("pm2_5 column cannot be null")
-        return df
 
     def fetch_hourly_data(self, start_date_time: str):
         """gets data from the bigquery table"""

@@ -30,101 +30,94 @@ def get_trained_model_from_gcs(project_name, bucket_name, source_blob_name):
 class ForecastUtils:
 
     @staticmethod
-    def preprocess_hourly_training_data(data):  # separate code for hourly data
-
-        print("preprocess_hourly_training_data started.....")
+    def preprocess_training_data(data, job_type):
         data["created_at"] = pd.to_datetime(data["created_at"])
+        data["device_number"] = data["device_number"].astype(str)
         data["pm2_5"] = data.groupby("device_number")["pm2_5"].transform(
             lambda x: x.interpolate(method="linear", limit_direction="both")
         )
-        hourly_df = data.dropna(subset=["pm2_5"])
-        return hourly_df
-    
-    @staticmethod
-    def preprocess_daily_training_data(data):  # separate code for monthly data
-        print("preprocess_monthly_training_data started.....")
-        data["created_at"] = pd.to_datetime(data["created_at"])
-        data["pm2_5"] = data.groupby("device_number")["pm2_5"].transform(
-            lambda x: x.interpolate(method="linear", limit_direction="both")
-        )
-        daily_df = data.dropna(subset=["pm2_5"])
-        daily_df["device_number"] = daily_df["device_number"].astype(str)
-        daily_df = (
-            daily_df.groupby(["device_number"])
+        data.reset_index(inplace=True)
+        if job_type == "daily":
+            data = (
+            data.groupby(["device_number"])
             .resample("D", on="created_at")
             .mean(numeric_only=True)
         )
-        daily_df = daily_df.reset_index()
-        daily_df["pm2_5"] = daily_df.groupby("device_number")["pm2_5"].transform(
+            data.reset_index(inplace=True)
+            data["pm2_5"] = data.groupby("device_number")["pm2_5"].transform(
             lambda x: x.interpolate(method="linear", limit_direction="both")
         )
-        daily_df["device_number"] = daily_df["device_number"].astype(int)
-        return daily_df
+            data.reset_index(inplace=True)
+        data = data.dropna(subset=["pm2_5"])
+        data["device_number"] = data["device_number"].astype(int)
+        return data
 
     @staticmethod
-    def feature_eng_daily_training_data(
-        data, target_column
-    ):
-
-        def get_lag_features(df, target_col):
+    @staticmethod
+    def feature_eng_training_data(data, target_column, frequency):
+        # frequency can be either 'daily' or 'hourly'
+    
+        def get_lag_features(df, target_col, freq):
             df = df.sort_values(by=["device_number", "created_at"])
-        
-            shifts = [1, 2]
-            for s in shifts:
-                df[f"pm2_5_last_{s}_day"] = df.groupby(["device_number"])[
-                    target_col
-                ].shift(s)
-        
-            shifts = [3, 7, 14, 30]
-            functions = ["mean", "std", "max", "min"]
-            for s in shifts:
-                for f in functions:
-                    df[f"pm2_5_{f}_{s}_day"] = (
-                        df.groupby(["device_number"])[target_col].shift(1).rolling(s).agg(f)
-                    )
-        
+    
+            if freq == "daily":
+                shifts = [1, 2]
+                for s in shifts:
+                    df[f"pm2_5_last_{s}_day"] = df.groupby(["device_number"])[
+                        target_col
+                    ].shift(s)
+    
+                shifts = [3, 7, 14, 30]
+                functions = ["mean", "std", "max", "min"]
+                for s in shifts:
+                    for f in functions:
+                        df[f"pm2_5_{f}_{s}_day"] = (
+                            df.groupby(["device_number"])[target_col]
+                            .shift(1)
+                            .rolling(s)
+                            .agg(f)
+                        )
+            elif freq == "hourly":
+                shifts = [
+                    1,
+                    2,
+                ]  # TODO: Review to increase these both in training and the actual job
+                for s in shifts:
+                    df[f"pm2_5_last_{s}_hour"] = df.groupby(["device_number"])[
+                        target_col
+                    ].shift(s)
+    
+                # lag features
+                shifts = [6, 12, 24, 48]
+                functions = ["mean", "std", "median", "skew"]
+                for s in shifts:
+                    for f in functions:
+                        df[f"pm2_5_{f}_{s}_hour"] = (
+                            df.groupby(["device_number"])[target_col]
+                            .shift(1)
+                            .rolling(s)
+                            .agg(f)
+                        )
+            else:
+                raise ValueError("Invalid frequency")
+    
             return df
-        
-        def get_other_features(df_tmp):
+    
+        def get_other_features(df_tmp, freq):
             attributes = ["year", "month", "day", "dayofweek"]
             for a in attributes:
                 df_tmp[a] = df_tmp["created_at"].dt.__getattribute__(a)
-            df_tmp["week"] = df_tmp["created_at"].dt.isocalendar().week.astype(int)
+            if freq == "daily":
+                df_tmp["week"] = df_tmp["created_at"].dt.isocalendar().week.astype(int)
             return df_tmp
-
-        data['created_at'] = pd.to_datetime(data['created_at'])
-        
-        df_tmp = get_lag_features(data, target_column)
-        df_tmp = get_other_features(df_tmp)
-        
+    
+        data["created_at"] = pd.to_datetime(data["created_at"])
+    
+        df_tmp = get_lag_features(data, target_column, frequency)
+        df_tmp = get_other_features(df_tmp, frequency)
+    
         return df_tmp
 
-    @staticmethod
-    def feature_eng_hourly_training_data(
-        data, target_column
-    ):
-        def get_lag_features(df_tmp, TARGET_COL):
-            df_tmp = df_tmp.sort_values(by=["created_at", "device_number"])
-        
-            shifts = [
-                1,
-                2,
-            ]  # TODO: Review to increase these both in training and the actual job
-            for s in shifts:
-                df_tmp[f"pm2_5_last_{s}_hour"] = df_tmp.groupby(["device_number"])[
-                    TARGET_COL
-                ].shift(s)
-        
-            # lag features
-            shifts = [6, 12, 24, 48]
-            functions = ["mean", "std", "median", "skew"]
-            for s in shifts:
-                for f in functions:
-                    df_tmp[f"pm2_5_{f}_{s}_hour"] = (
-                        df_tmp.groupby(["device_number"])[TARGET_COL].shift(1).rolling(s).agg(f)
-                    )
-        
-            return df_tmp
 
         def get_other_features(df_tmp):
             # TODO: Experiment on impact of features
@@ -144,7 +137,7 @@ class ForecastUtils:
         return df_tmp
 
     @staticmethod
-    def train_hourly_model(train):  # separate code for hourly model
+    def train_hourly_forecast_model(train):  # separate code for hourly model
         """
         Perform the actual training for hourly data
         """
@@ -241,12 +234,11 @@ class ForecastUtils:
             )
             train["device_number"] = train["device_number"].astype(int)
             clf.fit(train[features], train[target_col])
-            clf.booster_.save_model("hourly_model.json", format = "json")
-        return model_json
+        return clf
 
 
     @staticmethod
-    def train_daily_model(train):  # separate code for monthly model
+    def train_daily_forecast_model(train):  # separate code for monthly model
         train['created_at'] = pd.to_datetime(train['created_at'])
         features = [c for c in train.columns if c not in ["created_at", "pm2_5"]]
         print(features)
@@ -344,15 +336,13 @@ class ForecastUtils:
             train["device_number"] = train["device_number"].astype(int)
             clf.fit(train[features], train[target_col])
 
-        model_json = model_to_bytes(clf)
-        return model_json
+        return clf
 
     @staticmethod
     def upload_trained_model_to_gcs(
         trained_model, project_name, bucket_name, source_blob_name
     ):
 
-        trained_model = model_to_bytes(trained_model)
         fs = gcsfs.GCSFileSystem(project=project_name)
     
         try:
