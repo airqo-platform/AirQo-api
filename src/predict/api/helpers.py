@@ -231,7 +231,7 @@ def get_forecasts(
 
 @cache.memoize(timeout=Config.CACHE_TIMEOUT)
 def read_predictions_from_db(airqloud=None, page_number=1, limit=1000):
-    collection = db.gp_predictions
+    collection = db.gp_model_predictions
 
     pipeline = []
 
