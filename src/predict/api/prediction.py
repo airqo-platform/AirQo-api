@@ -8,18 +8,18 @@ import routes
 from app import cache
 from config import Config
 from helpers import (
-    get_predictions_by_geo_coordinates_v2,
     get_parish_predictions,
-    get_predictions_by_geo_coordinates,
-    get_health_tips,
     convert_to_geojson,
-    get_gp_predictions,
-    heatmap_cache_key,
-    geo_coordinates_cache_key,
     get_forecasts,
     hourly_forecasts_cache_key,
     daily_forecasts_cache_key,
     get_faults_cache_key,
+    get_predictions_by_geo_coordinates_v2,
+    get_predictions_by_geo_coordinates,
+    get_health_tips,
+    geo_coordinates_cache_key,
+    read_predictions_from_db,
+    heatmap_cache_key,
     read_faulty_devices,
     validate_param_values,
 )
@@ -144,53 +144,30 @@ def get_next_1_week_forecasts():
 @ml_app.route(routes.route["predict_for_heatmap"], methods=["GET"])
 @cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=heatmap_cache_key)
 def predictions_for_heatmap():
-    """
-    This function handles the GET requests to the predict_for_heatmap endpoint.
-    It validates the request parameters and returns a geojson response with the GP model predictions.
-    """
     airqloud = request.args.get("airqloud")
     page = int(request.args.get("page", 1))
     limit = int(request.args.get("limit", 1000))
 
-    if airqloud and not isinstance(airqloud, str):
-        return {
-            "message": "Please specify a valid airqloud name",
-            "success": False,
-        }, 400
+    response = {}
 
     try:
-        airqloud_id, created_at, predictions, total_count, pages = get_gp_predictions(
-            airqloud, page=page, limit=limit
-        )
-        geojson_data = convert_to_geojson(predictions)
+        values, total = read_predictions_from_db(airqloud, page, limit)
+        if values:
+            response["predictions"] = convert_to_geojson(values)
+            response["total"] = total
+            response["pages"] = (total // limit) + (1 if total % limit else 0)
+            response["page"] = page
+            if airqloud:
+                response["airqloud"] = airqloud
+            status_code = 200
+        else:
+            response["error"] = "No data found."
+            status_code = 404
     except Exception as e:
-        _logger.error(e)
-        return {
-            "message": "Error occurred while fetching predictions",
-            "success": False,
-        }, 500
-
-    if len(geojson_data["features"]) > 0:
-        if page > pages:
-            return {
-                "message": "Page number is greater than total pages",
-                "success": False,
-            }, 400
-
-        return {
-            "data": geojson_data["features"],
-            "airqloud": airqloud,
-            "airqloud_id": airqloud_id,
-            "created_at": created_at,
-            "success": True,
-            "page": page,
-            "limit": limit,
-            "total": total_count,
-            "pages": pages,
-        }, 200
-
-    else:
-        return {"message": "No predictions available", "success": False}, 400
+        response["error"] = f"Unfortunately an error occured"
+        status_code = 500
+    finally:
+        return jsonify(response), status_code
 
 
 @ml_app.route(routes.route["search_predictions"], methods=["GET"])
