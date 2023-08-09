@@ -12,13 +12,19 @@ from .utils import Utils
 
 # from datetime import datetime
 
-credentials = service_account.Credentials.from_service_account_file(configuration.GOOGLE_APPLICATION_CREDENTIALS)
+credentials = service_account.Credentials.from_service_account_file(
+    configuration.GOOGLE_APPLICATION_CREDENTIALS
+)
+
+
 class BigQueryApi:
     def __init__(self):
         self.client = bigquery.Client()
         self.hourly_measurements_table = configuration.BIGQUERY_HOURLY_EVENTS_TABLE
         self.daily_measurements_table = configuration.BIGQUERY_DAILY_EVENTS_TABLE
-        self.hourly_forecasts_table = configuration.BIGQUERY_HOURLY_FORECAST_EVENTS_TABLE
+        self.hourly_forecasts_table = (
+            configuration.BIGQUERY_HOURLY_FORECAST_EVENTS_TABLE
+        )
         self.raw_measurements_table = configuration.BIGQUERY_RAW_EVENTS_TABLE
         self.latest_measurements_table = configuration.BIGQUERY_LATEST_EVENTS_TABLE
         self.bam_measurements_table = configuration.BIGQUERY_BAM_EVENTS_TABLE
@@ -577,10 +583,10 @@ class BigQueryApi:
                CURRENT_DATE(), INTERVAL 7 DAY) 
             ORDER BY device_id, timestamp
            """
-    
+
         job_config = bigquery.QueryJobConfig()
         job_config.use_query_cache = True
-    
+
         dataframe = self.client.query(f"{query}", job_config).result().to_dataframe()
         try:
             if dataframe.empty:
@@ -601,10 +607,12 @@ class BigQueryApi:
             final_df = pd.DataFrame()
             for device in dataframe["device_name"].unique():
                 device_df = dataframe[dataframe["device_name"] == device]
-                device_df = device_df.merge(hourly_timestamps, on="timestamp", how="right")
+                device_df = device_df.merge(
+                    hourly_timestamps, on="timestamp", how="right"
+                )
                 device_df = device_df.sort_values(by=["timestamp"])
                 final_df = pd.concat([final_df, device_df])
-    
+
             return final_df
         except Exception as e:
             raise e
@@ -663,6 +671,3 @@ class BigQueryApi:
             credentials=credentials,
         )
         print("Hourly data saved to bigquery")
-
-           
-           

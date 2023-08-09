@@ -20,6 +20,7 @@ def mock_bigquery_client(mocker):
     )
     return mock_client
 
+
 @pytest.mark.parametrize(
     "method",
     [

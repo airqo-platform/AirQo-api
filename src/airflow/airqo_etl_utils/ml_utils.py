@@ -15,7 +15,9 @@ from .airqo_api import AirQoApi
 from .config import configuration
 
 fixed_columns = ["site_id"]
-credentials = service_account.Credentials.from_service_account_file(configuration.GOOGLE_APPLICATION_CREDENTIALS)
+credentials = service_account.Credentials.from_service_account_file(
+    configuration.GOOGLE_APPLICATION_CREDENTIALS
+)
 
 
 def get_trained_model_from_gcs(project_name, bucket_name, source_blob_name):
@@ -27,7 +29,6 @@ def get_trained_model_from_gcs(project_name, bucket_name, source_blob_name):
 
 
 class ForecastUtils:
-
     ###FORECAST MODEL TRAINING UTILS####
     @staticmethod
     def preprocess_training_data(data, job_type):
@@ -39,14 +40,14 @@ class ForecastUtils:
         data.reset_index(inplace=True)
         if job_type == "daily":
             data = (
-            data.groupby(["device_number"])
-            .resample("D", on="created_at")
-            .mean(numeric_only=True)
-        )
+                data.groupby(["device_number"])
+                .resample("D", on="created_at")
+                .mean(numeric_only=True)
+            )
             data.reset_index(inplace=True)
             data["pm2_5"] = data.groupby("device_number")["pm2_5"].transform(
-            lambda x: x.interpolate(method="linear", limit_direction="both")
-        )
+                lambda x: x.interpolate(method="linear", limit_direction="both")
+            )
             data.reset_index(inplace=True)
         data = data.dropna(subset=["pm2_5"])
         data["device_number"] = data["device_number"].astype(int)
@@ -55,17 +56,17 @@ class ForecastUtils:
     @staticmethod
     def feature_eng_training_data(data, target_column, frequency):
         # frequency can be either 'daily' or 'hourly'
-    
+
         def get_lag_features(df, target_col, freq):
             df = df.sort_values(by=["device_number", "created_at"])
-    
+
             if freq == "daily":
                 shifts = [1, 2]
                 for s in shifts:
                     df[f"pm2_5_last_{s}_day"] = df.groupby(["device_number"])[
                         target_col
                     ].shift(s)
-    
+
                 shifts = [3, 7, 14, 30]
                 functions = ["mean", "std", "max", "min"]
                 for s in shifts:
@@ -85,7 +86,7 @@ class ForecastUtils:
                     df[f"pm2_5_last_{s}_hour"] = df.groupby(["device_number"])[
                         target_col
                     ].shift(s)
-    
+
                 # lag features
                 shifts = [6, 12, 24, 48]
                 functions = ["mean", "std", "median", "skew"]
@@ -99,9 +100,9 @@ class ForecastUtils:
                         )
             else:
                 raise ValueError("Invalid frequency")
-    
+
             return df
-    
+
         def get_other_features(df_tmp, freq):
             attributes = ["year", "month", "day", "dayofweek"]
             for a in attributes:
@@ -109,30 +110,29 @@ class ForecastUtils:
             if freq == "daily":
                 df_tmp["week"] = df_tmp["created_at"].dt.isocalendar().week.astype(int)
             return df_tmp
-    
+
         data["created_at"] = pd.to_datetime(data["created_at"])
-    
+
         df_tmp = get_lag_features(data, target_column, frequency)
         df_tmp = get_other_features(df_tmp, frequency)
-    
-        return df_tmp
 
+        return df_tmp
 
         def get_other_features(df_tmp):
             # TODO: Experiment on impact of features
             attributes = ["year", "month", "day", "dayofweek", "hour", "minute"]
-        
+
             for a in attributes:
                 df_tmp[a] = df_tmp["created_at"].dt.__getattribute__(a)
             df_tmp["week"] = df_tmp["created_at"].dt.isocalendar().week.astype(int)
-        
+
             print("Additional features added")
             return df_tmp
 
-        data['created_at'] = pd.to_datetime(data['created_at'])
+        data["created_at"] = pd.to_datetime(data["created_at"])
         df_tmp = get_other_features(data)
         df_tmp = get_lag_features(df_tmp, target_column)
-    
+
         return df_tmp
 
     @staticmethod
@@ -142,7 +142,7 @@ class ForecastUtils:
         """
         print("feature selection started.....")
         # sort values by both device_number and created_at
-        train['created_at'] = pd.to_datetime(train['created_at'])
+        train["created_at"] = pd.to_datetime(train["created_at"])
         train = train.sort_values(by=["device_number", "created_at"])
         features = [c for c in train.columns if c not in ["created_at", "pm2_5"]]
         print(features)
@@ -158,12 +158,12 @@ class ForecastUtils:
             test_df = device_df[device_df["created_at"].dt.month.isin(test_months)]
             train_data = pd.concat([train_data, train_df])
             test_data = pd.concat([test_data, test_df])
-    
+
         train_data["device_number"] = train_data["device_number"].astype(int)
         test_data["device_number"] = test_data["device_number"].astype(int)
         train_data.drop(columns=["created_at"], axis=1, inplace=True)
         test_data.drop(columns=["created_at"], axis=1, inplace=True)
-    
+
         train_target, test_target = train_data[target_col], test_data[target_col]
         with mlflow.start_run():
             print("Model training started.....")
@@ -174,7 +174,7 @@ class ForecastUtils:
             reg_lambda = 1
             max_depth = 1
             random_state = 1
-    
+
             clf = LGBMRegressor(
                 n_estimators=n_estimators,
                 learning_rate=learning_rate,
@@ -184,7 +184,7 @@ class ForecastUtils:
                 max_depth=max_depth,
                 random_state=random_state,
             )
-    
+
             clf.fit(
                 train_data[features],
                 train_target,
@@ -193,7 +193,7 @@ class ForecastUtils:
                 eval_metric="rmse",
             )
             print("Model training completed.....")
-    
+
             # Log parameters
             mlflow.log_param("n_estimators", n_estimators)
             mlflow.log_param("learning_rate", learning_rate)
@@ -202,25 +202,25 @@ class ForecastUtils:
             mlflow.log_param("reg_lamba", reg_lambda)
             mlflow.log_param("max_depth", max_depth)
             mlflow.log_param("random_state", random_state)
-    
+
             # Log moder
             mlflow.sklearn.log_model(
                 sk_model=clf,
                 artifact_path="hourly_forecast_model",
                 registered_model_name=f"LGBM_hourly_forecast_model_development",
             )
-    
+
             print("Being model validation.....")
-    
+
             val_preds = clf.predict(test_data[features])
             rmse_val = mean_squared_error(test_data[target_col], val_preds) ** 0.5
-    
+
             print("Model validation completed.....")
             print(f"Validation RMSE is {rmse_val}")
-    
+
             # Log metrics
             mlflow.log_metric("VAL_RMSE", rmse_val)
-    
+
             best_iter = clf.best_iteration_
             clf = LGBMRegressor(
                 n_estimators=best_iter,
@@ -237,12 +237,11 @@ class ForecastUtils:
 
     @staticmethod
     def train_daily_forecast_model(train):  # separate code for monthly model
-        train['created_at'] = pd.to_datetime(train['created_at'])
+        train["created_at"] = pd.to_datetime(train["created_at"])
         features = [c for c in train.columns if c not in ["created_at", "pm2_5"]]
         print(features)
         target_col = "pm2_5"
         train_data, test_data = pd.DataFrame(), pd.DataFrame()
-
 
         def model_to_bytes(model):
             return joblib.dump(model, "daily_model.pkl")
@@ -257,12 +256,12 @@ class ForecastUtils:
             test_df = device_df[device_df["created_at"].dt.month.isin(test_months)]
             train_data = pd.concat([train_data, train_df])
             test_data = pd.concat([test_data, test_df])
-        
+
         train_data["device_number"] = train_data["device_number"].astype(int)
         test_data["device_number"] = test_data["device_number"].astype(int)
         train_data.drop(columns=["created_at"], axis=1, inplace=True)
         test_data.drop(columns=["created_at"], axis=1, inplace=True)
-        
+
         train_target, test_target = train_data[target_col], test_data[target_col]
         with mlflow.start_run():
             print("Model training started.....")
@@ -273,7 +272,7 @@ class ForecastUtils:
             reg_lambda = 1
             max_depth = 1
             random_state = 1
-        
+
             clf = LGBMRegressor(
                 n_estimators=n_estimators,
                 learning_rate=learning_rate,
@@ -283,7 +282,7 @@ class ForecastUtils:
                 max_depth=max_depth,
                 random_state=random_state,
             )
-        
+
             clf.fit(
                 train_data[features],
                 train_target,
@@ -292,7 +291,7 @@ class ForecastUtils:
                 eval_metric="rmse",
             )
             print("Model training completed.....")
-        
+
             # Log parameters
             mlflow.log_param("n_estimators", n_estimators)
             mlflow.log_param("learning_rate", learning_rate)
@@ -301,26 +300,26 @@ class ForecastUtils:
             mlflow.log_param("reg_lamba", reg_lambda)
             mlflow.log_param("max_depth", max_depth)
             mlflow.log_param("random_state", random_state)
-        
+
             # Log model
             mlflow.sklearn.log_model(
                 sk_model=clf,
                 artifact_path="daily_forecast_model",
                 registered_model_name=f"LGBM_daily_forecast_model_development",
             )
-        
+
             # model validation
             print("Being model validation.....")
-        
+
             val_preds = clf.predict(test_data[features])
             rmse_val = mean_squared_error(test_data[target_col], val_preds) ** 0.5
-        
+
             print("Model validation completed.....")
             print(f"Validation RMSE is {rmse_val}")
-        
+
             # Log metrics
             mlflow.log_metric("VAL_RMSE", rmse_val)
-        
+
             best_iter = clf.best_iteration_
             clf = LGBMRegressor(
                 n_estimators=best_iter,
@@ -340,9 +339,8 @@ class ForecastUtils:
     def upload_trained_model_to_gcs(
         trained_model, project_name, bucket_name, source_blob_name
     ):
-
         fs = gcsfs.GCSFileSystem(project=project_name)
-    
+
         try:
             fs.rename(
                 f"{bucket_name}/{source_blob_name}",
@@ -351,13 +349,12 @@ class ForecastUtils:
             print("Bucket: previous model is backed up")
         except:
             print("Bucket: No file to updated")
-    
+
         # store new model
         with fs.open(bucket_name + "/" + source_blob_name, "wb") as handle:
             job = joblib.dump(trained_model, handle)
 
-
-   #### FORECAST JOB UTILS ####
+    #### FORECAST JOB UTILS ####
 
     @staticmethod
     def preprocess_historical_data(data, frequency):
@@ -377,7 +374,9 @@ class ForecastUtils:
                 .mean(numeric_only=True)
             )
             data.reset_index(inplace=True)
-            data["pm2_5"] = data.groupby(fixed_columns + ["device_number"])["pm2_5"].transform(
+            data["pm2_5"] = data.groupby(fixed_columns + ["device_number"])[
+                "pm2_5"
+            ].transform(
                 lambda x: x.interpolate(method="linear", limit_direction="both")
             )
             data.sort_values(
@@ -385,7 +384,7 @@ class ForecastUtils:
             )
         else:
             raise ValueError("Invalid frequency argument")
-        data['device_number']= data['device_number'].astype(int)
+        data["device_number"] = data["device_number"].astype(int)
         data = data.dropna(subset=["pm2_5"])
         return data
 
@@ -399,7 +398,7 @@ class ForecastUtils:
                 df_tmp[f"pm2_5_last_{s}_hour"] = df_tmp.groupby(["device_number"])[
                     TARGET_COL
                 ].shift(s)
-    
+
             shifts = [6, 12, 24, 48]
             functions = ["mean", "std", "median", "skew"]
             for s in shifts:
@@ -431,77 +430,92 @@ class ForecastUtils:
         print("Adding lag features")
         return df_tmp
 
-
     @staticmethod
     def get_time_features(df_tmp):
-        df_tmp['created_at'] = pd.to_datetime(df_tmp['created_at'])
+        df_tmp["created_at"] = pd.to_datetime(df_tmp["created_at"])
         attributes = ["year", "month", "day", "dayofweek"]
         for a in attributes:
             df_tmp[a] = df_tmp["created_at"].dt.__getattribute__(a)
-    
+
         df_tmp["week"] = df_tmp["created_at"].dt.isocalendar().week
         print("Adding other features")
         return df_tmp
 
     @staticmethod
     def generate_hourly_forecasts(data, project_name, bucket_name, source_blob_name):
-        data['created_at'] = pd.to_datetime(data['created_at'])
+        data["created_at"] = pd.to_datetime(data["created_at"])
+
         def get_new_row(df, device1, model):
             last_row = df[df["device_number"] == device1].iloc[-1]
-            new_row = pd.Series(index=last_row.index, dtype='float64')
+            new_row = pd.Series(index=last_row.index, dtype="float64")
             for i in fixed_columns:
                 new_row[i] = last_row[i]
             new_row["created_at"] = last_row["created_at"] + pd.Timedelta(hours=1)
             new_row["device_number"] = device1
-            new_row[f'pm2_5_last_1_hour'] = last_row["pm2_5"]
-            new_row[f'pm2_5_last_2_hour'] = last_row[f'pm2_5_last_{1}_hour']
+            new_row[f"pm2_5_last_1_hour"] = last_row["pm2_5"]
+            new_row[f"pm2_5_last_2_hour"] = last_row[f"pm2_5_last_{1}_hour"]
 
             shifts = [6, 12, 24, 48]
-            functions = ['mean', 'std', 'median', 'skew']
+            functions = ["mean", "std", "median", "skew"]
             for s in shifts:
                 for f in functions:
-                    if f == 'mean':
-                        new_row[f'pm2_5_{f}_{s}_hour'] = (last_row["pm2_5"] + last_row[f'pm2_5_{f}_{s}_hour'] * (s - 1)) / s
-                    elif f == 'std':
-                        new_row[f'pm2_5_{f}_{s}_hour'] = np.sqrt((last_row["pm2_5"] - last_row[f'pm2_5_mean_{s}_hour']) ** 2 + (
-                                last_row[f'pm2_5_{f}_{s}_hour'] ** 2 * (s - 1))) / s
-                    elif f == 'median':
-                        new_row[f'pm2_5_{f}_{s}_hour'] = np.median(
-                            np.append(last_row["pm2_5"], last_row[f'pm2_5_{f}_{s}_hour']))
-                    elif f == 'skew':
-                        new_row[f'pm2_5_{f}_{s}_hour'] = skew(np.append(last_row["pm2_5"], last_row[f'pm2_5_{f}_{s}_hour']))
+                    if f == "mean":
+                        new_row[f"pm2_5_{f}_{s}_hour"] = (
+                            last_row["pm2_5"]
+                            + last_row[f"pm2_5_{f}_{s}_hour"] * (s - 1)
+                        ) / s
+                    elif f == "std":
+                        new_row[f"pm2_5_{f}_{s}_hour"] = (
+                            np.sqrt(
+                                (last_row["pm2_5"] - last_row[f"pm2_5_mean_{s}_hour"])
+                                ** 2
+                                + (last_row[f"pm2_5_{f}_{s}_hour"] ** 2 * (s - 1))
+                            )
+                            / s
+                        )
+                    elif f == "median":
+                        new_row[f"pm2_5_{f}_{s}_hour"] = np.median(
+                            np.append(
+                                last_row["pm2_5"], last_row[f"pm2_5_{f}_{s}_hour"]
+                            )
+                        )
+                    elif f == "skew":
+                        new_row[f"pm2_5_{f}_{s}_hour"] = skew(
+                            np.append(
+                                last_row["pm2_5"], last_row[f"pm2_5_{f}_{s}_hour"]
+                            )
+                        )
 
-            attributes = ['year', 'month', 'day', 'dayofweek', 'hour', 'minute']
+            attributes = ["year", "month", "day", "dayofweek", "hour", "minute"]
             for a in attributes:
-                new_row[a] = new_row['created_at'].__getattribute__(a)
-                new_row['week'] = new_row["created_at"].isocalendar().week
+                new_row[a] = new_row["created_at"].__getattribute__(a)
+                new_row["week"] = new_row["created_at"].isocalendar().week
 
-            new_row["pm2_5"] = \
-                model.predict(new_row.drop(
-                    fixed_columns + ["created_at", "pm2_5"]).values.reshape(1, -1))[0]
+            new_row["pm2_5"] = model.predict(
+                new_row.drop(fixed_columns + ["created_at", "pm2_5"]).values.reshape(
+                    1, -1
+                )
+            )[0]
             return new_row
 
-
         forecasts = pd.DataFrame()
-        forecast_model = get_trained_model_from_gcs(project_name, bucket_name, source_blob_name)
+        forecast_model = get_trained_model_from_gcs(
+            project_name, bucket_name, source_blob_name
+        )
         df_tmp = data.copy()
         for device in df_tmp["device_number"].unique():
             test_copy = df_tmp[df_tmp["device_number"] == device]
             for i in range(int(configuration.HOURLY_FORECAST_HORIZON)):
                 new_row = get_new_row(test_copy, device, forecast_model)
-                test_copy = pd.concat([test_copy, new_row.to_frame().T], ignore_index=True)
-            forecasts = pd.concat(
-                [forecasts, test_copy], ignore_index=True
-            )
+                test_copy = pd.concat(
+                    [test_copy, new_row.to_frame().T], ignore_index=True
+                )
+            forecasts = pd.concat([forecasts, test_copy], ignore_index=True)
 
-        forecasts["device_number"] = forecasts[
-            "device_number"
-        ].astype(int)
+        forecasts["device_number"] = forecasts["device_number"].astype(int)
         forecasts["pm2_5"] = forecasts["pm2_5"].astype(float)
         forecasts.rename(columns={"created_at": "time"}, inplace=True)
-        forecasts["time"] = pd.to_datetime(
-            forecasts["time"], utc=True
-        )
+        forecasts["time"] = pd.to_datetime(forecasts["time"], utc=True)
         current_time = datetime.utcnow()
         current_time_utc = pd.Timestamp(current_time, tz="UTC")
         result = forecasts[fixed_columns + ["time", "pm2_5", "device_number"]][
@@ -512,7 +526,8 @@ class ForecastUtils:
 
     @staticmethod
     def generate_daily_forecasts(data, project_name, bucket_name, source_blob_name):
-        data['created_at'] = pd.to_datetime(data['created_at'])
+        data["created_at"] = pd.to_datetime(data["created_at"])
+
         def get_new_row(df_tmp, device, model):
             last_row = df_tmp[df_tmp["device_number"] == device].iloc[-1]
             new_row = pd.Series(index=last_row.index, dtype="float64")
@@ -522,7 +537,7 @@ class ForecastUtils:
             new_row["device_number"] = device
             new_row[f"pm2_5_last_1_day"] = last_row["pm2_5"]
             new_row[f"pm2_5_last_2_day"] = last_row[f"pm2_5_last_{1}_day"]
-        
+
             shifts = [3, 7, 14, 30]
             functions = ["mean", "std", "max", "min"]
             for s in shifts:
@@ -534,7 +549,8 @@ class ForecastUtils:
                     elif f == "std":
                         new_row[f"pm2_5_{f}_{s}_day"] = (
                             np.sqrt(
-                                (last_row["pm2_5"] - last_row[f"pm2_5_mean_{s}_day"]) ** 2
+                                (last_row["pm2_5"] - last_row[f"pm2_5_mean_{s}_day"])
+                                ** 2
                                 + (last_row[f"pm2_5_{f}_{s}_day"] ** 2 * (s - 1))
                             )
                             / s
@@ -547,15 +563,17 @@ class ForecastUtils:
                         new_row[f"pm2_5_{f}_{s}_day"] = min(
                             last_row["pm2_5"], last_row[f"pm2_5_{f}_{s}_day"]
                         )
-        
+
                         # Use the date of the new row to create other features
             attributes = ["year", "month", "day", "dayofweek"]
             for a in attributes:
                 new_row[a] = new_row["created_at"].__getattribute__(a)
                 new_row["week"] = new_row["created_at"].isocalendar().week
-        
+
             new_row["pm2_5"] = model.predict(
-                new_row.drop(fixed_columns + ["created_at", "pm2_5"]).values.reshape(1, -1)
+                new_row.drop(fixed_columns + ["created_at", "pm2_5"]).values.reshape(
+                    1, -1
+                )
             )[0]
             return new_row
 
@@ -567,49 +585,20 @@ class ForecastUtils:
             test_copy = df_tmp[df_tmp["device_number"] == device]
             for i in range(int(configuration.DAILY_FORECAST_HORIZON)):
                 new_row = get_new_row(test_copy, device, model)
-                test_copy = pd.concat([test_copy, new_row.to_frame().T], ignore_index=True)
-            forecasts = pd.concat(
-                [forecasts, test_copy], ignore_index=True
-            )
-        forecasts["device_number"] = forecasts["device_number"].astype(
-            int
-        )
+                test_copy = pd.concat(
+                    [test_copy, new_row.to_frame().T], ignore_index=True
+                )
+            forecasts = pd.concat([forecasts, test_copy], ignore_index=True)
+        forecasts["device_number"] = forecasts["device_number"].astype(int)
         forecasts["pm2_5"] = forecasts["pm2_5"].astype(float)
         forecasts.rename(columns={"created_at": "time"}, inplace=True)
         current_time = datetime.utcnow()
         current_time_utc = pd.Timestamp(current_time, tz="UTC")
         result = forecasts[fixed_columns + ["time", "pm2_5", "device_number"]][
             forecasts["time"] >= current_time_utc
-            ]
-        
+        ]
+
         return result
-
-    @staticmethod
-    def add_health_tips(df):
-        def append_health_tips(pm2_5, health_tips_list):
-            if health_tips_list is None:
-                return []
-            return list(
-                filter(
-                    lambda tip: tip["aqi_category"]["min"]
-                    <= pm2_5
-                    <= tip["aqi_category"]["max"],
-                    health_tips_list,
-                )
-            )
-        health_tips = None
-        attempts = 0
-        while health_tips is None and attempts < 3:
-            health_tips = AirQoApi().fetch_health_tips()
-            attempts += 1
-        if health_tips is None:
-            print("Failed to fetch health tips")
-            return df
-        else:
-            """adds health tips to the dataframe"""
-            df["health_tips"] = df["pm2_5"].apply(lambda x: append_health_tips(x, health_tips))
-
-        return df
 
     @staticmethod
     def save_forecasts_to_mongo(data, frequency):
@@ -633,7 +622,3 @@ class ForecastUtils:
             db.daily_forecasts.insert_many(forecast_results)
         else:
             raise ValueError("Invalid frequency argument")
-
-
-
-
