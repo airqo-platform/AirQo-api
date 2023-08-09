@@ -12,13 +12,17 @@ from airqo_etl_utils.ml_utils import ForecastUtils
     default_args=AirflowUtils.dag_default_configs(),
     tags=['airqo', 'hourly-forecast', 'daily-forecast', 'prediction-job']
 )
-
 def make_forecasts():
     bucket = configuration.FORECAST_MODELS_BUCKET
     project_id = configuration.GOOGLE_CLOUD_PROJECT_ID
+
     @task()
     def get_hourly_forecast_data():
-        return BigQueryApi().fetch_hourly_forecast_data()
+        from datetime import datetime, timedelta
+        start_date = datetime.utcnow() - timedelta(hours=int(configuration.FORECAST_NUMBER_OF_HOURS))
+        from airqo_etl_utils.date import date_to_str
+        start_date = date_to_str(start_date, str_format='%Y-%m-%d')
+        return BigQueryApi().fetch_hourly_data(start_date)
 
     @task()
     def preprocess_hourly_forecast_data(data):
@@ -50,7 +54,12 @@ def make_forecasts():
 
     @task()
     def get_daily_forecast_data():
-        return BigQueryApi().fetch_monthly_forecast_data()
+        from datetime import datetime, timedelta
+        from airqo_etl_utils.date import date_to_str
+
+        start_date = datetime.utcnow() - timedelta(days=int(configuration.FORECAST_NUMBER_OF_DAYS))
+        start_date = date_to_str(start_date, str_format='%Y-%m-%d')
+        return BigQueryApi().fetch_hourly_data(start_date)
 
     @task()
     def preprocess_daily_forecast_data(data):

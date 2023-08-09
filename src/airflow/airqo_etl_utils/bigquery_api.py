@@ -653,42 +653,20 @@ class BigQueryApi:
             raise Exception("pm2_5 column cannot be null")
         return df
 
-    def fetch_monthly_forecast_data(self):
+    def fetch_hourly_data(self, start_date_time: str):
         """gets data from the bigquery table"""
-
-        start_date = datetime.utcnow() - timedelta(days=int(configuration.NUMBER_OF_DAYS))
-
-        start_date = date_to_str(start_date, str_format='%Y-%m-%d')
-
-        query = f"""
-                SELECT DISTINCT timestamp as created_at, site_id, device_number, pm2_5_calibrated_value as pm2_5
-                FROM `{configuration.BIGQUERY_HOURLY_EVENTS_TABLE}` 
-                WHERE DATE(timestamp) >= '{start_date}' AND device_number IS NOT NULL
-                ORDER BY created_at, device_number
-        """
-        job_config = bigquery.QueryJobConfig()
-        job_config.use_query_cache = True
-
-        df = bigquery.Client().query(f"{query}", job_config).result().to_dataframe()
-        return df
-
-    def fetch_hourly_forecast_data(self):
-        """gets data from the bigquery table"""
-
-        start_date = datetime.utcnow() - timedelta(hours=int(configuration.NUMBER_OF_HOURS))
-        start_date = date_to_str(start_date, str_format='%Y-%m-%d')
 
         query = f"""
                 SELECT DISTINCT timestamp as created_at , site_id, device_number,pm2_5_calibrated_value as pm2_5
                 FROM `{configuration.BIGQUERY_HOURLY_EVENTS_TABLE}` 
-                WHERE DATE(timestamp) >= '{start_date}' and device_number IS NOT NULL 
+                WHERE DATE(timestamp) >= '{start_date_time}' and device_number IS NOT NULL 
                 ORDER BY created_at, device_number 
         """
 
         job_config = bigquery.QueryJobConfig()
         job_config.use_query_cache = True
 
-        df = bigquery.Client().query(f"{query}", job_config).result().to_dataframe()
+        df = self.client.query(f"{query}", job_config).result().to_dataframe()
         return df
 
     @staticmethod
