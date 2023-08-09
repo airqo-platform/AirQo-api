@@ -10,12 +10,6 @@ from .constants import JobAction, ColumnDataType, Tenant, QueryType
 from .date import date_to_str
 from .utils import Utils
 
-# from datetime import datetime
-
-credentials = service_account.Credentials.from_service_account_file(
-    configuration.GOOGLE_APPLICATION_CREDENTIALS
-)
-
 
 class BigQueryApi:
     def __init__(self):
@@ -661,9 +655,9 @@ class BigQueryApi:
     @staticmethod
     def save_forecasts_to_bigquery(df, table):
         """saves the dataframes to the bigquery tables"""
-        # credentials = service_account.Credentials.from_service_account_file(
-        #     configuration.GOOGLE_APPLICATION_CREDENTIALS
-        # )
+        credentials = service_account.Credentials.from_service_account_file(
+            configuration.GOOGLE_APPLICATION_CREDENTIALS
+        )
         df.to_gbq(
             destination_table=f"{table}",
             project_id=configuration.GOOGLE_CLOUD_PROJECT_ID,
