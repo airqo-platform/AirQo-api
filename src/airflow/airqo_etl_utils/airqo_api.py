@@ -312,6 +312,7 @@ class AirQoApi:
             base_url = self.AIRQO_BASE_URL_V2
 
         headers = {"Authorization": self.AIRQO_API_KEY}
+        params.update({"token": self.AIRQO_API_TOKEN})
         if method is None or method == "get":
             api_request = requests.get(
                 "%s/%s" % (base_url, endpoint),
