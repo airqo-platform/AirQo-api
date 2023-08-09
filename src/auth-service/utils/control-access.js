@@ -700,6 +700,13 @@ const controlAccess = {
       const { tenant } = query;
       let { user_id } = body;
 
+      return {
+        success: false,
+        message: "feature temporarily disabled --coming soon",
+        status: httpStatus.SERVICE_UNAVAILABLE,
+        errors: { message: "Service Unavailable" },
+      };
+
       const token = accessCodeGenerator
         .generate(
           constants.RANDOM_PASSWORD_CONFIGURATION(constants.TOKEN_LENGTH)
