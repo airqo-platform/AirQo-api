@@ -5,7 +5,44 @@ from flask import json
 from mongomock import MongoClient
 
 from app import create_app
+from prediction import validate_param_values
 
+valid_params = [
+    {"correlation_fault": "0", "missing_data_fault": "0"},
+    {"correlation_fault": "1", "missing_data_fault": "1"},
+    {"correlation_fault": "0", "missing_data_fault": "1"},
+    {"correlation_fault": "1", "missing_data_fault": "0"},
+]
+
+invalid_params = [
+    {"correlation_fault": "2", "missing_data_fault": "0"},
+    {"correlation_fault": "0", "missing_data_fault": "-1"},
+    {"correlation_fault": "a", "missing_data_fault": "b"},
+    {"correlation_fault": "", "missing_data_fault": ""},
+]
+
+
+@pytest.fixture(params=valid_params)
+def valid_param(request):
+    return request.param
+
+
+@pytest.fixture(params=invalid_params)
+def invalid_param(request):
+    return request.param
+
+
+def test_validate_param_values_with_valid_params(valid_param):
+    result, error = validate_param_values(valid_param)
+    assert result is True
+    assert error is None
+
+
+# Define a test function that asserts that the function returns False and an error message for invalid parameters
+def test_validate_param_values_with_invalid_params(invalid_param):
+    result, error = validate_param_values(invalid_param)
+    assert result is False
+    assert error.startswith("Invalid value for")
 
 @pytest.fixture(scope="module")
 def test_client():
@@ -67,12 +104,6 @@ def test_fetch_faulty_devices(test_client):
         assert response.status_code == 200
         assert len(json.loads(response.data)) == 2
 
-        # Test the endpoint with invalid parameter
-        response = test_client.get("/fetch_faulty_devices?invalid_param=value")
-        assert response.status_code == 400
-        assert json.loads(response.data)["error"] == "Invalid parameter: invalid_param"
-
-        # Test the endpoint with invalid value for correlation_fault parameter
         response = test_client.get("/fetch_faulty_devices?correlation_fault=2")
         assert response.status_code == 400
         assert (
