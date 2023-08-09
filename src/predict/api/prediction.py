@@ -4,6 +4,7 @@ import traceback
 from dotenv import load_dotenv
 from flask import Blueprint, request, jsonify
 
+import routes
 from app import cache
 from config import Config
 from helpers import (
@@ -19,10 +20,9 @@ from helpers import (
     hourly_forecasts_cache_key,
     daily_forecasts_cache_key,
     get_faults_cache_key,
-    validate_params,
     read_faulty_devices,
+    validate_param_values,
 )
-import routes
 
 load_dotenv()
 
@@ -36,7 +36,7 @@ ml_app = Blueprint("ml_app", __name__)
 def fetch_faulty_devices():
     try:
         params = request.args.to_dict()
-        valid, error = validate_params(params)
+        valid, error = validate_param_values(params)
         if not valid:
             return jsonify({"error": error}), 400
         query = {}
