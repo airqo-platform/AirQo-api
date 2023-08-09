@@ -18,10 +18,11 @@ from helpers import (
     get_predictions_by_geo_coordinates,
     get_health_tips,
     geo_coordinates_cache_key,
-    validate_params,
     read_faulty_devices,
     read_predictions_from_db,
     heatmap_cache_key,
+    read_faulty_devices,
+    validate_param_values,
 )
 
 load_dotenv()
@@ -36,7 +37,7 @@ ml_app = Blueprint("ml_app", __name__)
 def fetch_faulty_devices():
     try:
         params = request.args.to_dict()
-        valid, error = validate_params(params)
+        valid, error = validate_param_values(params)
         if not valid:
             return jsonify({"error": error}), 400
         query = {}

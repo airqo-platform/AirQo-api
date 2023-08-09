@@ -667,7 +667,7 @@ jobs:
       - name: Build and Push Docker Image
         run: |
           cd src/data-mgt/node/
-          docker build --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-data-mgt-api:${{ needs.image-tag.outputs.build_id }} .
+          docker build --target=production --tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-data-mgt-api:${{ needs.image-tag.outputs.build_id }} .
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-data-mgt-api:${{ needs.image-tag.outputs.build_id }}
           docker tag ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-data-mgt-api:${{ needs.image-tag.outputs.build_id }} ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-data-mgt-api:latest
           docker push ${{ env.REGISTRY_URL }}/${{ env.PROJECT_ID }}/airqo-data-mgt-api:latest

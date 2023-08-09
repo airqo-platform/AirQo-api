@@ -291,16 +291,8 @@ def convert_to_geojson(values):
     return geojson
 
 
-def validate_params(params):
-    valid_params = [
-        "airqloud_names",
-        "device_name",
-        "correlation_fault",
-        "missing_fault",
-    ]
+def validate_param_values(params):
     for param in params:
-        if param not in valid_params:
-            return False, f"Invalid parameter: {param}"
         if param in ["correlation_fault", "missing_data_fault"]:
             value = params[param]
             if value not in ["0", "1"]:
