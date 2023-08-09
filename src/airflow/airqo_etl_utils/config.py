@@ -60,6 +60,7 @@ class Config:
     AIRQO_BASE_URL_V2 = os.getenv("AIRQO_BASE_URL_V2")
     AIRQO_API_KEY = os.getenv("AIRQO_API_KEY")
     GOOGLE_APPLICATION_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+    AIRQO_API_TOKEN = os.getenv("AIRQO_API_TOKEN")
 
     # Tahmo
     TAHMO_BASE_URL = os.getenv("TAHMO_API_BASE_URL")

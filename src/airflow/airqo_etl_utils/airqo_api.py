@@ -16,6 +16,7 @@ class AirQoApi:
             configuration.AIRQO_BASE_URL_V2, suffix="/"
         )
         self.AIRQO_API_KEY = f"JWT {configuration.AIRQO_API_KEY}"
+        self.AIRQO_API_TOKEN = configuration.AIRQO_API_TOKEN
 
     def save_events(self, measurements: list) -> None:
         #  Temporarily disabling usage of the API to store measurements.
@@ -312,6 +313,8 @@ class AirQoApi:
             base_url = self.AIRQO_BASE_URL_V2
 
         headers = {"Authorization": self.AIRQO_API_KEY}
+        if params is None:
+            params = {}
         params.update({"token": self.AIRQO_API_TOKEN})
         if method is None or method == "get":
             api_request = requests.get(
