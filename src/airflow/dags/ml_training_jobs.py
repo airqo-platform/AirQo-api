@@ -3,6 +3,7 @@ from airflow.decorators import dag, task
 from airqo_etl_utils.airflow_custom_utils import AirflowUtils
 from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.config import configuration
+from airqo_etl_utils.date import date_to_str
 from airqo_etl_utils.ml_utils import ForecastUtils
 
 
@@ -19,9 +20,13 @@ def train_forecasting_models():
 
     @task()
     def fetch_training_data_for_hourly_forecast_model():
-        return BigQueryApi().fetch_training_data_forecast_model(
-            months_of_data=configuration.HOURLY_FORECAST_TRAINING_JOB_SCOPE
-        )
+        from dateutil.relativedelta import relativedelta
+        from datetime import datetime
+
+        current_date = datetime.today()
+        start_date = current_date - relativedelta(months=5)
+        start_date = date_to_str(start_date)
+        return BigQueryApi().fetch_data(start_date)
 
     @task()
     def preprocess_training_data_for_hourly_forecast_model(data):
@@ -43,9 +48,13 @@ def train_forecasting_models():
 
     @task()
     def fetch_training_data_for_daily_forecast_model():
-        return BigQueryApi().fetch_training_data_forecast_model(
-            months_of_data=configuration.DAILY_FORECAST_TRAINING_JOB_SCOPE
-        )
+        from dateutil.relativedelta import relativedelta
+        from datetime import datetime
+
+        current_date = datetime.today()
+        start_date = current_date - relativedelta(months=12)
+        start_date = date_to_str(start_date)
+        return BigQueryApi().fetch_data(start_date)
 
     @task()
     def preprocess_training_data_for_daily_forecast_model(data):

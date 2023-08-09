@@ -614,7 +614,7 @@ class ForecastUtils:
             | {"created_at": created_at}
             for i in device_numbers
         ]
-        client = pm.MongoClient(configuration.MONGO_GCE_URI)
+        client = pm.MongoClient(configuration.MONGO_URI)
         db = client[configuration.MONGO_DATABASE_NAME]
         if frequency == "hourly":
             db.hourly_forecasts.insert_many(forecast_results)

@@ -27,7 +27,7 @@ def make_forecasts():
         from airqo_etl_utils.date import date_to_str
 
         start_date = date_to_str(start_date, str_format="%Y-%m-%d")
-        return BigQueryApi().fetch_historical_data(start_date)
+        return BigQueryApi().fetch_data(start_date, historical=True)
 
     @task()
     def preprocess_historical_data_hourly_forecast(data):
@@ -53,7 +53,6 @@ def make_forecasts():
             data, configuration.BIGQUERY_HOURLY_FORECAST_EVENTS_TABLE
         )
 
-
     @task()
     def save_hourly_forecasts_to_mongo(data):
         ForecastUtils.save_forecasts_to_mongo(data, "hourly")
@@ -69,7 +68,7 @@ def make_forecasts():
             days=int(configuration.DAILY_FORECAST_PREDICTION_JOB_SCOPE)
         )
         start_date = date_to_str(start_date, str_format="%Y-%m-%d")
-        return BigQueryApi().fetch_historical_data(start_date)
+        return BigQueryApi().fetch_data(start_date, historical=True)
 
     @task()
     def preprocess_historical_data_daily_forecast(data):

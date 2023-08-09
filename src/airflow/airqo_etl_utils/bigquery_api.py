@@ -611,39 +611,12 @@ class BigQueryApi:
         except Exception as e:
             raise e
 
-    def fetch_training_data_forecast_model(self, months_of_data) -> pd.DataFrame:
-        # TODO: issue with staging DB inform Noah and Benjamin
+    def fetch_data(self, start_date_time: str, historical: bool = False):
         query = f"""
-        SELECT DISTINCT hourly_table.timestamp AS created_at, 
-        hourly_table.device_number AS device_number, 
-        hourly_table.pm2_5_calibrated_value AS pm2_5, 
-        FROM
-        `{self.hourly_measurements_table}` AS hourly_table
-        WHERE
-        DATE(timestamp) >= DATE_SUB(
-               CURRENT_DATE(), INTERVAL {months_of_data} MONTH) AND device_number IS NOT NULL
-            ORDER BY device_number, created_at
-           """
-
-        job_config = bigquery.QueryJobConfig()
-        job_config.use_query_cache = True
-
-        try:
-            df = bigquery.Client().query(f"{query}", job_config).result().to_dataframe()
-            if df["pm2_5"].isnull().all():
-                raise Exception("pm2_5 column cannot be null")
-            return df
-        except Exception as e:
-            raise e
-
-    def fetch_historical_data(self, start_date_time: str):
-        """gets data from the bigquery table"""
-
-        query = f"""
-                SELECT DISTINCT timestamp as created_at , site_id, device_number,pm2_5_calibrated_value as pm2_5
-                FROM `{configuration.BIGQUERY_HOURLY_EVENTS_TABLE}` 
+                SELECT DISTINCT timestamp as created_at, {"site_id," if historical else ""} device_number, pm2_5_calibrated_value as pm2_5
+                FROM `{configuration.BIGQUERY_HOURLY_EVENTS_TABLE}`
                 WHERE DATE(timestamp) >= '{start_date_time}' and device_number IS NOT NULL 
-                ORDER BY created_at, device_number 
+                ORDER BY created_at, device_number
         """
 
         job_config = bigquery.QueryJobConfig()
