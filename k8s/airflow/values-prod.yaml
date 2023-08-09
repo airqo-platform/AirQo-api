@@ -9,7 +9,7 @@ images:
   repositories:
     initContainer: eu.gcr.io/airqo-250220/airqo-apache-airflow-xcom
     containers: eu.gcr.io/airqo-250220/airqo-apache-airflow
-  tag: prod-f80253c6-1691519949
+  tag: prod-f1950c11-1691581089
 nameOverride: ''
 fullnameOverride: ''
 podAnnotations: {}
