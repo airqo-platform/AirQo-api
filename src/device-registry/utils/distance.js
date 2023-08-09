@@ -174,41 +174,52 @@ const distance = {
     longitude = 0,
     approximate_distance_in_km = 0.5,
   } = {}) => {
-    const radiusOfEarth = 6378.1;
-    const bearingInRadians = distance.generateRandomNumbers();
-    const latitudeInRadians = distance.degreesToRadians(latitude);
-    const longitudeInRadians = distance.degreesToRadians(longitude);
+    try {
+      const radiusOfEarth = 6378.1;
+      const bearingInRadians = distance.generateRandomNumbers();
+      const latitudeInRadians = distance.degreesToRadians(latitude);
+      const longitudeInRadians = distance.degreesToRadians(longitude);
 
-    let approximateLatitudeInRadians = Math.asin(
-      Math.sin(latitudeInRadians) *
+      let approximateLatitudeInRadians = Math.asin(
+        Math.sin(latitudeInRadians) *
         Math.cos(approximate_distance_in_km / radiusOfEarth) +
         Math.cos(latitudeInRadians) *
-          Math.sin(approximate_distance_in_km / radiusOfEarth) *
-          Math.cos(bearingInRadians)
-    );
-
-    let approximateLongitudeInRadians =
-      longitudeInRadians +
-      Math.atan2(
-        Math.sin(bearingInRadians) *
-          Math.sin(approximate_distance_in_km / radiusOfEarth) *
-          Math.cos(latitudeInRadians),
-        Math.cos(approximate_distance_in_km / radiusOfEarth) -
-          Math.sin(latitudeInRadians) * Math.sin(approximateLatitudeInRadians)
+        Math.sin(approximate_distance_in_km / radiusOfEarth) *
+        Math.cos(bearingInRadians)
       );
 
-    return {
-      approximate_latitude: distance.radiansToDegrees(
-        approximateLatitudeInRadians
-      ),
-      approximate_longitude: distance.radiansToDegrees(
-        approximateLongitudeInRadians
-      ),
-      approximate_distance_in_km,
-      bearing_in_radians: parseFloat(bearingInRadians),
-      provided_latitude: parseFloat(latitude),
-      provided_longitude: parseFloat(longitude),
-    };
+      let approximateLongitudeInRadians =
+        longitudeInRadians +
+        Math.atan2(
+          Math.sin(bearingInRadians) *
+          Math.sin(approximate_distance_in_km / radiusOfEarth) *
+          Math.cos(latitudeInRadians),
+          Math.cos(approximate_distance_in_km / radiusOfEarth) -
+          Math.sin(latitudeInRadians) * Math.sin(approximateLatitudeInRadians)
+        );
+
+      return {
+        approximate_latitude: distance.radiansToDegrees(
+          approximateLatitudeInRadians
+        ),
+        approximate_longitude: distance.radiansToDegrees(
+          approximateLongitudeInRadians
+        ),
+        approximate_distance_in_km,
+        bearing_in_radians: parseFloat(bearingInRadians),
+        provided_latitude: parseFloat(latitude),
+        provided_longitude: parseFloat(longitude),
+      };
+    } catch (err) {
+      logger.error(`internal server error -- ${err.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: {
+          message: "Error in createApproximateCoordinates",
+        },
+      };
+    }
   },
 };
 
