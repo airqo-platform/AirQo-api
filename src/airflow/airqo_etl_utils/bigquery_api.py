@@ -634,7 +634,7 @@ class BigQueryApi:
         except Exception as e:
             raise e
 
-    def fetch_hourly_data(self, start_date_time: str):
+    def fetch_historical_data(self, start_date_time: str):
         """gets data from the bigquery table"""
 
         query = f"""

@@ -18,7 +18,6 @@ fixed_columns = ["site_id"]
 credentials = service_account.Credentials.from_service_account_file(configuration.GOOGLE_APPLICATION_CREDENTIALS)
 
 
-
 def get_trained_model_from_gcs(project_name, bucket_name, source_blob_name):
     fs = gcsfs.GCSFileSystem(project=project_name)
     fs.ls(bucket_name)
@@ -29,6 +28,7 @@ def get_trained_model_from_gcs(project_name, bucket_name, source_blob_name):
 
 class ForecastUtils:
 
+    ###FORECAST MODEL TRAINING UTILS####
     @staticmethod
     def preprocess_training_data(data, job_type):
         data["created_at"] = pd.to_datetime(data["created_at"])
@@ -52,7 +52,6 @@ class ForecastUtils:
         data["device_number"] = data["device_number"].astype(int)
         return data
 
-    @staticmethod
     @staticmethod
     def feature_eng_training_data(data, target_column, frequency):
         # frequency can be either 'daily' or 'hourly'
@@ -236,7 +235,6 @@ class ForecastUtils:
             clf.fit(train[features], train[target_col])
         return clf
 
-
     @staticmethod
     def train_daily_forecast_model(train):  # separate code for monthly model
         train['created_at'] = pd.to_datetime(train['created_at'])
@@ -358,78 +356,81 @@ class ForecastUtils:
         with fs.open(bucket_name + "/" + source_blob_name, "wb") as handle:
             job = joblib.dump(trained_model, handle)
 
-    @staticmethod
-    def preprocess_hourly_forecast_data(data):
-        data["created_at"] = pd.to_datetime(data["created_at"])
-        data["pm2_5"] = data.groupby(fixed_columns + ["device_number"])[
-        "pm2_5"
-        ].transform(lambda x: x.interpolate(method="linear", limit_direction="both"))
-        hourly_forecast_data = data.dropna(
-            subset=["pm2_5"]
-        )  # no data at all for the device
-        hourly_forecast_data["device_number"] = hourly_forecast_data["device_number"].astype(str)
-        hourly_forecast_data.sort_values(
-            by=fixed_columns + ["device_number", "created_at"], inplace=True
-        )
-        return hourly_forecast_data
+
+   #### FORECAST JOB UTILS ####
 
     @staticmethod
-    def preprocess_daily_forecast_data(data):
+    def preprocess_historical_data(data, frequency):
         data["created_at"] = pd.to_datetime(data["created_at"])
+        data["device_number"] = data["device_number"].astype(str)
         data["pm2_5"] = data.groupby(fixed_columns + ["device_number"])[
             "pm2_5"
         ].transform(lambda x: x.interpolate(method="linear", limit_direction="both"))
-        forecast_data = data.dropna(subset=["pm2_5"])
-        forecast_data["device_number"] = forecast_data["device_number"].astype(str)
-        forecast_data = (
-            forecast_data.groupby(fixed_columns + ["device_number"])
-            .resample("D", on="created_at")
-            .mean(numeric_only=True)
-        )
-        forecast_data = forecast_data.reset_index()
-        forecast_data.sort_values(
-            by=fixed_columns + ["device_number", "created_at"], inplace=True
-        )
-        return forecast_data
+        if frequency == "hourly":
+            data.sort_values(
+                by=fixed_columns + ["device_number", "created_at"], inplace=True
+            )
+        elif frequency == "daily":
+            data = (
+                data.groupby(fixed_columns + ["device_number"])
+                .resample("D", on="created_at")
+                .mean(numeric_only=True)
+            )
+            data.reset_index(inplace=True)
+            data["pm2_5"] = data.groupby(fixed_columns + ["device_number"])["pm2_5"].transform(
+                lambda x: x.interpolate(method="linear", limit_direction="both")
+            )
+            data.sort_values(
+                by=fixed_columns + ["device_number", "created_at"], inplace=True
+            )
+        else:
+            raise ValueError("Invalid frequency argument")
+        data['device_number']= data['device_number'].astype(int)
+        data = data.dropna(subset=["pm2_5"])
+        return data
 
     @staticmethod
-    def get_hourly_lag_features(df_tmp, TARGET_COL):
-        df_tmp['created_at'] = pd.to_datetime(df_tmp['created_at'])
-        df_tmp = df_tmp.sort_values(by=["device_number", "created_at"])
-        shifts = [1, 2]
-        for s in shifts:
-            df_tmp[f"pm2_5_last_{s}_hour"] = df_tmp.groupby(["device_number"])[
-                TARGET_COL
-            ].shift(s)
+    def get_lag_features(df_tmp, TARGET_COL, frequency):
+        df_tmp["created_at"] = pd.to_datetime(df_tmp["created_at"])
+        df_tmp = df_tmp.sort_values(by=fixed_columns + ["device_number", "created_at"])
+        if frequency == "hourly":
+            shifts = [1, 2]
+            for s in shifts:
+                df_tmp[f"pm2_5_last_{s}_hour"] = df_tmp.groupby(["device_number"])[
+                    TARGET_COL
+                ].shift(s)
     
-        shifts = [6, 12, 24, 48]
-        functions = ["mean", "std", "median", "skew"]
-        for s in shifts:
-            for f in functions:
-                df_tmp[f"pm2_5_{f}_{s}_hour"] = (
-                    df_tmp.groupby(["device_number"])[TARGET_COL].shift(1).rolling(s).agg(f)
-                )
+            shifts = [6, 12, 24, 48]
+            functions = ["mean", "std", "median", "skew"]
+            for s in shifts:
+                for f in functions:
+                    df_tmp[f"pm2_5_{f}_{s}_hour"] = (
+                        df_tmp.groupby(["device_number"])[TARGET_COL]
+                        .shift(1)
+                        .rolling(s)
+                        .agg(f)
+                    )
+        elif frequency == "daily":
+            shifts = [1, 2]
+            for s in shifts:
+                df_tmp[f"pm2_5_last_{s}_day"] = df_tmp.groupby(["device_number"])[
+                    TARGET_COL
+                ].shift(s)
+            shifts = [3, 7, 14, 30]
+            functions = ["mean", "std", "max", "min"]
+            for s in shifts:
+                for f in functions:
+                    df_tmp[f"pm2_5_{f}_{s}_day"] = (
+                        df_tmp.groupby(["device_number"])[TARGET_COL]
+                        .shift(1)
+                        .rolling(s)
+                        .agg(f)
+                    )
+        else:
+            raise ValueError("Invalid frequency argument")
         print("Adding lag features")
         return df_tmp
 
-    @staticmethod
-    def get_daily_lag_features(df_tmp, TARGET_COL):
-        df_tmp['created_at'] = pd.to_datetime(df_tmp['created_at'])
-        df_tmp = df_tmp.sort_values(by=["device_number", "created_at"])
-        shifts = [1, 2]
-        for s in shifts:
-            df_tmp[f"pm2_5_last_{s}_day"] = df_tmp.groupby(["device_number"])[
-                TARGET_COL
-            ].shift(s)
-        shifts = [3, 7, 14, 30]
-        functions = ["mean", "std", "max", "min"]
-        for s in shifts:
-            for f in functions:
-                df_tmp[f"pm2_5_{f}_{s}_day"] = (
-                    df_tmp.groupby(["device_number"])[TARGET_COL].shift(1).rolling(s).agg(f)
-                )
-        print("Adding lag features")
-        return df_tmp
 
     @staticmethod
     def get_time_features(df_tmp):
@@ -486,7 +487,7 @@ class ForecastUtils:
         df_tmp = data.copy()
         for device in df_tmp["device_number"].unique():
             test_copy = df_tmp[df_tmp["device_number"] == device]
-            for i in range(int(configuration.FORECAST_HOURLY_HORIZON)):
+            for i in range(int(configuration.HOURLY_FORECAST_HORIZON)):
                 new_row = get_new_row(test_copy, device, forecast_model)
                 test_copy = pd.concat([test_copy, new_row.to_frame().T], ignore_index=True)
             forecasts = pd.concat(
@@ -564,7 +565,7 @@ class ForecastUtils:
         df_tmp = data.copy()
         for device in df_tmp["device_number"].unique():
             test_copy = df_tmp[df_tmp["device_number"] == device]
-            for i in range(int(configuration.FORECAST_DAILY_HORIZON)):
+            for i in range(int(configuration.DAILY_FORECAST_HORIZON)):
                 new_row = get_new_row(test_copy, device, model)
                 test_copy = pd.concat([test_copy, new_row.to_frame().T], ignore_index=True)
             forecasts = pd.concat(
@@ -611,7 +612,7 @@ class ForecastUtils:
         return df
 
     @staticmethod
-    def save_hourly_forecasts(data):
+    def save_forecasts_to_mongo(data, frequency):
         created_at = pd.to_datetime(datetime.now()).isoformat()
         device_numbers = data["device_number"].unique()
         forecast_results = [
@@ -626,25 +627,13 @@ class ForecastUtils:
         ]
         client = pm.MongoClient(configuration.MONGO_GCE_URI)
         db = client[configuration.MONGO_DATABASE_NAME]
-        db.hourly_forecasts.insert_many(forecast_results)
+        if frequency == "hourly":
+            db.hourly_forecasts.insert_many(forecast_results)
+        elif frequency == "daily":
+            db.daily_forecasts.insert_many(forecast_results)
+        else:
+            raise ValueError("Invalid frequency argument")
 
-    @staticmethod
-    def save_daily_forecasts(data):
-        created_at = pd.to_datetime(datetime.now()).isoformat()
-        device_numbers = data["device_number"].unique()
-        forecast_results = [
-            {
-                field: data[data["device_number"] == i][field].tolist()[0]
-                if field != "pm2_5" and field != "time" and field != "health_tips"
-                else data[data["device_number"] == i][field].tolist()
-                for field in data.columns
-            }
-            | {"created_at": created_at}
-            for i in device_numbers
-        ]
-        client = pm.MongoClient(configuration.MONGO_GCE_URI)
-        db = client[configuration.MONGO_DATABASE_NAME]
-        db.daily_forecasts.insert_many(forecast_results)
 
 
 
