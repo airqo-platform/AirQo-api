@@ -18,7 +18,6 @@ from helpers import (
     get_predictions_by_geo_coordinates,
     get_health_tips,
     geo_coordinates_cache_key,
-    read_faulty_devices,
     read_predictions_from_db,
     heatmap_cache_key,
     read_faulty_devices,
@@ -145,10 +144,6 @@ def get_next_1_week_forecasts():
 @ml_app.route(routes.route["predict_for_heatmap"], methods=["GET"])
 @cache.cached(timeout=Config.CACHE_TIMEOUT, key_prefix=heatmap_cache_key)
 def predictions_for_heatmap():
-    """
-    This function handles the GET requests to the predict_for_heatmap endpoint.
-    It validates the request parameters and returns a geojson response with the GP model predictions.
-    """
     airqloud = request.args.get("airqloud")
     page = int(request.args.get("page", 1))
     limit = int(request.args.get("limit", 1000))
