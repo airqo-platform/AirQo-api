@@ -115,6 +115,120 @@ const GroupModel = (tenant) => {
   }
 };
 
+const routeDefinitions = [
+  { uri: "/api/v2/devices/events", service: "events-registry" },
+  { uriEndsWith: ["/api/v2/devices/sites"], service: "site-registry" },
+  {
+    uriEndsWith: ["/api/v2/devices", "/api/v2/devices/soft"],
+    service: "device-registry",
+  },
+  { uriEndsWith: ["/api/v2/devices/airqlouds"], service: "airqlouds-registry" },
+  {
+    uriEndsWith: ["/api/v2/devices/activities/maintain"],
+    service: "device-maintenance",
+  },
+  {
+    uriEndsWith: ["/api/v2/devices/activities/deploy"],
+    service: "device-deployment",
+  },
+  {
+    uriEndsWith: ["/api/v2/devices/activities/recall"],
+    service: "device-recall",
+  },
+  { uriEndsWith: ["/api/v2/users"], service: "auth" },
+  { uriIncludes: ["/api/v2/incentives"], service: "incentives" },
+  {
+    uriIncludes: ["/api/v2/calibrate", "/api/v1/calibrate"],
+    service: "calibrate",
+  },
+  { uriIncludes: ["/api/v2/locate", "/api/v1/locate"], service: "locate" },
+  {
+    uriIncludes: ["/api/v2/predict-faults", "/api/v1/predict-faults"],
+    service: "fault-detection",
+  },
+  {
+    uriIncludes: [
+      "/api/v2/analytics/data/download",
+      "/api/v1/analytics/data/download",
+    ],
+    service: "data-export-download",
+  },
+  {
+    uriIncludes: [
+      "/api/v2/analytics/data-export",
+      "/api/v1/analytics/data-export",
+    ],
+    service: "data-export-scheduling",
+  },
+];
+
+const getService = (headers) => {
+  const uri = headers["x-original-uri"];
+  const serviceHeader = headers["service"];
+
+  if (uri) {
+    for (const route of routeDefinitions) {
+      if (route.uri && uri.includes(route.uri)) {
+        return route.service;
+      } else if (
+        route.uriEndsWith &&
+        route.uriEndsWith.some((suffix) => uri.endsWith(suffix))
+      ) {
+        return route.service;
+      } else if (
+        route.uriIncludes &&
+        route.uriIncludes.some((includes) => uri.includes(includes))
+      ) {
+        return route.service;
+      }
+    }
+  } else if (serviceHeader) {
+    return serviceHeader;
+  }
+
+  return "unknown";
+};
+
+const getUserAction = (headers) => {
+  if (headers["x-original-method"]) {
+    const method = headers["x-original-method"];
+    const actionMap = {
+      PUT: "update operation",
+      DELETE: "delete operation",
+      POST: "creation operation",
+    };
+    return actionMap[method] || "Unknown Action";
+  }
+  return "Unknown Action";
+};
+
+const createUnauthorizedResponse = () => {
+  return {
+    success: false,
+    message: "Unauthorized",
+    status: httpStatus.UNAUTHORIZED,
+    errors: { message: "Unauthorized" },
+  };
+};
+
+const createValidTokenResponse = () => {
+  return {
+    success: true,
+    message: "The token is valid",
+    status: httpStatus.OK,
+  };
+};
+
+const handleServerError = (error) => {
+  const errorMessage = error.message || "Internal server error";
+  return {
+    success: false,
+    message: errorMessage,
+    status: httpStatus.INTERNAL_SERVER_ERROR,
+    errors: { message: errorMessage },
+  };
+};
+
 const controlAccess = {
   sample: async (request) => {
     try {
@@ -340,7 +454,7 @@ const controlAccess = {
     }
   },
 
-  verifyToken: async (request) => {
+  verifyToken_v1: async (request) => {
     try {
       const { query } = request;
       const { tenant } = query;
@@ -362,8 +476,18 @@ const controlAccess = {
         filter,
       });
 
-      logObject("responseFromListAccessToken", responseFromListAccessToken);
-
+      logObject(
+        "responseFromListAccessToken.data[0]",
+        responseFromListAccessToken.data[0]
+      );
+      logObject(
+        "request.headers[x-original-uri]",
+        request.headers["x-original-uri"]
+      );
+      logObject(
+        "request.headers[x-original-method]",
+        request.headers["x-original-method"]
+      );
       if (responseFromListAccessToken.success === true) {
         if (responseFromListAccessToken.status === httpStatus.NOT_FOUND) {
           let newResponse = Object.assign({}, responseFromListAccessToken);
@@ -647,6 +771,73 @@ const controlAccess = {
         errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
+    }
+  },
+
+  verifyToken: async (request) => {
+    try {
+      const { query } = request;
+      const { tenant } = query;
+      const limit = parseInt(request.query.limit, 0);
+      const skip = parseInt(request.query.skip, 0);
+      let filter = {};
+      const filterResponse = generateFilter.tokens(request);
+      const timeZone = moment.tz.guess();
+
+      if (filterResponse.success === false) {
+        return filterResponse;
+      } else {
+        filter = Object.assign({}, filterResponse);
+        filter.expires = {
+          $gt: moment().tz(timeZone).toDate(),
+        };
+      }
+
+      const responseFromListAccessToken = await AccessTokenModel(tenant).list({
+        skip,
+        limit,
+        filter,
+      });
+
+      logObject(
+        "responseFromListAccessToken.data[0]",
+        responseFromListAccessToken.data[0]
+      );
+      logObject(
+        "request.headers[x-original-uri]",
+        request.headers["x-original-uri"]
+      );
+      logObject(
+        "request.headers[x-original-method]",
+        request.headers["x-original-method"]
+      );
+
+      if (responseFromListAccessToken.success === true) {
+        if (responseFromListAccessToken.status === httpStatus.NOT_FOUND) {
+          return createUnauthorizedResponse();
+        } else if (responseFromListAccessToken.status === httpStatus.OK) {
+          const service = getService(request.headers);
+          const userAction = getUserAction(request.headers);
+
+          logObject("service", service);
+          logObject("userAction", userAction);
+
+          if (service && userAction) {
+            const user = responseFromListAccessToken.data[0].user;
+            winstonLogger.info(userAction, {
+              username: user.email,
+              email: user.email,
+              service: service,
+            });
+
+            return createValidTokenResponse();
+          }
+        }
+      } else if (responseFromListAccessToken.success === false) {
+        return responseFromListAccessToken;
+      }
+    } catch (error) {
+      return handleServerError(error);
     }
   },
 
