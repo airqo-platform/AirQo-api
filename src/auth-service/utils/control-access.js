@@ -148,8 +148,8 @@ const routeDefinitions = [
   },
   {
     uriIncludes: [
-      "/api/v2/analytics/data/download",
-      "/api/v1/analytics/data/download",
+      "/api/v2/analytics/data-download",
+      "/api/v1/analytics/data-download",
     ],
     service: "data-export-download",
   },
