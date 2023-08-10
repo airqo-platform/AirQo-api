@@ -299,32 +299,6 @@ const common = {
       };
     }
   },
-  getDocumentsByNetworkId_v1: async (tenantId, network, category) => {
-    try {
-      let cohortsQuery = CohortModel(tenantId).find({
-        network,
-      });
-      let gridsQuery = GridModel(tenantId).find({
-        network,
-      });
-
-      if (category && category === "summary") {
-        cohortsQuery = cohortsQuery.select("name description");
-        gridsQuery = gridsQuery.select("name shape.type");
-      }
-
-      const cohorts = await cohortsQuery;
-      const grids = await gridsQuery;
-      return { cohorts, grids };
-    } catch (error) {
-      return {
-        success: false,
-        status: httpStatus.INTERNAL_SERVER_ERROR,
-        errors: { message: error.message },
-        message: "Internal Server Error",
-      };
-    }
-  },
 
   getDocumentsByNetworkId: async (tenantId, network, category) => {
     try {
