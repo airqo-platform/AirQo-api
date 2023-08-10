@@ -10,7 +10,8 @@ pandas
 google-cloud-bigquery
 Flask-SQLAlchemy
 psycopg2-binary
-GeoAlchemy2
+GeoAlchemy2~=0.14.1
 geojson
-pytest
-mongomock
+pytest~=7.4.0
+mongomock~=4.1.2
+requests~=2.31.0
