@@ -612,6 +612,7 @@ class BigQueryApi:
             raise e
 
     def fetch_data(self, start_date_time: str, historical: bool = False):
+        #historical is for the actual jobs, not training
         query = f"""
                 SELECT DISTINCT timestamp as created_at, {"site_id," if historical else ""} device_number, pm2_5_calibrated_value as pm2_5
                 FROM `{configuration.BIGQUERY_HOURLY_EVENTS_TABLE}`

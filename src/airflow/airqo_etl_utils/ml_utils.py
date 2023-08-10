@@ -6,18 +6,15 @@ import mlflow
 import numpy as np
 import pandas as pd
 import pymongo as pm
-from google.oauth2 import service_account
 from lightgbm import LGBMRegressor, early_stopping
 from scipy.stats import skew
 from sklearn.metrics import mean_squared_error
 
-from .airqo_api import AirQoApi
 from .config import configuration
 
 fixed_columns = ["site_id"]
-credentials = service_account.Credentials.from_service_account_file(
-    configuration.GOOGLE_APPLICATION_CREDENTIALS
-)
+project_id = configuration.GOOGLE_CLOUD_PROJECT_ID
+bucket = configuration.FORECAST_MODELS_BUCKET
 
 
 def get_trained_model_from_gcs(project_name, bucket_name, source_blob_name):
@@ -27,18 +24,31 @@ def get_trained_model_from_gcs(project_name, bucket_name, source_blob_name):
         job = joblib.load(handle)
     return job
 
+def upload_trained_model_to_gcs(trained_model, project_name, bucket_name, source_blob_name):
+    fs = gcsfs.GCSFileSystem(project=project_name)
 
+    # backup previous model
+    try:
+        fs.rename(f'{bucket_name}/{source_blob_name}', f'{bucket_name}/{datetime.now()}-{source_blob_name}')
+        print("Bucket: previous model is backed up")
+    except:
+        print("Bucket: No file to updated")
+
+    # store new model
+    with fs.open(bucket_name + '/' + source_blob_name, 'wb') as handle:
+        job = joblib.dump(trained_model, handle)
+
+        
 class ForecastUtils:
     ###FORECAST MODEL TRAINING UTILS####
     @staticmethod
-    def preprocess_training_data(data, job_type):
+    def preprocess_training_data(data, frequency):
         data["created_at"] = pd.to_datetime(data["created_at"])
         data["device_number"] = data["device_number"].astype(str)
         data["pm2_5"] = data.groupby("device_number")["pm2_5"].transform(
             lambda x: x.interpolate(method="linear", limit_direction="both")
         )
-        data.reset_index(inplace=True)
-        if job_type == "daily":
+        if frequency == "daily":
             data = (
                 data.groupby(["device_number"])
                 .resample("D", on="created_at")
@@ -48,7 +58,6 @@ class ForecastUtils:
             data["pm2_5"] = data.groupby("device_number")["pm2_5"].transform(
                 lambda x: x.interpolate(method="linear", limit_direction="both")
             )
-            data.reset_index(inplace=True)
         data = data.dropna(subset=["pm2_5"])
         data["device_number"] = data["device_number"].astype(int)
         return data
@@ -103,25 +112,12 @@ class ForecastUtils:
 
             return df
 
+
         def get_other_features(df_tmp, freq):
-            attributes = ["year", "month", "day", "dayofweek"]
-            for a in attributes:
-                df_tmp[a] = df_tmp["created_at"].dt.__getattribute__(a)
-            if freq == "daily":
-                df_tmp["week"] = df_tmp["created_at"].dt.isocalendar().week.astype(int)
-            return df_tmp
-
-        data["created_at"] = pd.to_datetime(data["created_at"])
-
-        df_tmp = get_lag_features(data, target_column, frequency)
-        df_tmp = get_other_features(df_tmp, frequency)
-
-        return df_tmp
-
-        def get_other_features(df_tmp):
             # TODO: Experiment on impact of features
-            attributes = ["year", "month", "day", "dayofweek", "hour", "minute"]
-
+            attributes = ["year", "month", "day", "dayofweek"]
+            if freq == "hourly":
+                attributes.extend(["hour", "minute"])
             for a in attributes:
                 df_tmp[a] = df_tmp["created_at"].dt.__getattribute__(a)
             df_tmp["week"] = df_tmp["created_at"].dt.isocalendar().week.astype(int)
@@ -130,18 +126,16 @@ class ForecastUtils:
             return df_tmp
 
         data["created_at"] = pd.to_datetime(data["created_at"])
-        df_tmp = get_other_features(data)
-        df_tmp = get_lag_features(df_tmp, target_column)
+        df_tmp = get_other_features(data, frequency)
+        df_tmp = get_lag_features(df_tmp, target_column, frequency)
 
         return df_tmp
 
     @staticmethod
-    def train_hourly_forecast_model(train):  # separate code for hourly model
+    def train_and_save_hourly_forecast_model(train):  # separate code for hourly model
         """
         Perform the actual training for hourly data
         """
-        print("feature selection started.....")
-        # sort values by both device_number and created_at
         train["created_at"] = pd.to_datetime(train["created_at"])
         train = train.sort_values(by=["device_number", "created_at"])
         features = [c for c in train.columns if c not in ["created_at", "pm2_5"]]
@@ -164,7 +158,9 @@ class ForecastUtils:
         train_data.drop(columns=["created_at"], axis=1, inplace=True)
         test_data.drop(columns=["created_at"], axis=1, inplace=True)
 
+
         train_target, test_target = train_data[target_col], test_data[target_col]
+
         with mlflow.start_run():
             print("Model training started.....")
             n_estimators = 5000
@@ -174,6 +170,7 @@ class ForecastUtils:
             reg_lambda = 1
             max_depth = 1
             random_state = 1
+            quantiles = [0.05, 0.95]
 
             clf = LGBMRegressor(
                 n_estimators=n_estimators,
@@ -230,28 +227,28 @@ class ForecastUtils:
                 reg_lambda=1,
                 max_depth=-1,
                 random_state=1,
+                verbosity=2,
+
             )
             train["device_number"] = train["device_number"].astype(int)
             clf.fit(train[features], train[target_col])
-        return clf
+        upload_trained_model_to_gcs(clf, project_id, bucket, "hourly_forecast_model")
+
 
     @staticmethod
-    def train_daily_forecast_model(train):  # separate code for monthly model
+    def train_and_save_daily_forecast_model(train):  # separate code for monthly model
         train["created_at"] = pd.to_datetime(train["created_at"])
         features = [c for c in train.columns if c not in ["created_at", "pm2_5"]]
         print(features)
         target_col = "pm2_5"
         train_data, test_data = pd.DataFrame(), pd.DataFrame()
 
-        def model_to_bytes(model):
-            return joblib.dump(model, "daily_model.pkl")
-
         for device_number in train["device_number"].unique():
             device_df = train[train["device_number"] == device_number]
             device_df = device_df.sort_values(by="created_at")
             months = device_df["created_at"].dt.month.unique()
-            train_months = months[:9]
-            test_months = months[9:]
+            train_months = months[:8]
+            test_months = months[8:]
             train_df = device_df[device_df["created_at"].dt.month.isin(train_months)]
             test_df = device_df[device_df["created_at"].dt.month.isin(test_months)]
             train_data = pd.concat([train_data, train_df])
@@ -333,26 +330,18 @@ class ForecastUtils:
             train["device_number"] = train["device_number"].astype(int)
             clf.fit(train[features], train[target_col])
 
-        return clf
+        q_lower = 0.05
+        q_higher = 0.95
+        quantile_lower_model = LGBMRegressor(objective="quantile", alpha=q_lower, verbosity=2)
+        quantile_lower_model.fit(train[features], train[target_col])
+        quantile_higher_model = LGBMRegressor(objective="quantile", alpha=q_higher, verbosity=2)
+        quantile_higher_model.fit(train[features], train[target_col])
+        upload_trained_model_to_gcs(clf, project_id, bucket, "daily_forecast_model.pkl")
+        upload_trained_model_to_gcs(quantile_higher_model, project_id, bucket, "daily_forecast_model_upper.pkl")
+        upload_trained_model_to_gcs(quantile_lower_model, project_id, bucket, "daily_forecast_model_lower.pkl")
+        print('Models saved successfully')
 
-    @staticmethod
-    def upload_trained_model_to_gcs(
-        trained_model, project_name, bucket_name, source_blob_name
-    ):
-        fs = gcsfs.GCSFileSystem(project=project_name)
 
-        try:
-            fs.rename(
-                f"{bucket_name}/{source_blob_name}",
-                f"{bucket_name}/{datetime.now()}-{source_blob_name}",
-            )
-            print("Bucket: previous model is backed up")
-        except:
-            print("Bucket: No file to updated")
-
-        # store new model
-        with fs.open(bucket_name + "/" + source_blob_name, "wb") as handle:
-            job = joblib.dump(trained_model, handle)
 
     #### FORECAST JOB UTILS ####
 
@@ -431,9 +420,11 @@ class ForecastUtils:
         return df_tmp
 
     @staticmethod
-    def get_time_features(df_tmp):
+    def get_time_features(df_tmp, frequency):
         df_tmp["created_at"] = pd.to_datetime(df_tmp["created_at"])
         attributes = ["year", "month", "day", "dayofweek"]
+        if frequency == "hourly":
+            attributes.extend(["hour", "minute"])
         for a in attributes:
             df_tmp[a] = df_tmp["created_at"].dt.__getattribute__(a)
 
@@ -444,8 +435,10 @@ class ForecastUtils:
     @staticmethod
     def generate_hourly_forecasts(data, project_name, bucket_name, source_blob_name):
         data["created_at"] = pd.to_datetime(data["created_at"])
+        data["pm2_5_lower"] = np.nan
+        data["pm2_5_upper"] = np.nan
 
-        def get_new_row(df, device1, model):
+        def get_new_row(df, device1, model, lower_quantile_model, upper_quantile_model):
             last_row = df[df["device_number"] == device1].iloc[-1]
             new_row = pd.Series(index=last_row.index, dtype="float64")
             for i in fixed_columns:
@@ -496,17 +489,29 @@ class ForecastUtils:
                     1, -1
                 )
             )[0]
+            new_row["pm2_5_lower"] = lower_quantile_model.predict(
+                new_row.drop(fixed_columns + ["created_at", "pm2_5", "pm2_5_lower", "pm2_5_upper"]).values.reshape(
+                    1, -1
+                )
+            )[0]
+            new_row["pm2_5_upper"] = upper_quantile_model.predict(
+                new_row.drop(fixed_columns + ["created_at", "pm2_5", "pm2_5_upper","pm2_5_lower"]).values.reshape(
+                    1, -1
+                )
+            )[0]
             return new_row
 
         forecasts = pd.DataFrame()
         forecast_model = get_trained_model_from_gcs(
             project_name, bucket_name, source_blob_name
         )
+        lower_quantile_model = get_trained_model_from_gcs(project_name, bucket_name, "hourly_forecast_model_lower.pkl")
+        upper_quantile_model = get_trained_model_from_gcs(project_name, bucket_name, "hourly_forecast_model_upper.pkl")
         df_tmp = data.copy()
         for device in df_tmp["device_number"].unique():
             test_copy = df_tmp[df_tmp["device_number"] == device]
             for i in range(int(configuration.HOURLY_FORECAST_HORIZON)):
-                new_row = get_new_row(test_copy, device, forecast_model)
+                new_row = get_new_row(test_copy, device, forecast_model, lower_quantile_model, upper_quantile_model)
                 test_copy = pd.concat(
                     [test_copy, new_row.to_frame().T], ignore_index=True
                 )
@@ -527,8 +532,10 @@ class ForecastUtils:
     @staticmethod
     def generate_daily_forecasts(data, project_name, bucket_name, source_blob_name):
         data["created_at"] = pd.to_datetime(data["created_at"])
+        data["pm2_5_lower"] = np.nan
+        data["pm2_5_upper"] = np.nan
 
-        def get_new_row(df_tmp, device, model):
+        def get_new_row(df_tmp, device, model, lower_quantile_model, upper_quantile_model):
             last_row = df_tmp[df_tmp["device_number"] == device].iloc[-1]
             new_row = pd.Series(index=last_row.index, dtype="float64")
             for i in fixed_columns:
@@ -568,10 +575,20 @@ class ForecastUtils:
             attributes = ["year", "month", "day", "dayofweek"]
             for a in attributes:
                 new_row[a] = new_row["created_at"].__getattribute__(a)
-                new_row["week"] = new_row["created_at"].isocalendar().week
+            new_row["week"] = new_row["created_at"].isocalendar().week
 
             new_row["pm2_5"] = model.predict(
-                new_row.drop(fixed_columns + ["created_at", "pm2_5"]).values.reshape(
+                new_row.drop(fixed_columns + ["created_at", "pm2_5", "pm2_5_lower", "pm2_5_upper"]).values.reshape(
+                    1, -1
+                )
+            )[0]
+            new_row["pm2_5_lower"] = lower_quantile_model.predict(
+                new_row.drop(fixed_columns + ["created_at", "pm2_5_lower", "pm2_5", "pm2_5_upper"]).values.reshape(
+                    1, -1
+                )
+            )[0]
+            new_row["pm2_5_upper"] = upper_quantile_model.predict(
+                new_row.drop(fixed_columns + ["created_at", "pm2_5_lower", "pm2_5", "pm2_5_upper"]).values.reshape(
                     1, -1
                 )
             )[0]
@@ -579,12 +596,15 @@ class ForecastUtils:
 
         forecasts = pd.DataFrame()
 
-        model = get_trained_model_from_gcs(project_name, bucket_name, source_blob_name)
+        forecast_model = get_trained_model_from_gcs(project_name, bucket_name, source_blob_name)
+        lower_quantile_model = get_trained_model_from_gcs(project_name, bucket_name, "daily_forecast_model_lower.pkl")
+        upper_quantile_model = get_trained_model_from_gcs(project_name, bucket_name, "daily_forecast_model_upper.pkl")
+
         df_tmp = data.copy()
         for device in df_tmp["device_number"].unique():
             test_copy = df_tmp[df_tmp["device_number"] == device]
             for i in range(int(configuration.DAILY_FORECAST_HORIZON)):
-                new_row = get_new_row(test_copy, device, model)
+                new_row = get_new_row(test_copy, device, forecast_model, lower_quantile_model, upper_quantile_model)
                 test_copy = pd.concat(
                     [test_copy, new_row.to_frame().T], ignore_index=True
                 )
@@ -594,7 +614,7 @@ class ForecastUtils:
         forecasts.rename(columns={"created_at": "time"}, inplace=True)
         current_time = datetime.utcnow()
         current_time_utc = pd.Timestamp(current_time, tz="UTC")
-        result = forecasts[fixed_columns + ["time", "pm2_5", "device_number"]][
+        result = forecasts[fixed_columns + ["time", "pm2_5", "device_number", "pm2_5_lower", "pm2_5_upper"]][
             forecasts["time"] >= current_time_utc
         ]
 

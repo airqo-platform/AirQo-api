@@ -39,7 +39,7 @@ def make_forecasts():
 
     @task
     def add_timestep_features_historical_data_hourly_forecasts(data):
-        return ForecastUtils.get_time_features(data)
+        return ForecastUtils.get_time_features(data, frequency="hourly")
 
     @task()
     def make_hourly_forecasts(data):
