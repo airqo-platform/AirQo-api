@@ -196,6 +196,7 @@ const getUserAction = (headers) => {
       PUT: "update operation",
       DELETE: "delete operation",
       POST: "creation operation",
+      GET: "viewing data",
     };
     return actionMap[method] || "Unknown Action";
   }
