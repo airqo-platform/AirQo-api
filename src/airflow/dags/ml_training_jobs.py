@@ -24,7 +24,7 @@ def train_forecasting_models():
         start_date = current_date - relativedelta(
             months=int(configuration.HOURLY_FORECAST_TRAINING_JOB_SCOPE)
         )
-        start_date = date_to_str(start_date)
+        start_date = date_to_str(start_date, str_format="%Y-%m-%d")
         return BigQueryApi().fetch_data(start_date)
 
     @task()
@@ -48,7 +48,7 @@ def train_forecasting_models():
         start_date = current_date - relativedelta(
             months=int(configuration.DAILY_FORECAST_TRAINING_JOB_SCOPE)
         )
-        start_date = date_to_str(start_date)
+        start_date = date_to_str(start_date, str_format="%Y-%m-%d")
         return BigQueryApi().fetch_data(start_date)
 
     @task()
