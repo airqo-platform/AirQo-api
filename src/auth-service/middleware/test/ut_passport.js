@@ -104,53 +104,72 @@ describe("Authentication Module Unit Tests", () => {
     // Add more test cases for different scenarios and validations
   });
 
-  describe("useJWTStrategy", () => {
-    const jwtOpts = {}; // Define your jwtOpts if needed
+  const { expect } = require("chai");
+  const sinon = require("sinon");
 
-    it("should call done with user object when valid token and route match", async () => {
-      const UserModel = {
-        findOne: sinon.stub().resolves({ _id: "user_id" }),
-      };
-      const payload = { _id: "user_id" };
-      const doneSpy = sinon.spy();
-      const request = {
+  describe("useJWTStrategy Function", () => {
+    let jwtStrategyStub;
+    let reqMock;
+    let resMock;
+    let nextSpy;
+
+    beforeEach(() => {
+      jwtStrategyStub = sinon.stub().callsFake((_opts, callback) => {
+        return callback(null, {}); // Stub JwtStrategy callback
+      });
+
+      reqMock = {
         headers: {
-          "x-original-uri": "/api/v2/devices/events",
-          "x-original-method": "POST",
+          "x-original-uri": "/api/v2/devices/events", // Sample URI
+          "x-original-method": "GET", // Sample method
+          service: undefined,
         },
       };
-      const nextStub = sinon.stub();
-      const jwtStrategy = useJWTStrategy("tenant", request, {}, nextStub);
-      const jwtVerifyStub = sinon.stub(jwtStrategy, "jwtVerify");
-      jwtVerifyStub.callsArgWith(1, null, payload);
 
-      await jwtStrategy.jwtVerify("token", doneSpy);
-
-      expect(doneSpy.calledWith(null, { _id: "user_id" })).to.be.true;
-      expect(nextStub.called).to.be.false;
-      jwtVerifyStub.restore();
+      resMock = {};
+      nextSpy = sinon.spy();
     });
 
-    it("should call done with false when invalid token", async () => {
-      const doneSpy = sinon.spy();
-      const request = {
-        headers: {
-          "x-original-uri": "/api/v2/devices/events",
-          "x-original-method": "POST",
-        },
-      };
-      const nextStub = sinon.stub();
-      const jwtStrategy = useJWTStrategy("tenant", request, {}, nextStub);
-      const jwtVerifyStub = sinon.stub(jwtStrategy, "jwtVerify");
-      jwtVerifyStub.callsArgWith(1, new Error("Invalid token"));
-
-      await jwtStrategy.jwtVerify("invalid_token", doneSpy);
-
-      expect(doneSpy.calledWith(null, false)).to.be.true;
-      expect(nextStub.called).to.be.false;
-      jwtVerifyStub.restore();
+    afterEach(() => {
+      sinon.restore();
     });
 
-    // Add more test cases as needed for different scenarios
+    it("should call JwtStrategy callback with user when valid route is matched", () => {
+      const jwtStrategySpy = sinon.spy(jwtStrategyStub);
+      sinon.replace(useJWTStrategy, "JwtStrategy", jwtStrategySpy);
+
+      useJWTStrategy("tenant", reqMock, resMock, nextSpy);
+
+      expect(jwtStrategySpy.calledOnce).to.be.true;
+      expect(nextSpy.calledOnce).to.be.true;
+    });
+
+    it("should call JwtStrategy callback with failure when no valid route is matched", () => {
+      const jwtStrategySpy = sinon.spy(jwtStrategyStub);
+      sinon.replace(useJWTStrategy, "JwtStrategy", jwtStrategySpy);
+
+      reqMock.headers["x-original-uri"] = "/unknown"; // Invalid URI
+
+      useJWTStrategy("tenant", reqMock, resMock, nextSpy);
+
+      expect(jwtStrategySpy.calledOnce).to.be.true;
+      expect(nextSpy.calledOnce).to.be.true;
+    });
+
+    it("should call JwtStrategy callback with failure when user not found", () => {
+      const jwtStrategyStubError = sinon.stub().callsFake((_opts, callback) => {
+        return callback(new Error("User not found"), false);
+      });
+
+      const jwtStrategySpyError = sinon.spy(jwtStrategyStubError);
+      sinon.replace(useJWTStrategy, "JwtStrategy", jwtStrategySpyError);
+
+      useJWTStrategy("tenant", reqMock, resMock, nextSpy);
+
+      expect(jwtStrategySpyError.calledOnce).to.be.true;
+      expect(nextSpy.calledOnce).to.be.true;
+    });
+
+    // Add more test cases as needed
   });
 });

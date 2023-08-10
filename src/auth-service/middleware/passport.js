@@ -482,7 +482,9 @@ const useJWTStrategy = (tenant, req, res, next) =>
           method &&
           route.method === method &&
           uri &&
-          (route.uriEndsWith.some((suffix) => uri.endsWith(suffix)) ||
+          (!route.uriEndsWith ||
+            route.uriEndsWith.some((suffix) => uri.endsWith(suffix))) &&
+          (!route.uriIncludes ||
             route.uriIncludes.some((substring) => uri.includes(substring)))
         ) {
           service = route.service;
