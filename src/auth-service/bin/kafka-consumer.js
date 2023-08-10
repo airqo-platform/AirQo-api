@@ -12,7 +12,7 @@ const userSchema = Joi.object({
   email: Joi.string().email().empty("").required(),
 }).unknown(true);
 
-const operationFunction1 = async (messageData) => {
+const operationForNewMobileAppUser = async (messageData) => {
   try {
     logger.info(
       `KAFKA: successfully received the new User --- ${JSON.stringify({
@@ -80,7 +80,7 @@ const kafkaConsumer = async () => {
 
   // Define topic-to-operation function mapping
   const topicOperations = {
-    [constants.NEW_MOBILE_APP_USER_TOPIC]: operationFunction1,
+    [constants.NEW_MOBILE_APP_USER_TOPIC]: operationForNewMobileAppUser,
     // topic2: operationFunction2,
     // Add more topics and their corresponding functions as needed
   };
