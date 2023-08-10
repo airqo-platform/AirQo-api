@@ -295,52 +295,48 @@ const common = {
 
   getDocumentsByNetworkId: async (tenantId, network, category) => {
     try {
-      let cohortsQuery = CohortModel(tenantId)
-        .aggregate([
-          {
-            $match: { network },
+      let cohortsQuery = CohortModel(tenantId).aggregate([
+        {
+          $match: { network },
+        },
+        {
+          $lookup: {
+            from: "devices",
+            localField: "devices",
+            foreignField: "_id",
+            as: "devices",
           },
-          {
-            $lookup: {
-              from: "devices",
-              localField: "devices",
-              foreignField: "_id",
-              as: "devices",
-            },
+        },
+        {
+          $project: {
+            name: 1,
+            description: 1,
+            devices: { _id: 1, name: 1 },
           },
-          {
-            $project: {
-              name: 1,
-              description: 1,
-              devices: { _id: 1, name: 1 },
-            },
-          },
-        ])
-        .option({ maxTimeMS: 30000 });
+        },
+      ]);
 
-      let gridsQuery = GridModel(tenantId)
-        .aggregate([
-          {
-            $match: { network },
+      let gridsQuery = GridModel(tenantId).aggregate([
+        {
+          $match: { network },
+        },
+        {
+          $lookup: {
+            from: "sites",
+            localField: "sites",
+            foreignField: "_id",
+            as: "sites",
           },
-          {
-            $lookup: {
-              from: "sites",
-              localField: "sites",
-              foreignField: "_id",
-              as: "sites",
-            },
+        },
+        {
+          $project: {
+            name: 1,
+            sites: { _id: 1, name: 1 },
+            "shape.type": 1,
+            admin_level: 1,
           },
-          {
-            $project: {
-              name: 1,
-              sites: { _id: 1, name: 1 },
-              "shape.type": 1,
-              admin_level: 1,
-            },
-          },
-        ])
-        .option({ maxTimeMS: 30000 });
+        },
+      ]);
 
       const [cohorts, grids] = await Promise.all([
         cohortsQuery.exec(),
