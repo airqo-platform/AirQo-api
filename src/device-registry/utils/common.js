@@ -17,87 +17,8 @@ const geolib = require("geolib");
 const geohash = require("ngeohash");
 const httpStatus = require("http-status");
 
-const siteFieldsToExclude = [
-  "altitude",
-  "greenness",
-  "landform_90",
-  "landform_270",
-  "aspect",
-  "altitude",
-  "greenness",
-  "landform_90",
-  "landform_270",
-  "aspect",
-  "distance_to_nearest_road",
-  "distance_to_nearest_primary_road",
-  "distance_to_nearest_secondary_road",
-  "distance_to_nearest_tertiary_road",
-  "distance_to_nearest_unclassified_road",
-  "distance_to_nearest_residential_road",
-  "bearing_to_kampala_center",
-  "distance_to_kampala_center",
-  "updatedAt",
-  "nearest_tahmo_station",
-  "formatted_name",
-  "geometry",
-  "google_place_id",
-  "site_tags",
-  "street",
-  "town",
-  "village",
-  "airqlouds",
-  "description",
-  "__v",
-  "airqloud_id",
-  "createdAt",
-  "lat_long",
-  "weather_stations",
-  "site_codes",
-  "network",
-  "grids",
-];
-
-const deviceFieldsToExclude = [
-  "ISP",
-  "device_manufacturer",
-  "height",
-  "isActive",
-  "isPrimaryInLocation",
-  "latitude",
-  "locationName",
-  "longitude",
-  "mobility",
-  "mountType",
-  "nextMaintenance",
-  "owner",
-  "phoneNumber",
-  "powerType",
-  "product_name",
-  "siteName",
-  "isRetired",
-  "updatedAt",
-  "visibility",
-  "site_id",
-  "readKey",
-  "writeKey",
-  "deployment_date",
-  "isUsedForCollocation",
-  "recall_date",
-  "maintenance_date",
-  "status",
-  "device_codes",
-  "alias",
-  "cohorts",
-  "generation_version",
-  "generation_count",
-  "tags",
-  "category",
-  "pictures",
-  "__v",
-  "approximate_distance_in_km",
-  "bearing_in_radians",
-  "previous_sites",
-];
+const siteFieldsToExclude = constants.SITE_FIELDS_TO_EXCLUDE;
+const deviceFieldsToExclude = constants.DEVICE_FIELDS_TO_EXCLUDE;
 
 const sitesInclusionProjection = {
   name: 1,
@@ -407,45 +328,24 @@ const common = {
 
   getDocumentsByNetworkId: async (tenantId, network, category) => {
     try {
-      const cohortsQuery = GridModel(tenantId).aggregate([
+      const cohortsQuery = CohortModel(tenantId).aggregate([
         {
           $match: { network },
         },
         {
           $lookup: {
             from: "devices",
-            localField: "devices",
-            foreignField: "_id",
+            localField: "_id",
+            foreignField: "cohorts",
             as: "devices",
           },
         },
         {
-          $project: {
-            ...devicesInclusionProjection,
-          },
+          $project: devicesInclusionProjection,
         },
-        // {
-        //   $project: {
-        //     ...devicesInclusionProjection,
-        //     sites: {
-        //       $filter: {
-        //         input: "$devices",
-        //         as: "device",
-        //         cond: {
-        //           $not: {
-        //             $in: ["$$device.fieldNameToRemove", deviceFieldsToExclude],
-        //           },
-        //         },
-        //       },
-        //     },
-        //   },
-        // },
-        // {
-        //   $project: {
-        //     ...devicesInclusionProjection,
-        //     ...devicesExclusionProjection,
-        //   },
-        // },
+        {
+          $project: devicesExclusionProjection,
+        },
       ]);
 
       const gridsQuery = GridModel(tenantId).aggregate([
@@ -455,38 +355,18 @@ const common = {
         {
           $lookup: {
             from: "sites",
-            localField: "sites",
-            foreignField: "_id",
+            localField: "_id",
+            foreignField: "grids",
             as: "sites",
           },
         },
         {
-          $project: {
-            ...sitesInclusionProjection,
-          },
+          $project: sitesInclusionProjection,
         },
-        // {
-        //   $project: {
-        //     ...sitesInclusionProjection,
-        //     sites: {
-        //       $filter: {
-        //         input: "$sites",
-        //         as: "site",
-        //         cond: {
-        //           $not: {
-        //             $in: ["$$site.fieldNameToRemove", siteFieldsToExclude],
-        //           },
-        //         },
-        //       },
-        //     },
-        //   },
-        // },
-        // {
-        //   $project: {
-        //     ...sitesInclusionProjection,
-        //     ...sitesExclusionProjection,
-        //   },
-        // },
+
+        {
+          $project: sitesExclusionProjection,
+        },
       ]);
 
       const [cohorts, grids] = await Promise.all([
